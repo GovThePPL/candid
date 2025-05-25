@@ -10,7 +10,7 @@ servers:
   - url: https://staging-api.govtheppl.us/candid/v1
     description: Staging REST API server
   - url: wss://ws.govtheppl.us/candid/v1
-    description: Production WebSocket server
+    description: Production WebSocket server [depending on things like portability requirements, websockets could be avoided with polling or long polling]
   - url: wss://staging-ws.govtheppl.us/candid/v1
     description: Staging WebSocket server
 
@@ -1241,7 +1241,7 @@ paths:
       tags:
         - Cards
       parameters:
-        - name: categoryWeights
+        - name: categoryWeights  [is it necessary to pass these in if this request has to be done within the context of a user already?]
           in: query
           description: Weights for position categories
           schema:
@@ -1504,6 +1504,7 @@ paths:
                 email:
                   type: string
                   format: email
+                [password? helps prevent unattended phone attack, maybe not a big concern]
       responses:
         '200':
           description: Profile updated successfully
@@ -1556,7 +1557,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
                 
-  /users/me/demographics:
+  /users/me/demographics [this data is 1:1 with user settings or profile i think, possibly it could be combined?]:
     get:
       operationId: getUserDemographics
       summary: Get current user demographics
@@ -2118,7 +2119,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
                 
-  /users/me/chats:
+  /users/me/chats [at first glance, i wouldve guessed something like GET /chats/user/{user id}]:
     get:
       operationId: getUserChats
       summary: Get a list of the user's historical chats
