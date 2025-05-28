@@ -2,10 +2,10 @@
 
 *Subject to Change*
 
-* Backend: node.js docker containers (scalability)
+* Backend: node.js docker containers (scalability) [in my experience, nodejs goes through a lot of changes in terms of the language itself and the ecosystem, and has a somewhat specific audience of users. i think python is a slightly better in those regards. but ultimately it shouldnt really matter.]
 * Frontend: reactnative (allows cross platform app development), Expo
 * Database: postgres
-* Time series database for chat logs?
+* Time series database for chat logs? [just noting as a thought: this might be unnecessary depending on how portable this application needs to be]
 * CICD: github actions
 * Cloud provider: AWS
 * Comment detoxification: perspectiveapi
@@ -30,7 +30,7 @@
    - Display Name
    - password
    - Password re-entry
-- Once submitted, the “Create an Account” form hashes the password, sends the information to the backend, and the backend creates a new user with the provided information
+- Once submitted, the “Create an Account” form hashes the password, sends the information to the backend, and the backend creates a new user with the provided information [usually it is the backend that hashes the password, otherwise there are other things to consider that are not as commonly understood (eg, if the database is compromised, the string stored in the database *is* the plaintext password)]
 
 ## Users:
 - There are four types of users:
@@ -41,9 +41,9 @@
       - view their position statements
       - report position statements from other users
       - report chat logs that they have participated in
-      - View “Saved Chat Logs”
-      - View “Recent Chat Logs”
-      - View their “Position Statements” and the number of “Agrees”, “Disagrees”, and “Chat Requests” that each has garnered
+      - View “Saved Chat Logs” [rough idea of the retention period?]
+      - View “Recent Chat Logs” [rough idea of the retention period?]
+      - View their “Position Statements” and the number of “Agrees”, “Disagrees”, and “Chat Requests” that each has garnered [rough idea of the retention period?]
    - “Moderators” - these users have all the permissions of “Normal Users”, but they are additionally able to:
       - view the “moderation queue”
       - respond to items in the “moderation queue”
@@ -56,7 +56,7 @@
       - Swipe on position statements
       - Answer survey questions
       - Guests are identified with a cookie
-      - If a guest creates an account, they’re given the opportunity to retain their position statements collated via the cookie
+      - If a guest creates an account, they’re given the opportunity to retain their position statements collated via the cookie [how are guests interactions stored until they decide to create an account?]
    - User’s information is stored and retrieved from the “Database”
 
 ## Position Statement:
@@ -64,7 +64,7 @@
 - users can view a card in the “User Card Queue” that displays a single "Position Statement" posted by another user
 - A "Position Statement" card displays the username of the user who posted it in small text at the bottom, with the “Position Statement” in text that fills a substantial portion of the card
 - when a user is viewing a "Position Statement" from another user, they can interact with it in the following ways:
-    - Swiping left will register a "disagree" to the "Position Statement"
+    - Swiping left will register a "disagree" to the "Position Statement" [is there an "undo" for accidental swiping?]
     - Swiping right will register an "agree" to the "Position Statement"
     - Swiping down will register a "Pass" to the position statement
     - Swiping up will initiate a one-on-one chat request with the user that posted the statement
@@ -83,7 +83,7 @@
     - Users can respond to the "Chat Request" with "Accept" or "Dismiss"
     - If a user replies "Accept" to a "Chat Request", the user is placed in a one-on-one chat with the user that sent the "Chat Request"
     - When a “Chat Request” is pending, a countdown timer displaying the “Chat Request Timeout” is displayed
-    - When the “Chat Request Timeout” reaches zero, the chat request is automatically “Dismissed” and the “Chat Request” is retracted
+    - When the “Chat Request Timeout” reaches zero, the chat request is automatically “Dismissed” and the “Chat Request” is retracted [just curious if there is a need for a chat request timeout?]
     - When either participant “Dismisses” the “Chat Request”, the “Request” is “Dismissed” for both users
 - Users can send a message to the other participant
 - When a user attempts to send a message, its toxicity will be evaluated by “PerspectiveAPI”.  If it is found to be toxic, the user has two options:
@@ -126,7 +126,7 @@
             - “Passive Adopter” (the statement exists in the user’s positions, but is not active)
         - Actions:
             - “Permanent Ban”: the user is not able to participate again, except to appeal their ban
-            - “Temporary Ban”: the user is banned for a specified length of time
+            - “Temporary Ban”: the user is banned for a specified length of time [reliable bans can become involved, but i assume the initial idea is to just use email as the ban identifier?]
             - “Warning”: a warning is issued informing the user they should not behave in this way again
             - “Removed”: The offensive content is removed without a warning
         - In all cases the action may be accompanied by a justification from the moderator
@@ -149,14 +149,14 @@
 *This is provisional and subject to change*
 
 - user
-    - id (key)
+    - id (key) [it can be nice to prepend the table name to the pks when they have to be referenced in other tables, eg, user_id vs id]
     - username
     - email
     - password_hash
-    - join_time
+    - join_time [is this when the user was created?]
     - display_name
     - user_type
-- user_activity
+- user_activity [what types of activities does this table contain?]
     - id (key)
     - user_id (foreign_key)
     - activity_start_time
@@ -168,7 +168,7 @@
     - priority
 - kudos
     - id (key)
-    - sender_id (foreign_key)
+    - sender_id (foreign_key) [similar to comment above, eg, sender_user_id vs sender_id?]
     - receiver_id (foreign_key)
     - chat_log_id (foreign_key)
 - position
@@ -176,7 +176,7 @@
     - creator_id (foreign_key)
     - subcategory_id (foreign_key)
     - dest_location_id (foreign_key)
-    - is_subnational
+    - is_subnational [possibly it could be an enum instead of boolean, eg, local, regional, national?]
     - statement
     - created_time
     - agree_count
@@ -192,7 +192,7 @@
     - id (key)
     - parent_id (foreign_key)
     - code
-    - name
+    - name [what is the difference between code and name?]
 - affiliation
     - id (key)
     - location_id (foreign_key)
