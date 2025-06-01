@@ -92,20 +92,6 @@ components:
               weight:
                 type: string
                 enum: [most, more, default, less, least, none]
-        subcategoryWeights:
-          type: array
-          items:
-            type: object
-            required:
-              - subcategoryId
-              - weight
-            properties:
-              subcategoryId:
-                type: string
-                format: uuid
-              weight:
-                type: string
-                enum: [most, more, default, less, least, none]
 
     UserDemographics:
       type: object
@@ -139,7 +125,6 @@ components:
         - creator
         - statement
         - categoryId
-        - subcategoryId
         - status
       properties:
         id:
@@ -150,9 +135,6 @@ components:
         statement:
           type: string
         categoryId:
-          type: string
-          format: uuid
-        subcategoryId:
           type: string
           format: uuid
         createdTime:
@@ -189,7 +171,7 @@ components:
           format: uuid
         status:
           type: string
-          enum: [active, inactive, passive, deleted, removed]
+          enum: [active, inactive, deleted, removed]
         agreeCount:
           type: integer
         disagreeCount:
@@ -1267,24 +1249,6 @@ paths:
                   type: string
                   enum: [most, more, default, less, least, none]
           style: deepObject
-        - name: subcategoryWeights
-          in: query
-          description: Weights for position subcategories
-          schema:
-            type: array
-            items:
-              type: object
-              required:
-                - subcategoryId
-                - weight
-              properties:
-                subcategoryId:
-                  type: string
-                  format: uuid
-                weight:
-                  type: string
-                  enum: [most, more, default, less, least, none]
-          style: deepObject
         - name: limit
           in: query
           schema:
@@ -1328,14 +1292,10 @@ paths:
               required:
                 - statement
                 - categoryId
-                - subcategoryId
               properties:
                 statement:
                   type: string
                 categoryId:
-                  type: string
-                  format: uuid
-                subcategoryId:
                   type: string
                   format: uuid
       responses:
