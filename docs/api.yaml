@@ -493,7 +493,6 @@ components:
       type: object
       required:
         - id
-        - parentId
         - name
       properties:
         id:
@@ -502,7 +501,7 @@ components:
         parentId:
           type: string
           format: uuid
-          description: ID of the parent location
+          description: ID of the parent location (null for top-level locations)
         children:
           type: array
           items:
@@ -511,6 +510,10 @@ components:
           type: string
         name:
           type: string
+        affiliations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Affiliation'
 
     Affiliation:
       type: object
@@ -2133,23 +2136,13 @@ paths:
         - Locations
       responses:
         '200':
-          description: Complete hierarchical structure of locations
+          description: Complete hierarchical structure of locations with nested children and affiliations
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  location:
-                    type: array
-                    items:
-                      allOf:
-                        - $ref: '#/components/schemas/Location'
-                        - type: object
-                          properties:
-                            affiliations:
-                              type: array
-                              items:
-                                $ref: '#/components/schemas/Affiliation'
+                type: array
+                items:
+                  $ref: '#/components/schemas/Location'
         '401':
           description: Unauthorized - authentication required
           content:
