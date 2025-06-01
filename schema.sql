@@ -35,7 +35,7 @@ CREATE TABLE position_category (
 CREATE TABLE user_position_categories (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    position_category_id UUID NOT NULL REFERENCES position_category(id) ON DELETE CASCADE,
+    position_category_id UUID NOT NULL REFERENCES position_category(id) ON DELETE RESTRICT,
     priority INTEGER NOT NULL DEFAULT 0,
     UNIQUE(user_id, position_category_id)
 );
@@ -81,7 +81,7 @@ CREATE TABLE user_demographics (
 CREATE TABLE position (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
     creator_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
-    category_id UUID NOT NULL REFERENCES position_category(id) ON DELETE CASCADE,
+    category_id UUID NOT NULL REFERENCES position_category(id) ON DELETE RESTRICT,
     location_id UUID REFERENCES location(id) ON DELETE SET NULL,
     statement TEXT NOT NULL,
     created_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
