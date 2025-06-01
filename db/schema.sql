@@ -1,5 +1,6 @@
--- PostgreSQL 17 Schema with UUIDv4 Primary Keys
--- Based on database specification in DESIGN.md
+-- Database for Candid Chat app, based on specification in DESIGN.md
+CREATE DATABASE govtheppl; 
+
 
 -- Enable UUID extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
