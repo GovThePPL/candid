@@ -181,7 +181,7 @@ components:
           format: uuid
         status:
           type: string
-          enum: [active, inactive]
+          enum: [active, inactive, passive, deleted, removed]
         agreeCount:
           type: integer
         disagreeCount:
