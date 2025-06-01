@@ -29,6 +29,7 @@ components:
         - username
         - displayName
         - userType
+        - status
       properties:
         id:
           type: string
@@ -43,6 +44,9 @@ components:
         userType:
           type: string
           enum: [normal, moderator, admin, guest]
+        status:
+          type: string
+          enum: [active, inactive, deleted, banned]
         joinTime:
           type: string
           format: date-time
@@ -52,6 +56,7 @@ components:
         - id
         - username
         - displayName
+        - status
       properties:
         id:
           type: string
@@ -60,6 +65,9 @@ components:
           type: string
         displayName:
           type: string
+        status:
+          type: string
+          enum: [active, inactive, deleted, banned]
         trustScore:
           type: number
           format: float

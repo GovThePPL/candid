@@ -12,13 +12,14 @@ CREATE TABLE users (
     password_hash VARCHAR(255),
     created_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     display_name VARCHAR(255),
-    user_type VARCHAR(50) NOT NULL DEFAULT 'normal' CHECK (user_type IN ('normal', 'moderator', 'admin', 'guest'))
+    user_type VARCHAR(50) NOT NULL DEFAULT 'normal' CHECK (user_type IN ('normal', 'moderator', 'admin', 'guest')),
+    status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'deleted', 'banned'))
 );
 
 -- User activity tracking
 CREATE TABLE user_activity (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     activity_start_time TIMESTAMP WITH TIME ZONE NOT NULL,
     activity_end_time TIMESTAMP WITH TIME ZONE
 );
@@ -65,7 +66,7 @@ CREATE TABLE affiliation (
 -- User demographics
 CREATE TABLE user_demographics (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     location_id UUID REFERENCES location(id) ON DELETE SET NULL,
     affiliation_id UUID REFERENCES affiliation(id) ON DELETE SET NULL,
     lean VARCHAR(50),
@@ -79,7 +80,7 @@ CREATE TABLE user_demographics (
 -- Position statements
 CREATE TABLE position (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
-    creator_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    creator_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     category_id UUID NOT NULL REFERENCES position_category(id) ON DELETE CASCADE,
     location_id UUID REFERENCES location(id) ON DELETE SET NULL,
     statement TEXT NOT NULL,
@@ -135,7 +136,7 @@ CREATE TABLE chat_log (
 -- Kudos between users
 CREATE TABLE kudos (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
-    sender_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    sender_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     receiver_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     chat_log_id UUID NOT NULL REFERENCES chat_log(id) ON DELETE CASCADE,
     UNIQUE(sender_user_id, receiver_user_id, chat_log_id)
@@ -144,7 +145,7 @@ CREATE TABLE kudos (
 -- Surveys
 CREATE TABLE survey (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
-    creator_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    creator_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     position_category_id UUID REFERENCES position_category(id) ON DELETE SET NULL,
     survey_title VARCHAR(255) NOT NULL,
     created_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -178,7 +179,7 @@ CREATE TABLE survey_question_response (
 -- Moderation rules
 CREATE TABLE rule (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
-    creator_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    creator_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     title VARCHAR(255) NOT NULL,
     text TEXT NOT NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive'))
@@ -189,7 +190,7 @@ CREATE TABLE report (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
     target_object_type VARCHAR(50) NOT NULL CHECK (target_object_type IN ('position', 'chat_log')),
     target_object_id UUID NOT NULL,
-    submitter_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    submitter_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     rule_id UUID NOT NULL REFERENCES rule(id) ON DELETE CASCADE,
     status VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'dismissed', 'action_taken')),
     submitter_comment TEXT
@@ -199,7 +200,7 @@ CREATE TABLE report (
 CREATE TABLE mod_action (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
     report_id UUID NOT NULL REFERENCES report(id) ON DELETE CASCADE,
-    responder_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    responder_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     mod_response VARCHAR(50) NOT NULL CHECK (mod_response IN ('dismiss', 'take_action', 'mark_spurious')),
     mod_response_text TEXT
 );
@@ -234,7 +235,7 @@ CREATE TABLE mod_action_appeal (
 CREATE TABLE mod_action_appeal_response (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
     mod_action_appeal_id UUID NOT NULL REFERENCES mod_action_appeal(id) ON DELETE CASCADE,
-    responder_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    responder_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     appeal_response_text TEXT NOT NULL
 );
 
