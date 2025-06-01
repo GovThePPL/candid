@@ -1234,24 +1234,6 @@ paths:
       tags:
         - Cards
       parameters:
-        - name: categoryWeights
-          in: query
-          description: Weights for position categories
-          schema:
-            type: array
-            items:
-              type: object
-              required:
-                - categoryId
-                - weight
-              properties:
-                categoryId:
-                  type: string
-                  format: uuid
-                weight:
-                  type: string
-                  enum: [most, more, default, less, least, none]
-          style: deepObject
         - name: limit
           in: query
           schema:
