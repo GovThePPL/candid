@@ -130,7 +130,8 @@ CREATE TABLE chat_log (
     chat_request_id UUID NOT NULL REFERENCES chat_request(id) ON DELETE CASCADE,
     start_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     end_time TIMESTAMP WITH TIME ZONE,
-    end_type VARCHAR(50) CHECK (end_type IN ('user_exit', 'agreed_closure'))
+    end_type VARCHAR(50) CHECK (end_type IN ('user_exit', 'agreed_closure')),
+    status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'deleted', 'archived'))
 );
 
 -- Kudos between users
@@ -150,7 +151,8 @@ CREATE TABLE survey (
     survey_title VARCHAR(255) NOT NULL,
     created_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     start_time TIMESTAMP WITH TIME ZONE,
-    end_time TIMESTAMP WITH TIME ZONE
+    end_time TIMESTAMP WITH TIME ZONE,
+    status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'deleted'))
 );
 
 -- Survey questions
@@ -191,8 +193,8 @@ CREATE TABLE report (
     target_object_type VARCHAR(50) NOT NULL CHECK (target_object_type IN ('position', 'chat_log')),
     target_object_id UUID NOT NULL,
     submitter_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
-    rule_id UUID NOT NULL REFERENCES rule(id) ON DELETE CASCADE,
-    status VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'dismissed', 'action_taken')),
+    rule_id UUID REFERENCES rule(id) ON DELETE SET NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'dismissed', 'action_taken', 'deleted')),
     submitter_comment TEXT
 );
 
@@ -228,7 +230,8 @@ CREATE TABLE mod_action_appeal (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     mod_action_id UUID NOT NULL REFERENCES mod_action(id) ON DELETE CASCADE,
     appeal_text TEXT NOT NULL,
-    appeal_state VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK (appeal_state IN ('pending', 'approved', 'denied'))
+    appeal_state VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK (appeal_state IN ('pending', 'approved', 'denied')),
+    status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'deleted', 'withdrawn'))
 );
 
 -- Moderation action appeal responses
@@ -253,6 +256,9 @@ CREATE INDEX idx_response_position_id ON response(position_id);
 CREATE INDEX idx_response_user_id ON response(user_id);
 CREATE INDEX idx_chat_request_initiator_user_id ON chat_request(initiator_user_id);
 CREATE INDEX idx_chat_log_chat_request_id ON chat_log(chat_request_id);
+CREATE INDEX idx_chat_log_status ON chat_log(status);
+CREATE INDEX idx_survey_status ON survey(status);
+CREATE INDEX idx_mod_action_appeal_status ON mod_action_appeal(status);
 CREATE INDEX idx_report_target_object_type_id ON report(target_object_type, target_object_id);
 CREATE INDEX idx_report_submitter_user_id ON report(submitter_user_id);
 CREATE INDEX idx_report_status ON report(status);
