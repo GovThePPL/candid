@@ -10,7 +10,7 @@ CREATE TABLE users (
     username VARCHAR(255) UNIQUE NOT NULL,
     email VARCHAR(255) UNIQUE,
     password_hash VARCHAR(255),
-    created_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     display_name VARCHAR(255),
     user_type VARCHAR(50) NOT NULL DEFAULT 'normal' CHECK (user_type IN ('normal', 'moderator', 'admin', 'guest')),
     status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'deleted', 'banned'))
@@ -20,8 +20,8 @@ CREATE TABLE users (
 CREATE TABLE user_activity (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
     user_id UUID REFERENCES users(id) ON DELETE SET NULL,
-    activity_start_time TIMESTAMP WITH TIME ZONE NOT NULL,
-    activity_end_time TIMESTAMP WITH TIME ZONE
+    activity_start_time TIMESTAMPTZ NOT NULL,
+    activity_end_time TIMESTAMPTZ
 );
 
 -- Position categories
@@ -69,11 +69,11 @@ CREATE TABLE user_demographics (
     user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     location_id UUID REFERENCES location(id) ON DELETE SET NULL,
     affiliation_id UUID REFERENCES affiliation(id) ON DELETE SET NULL,
-    lean VARCHAR(50),
-    education VARCHAR(100),
-    geo_locale VARCHAR(100),
+    lean VARCHAR(50) CHECK (lean IN ('very_liberal', 'liberal', 'moderate', 'conservative', 'very_conservative')),
+    education VARCHAR(100) CHECK (education IN ('less_than_high_school', 'high_school', 'some_college', 'associates', 'bachelors', 'masters', 'doctorate', 'professional')),
+    geo_locale VARCHAR(100) CHECK (geo_locale IN ('urban', 'suburban', 'rural')),
     race VARCHAR(100),
-    sex VARCHAR(50),
+    sex VARCHAR(50) CHECK (sex IN ('male', 'female', 'other')),
     UNIQUE(user_id)
 );
 
@@ -84,7 +84,7 @@ CREATE TABLE position (
     category_id UUID NOT NULL REFERENCES position_category(id) ON DELETE RESTRICT,
     location_id UUID REFERENCES location(id) ON DELETE SET NULL,
     statement TEXT NOT NULL,
-    created_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     agree_count INTEGER DEFAULT 0,
     disagree_count INTEGER DEFAULT 0,
     pass_count INTEGER DEFAULT 0,
@@ -111,7 +111,7 @@ CREATE TABLE response (
     position_id UUID NOT NULL REFERENCES position(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     response VARCHAR(50) NOT NULL CHECK (response IN ('agree', 'disagree', 'pass', 'chat')),
-    created_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(position_id, user_id)
 );
 
@@ -120,16 +120,16 @@ CREATE TABLE chat_request (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
     initiator_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     user_position_id UUID NOT NULL REFERENCES user_position(id) ON DELETE CASCADE,
-    response VARCHAR(50) CHECK (response IN ('pending', 'accepted', 'dismissed', 'timeout')),
-    response_time TIMESTAMP WITH TIME ZONE
+    response VARCHAR(50) DEFAULT 'pending' CHECK (response IN ('pending', 'accepted', 'dismissed', 'timeout')),
+    response_time TIMESTAMPTZ
 );
 
 -- Chat logs
 CREATE TABLE chat_log (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
     chat_request_id UUID NOT NULL REFERENCES chat_request(id) ON DELETE CASCADE,
-    start_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    end_time TIMESTAMP WITH TIME ZONE,
+    start_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    end_time TIMESTAMPTZ,
     end_type VARCHAR(50) CHECK (end_type IN ('user_exit', 'agreed_closure')),
     status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'deleted', 'archived'))
 );
@@ -149,9 +149,9 @@ CREATE TABLE survey (
     creator_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     position_category_id UUID REFERENCES position_category(id) ON DELETE SET NULL,
     survey_title VARCHAR(255) NOT NULL,
-    created_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    start_time TIMESTAMP WITH TIME ZONE,
-    end_time TIMESTAMP WITH TIME ZONE,
+    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    start_time TIMESTAMPTZ,
+    end_time TIMESTAMPTZ,
     status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'deleted'))
 );
 
@@ -174,7 +174,7 @@ CREATE TABLE survey_question_response (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
     survey_question_option_id UUID NOT NULL REFERENCES survey_question_option(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    response_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    response_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(survey_question_option_id, user_id)
 );
 
@@ -194,7 +194,7 @@ CREATE TABLE report (
     target_object_id UUID NOT NULL,
     submitter_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     rule_id UUID REFERENCES rule(id) ON DELETE SET NULL,
-    status VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'dismissed', 'action_taken', 'deleted')),
+    status VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'dismissed', 'action_taken', 'deleted', 'spurious')),
     submitter_comment TEXT
 );
 
@@ -212,8 +212,8 @@ CREATE TABLE mod_action_class (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
     mod_action_id UUID NOT NULL REFERENCES mod_action(id) ON DELETE CASCADE,
     class VARCHAR(50) NOT NULL CHECK (class IN ('submitter', 'active_adopter', 'passive_adopter')),
-    action_start_time TIMESTAMP WITH TIME ZONE,
-    action_end_time TIMESTAMP WITH TIME ZONE,
+    action_start_time TIMESTAMPTZ,
+    action_end_time TIMESTAMPTZ,
     action VARCHAR(50) NOT NULL CHECK (action IN ('permanent_ban', 'temporary_ban', 'warning', 'removed'))
 );
 
