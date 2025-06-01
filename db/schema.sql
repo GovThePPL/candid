@@ -187,7 +187,7 @@ CREATE TABLE survey_question_response (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     survey_question_option_id UUID NOT NULL REFERENCES survey_question_option(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    response_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(survey_question_option_id, user_id)
 );
 

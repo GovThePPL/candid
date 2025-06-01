@@ -165,7 +165,7 @@
 - user_position_categories
     - id (key)
     - user_id (foreign_key)
-    - position_category (foreign_key)
+    - position_category_id (foreign_key)
     - priority
     - created_time
 - kudos
@@ -189,7 +189,7 @@
     - status (enum: 'active', 'inactive', 'removed')
 - position_category
     - id (key)
-    - Label
+    - label
     - parent_position_category_id (foreign_key)
 - location
     - id (key)
@@ -239,7 +239,7 @@
     - id (key)
     - survey_question_option_id (foreign_key)
     - user_id (foreign_key)
-    - response_time
+    - created_time
 - chat_request
     - id (key)
     - initiator_user_id (foreign_key)
