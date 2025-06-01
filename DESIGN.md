@@ -259,10 +259,10 @@
 - mod_action_class
     - id (key)
     - mod_action_id (foreign_key)
-    - class
+    - class (enum: 'submitter', 'active_adopter', 'passive_adopter')
     - action_start_time
     - action_end_time
-    - action
+    - action (enum: 'permanent_ban', 'temporary_ban', 'warning', 'removed')
 - mod_action_target
     - id (key)
     - user_id (foreign_key)
