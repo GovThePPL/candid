@@ -153,8 +153,10 @@
     - email
     - password_hash
     - created_time
+    - updated_time
     - display_name
-    - user_type
+    - user_type (enum: 'normal', 'moderator', 'admin', 'guest')
+    - status (enum: 'active', 'inactive', 'deleted', 'banned')
 - user_activity
     - id (key)
     - user_id (foreign_key)
@@ -165,11 +167,13 @@
     - user_id (foreign_key)
     - position_category (foreign_key)
     - priority
+    - created_time
 - kudos
     - id (key)
     - sender_user_id (foreign_key)
     - receiver_user_id (foreign_key)
     - chat_log_id (foreign_key)
+    - created_time
 - position
     - id (key)
     - creator_user_id (foreign_key)
@@ -177,11 +181,12 @@
     - location_id (foreign_key)
     - statement
     - created_time
+    - updated_time
     - agree_count
     - disagree_count
     - pass_count
     - chat_count
-    - status
+    - status (enum: 'active', 'inactive', 'removed')
 - position_category
     - id (key)
     - Label
@@ -199,24 +204,29 @@
     - id (key)
     - user_id (foreign_key)
     - position_id (foreign_key)
-    - status
+    - status (enum: 'active', 'inactive', 'deleted', 'removed')
     - agree_count
     - disagree_count
     - pass_count
     - chat_count
+    - created_time
+    - updated_time
 - response
     - id (key)
     - position_id (foreign_key)
     - user_id (foreign_key)
-    - response
+    - response (enum: 'agree', 'disagree', 'pass', 'chat')
+    - created_time
 - survey
     - id (key)
     - creator_user_id (foreign key)
     - position_category_id (foreign_key)
     - survey_title
     - created_time
+    - updated_time
     - start_time
     - end_time
+    - status (enum: 'active', 'inactive', 'deleted')
 - survey_question
     - id (key)
     - survey_id (foreign_key)
@@ -234,28 +244,34 @@
     - id (key)
     - initiator_user_id (foreign_key)
     - user_position_id (foreign_key)
-    - response
+    - response (enum: 'pending', 'accepted', 'dismissed', 'timeout')
     - response_time
+    - created_time
+    - updated_time
 - chat_log
     - id (key)
     - chat_request_id (foreign_key)
     - start_time
     - end_time
-    - end_type
+    - end_type (enum: 'user_exit', 'agreed_closure')
+    - status (enum: 'active', 'deleted', 'archived')
 - report
     - id (key)
-    - target_object_type
+    - target_object_type (enum: 'position', 'chat_log')
     - target_object_id (foreign_key)
     - submitter_user_id (foreign_key)
     - rule_id (foreign_key)
-    - status
+    - status (enum: 'pending', 'dismissed', 'action_taken', 'deleted', 'spurious')
     - submitter_comment
+    - created_time
+    - updated_time
 - mod_action
     - id (key)
     - report_id (foreign_key)
     - responder_user_id (foreign_key)
-    - mod_response
+    - mod_response (enum: 'dismiss', 'take_action', 'mark_spurious')
     - mod_response_text
+    - created_time
 - mod_action_class
     - id (key)
     - mod_action_id (foreign_key)
@@ -272,29 +288,38 @@
     - user_id (foreign_key)
     - mod_action_id (foreign_key)
     - appeal_text
-    - appeal_state
+    - appeal_state (enum: 'pending', 'approved', 'denied')
+    - status (enum: 'active', 'deleted', 'withdrawn')
+    - created_time
+    - updated_time
 - mod_action_appeal_response
     - id (key)
     - mod_action_appeal_id (foreign_key)
     - responder_user_id (foreign_key)
     - appeal_response_text
+    - created_time
 - user_demographics
     - id (key)
     - user_id (foreign key)
     - location_id (foreign_key)
     - affiliation_id (foreign_key)
-    - lean
-    - education
-    - geo_locale
+    - lean (enum: 'very_liberal', 'liberal', 'moderate', 'conservative', 'very_conservative')
+    - education (enum: 'less_than_high_school', 'high_school', 'some_college', 'associates', 'bachelors', 'masters', 'doctorate', 'professional')
+    - geo_locale (enum: 'urban', 'suburban', 'rural')
     - race
-    - sex
+    - sex (enum: 'male', 'female', 'other')
+    - created_time
+    - updated_time
 - user_location
     - id (key)
     - user_id (foreign_key)
     - location_id (foreign_key)
+    - created_time
 - rule
     - id (key)
     - creator_user_id (foreign_key)
     - title
     - text
-    - status
+    - status (enum: 'active', 'inactive')
+    - created_time
+    - updated_time
