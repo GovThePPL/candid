@@ -29,6 +29,7 @@ components:
         - username
         - displayName
         - userType
+        - status
       properties:
         id:
           type: string
@@ -43,6 +44,9 @@ components:
         userType:
           type: string
           enum: [normal, moderator, admin, guest]
+        status:
+          type: string
+          enum: [active, inactive, deleted, banned]
         joinTime:
           type: string
           format: date-time
@@ -52,6 +56,7 @@ components:
         - id
         - username
         - displayName
+        - status
       properties:
         id:
           type: string
@@ -60,6 +65,9 @@ components:
           type: string
         displayName:
           type: string
+        status:
+          type: string
+          enum: [active, inactive, deleted, banned]
         trustScore:
           type: number
           format: float
@@ -79,20 +87,6 @@ components:
               - weight
             properties:
               categoryId:
-                type: string
-                format: uuid
-              weight:
-                type: string
-                enum: [most, more, default, less, least, none]
-        subcategoryWeights:
-          type: array
-          items:
-            type: object
-            required:
-              - subcategoryId
-              - weight
-            properties:
-              subcategoryId:
                 type: string
                 format: uuid
               weight:
@@ -131,7 +125,6 @@ components:
         - creator
         - statement
         - categoryId
-        - subcategoryId
         - status
       properties:
         id:
@@ -142,9 +135,6 @@ components:
         statement:
           type: string
         categoryId:
-          type: string
-          format: uuid
-        subcategoryId:
           type: string
           format: uuid
         createdTime:
@@ -181,7 +171,7 @@ components:
           format: uuid
         status:
           type: string
-          enum: [active, inactive]
+          enum: [active, inactive, deleted, removed]
         agreeCount:
           type: integer
         disagreeCount:
@@ -503,7 +493,6 @@ components:
       type: object
       required:
         - id
-        - parentId
         - name
       properties:
         id:
@@ -512,7 +501,7 @@ components:
         parentId:
           type: string
           format: uuid
-          description: ID of the parent location
+          description: ID of the parent location (null for top-level locations)
         children:
           type: array
           items:
@@ -521,6 +510,10 @@ components:
           type: string
         name:
           type: string
+        affiliations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Affiliation'
 
     Affiliation:
       type: object
@@ -1241,47 +1234,12 @@ paths:
       tags:
         - Cards
       parameters:
-        - name: categoryWeights
-          in: query
-          description: Weights for position categories
-          schema:
-            type: array
-            items:
-              type: object
-              required:
-                - categoryId
-                - weight
-              properties:
-                categoryId:
-                  type: string
-                  format: uuid
-                weight:
-                  type: string
-                  enum: [most, more, default, less, least, none]
-          style: deepObject
-        - name: subcategoryWeights
-          in: query
-          description: Weights for position subcategories
-          schema:
-            type: array
-            items:
-              type: object
-              required:
-                - subcategoryId
-                - weight
-              properties:
-                subcategoryId:
-                  type: string
-                  format: uuid
-                weight:
-                  type: string
-                  enum: [most, more, default, less, least, none]
-          style: deepObject
         - name: limit
           in: query
           schema:
             type: integer
-            default: 10
+            default: 5
+            maximum: 10
           description: Maximum number of cards to return
       responses:
         '200':
@@ -1320,14 +1278,10 @@ paths:
               required:
                 - statement
                 - categoryId
-                - subcategoryId
               properties:
                 statement:
                   type: string
                 categoryId:
-                  type: string
-                  format: uuid
-                subcategoryId:
                   type: string
                   format: uuid
       responses:
@@ -2165,23 +2119,13 @@ paths:
         - Locations
       responses:
         '200':
-          description: Complete hierarchical structure of locations
+          description: Complete hierarchical structure of locations with nested children and affiliations
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  location:
-                    type: array
-                    items:
-                      allOf:
-                        - $ref: '#/components/schemas/Location'
-                        - type: object
-                          properties:
-                            affiliations:
-                              type: array
-                              items:
-                                $ref: '#/components/schemas/Affiliation'
+                type: array
+                items:
+                  $ref: '#/components/schemas/Location'
         '401':
           description: Unauthorized - authentication required
           content:
