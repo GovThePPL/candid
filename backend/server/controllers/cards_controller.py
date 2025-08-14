@@ -17,4 +17,4 @@ def get_card_queue(limit=None):  # noqa: E501
 
     :rtype: Union[List[GetCardQueue200ResponseInner], Tuple[List[GetCardQueue200ResponseInner], int], Tuple[List[GetCardQueue200ResponseInner], int, Dict[str, str]]
     """
-    return 'do some magic!'
+    return 'Custom response!'

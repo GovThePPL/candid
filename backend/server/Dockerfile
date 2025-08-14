@@ -10,6 +10,7 @@ COPY ./backend/server/openapi-config.json /usr/src/docs/
 RUN mkdir -p /usr/src/app
 WORKDIR /usr/src
 RUN openapi-generator-cli generate -i docs/api.yaml -g python-flask -o app/ -c docs/openapi-config.json
+COPY ./backend/server/controllers/ app/candid/controllers/
 
 RUN pip3 install --no-cache-dir -r app/requirements.txt --break-system-packages
 
