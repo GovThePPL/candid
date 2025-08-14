@@ -1,4 +1,4 @@
 .aider*
-backend/src/generated/
-frontend/src/generated/
+#backend/src/generated/
+#frontend/src/generated/
 

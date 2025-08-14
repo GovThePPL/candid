@@ -1,0 +1,1 @@
+This directory contains controllers for the API.  This directory is copied over `./generated/candid/controllers/` after the OpenAPI generator script is run.  These files are initially created as stubs by the generator.  When the OpenAPI spec is updated, the funtion definitions should be updated to match the generated stubs in `./generated/candid/controllers/`.

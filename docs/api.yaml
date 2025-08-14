@@ -5,12 +5,8 @@ info:
   version: 0.1.0
 
 servers:
-  - url: https://api.govtheppl.us/candid/v1
-    description: Production REST API server
-  - url: https://staging-api.govtheppl.us/candid/v1
-    description: Staging REST API server
-  - url: wss://ws.govtheppl.us/candid/v1
-    description: Production WebSocket server
+  - url: http://127.0.0.1:8080/api/v1/
+    description: Local API Server
   - url: wss://staging-ws.govtheppl.us/candid/v1
     description: Staging WebSocket server
 
@@ -96,9 +92,9 @@ components:
     UserDemographics:
       type: object
       properties:
-        locationId:
-          type: string
-          format: uuid
+#        locationId:
+#          type: string
+#          format: uuid
         lean:
           type: string
           enum: [very_liberal, liberal, moderate, conservative, very_conservative]
@@ -196,10 +192,10 @@ components:
           description: ID of the parent category (null for top-level categories)
         label:
           type: string
-        subcategories:
-          type: array
-          items:
-            $ref: '#/components/schemas/PositionCategory'
+#        subcategories:
+#          type: array
+#          items:
+#            $ref: '#/components/schemas/PositionCategory'
 
     Response:
       type: object
@@ -489,47 +485,47 @@ components:
           type: string
           format: uuid
 
-    Location:
-      type: object
-      required:
-        - id
-        - name
-      properties:
-        id:
-          type: string
-          format: uuid
-        parentId:
-          type: string
-          format: uuid
-          description: ID of the parent location (null for top-level locations)
-        children:
-          type: array
-          items:
-            $ref: '#/components/schemas/Location'
-        code:
-          type: string
-        name:
-          type: string
-        affiliations:
-          type: array
-          items:
-            $ref: '#/components/schemas/Affiliation'
+#    Location:
+#      type: object
+#      required:
+#        - id
+#        - name
+#      properties:
+#        id:
+#          type: string
+#          format: uuid
+#        parentId:
+#          type: string
+#          format: uuid
+#          description: ID of the parent location (null for top-level locations)
+#        children:
+#          type: array
+#          items:
+#            $ref: '#/components/schemas/Location'
+#        code:
+#          type: string
+#        name:
+#          type: string
+#        affiliations:
+#          type: array
+#          items:
+#            $ref: '#/components/schemas/Affiliation'
 
-    Affiliation:
-      type: object
-      required:
-        - id
-        - locationId
-        - name
-      properties:
-        id:
-          type: string
-          format: uuid
-        locationId:
-          type: string
-          format: uuid
-        name:
-          type: string
+#    Affiliation:
+#      type: object
+#      required:
+#        - id
+#        - locationId
+#        - name
+#      properties:
+#        id:
+#          type: string
+#          format: uuid
+#        locationId:
+#          type: string
+#          format: uuid
+#        name:
+#          type: string
 
     ModActionAppealResponse:
       type: object
@@ -2111,27 +2107,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
-  /locations:
-    get:
-      operationId: getAllLocations
-      summary: Get hierarchical structure of all locations and affiliations
-      tags:
-        - Locations
-      responses:
-        '200':
-          description: Complete hierarchical structure of locations with nested children and affiliations
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Location'
-        '401':
-          description: Unauthorized - authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorModel'
+#  /locations:
+#    get:
+#      operationId: getAllLocations
+#      summary: Get hierarchical structure of all locations and affiliations
+#      tags:
+#        - Locations
+#      responses:
+#        '200':
+#          description: Complete hierarchical structure of locations with nested children and affiliations
+#          content:
+#            application/json:
+#              schema:
+#                type: array
+#                items:
+#                  $ref: '#/components/schemas/Location'
+#        '401':
+#          description: Unauthorized - authentication required
+#          content:
+#            application/json:
+#              schema:
+#                $ref: '#/components/schemas/ErrorModel'
 
   /users/{userId}:
     get:
