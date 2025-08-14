@@ -1,0 +1,4 @@
+{
+  "packageName": "openapi_server",
+  "controllerPackage": "controllers"
+}
