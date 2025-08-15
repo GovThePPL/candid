@@ -49,11 +49,11 @@ INSERT INTO position (id, creator_user_id, category_id, location_id, statement, 
 ('d61ccb9d-0b69-4eac-baf8-2f786d130535', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', '63e233e9-187e-441f-a7a9-f5f44dffadf0', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'The minimum wage should be raised to $15 per hour nationally.', '2025-02-28 12:35:55+00', '2025-08-10 14:22:33+00', 0, 0, 0, 0, 'active'),
 
 -- Education positions
-('23ca2c62-3f0f-4a95-bc68-5be76481da80', '6c9344ed-0313-4b25-a616-5ac08967e84f', 'be3305f5-df1a-4cf5-855e-49a88ed3cbd3', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Public college tuition should be free for all students.', '2024-12-10 15:20:30+00', '2025-08-10 14:22:33+00', 0, 0, 0, 0, 'active'),
-('8352ed64-61bb-435f-88c5-f0404e964d25', '4a67d0e6-56a4-4396-916b-922d27db71d8', 'be3305f5-df1a-4cf5-855e-49a88ed3cbd3', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'School choice and voucher programs improve educational outcomes.', '2025-03-15 11:45:20+00', '2025-08-10 14:22:33+00', 0, 0, 0, 0, 'active'),
+('23ca2c62-3f0f-4a95-bc68-5be76481da80', '6c9344ed-0313-4b25-a616-5ac08967e84f', 'be3305f5-df1a-4cf5-855e-49a88ed3cbd3', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Public college tuition should be free for all students.', '2024-12-10 15:20:30+00', '2025-08-10 14:22:33+00', 6, 0, 1, 0, 'active'),
+('8352ed64-61bb-435f-88c5-f0404e964d25', '4a67d0e6-56a4-4396-916b-922d27db71d8', 'be3305f5-df1a-4cf5-855e-49a88ed3cbd3', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'School choice and voucher programs improve educational outcomes.', '2025-03-15 11:45:20+00', '2025-08-10 14:22:33+00', 0, 1, 2, 0, 'active'),
 ('efb3123c-6b67-44cf-b9d1-f8dfeca6915a', '735565c1-93d9-4813-b227-3d9c06b78c8f', 'be3305f5-df1a-4cf5-855e-49a88ed3cbd3', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Critical race theory should be taught in public schools.', '2024-11-05 08:30:45+00', '2025-08-10 14:22:33+00', 0, 0, 0, 0, 'removed'),
 ('939c6a46-4e79-411b-9de1-8e0874d73142', '2333392a-7c07-4733-8b46-00d32833d9bc', 'be3305f5-df1a-4cf5-855e-49a88ed3cbd3', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Student loan debt should be forgiven by the federal government.', '2025-05-20 14:10:15+00', '2025-08-10 14:22:33+00', 0, 0, 0, 0, 'active'),
-('27f11a1f-2b0e-4358-8f0f-13c3aee18d70', 'c922be05-e355-4052-8d3f-7774669ddd32', 'be3305f5-df1a-4cf5-855e-49a88ed3cbd3', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Teachers should be paid significantly higher salaries.', '2024-12-20 10:25:40+00', '2025-08-10 14:22:33+00', 0, 0, 0, 0, 'active'),
+('27f11a1f-2b0e-4358-8f0f-13c3aee18d70', 'c922be05-e355-4052-8d3f-7774669ddd32', 'be3305f5-df1a-4cf5-855e-49a88ed3cbd3', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Teachers should be paid significantly higher salaries.', '2024-12-20 10:25:40+00', '2025-08-10 14:22:33+00', 5, 0, 0, 0, 'active'),
 
 -- Environment & Climate positions
 ('ff30d27b-c18e-48a9-9eb2-ca99cf9fd75e', '010f84ad-0abd-4352-a7b3-7f9b95d51983', '66344e48-ecfe-4b7f-aa33-fe05e0d08873', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'The government should implement a carbon tax to combat climate change.', '2025-03-10 13:15:25+00', '2025-08-10 14:22:33+00', 4, 1, 0, 0, 'active'),
@@ -157,11 +157,11 @@ INSERT INTO user_position (id, user_id, position_id, status, agree_count, disagr
 ('8bfba46f-881d-4cbf-baaf-ea71f9cc1a0a', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'd61ccb9d-0b69-4eac-baf8-2f786d130535', 'active', 0, 0, 0, 0, '2025-02-28 12:35:55+00', '2025-03-10 08:15:20+00'),
 
 -- Education positions (creators adopting their own)
-('2f334966-4be6-44da-ae4e-6cfa307967f0', '6c9344ed-0313-4b25-a616-5ac08967e84f', '23ca2c62-3f0f-4a95-bc68-5be76481da80', 'active', 0, 0, 0, 0, '2024-12-10 15:20:30+00', '2025-01-18 11:35:45+00'),
-('0312f8ea-6c0a-4d06-9b31-0b059995c698', '4a67d0e6-56a4-4396-916b-922d27db71d8', '8352ed64-61bb-435f-88c5-f0404e964d25', 'active', 0, 0, 0, 0, '2025-03-15 11:45:20+00', '2025-04-28 15:20:30+00'),
+('2f334966-4be6-44da-ae4e-6cfa307967f0', '6c9344ed-0313-4b25-a616-5ac08967e84f', '23ca2c62-3f0f-4a95-bc68-5be76481da80', 'active', 6, 0, 1, 0, '2024-12-10 15:20:30+00', '2025-01-18 11:35:45+00'),
+('0312f8ea-6c0a-4d06-9b31-0b059995c698', '4a67d0e6-56a4-4396-916b-922d27db71d8', '8352ed64-61bb-435f-88c5-f0404e964d25', 'active', 0, 1, 2, 0, '2025-03-15 11:45:20+00', '2025-04-28 15:20:30+00'),
 ('24af31aa-ae3e-41fc-850a-ed8dc19595c9', '735565c1-93d9-4813-b227-3d9c06b78c8f', 'efb3123c-6b67-44cf-b9d1-f8dfeca6915a', 'deleted', 0, 0, 0, 0, '2024-11-05 08:30:45+00', '2024-12-20 14:45:10+00'),
 ('71efae51-b144-4b04-a055-9ff0d4be8f9a', '2333392a-7c07-4733-8b46-00d32833d9bc', '939c6a46-4e79-411b-9de1-8e0874d73142', 'active', 0, 0, 0, 0, '2025-05-20 14:10:15+00', '2025-07-15 09:30:25+00'),
-('927a0293-5e92-4450-a584-bd42be3386be', 'c922be05-e355-4052-8d3f-7774669ddd32', '27f11a1f-2b0e-4358-8f0f-13c3aee18d70', 'active', 0, 0, 0, 0, '2024-12-20 10:25:40+00', '2025-02-14 16:50:15+00'),
+('927a0293-5e92-4450-a584-bd42be3386be', 'c922be05-e355-4052-8d3f-7774669ddd32', '27f11a1f-2b0e-4358-8f0f-13c3aee18d70', 'active', 5, 0, 0, 0, '2024-12-20 10:25:40+00', '2025-02-14 16:50:15+00'),
 
 -- Environment & Climate positions (creators adopting their own)
 ('a6ea8b9b-59ed-4682-9cb2-80fc770c3cf7', '010f84ad-0abd-4352-a7b3-7f9b95d51983', 'ff30d27b-c18e-48a9-9eb2-ca99cf9fd75e', 'active', 0, 0, 0, 0, '2025-03-10 13:15:25+00', '2025-06-18 10:40:35+00'),
