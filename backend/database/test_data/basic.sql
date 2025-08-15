@@ -1,18 +1,53 @@
+/*
+Tables WITH test data:
+
+  1 users - 10 users (1 admin, 2 moderators, 5 normal, 2 guests)
+  2 position_category - 10 categories (Healthcare, Economy & Taxation, Education, etc.)
+  3 position - 50 position statements across all categories
+  4 location - 1 location (Oregon)
+  5 user_location - 10 entries linking all users to Oregon
+  6 affiliation - 7 political party affiliations in Oregon
+  7 user_position - 75 entries (50 creators adopting their own positions + 25 cross-adoptions)
+  8 user_activity - 32 activity sessions across all non-guest users
+  9 response - 94 user responses to positions (agree/disagree/pass)
+ 10 chat_request - 10 chat requests (5 accepted, 3 dismissed, 2 timeout)
+ 11 chat_log - 5 chat logs for the accepted requests
+ 12 kudos - 3 kudos entries (One mutual, one not)
+
+
+Tables MISSING test data:
+
+  1 user_position_categories - No user category preferences/priorities
+  2 user_demographics - No demographic data for users
+  3 survey - No surveys
+  4 survey_question - No survey questions
+  5 survey_question_option - No survey question options
+  6 survey_question_response - No survey responses
+  7 rule - No moderation rules
+  8 report - No reports
+  9 mod_action - No moderation actions
+ 10 mod_action_class - No moderation action classes
+ 11 mod_action_target - No moderation action targets
+ 12 mod_action_appeal - No moderation appeals
+ 13 mod_action_appeal_response - No appeal responses
+*/
+
 -- Test data for users
+-- (each password is password)
 INSERT INTO users (id, username, email, password_hash, created_time, updated_time, display_name, user_type, status) VALUES
 -- Admin user
-('0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'admin1', 'admin1@example.com', '', '2024-09-22 14:32:15+00', '2025-06-18 09:45:22+00', 'Admin 1', 'admin', 'active'),
+('0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'admin1', 'admin1@example.com', '$2b$14$if1z65maFt6mCfp9Vd5MNe1IgSwFQkoni3fSv/kun3mqFIyjcjvBS', '2024-09-22 14:32:15+00', '2025-06-18 09:45:22+00', 'Admin 1', 'admin', 'active'),
 
 -- Moderator users
-('a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'moderator1', 'moderator1@example.com', '', '2024-11-08 07:18:43+00', '2025-03-14 16:27:09+00', 'Moderator 1', 'moderator', 'active'),
-('010f84ad-0abd-4352-a7b3-7f9b95d51983', 'moderator2', 'moderator2@example.com', '', '2024-12-15 22:41:07+00', '2025-07-29 11:53:34+00', 'Moderator 2', 'moderator', 'active'),
+('a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'moderator1', 'moderator1@example.com', '$2b$14$if1z65maFt6mCfp9Vd5MNe1IgSwFQkoni3fSv/kun3mqFIyjcjvBS', '2024-11-08 07:18:43+00', '2025-03-14 16:27:09+00', 'Moderator 1', 'moderator', 'active'),
+('010f84ad-0abd-4352-a7b3-7f9b95d51983', 'moderator2', 'moderator2@example.com', '$2b$14$if1z65maFt6mCfp9Vd5MNe1IgSwFQkoni3fSv/kun3mqFIyjcjvBS', '2024-12-15 22:41:07+00', '2025-07-29 11:53:34+00', 'Moderator 2', 'moderator', 'active'),
 
 -- Normal users
-('6c9344ed-0313-4b25-a616-5ac08967e84f', 'normal1', 'normal1@example.com', '', '2024-10-03 16:25:51+00', '2025-01-22 08:14:17+00', 'Normal 1', 'normal', 'active'),
-('4a67d0e6-56a4-4396-916b-922d27db71d8', 'normal2', 'normal2@example.com', '', '2025-01-17 03:47:29+00', '2025-05-08 19:36:42+00', 'Normal 2', 'normal', 'active'),
-('735565c1-93d9-4813-b227-3d9c06b78c8f', 'normal3', 'normal3@example.com', '', '2024-08-29 12:09:38+00', '2025-02-11 14:58:06+00', 'Normal 3', 'normal', 'active'),
-('2333392a-7c07-4733-8b46-00d32833d9bc', 'normal4', 'normal4@example.com', '', '2025-03-05 20:33:12+00', '2025-08-01 07:21:48+00', 'Normal 4', 'normal', 'active'),
-('c922be05-e355-4052-8d3f-7774669ddd32', 'normal5', 'normal5@example.com', '', '2024-09-14 05:56:24+00', '2025-04-27 13:42:55+00', 'Normal 5', 'normal', 'active'),
+('6c9344ed-0313-4b25-a616-5ac08967e84f', 'normal1', 'normal1@example.com', '$2b$14$if1z65maFt6mCfp9Vd5MNe1IgSwFQkoni3fSv/kun3mqFIyjcjvBS', '2024-10-03 16:25:51+00', '2025-01-22 08:14:17+00', 'Normal 1', 'normal', 'active'),
+('4a67d0e6-56a4-4396-916b-922d27db71d8', 'normal2', 'normal2@example.com', '$2b$14$if1z65maFt6mCfp9Vd5MNe1IgSwFQkoni3fSv/kun3mqFIyjcjvBS', '2025-01-17 03:47:29+00', '2025-05-08 19:36:42+00', 'Normal 2', 'normal', 'active'),
+('735565c1-93d9-4813-b227-3d9c06b78c8f', 'normal3', 'normal3@example.com', '$2b$14$if1z65maFt6mCfp9Vd5MNe1IgSwFQkoni3fSv/kun3mqFIyjcjvBS', '2024-08-29 12:09:38+00', '2025-02-11 14:58:06+00', 'Normal 3', 'normal', 'active'),
+('2333392a-7c07-4733-8b46-00d32833d9bc', 'normal4', 'normal4@example.com', '$2b$14$if1z65maFt6mCfp9Vd5MNe1IgSwFQkoni3fSv/kun3mqFIyjcjvBS', '2025-03-05 20:33:12+00', '2025-08-01 07:21:48+00', 'Normal 4', 'normal', 'active'),
+('c922be05-e355-4052-8d3f-7774669ddd32', 'normal5', 'normal5@example.com', '$2b$14$if1z65maFt6mCfp9Vd5MNe1IgSwFQkoni3fSv/kun3mqFIyjcjvBS', '2024-09-14 05:56:24+00', '2025-04-27 13:42:55+00', 'Normal 5', 'normal', 'active'),
 
 -- Guest users
 ('a82b485b-114f-44b7-aa0b-8ae8ca96e4f3', 'guest1', NULL, '', '2025-02-28 18:15:03+00', '2025-07-12 10:29:37+00', 'Guest 1', 'guest', 'active'),
@@ -30,6 +65,10 @@ INSERT INTO position_category (id, label, parent_position_category_id) VALUES
 ('2d83d6eb-3000-47eb-b136-9d1c44f9b98d', 'Civil Rights & Liberties', NULL),
 ('26c8146e-d080-419e-b98b-5089c3a81b5b', 'Social Issues', NULL),
 ('cdc48d27-d636-481b-90b2-d6f6a2e6780e', 'Government & Democracy', NULL);
+
+-- Test data for locations
+INSERT INTO location (id, parent_location_id, code, name) VALUES
+('ba5e3dcf-af51-47f4-941d-ee3448ee826a', NULL, 'OR', 'Oregon');
 
 -- Test data for 50 position statements
 INSERT INTO position (id, creator_user_id, category_id, location_id, statement, created_time, updated_time, agree_count, disagree_count, pass_count, chat_count, status) VALUES
@@ -103,10 +142,6 @@ INSERT INTO position (id, creator_user_id, category_id, location_id, statement, 
 ('18df8aad-3664-4feb-a013-ff3d1c760317', '010f84ad-0abd-4352-a7b3-7f9b95d51983', 'cdc48d27-d636-481b-90b2-d6f6a2e6780e', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Campaign finance should be reformed to limit corporate influence.', '2025-07-05 08:35:20+00', '2025-08-10 14:22:33+00', 0, 0, 0, 0, 'active'),
 ('f254ac0e-0921-47af-a073-2bed3d793d74', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'cdc48d27-d636-481b-90b2-d6f6a2e6780e', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Gerrymandering should be eliminated through independent redistricting commissions.', '2025-06-10 14:10:55+00', '2025-08-10 14:22:33+00', 0, 0, 0, 0, 'active'),
 ('03755ed6-3aaf-40d0-8d8b-5e559af7f377', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'cdc48d27-d636-481b-90b2-d6f6a2e6780e', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'The Supreme Court should have term limits rather than lifetime appointments.', '2025-02-14 10:45:35+00', '2025-08-10 14:22:33+00', 0, 0, 0, 0, 'active');
-
--- Test data for locations
-INSERT INTO location (id, parent_location_id, code, name) VALUES
-('ba5e3dcf-af51-47f4-941d-ee3448ee826a', NULL, 'OR', 'Oregon');
 
 -- Test data for user_location entries
 INSERT INTO user_location (id, user_id, location_id, created_time) VALUES
