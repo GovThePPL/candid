@@ -486,3 +486,54 @@ INSERT INTO response (id, position_id, user_id, response, created_time) VALUES
 ('ffd63f1e-874b-404a-98c6-b3fba825ce04', '1ae82e39-d2a0-4047-b3e6-3bb71774eaa5', 'c922be05-e355-4052-8d3f-7774669ddd32', 'agree', '2025-05-25 13:05:00+00'),
 ('d2649f0e-308e-46e9-b740-9d0a7db73991', '05c8142d-15f5-469a-a34d-2eae28aed686', 'c922be05-e355-4052-8d3f-7774669ddd32', 'agree', '2025-05-25 13:10:00+00');
 
+-- Test data for chat requests during overlapping user activity
+INSERT INTO chat_request (id, initiator_user_id, user_position_id, response, response_time, created_time, updated_time) VALUES
+-- Chat requests during overlapping activity periods
+
+-- Request 1: Normal1 -> Normal3's position (accepted)
+('0da4d451-c6f1-47d9-aded-e4161592546c', '6c9344ed-0313-4b25-a616-5ac08967e84f', 'cd411a92-82ac-4075-abc6-f4154db00fb8', 'accepted', '2024-10-15 13:50:00+00', '2024-10-15 13:48:00+00', '2024-10-15 13:48:25+00'),
+
+-- Request 2: Normal3 -> Normal1's position (accepted)
+('c6028e49-467a-46ea-876e-32b1140dd613', '735565c1-93d9-4813-b227-3d9c06b78c8f', '8a63d2d0-9ed6-4b26-8a64-350e0594c6e4', 'accepted', '2024-12-12 15:42:00+00', '2024-12-12 15:40:00+00', '2024-12-12 15:40:20+00'),
+
+-- Request 3: Moderator1 -> Normal5's position (dismissed)
+('e1e2ba62-838c-41f4-ba5f-eea64ae988c8', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', '692acc50-7b61-4578-92d5-bfd2df47ca22', 'dismissed', '2024-12-20 10:35:00+00', '2024-12-20 10:32:00+00', '2024-12-20 10:32:15+00'),
+
+-- Request 4: Normal2 -> Admin's position (accepted)
+('3f0107a5-2c0d-44f2-b89d-7728226dda83', '4a67d0e6-56a4-4396-916b-922d27db71d8', '4c0dd7fe-2533-4794-a8e7-a97de971971e', 'accepted', '2025-02-20 10:15:00+00', '2025-02-20 10:12:00+00', '2025-02-20 10:12:30+00'),
+
+-- Request 5: Admin -> Normal2's position (accepted)
+('4b53468d-6811-4efd-84f6-7d2cd6b23106', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '5e64e6cc-baae-4f14-859b-9577a6eb2d23', 'accepted', '2025-03-10 16:45:00+00', '2025-03-10 16:42:00+00', '2025-03-10 16:42:25+00'),
+
+-- Request 6: Moderator2 -> Normal1's position (dismissed)
+('9a126967-9167-4f6f-9b0c-4c6f0a2137b4', '010f84ad-0abd-4352-a7b3-7f9b95d51983', '2f334966-4be6-44da-ae4e-6cfa307967f0', 'dismissed', '2025-03-25 08:50:00+00', '2025-03-25 08:47:00+00', '2025-03-25 08:47:20+00'),
+
+-- Request 7: Normal4 -> Normal2's position (timeout)
+('7f21a606-6986-4993-8f28-30c5b479f32d', '2333392a-7c07-4733-8b46-00d32833d9bc', '0312f8ea-6c0a-4d06-9b31-0b059995c698', 'timeout', NULL, '2025-04-20 16:25:00+00', '2025-04-20 16:25:15+00'),
+
+-- Request 8: Normal2 -> Normal4's position (dismissed)
+('ffc9be6b-d40d-4bc1-80d7-73581def1581', '4a67d0e6-56a4-4396-916b-922d27db71d8', '54fa1f40-e218-41b6-ab59-9ee3d79619af', 'dismissed', '2025-06-08 10:40:00+00', '2025-06-08 10:38:00+00', '2025-06-08 10:38:25+00'),
+
+-- Request 9: Normal5 -> Normal3's position (timeout)
+('74821334-f420-4ec0-978b-06a60c02b429', 'c922be05-e355-4052-8d3f-7774669ddd32', 'c5eb4bb6-adad-4823-bb78-242aad165c9d', 'timeout', NULL, '2025-01-15 14:52:00+00', '2025-01-15 14:52:30+00'),
+
+-- Request 10: Normal4 -> Normal5's position (accepted)
+('2f58e635-3c09-4bd7-a0d8-f52510ad30fa', '2333392a-7c07-4733-8b46-00d32833d9bc', '927a0293-5e92-4450-a584-bd42be3386be', 'accepted', '2025-07-15 14:05:00+00', '2025-07-15 14:02:00+00', '2025-07-15 14:02:20+00');
+
+-- Test data for chat logs (for accepted chat requests)
+INSERT INTO chat_log (id, chat_request_id, start_time, end_time, log, end_type, status) VALUES
+-- Chat 1: Normal1 -> Normal3's position (agreed_closure, active)
+('fc6127e3-a108-487b-8789-442ec42d41f3', '0da4d451-c6f1-47d9-aded-e4161592546c', '2024-10-15 13:48:25+00', '2024-10-15 14:05:00+00', 'chat_log_1', 'agreed_closure', 'active'),
+
+-- Chat 2: Normal3 -> Normal1's position (user_exit, active)
+('e698f2d0-10ac-422d-a80e-93c619e2f581', 'c6028e49-467a-46ea-876e-32b1140dd613', '2024-12-12 15:40:20+00', '2024-12-12 15:58:00+00', 'chat_log_2', 'user_exit', 'active'),
+
+-- Chat 3: Normal2 -> Admin's position (agreed_closure, deleted)
+('1e665c62-0dc6-45ff-acde-e32d64e5b2ea', '3f0107a5-2c0d-44f2-b89d-7728226dda83', '2025-02-20 10:12:30+00', '2025-02-20 10:35:00+00', 'chat_log_3', 'agreed_closure', 'deleted'),
+
+-- Chat 4: Admin -> Normal2's position (user_exit, archived)
+('42f99c17-36cc-438f-bca2-f411d4238a63', '4b53468d-6811-4efd-84f6-7d2cd6b23106', '2025-03-10 16:42:25+00', '2025-03-10 16:55:00+00', 'chat_log_4', 'user_exit', 'archived'),
+
+-- Chat 5: Normal4 -> Normal5's position (agreed_closure, active)
+('1d06bf99-4d87-4700-8806-63de8c905eca', '2f58e635-3c09-4bd7-a0d8-f52510ad30fa', '2025-07-15 14:02:20+00', '2025-07-15 14:25:00+00', 'chat_log_5', 'agreed_closure', 'active');
+
