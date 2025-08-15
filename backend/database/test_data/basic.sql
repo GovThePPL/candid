@@ -32,6 +32,7 @@ Tables MISSING test data:
  13 mod_action_appeal_response - No appeal responses
 */
 
+
 -- Test data for users
 -- (each password is password)
 INSERT INTO users (id, username, email, password_hash, created_time, updated_time, display_name, user_type, status) VALUES
