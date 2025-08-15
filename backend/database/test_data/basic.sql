@@ -104,4 +104,7 @@ INSERT INTO position (id, creator_user_id, category_id, statement, created_time,
 ('f254ac0e-0921-47af-a073-2bed3d793d74', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'cdc48d27-d636-481b-90b2-d6f6a2e6780e', 'Gerrymandering should be eliminated through independent redistricting commissions.', '2025-06-10 14:10:55+00', '2025-08-10 14:22:33+00', 0, 0, 0, 0, 'active'),
 ('03755ed6-3aaf-40d0-8d8b-5e559af7f377', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'cdc48d27-d636-481b-90b2-d6f6a2e6780e', 'The Supreme Court should have term limits rather than lifetime appointments.', '2025-02-14 10:45:35+00', '2025-08-10 14:22:33+00', 0, 0, 0, 0, 'active');
 
+-- Test data for locations
+INSERT INTO location (id, parent_location_id, code, name) VALUES
+('ba5e3dcf-af51-47f4-941d-ee3448ee826a', NULL, 'OR', 'Oregon');
 
