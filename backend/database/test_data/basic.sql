@@ -430,6 +430,7 @@ INSERT INTO response (id, position_id, user_id, response, created_time) VALUES
 ('19cb7b39-18a3-43be-a3a7-cdf07a72342a', 'c922be05-e355-4052-8d3f-7774669ddd32', '2025-05-25 12:40:00+00', '2025-05-25 13:15:00+00');
 
 -- Additional user responses to positions
+INSERT INTO response (id, position_id, user_id, response, created_time) VALUES
 -- Admin user additional responses (8 more)
 ('975206d0-23b0-429d-943e-359772eeb907', '9ebe265e-1429-473a-8d27-7313997ffe88', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'agree', '2025-05-10 10:20:00+00'),
 ('15e2401a-a6a6-415f-91c5-cc8a6f269d2f', '038653a6-1008-4acf-a31b-8ebc31b3611d', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'agree', '2025-05-10 10:25:00+00'),
@@ -441,6 +442,7 @@ INSERT INTO response (id, position_id, user_id, response, created_time) VALUES
 ('a9fd46a9-cbe8-4e76-8496-40b9d193e729', '7a8282a2-b011-4740-87ab-f42a425851ea', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'disagree', '2025-05-10 10:46:00+00'),
 
 -- Moderator1 additional responses (12 more)
+INSERT INTO response (id, position_id, user_id, response, created_time) VALUES
 ('b9c0b090-87a1-4db4-9b1c-213cd3cceac0', '4f315b6a-9b23-4b1c-8443-f8df6c7d3cae', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'agree', '2025-06-12 14:25:00+00'),
 ('bdf14aad-7b9a-45aa-8ce2-0ae2d220837c', '188865ae-0b16-499c-b3cb-1ede81a14518', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'pass', '2025-06-12 14:30:00+00'),
 ('45ff2b8f-b4a5-4479-8e74-065088cb2d87', '20fabff1-a37a-4941-8bc8-4f082da6a189', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'agree', '2025-06-12 14:35:00+00'),
@@ -455,6 +457,7 @@ INSERT INTO response (id, position_id, user_id, response, created_time) VALUES
 ('953a87b9-dc1d-44c8-81a3-9d43518f81b8', 'da947f66-41f4-4fb5-bab7-342015205947', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'disagree', '2025-06-12 14:59:00+00'),
 
 -- Moderator2 additional responses (10 more)
+INSERT INTO response (id, position_id, user_id, response, created_time) VALUES
 ('1540fa45-95da-4b41-a703-18713a797e54', '9ebe265e-1429-473a-8d27-7313997ffe88', '010f84ad-0abd-4352-a7b3-7f9b95d51983', 'agree', '2025-07-08 09:35:00+00'),
 ('7ec5bf31-890f-4337-abb4-e6c8512735ac', '038653a6-1008-4acf-a31b-8ebc31b3611d', '010f84ad-0abd-4352-a7b3-7f9b95d51983', 'agree', '2025-07-08 09:40:00+00'),
 ('01bc2564-8ca5-4057-9779-921011a17000', '2e3afe8d-1b4a-4a09-bcc1-965a43abf666', '010f84ad-0abd-4352-a7b3-7f9b95d51983', 'agree', '2025-07-08 09:45:00+00'),
@@ -467,6 +470,7 @@ INSERT INTO response (id, position_id, user_id, response, created_time) VALUES
 ('a6134632-4426-4cee-b8c5-75727a68250f', '4b15f919-3b0b-44fa-a1ab-5edace80f7d1', '010f84ad-0abd-4352-a7b3-7f9b95d51983', 'pass', '2025-07-08 10:08:00+00'),
 
 -- Normal1 additional responses (9 more)
+INSERT INTO response (id, position_id, user_id, response, created_time) VALUES
 ('02455a4c-c11a-4309-9155-7b8fceb54cb3', '9ebe265e-1429-473a-8d27-7313997ffe88', '6c9344ed-0313-4b25-a616-5ac08967e84f', 'agree', '2025-03-15 16:50:00+00'),
 ('7f404e51-6056-4a87-a80f-4667f6d470ec', '2e3afe8d-1b4a-4a09-bcc1-965a43abf666', '6c9344ed-0313-4b25-a616-5ac08967e84f', 'agree', '2025-03-15 16:55:00+00'),
 ('1f0c7e6d-b6fa-40df-b62f-f37b5fe43318', '4eb36f7a-5f7d-4c9f-9837-0b20f35fe0a9', '6c9344ed-0313-4b25-a616-5ac08967e84f', 'agree', '2025-03-15 17:00:00+00'),
@@ -478,6 +482,7 @@ INSERT INTO response (id, position_id, user_id, response, created_time) VALUES
 ('73756af8-61c1-4d02-b3a2-017500581cfe', 'b1b80da2-5299-4e40-92c7-afc57d849a87', '6c9344ed-0313-4b25-a616-5ac08967e84f', 'agree', '2025-03-15 17:18:00+00'),
 
 -- Normal2 additional responses (11 more)
+INSERT INTO response (id, position_id, user_id, response, created_time) VALUES
 ('e709e87f-fa60-4743-8ea5-4ce185579423', '9ebe265e-1429-473a-8d27-7313997ffe88', '4a67d0e6-56a4-4396-916b-922d27db71d8', 'agree', '2025-07-20 11:15:00+00'),
 ('cc9c5450-a51c-4ecc-af8f-0699fdf9ac8d', '038653a6-1008-4acf-a31b-8ebc31b3611d', '4a67d0e6-56a4-4396-916b-922d27db71d8', 'agree', '2025-07-20 11:20:00+00'),
 ('e0c12bb1-eb00-4e0c-ac0f-ac2617224aec', '4eb36f7a-5f7d-4c9f-9837-0b20f35fe0a9', '4a67d0e6-56a4-4396-916b-922d27db71d8', 'agree', '2025-07-20 11:25:00+00'),
@@ -491,6 +496,7 @@ INSERT INTO response (id, position_id, user_id, response, created_time) VALUES
 ('0268ed5c-8f76-4890-871e-ee2db7215640', '32fa7813-adb5-41bb-9bea-3e92b98851af', '4a67d0e6-56a4-4396-916b-922d27db71d8', 'agree', '2025-07-20 11:50:00+00'),
 
 -- Normal3 additional responses (7 more)
+INSERT INTO response (id, position_id, user_id, response, created_time) VALUES
 ('7024b13d-6da5-4e06-bd00-6c96b8fa67fd', '9ebe265e-1429-473a-8d27-7313997ffe88', '735565c1-93d9-4813-b227-3d9c06b78c8f', 'agree', '2025-03-20 13:30:00+00'),
 ('087a49f4-4af9-4542-be20-f9d0fffeb2c2', '038653a6-1008-4acf-a31b-8ebc31b3611d', '735565c1-93d9-4813-b227-3d9c06b78c8f', 'agree', '2025-03-20 13:35:00+00'),
 ('7e2711e1-ced9-4f25-93ee-41fb73617be0', '2e3afe8d-1b4a-4a09-bcc1-965a43abf666', '735565c1-93d9-4813-b227-3d9c06b78c8f', 'agree', '2025-03-20 13:40:00+00'),
@@ -500,6 +506,7 @@ INSERT INTO response (id, position_id, user_id, response, created_time) VALUES
 ('a89c1666-d9b9-4cf9-9146-9464d3d1ae45', '05c8142d-15f5-469a-a34d-2eae28aed686', '735565c1-93d9-4813-b227-3d9c06b78c8f', 'agree', '2025-03-20 13:58:00+00'),
 
 -- Normal4 additional responses (13 more)
+INSERT INTO response (id, position_id, user_id, response, created_time) VALUES
 ('831c50e2-9259-4b31-928e-6d27d4f095ef', '9ebe265e-1429-473a-8d27-7313997ffe88', '2333392a-7c07-4733-8b46-00d32833d9bc', 'agree', '2025-08-05 15:35:00+00'),
 ('e9b6a1b0-59cb-4c48-ab8e-634fe3d1afec', '038653a6-1008-4acf-a31b-8ebc31b3611d', '2333392a-7c07-4733-8b46-00d32833d9bc', 'agree', '2025-08-05 15:40:00+00'),
 ('a086a1dc-6c45-4db8-b4c9-3dc87db80675', '2e3afe8d-1b4a-4a09-bcc1-965a43abf666', '2333392a-7c07-4733-8b46-00d32833d9bc', 'agree', '2025-08-05 15:45:00+00'),
@@ -515,6 +522,7 @@ INSERT INTO response (id, position_id, user_id, response, created_time) VALUES
 ('9f0f8433-98d3-4ea8-9143-6597b2680d0f', '32fa7813-adb5-41bb-9bea-3e92b98851af', '2333392a-7c07-4733-8b46-00d32833d9bc', 'agree', '2025-08-05 16:08:00+00'),
 
 -- Normal5 additional responses (6 more)
+INSERT INTO response (id, position_id, user_id, response, created_time) VALUES
 ('f4d44ccf-c77a-4945-aa4d-8bd4d1cae757', '9ebe265e-1429-473a-8d27-7313997ffe88', 'c922be05-e355-4052-8d3f-7774669ddd32', 'agree', '2025-05-25 12:45:00+00'),
 ('100546cf-0bd2-4e70-a90b-9a0f7a6cd5cb', '038653a6-1008-4acf-a31b-8ebc31b3611d', 'c922be05-e355-4052-8d3f-7774669ddd32', 'agree', '2025-05-25 12:50:00+00'),
 ('1d903023-2baf-4332-ab7f-0e46dbfc2082', '2e3afe8d-1b4a-4a09-bcc1-965a43abf666', 'c922be05-e355-4052-8d3f-7774669ddd32', 'agree', '2025-05-25 12:55:00+00'),
@@ -527,7 +535,7 @@ INSERT INTO chat_request (id, initiator_user_id, user_position_id, response, res
 -- Chat requests during overlapping activity periods
 
 -- Request 1: Normal1 -> Normal3's position (accepted)
-('0da4d451-c6f1-47d9-aded-e4161592546c', '6c9344ed-0313-4b25-a616-5ac08967e84f', 'cd411a92-82ac-4075-abc6-f4154db00fb8', 'accepted', '2024-10-15 13:50:00+00', '2024-10-15 13:48:00+00', '2024-10-15 13:48:25+00'),
+('0da4d451-c6f1-47d9-aded-e4161592546c', '6c9344ed-0313-4b25-a616-5ac08967e84f', 'cd411a92-82ac-4075-abc6-f4154db00fb8', 'accepted', '2024-10-15 13:50:00+00', '2024-10-15 13:48:00+00', '2024-10-15 13:50:00+00'),
 
 -- Request 2: Normal3 -> Normal1's position (accepted)
 ('c6028e49-467a-46ea-876e-32b1140dd613', '735565c1-93d9-4813-b227-3d9c06b78c8f', '8a63d2d0-9ed6-4b26-8a64-350e0594c6e4', 'accepted', '2024-12-12 15:42:00+00', '2024-12-12 15:40:00+00', '2024-12-12 15:40:20+00'),
