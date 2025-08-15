@@ -24,7 +24,7 @@ cp ./controllers/* generated/candid/controllers/
 echo "Copied controllers from ./controllers/"
 
 echo "Build and run the container:"
-echo "	sudo docker build -t candid ./generated/ && sudo docker run -p 8080:8080 candid"
+echo "	sudo docker build -t candid ./generated/ && sudo docker run -p 8000:8000 candid"
 echo ""
 echo "Then access the API UI:"
-echo "	http://127.0.0.1:8080/api/v1/ui"
+echo "	http://127.0.0.1:8000/api/v1/ui"

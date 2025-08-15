@@ -1,0 +1,56 @@
+.header {
+	background-color: #ffffff;
+	box-sizing: border-box;
+	filter: drop-shadow(5px 5px 10px rgba(0, 0, 0, 0.5));
+	height: 6em;
+	padding: 1em;
+	position: relative;
+	width: 100%;
+}
+
+.header .back {
+	background-color: var(--primary-color);
+	border-radius: 2em;
+	color: #ffffff;
+	float: left;
+	font-size: 2em;
+	line-height: 2em;
+	margin-right: 1em;
+	padding: 0 0.5em;
+}
+
+.header .kudos {
+	background-color: var(--secondary-color);
+	border-radius: 2em;
+	color: var(--primary-color);
+	float: right;
+	font-size: 2em;
+	line-height: 2em;
+	margin-right: 1em;
+	padding: 0 0.5em;
+}
+
+.header .logo {
+	color: var(--primary-color);
+	float: left;
+	font-family: "Sofia";
+	font-size: 4em;
+	font-style: italic;
+	font-weight: 600;
+	margin-top: -1rem;
+}
+
+.header .user {
+	background-color: #cccccc;
+	background-position: center;
+	background-repeat: no-repeat;
+	background-size: contain;
+	border: 0.25em solid var(--secondary-color);
+	border-radius: 2em;
+	box-sizing: border-box;
+	color: var(--primary-color);
+	float: right;
+	height: 4em;
+	margin-right: 2em;
+	width: 4em;
+}

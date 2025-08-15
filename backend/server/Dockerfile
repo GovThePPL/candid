@@ -14,7 +14,7 @@ COPY ./backend/server/controllers/ app/candid/controllers/
 
 RUN pip3 install --no-cache-dir -r app/requirements.txt --break-system-packages
 
-EXPOSE 8080
+EXPOSE 8000
 
 WORKDIR /usr/src/app/
 

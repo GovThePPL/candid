@@ -1,5 +1,6 @@
 {
   "packageName": "candid",
   "packageVersion": "1.0.0",
-  "controllerPackage": "controllers"
+  "controllerPackage": "controllers",
+  "serverPort": "8000"
 }

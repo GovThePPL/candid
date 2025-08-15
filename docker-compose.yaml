@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+    api:
+        build:
+            context: .
+            dockerfile: backend/server/Dockerfile
+        ports:
+            - "8000:8000"
+        environment:
+            DATABASE_URL: postgresql://user:password@db:5432/candid
+            FLASK_ENV: dev
+            FLASK_APP: "app.app:create_app"
+        depends_on:
+            - db
+        volumes:
+            - .:/app # Mount current directory to /app in container for development
+    db:
+        build:
+            context: backend/database/
+            dockerfile: ./Dockerfile
+        ports:
+            - "5432:5432"
+        volumes:
+            - postgres_data:/var/lib/postgresql/data # Persist data
+    ui:
+        image: nginx:alpine  # Use a lightweight Nginx image
+        ports:
+          - "8001:80"          # Map host port 80 to container port 80
+        depends_on:
+            - api
+        volumes:
+          - ./frontend/static:/usr/share/nginx/html:ro # Mount your static files
+
+volumes:
+    postgres_data:
