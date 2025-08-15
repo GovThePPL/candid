@@ -128,3 +128,13 @@ INSERT INTO user_location (id, user_id, location_id, created_time) VALUES
 ('4da28b06-580f-4280-81a6-2e54bf82289c', 'a82b485b-114f-44b7-aa0b-8ae8ca96e4f3', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '2025-03-02 20:22:40+00'),
 ('c085a592-8889-4bd2-9854-95bad1ca419d', 'a2ec25a9-2a12-4a01-baf8-c0d1e254c3db', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '2024-12-09 13:15:28+00');
 
+-- Test data for political party affiliations in Oregon
+INSERT INTO affiliation (id, location_id, name) VALUES
+('6a76fec7-bf77-4333-937f-07d48c1ae966', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Democratic Party of Oregon'),
+('3373d56e-2776-4524-9ef6-2053b85df3c3', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Oregon Republican Party'),
+('9bfb76d1-0857-47bc-9e10-c7df3e25e762', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Libertarian Party of Oregon'),
+('c0e94b05-8722-4a67-afe4-0e6b255a2145', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Pacific Green Party of Oregon'),
+('13331565-3538-4ff4-a94c-3ca47779220f', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Independent Party of Oregon'),
+('6388f9ea-5668-4823-9607-a0a8a746b503', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Working Families Party of Oregon'),
+('580e9aa8-08b0-4b58-a297-888bee037327', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Constitution Party of Oregon');
+
