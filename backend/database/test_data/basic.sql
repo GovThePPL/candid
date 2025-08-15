@@ -1,7 +1,4 @@
--- Test data for 10 users named by their roles
--- Password hashes are left blank as requested
--- Created times are random over the last year, updated times are random between created_time and today (8/14/2025)
-
+-- Test data for users
 INSERT INTO users (id, username, email, password_hash, created_time, updated_time, display_name, user_type, status) VALUES
 -- Admin user
 ('0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'admin1', 'admin1@example.com', '', '2024-09-22 14:32:15+00', '2025-06-18 09:45:22+00', 'Admin 1', 'admin', 'active'),
@@ -21,9 +18,7 @@ INSERT INTO users (id, username, email, password_hash, created_time, updated_tim
 ('a82b485b-114f-44b7-aa0b-8ae8ca96e4f3', 'guest1', NULL, '', '2025-02-28 18:15:03+00', '2025-07-12 10:29:37+00', 'Guest 1', 'guest', 'active'),
 ('a2ec25a9-2a12-4a01-baf8-c0d1e254c3db', 'guest2', NULL, '', '2024-12-07 09:44:16+00', '2025-08-09 15:07:28+00', 'Guest 2', 'guest', 'active');
 
--- Test data for position categories
--- 10 top-level categories covering major political domains
-
+-- Test data for position_categories
 INSERT INTO position_category (id, label, parent_position_category_id) VALUES
 ('4d439108-2128-46ec-b4b2-80ec3dbf6aa3', 'Healthcare', NULL),
 ('63e233e9-187e-441f-a7a9-f5f44dffadf0', 'Economy & Taxation', NULL),
@@ -35,3 +30,5 @@ INSERT INTO position_category (id, label, parent_position_category_id) VALUES
 ('2d83d6eb-3000-47eb-b136-9d1c44f9b98d', 'Civil Rights & Liberties', NULL),
 ('26c8146e-d080-419e-b98b-5089c3a81b5b', 'Social Issues', NULL),
 ('cdc48d27-d636-481b-90b2-d6f6a2e6780e', 'Government & Democracy', NULL);
+
+
