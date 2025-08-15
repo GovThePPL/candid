@@ -20,3 +20,18 @@ INSERT INTO users (id, username, email, password_hash, created_time, updated_tim
 -- Guest users
 ('99999999-9999-9999-9999-999999999999', 'guest1', NULL, '', '2025-02-28 18:15:03+00', '2025-07-12 10:29:37+00', 'Guest 1', 'guest', 'active'),
 ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'guest2', NULL, '', '2024-12-07 09:44:16+00', '2025-08-09 15:07:28+00', 'Guest 2', 'guest', 'active');
+
+-- Test data for position categories
+-- 10 top-level categories covering major political domains
+
+INSERT INTO position_category (id, label, parent_position_category_id) VALUES
+('c1111111-1111-1111-1111-111111111111', 'Healthcare', NULL),
+('c2222222-2222-2222-2222-222222222222', 'Economy & Taxation', NULL),
+('c3333333-3333-3333-3333-333333333333', 'Education', NULL),
+('c4444444-4444-4444-4444-444444444444', 'Environment & Climate', NULL),
+('c5555555-5555-5555-5555-555555555555', 'Immigration', NULL),
+('c6666666-6666-6666-6666-666666666666', 'Criminal Justice', NULL),
+('c7777777-7777-7777-7777-777777777777', 'Foreign Policy & Defense', NULL),
+('c8888888-8888-8888-8888-888888888888', 'Civil Rights & Liberties', NULL),
+('c9999999-9999-9999-9999-999999999999', 'Social Issues', NULL),
+('caaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Government & Democracy', NULL);
