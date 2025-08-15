@@ -315,7 +315,17 @@ INSERT INTO user_activity (id, user_id, activity_start_time, activity_end_time) 
 -- Normal5 activity sessions
 ('4b8e0f4f-625b-4e49-b0c3-c91d6a598f2f', 'c922be05-e355-4052-8d3f-7774669ddd32', '2024-11-25 10:20:00+00', '2024-11-25 10:55:00+00'),
 ('48442004-db79-4579-909d-ba916588ba0e', 'c922be05-e355-4052-8d3f-7774669ddd32', '2025-01-15 14:40:00+00', '2025-01-15 15:15:00+00'),
-('05f03188-608a-4af8-95d6-0e9439309217', 'c922be05-e355-4052-8d3f-7774669ddd32', '2025-03-08 12:25:00+00', '2025-03-08 13:00:00+00');
+('05f03188-608a-4af8-95d6-0e9439309217', 'c922be05-e355-4052-8d3f-7774669ddd32', '2025-03-08 12:25:00+00', '2025-03-08 13:00:00+00'),
+
+-- Additional user activity sessions for more responses
+('5c00ee6b-fbd4-4c8e-a2f0-4b9bc3a60587', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-05-10 10:15:00+00', '2025-05-10 10:45:00+00'),
+('f78e1d94-bcf3-447a-8b62-c60571b8272d', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', '2025-06-12 14:20:00+00', '2025-06-12 14:55:00+00'),
+('cf850f67-5ec1-4766-b07f-faf6109eb042', '010f84ad-0abd-4352-a7b3-7f9b95d51983', '2025-07-08 09:30:00+00', '2025-07-08 10:10:00+00'),
+('d21796d0-4acf-4db2-92c1-d280ce9e5abc', '6c9344ed-0313-4b25-a616-5ac08967e84f', '2025-03-15 16:45:00+00', '2025-03-15 17:20:00+00'),
+('2ed4b81b-a4a6-4b6e-8f5c-6f151239ab5a', '4a67d0e6-56a4-4396-916b-922d27db71d8', '2025-07-20 11:10:00+00', '2025-07-20 11:50:00+00'),
+('c40d543e-be6a-4bff-a6f5-9f438a0d2fa5', '735565c1-93d9-4813-b227-3d9c06b78c8f', '2025-03-20 13:25:00+00', '2025-03-20 14:00:00+00'),
+('7a25b912-bbf3-4d36-acd3-5e9946d721ec', '2333392a-7c07-4733-8b46-00d32833d9bc', '2025-08-05 15:30:00+00', '2025-08-05 16:05:00+00'),
+('19cb7b39-18a3-43be-a3a7-cdf07a72342a', 'c922be05-e355-4052-8d3f-7774669ddd32', '2025-05-25 12:40:00+00', '2025-05-25 13:15:00+00');
 
 -- Test data for user responses to positions
 INSERT INTO response (id, position_id, user_id, response, created_time) VALUES
@@ -419,18 +429,6 @@ INSERT INTO response (id, position_id, user_id, response, created_time) VALUES
 ('2e47e2cb-9185-4a43-b950-7f2cf2cceb2d', '188865ae-0b16-499c-b3cb-1ede81a14518', 'c922be05-e355-4052-8d3f-7774669ddd32', 'pass', '2025-03-08 12:30:00+00'),
 ('9edee461-1cf9-4a09-a3ad-b9d3b9508bf9', '20fabff1-a37a-4941-8bc8-4f082da6a189', 'c922be05-e355-4052-8d3f-7774669ddd32', 'agree', '2025-03-08 12:35:00+00'),
 
--- Additional user activity sessions for more responses
-('5c00ee6b-fbd4-4c8e-a2f0-4b9bc3a60587', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-05-10 10:15:00+00', '2025-05-10 10:45:00+00'),
-('f78e1d94-bcf3-447a-8b62-c60571b8272d', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', '2025-06-12 14:20:00+00', '2025-06-12 14:55:00+00'),
-('cf850f67-5ec1-4766-b07f-faf6109eb042', '010f84ad-0abd-4352-a7b3-7f9b95d51983', '2025-07-08 09:30:00+00', '2025-07-08 10:10:00+00'),
-('d21796d0-4acf-4db2-92c1-d280ce9e5abc', '6c9344ed-0313-4b25-a616-5ac08967e84f', '2025-03-15 16:45:00+00', '2025-03-15 17:20:00+00'),
-('2ed4b81b-a4a6-4b6e-8f5c-6f151239ab5a', '4a67d0e6-56a4-4396-916b-922d27db71d8', '2025-07-20 11:10:00+00', '2025-07-20 11:50:00+00'),
-('c40d543e-be6a-4bff-a6f5-9f438a0d2fa5', '735565c1-93d9-4813-b227-3d9c06b78c8f', '2025-03-20 13:25:00+00', '2025-03-20 14:00:00+00'),
-('7a25b912-bbf3-4d36-acd3-5e9946d721ec', '2333392a-7c07-4733-8b46-00d32833d9bc', '2025-08-05 15:30:00+00', '2025-08-05 16:05:00+00'),
-('19cb7b39-18a3-43be-a3a7-cdf07a72342a', 'c922be05-e355-4052-8d3f-7774669ddd32', '2025-05-25 12:40:00+00', '2025-05-25 13:15:00+00');
-
--- Additional user responses to positions
-INSERT INTO response (id, position_id, user_id, response, created_time) VALUES
 -- Admin user additional responses (8 more)
 ('975206d0-23b0-429d-943e-359772eeb907', '9ebe265e-1429-473a-8d27-7313997ffe88', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'agree', '2025-05-10 10:20:00+00'),
 ('15e2401a-a6a6-415f-91c5-cc8a6f269d2f', '038653a6-1008-4acf-a31b-8ebc31b3611d', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'agree', '2025-05-10 10:25:00+00'),
@@ -539,7 +537,7 @@ INSERT INTO chat_request (id, initiator_user_id, user_position_id, response, res
 -- Request 4: Normal2 -> Admin's position (accepted)
 ('3f0107a5-2c0d-44f2-b89d-7728226dda83', '4a67d0e6-56a4-4396-916b-922d27db71d8', '4c0dd7fe-2533-4794-a8e7-a97de971971e', 'accepted', '2025-02-20 10:15:00+00', '2025-02-20 10:12:00+00', '2025-02-20 10:12:30+00'),
 
--- Request 5: Admin -> Normal2's position (accepted)
+-- Request 5: Admin -> Normal2's position (accepted)`
 ('4b53468d-6811-4efd-84f6-7d2cd6b23106', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '5e64e6cc-baae-4f14-859b-9577a6eb2d23', 'accepted', '2025-03-10 16:45:00+00', '2025-03-10 16:42:00+00', '2025-03-10 16:42:25+00'),
 
 -- Request 6: Moderator2 -> Normal1's position (dismissed)
