@@ -70,23 +70,23 @@ INSERT INTO position (id, creator_user_id, category_id, location_id, statement, 
 ('2c291423-f26b-4502-8e47-54b938785d66', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'e2e608f7-169e-409b-9678-6dee57fab9c3', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Merit-based immigration systems are fairer than family-based systems.', '2025-03-28 13:50:40+00', '2025-08-10 14:22:33+00', 0, 0, 0, 0, 'active'),
 
 -- Criminal Justice positions
-('9ebe265e-1429-473a-8d27-7313997ffe88', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', '04edc480-aded-4b93-94c4-d62cbb507dc4', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'The death penalty should be abolished nationwide.', '2025-02-05 09:25:15+00', '2025-08-10 14:22:33+00', 0, 0, 0, 0, 'active'),
-('038653a6-1008-4acf-a31b-8ebc31b3611d', '6c9344ed-0313-4b25-a616-5ac08967e84f', '04edc480-aded-4b93-94c4-d62cbb507dc4', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Police departments should be defunded and resources redirected to social services.', '2024-12-15 16:40:25+00', '2025-08-10 14:22:33+00', 0, 0, 0, 0, 'active'),
-('2e3afe8d-1b4a-4a09-bcc1-965a43abf666', '4a67d0e6-56a4-4396-916b-922d27db71d8', '04edc480-aded-4b93-94c4-d62cbb507dc4', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Mandatory minimum sentencing laws should be repealed.', '2025-04-18 12:15:50+00', '2025-08-10 14:22:33+00', 0, 0, 0, 0, 'active'),
-('4eb36f7a-5f7d-4c9f-9837-0b20f35fe0a9', '735565c1-93d9-4813-b227-3d9c06b78c8f', '04edc480-aded-4b93-94c4-d62cbb507dc4', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Drug possession should be decriminalized and treated as a health issue.', '2024-12-05 11:30:35+00', '2025-08-10 14:22:33+00', 0, 0, 0, 0, 'active'),
-('51679257-5218-46e9-b291-ab02cd2d57fd', '2333392a-7c07-4733-8b46-00d32833d9bc', '04edc480-aded-4b93-94c4-d62cbb507dc4', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Private prisons should be eliminated from the justice system.', '2025-07-10 15:20:10+00', '2025-08-10 14:22:33+00', 0, 0, 0, 0, 'active'),
+('9ebe265e-1429-473a-8d27-7313997ffe88', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', '04edc480-aded-4b93-94c4-d62cbb507dc4', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'The death penalty should be abolished nationwide.', '2025-02-05 09:25:15+00', '2025-08-10 14:22:33+00', 6, 1, 0, 0, 'active'),
+('038653a6-1008-4acf-a31b-8ebc31b3611d', '6c9344ed-0313-4b25-a616-5ac08967e84f', '04edc480-aded-4b93-94c4-d62cbb507dc4', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Police departments should be defunded and resources redirected to social services.', '2024-12-15 16:40:25+00', '2025-08-10 14:22:33+00', 6, 0, 0, 0, 'active'),
+('2e3afe8d-1b4a-4a09-bcc1-965a43abf666', '4a67d0e6-56a4-4396-916b-922d27db71d8', '04edc480-aded-4b93-94c4-d62cbb507dc4', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Mandatory minimum sentencing laws should be repealed.', '2025-04-18 12:15:50+00', '2025-08-10 14:22:33+00', 6, 0, 0, 0, 'active'),
+('4eb36f7a-5f7d-4c9f-9837-0b20f35fe0a9', '735565c1-93d9-4813-b227-3d9c06b78c8f', '04edc480-aded-4b93-94c4-d62cbb507dc4', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Drug possession should be decriminalized and treated as a health issue.', '2024-12-05 11:30:35+00', '2025-08-10 14:22:33+00', 6, 0, 0, 0, 'active'),
+('51679257-5218-46e9-b291-ab02cd2d57fd', '2333392a-7c07-4733-8b46-00d32833d9bc', '04edc480-aded-4b93-94c4-d62cbb507dc4', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Private prisons should be eliminated from the justice system.', '2025-07-10 15:20:10+00', '2025-08-10 14:22:33+00', 0, 0, 4, 0, 'active'),
 
 -- Foreign Policy & Defense positions
-('da947f66-41f4-4fb5-bab7-342015205947', 'c922be05-e355-4052-8d3f-7774669ddd32', '92d7131c-bf5c-40c1-89ef-e58b40e67bc8', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Military spending should be significantly reduced.', '2025-02-25 10:45:20+00', '2025-08-10 14:22:33+00', 0, 0, 0, 0, 'active'),
-('1ae82e39-d2a0-4047-b3e6-3bb71774eaa5', '010f84ad-0abd-4352-a7b3-7f9b95d51983', '92d7131c-bf5c-40c1-89ef-e58b40e67bc8', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'The US should maintain strong military presence globally.', '2025-05-08 14:30:45+00', '2025-08-10 14:22:33+00', 0, 0, 0, 0, 'active'),
-('05c8142d-15f5-469a-a34d-2eae28aed686', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '92d7131c-bf5c-40c1-89ef-e58b40e67bc8', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'NATO should be strengthened to counter authoritarian threats.', '2025-04-30 08:15:30+00', '2025-08-10 14:22:33+00', 0, 0, 0, 0, 'active'),
-('7a8282a2-b011-4740-87ab-f42a425851ea', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', '92d7131c-bf5c-40c1-89ef-e58b40e67bc8', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Foreign aid should be reduced to focus on domestic priorities.', '2025-03-20 13:25:55+00', '2025-08-10 14:22:33+00', 0, 0, 0, 0, 'active'),
-('8a3d4804-612c-444b-838e-2cc048081c3f', '6c9344ed-0313-4b25-a616-5ac08967e84f', '92d7131c-bf5c-40c1-89ef-e58b40e67bc8', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Drone warfare should be subject to stricter oversight and limitations.', '2025-01-18 16:50:15+00', '2025-08-10 14:22:33+00', 0, 0, 0, 0, 'active'),
+('da947f66-41f4-4fb5-bab7-342015205947', 'c922be05-e355-4052-8d3f-7774669ddd32', '92d7131c-bf5c-40c1-89ef-e58b40e67bc8', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Military spending should be significantly reduced.', '2025-02-25 10:45:20+00', '2025-08-10 14:22:33+00', 0, 5, 0, 0, 'active'),
+('1ae82e39-d2a0-4047-b3e6-3bb71774eaa5', '010f84ad-0abd-4352-a7b3-7f9b95d51983', '92d7131c-bf5c-40c1-89ef-e58b40e67bc8', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'The US should maintain strong military presence globally.', '2025-05-08 14:30:45+00', '2025-08-10 14:22:33+00', 6, 0, 0, 0, 'active'),
+('05c8142d-15f5-469a-a34d-2eae28aed686', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '92d7131c-bf5c-40c1-89ef-e58b40e67bc8', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'NATO should be strengthened to counter authoritarian threats.', '2025-04-30 08:15:30+00', '2025-08-10 14:22:33+00', 5, 0, 0, 0, 'active'),
+('7a8282a2-b011-4740-87ab-f42a425851ea', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', '92d7131c-bf5c-40c1-89ef-e58b40e67bc8', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Foreign aid should be reduced to focus on domestic priorities.', '2025-03-20 13:25:55+00', '2025-08-10 14:22:33+00', 0, 4, 0, 0, 'active'),
+('8a3d4804-612c-444b-838e-2cc048081c3f', '6c9344ed-0313-4b25-a616-5ac08967e84f', '92d7131c-bf5c-40c1-89ef-e58b40e67bc8', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Drone warfare should be subject to stricter oversight and limitations.', '2025-01-18 16:50:15+00', '2025-08-10 14:22:33+00', 1, 0, 0, 0, 'active'),
 
 -- Civil Rights & Liberties positions
-('b1b80da2-5299-4e40-92c7-afc57d849a87', '4a67d0e6-56a4-4396-916b-922d27db71d8', '2d83d6eb-3000-47eb-b136-9d1c44f9b98d', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Same-sex marriage should be protected as a constitutional right.', '2025-03-25 09:40:25+00', '2025-08-10 14:22:33+00', 0, 0, 0, 0, 'active'),
-('60b28e32-8fe8-4c96-8b64-552f16c76043', '735565c1-93d9-4813-b227-3d9c06b78c8f', '2d83d6eb-3000-47eb-b136-9d1c44f9b98d', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Voting rights should be expanded and protected from restrictions.', '2024-11-12 12:20:40+00', '2025-08-10 14:22:33+00', 0, 0, 0, 0, 'active'),
-('32fa7813-adb5-41bb-9bea-3e92b98851af', '2333392a-7c07-4733-8b46-00d32833d9bc', '2d83d6eb-3000-47eb-b136-9d1c44f9b98d', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Transgender individuals should have equal rights and protections.', '2025-06-02 15:35:50+00', '2025-08-10 14:22:33+00', 0, 0, 0, 0, 'active'),
+('b1b80da2-5299-4e40-92c7-afc57d849a87', '4a67d0e6-56a4-4396-916b-922d27db71d8', '2d83d6eb-3000-47eb-b136-9d1c44f9b98d', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Same-sex marriage should be protected as a constitutional right.', '2025-03-25 09:40:25+00', '2025-08-10 14:22:33+00', 3, 0, 1, 0, 'active'),
+('60b28e32-8fe8-4c96-8b64-552f16c76043', '735565c1-93d9-4813-b227-3d9c06b78c8f', '2d83d6eb-3000-47eb-b136-9d1c44f9b98d', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Voting rights should be expanded and protected from restrictions.', '2024-11-12 12:20:40+00', '2025-08-10 14:22:33+00', 4, 0, 0, 0, 'active'),
+('32fa7813-adb5-41bb-9bea-3e92b98851af', '2333392a-7c07-4733-8b46-00d32833d9bc', '2d83d6eb-3000-47eb-b136-9d1c44f9b98d', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Transgender individuals should have equal rights and protections.', '2025-06-02 15:35:50+00', '2025-08-10 14:22:33+00', 4, 0, 0, 0, 'active'),
 ('4b15f919-3b0b-44fa-a1ab-5edace80f7d1', 'c922be05-e355-4052-8d3f-7774669ddd32', '2d83d6eb-3000-47eb-b136-9d1c44f9b98d', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Religious freedom should be protected even when it conflicts with other rights.', '2025-03-12 11:15:30+00', '2025-08-10 14:22:33+00', 0, 0, 0, 0, 'active'),
 ('93c7f04f-9c96-47e3-8a7b-6aa26cff2a44', '010f84ad-0abd-4352-a7b3-7f9b95d51983', '2d83d6eb-3000-47eb-b136-9d1c44f9b98d', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Government surveillance programs violate constitutional privacy rights.', '2025-06-25 14:45:20+00', '2025-08-10 14:22:33+00', 0, 0, 0, 0, 'active'),
 
@@ -178,23 +178,23 @@ INSERT INTO user_position (id, user_id, position_id, status, agree_count, disagr
 ('fc2fc1f7-edbf-4a98-8e3d-36c14517f04c', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2c291423-f26b-4502-8e47-54b938785d66', 'active', 0, 0, 0, 0, '2025-03-28 13:50:40+00', '2025-06-05 10:15:25+00'),
 
 -- Criminal Justice positions (creators adopting their own)
-('50f3f010-a903-4147-a3cd-f32a52cbdbac', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', '9ebe265e-1429-473a-8d27-7313997ffe88', 'active', 0, 0, 0, 0, '2025-02-05 09:25:15+00', '2025-03-12 16:40:30+00'),
-('d3dcb438-faa6-419d-9453-4a1b449be924', '6c9344ed-0313-4b25-a616-5ac08967e84f', '038653a6-1008-4acf-a31b-8ebc31b3611d', 'active', 0, 0, 0, 0, '2024-12-15 16:40:25+00', '2025-01-20 12:15:40+00'),
-('2c52e31f-9865-4ef7-84ab-13679644e047', '4a67d0e6-56a4-4396-916b-922d27db71d8', '2e3afe8d-1b4a-4a09-bcc1-965a43abf666', 'active', 0, 0, 0, 0, '2025-04-18 12:15:50+00', '2025-05-06 08:30:15+00'),
-('b15c5851-3802-464d-a1f8-e3665ac67665', '735565c1-93d9-4813-b227-3d9c06b78c8f', '4eb36f7a-5f7d-4c9f-9837-0b20f35fe0a9', 'active', 0, 0, 0, 0, '2024-12-05 11:30:35+00', '2025-02-08 14:45:20+00'),
-('26ced74f-cc00-4f2d-8f5d-f0bb325e6adb', '2333392a-7c07-4733-8b46-00d32833d9bc', '51679257-5218-46e9-b291-ab02cd2d57fd', 'active', 0, 0, 0, 0, '2025-07-10 15:20:10+00', '2025-07-30 11:35:25+00'),
+('50f3f010-a903-4147-a3cd-f32a52cbdbac', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', '9ebe265e-1429-473a-8d27-7313997ffe88', 'active', 6, 1, 0, 0, '2025-02-05 09:25:15+00', '2025-03-12 16:40:30+00'),
+('d3dcb438-faa6-419d-9453-4a1b449be924', '6c9344ed-0313-4b25-a616-5ac08967e84f', '038653a6-1008-4acf-a31b-8ebc31b3611d', 'active', 6, 0, 0, 0, '2024-12-15 16:40:25+00', '2025-01-20 12:15:40+00'),
+('2c52e31f-9865-4ef7-84ab-13679644e047', '4a67d0e6-56a4-4396-916b-922d27db71d8', '2e3afe8d-1b4a-4a09-bcc1-965a43abf666', 'active', 6, 0, 0, 0, '2025-04-18 12:15:50+00', '2025-05-06 08:30:15+00'),
+('b15c5851-3802-464d-a1f8-e3665ac67665', '735565c1-93d9-4813-b227-3d9c06b78c8f', '4eb36f7a-5f7d-4c9f-9837-0b20f35fe0a9', 'active', 6, 0, 0, 0, '2024-12-05 11:30:35+00', '2025-02-08 14:45:20+00'),
+('26ced74f-cc00-4f2d-8f5d-f0bb325e6adb', '2333392a-7c07-4733-8b46-00d32833d9bc', '51679257-5218-46e9-b291-ab02cd2d57fd', 'active', 0, 0, 4, 0, '2025-07-10 15:20:10+00', '2025-07-30 11:35:25+00'),
 
 -- Foreign Policy & Defense positions (creators adopting their own)
-('aaa786fa-2642-4510-ae5b-664b98b17782', 'c922be05-e355-4052-8d3f-7774669ddd32', 'da947f66-41f4-4fb5-bab7-342015205947', 'active', 0, 0, 0, 0, '2025-02-25 10:45:20+00', '2025-04-10 16:20:35+00'),
-('2d08160e-8f1d-40b1-bdc6-7cfbd05343db', '010f84ad-0abd-4352-a7b3-7f9b95d51983', '1ae82e39-d2a0-4047-b3e6-3bb71774eaa5', 'active', 0, 0, 0, 0, '2025-05-08 14:30:45+00', '2025-07-20 09:15:20+00'),
-('95cc8958-3c5a-4519-a48c-c2cedded2448', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '05c8142d-15f5-469a-a34d-2eae28aed686', 'active', 0, 0, 0, 0, '2025-04-30 08:15:30+00', '2025-06-12 13:40:45+00'),
-('c56ff617-f8e6-4ad4-8d68-27521eb7d79d', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', '7a8282a2-b011-4740-87ab-f42a425851ea', 'active', 0, 0, 0, 0, '2025-03-20 13:25:55+00', '2025-03-14 15:50:10+00'),
-('2e59b0a8-8b55-41cd-a8e7-6660a599fcf6', '6c9344ed-0313-4b25-a616-5ac08967e84f', '8a3d4804-612c-444b-838e-2cc048081c3f', 'active', 0, 0, 0, 0, '2025-01-18 16:50:15+00', '2025-01-21 10:25:30+00'),
+('aaa786fa-2642-4510-ae5b-664b98b17782', 'c922be05-e355-4052-8d3f-7774669ddd32', 'da947f66-41f4-4fb5-bab7-342015205947', 'active', 0, 5, 0, 0, '2025-02-25 10:45:20+00', '2025-04-10 16:20:35+00'),
+('2d08160e-8f1d-40b1-bdc6-7cfbd05343db', '010f84ad-0abd-4352-a7b3-7f9b95d51983', '1ae82e39-d2a0-4047-b3e6-3bb71774eaa5', 'active', 6, 0, 0, 0, '2025-05-08 14:30:45+00', '2025-07-20 09:15:20+00'),
+('95cc8958-3c5a-4519-a48c-c2cedded2448', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '05c8142d-15f5-469a-a34d-2eae28aed686', 'active', 5, 0, 0, 0, '2025-04-30 08:15:30+00', '2025-06-12 13:40:45+00'),
+('c56ff617-f8e6-4ad4-8d68-27521eb7d79d', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', '7a8282a2-b011-4740-87ab-f42a425851ea', 'active', 0, 4, 0, 0, '2025-03-20 13:25:55+00', '2025-03-14 15:50:10+00'),
+('2e59b0a8-8b55-41cd-a8e7-6660a599fcf6', '6c9344ed-0313-4b25-a616-5ac08967e84f', '8a3d4804-612c-444b-838e-2cc048081c3f', 'active', 1, 0, 0, 0, '2025-01-18 16:50:15+00', '2025-01-21 10:25:30+00'),
 
 -- Civil Rights & Liberties positions (creators adopting their own)
-('082fa2d6-e9bb-43d9-95e4-d5c915814abf', '4a67d0e6-56a4-4396-916b-922d27db71d8', 'b1b80da2-5299-4e40-92c7-afc57d849a87', 'active', 0, 0, 0, 0, '2025-03-25 09:40:25+00', '2025-05-05 14:15:40+00'),
-('53bdf852-8b8d-4f71-a677-7df6884061c8', '735565c1-93d9-4813-b227-3d9c06b78c8f', '60b28e32-8fe8-4c96-8b64-552f16c76043', 'active', 0, 0, 0, 0, '2024-11-12 12:20:40+00', '2025-02-05 16:35:55+00'),
-('024a8bd3-cb3a-4a5d-97bd-ca7c2790d58a', '2333392a-7c07-4733-8b46-00d32833d9bc', '32fa7813-adb5-41bb-9bea-3e92b98851af', 'active', 0, 0, 0, 0, '2025-06-02 15:35:50+00', '2025-07-25 11:20:15+00'),
+('082fa2d6-e9bb-43d9-95e4-d5c915814abf', '4a67d0e6-56a4-4396-916b-922d27db71d8', 'b1b80da2-5299-4e40-92c7-afc57d849a87', 'active', 3, 0, 1, 0, '2025-03-25 09:40:25+00', '2025-05-05 14:15:40+00'),
+('53bdf852-8b8d-4f71-a677-7df6884061c8', '735565c1-93d9-4813-b227-3d9c06b78c8f', '60b28e32-8fe8-4c96-8b64-552f16c76043', 'active', 4, 0, 0, 0, '2024-11-12 12:20:40+00', '2025-02-05 16:35:55+00'),
+('024a8bd3-cb3a-4a5d-97bd-ca7c2790d58a', '2333392a-7c07-4733-8b46-00d32833d9bc', '32fa7813-adb5-41bb-9bea-3e92b98851af', 'active', 4, 0, 0, 0, '2025-06-02 15:35:50+00', '2025-07-25 11:20:15+00'),
 ('386d1f4a-0fd0-41b0-b641-357656269f4f', 'c922be05-e355-4052-8d3f-7774669ddd32', '4b15f919-3b0b-44fa-a1ab-5edace80f7d1', 'active', 0, 0, 0, 0, '2025-03-12 11:15:30+00', '2025-04-20 08:40:45+00'),
 ('8c64cb27-8837-49ad-ab9d-b1e36059c9e1', '010f84ad-0abd-4352-a7b3-7f9b95d51983', '93c7f04f-9c96-47e3-8a7b-6aa26cff2a44', 'active', 0, 0, 0, 0, '2025-06-25 14:45:20+00', '2025-07-28 10:30:35+00'),
 
@@ -381,5 +381,108 @@ INSERT INTO response (id, position_id, user_id, response, created_time) VALUES
 ('33098625-64a4-4183-8731-ecfa347a11eb', '24790103-92a4-4fd2-b270-6a65a44ad91e', 'c922be05-e355-4052-8d3f-7774669ddd32', 'agree', '2025-01-15 15:05:00+00'),
 ('03225e00-b92c-4d55-911a-6ee151b9f519', '4f315b6a-9b23-4b1c-8443-f8df6c7d3cae', 'c922be05-e355-4052-8d3f-7774669ddd32', 'agree', '2025-01-15 15:10:00+00'),
 ('2e47e2cb-9185-4a43-b950-7f2cf2cceb2d', '188865ae-0b16-499c-b3cb-1ede81a14518', 'c922be05-e355-4052-8d3f-7774669ddd32', 'pass', '2025-03-08 12:30:00+00'),
-('9edee461-1cf9-4a09-a3ad-b9d3b9508bf9', '20fabff1-a37a-4941-8bc8-4f082da6a189', 'c922be05-e355-4052-8d3f-7774669ddd32', 'agree', '2025-03-08 12:35:00+00');
+('9edee461-1cf9-4a09-a3ad-b9d3b9508bf9', '20fabff1-a37a-4941-8bc8-4f082da6a189', 'c922be05-e355-4052-8d3f-7774669ddd32', 'agree', '2025-03-08 12:35:00+00'),
+
+-- Additional user activity sessions for more responses
+('5c00ee6b-fbd4-4c8e-a2f0-4b9bc3a60587', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-05-10 10:15:00+00', '2025-05-10 10:45:00+00'),
+('f78e1d94-bcf3-447a-8b62-c60571b8272d', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', '2025-06-12 14:20:00+00', '2025-06-12 14:55:00+00'),
+('cf850f67-5ec1-4766-b07f-faf6109eb042', '010f84ad-0abd-4352-a7b3-7f9b95d51983', '2025-07-08 09:30:00+00', '2025-07-08 10:10:00+00'),
+('d21796d0-4acf-4db2-92c1-d280ce9e5abc', '6c9344ed-0313-4b25-a616-5ac08967e84f', '2025-03-15 16:45:00+00', '2025-03-15 17:20:00+00'),
+('2ed4b81b-a4a6-4b6e-8f5c-6f151239ab5a', '4a67d0e6-56a4-4396-916b-922d27db71d8', '2025-07-20 11:10:00+00', '2025-07-20 11:50:00+00'),
+('c40d543e-be6a-4bff-a6f5-9f438a0d2fa5', '735565c1-93d9-4813-b227-3d9c06b78c8f', '2025-03-20 13:25:00+00', '2025-03-20 14:00:00+00'),
+('7a25b912-bbf3-4d36-acd3-5e9946d721ec', '2333392a-7c07-4733-8b46-00d32833d9bc', '2025-08-05 15:30:00+00', '2025-08-05 16:05:00+00'),
+('19cb7b39-18a3-43be-a3a7-cdf07a72342a', 'c922be05-e355-4052-8d3f-7774669ddd32', '2025-05-25 12:40:00+00', '2025-05-25 13:15:00+00'),
+
+-- Additional user responses to positions
+-- Admin user additional responses (8 more)
+('975206d0-23b0-429d-943e-359772eeb907', '9ebe265e-1429-473a-8d27-7313997ffe88', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'agree', '2025-05-10 10:20:00+00'),
+('15e2401a-a6a6-415f-91c5-cc8a6f269d2f', '038653a6-1008-4acf-a31b-8ebc31b3611d', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'agree', '2025-05-10 10:25:00+00'),
+('742a2efd-afee-4581-9dcf-c455295c14e0', '2e3afe8d-1b4a-4a09-bcc1-965a43abf666', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'agree', '2025-05-10 10:30:00+00'),
+('6b1522ca-265a-47f8-99bc-7c6b3ff75133', '4eb36f7a-5f7d-4c9f-9837-0b20f35fe0a9', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'agree', '2025-05-10 10:35:00+00'),
+('73e1d949-b762-4a43-b045-be610a6fe9e8', '51679257-5218-46e9-b291-ab02cd2d57fd', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'pass', '2025-05-10 10:40:00+00'),
+('3319f229-2bcf-4cad-8224-808de6424389', 'da947f66-41f4-4fb5-bab7-342015205947', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'disagree', '2025-05-10 10:42:00+00'),
+('3ed60c06-d9c5-4a9c-b8d1-ec61c48e73d8', '1ae82e39-d2a0-4047-b3e6-3bb71774eaa5', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'agree', '2025-05-10 10:44:00+00'),
+('a9fd46a9-cbe8-4e76-8496-40b9d193e729', '7a8282a2-b011-4740-87ab-f42a425851ea', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'disagree', '2025-05-10 10:46:00+00'),
+
+-- Moderator1 additional responses (12 more)
+('b9c0b090-87a1-4db4-9b1c-213cd3cceac0', '4f315b6a-9b23-4b1c-8443-f8df6c7d3cae', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'agree', '2025-06-12 14:25:00+00'),
+('bdf14aad-7b9a-45aa-8ce2-0ae2d220837c', '188865ae-0b16-499c-b3cb-1ede81a14518', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'pass', '2025-06-12 14:30:00+00'),
+('45ff2b8f-b4a5-4479-8e74-065088cb2d87', '20fabff1-a37a-4941-8bc8-4f082da6a189', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'agree', '2025-06-12 14:35:00+00'),
+('5acf758f-387d-4892-8b69-f271bd50e2f4', 'c0d14b0f-370c-4f4f-8d7b-d7eed193af14', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'disagree', '2025-06-12 14:40:00+00'),
+('ceaea9a9-e7d1-497f-a285-0c50b431d8d8', '993634d7-ad78-4870-8d5e-43e1008da1e8', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'agree', '2025-06-12 14:45:00+00'),
+('33f0e0e0-7c9a-49ec-a263-f3e32335a875', '2c291423-f26b-4502-8e47-54b938785d66', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'pass', '2025-06-12 14:47:00+00'),
+('82c0a23f-3443-466b-a53f-12828289868d', '9ebe265e-1429-473a-8d27-7313997ffe88', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'disagree', '2025-06-12 14:49:00+00'),
+('79703b3f-c452-44d8-a680-debfb8ecc052', '038653a6-1008-4acf-a31b-8ebc31b3611d', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'agree', '2025-06-12 14:51:00+00'),
+('6df4cfe6-e9bc-441f-a8fc-fadd278c1dd4', '2e3afe8d-1b4a-4a09-bcc1-965a43abf666', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'agree', '2025-06-12 14:53:00+00'),
+('46bc39a5-073a-4aa1-9202-625b8a89be0c', '4eb36f7a-5f7d-4c9f-9837-0b20f35fe0a9', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'agree', '2025-06-12 14:55:00+00'),
+('caa530f5-8ab5-48c1-bc7e-f37aa9de07be', '51679257-5218-46e9-b291-ab02cd2d57fd', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'pass', '2025-06-12 14:57:00+00'),
+('953a87b9-dc1d-44c8-81a3-9d43518f81b8', 'da947f66-41f4-4fb5-bab7-342015205947', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'disagree', '2025-06-12 14:59:00+00'),
+
+-- Moderator2 additional responses (10 more)
+('1540fa45-95da-4b41-a703-18713a797e54', '9ebe265e-1429-473a-8d27-7313997ffe88', '010f84ad-0abd-4352-a7b3-7f9b95d51983', 'agree', '2025-07-08 09:35:00+00'),
+('7ec5bf31-890f-4337-abb4-e6c8512735ac', '038653a6-1008-4acf-a31b-8ebc31b3611d', '010f84ad-0abd-4352-a7b3-7f9b95d51983', 'agree', '2025-07-08 09:40:00+00'),
+('01bc2564-8ca5-4057-9779-921011a17000', '2e3afe8d-1b4a-4a09-bcc1-965a43abf666', '010f84ad-0abd-4352-a7b3-7f9b95d51983', 'agree', '2025-07-08 09:45:00+00'),
+('18547054-286e-4a2a-8d6f-597b4191eefb', '4eb36f7a-5f7d-4c9f-9837-0b20f35fe0a9', '010f84ad-0abd-4352-a7b3-7f9b95d51983', 'agree', '2025-07-08 09:50:00+00'),
+('d1342b85-94e9-44de-9141-521727ccedff', '51679257-5218-46e9-b291-ab02cd2d57fd', '010f84ad-0abd-4352-a7b3-7f9b95d51983', 'pass', '2025-07-08 09:55:00+00'),
+('76ae99d8-6c2d-4a5c-b75e-1100002b106d', 'da947f66-41f4-4fb5-bab7-342015205947', '010f84ad-0abd-4352-a7b3-7f9b95d51983', 'disagree', '2025-07-08 10:00:00+00'),
+('418653e8-a2ee-40ae-9bbd-ade3f420f971', 'b1b80da2-5299-4e40-92c7-afc57d849a87', '010f84ad-0abd-4352-a7b3-7f9b95d51983', 'agree', '2025-07-08 10:02:00+00'),
+('ee80d984-2aac-40b4-836f-593ce577d042', '60b28e32-8fe8-4c96-8b64-552f16c76043', '010f84ad-0abd-4352-a7b3-7f9b95d51983', 'agree', '2025-07-08 10:04:00+00'),
+('8f4d0e9f-eb28-4aca-96f2-24fd3ceb25cf', '32fa7813-adb5-41bb-9bea-3e92b98851af', '010f84ad-0abd-4352-a7b3-7f9b95d51983', 'agree', '2025-07-08 10:06:00+00'),
+('a6134632-4426-4cee-b8c5-75727a68250f', '4b15f919-3b0b-44fa-a1ab-5edace80f7d1', '010f84ad-0abd-4352-a7b3-7f9b95d51983', 'pass', '2025-07-08 10:08:00+00'),
+
+-- Normal1 additional responses (9 more)
+('02455a4c-c11a-4309-9155-7b8fceb54cb3', '9ebe265e-1429-473a-8d27-7313997ffe88', '6c9344ed-0313-4b25-a616-5ac08967e84f', 'agree', '2025-03-15 16:50:00+00'),
+('7f404e51-6056-4a87-a80f-4667f6d470ec', '2e3afe8d-1b4a-4a09-bcc1-965a43abf666', '6c9344ed-0313-4b25-a616-5ac08967e84f', 'agree', '2025-03-15 16:55:00+00'),
+('1f0c7e6d-b6fa-40df-b62f-f37b5fe43318', '4eb36f7a-5f7d-4c9f-9837-0b20f35fe0a9', '6c9344ed-0313-4b25-a616-5ac08967e84f', 'agree', '2025-03-15 17:00:00+00'),
+('8657d8f0-a444-4493-8692-3ac810f4fc26', '51679257-5218-46e9-b291-ab02cd2d57fd', '6c9344ed-0313-4b25-a616-5ac08967e84f', 'pass', '2025-03-15 17:05:00+00'),
+('dd10b83f-0e45-4e0e-969f-770f2dde728c', 'da947f66-41f4-4fb5-bab7-342015205947', '6c9344ed-0313-4b25-a616-5ac08967e84f', 'disagree', '2025-03-15 17:10:00+00'),
+('ddb475a9-df7e-465f-ad4f-abfe422754fe', '1ae82e39-d2a0-4047-b3e6-3bb71774eaa5', '6c9344ed-0313-4b25-a616-5ac08967e84f', 'agree', '2025-03-15 17:12:00+00'),
+('2c04bd4c-bb16-4ef3-9c0a-b90182033ddb', '05c8142d-15f5-469a-a34d-2eae28aed686', '6c9344ed-0313-4b25-a616-5ac08967e84f', 'agree', '2025-03-15 17:14:00+00'),
+('2b2d197d-acdf-4e22-87f5-7925d65cc03b', '7a8282a2-b011-4740-87ab-f42a425851ea', '6c9344ed-0313-4b25-a616-5ac08967e84f', 'disagree', '2025-03-15 17:16:00+00'),
+('73756af8-61c1-4d02-b3a2-017500581cfe', 'b1b80da2-5299-4e40-92c7-afc57d849a87', '6c9344ed-0313-4b25-a616-5ac08967e84f', 'agree', '2025-03-15 17:18:00+00'),
+
+-- Normal2 additional responses (11 more)
+('e709e87f-fa60-4743-8ea5-4ce185579423', '9ebe265e-1429-473a-8d27-7313997ffe88', '4a67d0e6-56a4-4396-916b-922d27db71d8', 'agree', '2025-07-20 11:15:00+00'),
+('cc9c5450-a51c-4ecc-af8f-0699fdf9ac8d', '038653a6-1008-4acf-a31b-8ebc31b3611d', '4a67d0e6-56a4-4396-916b-922d27db71d8', 'agree', '2025-07-20 11:20:00+00'),
+('e0c12bb1-eb00-4e0c-ac0f-ac2617224aec', '4eb36f7a-5f7d-4c9f-9837-0b20f35fe0a9', '4a67d0e6-56a4-4396-916b-922d27db71d8', 'agree', '2025-07-20 11:25:00+00'),
+('2e04506a-11f6-42e4-a82f-cb536a8444e6', '51679257-5218-46e9-b291-ab02cd2d57fd', '4a67d0e6-56a4-4396-916b-922d27db71d8', 'pass', '2025-07-20 11:30:00+00'),
+('7b03bb5b-1fa6-4cc7-86c4-7fb3a11c8d63', 'da947f66-41f4-4fb5-bab7-342015205947', '4a67d0e6-56a4-4396-916b-922d27db71d8', 'disagree', '2025-07-20 11:35:00+00'),
+('b293fd72-98f3-4e31-9245-5f6b4457404c', '1ae82e39-d2a0-4047-b3e6-3bb71774eaa5', '4a67d0e6-56a4-4396-916b-922d27db71d8', 'agree', '2025-07-20 11:40:00+00'),
+('cc74149f-3147-4260-95ed-e15da5f9d900', '05c8142d-15f5-469a-a34d-2eae28aed686', '4a67d0e6-56a4-4396-916b-922d27db71d8', 'agree', '2025-07-20 11:42:00+00'),
+('f790cc52-cf0c-4060-ba30-250306434cfd', '7a8282a2-b011-4740-87ab-f42a425851ea', '4a67d0e6-56a4-4396-916b-922d27db71d8', 'disagree', '2025-07-20 11:44:00+00'),
+('6cf793a8-097b-4cdd-8e9e-15e9a1f7d518', '8a3d4804-612c-444b-838e-2cc048081c3f', '4a67d0e6-56a4-4396-916b-922d27db71d8', 'agree', '2025-07-20 11:46:00+00'),
+('4fe5bd34-87cc-4044-9254-2ff2dd9c70bd', '60b28e32-8fe8-4c96-8b64-552f16c76043', '4a67d0e6-56a4-4396-916b-922d27db71d8', 'agree', '2025-07-20 11:48:00+00'),
+('0268ed5c-8f76-4890-871e-ee2db7215640', '32fa7813-adb5-41bb-9bea-3e92b98851af', '4a67d0e6-56a4-4396-916b-922d27db71d8', 'agree', '2025-07-20 11:50:00+00'),
+
+-- Normal3 additional responses (7 more)
+('7024b13d-6da5-4e06-bd00-6c96b8fa67fd', '9ebe265e-1429-473a-8d27-7313997ffe88', '735565c1-93d9-4813-b227-3d9c06b78c8f', 'agree', '2025-03-20 13:30:00+00'),
+('087a49f4-4af9-4542-be20-f9d0fffeb2c2', '038653a6-1008-4acf-a31b-8ebc31b3611d', '735565c1-93d9-4813-b227-3d9c06b78c8f', 'agree', '2025-03-20 13:35:00+00'),
+('7e2711e1-ced9-4f25-93ee-41fb73617be0', '2e3afe8d-1b4a-4a09-bcc1-965a43abf666', '735565c1-93d9-4813-b227-3d9c06b78c8f', 'agree', '2025-03-20 13:40:00+00'),
+('c4de3cc7-e44e-4ede-9410-ac1306a5b690', '51679257-5218-46e9-b291-ab02cd2d57fd', '735565c1-93d9-4813-b227-3d9c06b78c8f', 'pass', '2025-03-20 13:45:00+00'),
+('f1053c43-c783-4ad5-a6c5-f7520f9b8f44', 'da947f66-41f4-4fb5-bab7-342015205947', '735565c1-93d9-4813-b227-3d9c06b78c8f', 'disagree', '2025-03-20 13:50:00+00'),
+('61e38c7e-3e45-48d8-92ba-40c82c01840a', '1ae82e39-d2a0-4047-b3e6-3bb71774eaa5', '735565c1-93d9-4813-b227-3d9c06b78c8f', 'agree', '2025-03-20 13:55:00+00'),
+('a89c1666-d9b9-4cf9-9146-9464d3d1ae45', '05c8142d-15f5-469a-a34d-2eae28aed686', '735565c1-93d9-4813-b227-3d9c06b78c8f', 'agree', '2025-03-20 13:58:00+00'),
+
+-- Normal4 additional responses (13 more)
+('831c50e2-9259-4b31-928e-6d27d4f095ef', '9ebe265e-1429-473a-8d27-7313997ffe88', '2333392a-7c07-4733-8b46-00d32833d9bc', 'agree', '2025-08-05 15:35:00+00'),
+('e9b6a1b0-59cb-4c48-ab8e-634fe3d1afec', '038653a6-1008-4acf-a31b-8ebc31b3611d', '2333392a-7c07-4733-8b46-00d32833d9bc', 'agree', '2025-08-05 15:40:00+00'),
+('a086a1dc-6c45-4db8-b4c9-3dc87db80675', '2e3afe8d-1b4a-4a09-bcc1-965a43abf666', '2333392a-7c07-4733-8b46-00d32833d9bc', 'agree', '2025-08-05 15:45:00+00'),
+('7d2a4a00-5b37-461b-be7b-3f98877515c4', '4eb36f7a-5f7d-4c9f-9837-0b20f35fe0a9', '2333392a-7c07-4733-8b46-00d32833d9bc', 'agree', '2025-08-05 15:50:00+00'),
+('f6b15380-2ebc-4033-ad4d-83a463dd59eb', '51679257-5218-46e9-b291-ab02cd2d57fd', '2333392a-7c07-4733-8b46-00d32833d9bc', 'pass', '2025-08-05 15:52:00+00'),
+('37ca2f86-c149-4fb7-96e6-2dac7d79b489', 'da947f66-41f4-4fb5-bab7-342015205947', '2333392a-7c07-4733-8b46-00d32833d9bc', 'disagree', '2025-08-05 15:54:00+00'),
+('061742d4-46a4-48f2-add0-71c4caf34999', '1ae82e39-d2a0-4047-b3e6-3bb71774eaa5', '2333392a-7c07-4733-8b46-00d32833d9bc', 'agree', '2025-08-05 15:56:00+00'),
+('78f9df74-da54-4502-9eec-21d404db7e25', '05c8142d-15f5-469a-a34d-2eae28aed686', '2333392a-7c07-4733-8b46-00d32833d9bc', 'agree', '2025-08-05 15:58:00+00'),
+('88ce1ee1-2a95-4a91-aaa7-3d1f3eb3b1bd', '7a8282a2-b011-4740-87ab-f42a425851ea', '2333392a-7c07-4733-8b46-00d32833d9bc', 'disagree', '2025-08-05 16:00:00+00'),
+('bc10eecd-d561-4f77-b56f-76992668eaf7', '8a3d4804-612c-444b-838e-2cc048081c3f', '2333392a-7c07-4733-8b46-00d32833d9bc', 'agree', '2025-08-05 16:02:00+00'),
+('267c7bc4-a372-46ad-a48f-e3418505edb4', 'b1b80da2-5299-4e40-92c7-afc57d849a87', '2333392a-7c07-4733-8b46-00d32833d9bc', 'agree', '2025-08-05 16:04:00+00'),
+('ca7a722e-b078-43de-a5e3-70aeb6036ab8', '60b28e32-8fe8-4c96-8b64-552f16c76043', '2333392a-7c07-4733-8b46-00d32833d9bc', 'agree', '2025-08-05 16:06:00+00'),
+('9f0f8433-98d3-4ea8-9143-6597b2680d0f', '32fa7813-adb5-41bb-9bea-3e92b98851af', '2333392a-7c07-4733-8b46-00d32833d9bc', 'agree', '2025-08-05 16:08:00+00'),
+
+-- Normal5 additional responses (6 more)
+('f4d44ccf-c77a-4945-aa4d-8bd4d1cae757', '9ebe265e-1429-473a-8d27-7313997ffe88', 'c922be05-e355-4052-8d3f-7774669ddd32', 'agree', '2025-05-25 12:45:00+00'),
+('100546cf-0bd2-4e70-a90b-9a0f7a6cd5cb', '038653a6-1008-4acf-a31b-8ebc31b3611d', 'c922be05-e355-4052-8d3f-7774669ddd32', 'agree', '2025-05-25 12:50:00+00'),
+('1d903023-2baf-4332-ab7f-0e46dbfc2082', '2e3afe8d-1b4a-4a09-bcc1-965a43abf666', 'c922be05-e355-4052-8d3f-7774669ddd32', 'agree', '2025-05-25 12:55:00+00'),
+('8124e9b5-0e78-440c-b9da-2dcc41087727', '51679257-5218-46e9-b291-ab02cd2d57fd', 'c922be05-e355-4052-8d3f-7774669ddd32', 'pass', '2025-05-25 13:00:00+00'),
+('ffd63f1e-874b-404a-98c6-b3fba825ce04', '1ae82e39-d2a0-4047-b3e6-3bb71774eaa5', 'c922be05-e355-4052-8d3f-7774669ddd32', 'agree', '2025-05-25 13:05:00+00'),
+('d2649f0e-308e-46e9-b740-9d0a7db73991', '05c8142d-15f5-469a-a34d-2eae28aed686', 'c922be05-e355-4052-8d3f-7774669ddd32', 'agree', '2025-05-25 13:10:00+00');
 
