@@ -13,6 +13,7 @@ from candid import util
 
 from candid.controllers.helpers.database import execute_query
 from candid.controllers.helpers.config import Config
+from candid.controllers.helpers.auth import authorization
 
 def get_user_card(user_id):
     res = execute_query(f"""
@@ -41,11 +42,10 @@ def create_position(body):  # noqa: E501
     """
     create_position_request = body
     if connexion.request.is_json:
-        create_position_request = CreatePositionRequest.from_dict(connexion.request.get_json())  # noqa: E501
+        create_position_request = CreatePositionRequest.from_dict(connexion.request.get_json())  # noqa: E501    
     return 'do some magic!'
 
-
-def get_position_by_id(position_id):  # noqa: E501
+def get_position_by_id(position_id, token_info=None):  # noqa: E501
     """Get a specific position statement
 
      # noqa: E501
@@ -56,6 +56,10 @@ def get_position_by_id(position_id):  # noqa: E501
 
     :rtype: Union[Position, Tuple[Position, int], Tuple[Position, int, Dict[str, str]]
     """
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized: 
+        return auth_err, auth_err.code
+
     res = execute_query(f"""
         SELECT 
             agree_count as "agreeCount",

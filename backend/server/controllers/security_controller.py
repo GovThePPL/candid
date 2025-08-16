@@ -1,5 +1,6 @@
 from typing import List
 
+from candid.controllers.helpers import auth
 
 def info_from_BearerAuth(token):
     """
@@ -12,5 +13,9 @@ def info_from_BearerAuth(token):
     :return: Decoded token information or None if token is invalid
     :rtype: dict | None
     """
-    return {'uid': 'user_id'}
-
+    ret = None
+    try:
+        ret = auth.decode_token(token)
+    except Exception as e:
+        print("Token decode failed: " + str(e), flush=True)
+    return ret
