@@ -1,16 +1,31 @@
 #!/bin/bash
-# Needed packages: pip, openapi-generator-cli
+# Needed packages: pip, openapi-generator-cli, pipreqs
 
 # Check if npm exists, install if not
+reqs_met=0
 dpkg -s python3-pip >> /dev/null
 if [ $? -ne 0 ]; then
-	echo "python3-pip is required"
+	echo "python3-pip is required, install with:"
+	echo "	apt install python3-pip"
+	reqs_met=1
 fi
 
 # Check if openapi-generator-cli is available, install if not
 if ! command -v openapi-generator-cli >/dev/null 2>&1; then
 	echo "openapi generator is required, install with:"
 	echo "	pip install openapi-generator-cli"
+	reqs_met=1
+fi
+
+# Check if pipreqs is available, install if not
+if ! command -v pipreqs >/dev/null 2>&1; then
+	echo "pipreqs is required, install with:"
+	echo "  pip install pipreqs"
+	reqs_met=1
+fi
+
+if [ $reqs_met -ne 0 ]; then
+	exit 1
 fi
 
 openapi-generator-cli generate -i ../../docs/api.yaml -g python-flask -o ./generated -c openapi-config.json
@@ -20,8 +35,11 @@ if [ $? -ne 0 ]; then
 fi
 echo "Generation completed successfully"
 
-cp ./controllers/* generated/candid/controllers/
+cp -r ./controllers/ generated/candid/controllers/
 echo "Copied controllers from ./controllers/"
+
+pipreqs --force ./generated/
+echo "generated requirements.txt"
 
 echo "Build and run the container:"
 echo "	sudo docker build -t candid ./generated/ && sudo docker run -p 8000:8000 candid"

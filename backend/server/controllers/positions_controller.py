@@ -6,10 +6,28 @@ from typing import Union
 from candid.models.create_position_request import CreatePositionRequest  # noqa: E501
 from candid.models.error_model import ErrorModel  # noqa: E501
 from candid.models.position import Position  # noqa: E501
+from candid.models.user import User
 from candid.models.position_response import PositionResponse  # noqa: E501
 from candid.models.response import Response  # noqa: E501
 from candid import util
 
+from candid.controllers.helpers.database import execute_query
+from candid.controllers.helpers.config import Config
+
+def get_user_card(user_id):
+    res = execute_query(f"""
+        SELECT
+            display_name as "displayName", 
+            id,
+            status,
+            username
+        FROM users
+        WHERE id = '{user_id}'
+        LIMIT 1;
+    """)
+    if res is not None:
+        return res[0]
+    return None
 
 def create_position(body):  # noqa: E501
     """Create a new position statement
@@ -38,7 +56,32 @@ def get_position_by_id(position_id):  # noqa: E501
 
     :rtype: Union[Position, Tuple[Position, int], Tuple[Position, int, Dict[str, str]]
     """
-    return 'do some magic!'
+    res = execute_query(f"""
+        SELECT 
+            agree_count as "agreeCount",
+            category_id as "categoryId",
+            chat_count as "chatCount",
+            TO_CHAR(created_time, '{Config.TIMESTAMP_FORMAT}') as "createdTime",
+            disagree_count as "disagreeCount",
+            creator_user_id,
+            id,
+            pass_count as "passCount",
+            statement,
+            status
+        FROM position as p 
+        WHERE p.id = '{position_id}'
+        LIMIT 1;
+    """)
+    if res is None:
+        return ErrorModel(404, "Not Found"), 404
+    pos = res[0]
+    
+    user = User.from_dict(get_user_card(pos['creator_user_id']))
+    position = Position.from_dict(pos)
+
+    position.creator = user
+
+    return position
 
 
 def respond_to_positions(body):  # noqa: E501

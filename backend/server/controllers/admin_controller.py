@@ -8,7 +8,6 @@ from candid.models.error_model import ErrorModel  # noqa: E501
 from candid.models.survey import Survey  # noqa: E501
 from candid import util
 
-
 def create_survey(body):  # noqa: E501
     """Create a new survey
 
