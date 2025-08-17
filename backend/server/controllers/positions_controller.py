@@ -52,7 +52,7 @@ def create_position(body, token_info=None):  # noqa: E501
     user = token_to_user(token_info)
 
     position_id = str(uuid.uuid4())
-    # Check that user in in location, create user_position as well
+    # TODO: Check that user in in location
     ret = db.execute_query("""
         INSERT INTO position (id, creator_user_id, category_id, location_id, statement)
         VALUES (%s, %s, %s, %s, %s)
@@ -130,4 +130,38 @@ def respond_to_positions(body, token_info=None):  # noqa: E501
     position_response = body
     if connexion.request.is_json:
         position_response = PositionResponse.from_dict(connexion.request.get_json())  # noqa: E501
-    return 'do some magic!'
+
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized: 
+        return auth_err, auth_err.code
+    user = token_to_user(token_info)
+
+    resp_by_id = {}
+    for resp in position_response.responses:
+        resp_by_id[resp.position_id] = resp.response
+
+    # Check if any responses already exist
+    existing_ids = db.execute_query("""
+        SELECT position_id FROM response WHERE user_id = %s and position_id IN %s
+    """, (user.id, tuple(resp_by_id.keys())))
+
+    # Update existing responses
+    for existing_id in existing_ids:
+        id = existing_id["position_id"]
+        print("Updating " + id, flush=True)
+        db.execute_query("""
+            UPDATE response SET response = %s WHERE id = %s
+        """, (resp_by_id[id], id))
+        del resp_by_id[id]
+
+    # Create new responses
+    values = []
+    for id in resp_by_id.keys():
+        print ("Adding " + id, flush=True)
+        values.append((user.id, id, resp_by_id[id]))
+    db.execute_query("""
+        INSERT INTO response (user_id, position_id, response)
+        VALUES (%s, %s, %s)
+    """, values, executemany=True)
+
+    # TODO: Update counts, change to have user respond to user_position rather than position

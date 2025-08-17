@@ -15,7 +15,7 @@ class Database:
 			self.db = None
 			print(f"Error connecting to database: {e}")
 
-	def execute_query(self, query, params=None, fetchone=False):
+	def execute_query(self, query, params=None, fetchone=False, executemany=False):
 		"""Executes a SQL query using the global connection."""
 		if self.db is None:
 			print("Database connection not established. Call connect_to_db() first.")
@@ -25,7 +25,10 @@ class Database:
 			is_select = query.strip().upper().startswith("SELECT")
 			is_insert = query.strip().upper().startswith("INSERT")
 			with self.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-				cur.execute(query, params)
+				if executemany:
+					cur.executemany(query, params)
+				else:
+					cur.execute(query, params)
 				retval = None
 				if is_select:
 					if fetchone:
