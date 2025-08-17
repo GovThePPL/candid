@@ -1,6 +1,6 @@
 import os
 
-from candid.controllers.helpers import database as db
+from candid.controllers.helpers.database import Database
 from candid.controllers.helpers import config as cfg
 
 flask_env = os.environ.get('FLASK_ENV')
@@ -10,4 +10,4 @@ if flask_env == 'dev':
 else:
     config = cfg.ProductionConfig()
 
-db.connect_to_db(config)
+db = Database(config)

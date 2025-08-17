@@ -12,7 +12,7 @@ from candid.models.register_user_request import RegisterUserRequest  # noqa: E50
 from candid import util
 
 from candid.controllers.helpers import auth
-from candid.controllers.helpers.database import execute_query
+from candid.controllers import db
 
 def login_user(body):  # noqa: E501
     """Log in a user
@@ -91,4 +91,12 @@ def register_user(body):  # noqa: E501
     register_user_request = body
     if connexion.request.is_json:
         register_user_request = RegisterUserRequest.from_dict(connexion.request.get_json())  # noqa: E501
+    username = register_user_request.username()
+
+    res = execute_query("""
+    SELECT id
+    FROM users
+    WHERE username = '%s'""",
+    (register_user_request.username()))
+    
     return 'do some magic!'

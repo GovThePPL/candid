@@ -2,11 +2,11 @@ import bcrypt
 from datetime import datetime, timedelta, timezone
 import jwt
 import uuid
+from camel_converter import dict_to_camel
 
+from candid.models.user import User
 from candid.models.error_model import ErrorModel
-
-from candid.controllers.helpers.database import execute_query
-from candid.controllers import config as cfg
+from candid.controllers import config, db
 
 _USER_ROLE_RANKING = {
     "guest": 1,
@@ -20,10 +20,10 @@ def create_token(user_id):
     payload = {
         "sub": str(user_id),
         "iat": now,
-        "exp": now + timedelta(minutes=cfg.TOKEN_LIFESPAN_MIN),
+        "exp": now + timedelta(minutes=config.TOKEN_LIFESPAN_MIN),
         "jti": str(uuid.uuid4()),
     }
-    return jwt.encode(payload, cfg.TOKEN_SECRET, algorithm=cfg.TOKEN_ALGO)
+    return jwt.encode(payload, config.TOKEN_SECRET, algorithm=config.TOKEN_ALGO)
 
 def hash_password(password):
     salt = bcrypt.gensalt(rounds=User.PASSWORD_HASH_ROUNDS)
@@ -31,16 +31,29 @@ def hash_password(password):
     return hashed_password
 
 def get_login_info(username):
-    ret = execute_query(f"SELECT password_hash, display_name, username, id FROM users WHERE username = '{username}' LIMIT 1")
-    if ret:
-        return ret[0]
-    else:
-        return None
+    ret = db.execute_query("""
+        SELECT
+            password_hash,
+            display_name,
+            username,
+            id
+        FROM users
+        WHERE username = %s
+    """,
+    (username,), fetchone=True)
+    
+    return ret
 
 def get_user_type(user_id):
-    ret = execute_query(f"SELECT user_type FROM users WHERE id = '{user_id}' LIMIT 1")
+    ret = db.execute_query("""
+        SELECT user_type
+        FROM users
+        WHERE id = %s
+    """,
+    (user_id,), fetchone=True)
+
     if ret:
-        return ret[0]["user_type"]
+        return ret["user_type"]
     else:
         return None
 
@@ -49,25 +62,22 @@ def does_password_match(password, password_hash):
 
 def decode_token(token):
     try:
-        decoded_payload = jwt.decode(token, cfg.TOKEN_SECRET, algorithms=cfg.TOKEN_ALGO)
+        decoded_payload = jwt.decode(token, config.TOKEN_SECRET, algorithms=config.TOKEN_ALGO)
         return decoded_payload
     except jwt.ExpiredSignatureError as e:
         raise e
     except jwt.InvalidTokenError as e:
         raise e
 
-
-def get_by_token(token):
-    decoded_token = decode_token(token)
-
-    now = datetime.now(timezone.utc)
-    token_exp = datetime.fromtimestamp(decoded_token['exp'], tz=timezone.utc)
-    if token_exp < now:
-        raise Exception('invalid token')
-
-    user_id = decoded_token['sub']
-    users = map_query_to_class(execute_query("select * from \"user\" where id=%s", (user_id,)), User)
-    return users[0]
+def token_to_user(token_info):
+    res = db.execute_query("""
+        SELECT *
+        FROM users
+        WHERE id = %s
+    """, (token_info["sub"],), fetchone=True)
+    if res is not None:
+        return User.from_dict(dict_to_camel(res))
+    return None
 
 def authorization(required_level, token_info=None):
     if not token_info:

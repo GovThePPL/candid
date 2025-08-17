@@ -1274,10 +1274,14 @@ paths:
               required:
                 - statement
                 - categoryId
+                - locationId
               properties:
                 statement:
                   type: string
                 categoryId:
+                  type: string
+                  format: uuid
+                locationId:
                   type: string
                   format: uuid
       responses:

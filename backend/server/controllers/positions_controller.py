@@ -11,26 +11,28 @@ from candid.models.position_response import PositionResponse  # noqa: E501
 from candid.models.response import Response  # noqa: E501
 from candid import util
 
-from candid.controllers.helpers.database import execute_query
+from candid.controllers import db
 from candid.controllers.helpers.config import Config
-from candid.controllers.helpers.auth import authorization
+from candid.controllers.helpers.auth import authorization, token_to_user
 
-def get_user_card(user_id):
-    res = execute_query(f"""
+from camel_converter import dict_to_camel
+import uuid
+
+def _get_user_card(user_id):
+    user = db.execute_query("""
         SELECT
-            display_name as "displayName", 
+            display_name, 
             id,
             status,
             username
         FROM users
-        WHERE id = '{user_id}'
-        LIMIT 1;
-    """)
-    if res is not None:
-        return res[0]
+        WHERE id = %s
+    """, (user_id,), fetchone=True)
+    if user is not None:
+        return User.from_dict(dict_to_camel(user))
     return None
 
-def create_position(body):  # noqa: E501
+def create_position(body, token_info=None):  # noqa: E501
     """Create a new position statement
 
      # noqa: E501
@@ -42,8 +44,34 @@ def create_position(body):  # noqa: E501
     """
     create_position_request = body
     if connexion.request.is_json:
-        create_position_request = CreatePositionRequest.from_dict(connexion.request.get_json())  # noqa: E501    
-    return 'do some magic!'
+        create_position_request = CreatePositionRequest.from_dict(connexion.request.get_json())  # noqa: E501
+    
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized: 
+        return auth_err, auth_err.code
+    user = token_to_user(token_info)
+
+    position_id = str(uuid.uuid4())
+    # Check that user in in location, create user_position as well
+    ret = db.execute_query("""
+        INSERT INTO position (id, creator_user_id, category_id, location_id, statement)
+        VALUES (%s, %s, %s, %s, %s)
+    """, (
+        position_id,
+        user.id,
+        create_position_request.category_id,
+        create_position_request.location_id,
+        create_position_request.statement
+    ))
+
+    ret = db.execute_query("""
+        INSERT INTO user_position (user_id, position_id)
+        VALUES (%s, %s)
+    """, (
+        user.id,
+        position_id
+    ))
+
 
 def get_position_by_id(position_id, token_info=None):  # noqa: E501
     """Get a specific position statement
@@ -60,35 +88,36 @@ def get_position_by_id(position_id, token_info=None):  # noqa: E501
     if not authorized: 
         return auth_err, auth_err.code
 
-    res = execute_query(f"""
+    position = db.execute_query("""
         SELECT 
-            agree_count as "agreeCount",
-            category_id as "categoryId",
-            chat_count as "chatCount",
-            TO_CHAR(created_time, '{Config.TIMESTAMP_FORMAT}') as "createdTime",
-            disagree_count as "disagreeCount",
+            agree_count,
+            category_id,
+            chat_count,
+            TO_CHAR(created_time, %s),
+            disagree_count,
             creator_user_id,
             id,
-            pass_count as "passCount",
+            pass_count,
             statement,
             status
         FROM position as p 
-        WHERE p.id = '{position_id}'
-        LIMIT 1;
-    """)
-    if res is None:
+        WHERE p.id = %s
+    """,
+    (Config.TIMESTAMP_FORMAT, position_id),
+    fetchone=True)
+
+    if position is None:
         return ErrorModel(404, "Not Found"), 404
-    pos = res[0]
     
-    user = User.from_dict(get_user_card(pos['creator_user_id']))
-    position = Position.from_dict(pos)
+    user = _get_user_card(position['creator_user_id'])
+    ret = Position.from_dict(dict_to_camel(position))
 
-    position.creator = user
+    ret.creator = user
 
-    return position
+    return ret
 
 
-def respond_to_positions(body):  # noqa: E501
+def respond_to_positions(body, token_info=None):  # noqa: E501
     """Respond to one or more position statements
 
      # noqa: E501
