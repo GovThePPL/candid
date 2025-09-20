@@ -21,7 +21,7 @@ import uuid
 def _get_user_card(user_id):
     user = db.execute_query("""
         SELECT
-            display_name, 
+            display_name,
             id,
             status,
             username
@@ -37,7 +37,7 @@ def create_position(body, token_info=None):  # noqa: E501
 
      # noqa: E501
 
-    :param create_position_request: 
+    :param create_position_request:
     :type create_position_request: dict | bytes
 
     :rtype: Union[Position, Tuple[Position, int], Tuple[Position, int, Dict[str, str]]
@@ -45,9 +45,9 @@ def create_position(body, token_info=None):  # noqa: E501
     create_position_request = body
     if connexion.request.is_json:
         create_position_request = CreatePositionRequest.from_dict(connexion.request.get_json())  # noqa: E501
-    
+
     authorized, auth_err = authorization("normal", token_info)
-    if not authorized: 
+    if not authorized:
         return auth_err, auth_err.code
     user = token_to_user(token_info)
 
@@ -78,18 +78,18 @@ def get_position_by_id(position_id, token_info=None):  # noqa: E501
 
      # noqa: E501
 
-    :param position_id: 
+    :param position_id:
     :type position_id: str
     :type position_id: str
 
     :rtype: Union[Position, Tuple[Position, int], Tuple[Position, int, Dict[str, str]]
     """
     authorized, auth_err = authorization("normal", token_info)
-    if not authorized: 
+    if not authorized:
         return auth_err, auth_err.code
 
     position = db.execute_query("""
-        SELECT 
+        SELECT
             agree_count,
             category_id,
             chat_count,
@@ -100,7 +100,7 @@ def get_position_by_id(position_id, token_info=None):  # noqa: E501
             pass_count,
             statement,
             status
-        FROM position as p 
+        FROM position as p
         WHERE p.id = %s
     """,
     (Config.TIMESTAMP_FORMAT, position_id),
@@ -108,7 +108,7 @@ def get_position_by_id(position_id, token_info=None):  # noqa: E501
 
     if position is None:
         return ErrorModel(404, "Not Found"), 404
-    
+
     user = _get_user_card(position['creator_user_id'])
     ret = Position.from_dict(dict_to_camel(position))
 
@@ -122,7 +122,7 @@ def respond_to_positions(body, token_info=None):  # noqa: E501
 
      # noqa: E501
 
-    :param position_response: 
+    :param position_response:
     :type position_response: dict | bytes
 
     :rtype: Union[List[Response], Tuple[List[Response], int], Tuple[List[Response], int, Dict[str, str]]
@@ -132,7 +132,7 @@ def respond_to_positions(body, token_info=None):  # noqa: E501
         position_response = PositionResponse.from_dict(connexion.request.get_json())  # noqa: E501
 
     authorized, auth_err = authorization("normal", token_info)
-    if not authorized: 
+    if not authorized:
         return auth_err, auth_err.code
     user = token_to_user(token_info)
 

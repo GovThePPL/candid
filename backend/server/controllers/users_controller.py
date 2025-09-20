@@ -13,8 +13,15 @@ from candid.models.user_position import UserPosition  # noqa: E501
 from candid.models.user_settings import UserSettings  # noqa: E501
 from candid import util
 
+from candid.controllers import db
+from candid.controllers.helpers.config import Config
+from candid.controllers.helpers.auth import authorization, token_to_user
 
-def get_current_user():  # noqa: E501
+from camel_converter import dict_to_camel
+import uuid
+
+
+def get_current_user(token_info=None):  # noqa: E501
     """Get current user profile
 
      # noqa: E501
@@ -22,10 +29,34 @@ def get_current_user():  # noqa: E501
 
     :rtype: Union[CurrentUser, Tuple[CurrentUser, int], Tuple[CurrentUser, int, Dict[str, str]]
     """
-    return 'do some magic!'
+
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized: 
+        return auth_err, auth_err.code
+    user = token_to_user(token_info)
+
+    current_user = db.execute_query("""
+        SELECT 
+            display_name,
+            email,
+            id,
+            status,
+            trust_score,
+            user_type,
+            created_time,
+            username
+        FROM users
+        WHERE id = %s
+        """,
+    (user.id,),
+    fetchone=True)
+
+    if current_user is None:
+        return ErrorModel(404, "Not Found"), 404
+    return CurrentUser.from_dict(dict_to_camel(current_user))
 
 
-def get_current_user_positions(status=None):  # noqa: E501
+def get_current_user_positions(status='active', token_info=None):  # noqa: E501
     """Get current user&#39;s position statements
 
      # noqa: E501
@@ -35,10 +66,37 @@ def get_current_user_positions(status=None):  # noqa: E501
 
     :rtype: Union[List[UserPosition], Tuple[List[UserPosition], int], Tuple[List[UserPosition], int, Dict[str, str]]
     """
-    return 'do some magic!'
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+    user = token_to_user(token_info)
+
+    ret = db.execute_query("""
+        SELECT
+            up.agree_count,
+            up.chat_count,
+            up.disagree_count,
+            up.pass_count,
+            up.id,
+            p.id AS position_id,
+            up.status,
+            p.statement,
+            p.category_id,
+            p.location_id,
+            u.id AS user_id
+        FROM users AS u
+        JOIN user_position AS up ON u.id = up.user_id
+        JOIN position AS p ON up.position_id = p.id
+        WHERE u.id = %s AND p.status= %s
+        """,
+    (user.id, status))
+    if ret == None:
+        return ErrorModel(500, "Internal Server Error"), 500
+
+    return [UserPosition.from_dict(dict_to_camel(p)) for p in ret]
 
 
-def get_user_by_id(user_id):  # noqa: E501
+def get_user_by_id(user_id, token_info=None):  # noqa: E501
     """Get a user by ID
 
      # noqa: E501
@@ -49,7 +107,24 @@ def get_user_by_id(user_id):  # noqa: E501
 
     :rtype: Union[User, Tuple[User, int], Tuple[User, int, Dict[str, str]]
     """
-    return 'do some magic!'
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+    user = token_to_user(token_info)
+
+    ret = db.execute_query("""
+        SELECT
+            display_name,
+            id,
+            status,
+            trust_score,
+            username
+        FROM users
+        WHERE id = %s
+        """,
+    (user_id,), fetchone=True)
+
+    return User.from_dict(dict_to_camel(ret))
 
 
 def get_user_chats(user_id, position_id=None, limit=None, offset=None):  # noqa: E501

@@ -46,6 +46,9 @@ components:
         joinTime:
           type: string
           format: date-time
+        trustScore:
+          type: number
+          format: decimal
     User:
       type: object
       required:
@@ -155,14 +158,25 @@ components:
         - userId
         - positionId
         - status
+        - categoryId
+        - locationId
+        - statement
       properties:
         id:
           type: string
           format: uuid
+        statement:
+          type: string
         userId:
           type: string
           format: uuid
         positionId:
+          type: string
+          format: uuid
+        locationId:
+          type: string
+          format: uuid
+        categoryId:
           type: string
           format: uuid
         status:
