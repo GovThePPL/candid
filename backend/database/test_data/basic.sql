@@ -581,3 +581,36 @@ INSERT INTO kudos (id, sender_user_id, receiver_user_id, chat_log_id, created_ti
 -- Kudos from Normal4 to Normal5 after their chat
 ('a4c5d6e7-f8a9-b0c1-d2e3-f4a5b6c7d8e9', '2333392a-7c07-4733-8b46-00d32833d9bc', 'c922be05-e355-4052-8d3f-7774669ddd32', '1d06bf99-4d87-4700-8806-63de8c905eca', '2025-07-15 14:30:00+00');
 
+-- Test data for user demographics (varying from empty to complete)
+INSERT INTO user_demographics (id, user_id, location_id, affiliation_id, lean, education, geo_locale, race, sex, created_time, updated_time) VALUES
+
+-- Admin user - Complete demographics
+('d1e2f3a4-b5c6-d7e8-f9a0-b1c2d3e4f5a6', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '6a76fec7-bf77-4333-937f-07d48c1ae966', 'liberal', 'masters', 'urban', 'White', 'female', '2024-09-24 10:20:00+00', '2025-03-15 14:30:00+00'),
+
+-- Moderator1 - Mostly complete (missing race)
+('e2f3a4b5-c6d7-e8f9-a0b1-c2d3e4f5a6b7', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '3373d56e-2776-4524-9ef6-2053b85df3c3', 'conservative', 'bachelors', 'suburban', NULL, 'male', '2024-11-10 14:25:00+00', '2025-04-08 11:15:00+00'),
+
+-- Moderator2 - Partial demographics (location, lean, education only)
+('f3a4b5c6-d7e8-f9a0-b1c2-d3e4f5a6b7c8', '010f84ad-0abd-4352-a7b3-7f9b95d51983', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', NULL, 'moderate', 'doctorate', NULL, NULL, NULL, '2024-12-17 08:35:00+00', '2025-06-20 16:45:00+00'),
+
+-- Normal1 - Complete demographics
+('a4b5c6d7-e8f9-a0b1-c2d3-e4f5a6b7c8d9', '6c9344ed-0313-4b25-a616-5ac08967e84f', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '6a76fec7-bf77-4333-937f-07d48c1ae966', 'very_liberal', 'some_college', 'urban', 'Hispanic or Latino', 'other', '2024-10-05 12:45:00+00', '2025-02-18 09:20:00+00'),
+
+-- Normal2 - Basic demographics (lean and education only)
+('b5c6d7e8-f9a0-b1c2-d3e4-f5a6b7c8d9ea', '4a67d0e6-56a4-4396-916b-922d27db71d8', NULL, NULL, 'conservative', 'high_school', NULL, NULL, NULL, '2025-01-19 15:30:00+00', '2025-01-19 15:30:00+00'),
+
+-- Normal3 - Complete demographics
+('c6d7e8f9-a0b1-c2d3-e4f5-a6b7c8d9eafb', '735565c1-93d9-4813-b227-3d9c06b78c8f', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '9bfb76d1-0857-47bc-9e10-c7df3e25e762', 'liberal', 'professional', 'suburban', 'Asian', 'female', '2024-08-31 09:25:00+00', '2025-05-12 13:40:00+00'),
+
+-- Normal4 - Moderate demographics (missing affiliation and race)
+('d7e8f9a0-b1c2-d3e4-f5a6-b7c8d9eafbgc', '2333392a-7c07-4733-8b46-00d32833d9bc', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', NULL, 'very_conservative', 'associates', 'rural', NULL, 'male', '2025-03-07 16:50:00+00', '2025-07-25 10:15:00+00'),
+
+-- Normal5 - Minimal demographics (location and sex only)
+('e8f9a0b1-c2d3-e4f5-a6b7-c8d9eafbgchd', 'c922be05-e355-4052-8d3f-7774669ddd32', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', NULL, NULL, NULL, NULL, NULL, 'male', '2024-09-16 11:35:00+00', '2024-09-16 11:35:00+00'),
+
+-- Guest1 - Empty demographics (only user_id)
+('f9a0b1c2-d3e4-f5a6-b7c8-d9eafbgchdie', 'a82b485b-114f-44b7-aa0b-8ae8ca96e4f3', NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-03-02 20:25:00+00', '2025-03-02 20:25:00+00'),
+
+-- Guest2 - No demographics entry (completely empty - this user won't have a row)
+-- (Intentionally omitted to show variation in completeness)
+
