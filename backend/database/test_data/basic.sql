@@ -609,7 +609,7 @@ INSERT INTO user_demographics (id, user_id, location_id, affiliation_id, lean, e
 ('e8f9a0b1-c2d3-e4f5-a6b7-c8d9eafb2d3e', 'c922be05-e355-4052-8d3f-7774669ddd32', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', NULL, NULL, NULL, NULL, NULL, 'male', '2024-09-16 11:35:00+00', '2024-09-16 11:35:00+00'),
 
 -- Guest1 - Empty demographics (only user_id)
-('f9a0b1c2-d3e4-f5a6-b7c8-d9eafbgc1d2e', 'a82b485b-114f-44b7-aa0b-8ae8ca96e4f3', NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-03-02 20:25:00+00', '2025-03-02 20:25:00+00'),
+('f9a0b1c2-d3e4-f5a6-b7c8-d9eafb1c2d3e', 'a82b485b-114f-44b7-aa0b-8ae8ca96e4f3', NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-03-02 20:25:00+00', '2025-03-02 20:25:00+00'),
 
 -- Guest2 - No demographics entry (completely empty - this user won't have a row)
 -- (Intentionally omitted to show variation in completeness)
