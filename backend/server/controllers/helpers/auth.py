@@ -41,7 +41,6 @@ def get_login_info(username):
         WHERE username = %s
     """,
     (username,), fetchone=True)
-    
     return ret
 
 def get_user_type(user_id):

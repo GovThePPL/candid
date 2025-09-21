@@ -94,12 +94,15 @@ components:
 
     UserDemographics:
       type: object
+      required:
+       - createdTime
       properties:
-#        locationId:
-#          type: string
-#          format: uuid
+        locationId:
+          type: string
+          format: uuid
         lean:
           type: string
+          nullable: true
           enum: [very_liberal, liberal, moderate, conservative, very_conservative]
         affiliation:
           type: string
@@ -107,15 +110,22 @@ components:
           description: Reference to an affiliation entity
         education:
           type: string
+          nullable: true
           enum: [less_than_high_school, high_school, some_college, associates, bachelors, masters, doctorate, professional]
         geoLocale:
           type: string
+          nullable: true
           enum: [urban, suburban, rural]
         race:
           type: string
         sex:
           type: string
+          nullable: true
           enum: [male, female, other]
+        createdTime:
+          type: string
+          format: date-time
+
 
     Position:
       type: object

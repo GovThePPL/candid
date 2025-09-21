@@ -127,7 +127,7 @@ def get_user_by_id(user_id, token_info=None):  # noqa: E501
     return User.from_dict(dict_to_camel(ret))
 
 
-def get_user_chats(user_id, position_id=None, limit=None, offset=None):  # noqa: E501
+def get_user_chats(user_id, position_id=None, limit=None, offset=None, token_info=None):  # noqa: E501
     """Get a list of the user&#39;s historical chats
 
      # noqa: E501
@@ -148,7 +148,7 @@ def get_user_chats(user_id, position_id=None, limit=None, offset=None):  # noqa:
     return 'do some magic!'
 
 
-def get_user_demographics():  # noqa: E501
+def get_user_demographics(token_info=None):  # noqa: E501
     """Get current user demographics
 
      # noqa: E501
@@ -156,7 +156,32 @@ def get_user_demographics():  # noqa: E501
 
     :rtype: Union[UserDemographics, Tuple[UserDemographics, int], Tuple[UserDemographics, int, Dict[str, str]]
     """
-    return 'do some magic!'
+
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+    user = token_to_user(token_info)
+
+    ret = db.execute_query("""
+        SELECT
+            location_id,
+            lean,
+            affiliation_id,
+            education,
+            geo_locale,
+            race,
+            sex,
+            created_time
+        FROM user_demographics
+        WHERE user_id = %s
+        """,
+    (user.id,), fetchone=True)
+
+    if ret == None:
+        return None, 204
+    if ret["created_time"]: # Constructor doesn't do this
+        ret["created_time"] = str(ret["created_time"])
+    return UserDemographics.from_dict(dict_to_camel(ret))
 
 
 def get_user_settings():  # noqa: E501
