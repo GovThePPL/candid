@@ -603,13 +603,13 @@ INSERT INTO user_demographics (id, user_id, location_id, affiliation_id, lean, e
 ('c6d7e8f9-a0b1-c2d3-e4f5-a6b7c8d9eafb', '735565c1-93d9-4813-b227-3d9c06b78c8f', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '9bfb76d1-0857-47bc-9e10-c7df3e25e762', 'liberal', 'professional', 'suburban', 'Asian', 'female', '2024-08-31 09:25:00+00', '2025-05-12 13:40:00+00'),
 
 -- Normal4 - Moderate demographics (missing affiliation and race)
-('d7e8f9a0-b1c2-d3e4-f5a6-b7c8d9eafbgc', '2333392a-7c07-4733-8b46-00d32833d9bc', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', NULL, 'very_conservative', 'associates', 'rural', NULL, 'male', '2025-03-07 16:50:00+00', '2025-07-25 10:15:00+00'),
+('d7e8f9a0-b1c2-d3e4-f5a6-b7c8d9eafb1c', '2333392a-7c07-4733-8b46-00d32833d9bc', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', NULL, 'very_conservative', 'associates', 'rural', NULL, 'male', '2025-03-07 16:50:00+00', '2025-07-25 10:15:00+00'),
 
 -- Normal5 - Minimal demographics (location and sex only)
-('e8f9a0b1-c2d3-e4f5-a6b7-c8d9eafbgchd', 'c922be05-e355-4052-8d3f-7774669ddd32', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', NULL, NULL, NULL, NULL, NULL, 'male', '2024-09-16 11:35:00+00', '2024-09-16 11:35:00+00'),
+('e8f9a0b1-c2d3-e4f5-a6b7-c8d9eafb2d3e', 'c922be05-e355-4052-8d3f-7774669ddd32', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', NULL, NULL, NULL, NULL, NULL, 'male', '2024-09-16 11:35:00+00', '2024-09-16 11:35:00+00'),
 
 -- Guest1 - Empty demographics (only user_id)
-('f9a0b1c2-d3e4-f5a6-b7c8-d9eafbgchdie', 'a82b485b-114f-44b7-aa0b-8ae8ca96e4f3', NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-03-02 20:25:00+00', '2025-03-02 20:25:00+00'),
+('f9a0b1c2-d3e4-f5a6-b7c8-d9eafbgc1d2e', 'a82b485b-114f-44b7-aa0b-8ae8ca96e4f3', NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-03-02 20:25:00+00', '2025-03-02 20:25:00+00'),
 
 -- Guest2 - No demographics entry (completely empty - this user won't have a row)
 -- (Intentionally omitted to show variation in completeness)
