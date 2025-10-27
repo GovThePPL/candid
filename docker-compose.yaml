@@ -33,28 +33,18 @@ services:
           - ./frontend/static:/usr/share/nginx/html:ro # Mount your static files
     
     polis:
-        image: docker:dind
+        build:
+            context: ./backend/polis-sysbox
+            dockerfile: Dockerfile
         runtime: sysbox-runc
         privileged: true
-        ports:
-          - "5000:5000"    # Polis API server
-          - "8080:8080"    # Polis file server
-          - "1080:1080"    # Maildev UI
-          - "1025:1025"    # Maildev SMTP
-          - "3000:3000"    # OIDC simulator
-          - "5433:5432"    # Polis postgres (different port to avoid conflict)
+        # No ports exposed - access only through internal container networking
         volumes:
           - ./backend/polis:/workspace
           - polis_docker_data:/var/lib/docker
         working_dir: /workspace
         environment:
           - DOCKER_TLS_CERTDIR=
-        command: >
-          sh -c "
-            dockerd-entrypoint.sh &
-            sleep 10 &&
-            docker compose --profile postgres -f docker-compose.yml -f docker-compose.dev.yml up
-          "
 
 volumes:
     postgres_data:
