@@ -41,7 +41,7 @@ services:
         ports:
           - "5000:5000"    # Polis API server
         volumes:
-          - ./backend/polis:/workspace
+          - ./backend/polis-sysbox/polis:/workspace
           - polis_docker_data:/var/lib/docker
         working_dir: /workspace
         environment:
