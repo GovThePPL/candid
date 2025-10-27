@@ -26,7 +26,7 @@ services:
     ui:
         image: nginx:alpine  # Use a lightweight Nginx image
         ports:
-          - "8001:80"          # Map host port 80 to container port 80
+          - "80:80"          # Map host port 80 to container port 80
         depends_on:
             - api
         volumes:
@@ -41,10 +41,12 @@ services:
         ports:
           - "5000:5000"    # Polis API server
           - "5433:5432"    # Polis PostgreSQL (avoiding conflict with your db)
-          - "8080:8080"    # Polis file server
+          - "8081:8080"    # Polis file server
           - "8005:8005"    # SES local email service
           - "3000:3000"    # OIDC simulator
-          - "8002:8001"    # DynamoDB admin (avoiding conflict with your UI)
+          - "8001:8001"    # DynamoDB admin
+          - "8080:80"      # Polis UI
+          - "443:443"      # Polis UI
         volumes:
           - ./backend/polis-sysbox/polis:/workspace
           - polis_docker_data:/var/lib/docker

@@ -6,7 +6,9 @@ RUN apk add --no-cache \
     curl \
     nodejs \
     npm \
-    bash
+    bash \
+    make \
+    nss-tools
 
 # Install docker-compose
 RUN curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose \
