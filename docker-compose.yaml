@@ -38,7 +38,8 @@ services:
             dockerfile: Dockerfile
         runtime: sysbox-runc
         privileged: true
-        # No ports exposed - access only through internal container networking
+        ports:
+          - "5000:5000"    # Polis API server
         volumes:
           - ./backend/polis:/workspace
           - polis_docker_data:/var/lib/docker
