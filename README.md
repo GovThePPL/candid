@@ -42,4 +42,7 @@ Username:
 Password:
 `Te$tP@ssw0rd*`
 
+If you get stuck at the "sign in" button, navigate to `https://localhost:3000/` and accept the security risk from the self signed certificate.
+This should allow you to reach the sign in page.
+
 Run `backend/server/build.sh` to build the server locally, then run it from the docker container in `backend/server/generated`
