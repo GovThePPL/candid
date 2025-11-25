@@ -1,4 +1,5 @@
 .aider*
-#backend/src/generated/
-#frontend/src/generated/
-
+frontend/api/
+backend/server/generated/
+.vscode
+*.swp

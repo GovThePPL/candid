@@ -54,3 +54,9 @@ If you get stuck at the "sign in" button, navigate to `https://localhost:3000/` 
 This should allow you to reach the sign in page.
 
 Run `backend/server/build.sh` to build the server locally, then run it from the docker container in `backend/server/generated`
+
+Start the frontend in candid/frontend: `$ frontend/start.sh`
+
+Download Expo Go on your phone and scan the QR code to open the live version of the frontend.
+
+Rebuild the API used in the frontend: `$ frontend/regenerate_api.sh`

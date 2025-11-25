@@ -13,8 +13,10 @@ services:
             FLASK_APP: "app.app:create_app"
         depends_on:
             - db
+            - polis
         volumes:
             - .:/app # Mount current directory to /app in container for development
+
     db:
         build:
             context: backend/database/
@@ -23,15 +25,7 @@ services:
             - "5432:5432"
         volumes:
             - postgres_data:/var/lib/postgresql/data # Persist data
-    ui:
-        image: nginx:alpine  # Use a lightweight Nginx image
-        ports:
-          - "80:80"          # Map host port 80 to container port 80
-        depends_on:
-            - api
-        volumes:
-          - ./frontend/static:/usr/share/nginx/html:ro # Mount your static files
-    
+
     polis:
         build:
             context: ./backend/polis-sysbox
