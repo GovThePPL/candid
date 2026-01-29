@@ -26,9 +26,9 @@ def create_token(user_id):
     return jwt.encode(payload, config.TOKEN_SECRET, algorithm=config.TOKEN_ALGO)
 
 def hash_password(password):
-    salt = bcrypt.gensalt(rounds=User.PASSWORD_HASH_ROUNDS)
+    salt = bcrypt.gensalt(rounds=config.PASSWORD_HASH_ROUNDS)
     hashed_password = bcrypt.hashpw(bytes(password, 'utf-8'), salt)
-    return hashed_password
+    return hashed_password.decode('utf-8')
 
 def get_login_info(username):
     ret = db.execute_query("""

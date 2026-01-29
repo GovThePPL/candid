@@ -86,7 +86,7 @@ def register_user(body):  # noqa: E501
 
      # noqa: E501
 
-    :param register_user_request: 
+    :param register_user_request:
     :type register_user_request: dict | bytes
 
     :rtype: Union[CurrentUser, Tuple[CurrentUser, int], Tuple[CurrentUser, int, Dict[str, str]]
@@ -94,12 +94,51 @@ def register_user(body):  # noqa: E501
     register_user_request = body
     if connexion.request.is_json:
         register_user_request = RegisterUserRequest.from_dict(connexion.request.get_json())  # noqa: E501
-    username = register_user_request.username()
 
-    res = execute_query("""
-    SELECT id
-    FROM users
-    WHERE username = '%s'""",
-    (register_user_request.username()))
-    
-    return 'do some magic!'
+    username = register_user_request.username
+    display_name = register_user_request.display_name
+    password = register_user_request.password
+    email = register_user_request.email  # optional
+
+    # Check username uniqueness
+    existing = db.execute_query(
+        "SELECT id FROM users WHERE username = %s",
+        (username,), fetchone=True
+    )
+    if existing:
+        return ErrorModel(400, "Username already exists"), 400
+
+    # Check email uniqueness if provided
+    if email:
+        existing_email = db.execute_query(
+            "SELECT id FROM users WHERE email = %s",
+            (email,), fetchone=True
+        )
+        if existing_email:
+            return ErrorModel(400, "Email already exists"), 400
+
+    # Hash password
+    password_hash = auth.hash_password(password)
+
+    # Generate UUID and insert user
+    import uuid
+    user_id = str(uuid.uuid4())
+    db.execute_query("""
+        INSERT INTO users (id, username, email, password_hash, display_name)
+        VALUES (%s, %s, %s, %s, %s)
+    """, (user_id, username, email, password_hash, display_name))
+
+    # Fetch and return created user
+    user = db.execute_query("""
+        SELECT id, username, display_name, email, user_type, status, created_time
+        FROM users WHERE id = %s
+    """, (user_id,), fetchone=True)
+
+    return CurrentUser.from_dict({
+        'id': str(user['id']),
+        'username': user['username'],
+        'displayName': user['display_name'],
+        'email': user['email'],
+        'userType': user['user_type'],
+        'status': user['status'],
+    }), 201
