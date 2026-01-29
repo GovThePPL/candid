@@ -94,8 +94,6 @@ components:
 
     UserDemographics:
       type: object
-      required:
-       - createdTime
       properties:
         locationId:
           type: string

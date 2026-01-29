@@ -23,7 +23,6 @@ class Database:
 
 		try:
 			is_select = query.strip().upper().startswith("SELECT")
-			is_insert = query.strip().upper().startswith("INSERT")
 			with self.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
 				if executemany:
 					cur.executemany(query, params)
@@ -35,7 +34,7 @@ class Database:
 						retval = cur.fetchone()
 					else:
 						retval = cur.fetchall()
-				if is_insert:
+				if not is_select:
 					self.db.commit()  # Commit changes for DML operations
 
 				return retval  # No rows to fetch for DML
