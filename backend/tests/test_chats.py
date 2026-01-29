@@ -580,8 +580,8 @@ class TestSendKudos:
         assert "receiverUserId" in body
         assert "createdTime" in body
 
-    def test_cannot_send_duplicate_kudos(self, normal_headers):
-        """Cannot send kudos twice for the same chat."""
+    def test_send_kudos_is_idempotent(self, normal_headers):
+        """Sending kudos twice is idempotent (succeeds both times)."""
         # Send first kudos
         resp1 = requests.post(
             kudos_url(CHAT_LOG_1_ID),
@@ -589,12 +589,12 @@ class TestSendKudos:
         )
         assert resp1.status_code == 201
 
-        # Try to send again
+        # Send again - should succeed (idempotent)
         resp2 = requests.post(
             kudos_url(CHAT_LOG_1_ID),
             headers=normal_headers,
         )
-        assert resp2.status_code == 409
+        assert resp2.status_code == 201
 
     def test_non_participant_cannot_send_kudos(self, normal2_headers):
         """Non-participant cannot send kudos."""

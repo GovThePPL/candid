@@ -17,8 +17,67 @@ from camel_converter import dict_to_camel
 import random
 
 
+# Demographic field questions (options come from the database schema)
+DEMOGRAPHIC_QUESTIONS = {
+    'lean': 'What is your political lean?',
+    'education': 'What is your highest level of education?',
+    'geo_locale': 'How would you describe where you live?',
+    'sex': 'What is your sex?',
+}
+
+# Cached demographic options from database schema
+_demographic_options_cache = None
+
+
+def _get_demographic_options():
+    """Get demographic field options from database schema CHECK constraints."""
+    global _demographic_options_cache
+    if _demographic_options_cache is not None:
+        return _demographic_options_cache
+
+    # Query the database to get CHECK constraint values for each demographic column
+    result = db.execute_query("""
+        SELECT
+            a.attname as column_name,
+            pg_get_constraintdef(c.oid) as constraint_def
+        FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(c.conkey)
+        WHERE t.relname = 'user_demographics'
+          AND c.contype = 'c'
+          AND a.attname IN ('lean', 'education', 'geo_locale', 'sex')
+    """)
+
+    options = {}
+    import re
+
+    for row in (result or []):
+        col_name = row['column_name']
+        constraint_def = row['constraint_def']
+
+        # Parse CHECK constraint to extract values
+        # Format: CHECK (((column_name)::text = ANY ((ARRAY['val1'::character varying, 'val2'::character varying, ...])::text[])))
+        match = re.search(r"ARRAY\[([^\]]+)\]", constraint_def)
+        if match:
+            values_str = match.group(1)
+            # Extract values from 'value'::character varying format
+            values = re.findall(r"'([^']+)'", values_str)
+            options[col_name] = [
+                {'value': v, 'label': _value_to_label(v)}
+                for v in values
+            ]
+
+    _demographic_options_cache = options
+    return options
+
+
+def _value_to_label(value: str) -> str:
+    """Convert a snake_case value to a human-readable label."""
+    return value.replace('_', ' ').title()
+
+
 def get_card_queue(limit=None, token_info=None):  # noqa: E501
-    """Get mixed queue of positions, surveys, and chat requests
+    """Get mixed queue of positions, surveys, chat requests, kudos, and demographics
 
      # noqa: E501
 
@@ -35,44 +94,65 @@ def get_card_queue(limit=None, token_info=None):  # noqa: E501
     if limit is None:
         limit = 10
 
-    cards = []
+    # 1. Priority cards (not shuffled, appear at front)
+    priority_cards = []
 
-    # 1. Get user's category priorities
+    # Chat requests at front (highest priority)
+    chat_requests = _get_pending_chat_requests(user.id, limit=2)
+    for chat_req in chat_requests:
+        priority_cards.append(_chat_request_to_card(chat_req))
+
+    # Kudos cards second (only where other participant sent kudos first)
+    kudos_prompts = _get_pending_kudos_cards(user.id, limit=2)
+    for kudos in kudos_prompts:
+        priority_cards.append(_kudos_to_card(kudos, user.id))
+
+    # 2. Shuffled cards pool
+    shuffled_cards = []
+
+    # Demographics (20% chance to appear, up to 1)
+    if random.random() < 0.20:
+        demographics = _get_unanswered_demographics(user.id, limit=1)
+        for field in demographics:
+            shuffled_cards.append(_demographic_to_card(field))
+
+    # Surveys (30% chance to appear, up to 1)
+    if random.random() < 0.30:
+        surveys = _get_pending_surveys(user.id, limit=1)
+        for survey in surveys:
+            shuffled_cards.append(_survey_to_card(survey))
+
+    # Positions (fill remaining slots)
+    # Calculate how many positions we need
+    remaining_slots = max(1, limit - len(priority_cards) - len(shuffled_cards))
+
+    # Get user's category priorities
     priorities = _get_user_category_priorities(user.id)
-
-    # 2. Get user's location
+    # Get user's location
     location_id = _get_user_location(user.id)
 
-    # 3. Fetch unvoted positions (using Polis if enabled, otherwise DB)
+    # Fetch unvoted positions (using Polis if enabled, otherwise DB)
     if location_id and priorities:
-        position_limit = max(1, limit - 4)  # Reserve space for surveys and chat requests
         positions = polis_sync.get_unvoted_positions_for_user(
             user_id=str(user.id),
             location_id=str(location_id),
             category_priorities=priorities,
-            limit=position_limit
+            limit=remaining_slots
         )
         for pos in positions:
-            cards.append(_position_to_card(pos))
+            shuffled_cards.append(_position_to_card(pos))
     elif location_id:
         # User has no category priorities set, fall back to all categories
-        positions = _get_unvoted_positions_fallback(user.id, location_id, limit=max(1, limit - 4))
+        positions = _get_unvoted_positions_fallback(user.id, location_id, limit=remaining_slots)
         for pos in positions:
-            cards.append(_position_to_card(pos))
+            shuffled_cards.append(_position_to_card(pos))
 
-    # 4. Fetch pending surveys
-    surveys = _get_pending_surveys(user.id, limit=2)
-    for survey in surveys:
-        cards.append(_survey_to_card(survey))
+    # 3. Shuffle the shuffled pool
+    random.shuffle(shuffled_cards)
 
-    # 5. Fetch pending chat requests
-    chat_requests = _get_pending_chat_requests(user.id, limit=2)
-    for chat_req in chat_requests:
-        cards.append(_chat_request_to_card(chat_req))
-
-    # 6. Shuffle and limit
-    random.shuffle(cards)
-    return cards[:limit]
+    # 4. Combine: priority cards first, then shuffled
+    all_cards = priority_cards + shuffled_cards
+    return all_cards[:limit]
 
 
 def _get_user_category_priorities(user_id: str) -> Dict[str, int]:
@@ -285,3 +365,122 @@ def _chat_request_to_card(chat_req: dict) -> GetCardQueue200ResponseInner:
     )
 
     return GetCardQueue200ResponseInner(type="chat_request", data=data)
+
+
+def _get_pending_kudos_cards(user_id: str, limit: int = 2) -> List[dict]:
+    """Get kudos prompts for the user where the other participant sent kudos first.
+
+    Returns chats where:
+    - User was a participant
+    - Chat ended with agreed_closure
+    - Other participant has sent kudos to this user (status='sent')
+    - This user hasn't responded yet (no kudos record from this user for this chat)
+    """
+    kudos_prompts = db.execute_query("""
+        SELECT
+            cl.id as chat_log_id,
+            cl.end_time,
+            cl.log->>'agreed_closure' as closing_statement,
+            cr.initiator_user_id,
+            up.user_id as responder_user_id,
+            -- Get the other participant's info
+            CASE
+                WHEN cr.initiator_user_id = %s THEN up.user_id
+                ELSE cr.initiator_user_id
+            END as other_user_id,
+            CASE
+                WHEN cr.initiator_user_id = %s THEN responder.display_name
+                ELSE initiator.display_name
+            END as other_display_name,
+            CASE
+                WHEN cr.initiator_user_id = %s THEN responder.username
+                ELSE initiator.username
+            END as other_username,
+            CASE
+                WHEN cr.initiator_user_id = %s THEN responder.status
+                ELSE initiator.status
+            END as other_status
+        FROM chat_log cl
+        JOIN chat_request cr ON cl.chat_request_id = cr.id
+        JOIN user_position up ON cr.user_position_id = up.id
+        JOIN users initiator ON cr.initiator_user_id = initiator.id
+        JOIN users responder ON up.user_id = responder.id
+        WHERE cl.end_type = 'agreed_closure'
+          AND cl.log->>'agreed_closure' IS NOT NULL
+          AND (cr.initiator_user_id = %s OR up.user_id = %s)
+          -- Other participant has sent kudos to this user
+          AND EXISTS (
+              SELECT 1 FROM kudos k
+              WHERE k.chat_log_id = cl.id
+                AND k.receiver_user_id = %s
+                AND k.status = 'sent'
+          )
+          -- This user hasn't responded yet (no kudos record at all from this user)
+          AND NOT EXISTS (
+              SELECT 1 FROM kudos k
+              WHERE k.chat_log_id = cl.id
+                AND k.sender_user_id = %s
+          )
+        ORDER BY cl.end_time DESC
+        LIMIT %s
+    """, (user_id, user_id, user_id, user_id, user_id, user_id, user_id, user_id, limit))
+
+    return [dict(r) for r in (kudos_prompts or [])]
+
+
+def _kudos_to_card(kudos_data: dict, user_id: str) -> GetCardQueue200ResponseInner:
+    """Convert a kudos prompt dict to a card response."""
+    other_participant = User(
+        id=str(kudos_data["other_user_id"]),
+        display_name=kudos_data["other_display_name"],
+        username=kudos_data["other_username"],
+        status=kudos_data["other_status"]
+    )
+
+    data = GetCardQueue200ResponseInnerData(
+        id=str(kudos_data["chat_log_id"]),
+        other_participant=other_participant,
+        closing_statement=kudos_data["closing_statement"],
+        chat_end_time=kudos_data["end_time"].isoformat() if kudos_data["end_time"] else None
+    )
+
+    return GetCardQueue200ResponseInner(type="kudos", data=data)
+
+
+def _get_unanswered_demographics(user_id: str, limit: int = 1) -> List[str]:
+    """Get unanswered demographic fields for the user."""
+    # Get current demographics
+    demographics = db.execute_query("""
+        SELECT lean, education, geo_locale, sex
+        FROM user_demographics
+        WHERE user_id = %s
+    """, (user_id,), fetchone=True)
+
+    unanswered = []
+
+    if not demographics:
+        # No demographics record, all fields are unanswered
+        unanswered = list(DEMOGRAPHIC_QUESTIONS.keys())
+    else:
+        # Check which fields are NULL
+        for field in DEMOGRAPHIC_QUESTIONS.keys():
+            if demographics.get(field) is None:
+                unanswered.append(field)
+
+    # Return up to limit unanswered fields
+    return unanswered[:limit]
+
+
+def _demographic_to_card(field: str) -> GetCardQueue200ResponseInner:
+    """Convert a demographic field to a card response."""
+    options = _get_demographic_options()
+    question = DEMOGRAPHIC_QUESTIONS.get(field, f"What is your {field.replace('_', ' ')}?")
+    field_options = options.get(field, [])
+
+    data = GetCardQueue200ResponseInnerData(
+        _field=field,
+        question=question,
+        options=field_options
+    )
+
+    return GetCardQueue200ResponseInner(type="demographic", data=data)

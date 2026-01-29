@@ -449,28 +449,21 @@ def send_kudos(chat_id, token_info=None):
     else:
         receiver_id = initiator_id
 
-    # Check if kudos already sent
-    existing = db.execute_query("""
-        SELECT id FROM kudos
-        WHERE sender_user_id = %s AND chat_log_id = %s
-    """, (str(user.id), chat_id), fetchone=True)
-
-    if existing:
-        return ErrorModel(code=409, message="Kudos already sent for this chat"), 409
-
-    # Create kudos
+    # Create or update kudos (allows sending after dismissing)
     kudos_id = str(uuid.uuid4())
     db.execute_query("""
-        INSERT INTO kudos (id, sender_user_id, receiver_user_id, chat_log_id)
-        VALUES (%s, %s, %s, %s)
+        INSERT INTO kudos (id, sender_user_id, receiver_user_id, chat_log_id, status)
+        VALUES (%s, %s, %s, %s, 'sent')
+        ON CONFLICT (sender_user_id, receiver_user_id, chat_log_id)
+        DO UPDATE SET status = 'sent', created_time = CURRENT_TIMESTAMP
     """, (kudos_id, str(user.id), receiver_id, chat_id))
 
-    # Return the created kudos
+    # Return the created kudos (need to get the actual ID since upsert may have used existing)
     created = db.execute_query("""
         SELECT id, sender_user_id, receiver_user_id, chat_log_id, created_time
         FROM kudos
-        WHERE id = %s
-    """, (kudos_id,), fetchone=True)
+        WHERE sender_user_id = %s AND chat_log_id = %s
+    """, (str(user.id), chat_id), fetchone=True)
 
     return dict_to_camel({
         "id": str(created["id"]),
@@ -479,3 +472,62 @@ def send_kudos(chat_id, token_info=None):
         "chat_log_id": str(created["chat_log_id"]),
         "created_time": created["created_time"].isoformat() if created["created_time"] else None,
     }), 201
+
+
+def dismiss_kudos(chat_id, token_info=None):
+    """Dismiss a kudos prompt without sending kudos
+
+    Records that the user dismissed the kudos prompt, preventing the
+    kudos card from appearing again.
+
+    :param chat_id: Chat log ID
+    :type chat_id: str
+    :param token_info: JWT token info from authentication
+    :type token_info: dict
+
+    :rtype: Union[None, Tuple[None, int], Tuple[None, int, Dict[str, str]]
+    """
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+    user = token_to_user(token_info)
+
+    # Get chat and verify user is a participant
+    result = db.execute_query("""
+        SELECT
+            cl.id,
+            cl.status,
+            cr.initiator_user_id,
+            up.user_id as responder_user_id
+        FROM chat_log cl
+        JOIN chat_request cr ON cl.chat_request_id = cr.id
+        JOIN user_position up ON cr.user_position_id = up.id
+        WHERE cl.id = %s
+    """, (chat_id,), fetchone=True)
+
+    if not result:
+        return ErrorModel(code=404, message="Chat not found"), 404
+
+    initiator_id = str(result["initiator_user_id"])
+    responder_id = str(result["responder_user_id"])
+
+    # Verify user is a participant
+    if str(user.id) not in (initiator_id, responder_id):
+        return ErrorModel(code=403, message="Not authorized to dismiss kudos for this chat"), 403
+
+    # Determine receiver (the other user)
+    if str(user.id) == initiator_id:
+        receiver_id = responder_id
+    else:
+        receiver_id = initiator_id
+
+    # Create kudos record with status='dismissed' (idempotent via upsert)
+    kudos_id = str(uuid.uuid4())
+    db.execute_query("""
+        INSERT INTO kudos (id, sender_user_id, receiver_user_id, chat_log_id, status)
+        VALUES (%s, %s, %s, %s, 'dismissed')
+        ON CONFLICT (sender_user_id, receiver_user_id, chat_log_id)
+        DO NOTHING
+    """, (kudos_id, str(user.id), receiver_id, chat_id))
+
+    return None, 204

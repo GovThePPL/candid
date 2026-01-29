@@ -574,13 +574,13 @@ INSERT INTO chat_log (id, chat_request_id, start_time, end_time, log, end_type, 
 ('1d06bf99-4d87-4700-8806-63de8c905eca', '2f58e635-3c09-4bd7-a0d8-f52510ad30fa', '2025-07-15 14:02:20+00', '2025-07-15 14:25:00+00', '{"messages": [], "agreed_positions": [], "agreed_closure": "Found common ground", "export_time": "2025-07-15T14:25:00Z"}', 'agreed_closure', 'active');
 
 -- Test data for kudos entries
-INSERT INTO kudos (id, sender_user_id, receiver_user_id, chat_log_id, created_time) VALUES
+INSERT INTO kudos (id, sender_user_id, receiver_user_id, chat_log_id, status, created_time) VALUES
 -- Kudos from Normal1 to Normal3 after their chat
-('8f2a1b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c', '6c9344ed-0313-4b25-a616-5ac08967e84f', '735565c1-93d9-4813-b227-3d9c06b78c8f', 'fc6127e3-a108-487b-8789-442ec42d41f3', '2024-10-15 14:10:00+00'),
+('8f2a1b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c', '6c9344ed-0313-4b25-a616-5ac08967e84f', '735565c1-93d9-4813-b227-3d9c06b78c8f', 'fc6127e3-a108-487b-8789-442ec42d41f3', 'sent', '2024-10-15 14:10:00+00'),
 -- Kudos from Normal3 to Normal1 after their chat (mutual kudos)
-('9e3b2c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d', '735565c1-93d9-4813-b227-3d9c06b78c8f', '6c9344ed-0313-4b25-a616-5ac08967e84f', 'fc6127e3-a108-487b-8789-442ec42d41f3', '2024-10-15 14:12:00+00'),
--- Kudos from Normal4 to Normal5 after their chat
-('a4c5d6e7-f8a9-b0c1-d2e3-f4a5b6c7d8e9', '2333392a-7c07-4733-8b46-00d32833d9bc', 'c922be05-e355-4052-8d3f-7774669ddd32', '1d06bf99-4d87-4700-8806-63de8c905eca', '2025-07-15 14:30:00+00');
+('9e3b2c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d', '735565c1-93d9-4813-b227-3d9c06b78c8f', '6c9344ed-0313-4b25-a616-5ac08967e84f', 'fc6127e3-a108-487b-8789-442ec42d41f3', 'sent', '2024-10-15 14:12:00+00'),
+-- Kudos from Normal4 to Normal5 after their chat (Normal5 has NOT reciprocated, so should appear as kudos card for Normal5)
+('a4c5d6e7-f8a9-b0c1-d2e3-f4a5b6c7d8e9', '2333392a-7c07-4733-8b46-00d32833d9bc', 'c922be05-e355-4052-8d3f-7774669ddd32', '1d06bf99-4d87-4700-8806-63de8c905eca', 'sent', '2025-07-15 14:30:00+00');
 
 -- Test data for moderation rules
 INSERT INTO rule (id, creator_user_id, title, text, status, created_time, updated_time) VALUES

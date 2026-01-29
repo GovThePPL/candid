@@ -518,10 +518,56 @@ components:
           format: uuid
         sender:
           $ref: '#/components/schemas/User'
-
         chatLogId:
           type: string
           format: uuid
+
+    KudosCard:
+      type: object
+      required:
+        - id
+        - otherParticipant
+        - closingStatement
+        - chatEndTime
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: The chat_log_id (used for API calls)
+        otherParticipant:
+          $ref: '#/components/schemas/User'
+        closingStatement:
+          type: string
+          description: The agreed closing statement from the chat
+        chatEndTime:
+          type: string
+          format: date-time
+
+    DemographicCard:
+      type: object
+      required:
+        - field
+        - question
+        - options
+      properties:
+        field:
+          type: string
+          enum: [lean, education, geo_locale, sex]
+        question:
+          type: string
+          description: Human-readable question
+        options:
+          type: array
+          items:
+            type: object
+            required:
+              - value
+              - label
+            properties:
+              value:
+                type: string
+              label:
+                type: string
 
 #    Location:
 #      type: object
@@ -1074,7 +1120,7 @@ paths:
   /card-queue:
     get:
       operationId: getCardQueue
-      summary: Get mixed queue of positions, surveys, and chat requests
+      summary: Get mixed queue of positions, surveys, chat requests, kudos, and demographics
       tags:
         - Cards
       parameters:
@@ -1087,7 +1133,7 @@ paths:
           description: Maximum number of cards to return
       responses:
         '200':
-          description: Mixed queue of cards
+          description: Mixed queue of cards. Priority cards (chat_request, kudos) appear at front, followed by shuffled pool (demographic, survey, position).
           content:
             application/json:
               schema:
@@ -1100,12 +1146,14 @@ paths:
                   properties:
                     type:
                       type: string
-                      enum: [position, survey, chat_request]
+                      enum: [position, survey, chat_request, kudos, demographic]
                     data:
                       oneOf:
                         - $ref: '#/components/schemas/Position'
                         - $ref: '#/components/schemas/SurveyQuestion'
                         - $ref: '#/components/schemas/ChatRequest'
+                        - $ref: '#/components/schemas/KudosCard'
+                        - $ref: '#/components/schemas/DemographicCard'
 
   /positions:
     post:
@@ -1645,6 +1693,36 @@ paths:
                 $ref: '#/components/schemas/ErrorModel'
         '403':
           description: Forbidden - user was not a participant in this chat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /chats/{chatId}/kudos/dismiss:
+    post:
+      operationId: dismissKudos
+      summary: Dismiss a kudos prompt without sending kudos
+      description: Records that the user dismissed the kudos prompt, preventing the kudos card from appearing again.
+      tags:
+        - Chat
+      parameters:
+        - name: chatId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Kudos dismissed successfully
+        '403':
+          description: Forbidden - user was not a participant in this chat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: Chat not found
           content:
             application/json:
               schema:

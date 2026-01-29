@@ -153,6 +153,7 @@ CREATE TABLE kudos (
     sender_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     receiver_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     chat_log_id UUID NOT NULL REFERENCES chat_log(id) ON DELETE CASCADE,
+    status VARCHAR(50) NOT NULL DEFAULT 'sent' CHECK (status IN ('sent', 'dismissed')),
     created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(sender_user_id, receiver_user_id, chat_log_id)
 );
