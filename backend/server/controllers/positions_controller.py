@@ -14,6 +14,7 @@ from candid import util
 from candid.controllers import db
 from candid.controllers.helpers.config import Config
 from candid.controllers.helpers.auth import authorization, token_to_user
+from candid.controllers.helpers import polis_sync
 
 from camel_converter import dict_to_camel
 import uuid
@@ -71,6 +72,15 @@ def create_position(body, token_info=None):  # noqa: E501
         user.id,
         position_id
     ))
+
+    # Queue position for async Polis sync
+    polis_sync.queue_position_sync(
+        position_id=position_id,
+        statement=create_position_request.statement,
+        category_id=create_position_request.category_id,
+        location_id=create_position_request.location_id,
+        creator_user_id=user.id
+    )
 
 
 def get_position_by_id(position_id, token_info=None):  # noqa: E501
@@ -163,5 +173,13 @@ def respond_to_positions(body, token_info=None):  # noqa: E501
         INSERT INTO response (user_id, position_id, response)
         VALUES (%s, %s, %s)
     """, values, executemany=True)
+
+    # Queue votes for async Polis sync (all responses, not just new ones)
+    for resp in position_response.responses:
+        polis_sync.queue_vote_sync(
+            position_id=resp.position_id,
+            user_id=user.id,
+            response=resp.response
+        )
 
     # TODO: Update counts, change to have user respond to user_position rather than position

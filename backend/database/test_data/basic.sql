@@ -556,21 +556,22 @@ INSERT INTO chat_request (id, initiator_user_id, user_position_id, response, res
 ('2f58e635-3c09-4bd7-a0d8-f52510ad30fa', '2333392a-7c07-4733-8b46-00d32833d9bc', '927a0293-5e92-4450-a584-bd42be3386be', 'accepted', '2025-07-15 14:05:00+00', '2025-07-15 14:02:00+00', '2025-07-15 14:02:20+00');
 
 -- Test data for chat logs (for accepted chat requests)
+-- Note: log column is JSONB, using sample JSON structure
 INSERT INTO chat_log (id, chat_request_id, start_time, end_time, log, end_type, status) VALUES
 -- Chat 1: Normal1 -> Normal3's position (agreed_closure, active)
-('fc6127e3-a108-487b-8789-442ec42d41f3', '0da4d451-c6f1-47d9-aded-e4161592546c', '2024-10-15 13:48:25+00', '2024-10-15 14:05:00+00', 'chat_log_1', 'agreed_closure', 'active'),
+('fc6127e3-a108-487b-8789-442ec42d41f3', '0da4d451-c6f1-47d9-aded-e4161592546c', '2024-10-15 13:48:25+00', '2024-10-15 14:05:00+00', '{"messages": [], "agreed_positions": [], "agreed_closure": "We agree to disagree respectfully", "export_time": "2024-10-15T14:05:00Z"}', 'agreed_closure', 'active'),
 
 -- Chat 2: Normal3 -> Normal1's position (user_exit, active)
-('e698f2d0-10ac-422d-a80e-93c619e2f581', 'c6028e49-467a-46ea-876e-32b1140dd613', '2024-12-12 15:40:20+00', '2024-12-12 15:58:00+00', 'chat_log_2', 'user_exit', 'active'),
+('e698f2d0-10ac-422d-a80e-93c619e2f581', 'c6028e49-467a-46ea-876e-32b1140dd613', '2024-12-12 15:40:20+00', '2024-12-12 15:58:00+00', '{"messages": [], "agreed_positions": [], "agreed_closure": null, "export_time": "2024-12-12T15:58:00Z"}', 'user_exit', 'active'),
 
 -- Chat 3: Normal2 -> Admin's position (agreed_closure, deleted)
-('1e665c62-0dc6-45ff-acde-e32d64e5b2ea', '3f0107a5-2c0d-44f2-b89d-7728226dda83', '2025-02-20 10:12:30+00', '2025-02-20 10:35:00+00', 'chat_log_3', 'agreed_closure', 'deleted'),
+('1e665c62-0dc6-45ff-acde-e32d64e5b2ea', '3f0107a5-2c0d-44f2-b89d-7728226dda83', '2025-02-20 10:12:30+00', '2025-02-20 10:35:00+00', '{"messages": [], "agreed_positions": [], "agreed_closure": "Productive discussion", "export_time": "2025-02-20T10:35:00Z"}', 'agreed_closure', 'deleted'),
 
 -- Chat 4: Admin -> Normal2's position (user_exit, archived)
-('42f99c17-36cc-438f-bca2-f411d4238a63', '4b53468d-6811-4efd-84f6-7d2cd6b23106', '2025-03-10 16:42:25+00', '2025-03-10 16:55:00+00', 'chat_log_4', 'user_exit', 'archived'),
+('42f99c17-36cc-438f-bca2-f411d4238a63', '4b53468d-6811-4efd-84f6-7d2cd6b23106', '2025-03-10 16:42:25+00', '2025-03-10 16:55:00+00', '{"messages": [], "agreed_positions": [], "agreed_closure": null, "export_time": "2025-03-10T16:55:00Z"}', 'user_exit', 'archived'),
 
 -- Chat 5: Normal4 -> Normal5's position (agreed_closure, active)
-('1d06bf99-4d87-4700-8806-63de8c905eca', '2f58e635-3c09-4bd7-a0d8-f52510ad30fa', '2025-07-15 14:02:20+00', '2025-07-15 14:25:00+00', 'chat_log_5', 'agreed_closure', 'active');
+('1d06bf99-4d87-4700-8806-63de8c905eca', '2f58e635-3c09-4bd7-a0d8-f52510ad30fa', '2025-07-15 14:02:20+00', '2025-07-15 14:25:00+00', '{"messages": [], "agreed_positions": [], "agreed_closure": "Found common ground", "export_time": "2025-07-15T14:25:00Z"}', 'agreed_closure', 'active');
 
 -- Test data for kudos entries
 INSERT INTO kudos (id, sender_user_id, receiver_user_id, chat_log_id, created_time) VALUES

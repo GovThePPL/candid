@@ -14,6 +14,22 @@ class Config:
 	TOKEN_LIFESPAN_MIN = None
 	TOKEN_ALGO = 'HS256'
 	PASSWORD_HASH_ROUNDS = 14
+	# Polis integration
+	POLIS_API_URL = os.environ.get('POLIS_API_URL', 'http://polis:5000/api/v3')
+	POLIS_BASE_URL = os.environ.get('POLIS_BASE_URL', 'http://polis:5000')
+	POLIS_ENABLED = os.environ.get('POLIS_ENABLED', 'true').lower() == 'true'
+	POLIS_TIMEOUT = int(os.environ.get('POLIS_TIMEOUT', '10'))
+	POLIS_CONVERSATION_WINDOW_MONTHS = 6  # How long each conversation stays active
+
+	# Polis Admin Credentials (for server-side operations like creating conversations)
+	# These are stored in config/yaml because they're shared server credentials,
+	# not per-user credentials. Per-user XID tokens are stored in the database
+	# (polis_participant table) after Polis issues them.
+	POLIS_OIDC_TOKEN_URL = os.environ.get('POLIS_OIDC_TOKEN_URL', 'https://polis:3000/oauth/token')
+	POLIS_OIDC_CLIENT_ID = os.environ.get('POLIS_OIDC_CLIENT_ID', 'dev-client-id')
+	POLIS_OIDC_CLIENT_SECRET = os.environ.get('POLIS_OIDC_CLIENT_SECRET', 'dev_auth-client_secret')
+	POLIS_ADMIN_EMAIL = os.environ.get('POLIS_ADMIN_EMAIL', 'admin@polis.test')
+	POLIS_ADMIN_PASSWORD = os.environ.get('POLIS_ADMIN_PASSWORD', 'Te$tP@ssw0rd*')
 
 class DevelopmentConfig(Config):
 	DEV = True

@@ -41,6 +41,17 @@ if [ ! -f .env ]; then
     cp example.env .env
     # Suppress auth errors (TODO: FIX)
     echo "NODE_TLS_REJECT_UNAUTHORIZED=0" >> .env
+
+    # Configure OIDC for consistent localhost issuer
+    # Both browser and Candid API will use localhost:3000 as the issuer
+    # - Browser accesses https://localhost:3000 directly
+    # - Candid API sets Host: localhost:3000 header when calling OIDC
+    # This ensures all tokens have iss=https://localhost:3000/
+    echo "" >> .env
+    echo "# Candid OIDC Integration - Use localhost for consistent issuer" >> .env
+    echo "AUTH_DOMAIN=localhost:3000" >> .env
+    echo "AUTH_ISSUER=https://localhost:3000/" >> .env
+    echo "JWKS_URI=https://oidc-simulator:3000/.well-known/jwks.json" >> .env
 fi
 
 

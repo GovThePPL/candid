@@ -11,6 +11,17 @@ services:
             DATABASE_URL: postgresql://user:postgres@db:5432/candid
             FLASK_ENV: dev
             FLASK_APP: "app.app:create_app"
+            # Polis integration
+            POLIS_API_URL: http://polis:5000/api/v3
+            POLIS_BASE_URL: http://polis:5000
+            POLIS_ENABLED: "true"
+            POLIS_TIMEOUT: "10"
+            # Polis OIDC authentication (for admin operations)
+            POLIS_OIDC_TOKEN_URL: https://polis:3000/oauth/token
+            POLIS_OIDC_CLIENT_ID: dev-client-id
+            POLIS_OIDC_CLIENT_SECRET: dev_auth-client_secret
+            POLIS_ADMIN_EMAIL: admin@polis.test
+            POLIS_ADMIN_PASSWORD: "Te$$tP@ssw0rd*"
         depends_on:
             - db
             - polis
