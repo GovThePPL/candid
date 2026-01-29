@@ -427,7 +427,7 @@ components:
           format: uuid
         reportType:
           type: string
-          enum: [position, chat]
+          enum: [position, chat_log]
         targetId:
           type: string
           format: uuid
@@ -439,7 +439,7 @@ components:
           format: uuid
         status:
           type: string
-          enum: [pending, dismissed, action_taken]
+          enum: [pending, dismissed, action_taken, deleted, spurious]
         submitterComment:
           type: string
 
@@ -487,7 +487,7 @@ components:
           type: string
         appealState:
           type: string
-          enum: [pending, approved, rejected]
+          enum: [pending, approved, denied]
 
     Kudos:
       type: object
@@ -570,7 +570,7 @@ components:
           type: string
         response:
           type: string
-          enum: [approve, reject]
+          enum: [approve, deny]
 
     ModActionRequest:
       type: object
@@ -2110,7 +2110,7 @@ paths:
               properties:
                 response:
                   type: string
-                  enum: [approve, reject]
+                  enum: [approve, deny]
                 responseText:
                   type: string
       responses:

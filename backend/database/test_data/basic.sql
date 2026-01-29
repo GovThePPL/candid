@@ -13,6 +13,7 @@ Tables WITH test data:
  10 chat_request - 10 chat requests (5 accepted, 3 dismissed, 2 timeout)
  11 chat_log - 5 chat logs for the accepted requests
  12 kudos - 3 kudos entries (One mutual, one not)
+ 13 rule - 4 moderation rules
 
 
 Tables MISSING test data:
@@ -23,13 +24,12 @@ Tables MISSING test data:
   4 survey_question - No survey questions
   5 survey_question_option - No survey question options
   6 survey_question_response - No survey responses
-  7 rule - No moderation rules
-  8 report - No reports
-  9 mod_action - No moderation actions
- 10 mod_action_class - No moderation action classes
- 11 mod_action_target - No moderation action targets
- 12 mod_action_appeal - No moderation appeals
- 13 mod_action_appeal_response - No appeal responses
+  7 report - No reports
+  8 mod_action - No moderation actions
+  9 mod_action_class - No moderation action classes
+ 10 mod_action_target - No moderation action targets
+ 11 mod_action_appeal - No moderation appeals
+ 12 mod_action_appeal_response - No appeal responses
 */
 
 
@@ -580,6 +580,17 @@ INSERT INTO kudos (id, sender_user_id, receiver_user_id, chat_log_id, created_ti
 ('9e3b2c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d', '735565c1-93d9-4813-b227-3d9c06b78c8f', '6c9344ed-0313-4b25-a616-5ac08967e84f', 'fc6127e3-a108-487b-8789-442ec42d41f3', '2024-10-15 14:12:00+00'),
 -- Kudos from Normal4 to Normal5 after their chat
 ('a4c5d6e7-f8a9-b0c1-d2e3-f4a5b6c7d8e9', '2333392a-7c07-4733-8b46-00d32833d9bc', 'c922be05-e355-4052-8d3f-7774669ddd32', '1d06bf99-4d87-4700-8806-63de8c905eca', '2025-07-15 14:30:00+00');
+
+-- Test data for moderation rules
+INSERT INTO rule (id, creator_user_id, title, text, status, created_time, updated_time) VALUES
+-- Rule 1: Violence/hate speech
+('b8a7c6d5-e4f3-4a2b-1c0d-9e8f7a6b5c4d', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'Violence or Hate Speech', 'This content calls for violence against people based on immutable/quasi-immutable characteristics or strong convictions', 'active', '2024-09-25 10:00:00+00', '2024-09-25 10:00:00+00'),
+-- Rule 2: Sexual/obscene content
+('c9b8d7e6-f5a4-4b3c-2d1e-0f9a8b7c6d5e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'Sexual or Obscene Content', 'This content is sexual or obscene', 'active', '2024-09-25 10:05:00+00', '2024-09-25 10:05:00+00'),
+-- Rule 3: Spam/self-promotion
+('d0c9e8f7-a6b5-4c4d-3e2f-1a0b9c8d7e6f', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'Spam or Self-Promotion', 'This content contains spam or self-promotion', 'active', '2024-09-25 10:10:00+00', '2024-09-25 10:10:00+00'),
+-- Rule 4: Not a normative political statement
+('e1d0f9a8-b7c6-4d5e-4f3a-2b1c0d9e8f7a', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'Not a Normative Political Statement', 'This content does not make a normative political statement', 'active', '2024-09-25 10:15:00+00', '2024-09-25 10:15:00+00');
 
 -- Test data for user demographics (varying from empty to complete)
 INSERT INTO user_demographics (id, user_id, location_id, affiliation_id, lean, education, geo_locale, race, sex, created_time, updated_time) VALUES

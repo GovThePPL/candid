@@ -38,6 +38,16 @@ OREGON_LOCATION_ID = "ba5e3dcf-af51-47f4-941d-ee3448ee826a"
 # Affiliations
 DEM_PARTY_ID = "6a76fec7-bf77-4333-937f-07d48c1ae966"
 
+# Moderation rules
+RULE_VIOLENCE_ID = "b8a7c6d5-e4f3-4a2b-1c0d-9e8f7a6b5c4d"
+RULE_SEXUAL_ID = "c9b8d7e6-f5a4-4b3c-2d1e-0f9a8b7c6d5e"
+RULE_SPAM_ID = "d0c9e8f7-a6b5-4c4d-3e2f-1a0b9c8d7e6f"
+RULE_NOT_POLITICAL_ID = "e1d0f9a8-b7c6-4d5e-4f3a-2b1c0d9e8f7a"
+
+# Chat logs (for chat report tests)
+CHAT_LOG_1_ID = "fc6127e3-a108-487b-8789-442ec42d41f3"  # Normal1 <-> Normal3
+CHAT_LOG_2_ID = "e698f2d0-10ac-422d-a80e-93c619e2f581"  # Normal3 <-> Normal1
+
 # A UUID that doesn't exist in the database
 NONEXISTENT_UUID = "00000000-0000-0000-0000-000000000000"
 
