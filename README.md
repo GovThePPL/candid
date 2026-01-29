@@ -60,3 +60,25 @@ Start the frontend in candid/frontend: `$ frontend/start.sh`
 Download Expo Go on your phone and scan the QR code to open the live version of the frontend.
 
 Rebuild the API used in the frontend: `$ frontend/regenerate_api.sh`
+
+# Running Tests
+
+Integration tests run against the live API, so make sure the Docker environment is up first:
+
+`$ docker compose up -d`
+
+Install test dependencies:
+
+`$ pip install pytest requests`
+
+Run all tests:
+
+`$ pytest backend/tests/ -v`
+
+Run only quick smoke tests:
+
+`$ pytest backend/tests/ -v -m smoke`
+
+Run only non-mutating tests (skip tests that write to the database):
+
+`$ pytest backend/tests/ -v -m "not mutation"`
