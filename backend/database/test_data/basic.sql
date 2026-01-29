@@ -625,3 +625,26 @@ INSERT INTO user_demographics (id, user_id, location_id, affiliation_id, lean, e
 -- Guest2 - Complete demographics (using remaining UUID)
 ('d95e135b-eff7-4503-becf-013ea38f1706', 'a2ec25a9-2a12-4a01-baf8-c0d1e254c3db', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'c0e94b05-8722-4a67-afe4-0e6b255a2145', 'very_liberal', 'bachelors', 'urban', 'Black or African American', 'female', '2024-12-09 13:20:00+00', '2025-08-09 15:10:00+00');
 
+-- Test data for surveys
+INSERT INTO survey (id, creator_user_id, position_category_id, survey_title, start_time, end_time, status) VALUES
+-- Active survey (current)
+('aa111111-1111-1111-1111-111111111111', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '4d439108-2128-46ec-b4b2-80ec3dbf6aa3', 'Healthcare Priorities Survey', CURRENT_TIMESTAMP - INTERVAL '1 day', CURRENT_TIMESTAMP + INTERVAL '30 days', 'active'),
+-- Inactive survey (expired)
+('bb222222-2222-2222-2222-222222222222', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '63e233e9-187e-441f-a7a9-f5f44dffadf0', 'Economic Policy Survey', CURRENT_TIMESTAMP - INTERVAL '60 days', CURRENT_TIMESTAMP - INTERVAL '30 days', 'inactive'),
+-- Active survey (future - not yet started)
+('cc333333-3333-3333-3333-333333333333', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'be3305f5-df1a-4cf5-855e-49a88ed3cbd3', 'Education Priorities Survey', CURRENT_TIMESTAMP + INTERVAL '7 days', CURRENT_TIMESTAMP + INTERVAL '37 days', 'active');
+
+-- Survey questions
+INSERT INTO survey_question (id, survey_id, survey_question) VALUES
+('dd111111-1111-1111-1111-111111111111', 'aa111111-1111-1111-1111-111111111111', 'What is your top healthcare priority?'),
+('dd222222-2222-2222-2222-222222222222', 'aa111111-1111-1111-1111-111111111111', 'How satisfied are you with current healthcare access?');
+
+-- Survey question options
+INSERT INTO survey_question_option (id, survey_question_id, survey_question_option) VALUES
+('ee111111-1111-1111-1111-111111111111', 'dd111111-1111-1111-1111-111111111111', 'Lower costs'),
+('ee222222-2222-2222-2222-222222222222', 'dd111111-1111-1111-1111-111111111111', 'Better access'),
+('ee333333-3333-3333-3333-333333333333', 'dd111111-1111-1111-1111-111111111111', 'Improved quality'),
+('ee444444-4444-4444-4444-444444444444', 'dd222222-2222-2222-2222-222222222222', 'Very satisfied'),
+('ee555555-5555-5555-5555-555555555555', 'dd222222-2222-2222-2222-222222222222', 'Somewhat satisfied'),
+('ee666666-6666-6666-6666-666666666666', 'dd222222-2222-2222-2222-222222222222', 'Dissatisfied');
+
