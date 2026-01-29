@@ -242,26 +242,26 @@ components:
 
     ChatRequest:
       type: object
-      required:
-        - id
-        - initiator
-        - userPositionId
-        - response
       properties:
         id:
           type: string
           format: uuid
+          readOnly: true
         initiator:
           $ref: '#/components/schemas/User'
+          readOnly: true
         userPositionId:
           type: string
           format: uuid
+          description: Required when creating a chat request
         response:
           type: string
           enum: [pending, accepted, dismissed, timeout]
+          description: Required when responding to a chat request (accepted or dismissed)
         responseTime:
           type: string
           format: date-time
+          readOnly: true
 
     ChatLog:
       type: object
@@ -719,45 +719,8 @@ components:
               properties:
                 chatId:
                   type: string
-                  format: uuid
                 isTyping:
                   type: boolean
-
-    ToxicityWarningEvent:
-      allOf:
-        - $ref: '#/components/schemas/WebSocketEvent'
-        - type: object
-          properties:
-            type:
-              enum: [toxicity_warning]
-            payload:
-              type: object
-              required:
-                - chatId
-                - messageId
-                - waitTimeSeconds
-                - content
-                - toxicityScore
-              properties:
-                chatId:
-                  type: string
-                  format: uuid
-                messageId:
-                  type: string
-                  format: uuid
-                  description: Temporary ID for the pending message
-                waitTimeSeconds:
-                  type: integer
-                  description: Time in seconds the user must wait before sending anyway
-                toxicityScore:
-                  type: number
-                  format: float
-                  minimum: 0
-                  maximum: 1
-                  description: Toxicity score from PerspectiveAPI (0-1)
-                content:
-                  type: string
-                  description: The original message content that triggered the warning
 
     ChatStatusEvent:
       allOf:
@@ -774,31 +737,9 @@ components:
               properties:
                 chatId:
                   type: string
-                  format: uuid
                 status:
                   type: string
                   enum: [active, ended, user_left]
-
-    SendAnywayEvent:
-      allOf:
-        - $ref: '#/components/schemas/WebSocketEvent'
-        - type: object
-          properties:
-            type:
-              enum: [send_anyway]
-            payload:
-              type: object
-              required:
-                - chatId
-                - messageId
-              properties:
-                chatId:
-                  type: string
-                  format: uuid
-                messageId:
-                  type: string
-                  format: uuid
-                  description: ID of the pending message from the toxicity warning
 
     MessageReadEvent:
       allOf:
@@ -816,18 +757,15 @@ components:
               properties:
                 chatId:
                   type: string
-                  format: uuid
                 messageIds:
                   type: array
                   items:
                     type: string
-                    format: uuid
                   description: IDs of the messages that have been read
                 agreedPositionIds:
                   type: array
                   items:
                     type: string
-                    format: uuid
                   description: IDs of the agreed positions that have been read
                 timestamp:
                   type: string
@@ -859,13 +797,11 @@ components:
               properties:
                 chatId:
                   type: string
-                  format: uuid
                 action:
                   type: string
                   enum: [propose, accept, reject, modify]
                 proposalId:
                   type: string
-                  format: uuid
                   description: Required when action is accept, reject, or modify
                 content:
                   type: string
@@ -906,7 +842,6 @@ paths:
         - status: Chat status changes
         - chat_request: New chat request
         - agreed_position: Updates to agreed position statements
-        - toxicity_warning: Warning when a message is detected as toxic
         - message_read: Notification that messages have been read by the recipient
 
         ## Sending Messages
@@ -917,31 +852,6 @@ paths:
           "chatId": "CHAT_UUID",
           "content": "Message text",
           "messageType": "text"
-        }
-        ```
-
-        If a message is detected as toxic by PerspectiveAPI, the server will respond with a toxicity_warning event:
-        ```json
-        {
-          "type": "toxicity_warning",
-          "payload": {
-            "chatId": "CHAT_UUID",
-            "messageId": "MESSAGE_UUID",
-            "waitTimeSeconds": 30,
-            "toxicityScore": 0.85,
-            "content": "Original message text"
-          }
-        }
-        ```
-
-        After the wait time expires, the client can send a send_anyway event to confirm sending the message:
-        ```json
-        {
-          "type": "send_anyway",
-          "payload": {
-            "chatId": "CHAT_UUID",
-            "messageId": "MESSAGE_UUID"
-          }
         }
         ```
 

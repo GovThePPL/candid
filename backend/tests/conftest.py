@@ -4,10 +4,15 @@ import pytest
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import requests
+import redis
+import json
+import time
 
 BASE_URL = "http://127.0.0.1:8000/api/v1"
+CHAT_SERVER_URL = "http://127.0.0.1:8002"
 DEFAULT_PASSWORD = "password"
 DB_URL = "postgresql://user:postgres@localhost:5432/candid"
+REDIS_URL = "redis://localhost:6379"
 
 # ---------------------------------------------------------------------------
 # Known UUIDs from seed data (backend/database/test_data/basic.sql)
@@ -47,9 +52,19 @@ RULE_SEXUAL_ID = "c9b8d7e6-f5a4-4b3c-2d1e-0f9a8b7c6d5e"
 RULE_SPAM_ID = "d0c9e8f7-a6b5-4c4d-3e2f-1a0b9c8d7e6f"
 RULE_NOT_POLITICAL_ID = "e1d0f9a8-b7c6-4d5e-4f3a-2b1c0d9e8f7a"
 
-# Chat logs (for chat report tests)
-CHAT_LOG_1_ID = "fc6127e3-a108-487b-8789-442ec42d41f3"  # Normal1 <-> Normal3
-CHAT_LOG_2_ID = "e698f2d0-10ac-422d-a80e-93c619e2f581"  # Normal3 <-> Normal1
+# Chat logs (from seed data)
+# Chat where normal3 initiated with normal1 (normal1 is participant)
+CHAT_LOG_1_ID = "e698f2d0-10ac-422d-a80e-93c619e2f581"  # Normal3 -> Normal1
+# Chat where normal4 initiated with normal5
+CHAT_LOG_2_ID = "1d06bf99-4d87-4700-8806-63de8c905eca"  # Normal4 -> Normal5
+
+# User positions (user_position IDs - linking users to positions they've adopted)
+# These must be active user_positions with active positions
+USER_POSITION_ADMIN1 = "4c0dd7fe-2533-4794-a8e7-a97de971971e"  # admin1's position
+USER_POSITION_MODERATOR1 = "ec3e0406-b044-4735-9d78-6e305f2fa406"  # moderator1's position
+USER_POSITION_NORMAL1 = "8a63d2d0-9ed6-4b26-8a64-350e0594c6e4"  # normal1's position
+USER_POSITION_NORMAL2 = "5e64e6cc-baae-4f14-859b-9577a6eb2d23"  # normal2's position
+USER_POSITION_NORMAL3 = "cd411a92-82ac-4075-abc6-f4154db00fb8"  # normal3's active position
 
 # Surveys
 SURVEY_ACTIVE_ID = "aa111111-1111-1111-1111-111111111111"
@@ -106,6 +121,114 @@ def delete_survey_response(user_id, question_id):
     )
 
 
+def db_query(query, params=None):
+    """Execute a database query and return results."""
+    conn = psycopg2.connect(DB_URL)
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, params)
+            return cur.fetchall()
+    finally:
+        conn.close()
+
+
+def db_query_one(query, params=None):
+    """Execute a database query and return single result."""
+    conn = psycopg2.connect(DB_URL)
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, params)
+            return cur.fetchone()
+    finally:
+        conn.close()
+
+
+def get_redis_client():
+    """Get a Redis client."""
+    return redis.from_url(REDIS_URL, encoding="utf-8", decode_responses=True)
+
+
+def redis_get_chat_metadata(chat_id):
+    """Get chat metadata from Redis."""
+    r = get_redis_client()
+    try:
+        return r.hgetall(f"chat:{chat_id}:metadata")
+    finally:
+        r.close()
+
+
+def redis_get_chat_messages(chat_id):
+    """Get chat messages from Redis."""
+    r = get_redis_client()
+    try:
+        messages = r.lrange(f"chat:{chat_id}:messages", 0, -1)
+        return [json.loads(m) for m in messages]
+    finally:
+        r.close()
+
+
+def redis_delete_chat(chat_id):
+    """Delete all Redis keys for a chat."""
+    r = get_redis_client()
+    try:
+        keys = r.keys(f"chat:{chat_id}:*")
+        if keys:
+            r.delete(*keys)
+    finally:
+        r.close()
+
+
+def cleanup_chat_request(initiator_id, user_position_id):
+    """Clean up chat requests and related chat logs for idempotent tests."""
+    # First delete any chat logs that reference these chat requests
+    db_execute(
+        """DELETE FROM chat_log WHERE chat_request_id IN (
+               SELECT id FROM chat_request
+               WHERE initiator_user_id = %s AND user_position_id = %s
+           )""",
+        (initiator_id, user_position_id)
+    )
+    # Then delete the chat requests
+    db_execute(
+        "DELETE FROM chat_request WHERE initiator_user_id = %s AND user_position_id = %s",
+        (initiator_id, user_position_id)
+    )
+
+
+def cleanup_kudos(sender_id, chat_log_id):
+    """Clean up kudos for idempotent tests."""
+    db_execute(
+        "DELETE FROM kudos WHERE sender_user_id = %s AND chat_log_id = %s",
+        (sender_id, chat_log_id)
+    )
+
+
+def redis_add_test_message(chat_id, sender_id, content):
+    """Add a test message to Redis for a chat."""
+    import uuid
+    from datetime import datetime
+    r = get_redis_client()
+    try:
+        message = json.dumps({
+            "id": str(uuid.uuid4()),
+            "sender_id": sender_id,
+            "type": "text",
+            "content": content,
+            "timestamp": datetime.utcnow().isoformat(),
+        })
+        r.rpush(f"chat:{chat_id}:messages", message)
+    finally:
+        r.close()
+
+
+def get_chat_log_from_db(chat_id):
+    """Get the chat log record from PostgreSQL."""
+    return db_query_one(
+        "SELECT * FROM chat_log WHERE id = %s",
+        (chat_id,)
+    )
+
+
 # ---------------------------------------------------------------------------
 # Session-scoped token fixtures (login once per test run)
 # ---------------------------------------------------------------------------
@@ -138,3 +261,23 @@ def normal_headers(normal_token):
 @pytest.fixture(scope="session")
 def moderator_headers(moderator_token):
     return auth_header(moderator_token)
+
+
+@pytest.fixture(scope="session")
+def normal2_token():
+    return login("normal2")
+
+
+@pytest.fixture(scope="session")
+def normal2_headers(normal2_token):
+    return auth_header(normal2_token)
+
+
+@pytest.fixture(scope="session")
+def normal3_token():
+    return login("normal3")
+
+
+@pytest.fixture(scope="session")
+def normal3_headers(normal3_token):
+    return auth_header(normal3_token)

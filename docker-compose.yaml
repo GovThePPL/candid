@@ -48,6 +48,32 @@ services:
         environment:
           - DOCKER_TLS_CERTDIR=
 
+    redis:
+        image: redis:7-alpine
+        ports:
+            - "6379:6379"
+        volumes:
+            - redis_data:/data
+        command: redis-server --appendonly yes
+
+    chat:
+        build:
+            context: .
+            dockerfile: backend/chat-server/Dockerfile
+        ports:
+            - "8002:8002"
+        environment:
+            DATABASE_URL: postgresql://user:postgres@db:5432/candid
+            REDIS_URL: redis://redis:6379
+            JWT_SECRET: abc
+            PORT: 8002
+        depends_on:
+            - db
+            - redis
+        volumes:
+            - ./backend/chat-server:/app  # Mount for development
+
 volumes:
     postgres_data:
     polis_docker_data:
+    redis_data:

@@ -142,7 +142,7 @@ CREATE TABLE chat_log (
     chat_request_id UUID NOT NULL REFERENCES chat_request(id) ON DELETE CASCADE,
     start_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     end_time TIMESTAMPTZ,
-    log VARCHAR(50) NOT NULL,
+    log JSONB,  -- JSON blob: {"messages": [...], "agreed_positions": [...], "agreed_closure": "..." or null, "export_time": "ISO8601"}
     end_type VARCHAR(50) CHECK (end_type IN ('user_exit', 'agreed_closure')),
     status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'deleted', 'archived'))
 );

@@ -7,6 +7,8 @@ class Config:
 	SQLALCHEMY_TRACK_MODIFICATIONS = False
 	TIMESTAMP_FORMAT = 'YYYY-MM-DD"T"HH24:MI:SS"Z"' # ISO 8601
 	LONG_POLL_TIMEOUT = 10
+	# Redis for chat server communication
+	REDIS_URL = os.environ.get('REDIS_URL', 'redis://redis:6379')
 	# Auth
 	TOKEN_SECRET = None
 	TOKEN_LIFESPAN_MIN = None

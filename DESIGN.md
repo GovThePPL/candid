@@ -7,7 +7,7 @@
 * Database: postgres
 * CICD: github actions
 * Cloud provider: AWS
-* Comment detoxification: perspectiveapi
+* Real-time chat: WebSocket server with Redis message store
 * Group analysis: pol.is
 * idp: cognito?
 
@@ -85,10 +85,7 @@
     - When the “Chat Request Timeout” reaches zero, the chat request is automatically “Dismissed” and the “Chat Request” is retracted
     - When either participant “Dismisses” the “Chat Request”, the “Request” is “Dismissed” for both users
 - Users can send a message to the other participant
-- When a user attempts to send a message, its toxicity will be evaluated by “PerspectiveAPI”.  If it is found to be toxic, the user has two options:
-    - Cancel and rewrite the comment
-    - Wait for a timeout to count down, then post it anyway
-- Messages sent by the other participant will be received by the User
+- Messages sent by the other participant will be received by the User in real-time
 - User can send special "Agreed Upon Position" messages
 - "Agreed Upon Position" messages can be interacted with in one of three ways:
     - Accept. An accepted "Agreed Upon Position" message is hilighted and appears to be sent by both users

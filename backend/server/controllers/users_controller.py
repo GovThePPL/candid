@@ -17,7 +17,7 @@ from candid import util
 
 from candid.controllers import db
 from candid.controllers.helpers.config import Config
-from candid.controllers.helpers.auth import authorization, token_to_user
+from candid.controllers.helpers.auth import authorization, token_to_user, get_user_type
 
 from camel_converter import dict_to_camel
 import uuid
@@ -186,6 +186,12 @@ def get_user_chats(user_id, position_id=None, limit=None, offset=None, token_inf
     authorized, auth_err = authorization("normal", token_info)
     if not authorized:
         return auth_err, auth_err.code
+    user = token_to_user(token_info)
+    user_type = get_user_type(user.id)
+
+    # Users can only view their own chats (admins/moderators can view any)
+    if str(user.id) != str(user_id) and user_type not in ("admin", "moderator"):
+        return ErrorModel(403, "Not authorized to view these chats"), 403
 
     if limit is None:
         limit = 20
