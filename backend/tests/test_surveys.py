@@ -8,6 +8,7 @@ from conftest import (
     BASE_URL,
     auth_header,
     login,
+    delete_survey_response,
     SURVEY_ACTIVE_ID,
     SURVEY_INACTIVE_ID,
     SURVEY_FUTURE_ID,
@@ -18,6 +19,8 @@ from conftest import (
     NONEXISTENT_UUID,
     HEALTHCARE_CAT_ID,
     EDUCATION_CAT_ID,
+    NORMAL2_ID,
+    NORMAL3_ID,
 )
 
 
@@ -104,7 +107,9 @@ class TestRespondToSurveyQuestion:
 
     def test_respond_to_survey_question_success(self, normal_headers):
         """Normal user can respond to a survey question"""
-        # Use a fresh user token to avoid conflicts with other tests
+        # Clean up any existing response for idempotency
+        delete_survey_response(NORMAL2_ID, SURVEY_QUESTION_1_ID)
+
         token = login("normal2")
         headers = auth_header(token)
 
@@ -139,7 +144,9 @@ class TestRespondToSurveyQuestion:
 
     def test_respond_to_survey_question_duplicate_response(self):
         """Duplicate response to same question returns 400"""
-        # Use a fresh user
+        # Clean up any existing response for idempotency
+        delete_survey_response(NORMAL3_ID, SURVEY_QUESTION_1_ID)
+
         token = login("normal3")
         headers = auth_header(token)
 

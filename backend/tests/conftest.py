@@ -1,10 +1,13 @@
 """Shared fixtures for Candid API integration tests."""
 
 import pytest
+import psycopg2
+from psycopg2.extras import RealDictCursor
 import requests
 
 BASE_URL = "http://127.0.0.1:8000/api/v1"
 DEFAULT_PASSWORD = "password"
+DB_URL = "postgresql://user:postgres@localhost:5432/candid"
 
 # ---------------------------------------------------------------------------
 # Known UUIDs from seed data (backend/database/test_data/basic.sql)
@@ -78,6 +81,29 @@ def login(username, password=DEFAULT_PASSWORD):
 def auth_header(token):
     """Return an Authorization header dict for the given token."""
     return {"Authorization": f"Bearer {token}"}
+
+
+def db_execute(query, params=None):
+    """Execute a database query and commit. For test cleanup."""
+    conn = psycopg2.connect(DB_URL)
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, params)
+            conn.commit()
+    finally:
+        conn.close()
+
+
+def delete_survey_response(user_id, question_id):
+    """Delete a user's response to a survey question (for test idempotency)."""
+    db_execute(
+        """DELETE FROM survey_question_response
+           WHERE user_id = %s
+           AND survey_question_option_id IN (
+               SELECT id FROM survey_question_option WHERE survey_question_id = %s
+           )""",
+        (user_id, question_id)
+    )
 
 
 # ---------------------------------------------------------------------------
