@@ -32,6 +32,9 @@ def login_user(body):  # noqa: E501
     if not login_info:
         # username not found
         return ErrorModel(401, "Unauthorized"), 401
+    if not login_info["password_hash"]:
+        # account has no password (e.g. guest users)
+        return ErrorModel(401, "Unauthorized"), 401
     correct_pw = auth.does_password_match(login_user_request.password, login_info["password_hash"])
     if correct_pw:
         token = auth.create_token(login_info["id"])

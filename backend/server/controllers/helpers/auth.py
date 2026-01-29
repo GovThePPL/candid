@@ -11,7 +11,7 @@ from candid.controllers import config, db
 _USER_ROLE_RANKING = {
     "guest": 1,
     "normal": 10,
-    "mod": 20,
+    "moderator": 20,
     "admin": 30,
 }
 
