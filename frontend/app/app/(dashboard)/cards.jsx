@@ -1,8 +1,7 @@
-import { StyleSheet, View, Text, ActivityIndicator, TouchableOpacity, Image, Platform, Animated } from 'react-native'
+import { StyleSheet, View, Text, ActivityIndicator, TouchableOpacity, Platform, Animated } from 'react-native'
 import { useState, useEffect, useCallback, useRef, useContext } from 'react'
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { Ionicons } from '@expo/vector-icons'
 import { Colors } from '../../constants/Colors'
 import api from '../../lib/api'
 import { UserContext } from '../../contexts/UserContext'
@@ -13,16 +12,15 @@ import {
   DemographicCard,
   KudosCard,
 } from '../../components/cards'
-import Sidebar from '../../components/Sidebar'
+import Header from '../../components/Header'
 
 export default function CardQueue() {
   const router = useRouter()
-  const { user, logout } = useContext(UserContext)
+  const { user, logout, invalidatePositions } = useContext(UserContext)
   const [cards, setCards] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [sidebarVisible, setSidebarVisible] = useState(false)
 
   // Animated value for back card transition
   const backCardProgress = useRef(new Animated.Value(0)).current
@@ -127,10 +125,21 @@ export default function CardQueue() {
   }, [currentCard, router])
 
   const handleAddPosition = useCallback(async () => {
-    // Add position to user's positions
-    console.log('Add position:', currentCard?.data?.id)
-    // This would call an API endpoint to save the position
-  }, [currentCard])
+    if (currentCard?.type !== 'position') return
+    const cardRef = currentCardRef.current
+    if (cardRef?.swipeRightWithPlus) {
+      // Trigger swipe animation with plus icon - API call happens after animation
+      cardRef.swipeRightWithPlus()
+    } else {
+      goToNextCard()
+    }
+    try {
+      await api.positions.adopt(currentCard.data.id)
+      invalidatePositions() // Signal that positions list needs refresh
+    } catch (err) {
+      console.error('Failed to adopt position:', err)
+    }
+  }, [currentCard, goToNextCard, invalidatePositions])
 
   // Chat request handlers
   const handleAcceptChat = useCallback(async () => {
@@ -155,25 +164,35 @@ export default function CardQueue() {
     }
   }, [currentCard, goToNextCard])
 
-  // Survey handler
+  // Survey handlers
   const handleSurveyResponse = useCallback(async (surveyId, questionId, optionId) => {
     try {
       await api.surveys.respond(surveyId, questionId, optionId)
-      // Wait a moment for the user to see their selection
-      setTimeout(goToNextCard, 500)
+      goToNextCard()
     } catch (err) {
       console.error('Failed to submit survey response:', err)
     }
   }, [goToNextCard])
 
-  // Demographic handler
+  const handleSurveySkip = useCallback(() => {
+    // Just move to next card - the survey will appear again later
+    // since no response was recorded
+    goToNextCard()
+  }, [goToNextCard])
+
+  // Demographic handlers
   const handleDemographicResponse = useCallback(async (field, value) => {
     try {
       await api.users.updateDemographics({ [field]: value })
-      setTimeout(goToNextCard, 500)
+      goToNextCard()
     } catch (err) {
       console.error('Failed to update demographics:', err)
     }
+  }, [goToNextCard])
+
+  const handleDemographicSkip = useCallback(() => {
+    // Just move to next card - the demographic will appear again later
+    goToNextCard()
   }, [goToNextCard])
 
   // Kudos handlers
@@ -280,23 +299,28 @@ export default function CardQueue() {
 
       case 'survey':
         return (
-          <View key={key} style={isBackCard ? styles.backCard : styles.fullHeightCard}>
-            <SurveyCard
-              survey={card.data}
-              question={card.data?.currentQuestion || card.data?.questions?.[0]}
-              onRespond={isBackCard ? undefined : handleSurveyResponse}
-            />
-          </View>
+          <SurveyCard
+            ref={isBackCard ? undefined : currentCardRef}
+            key={key}
+            survey={card.data}
+            onRespond={isBackCard ? undefined : handleSurveyResponse}
+            onSkip={isBackCard ? undefined : handleSurveySkip}
+            isBackCard={isBackCard}
+            backCardAnimatedValue={backCardProgress}
+          />
         )
 
       case 'demographic':
         return (
-          <View key={key} style={isBackCard ? styles.backCard : styles.fullHeightCard}>
-            <DemographicCard
-              demographic={card.data}
-              onRespond={isBackCard ? undefined : handleDemographicResponse}
-            />
-          </View>
+          <DemographicCard
+            ref={isBackCard ? undefined : currentCardRef}
+            key={key}
+            demographic={card.data}
+            onRespond={isBackCard ? undefined : handleDemographicResponse}
+            onSkip={isBackCard ? undefined : handleDemographicSkip}
+            isBackCard={isBackCard}
+            backCardAnimatedValue={backCardProgress}
+          />
         )
 
       case 'kudos':
@@ -321,49 +345,14 @@ export default function CardQueue() {
     }
   }
 
-  const handleLogout = async () => {
-    await logout()
-    router.replace('/login')
-  }
-
-  // Reusable header component
-  const renderHeader = () => (
-    <View style={styles.header}>
-      <Text style={styles.logo}>Candid</Text>
-      <View style={styles.headerRight}>
-        <View style={styles.kudosBadge}>
-          <Ionicons name="star" size={16} color={Colors.primary} />
-          <Text style={styles.kudosCount}>{user?.kudosCount || 0}</Text>
-        </View>
-        <TouchableOpacity onPress={() => setSidebarVisible(true)}>
-          {user?.avatarUrl ? (
-            <Image source={{ uri: user.avatarUrl }} style={styles.headerAvatar} />
-          ) : (
-            <View style={[styles.headerAvatar, styles.headerAvatarPlaceholder]}>
-              <Text style={styles.headerAvatarInitial}>
-                {user?.displayName?.[0]?.toUpperCase() || '?'}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
-    </View>
-  )
-
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        {renderHeader()}
+        <Header />
         <View style={styles.centerContent}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Loading cards...</Text>
         </View>
-        <Sidebar
-          visible={sidebarVisible}
-          onClose={() => setSidebarVisible(false)}
-          user={user}
-          onLogout={handleLogout}
-        />
       </SafeAreaView>
     )
   }
@@ -371,19 +360,13 @@ export default function CardQueue() {
   if (error) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        {renderHeader()}
+        <Header />
         <View style={styles.centerContent}>
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={fetchCards}>
             <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
         </View>
-        <Sidebar
-          visible={sidebarVisible}
-          onClose={() => setSidebarVisible(false)}
-          user={user}
-          onLogout={handleLogout}
-        />
       </SafeAreaView>
     )
   }
@@ -391,7 +374,7 @@ export default function CardQueue() {
   if (cards.length === 0) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        {renderHeader()}
+        <Header />
         <View style={styles.centerContent}>
           <Text style={styles.emptyTitle}>No cards available</Text>
           <Text style={styles.emptyText}>
@@ -404,19 +387,13 @@ export default function CardQueue() {
             <Text style={styles.createButtonText}>Create Position</Text>
           </TouchableOpacity>
         </View>
-        <Sidebar
-          visible={sidebarVisible}
-          onClose={() => setSidebarVisible(false)}
-          user={user}
-          onLogout={handleLogout}
-        />
       </SafeAreaView>
     )
   }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {renderHeader()}
+      <Header />
 
       <View style={styles.cardContainer}>
         {/* Card stack wrapper */}
@@ -501,13 +478,6 @@ export default function CardQueue() {
           </View>
         </View>
       </View>
-
-      <Sidebar
-        visible={sidebarVisible}
-        onClose={() => setSidebarVisible(false)}
-        user={user}
-        onLogout={handleLogout}
-      />
     </SafeAreaView>
   )
 }
@@ -517,58 +487,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.light.background,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  logo: {
-    fontSize: 28,
-    fontWeight: '600',
-    fontStyle: 'italic',
-    color: Colors.primary,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  kudosBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.kudosBadge,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 16,
-    gap: 4,
-  },
-  kudosCount: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.primary,
-  },
-  headerAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-  },
-  headerAvatarPlaceholder: {
-    backgroundColor: Colors.primaryMuted,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerAvatarInitial: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
   cardContainer: {
     flex: 1,
     paddingHorizontal: 8,
     paddingTop: 8,
-    paddingBottom: 40,
+    paddingBottom: 20,
     overflow: 'visible',
   },
   cardStack: {
@@ -643,8 +566,5 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.cardBackground,
     borderRadius: 16,
     alignItems: 'center',
-  },
-  fullHeightCard: {
-    flex: 1,
   },
 })

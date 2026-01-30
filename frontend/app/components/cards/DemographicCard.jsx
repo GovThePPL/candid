@@ -1,95 +1,178 @@
-import { StyleSheet, View, Text, TouchableOpacity } from 'react-native'
-import { useState } from 'react'
+import { StyleSheet, View, Text, TouchableOpacity, Animated } from 'react-native'
+import { useState, useRef, useImperativeHandle, forwardRef, useCallback } from 'react'
 import { Colors } from '../../constants/Colors'
+import SwipeableCard from './SwipeableCard'
 
-export default function DemographicCard({
+const DemographicCard = forwardRef(function DemographicCard({
   demographic,
   onRespond,
-}) {
+  onSkip,
+  isBackCard = false,
+  backCardAnimatedValue,
+}, ref) {
   const [selectedOption, setSelectedOption] = useState(null)
+  const flashAnim = useRef(new Animated.Value(0)).current
+  const swipeableRef = useRef(null)
+
+  // Flash animation to indicate selection needed (delayed until card stops moving)
+  const flashOptions = useCallback(() => {
+    // Wait for card to return to center before flashing
+    setTimeout(() => {
+      Animated.sequence([
+        Animated.timing(flashAnim, { toValue: 1, duration: 250, useNativeDriver: false }),
+        Animated.timing(flashAnim, { toValue: 0, duration: 250, useNativeDriver: false }),
+        Animated.timing(flashAnim, { toValue: 1, duration: 250, useNativeDriver: false }),
+        Animated.timing(flashAnim, { toValue: 0, duration: 250, useNativeDriver: false }),
+      ]).start()
+    }, 500)
+  }, [flashAnim])
+
+  // Store selectedOption in a ref so handlers can access current value
+  const selectedOptionRef = useRef(selectedOption)
+  selectedOptionRef.current = selectedOption
+
+  // Handle right swipe - submit if option selected, otherwise flash
+  const handleSwipeRight = useCallback(() => {
+    if (selectedOptionRef.current && onRespond) {
+      onRespond(demographic.field, selectedOptionRef.current)
+    } else {
+      // Flash options to indicate selection needed
+      flashOptions()
+      // Return false to prevent the swipe (card stays in place)
+      return false
+    }
+  }, [onRespond, demographic, flashOptions])
+
+  // Handle left/down swipe - skip demographic
+  const handleSkip = useCallback(() => {
+    onSkip?.()
+  }, [onSkip])
+
+  // Expose swipe methods via ref
+  useImperativeHandle(ref, () => ({
+    swipeRight: () => swipeableRef.current?.swipeRight?.(),
+    swipeLeft: () => swipeableRef.current?.swipeLeft?.(),
+    swipeDown: () => swipeableRef.current?.swipeDown?.(),
+    swipeUp: () => {}, // No-op for demographic
+  }), [])
 
   const handleOptionPress = (option) => {
-    setSelectedOption(option.value)
-    if (onRespond) {
-      onRespond(demographic.field, option.value)
-    }
+    setSelectedOption(prev => prev === option.value ? null : option.value)
   }
 
+  // Get the options from the demographic data
+  const options = demographic?.options || []
+  const questionText = demographic?.question || ''
+
+  // Calculate flash background color (darkens to indicate selection needed)
+  const flashBackgroundColor = flashAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [Colors.primaryLight, Colors.primaryMuted],
+  })
+
   return (
-    <View style={styles.card}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.categoryName}>About You</Text>
-      </View>
+    <SwipeableCard
+      ref={swipeableRef}
+      onSwipeRight={handleSwipeRight}
+      onSwipeLeft={handleSkip}
+      onSwipeDown={handleSkip}
+      enableVerticalSwipe={true}
+      isBackCard={isBackCard}
+      backCardAnimatedValue={backCardAnimatedValue}
+    >
+      <View style={styles.card}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.categoryName}>About You</Text>
+        </View>
 
-      {/* Question */}
-      <View style={styles.questionContainer}>
-        <Text style={styles.question}>{demographic?.question}</Text>
-      </View>
+        {/* Question */}
+        <View style={styles.questionContainer}>
+          <Text style={styles.question}>{questionText}</Text>
+        </View>
 
-      {/* Options */}
-      <View style={styles.optionsContainer}>
-        {demographic?.options?.map((option) => (
-          <TouchableOpacity
-            key={option.value}
-            style={[
-              styles.option,
-              selectedOption === option.value && styles.optionSelected,
-            ]}
-            onPress={() => handleOptionPress(option)}
-          >
-            <Text
-              style={[
-                styles.optionText,
-                selectedOption === option.value && styles.optionTextSelected,
-              ]}
-            >
-              {option.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+        {/* Options */}
+        <View style={styles.optionsContainer}>
+          {options.length > 0 ? (
+            options.map((option) => (
+              <TouchableOpacity
+                key={option.value}
+                activeOpacity={0.7}
+                onPress={() => handleOptionPress(option)}
+                disabled={isBackCard}
+              >
+                <Animated.View
+                  style={[
+                    styles.option,
+                    selectedOption === option.value && styles.optionSelected,
+                    selectedOption !== option.value && { backgroundColor: flashBackgroundColor },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.optionText,
+                      selectedOption === option.value && styles.optionTextSelected,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </Animated.View>
+              </TouchableOpacity>
+            ))
+          ) : (
+            <Text style={styles.noOptionsText}>No options available</Text>
+          )}
+        </View>
 
-      {/* Footer */}
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>Demographics</Text>
+        {/* Instructions */}
+        <View style={styles.footer}>
+          {selectedOption ? (
+            <Text style={styles.footerText}>Swipe right to submit</Text>
+          ) : (
+            <Text style={styles.footerText}>Select an option</Text>
+          )}
+          <Text style={styles.skipText}>Swipe left to skip</Text>
+        </View>
       </View>
-    </View>
+    </SwipeableCard>
   )
-}
+})
+
+export default DemographicCard
 
 const styles = StyleSheet.create({
   card: {
     flex: 1,
-    backgroundColor: Colors.cardBackground,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    width: '100%',
+    padding: 20,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    padding: 20,
+    marginBottom: 20,
   },
   categoryName: {
     fontSize: 14,
     fontWeight: '600',
     color: Colors.primary,
+    backgroundColor: Colors.primaryLight,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   questionContainer: {
-    paddingHorizontal: 16,
+    flex: 1,
+    justifyContent: 'center',
     paddingBottom: 24,
   },
   question: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '600',
     color: '#1a1a1a',
-    lineHeight: 28,
+    lineHeight: 30,
+    textAlign: 'center',
   },
   optionsContainer: {
-    paddingHorizontal: 16,
     gap: 12,
   },
   option: {
@@ -110,16 +193,24 @@ const styles = StyleSheet.create({
   optionTextSelected: {
     color: '#fff',
   },
+  noOptionsText: {
+    fontSize: 16,
+    color: Colors.pass,
+    textAlign: 'center',
+    paddingVertical: 20,
+  },
   footer: {
-    flex: 1,
-    justifyContent: 'flex-end',
     alignItems: 'center',
-    paddingBottom: 24,
-    paddingTop: 40,
+    paddingTop: 24,
+    gap: 4,
   },
   footerText: {
-    fontSize: 18,
-    fontStyle: 'italic',
+    fontSize: 16,
+    fontWeight: '500',
+    color: Colors.primary,
+  },
+  skipText: {
+    fontSize: 14,
     color: Colors.pass,
   },
 })

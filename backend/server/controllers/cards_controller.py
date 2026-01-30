@@ -1,11 +1,6 @@
 import connexion
 from typing import Dict, List, Tuple, Union
 
-from candid.models.get_card_queue200_response_inner import GetCardQueue200ResponseInner  # noqa: E501
-from candid.models.get_card_queue200_response_inner_data import GetCardQueue200ResponseInnerData  # noqa: E501
-from candid.models.user import User
-from candid.models.survey_question_option import SurveyQuestionOption
-from candid.models.error_model import ErrorModel
 from candid import util
 
 from candid.controllers import db
@@ -107,24 +102,8 @@ def get_card_queue(limit=None, token_info=None):  # noqa: E501
     for kudos in kudos_prompts:
         priority_cards.append(_kudos_to_card(kudos, user.id))
 
-    # 2. Shuffled cards pool
-    shuffled_cards = []
-
-    # Demographics (20% chance to appear, up to 1)
-    if random.random() < 0.20:
-        demographics = _get_unanswered_demographics(user.id, limit=1)
-        for field in demographics:
-            shuffled_cards.append(_demographic_to_card(field))
-
-    # Surveys (30% chance to appear, up to 1)
-    if random.random() < 0.30:
-        surveys = _get_pending_surveys(user.id, limit=1)
-        for survey in surveys:
-            shuffled_cards.append(_survey_to_card(survey))
-
-    # Positions (fill remaining slots)
-    # Calculate how many positions we need
-    remaining_slots = max(1, limit - len(priority_cards) - len(shuffled_cards))
+    # 2. Get positions first to determine if we need to fill with other content
+    position_cards = []
 
     # Get user's category priorities
     priorities = _get_user_category_priorities(user.id)
@@ -132,6 +111,8 @@ def get_card_queue(limit=None, token_info=None):  # noqa: E501
     location_id = _get_user_location(user.id)
 
     # Fetch unvoted positions (using Polis if enabled, otherwise DB)
+    remaining_slots = max(1, limit - len(priority_cards))
+
     if location_id and priorities:
         positions = polis_sync.get_unvoted_positions_for_user(
             user_id=str(user.id),
@@ -140,12 +121,44 @@ def get_card_queue(limit=None, token_info=None):  # noqa: E501
             limit=remaining_slots
         )
         for pos in positions:
-            shuffled_cards.append(_position_to_card(pos))
+            position_cards.append(_position_to_card(pos))
     elif location_id:
         # User has no category priorities set, fall back to all categories
         positions = _get_unvoted_positions_fallback(user.id, location_id, limit=remaining_slots)
         for pos in positions:
-            shuffled_cards.append(_position_to_card(pos))
+            position_cards.append(_position_to_card(pos))
+
+    # 3. Get demographics and surveys
+    # If no positions available, guarantee these appear; otherwise use probability
+    shuffled_cards = []
+    has_positions = len(position_cards) > 0
+
+    if has_positions:
+        # Normal behavior: 20% chance for demographics, 30% for surveys
+        if random.random() < 0.20:
+            demographics = _get_unanswered_demographics(user.id, limit=1)
+            for field in demographics:
+                shuffled_cards.append(_demographic_to_card(field))
+
+        if random.random() < 0.30:
+            surveys = _get_pending_surveys(user.id, limit=1)
+            for survey in surveys:
+                shuffled_cards.append(_survey_to_card(survey))
+    else:
+        # No positions available: guarantee demographics and surveys appear
+        # Get more of them to fill the queue
+        fill_limit = max(3, limit - len(priority_cards))
+
+        demographics = _get_unanswered_demographics(user.id, limit=fill_limit)
+        for field in demographics:
+            shuffled_cards.append(_demographic_to_card(field))
+
+        surveys = _get_pending_surveys(user.id, limit=fill_limit)
+        for survey in surveys:
+            shuffled_cards.append(_survey_to_card(survey))
+
+    # Add position cards to shuffled pool
+    shuffled_cards.extend(position_cards)
 
     # 3. Shuffle the shuffled pool
     random.shuffle(shuffled_cards)
@@ -202,9 +215,14 @@ def _get_unvoted_positions_fallback(user_id: str, location_id: str, limit: int =
             u.display_name as creator_display_name,
             u.username as creator_username,
             u.id as creator_id,
-            u.status as creator_status
+            u.status as creator_status,
+            pc.label as category_name,
+            l.code as location_code,
+            l.name as location_name
         FROM position p
         JOIN users u ON p.creator_user_id = u.id
+        LEFT JOIN position_category pc ON p.category_id = pc.id
+        LEFT JOIN location l ON p.location_id = l.id
         LEFT JOIN response r ON r.position_id = p.id AND r.user_id = %s
         WHERE p.location_id = %s
           AND p.status = 'active'
@@ -220,6 +238,9 @@ def _get_unvoted_positions_fallback(user_id: str, location_id: str, limit: int =
             "id": str(p["id"]),
             "statement": p["statement"],
             "category_id": str(p["category_id"]),
+            "category_name": p["category_name"],
+            "location_code": p["location_code"],
+            "location_name": p["location_name"],
             "creator_user_id": str(p["creator_user_id"]),
             "creator_display_name": p["creator_display_name"],
             "creator_username": p["creator_username"],
@@ -236,29 +257,47 @@ def _get_unvoted_positions_fallback(user_id: str, location_id: str, limit: int =
     return result
 
 
-def _position_to_card(pos: dict) -> GetCardQueue200ResponseInner:
+def _position_to_card(pos: dict) -> dict:
     """Convert a position dict to a card response."""
-    creator = User(
-        id=pos.get("creator_id") or pos.get("creator_user_id"),
-        display_name=pos.get("creator_display_name"),
-        username=pos.get("creator_username"),
-        status=pos.get("creator_status", "active")
-    )
+    creator = {
+        "id": pos.get("creator_id") or pos.get("creator_user_id"),
+        "displayName": pos.get("creator_display_name"),
+        "username": pos.get("creator_username"),
+        "status": pos.get("creator_status", "active")
+    }
 
-    data = GetCardQueue200ResponseInnerData(
-        id=pos["id"],
-        creator=creator,
-        statement=pos["statement"],
-        category_id=pos["category_id"],
-        created_time=pos.get("created_time"),
-        agree_count=pos.get("agree_count", 0),
-        disagree_count=pos.get("disagree_count", 0),
-        pass_count=pos.get("pass_count", 0),
-        chat_count=pos.get("chat_count", 0),
-        status=pos.get("status", "active")
-    )
+    # Build category object if we have category data
+    category = None
+    if pos.get("category_name"):
+        category = {
+            "id": pos.get("category_id"),
+            "name": pos.get("category_name")
+        }
 
-    return GetCardQueue200ResponseInner(type="position", data=data)
+    # Build location object if we have location data
+    location = None
+    if pos.get("location_code"):
+        location = {
+            "code": pos.get("location_code"),
+            "name": pos.get("location_name")
+        }
+
+    data = {
+        "id": pos["id"],
+        "creator": creator,
+        "statement": pos["statement"],
+        "categoryId": pos.get("category_id"),
+        "category": category,
+        "location": location,
+        "createdTime": pos.get("created_time"),
+        "agreeCount": pos.get("agree_count", 0),
+        "disagreeCount": pos.get("disagree_count", 0),
+        "passCount": pos.get("pass_count", 0),
+        "chatCount": pos.get("chat_count", 0),
+        "status": pos.get("status", "active")
+    }
+
+    return {"type": "position", "data": data}
 
 
 def _get_pending_surveys(user_id: str, limit: int = 2) -> List[dict]:
@@ -303,25 +342,22 @@ def _get_pending_surveys(user_id: str, limit: int = 2) -> List[dict]:
     return result
 
 
-def _survey_to_card(survey: dict) -> GetCardQueue200ResponseInner:
+def _survey_to_card(survey: dict) -> dict:
     """Convert a survey dict to a card response."""
     options = [
-        SurveyQuestionOption(
-            id=str(opt["id"]),
-            option=opt["survey_question_option"]
-        )
+        {"id": str(opt["id"]), "option": opt["survey_question_option"]}
         for opt in survey.get("options", [])
     ]
 
-    data = GetCardQueue200ResponseInnerData(
-        id=survey["question_id"],
-        survey_id=survey["survey_id"],
-        question=survey["question"],
-        options=options,
-        survey_title=survey.get("survey_title")
-    )
+    data = {
+        "id": survey["question_id"],
+        "surveyId": survey["survey_id"],
+        "question": survey["question"],
+        "options": options,
+        "surveyTitle": survey.get("survey_title")
+    }
 
-    return GetCardQueue200ResponseInner(type="survey", data=data)
+    return {"type": "survey", "data": data}
 
 
 def _get_pending_chat_requests(user_id: str, limit: int = 2) -> List[dict]:
@@ -348,23 +384,23 @@ def _get_pending_chat_requests(user_id: str, limit: int = 2) -> List[dict]:
     return [dict(r) for r in (requests or [])]
 
 
-def _chat_request_to_card(chat_req: dict) -> GetCardQueue200ResponseInner:
+def _chat_request_to_card(chat_req: dict) -> dict:
     """Convert a chat request dict to a card response."""
-    initiator = User(
-        id=str(chat_req["initiator_id"]),
-        display_name=chat_req["initiator_display_name"],
-        username=chat_req["initiator_username"],
-        status=chat_req["initiator_status"]
-    )
+    initiator = {
+        "id": str(chat_req["initiator_id"]),
+        "displayName": chat_req["initiator_display_name"],
+        "username": chat_req["initiator_username"],
+        "status": chat_req["initiator_status"]
+    }
 
-    data = GetCardQueue200ResponseInnerData(
-        id=str(chat_req["id"]),
-        initiator=initiator,
-        user_position_id=str(chat_req["user_position_id"]),
-        response=chat_req["response"]
-    )
+    data = {
+        "id": str(chat_req["id"]),
+        "initiator": initiator,
+        "userPositionId": str(chat_req["user_position_id"]),
+        "response": chat_req["response"]
+    }
 
-    return GetCardQueue200ResponseInner(type="chat_request", data=data)
+    return {"type": "chat_request", "data": data}
 
 
 def _get_pending_kudos_cards(user_id: str, limit: int = 2) -> List[dict]:
@@ -428,23 +464,23 @@ def _get_pending_kudos_cards(user_id: str, limit: int = 2) -> List[dict]:
     return [dict(r) for r in (kudos_prompts or [])]
 
 
-def _kudos_to_card(kudos_data: dict, user_id: str) -> GetCardQueue200ResponseInner:
+def _kudos_to_card(kudos_data: dict, user_id: str) -> dict:
     """Convert a kudos prompt dict to a card response."""
-    other_participant = User(
-        id=str(kudos_data["other_user_id"]),
-        display_name=kudos_data["other_display_name"],
-        username=kudos_data["other_username"],
-        status=kudos_data["other_status"]
-    )
+    other_participant = {
+        "id": str(kudos_data["other_user_id"]),
+        "displayName": kudos_data["other_display_name"],
+        "username": kudos_data["other_username"],
+        "status": kudos_data["other_status"]
+    }
 
-    data = GetCardQueue200ResponseInnerData(
-        id=str(kudos_data["chat_log_id"]),
-        other_participant=other_participant,
-        closing_statement=kudos_data["closing_statement"],
-        chat_end_time=kudos_data["end_time"].isoformat() if kudos_data["end_time"] else None
-    )
+    data = {
+        "id": str(kudos_data["chat_log_id"]),
+        "otherParticipant": other_participant,
+        "closingStatement": kudos_data["closing_statement"],
+        "chatEndTime": kudos_data["end_time"].isoformat() if kudos_data["end_time"] else None
+    }
 
-    return GetCardQueue200ResponseInner(type="kudos", data=data)
+    return {"type": "kudos", "data": data}
 
 
 def _get_unanswered_demographics(user_id: str, limit: int = 1) -> List[str]:
@@ -471,16 +507,16 @@ def _get_unanswered_demographics(user_id: str, limit: int = 1) -> List[str]:
     return unanswered[:limit]
 
 
-def _demographic_to_card(field: str) -> GetCardQueue200ResponseInner:
+def _demographic_to_card(field: str) -> dict:
     """Convert a demographic field to a card response."""
     options = _get_demographic_options()
     question = DEMOGRAPHIC_QUESTIONS.get(field, f"What is your {field.replace('_', ' ')}?")
     field_options = options.get(field, [])
 
-    data = GetCardQueue200ResponseInnerData(
-        _field=field,
-        question=question,
-        options=field_options
-    )
+    data = {
+        "field": field,
+        "question": question,
+        "options": field_options
+    }
 
-    return GetCardQueue200ResponseInner(type="demographic", data=data)
+    return {"type": "demographic", "data": data}

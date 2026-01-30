@@ -1,6 +1,6 @@
-import { StyleSheet, Text, Keyboard, TouchableWithoutFeedback, ActivityIndicator } from 'react-native'
+import { StyleSheet, Text, Keyboard, Pressable, Platform, View } from 'react-native'
 import { Link } from 'expo-router'
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useUser } from '../../hooks/useUser'
 
 import ThemedView from '../../components/ThemedView'
@@ -11,68 +11,101 @@ import ThemedTextInput from "../../components/ThemedTextInput"
 import { Colors } from '../../constants/Colors'
 
 const Login = () => {
-  const [email, setEmail] = useState("")
+  const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState()
+  const [loading, setLoading] = useState(false)
+  const passwordRef = useRef(null)
 
-  const { user, login } = useUser()
+  const { login } = useUser()
 
   const handleSubmit = async () => {
+    if (!username || !password) {
+      setError('Please enter username and password')
+      return
+    }
+
     setError(null)
+    setLoading(true)
 
     try {
-      await login(email, password)
+      await login(username, password)
     } catch (error) {
-      setError(error.message)
+      // Convert technical error messages to user-friendly ones
+      const message = error.message?.toUpperCase() === 'UNAUTHORIZED'
+        ? 'Invalid username or password'
+        : error.message || 'Login failed. Please try again.'
+      setError(message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const dismissKeyboard = () => {
+    if (Platform.OS !== 'web') {
+      Keyboard.dismiss()
     }
   }
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+    <Pressable style={{ flex: 1 }} onPress={dismissKeyboard}>
       <ThemedView style={styles.container}>
-        
-        <Spacer />
+        <View style={styles.logoContainer}>
+          <Text style={styles.logo}>Candid</Text>
+        </View>
+
+        <Spacer height={40} />
         <ThemedText title={true} style={styles.title}>
           Login to Your Account
         </ThemedText>
 
-        {/* <TextInput placeholder="Email" /> */}
-
-        <Spacer />
+        <Spacer height={20} />
         <ThemedTextInput
-          style={{ marginBottom: 20, width: "80%" }}
-          placeholder="Email"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
+          style={styles.input}
+          placeholder="Username"
+          value={username}
+          onChangeText={setUsername}
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="next"
+          onSubmitEditing={() => passwordRef.current?.focus()}
         />
 
         <ThemedTextInput
-          style={{ marginBottom: 20, width: "80%" }}
+          ref={passwordRef}
+          style={styles.input}
           placeholder="Password"
           value={password}
           onChangeText={setPassword}
-          secureTextEntry
+          secureTextEntry={true}
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="done"
+          onSubmitEditing={handleSubmit}
         />
 
-        <ThemedButton onPress={handleSubmit}>
-          <Text style={{ color: '#f2f2f2' }}>Login</Text>
+        <ThemedButton onPress={handleSubmit} disabled={loading} style={styles.button}>
+          <Text style={styles.buttonText}>
+            {loading ? 'Logging in...' : 'Login'}
+          </Text>
         </ThemedButton>
 
-        <Spacer />
-        {error && <Text style={styles.error}>{error}</Text>}
+        {/* Error container - always present to prevent layout shift */}
+        <View style={styles.errorContainer}>
+          <Text style={[styles.error, !error && styles.errorHidden]}>
+            {error || 'Placeholder'}
+          </Text>
+        </View>
 
-        <Spacer height={100} />
+        <Spacer height={44} />
         <Link href="/register" replace>
-          <ThemedText style={{ textAlign: "center" }}>
-            Register instead
-          </ThemedText>
+          <Text style={styles.registerLink}>
+            Don't have an account? <Text style={styles.registerLinkBold}>Register</Text>
+          </Text>
         </Link>
 
-        {/* <ActivityIndicator size="large" color="white" /> */}
-
       </ThemedView>
-    </TouchableWithoutFeedback>
+    </Pressable>
   )
 }
 
@@ -82,20 +115,79 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
+    backgroundColor: Colors.light.background,
+    padding: 20,
+  },
+  logoContainer: {
+    marginBottom: 20,
+  },
+  logo: {
+    fontSize: 56,
+    color: Colors.primary,
+    ...Platform.select({
+      web: {
+        fontFamily: 'Pacifico, cursive',
+      },
+      default: {
+        // Fallback for native
+        fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+        fontWeight: '600',
+      },
+    }),
   },
   title: {
     textAlign: "center",
-    fontSize: 18,
-    marginBottom: 30
+    fontSize: 20,
+    fontWeight: '600',
+    color: Colors.primary,
+    marginBottom: 10,
+  },
+  input: {
+    marginBottom: 16,
+    width: "100%",
+    maxWidth: 320,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    borderRadius: 12,
+    color: '#1a1a1a',
+  },
+  button: {
+    width: "100%",
+    maxWidth: 320,
+    paddingVertical: 16,
+    borderRadius: 12,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  errorContainer: {
+    height: 60,
+    justifyContent: 'center',
+    width: '100%',
+    maxWidth: 320,
   },
   error: {
     color: Colors.warning,
-    padding: 10,
-    backgroundColor: '#f5c1c8',
+    padding: 12,
+    backgroundColor: '#ffe6e6',
     borderColor: Colors.warning,
     borderWidth: 1,
-    borderRadius: 6,
-    marginHorizontal: 10,
-  }
+    borderRadius: 8,
+    textAlign: 'center',
+  },
+  errorHidden: {
+    opacity: 0,
+  },
+  registerLink: {
+    color: Colors.pass,
+    fontSize: 14,
+  },
+  registerLinkBold: {
+    color: Colors.primary,
+    fontWeight: '600',
+  },
 })
