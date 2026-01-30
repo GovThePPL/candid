@@ -471,10 +471,52 @@ export default function ChatScreen() {
             flatListRef.current?.scrollToEnd({ animated: true })
           }}
           ListHeaderComponent={
-            chatInfo?.positionStatement ? (
+            chatInfo?.position ? (
               <View style={styles.topicCard}>
+                {/* Header with location and category */}
+                <View style={styles.topicHeader}>
+                  {chatInfo.position.location?.code && (
+                    <View style={styles.topicLocationBadge}>
+                      <Text style={styles.topicLocationCode}>{chatInfo.position.location.code}</Text>
+                    </View>
+                  )}
+                  {chatInfo.position.category?.name && (
+                    <Text style={styles.topicCategoryName}>{chatInfo.position.category.name}</Text>
+                  )}
+                </View>
+
+                {/* Label */}
                 <Text style={styles.topicLabel}>Topic of Discussion</Text>
-                <Text style={styles.topicStatement}>{chatInfo.positionStatement}</Text>
+
+                {/* Statement */}
+                <Text style={styles.topicStatement}>{chatInfo.position.statement}</Text>
+
+                {/* Creator info at bottom, centered */}
+                {chatInfo.position.creator && (
+                  <View style={styles.topicCreator}>
+                    <View style={styles.topicCreatorAvatarContainer}>
+                      {chatInfo.position.creator.avatarUrl ? (
+                        <Image source={{ uri: chatInfo.position.creator.avatarUrl }} style={styles.topicCreatorAvatar} />
+                      ) : (
+                        <View style={[styles.topicCreatorAvatar, styles.topicCreatorAvatarPlaceholder]}>
+                          <Text style={styles.topicCreatorAvatarInitial}>
+                            {chatInfo.position.creator.displayName?.[0]?.toUpperCase() || '?'}
+                          </Text>
+                        </View>
+                      )}
+                      {chatInfo.position.creator.kudosCount > 0 && (
+                        <View style={[styles.topicCreatorKudosBadge, { backgroundColor: getTrustBadgeColor(chatInfo.position.creator.trustScore) }]}>
+                          <Ionicons name="star" size={10} color={Colors.primary} />
+                          <Text style={styles.topicCreatorKudosCount}>{chatInfo.position.creator.kudosCount}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.topicCreatorText}>
+                      <Text style={styles.topicCreatorDisplayName}>{chatInfo.position.creator.displayName || 'Anonymous'}</Text>
+                      <Text style={styles.topicCreatorUsername}>@{chatInfo.position.creator.username || 'anonymous'}</Text>
+                    </View>
+                  </View>
+                )}
               </View>
             ) : null
           }
@@ -933,6 +975,27 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
+  topicHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  topicLocationBadge: {
+    backgroundColor: Colors.primaryMuted + '20',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  topicLocationCode: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.primary,
+  },
+  topicCategoryName: {
+    fontSize: 14,
+    color: Colors.primary,
+  },
   topicLabel: {
     fontSize: 12,
     color: Colors.pass,
@@ -941,9 +1004,66 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   topicStatement: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '500',
+    color: '#1a1a1a',
+    lineHeight: 26,
+    marginBottom: 16,
+  },
+  topicCreator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.cardBorder,
+    gap: 10,
+  },
+  topicCreatorAvatarContainer: {
+    position: 'relative',
+  },
+  topicCreatorAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  topicCreatorAvatarPlaceholder: {
+    backgroundColor: Colors.primaryMuted,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  topicCreatorAvatarInitial: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  topicCreatorKudosBadge: {
+    position: 'absolute',
+    bottom: -4,
+    left: -4,
+    borderRadius: 10,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    minWidth: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  topicCreatorKudosCount: {
+    fontSize: 10,
+    fontWeight: '700',
     color: Colors.primary,
-    lineHeight: 22,
+  },
+  topicCreatorText: {
+    flexDirection: 'column',
+  },
+  topicCreatorDisplayName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1a1a1a',
+  },
+  topicCreatorUsername: {
+    fontSize: 12,
+    color: Colors.pass,
   },
 })

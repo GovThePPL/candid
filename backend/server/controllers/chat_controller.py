@@ -302,7 +302,21 @@ def get_chat_log(chat_id, token_info=None):
             cl.status,
             cr.initiator_user_id,
             up.user_id as responder_user_id,
+            -- Position info
+            p.id as position_id,
             p.statement as position_statement,
+            -- Category info
+            cat.id as category_id,
+            cat.label as category_name,
+            -- Location info
+            loc.id as location_id,
+            loc.code as location_code,
+            loc.name as location_name,
+            -- Position creator info (the user who adopted/created this position)
+            pos_holder.username as position_holder_username,
+            pos_holder.display_name as position_holder_display_name,
+            pos_holder.trust_score as position_holder_trust_score,
+            COALESCE(pos_holder_kudos.kudos_count, 0) as position_holder_kudos_count,
             -- Initiator user info
             init_u.username as initiator_username,
             init_u.display_name as initiator_display_name,
@@ -317,8 +331,16 @@ def get_chat_log(chat_id, token_info=None):
         JOIN chat_request cr ON cl.chat_request_id = cr.id
         JOIN user_position up ON cr.user_position_id = up.id
         JOIN position p ON up.position_id = p.id
+        LEFT JOIN position_category cat ON p.category_id = cat.id
+        LEFT JOIN location loc ON p.location_id = loc.id
+        JOIN users pos_holder ON up.user_id = pos_holder.id
         JOIN users init_u ON cr.initiator_user_id = init_u.id
         JOIN users resp_u ON up.user_id = resp_u.id
+        LEFT JOIN (
+            SELECT receiver_user_id, COUNT(*) as kudos_count
+            FROM kudos WHERE status = 'sent'
+            GROUP BY receiver_user_id
+        ) pos_holder_kudos ON pos_holder.id = pos_holder_kudos.receiver_user_id
         LEFT JOIN (
             SELECT receiver_user_id, COUNT(*) as kudos_count
             FROM kudos WHERE status = 'sent'
@@ -362,6 +384,29 @@ def get_chat_log(chat_id, token_info=None):
             "kudos_count": result["initiator_kudos_count"],
         }
 
+    # Build position object with category, location, and creator
+    position = {
+        "id": str(result["position_id"]),
+        "statement": result["position_statement"],
+        "category": {
+            "id": str(result["category_id"]) if result["category_id"] else None,
+            "name": result["category_name"],
+        } if result["category_id"] else None,
+        "location": {
+            "id": str(result["location_id"]) if result["location_id"] else None,
+            "code": result["location_code"],
+            "name": result["location_name"],
+        } if result["location_id"] else None,
+        "creator": {
+            "id": str(result["responder_user_id"]),
+            "username": result["position_holder_username"],
+            "display_name": result["position_holder_display_name"],
+            "avatar_url": None,  # TODO: Add avatar_url column to users table
+            "trust_score": float(result["position_holder_trust_score"]) if result["position_holder_trust_score"] else None,
+            "kudos_count": result["position_holder_kudos_count"],
+        },
+    }
+
     return dict_to_camel({
         "id": str(result["id"]),
         "chat_request_id": str(result["chat_request_id"]),
@@ -370,7 +415,7 @@ def get_chat_log(chat_id, token_info=None):
         "log": result["log"],  # JSONB column
         "end_type": result["end_type"],
         "status": result["status"],
-        "position_statement": result["position_statement"],
+        "position": position,
         "other_user": other_user,
     }), 200
 
