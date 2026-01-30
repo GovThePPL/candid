@@ -12,8 +12,15 @@ import {
   Modal,
   Image,
   Animated,
+  LayoutAnimation,
+  UIManager,
   useWindowDimensions,
 } from 'react-native'
+
+// Enable LayoutAnimation on Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true)
+}
 import { useState, useEffect, useRef, useCallback, useContext } from 'react'
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -50,7 +57,13 @@ export default function ChatScreen() {
   const router = useRouter()
   const navigation = useNavigation()
   const { user } = useContext(UserContext)
-  const { height: screenHeight } = useWindowDimensions()
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions()
+
+  // Proposal card dimensions relative to screen width
+  const proposalCardWidth = Math.min(Math.max(screenWidth * 0.7, 200), 400)
+  // Offset constrained so card never goes off-screen
+  const maxOffset = (screenWidth - proposalCardWidth) / 2
+  const proposalOffset = Math.min(screenWidth * 0.1, maxOffset - 8) // 8px padding from edge
   const insets = useSafeAreaInsets()
 
   // Max input height is 40% of screen
@@ -75,6 +88,8 @@ export default function ChatScreen() {
   const [messageType, setMessageType] = useState('text') // 'text', 'position_proposal', 'closure_proposal'
   const [modifyingProposal, setModifyingProposal] = useState(null) // Proposal being modified
   const [modifyText, setModifyText] = useState('') // Text for modified proposal
+  const [expandedProposalStack, setExpandedProposalStack] = useState(null) // ID of expanded proposal stack
+  const [proposalHeights, setProposalHeights] = useState({}) // Track heights of proposal cards for stacking
 
   const flatListRef = useRef(null)
   const typingTimeoutRef = useRef(null)
@@ -825,49 +840,113 @@ export default function ChatScreen() {
 
       // Render oldest to newest (chain is [newest, ..., oldest], so reverse it)
       const orderedChain = [...chain].reverse()
-      const stackOffset = 12
       const numPreviousCards = orderedChain.length - 1
+      const stackId = item.proposalId // Use the latest proposal's ID as the stack identifier
+      const isExpanded = expandedProposalStack === stackId
+      const hasMultipleCards = orderedChain.length > 1
+      const stackOffset = isExpanded ? 85 : 12 // Expanded shows full cards, collapsed shows 12px peek
+
+      // Toggle expansion with animation
+      const handleStackPress = () => {
+        if (!hasMultipleCards) return
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
+        setExpandedProposalStack(isExpanded ? null : stackId)
+      }
+
+      // Calculate top positions based on measured heights
+      const expandedGap = 8
+      const collapsedPeek = 12
+      const calculateTop = (idx) => {
+        if (idx === 0) return 0
+        let top = 0
+        for (let i = 0; i < idx; i++) {
+          const h = proposalHeights[orderedChain[i].proposalId] || 100 // fallback height
+          if (isExpanded) {
+            top += h + expandedGap
+          } else {
+            top += collapsedPeek
+          }
+        }
+        return top
+      }
+
+      // Calculate total height for paddingTop (container needs space for absolute cards)
+      const calculatePaddingTop = () => {
+        let total = 0
+        for (let i = 0; i < numPreviousCards; i++) {
+          const h = proposalHeights[orderedChain[i].proposalId] || 100
+          if (isExpanded) {
+            total += h + expandedGap
+          } else {
+            total += collapsedPeek
+          }
+        }
+        return total
+      }
+
+      // Handle measuring card height
+      const handleCardLayout = (proposalId, event) => {
+        const { height } = event.nativeEvent.layout
+        setProposalHeights(prev => {
+          if (prev[proposalId] === height) return prev
+          return { ...prev, [proposalId]: height }
+        })
+      }
 
       return (
-        <View style={[styles.proposalStackContainer, { paddingTop: numPreviousCards * stackOffset }]}>
+        <Pressable
+          onPress={handleStackPress}
+          style={[styles.proposalStackContainer, { paddingTop: calculatePaddingTop() }]}
+          disabled={!hasMultipleCards}
+        >
           {orderedChain.map((proposal, idx) => {
             const isLatest = idx === orderedChain.length - 1
-            // Later cards get higher zIndex so they appear on top
             const zIndex = idx + 1
 
-            // Check if this card should be offset (rejected/modified)
             const pSenderId = String(proposal.sender_id || '')
             const pIsOwn = pSenderId === currentUserId
             const pIsRejected = proposal.type === 'rejected'
             const pIsModified = proposal.type === 'modified'
             const pIsInactive = pIsRejected || pIsModified
-            const offsetDirection = pIsInactive ? (pIsOwn ? 'right' : 'left') : null
+            // Only apply horizontal offset if there are multiple cards in the stack
+            const horizontalOffset = (hasMultipleCards && pIsInactive) ? (pIsOwn ? proposalOffset : -proposalOffset) : 0
 
             if (isLatest) {
-              // Latest card is in normal flow to determine container height
               return (
-                <View key={proposal.proposalId} style={{ zIndex }}>
-                  {renderProposalCard(proposal, isLatest)}
+                <View
+                  key={proposal.proposalId}
+                  style={[styles.proposalLatestCardRow, { zIndex }]}
+                  onLayout={(e) => handleCardLayout(proposal.proposalId, e)}
+                >
+                  <View style={{ width: proposalCardWidth, transform: [{ translateX: horizontalOffset }] }}>
+                    {renderProposalCard(proposal, isLatest)}
+                    {hasMultipleCards && (
+                      <View style={styles.stackExpandIndicator}>
+                        <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={16} color="rgba(255,255,255,0.7)" />
+                        <Text style={styles.stackExpandText}>{isExpanded ? 'collapse' : `${numPreviousCards} more`}</Text>
+                      </View>
+                    )}
+                  </View>
                 </View>
               )
             } else {
-              // Previous cards are absolutely positioned, peeking 12px each from top
               return (
                 <View
                   key={proposal.proposalId}
                   style={[
                     styles.proposalStackedAbsolute,
-                    { top: idx * stackOffset, zIndex },
-                    offsetDirection === 'left' && styles.proposalStackedOffsetLeft,
-                    offsetDirection === 'right' && styles.proposalStackedOffsetRight,
+                    { top: calculateTop(idx), zIndex },
                   ]}
+                  onLayout={(e) => handleCardLayout(proposal.proposalId, e)}
                 >
-                  {renderProposalCard(proposal, isLatest, true)}
+                  <View style={{ width: proposalCardWidth, transform: [{ translateX: horizontalOffset }] }}>
+                    {renderProposalCard(proposal, isLatest, true)}
+                  </View>
                 </View>
               )
             }
           })}
-        </View>
+        </Pressable>
       )
     }
 
@@ -941,7 +1020,7 @@ export default function ChatScreen() {
         </View>
       </View>
     )
-  }, [user, otherUser, otherUserLastRead, messages, chatEnded, handleAcceptProposal, handleRejectProposal, handleStartModify])
+  }, [user, otherUser, otherUserLastRead, messages, chatEnded, expandedProposalStack, proposalHeights, proposalCardWidth, proposalOffset, handleAcceptProposal, handleRejectProposal, handleStartModify])
 
   // Leave confirmation modal
   const renderLeaveConfirmModal = () => (
@@ -1969,25 +2048,30 @@ const styles = StyleSheet.create({
   },
   // Proposal styles - stacked card layout
   proposalStackContainer: {
+    width: '100%',
     alignItems: 'center',
     marginVertical: 8,
-    paddingHorizontal: 24,
   },
   proposalStackedAbsolute: {
     position: 'absolute',
-    left: 24,
-    right: 24,
+    left: 0,
+    right: 0,
     alignItems: 'center',
   },
-  proposalStackedOffsetLeft: {
-    // Shift container left by 40px to offset card from center
-    left: 24 - 40,
-    right: 24 + 40,
+  proposalLatestCardRow: {
+    width: '100%',
+    alignItems: 'center',
   },
-  proposalStackedOffsetRight: {
-    // Shift container right by 40px to offset card from center
-    left: 24 + 40,
-    right: 24 - 40,
+  stackExpandIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    gap: 4,
+  },
+  stackExpandText: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.7)',
   },
   proposalCardContainer: {
     alignItems: 'center',
@@ -1996,16 +2080,14 @@ const styles = StyleSheet.create({
   },
   proposalCardOffsetLeft: {
     alignSelf: 'flex-start',
-    marginLeft: -80,
+    marginLeft: -40,
   },
   proposalCardOffsetRight: {
     alignSelf: 'flex-end',
-    marginRight: -80,
+    marginRight: -40,
   },
   proposalCard: {
     width: '100%',
-    minWidth: 200,
-    maxWidth: 300,
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderRadius: 16,
