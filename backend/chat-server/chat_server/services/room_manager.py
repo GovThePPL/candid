@@ -3,10 +3,14 @@ Socket.IO room management service.
 """
 
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+# Timeout for inactive sessions (2 minutes)
+SESSION_TIMEOUT_SECONDS = 120
 
 
 @dataclass
@@ -15,6 +19,7 @@ class UserSession:
 
     user_id: str
     sid: str  # Socket.IO session ID
+    last_activity: float = field(default_factory=time.time)  # Unix timestamp
 
 
 class RoomManager:
@@ -66,6 +71,25 @@ class RoomManager:
     def is_user_connected(self, user_id: str) -> bool:
         """Check if a user has any active connections."""
         return bool(self._user_sids.get(user_id))
+
+    def update_activity(self, sid: str) -> None:
+        """Update the last activity timestamp for a session."""
+        session = self._sessions.get(sid)
+        if session:
+            session.last_activity = time.time()
+
+    def get_timed_out_sessions(self) -> list[UserSession]:
+        """Get all sessions that have timed out due to inactivity."""
+        now = time.time()
+        timed_out = []
+        for session in self._sessions.values():
+            if now - session.last_activity > SESSION_TIMEOUT_SECONDS:
+                timed_out.append(session)
+        return timed_out
+
+    def get_all_sessions(self) -> list[UserSession]:
+        """Get all active sessions."""
+        return list(self._sessions.values())
 
     @staticmethod
     def user_room(user_id: str) -> str:

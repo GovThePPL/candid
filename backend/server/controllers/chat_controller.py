@@ -13,7 +13,7 @@ from candid import util
 from candid.controllers import db
 from candid.controllers.helpers.config import Config
 from candid.controllers.helpers.auth import authorization, token_to_user
-from candid.controllers.helpers.chat_events import publish_chat_accepted
+from candid.controllers.helpers.chat_events import publish_chat_accepted, publish_chat_request_response
 
 from camel_converter import dict_to_camel
 import uuid
@@ -190,6 +190,14 @@ def respond_to_chat_request(request_id, body, token_info=None):
             position_statement=position_statement,
         )
 
+    # Notify the initiator about the response (accepted or dismissed)
+    publish_chat_request_response(
+        request_id=request_id,
+        response=response_value,
+        initiator_user_id=initiator_user_id,
+        chat_log_id=chat_log_id,
+    )
+
     # Return the updated request
     updated = db.execute_query("""
         SELECT
@@ -293,10 +301,34 @@ def get_chat_log(chat_id, token_info=None):
             cl.end_type,
             cl.status,
             cr.initiator_user_id,
-            up.user_id as responder_user_id
+            up.user_id as responder_user_id,
+            p.statement as position_statement,
+            -- Initiator user info
+            init_u.username as initiator_username,
+            init_u.display_name as initiator_display_name,
+            init_u.trust_score as initiator_trust_score,
+            COALESCE(init_kudos.kudos_count, 0) as initiator_kudos_count,
+            -- Responder user info
+            resp_u.username as responder_username,
+            resp_u.display_name as responder_display_name,
+            resp_u.trust_score as responder_trust_score,
+            COALESCE(resp_kudos.kudos_count, 0) as responder_kudos_count
         FROM chat_log cl
         JOIN chat_request cr ON cl.chat_request_id = cr.id
         JOIN user_position up ON cr.user_position_id = up.id
+        JOIN position p ON up.position_id = p.id
+        JOIN users init_u ON cr.initiator_user_id = init_u.id
+        JOIN users resp_u ON up.user_id = resp_u.id
+        LEFT JOIN (
+            SELECT receiver_user_id, COUNT(*) as kudos_count
+            FROM kudos WHERE status = 'sent'
+            GROUP BY receiver_user_id
+        ) init_kudos ON init_u.id = init_kudos.receiver_user_id
+        LEFT JOIN (
+            SELECT receiver_user_id, COUNT(*) as kudos_count
+            FROM kudos WHERE status = 'sent'
+            GROUP BY receiver_user_id
+        ) resp_kudos ON resp_u.id = resp_kudos.receiver_user_id
         WHERE cl.id = %s
     """, (chat_id,), fetchone=True)
 
@@ -310,6 +342,26 @@ def get_chat_log(chat_id, token_info=None):
     if str(user.id) not in (initiator_id, responder_id):
         return ErrorModel(code=403, message="Not authorized to view this chat"), 403
 
+    # Determine the other user based on current user
+    if str(user.id) == initiator_id:
+        other_user = {
+            "id": responder_id,
+            "username": result["responder_username"],
+            "display_name": result["responder_display_name"],
+            "avatar_url": None,  # TODO: Add avatar_url column to users table
+            "trust_score": float(result["responder_trust_score"]) if result["responder_trust_score"] else None,
+            "kudos_count": result["responder_kudos_count"],
+        }
+    else:
+        other_user = {
+            "id": initiator_id,
+            "username": result["initiator_username"],
+            "display_name": result["initiator_display_name"],
+            "avatar_url": None,  # TODO: Add avatar_url column to users table
+            "trust_score": float(result["initiator_trust_score"]) if result["initiator_trust_score"] else None,
+            "kudos_count": result["initiator_kudos_count"],
+        }
+
     return dict_to_camel({
         "id": str(result["id"]),
         "chat_request_id": str(result["chat_request_id"]),
@@ -318,6 +370,8 @@ def get_chat_log(chat_id, token_info=None):
         "log": result["log"],  # JSONB column
         "end_type": result["end_type"],
         "status": result["status"],
+        "position_statement": result["position_statement"],
+        "other_user": other_user,
     }), 200
 
 

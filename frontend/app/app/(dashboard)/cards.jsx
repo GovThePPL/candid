@@ -14,12 +14,20 @@ import {
 } from '../../components/cards'
 import Header from '../../components/Header'
 
+// Configuration for continuous card loading
+const INITIAL_FETCH_SIZE = 20
+const REFETCH_THRESHOLD = 5  // Fetch more when this many cards remain
+const REFETCH_SIZE = 15
+
+// Chat request timeout duration in milliseconds (2 minutes)
+const CHAT_REQUEST_TIMEOUT_MS = 2 * 60 * 1000
+
 export default function CardQueue() {
   const router = useRouter()
-  const { user, logout, invalidatePositions } = useContext(UserContext)
+  const { user, logout, invalidatePositions, setPendingChatRequest, activeChatNavigation, clearActiveChatNavigation, activeChat, clearActiveChat } = useContext(UserContext)
   const [cards, setCards] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [loading, setLoading] = useState(true)
+  const [initialLoading, setInitialLoading] = useState(true)
   const [error, setError] = useState(null)
 
   // Animated value for back card transition
@@ -28,23 +36,92 @@ export default function CardQueue() {
   // Ref to current card for keyboard-triggered swipes
   const currentCardRef = useRef(null)
 
-  const fetchCards = useCallback(async () => {
-    try {
-      setLoading(true)
-      setError(null)
-      const response = await api.cards.getCardQueue(10)
-      setCards(response || [])
-      setCurrentIndex(0)
-    } catch (err) {
-      setError(err.message || 'Failed to load cards')
-    } finally {
-      setLoading(false)
-    }
+  // Track fetching state and seen card IDs to prevent duplicates
+  const isFetchingRef = useRef(false)
+  const seenCardIdsRef = useRef(new Set())
+
+  // Get unique key for a card to track duplicates
+  const getCardKey = useCallback((card) => {
+    if (!card) return null
+    if (card.type === 'demographic') return `demographic-${card.data?.field}`
+    return `${card.type}-${card.data?.id}`
   }, [])
 
+  // Fetch cards and append to queue (avoiding duplicates)
+  const fetchMoreCards = useCallback(async (isInitial = false) => {
+    if (isFetchingRef.current) return
+    isFetchingRef.current = true
+
+    try {
+      if (isInitial) {
+        setInitialLoading(true)
+        setError(null)
+      }
+
+      const fetchSize = isInitial ? INITIAL_FETCH_SIZE : REFETCH_SIZE
+      const response = await api.cards.getCardQueue(fetchSize)
+      const newCards = response || []
+
+      // Filter out cards we've already seen
+      const uniqueNewCards = newCards.filter(card => {
+        const key = getCardKey(card)
+        if (!key || seenCardIdsRef.current.has(key)) return false
+        seenCardIdsRef.current.add(key)
+        return true
+      })
+
+      if (isInitial) {
+        setCards(uniqueNewCards)
+        setCurrentIndex(0)
+      } else {
+        // Append new cards to existing queue
+        setCards(prev => [...prev, ...uniqueNewCards])
+      }
+    } catch (err) {
+      console.error('Card fetch error:', err)
+      if (isInitial) {
+        setError(err.message || 'Failed to load cards')
+      }
+    } finally {
+      isFetchingRef.current = false
+      if (isInitial) {
+        setInitialLoading(false)
+      }
+    }
+  }, [getCardKey])
+
+  // Initial fetch
   useEffect(() => {
-    fetchCards()
-  }, [fetchCards])
+    fetchMoreCards(true)
+  }, [])
+
+  // Handle navigation when a chat starts (via socket event)
+  useEffect(() => {
+    if (activeChatNavigation?.chatId) {
+      router.push(`/chat/${activeChatNavigation.chatId}`)
+      clearActiveChatNavigation()
+    }
+  }, [activeChatNavigation, router, clearActiveChatNavigation])
+
+  // Handle navigation to existing active chat on app load
+  useEffect(() => {
+    console.log('[Cards] activeChat changed:', activeChat?.id || 'none')
+    if (activeChat?.id) {
+      console.log('[Cards] Navigating to active chat:', activeChat.id)
+      router.push(`/chat/${activeChat.id}`)
+      clearActiveChat()
+    }
+  }, [activeChat, router, clearActiveChat])
+
+  // Calculate remaining cards
+  const remainingCards = cards.length - currentIndex
+
+  // Background fetch when running low on cards
+  useEffect(() => {
+    if (remainingCards <= REFETCH_THRESHOLD && remainingCards > 0 && !isFetchingRef.current) {
+      fetchMoreCards(false)
+    }
+  }, [remainingCards, fetchMoreCards])
 
   const currentCard = cards[currentIndex]
   const nextCard = cards[currentIndex + 1]
@@ -59,12 +136,13 @@ export default function CardQueue() {
       backCardProgress.setValue(0)
       if (currentIndex < cards.length - 1) {
         setCurrentIndex(prev => prev + 1)
-      } else {
-        // Fetch more cards when we reach the end
-        fetchCards()
+      } else if (cards.length > 0) {
+        // At end of queue - trigger fetch if not already fetching
+        // Cards will appear once fetch completes
+        fetchMoreCards(false)
       }
     })
-  }, [currentIndex, cards.length, fetchCards, backCardProgress])
+  }, [currentIndex, cards.length, fetchMoreCards, backCardProgress])
 
   // Position card handlers
   const handleAgree = useCallback(async () => {
@@ -109,12 +187,21 @@ export default function CardQueue() {
   const handleChatRequest = useCallback(async () => {
     if (currentCard?.type !== 'position') return
     try {
-      await api.chat.createRequest(currentCard.data.userPositionId)
+      const response = await api.chat.createRequest(currentCard.data.userPositionId)
+      // Set pending chat request with countdown info
+      const now = new Date()
+      setPendingChatRequest({
+        id: response.id,
+        createdTime: now.toISOString(),
+        expiresAt: new Date(now.getTime() + CHAT_REQUEST_TIMEOUT_MS).toISOString(),
+        positionStatement: currentCard.data.statement,
+        status: 'pending',
+      })
       goToNextCard()
     } catch (err) {
       console.error('Failed to create chat request:', err)
     }
-  }, [currentCard, goToNextCard])
+  }, [currentCard, goToNextCard, setPendingChatRequest])
 
   const handleReport = useCallback(() => {
     // Navigate to report screen
@@ -145,19 +232,21 @@ export default function CardQueue() {
   const handleAcceptChat = useCallback(async () => {
     if (currentCard?.type !== 'chat_request') return
     try {
-      await api.chat.respondToRequest(currentCard.data.id, 'accept')
+      const response = await api.chat.respondToRequest(currentCard.data.id, 'accepted')
       goToNextCard()
-      // Navigate to chat screen
-      // router.push({ pathname: '/chat', params: { chatId: ... } })
+      // Navigate to chat screen with the new chat log ID
+      if (response.chatLogId) {
+        router.push(`/chat/${response.chatLogId}`)
+      }
     } catch (err) {
       console.error('Failed to accept chat:', err)
     }
-  }, [currentCard, goToNextCard])
+  }, [currentCard, goToNextCard, router])
 
   const handleDeclineChat = useCallback(async () => {
     if (currentCard?.type !== 'chat_request') return
     try {
-      await api.chat.respondToRequest(currentCard.data.id, 'decline')
+      await api.chat.respondToRequest(currentCard.data.id, 'dismissed')
       goToNextCard()
     } catch (err) {
       console.error('Failed to decline chat:', err)
@@ -345,7 +434,16 @@ export default function CardQueue() {
     }
   }
 
-  if (loading) {
+  // Retry handler - resets state and fetches fresh
+  const handleRetry = useCallback(() => {
+    seenCardIdsRef.current.clear()
+    setCards([])
+    setCurrentIndex(0)
+    fetchMoreCards(true)
+  }, [fetchMoreCards])
+
+  // Only show loading on initial load when we have no cards yet
+  if (initialLoading && cards.length === 0) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <Header />
@@ -357,13 +455,13 @@ export default function CardQueue() {
     )
   }
 
-  if (error) {
+  if (error && cards.length === 0) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <Header />
         <View style={styles.centerContent}>
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={fetchCards}>
+          <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
             <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
         </View>
@@ -371,14 +469,16 @@ export default function CardQueue() {
     )
   }
 
-  if (cards.length === 0) {
+  // Show empty state only when not loading and truly have no cards
+  // Also handles case where we've swiped through all cards
+  if (!initialLoading && (cards.length === 0 || currentIndex >= cards.length)) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <Header />
         <View style={styles.centerContent}>
-          <Text style={styles.emptyTitle}>No cards available</Text>
+          <Text style={styles.emptyTitle}>No more cards</Text>
           <Text style={styles.emptyText}>
-            Why not create a position to start a conversation?
+            Check back later for more positions, or create your own!
           </Text>
           <TouchableOpacity
             style={styles.createButton}
