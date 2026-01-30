@@ -4,6 +4,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  Pressable,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -15,7 +16,7 @@ import {
 } from 'react-native'
 import { useState, useEffect, useRef, useCallback, useContext } from 'react'
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors } from '../../../constants/Colors'
 import { UserContext } from '../../../contexts/UserContext'
@@ -29,7 +30,13 @@ import {
   exitChat,
   onChatStatus,
   isConnected,
+  sendReadReceipt,
+  onReadReceipt,
+  proposeAgreedPosition,
+  respondToAgreedPosition,
+  onAgreedPosition,
 } from '../../../lib/socket'
+import { playTypingSound, playMessageSound } from '../../../lib/sounds'
 
 const getTrustBadgeColor = (trustScore) => {
   if (trustScore == null || trustScore < 0.35) return Colors.trustBadgeGray
@@ -44,9 +51,13 @@ export default function ChatScreen() {
   const navigation = useNavigation()
   const { user } = useContext(UserContext)
   const { height: screenHeight } = useWindowDimensions()
+  const insets = useSafeAreaInsets()
 
   // Max input height is 40% of screen
   const maxInputHeight = screenHeight * 0.4
+
+  // Header is approximately 64px + top inset
+  const keyboardOffset = Platform.OS === 'ios' ? 64 + insets.top : 0
 
   const [messages, setMessages] = useState([])
   const [inputText, setInputText] = useState('')
@@ -55,11 +66,23 @@ export default function ChatScreen() {
   const [chatInfo, setChatInfo] = useState(null)
   const [otherUserTyping, setOtherUserTyping] = useState(false)
   const [chatEnded, setChatEnded] = useState(false)
+  const [chatEndedWithClosure, setChatEndedWithClosure] = useState(false)
+  const [otherUserLeft, setOtherUserLeft] = useState(false)
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
+  const [inputHeight, setInputHeight] = useState(40)
+  const [otherUserLastRead, setOtherUserLastRead] = useState(null) // Message ID other user has read up to
+  const [showSpecialMenu, setShowSpecialMenu] = useState(false) // Show menu for special message types
+  const [messageType, setMessageType] = useState('text') // 'text', 'position_proposal', 'closure_proposal'
+  const [modifyingProposal, setModifyingProposal] = useState(null) // Proposal being modified
+  const [modifyText, setModifyText] = useState('') // Text for modified proposal
 
   const flatListRef = useRef(null)
   const typingTimeoutRef = useRef(null)
   const isTypingRef = useRef(false)
+  const isNearBottomRef = useRef(true) // Track if user is near bottom of chat
+  const otherTypingTimeoutRef = useRef(null) // Delay before hiding other user's typing indicator
+  const lastSentReadReceiptRef = useRef(null) // Track last read receipt we sent to avoid duplicates
+  const visibleMessageIdsRef = useRef(new Set()) // Track which messages are currently visible on screen
 
   // Animated values for typing dots
   const dot1Anim = useRef(new Animated.Value(0)).current
@@ -80,9 +103,12 @@ export default function ChatScreen() {
     }
   }, [navigation])
 
-  // Animate typing dots when other user is typing
+  // Animate typing dots and play sound when other user is typing
   useEffect(() => {
     if (otherUserTyping) {
+      // Play subtle typing sound
+      playTypingSound()
+
       const animateDots = () => {
         Animated.loop(
           Animated.sequence([
@@ -111,11 +137,84 @@ export default function ChatScreen() {
     }
   }, [otherUserTyping, dot1Anim, dot2Anim, dot3Anim])
 
+  // Scroll to bottom when new messages arrive (if near bottom)
+  const prevMessageLengthRef = useRef(0)
+  useEffect(() => {
+    if (messages.length > prevMessageLengthRef.current && isNearBottomRef.current) {
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true })
+      }, 100)
+    }
+    prevMessageLengthRef.current = messages.length
+  }, [messages.length])
+
+  // Ref to hold the current send read receipt function (to keep onViewableItemsChanged stable)
+  const sendReadReceiptRef = useRef(null)
+
+  // Send read receipts only for messages that are visible on screen
+  sendReadReceiptRef.current = () => {
+    if (!user?.id || messages.length === 0 || loading) return
+
+    // Find the latest visible message from the other user
+    let latestVisibleOtherUserMessage = null
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i]
+      const senderId = msg.sender_id || msg.sender || msg.senderId
+      const isFromOtherUser = senderId && senderId !== user.id
+      const isVisible = visibleMessageIdsRef.current.has(msg.id)
+
+      if (isFromOtherUser && isVisible) {
+        latestVisibleOtherUserMessage = msg
+        break
+      }
+    }
+
+    // Send read receipt if we have a visible message to mark as read
+    if (latestVisibleOtherUserMessage && latestVisibleOtherUserMessage.id !== lastSentReadReceiptRef.current) {
+      lastSentReadReceiptRef.current = latestVisibleOtherUserMessage.id
+      sendReadReceipt(chatId, latestVisibleOtherUserMessage.id)
+    }
+  }
+
+  // Handle viewable items change - track which messages are visible
+  // These must be stable refs since FlatList doesn't allow changing them
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 50, // Item must be 50% visible to count
+  }).current
+
+  const onViewableItemsChanged = useRef(({ viewableItems }) => {
+    // Update the set of visible message IDs
+    visibleMessageIdsRef.current = new Set(
+      viewableItems.map(item => item.item?.id).filter(Boolean)
+    )
+    // Check if we should send a read receipt for newly visible messages
+    sendReadReceiptRef.current?.()
+  }).current
+
+  // Scroll when typing indicator appears (if near bottom)
+  useEffect(() => {
+    if (otherUserTyping && isNearBottomRef.current) {
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true })
+      }, 100)
+    }
+  }, [otherUserTyping])
+
+  // Handle scroll to track if user is near bottom
+  const handleScroll = useCallback((event) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent
+    const paddingToBottom = 100 // Consider "near bottom" if within 100px
+    isNearBottomRef.current =
+      layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom
+  }, [])
+
   // Join chat and set up listeners
   useEffect(() => {
     let cleanupMessage = null
     let cleanupTyping = null
     let cleanupStatus = null
+    let cleanupReadReceipt = null
+    let cleanupAgreedPosition = null
 
     async function initChat() {
       try {
@@ -130,14 +229,73 @@ export default function ChatScreen() {
         }
 
         // Join the chat room
-        const joinResponse = await joinChat(chatId)
-        setMessages(joinResponse.messages || [])
+        let joinResponse
+        try {
+          joinResponse = await joinChat(chatId)
+          // Process messages to detect and properly format proposal messages
+          const rawMessages = joinResponse.messages || []
+          const processedMessages = rawMessages.map(msg => {
+            // Check if this is a proposal message by its type
+            const isProposalType = ['proposed', 'accepted', 'rejected', 'modified'].includes(msg.type)
+            if (isProposalType) {
+              return {
+                ...msg,
+                isProposal: true,
+                // Ensure we have all necessary proposal fields with snake_case fallbacks
+                proposalId: msg.proposal_id || msg.proposalId || msg.id,
+                isClosure: msg.is_closure || msg.isClosure || false,
+                parentId: msg.parent_id || msg.parentId || null,
+              }
+            }
+            return msg
+          })
+
+          // Also check if agreedPositions are returned separately and need to be merged
+          const agreedPositions = joinResponse.agreedPositions || []
+          const proposalMessages = agreedPositions.map(pos => ({
+            id: pos.id || `proposal-${pos.proposal_id || Date.now()}`,
+            content: pos.content,
+            type: pos.status || 'proposed', // status could be 'proposed', 'accepted', 'rejected', 'modified'
+            sender_id: pos.proposer_id,
+            timestamp: pos.created_at || pos.updated_at,
+            isProposal: true,
+            isClosure: pos.is_closure || false,
+            proposalId: pos.id || pos.proposal_id,
+            parentId: pos.parent_id || null,
+          }))
+
+          // Merge messages and proposals, sorted by timestamp
+          const allMessages = [...processedMessages, ...proposalMessages].sort((a, b) => {
+            const timeA = new Date(a.timestamp || a.sendTime || 0).getTime()
+            const timeB = new Date(b.timestamp || b.sendTime || 0).getTime()
+            return timeA - timeB
+          })
+
+          setMessages(allMessages)
+        } catch (joinErr) {
+          // If join fails (e.g., chat already ended), check if it's archived in PostgreSQL
+          console.log('Join failed, checking if chat is archived:', joinErr.message)
+          try {
+            const chatLog = await api.chat.getChatLog(chatId)
+            if (chatLog.status === 'ended' || chatLog.status === 'archived') {
+              // Chat has ended, show it as ended without error
+              setChatInfo(chatLog)
+              setChatEnded(true)
+              setOtherUserLeft(true)
+              setLoading(false)
+              return
+            }
+          } catch (apiErr) {
+            // API also failed, show original error
+          }
+          throw joinErr
+        }
 
         // Get chat log info from API for position statement
         try {
           const chatLog = await api.chat.getChatLog(chatId)
           setChatInfo(chatLog)
-          if (chatLog.status === 'ended') {
+          if (chatLog.status === 'ended' || chatLog.status === 'archived') {
             setChatEnded(true)
           }
         } catch (err) {
@@ -146,20 +304,153 @@ export default function ChatScreen() {
 
         // Set up message listener
         cleanupMessage = onMessage((message) => {
+          // Handle messages from the other user
+          const senderId = message.sender_id || message.sender || message.senderId
+          const isFromOther = senderId && senderId !== user?.id
+
+          if (isFromOther) {
+            playMessageSound()
+            // Clear any pending typing timeout
+            if (otherTypingTimeoutRef.current) {
+              clearTimeout(otherTypingTimeoutRef.current)
+              otherTypingTimeoutRef.current = null
+            }
+            // Hide typing indicator immediately when message arrives
+            setOtherUserTyping(false)
+          }
+
+          // Add message
           setMessages(prev => [...prev, message])
         })
 
-        // Set up typing listener
+        // Set up typing listener with delay before hiding
         cleanupTyping = onTyping((data) => {
           if (data.userId !== user?.id) {
-            setOtherUserTyping(data.isTyping)
+            // Clear any pending hide timeout
+            if (otherTypingTimeoutRef.current) {
+              clearTimeout(otherTypingTimeoutRef.current)
+              otherTypingTimeoutRef.current = null
+            }
+
+            if (data.isTyping) {
+              // Show typing indicator immediately
+              setOtherUserTyping(true)
+            } else {
+              // Delay hiding typing indicator to allow message to arrive first
+              // If they start typing again, this timeout will be cleared
+              otherTypingTimeoutRef.current = setTimeout(() => {
+                setOtherUserTyping(false)
+              }, 2000)
+            }
           }
         })
 
         // Set up chat status listener
         cleanupStatus = onChatStatus((data) => {
-          if (data.chatId === chatId && (data.status === 'ended' || data.type === 'chat_ended')) {
-            setChatEnded(true)
+          console.log('[Chat] Status event:', data)
+          if (data.chatId === chatId || String(data.chatId) === String(chatId)) {
+            if (data.status === 'user_left') {
+              // Other user left the chat
+              setOtherUserLeft(true)
+              setChatEnded(true)
+            } else if (data.status === 'ended' || data.type === 'chat_ended') {
+              setChatEnded(true)
+              // If ended with agreed closure, mark all pending closure proposals as accepted
+              if (data.endType === 'agreed_closure' || data.agreedClosure) {
+                setChatEndedWithClosure(true)
+                setMessages(prev => prev.map(msg => {
+                  if (msg.isProposal && msg.isClosure && msg.type === 'proposed') {
+                    return { ...msg, type: 'accepted' }
+                  }
+                  return msg
+                }))
+              }
+            }
+          }
+        })
+
+        // Set up read receipt listener
+        cleanupReadReceipt = onReadReceipt((data) => {
+          const eventChatId = String(data.chatId || '')
+          const eventUserId = String(data.userId || '')
+          const currentChatId = String(chatId || '')
+          const currentUserId = String(user?.id || '')
+          if (eventChatId === currentChatId && eventUserId !== currentUserId) {
+            // Other user has read up to this message
+            setOtherUserLastRead(data.messageId)
+          }
+        })
+
+        // Set up agreed position listener
+        cleanupAgreedPosition = onAgreedPosition((data) => {
+          console.log('[Chat] Agreed position event:', data)
+          const proposal = data.proposal || {}
+          const action = data.action
+          const proposerId = proposal.proposer_id || data.proposerId
+
+          // Hide typing indicator when we receive a proposal from the other user
+          if (proposerId && proposerId !== user?.id) {
+            if (otherTypingTimeoutRef.current) {
+              clearTimeout(otherTypingTimeoutRef.current)
+              otherTypingTimeoutRef.current = null
+            }
+            setOtherUserTyping(false)
+          }
+
+          if (action === 'propose') {
+            // Add new proposal as a special message to the chat
+            const proposalMessage = {
+              id: proposal.id || `proposal-${Date.now()}`,
+              content: proposal.content || data.content,
+              type: 'proposed',
+              sender_id: proposal.proposer_id || data.proposerId,
+              timestamp: proposal.created_at || new Date().toISOString(),
+              isProposal: true,
+              isClosure: proposal.is_closure || data.isClosure,
+              proposalId: proposal.id,
+              parentId: proposal.parent_id || null,
+            }
+            setMessages(prev => [...prev, proposalMessage])
+          } else if (action === 'accept' || action === 'reject') {
+            // Update existing proposal status
+            setMessages(prev => prev.map(msg => {
+              if (msg.isProposal && msg.proposalId === proposal.id) {
+                return {
+                  ...msg,
+                  type: action === 'accept' ? 'accepted' : 'rejected',
+                }
+              }
+              return msg
+            }))
+
+            // If closure was accepted, mark chat as ended
+            if (action === 'accept' && (proposal.is_closure || data.isClosure)) {
+              setChatEnded(true)
+              setChatEndedWithClosure(true)
+            }
+          } else if (action === 'modify') {
+            // Mark old proposal as modified and add new one
+            setMessages(prev => {
+              const updated = prev.map(msg => {
+                if (msg.isProposal && msg.proposalId === data.originalProposalId) {
+                  return { ...msg, type: 'modified' }
+                }
+                return msg
+              })
+              // Add the new modified proposal
+              const newProposalMessage = {
+                id: proposal.id || `proposal-${Date.now()}`,
+                content: proposal.content || data.content,
+                type: 'proposed',
+                sender_id: proposal.proposer_id || data.proposerId,
+                timestamp: proposal.created_at || new Date().toISOString(),
+                isProposal: true,
+                isClosure: proposal.is_closure || data.isClosure,
+                proposalId: proposal.id,
+                parentId: data.originalProposalId, // Link to the original proposal
+              }
+              return [...updated, newProposalMessage]
+            })
           }
         })
 
@@ -177,8 +468,13 @@ export default function ChatScreen() {
       if (cleanupMessage) cleanupMessage()
       if (cleanupTyping) cleanupTyping()
       if (cleanupStatus) cleanupStatus()
+      if (cleanupReadReceipt) cleanupReadReceipt()
+      if (cleanupAgreedPosition) cleanupAgreedPosition()
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current)
+      }
+      if (otherTypingTimeoutRef.current) {
+        clearTimeout(otherTypingTimeoutRef.current)
       }
     }
   }, [chatId, user?.id])
@@ -188,8 +484,12 @@ export default function ChatScreen() {
     const text = inputText.trim()
     if (!text || chatEnded) return
 
+    const currentMessageType = messageType
+
     try {
       setInputText('')
+      setInputHeight(40) // Reset input height
+      setMessageType('text') // Reset to default chat type after sending
 
       // Stop typing indicator
       if (isTypingRef.current) {
@@ -197,14 +497,20 @@ export default function ChatScreen() {
         isTypingRef.current = false
       }
 
-      // Send via socket
-      await sendMessage(chatId, text, 'text')
+      // Send via socket - use proposeAgreedPosition for proposals, sendMessage for regular chat
+      if (currentMessageType === 'position_proposal' || currentMessageType === 'closure_proposal') {
+        const isClosure = currentMessageType === 'closure_proposal'
+        await proposeAgreedPosition(chatId, text, isClosure)
+      } else {
+        await sendMessage(chatId, text, currentMessageType)
+      }
     } catch (err) {
       console.error('Failed to send message:', err)
-      // Restore the input text on error
+      // Restore the input text and message type on error
       setInputText(text)
+      setMessageType(currentMessageType)
     }
-  }, [chatId, inputText, chatEnded])
+  }, [chatId, inputText, chatEnded, messageType])
 
   // Handle typing indicator
   const handleTextChange = useCallback((text) => {
@@ -230,6 +536,14 @@ export default function ChatScreen() {
     }, 2000)
   }, [chatId])
 
+  // Handle input content size change for dynamic height
+  const handleContentSizeChange = useCallback((event) => {
+    const contentHeight = event.nativeEvent.contentSize.height
+    // Clamp between minHeight (40) and maxHeight
+    const newHeight = Math.min(Math.max(40, contentHeight), maxInputHeight)
+    setInputHeight(newHeight)
+  }, [maxInputHeight])
+
   // Show leave confirmation
   const handleBackPress = useCallback(() => {
     if (chatEnded) {
@@ -242,40 +556,351 @@ export default function ChatScreen() {
   // Handle confirmed exit chat
   const handleConfirmLeave = useCallback(async () => {
     setShowLeaveConfirm(false)
-    try {
-      await exitChat(chatId, 'left')
-    } catch (err) {
-      console.error('Failed to exit chat:', err)
+    // Only try to exit if the chat hasn't already ended (e.g., other user left)
+    if (!chatEnded) {
+      try {
+        await exitChat(chatId, 'left')
+      } catch (err) {
+        console.error('Failed to exit chat:', err)
+      }
     }
     router.back()
-  }, [chatId, router])
+  }, [chatId, router, chatEnded])
 
   // Cancel leaving
   const handleCancelLeave = useCallback(() => {
     setShowLeaveConfirm(false)
   }, [])
 
+  // Toggle special message menu
+  const handleToggleSpecialMenu = useCallback(() => {
+    setShowSpecialMenu(prev => !prev)
+  }, [])
+
+  // Select chat (normal text) message type
+  const handleSelectChat = useCallback(() => {
+    setMessageType('text')
+    setShowSpecialMenu(false)
+  }, [])
+
+  // Select propose statement message type
+  const handleSelectProposeStatement = useCallback(() => {
+    setMessageType('position_proposal')
+    setShowSpecialMenu(false)
+  }, [])
+
+  // Select propose closure message type
+  const handleSelectProposeClosure = useCallback(() => {
+    setMessageType('closure_proposal')
+    setShowSpecialMenu(false)
+  }, [])
+
+  // Handle accepting a proposal
+  const handleAcceptProposal = useCallback(async (proposalId) => {
+    try {
+      await respondToAgreedPosition(chatId, proposalId, 'accept')
+    } catch (err) {
+      console.error('Failed to accept proposal:', err)
+    }
+  }, [chatId])
+
+  // Handle rejecting a proposal
+  const handleRejectProposal = useCallback(async (proposalId) => {
+    try {
+      await respondToAgreedPosition(chatId, proposalId, 'reject')
+    } catch (err) {
+      console.error('Failed to reject proposal:', err)
+    }
+  }, [chatId])
+
+  // Start modifying a proposal
+  const handleStartModify = useCallback((proposal) => {
+    setModifyingProposal(proposal)
+    setModifyText(proposal.content)
+  }, [])
+
+  // Cancel modifying
+  const handleCancelModify = useCallback(() => {
+    setModifyingProposal(null)
+    setModifyText('')
+  }, [])
+
+  // Submit modified proposal
+  const handleSubmitModify = useCallback(async () => {
+    if (!modifyingProposal || !modifyText.trim()) return
+    const proposalId = modifyingProposal.proposalId
+    const content = modifyText.trim()
+
+    // Close modal immediately for better UX
+    setModifyingProposal(null)
+    setModifyText('')
+
+    try {
+      await respondToAgreedPosition(chatId, proposalId, 'modify', content)
+    } catch (err) {
+      console.error('Failed to modify proposal:', err)
+    }
+  }, [chatId, modifyingProposal, modifyText])
+
   // Render a message bubble
   const renderMessage = useCallback(({ item, index }) => {
-    // Compare as strings to handle UUID format differences
-    const senderId = String(item.senderId || item.sender || '')
+    // Handle both snake_case (from join_chat/Redis) and camelCase (from real-time messages)
+    // - join_chat returns: sender_id, timestamp (snake_case from Python asdict)
+    // - real-time message event: sender, sendTime (manually mapped to camelCase)
+    const senderId = String(item.sender_id || item.sender || item.senderId || '')
     const currentUserId = String(user?.id || '')
     const isOwnMessage = senderId === currentUserId
-    const messageTime = item.sendTime
-      ? new Date(item.sendTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    // Handle both timestamp formats: sendTime (real-time) and timestamp (from Redis/join_chat)
+    const rawTime = item.sendTime || item.timestamp
+    const messageTime = rawTime
+      ? new Date(rawTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       : ''
 
+    // Check if this is a proposal message
+    if (item.isProposal) {
+      // Check if this proposal has been superseded by a newer one
+      const hasBeenSuperseded = messages.some(m => m.isProposal && m.parentId === item.proposalId)
+
+      // If superseded, skip rendering - it will be shown stacked under the latest
+      if (hasBeenSuperseded) {
+        return null
+      }
+
+      // Build the chain of proposals (walk up the parent chain)
+      const chain = [item]
+      let currentParentId = item.parentId
+      while (currentParentId) {
+        const parent = messages.find(m => m.isProposal && m.proposalId === currentParentId)
+        if (parent) {
+          chain.push(parent)
+          currentParentId = parent.parentId
+        } else {
+          break
+        }
+      }
+      // chain is now [newest, ..., oldest]
+
+      const isAccepted = item.type === 'accepted'
+      const isRejected = item.type === 'rejected'
+      const isPending = item.type === 'proposed'
+      const proposalLabel = item.isClosure ? 'Closure' : 'Statement'
+      const proposalColor = item.isClosure ? Colors.chat : Colors.agree
+
+      // Color for the main (latest) proposal
+      const bubbleColor = isAccepted
+        ? Colors.messageYou
+        : (isOwnMessage ? Colors.messageYou : Colors.agree)
+
+      // Helper to render a single proposal card
+      // skipOffset: when true, offset styles are applied to wrapper instead
+      const renderProposalCard = (proposal, isLatest = false, skipOffset = false) => {
+        const pSenderId = String(proposal.sender_id || '')
+        const pIsOwn = pSenderId === currentUserId
+        const pIsAccepted = proposal.type === 'accepted'
+        const pIsRejected = proposal.type === 'rejected'
+        const pIsModified = proposal.type === 'modified'
+        const pIsPending = proposal.type === 'proposed'
+        const pIsInactive = pIsRejected || pIsModified
+        const pProposalLabel = proposal.isClosure ? 'Closure' : 'Statement'
+        const pProposalColor = proposal.isClosure ? Colors.chat : Colors.agree
+        const pBubbleColor = pIsAccepted
+          ? Colors.messageYou
+          : (pIsOwn ? Colors.messageYou : Colors.agree)
+
+        return (
+          <View
+            style={[
+              styles.proposalCard,
+              { backgroundColor: pBubbleColor },
+              // Offset inactive proposals toward proposer's side (unless handled by wrapper)
+              !skipOffset && pIsInactive && (pIsOwn ? styles.proposalCardOffsetRight : styles.proposalCardOffsetLeft),
+            ]}
+          >
+            {/* White overlay for inactive cards */}
+            {pIsInactive && <View style={styles.proposalCardOverlay} />}
+
+            {/* Type badge */}
+            <View style={styles.proposalTypeRow}>
+              <View style={[styles.proposalTypeBadge, { backgroundColor: pProposalColor }]}>
+                <Ionicons
+                  name={proposal.isClosure ? 'checkmark-done' : 'document-text'}
+                  size={12}
+                  color="#fff"
+                />
+                <Text style={styles.proposalTypeBadgeText}>{pProposalLabel}</Text>
+              </View>
+              {pIsAccepted && (
+                <View style={styles.proposalStatusInline}>
+                  <Ionicons name="checkmark-circle" size={14} color="#fff" />
+                </View>
+              )}
+              {pIsRejected && (
+                <View style={styles.proposalStatusInline}>
+                  <Ionicons name="close-circle" size={14} color="rgba(255,255,255,0.7)" />
+                </View>
+              )}
+              {pIsModified && (
+                <View style={styles.proposalStatusInline}>
+                  <Ionicons name="arrow-forward" size={14} color="rgba(255,255,255,0.7)" />
+                </View>
+              )}
+            </View>
+
+            {/* Content */}
+            <Text style={[
+              styles.proposalCardContent,
+              pIsInactive && styles.proposalCardContentInactive,
+            ]}>
+              {proposal.content}
+            </Text>
+
+            {/* Closure warning - only on latest pending */}
+            {isLatest && proposal.isClosure && pIsPending && (
+              <Text style={styles.closureWarningText}>
+                Accepting will end this chat
+              </Text>
+            )}
+
+            {/* Action buttons for pending proposals from other user - only on latest */}
+            {isLatest && pIsPending && !pIsOwn && !chatEnded && (
+              <View style={styles.proposalCardActions}>
+                <TouchableOpacity
+                  style={styles.proposalCardButton}
+                  onPress={() => handleRejectProposal(proposal.proposalId)}
+                >
+                  <Ionicons name="close" size={16} color="#fff" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.proposalCardButton}
+                  onPress={() => handleStartModify(proposal)}
+                >
+                  <Ionicons name="create-outline" size={16} color="#fff" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.proposalCardButton, styles.proposalCardButtonAccept]}
+                  onPress={() => handleAcceptProposal(proposal.proposalId)}
+                >
+                  <Ionicons name="checkmark" size={16} color={Colors.agree} />
+                </TouchableOpacity>
+              </View>
+            )}
+            {isLatest && pIsPending && pIsOwn && (
+              <Text style={styles.proposalCardWaiting}>
+                {proposal.isClosure ? 'Waiting for response to end chat...' : 'Waiting...'}
+              </Text>
+            )}
+
+            {/* Both user avatars for accepted proposals - only on latest */}
+            {isLatest && pIsAccepted && (
+              <View style={styles.proposalAvatarsRow}>
+                <View style={styles.proposalAvatarLeft}>
+                  {otherUser?.avatarUrl ? (
+                    <Image source={{ uri: otherUser.avatarUrl }} style={styles.proposalAvatar} />
+                  ) : (
+                    <View style={[styles.proposalAvatar, styles.proposalAvatarPlaceholder, { backgroundColor: Colors.agree }]}>
+                      <Text style={styles.proposalAvatarInitial}>
+                        {otherUser?.displayName?.[0]?.toUpperCase() || '?'}
+                      </Text>
+                    </View>
+                  )}
+                  <Ionicons name="checkmark-circle" size={14} color={Colors.agree} style={styles.proposalAvatarCheck} />
+                </View>
+                <View style={styles.proposalAvatarRight}>
+                  {user?.avatarUrl ? (
+                    <Image source={{ uri: user.avatarUrl }} style={styles.proposalAvatar} />
+                  ) : (
+                    <View style={[styles.proposalAvatar, styles.proposalAvatarPlaceholder, { backgroundColor: Colors.messageYou }]}>
+                      <Text style={styles.proposalAvatarInitial}>
+                        {user?.displayName?.[0]?.toUpperCase() || '?'}
+                      </Text>
+                    </View>
+                  )}
+                  <Ionicons name="checkmark-circle" size={14} color={Colors.agree} style={styles.proposalAvatarCheck} />
+                </View>
+              </View>
+            )}
+          </View>
+        )
+      }
+
+      // Render oldest to newest (chain is [newest, ..., oldest], so reverse it)
+      const orderedChain = [...chain].reverse()
+      const stackOffset = 12
+      const numPreviousCards = orderedChain.length - 1
+
+      return (
+        <View style={[styles.proposalStackContainer, { paddingTop: numPreviousCards * stackOffset }]}>
+          {orderedChain.map((proposal, idx) => {
+            const isLatest = idx === orderedChain.length - 1
+            // Later cards get higher zIndex so they appear on top
+            const zIndex = idx + 1
+
+            // Check if this card should be offset (rejected/modified)
+            const pSenderId = String(proposal.sender_id || '')
+            const pIsOwn = pSenderId === currentUserId
+            const pIsRejected = proposal.type === 'rejected'
+            const pIsModified = proposal.type === 'modified'
+            const pIsInactive = pIsRejected || pIsModified
+            const offsetDirection = pIsInactive ? (pIsOwn ? 'right' : 'left') : null
+
+            if (isLatest) {
+              // Latest card is in normal flow to determine container height
+              return (
+                <View key={proposal.proposalId} style={{ zIndex }}>
+                  {renderProposalCard(proposal, isLatest)}
+                </View>
+              )
+            } else {
+              // Previous cards are absolutely positioned, peeking 12px each from top
+              return (
+                <View
+                  key={proposal.proposalId}
+                  style={[
+                    styles.proposalStackedAbsolute,
+                    { top: idx * stackOffset, zIndex },
+                    offsetDirection === 'left' && styles.proposalStackedOffsetLeft,
+                    offsetDirection === 'right' && styles.proposalStackedOffsetRight,
+                  ]}
+                >
+                  {renderProposalCard(proposal, isLatest, true)}
+                </View>
+              )
+            }
+          })}
+        </View>
+      )
+    }
+
     if (isOwnMessage) {
+      // Check if this is the last message the other user has read
+      const isLastRead = item.id === otherUserLastRead
+
       return (
         <View style={styles.ownMessageRow}>
-          <View style={[styles.messageBubble, styles.ownMessage]}>
-            <Text style={[styles.messageText, styles.ownMessageText]}>
-              {item.content}
-            </Text>
-            {messageTime && (
-              <Text style={[styles.messageTime, styles.ownMessageTime]}>
-                {messageTime}
+          <View style={styles.ownMessageContainer}>
+            <View style={[styles.messageBubble, styles.ownMessage]}>
+              <Text style={[styles.messageText, styles.ownMessageText]}>
+                {item.content}
               </Text>
+              {messageTime && (
+                <Text style={[styles.messageTime, styles.ownMessageTime]}>
+                  {messageTime}
+                </Text>
+              )}
+            </View>
+            {/* Read indicator - small avatar bubble */}
+            {isLastRead && otherUser && (
+              <View style={styles.readIndicator}>
+                {otherUser.avatarUrl ? (
+                  <Image source={{ uri: otherUser.avatarUrl }} style={styles.readIndicatorAvatar} />
+                ) : (
+                  <View style={[styles.readIndicatorAvatar, styles.readIndicatorAvatarPlaceholder]}>
+                    <Text style={styles.readIndicatorInitial}>
+                      {otherUser.displayName?.[0]?.toUpperCase() || '?'}
+                    </Text>
+                  </View>
+                )}
+              </View>
             )}
           </View>
         </View>
@@ -285,7 +910,7 @@ export default function ChatScreen() {
     // Check if this is the last message in a group from the other user
     // Avatar shows only on the last consecutive message from the other user
     const nextMessage = messages[index + 1]
-    const nextSenderId = nextMessage ? String(nextMessage.senderId || nextMessage.sender || '') : null
+    const nextSenderId = nextMessage ? String(nextMessage.sender_id || nextMessage.sender || nextMessage.senderId || '') : null
     const isLastInGroup = !nextMessage || nextSenderId === currentUserId
 
     // Other user's message
@@ -316,7 +941,7 @@ export default function ChatScreen() {
         </View>
       </View>
     )
-  }, [user?.id, otherUser, messages])
+  }, [user, otherUser, otherUserLastRead, messages, chatEnded, handleAcceptProposal, handleRejectProposal, handleStartModify])
 
   // Leave confirmation modal
   const renderLeaveConfirmModal = () => (
@@ -348,6 +973,62 @@ export default function ChatScreen() {
               onPress={handleConfirmLeave}
             >
               <Text style={styles.modalConfirmText}>Leave</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  )
+
+  // Modify proposal modal
+  const renderModifyModal = () => (
+    <Modal
+      visible={!!modifyingProposal}
+      transparent
+      animationType="fade"
+      onRequestClose={handleCancelModify}
+    >
+      <TouchableOpacity
+        style={styles.modalOverlay}
+        activeOpacity={1}
+        onPress={handleCancelModify}
+      >
+        <TouchableOpacity activeOpacity={1} style={styles.modifyModalCard}>
+          <View style={styles.modifyModalHeader}>
+            <View style={[styles.proposalTypeBadge, { backgroundColor: modifyingProposal?.isClosure ? Colors.chat : Colors.agree }]}>
+              <Ionicons
+                name={modifyingProposal?.isClosure ? 'checkmark-done' : 'document-text'}
+                size={12}
+                color="#fff"
+              />
+              <Text style={styles.proposalTypeBadgeText}>
+                {modifyingProposal?.isClosure ? 'Closure' : 'Statement'}
+              </Text>
+            </View>
+            <Text style={styles.modifyModalTitle}>Modify Proposal</Text>
+          </View>
+          <TextInput
+            style={styles.modifyInput}
+            value={modifyText}
+            onChangeText={setModifyText}
+            placeholder="Edit the proposal..."
+            placeholderTextColor={Colors.pass}
+            multiline
+            autoFocus
+          />
+          <View style={styles.modalButtons}>
+            <TouchableOpacity
+              style={styles.modalCancelButton}
+              onPress={handleCancelModify}
+            >
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modifySubmitButton, !modifyText.trim() && styles.modifySubmitButtonDisabled]}
+              onPress={handleSubmitModify}
+              disabled={!modifyText.trim()}
+            >
+              <Text style={styles.modifySubmitText}>Send</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -388,9 +1069,14 @@ export default function ChatScreen() {
         </View>
         <View style={styles.centerContent}>
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={() => router.back()}>
+          <Pressable
+            style={styles.retryButton}
+            onPress={() => router.back()}
+            onPressIn={Platform.OS === 'web' ? () => router.back() : undefined}
+            role="button"
+          >
             <Text style={styles.retryButtonText}>Go Back</Text>
-          </TouchableOpacity>
+          </Pressable>
         </View>
       </SafeAreaView>
     )
@@ -449,16 +1135,28 @@ export default function ChatScreen() {
 
       {/* Chat ended banner */}
       {chatEnded && (
-        <View style={styles.endedBanner}>
-          <Text style={styles.endedText}>This chat has ended</Text>
+        <View style={[styles.endedBanner, chatEndedWithClosure && styles.endedBannerClosure]}>
+          <Ionicons
+            name={chatEndedWithClosure ? 'checkmark-circle' : (otherUserLeft ? 'exit-outline' : 'information-circle')}
+            size={18}
+            color="#fff"
+            style={{ marginRight: 8 }}
+          />
+          <Text style={styles.endedText}>
+            {chatEndedWithClosure
+              ? 'Chat ended with mutual agreement'
+              : otherUserLeft
+                ? `${otherUser?.displayName || 'The other user'} has left the chat`
+                : 'This chat has ended'}
+          </Text>
         </View>
       )}
 
       {/* Messages list */}
       <KeyboardAvoidingView
         style={styles.chatContainer}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        behavior="padding"
+        keyboardVerticalOffset={keyboardOffset}
       >
         <FlatList
           ref={flatListRef}
@@ -467,9 +1165,12 @@ export default function ChatScreen() {
           keyExtractor={(item, index) => item.id || `msg-${index}`}
           contentContainerStyle={styles.messagesList}
           inverted={false}
-          onContentSizeChange={() => {
-            flatListRef.current?.scrollToEnd({ animated: true })
-          }}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          onScroll={handleScroll}
+          scrollEventThrottle={100}
+          onViewableItemsChanged={onViewableItemsChanged}
+          viewabilityConfig={viewabilityConfig}
           ListHeaderComponent={
             chatInfo?.position ? (
               <View style={styles.topicCard}>
@@ -553,17 +1254,91 @@ export default function ChatScreen() {
         {/* Input area */}
         {!chatEnded && (
           <View style={styles.inputContainer}>
+            {/* Special message menu button */}
+            <TouchableOpacity
+              style={[styles.specialMenuButton, showSpecialMenu && styles.specialMenuButtonActive]}
+              onPress={handleToggleSpecialMenu}
+            >
+              <Ionicons
+                name={showSpecialMenu ? 'close' : 'add'}
+                size={24}
+                color={showSpecialMenu ? '#fff' : Colors.primary}
+              />
+            </TouchableOpacity>
+
+            {/* Special menu popup with backdrop */}
+            {showSpecialMenu && (
+              <>
+                <Pressable
+                  style={styles.specialMenuBackdrop}
+                  onPress={() => setShowSpecialMenu(false)}
+                />
+                <View style={styles.specialMenuPopup}>
+                  <TouchableOpacity
+                    style={[styles.specialMenuItem, messageType === 'text' && styles.specialMenuItemSelected]}
+                    onPress={handleSelectChat}
+                  >
+                    <View style={[styles.specialMenuIcon, { backgroundColor: Colors.primary }]}>
+                      <Ionicons name="chatbubble" size={20} color="#fff" />
+                    </View>
+                    <View style={styles.specialMenuItemText}>
+                      <Text style={styles.specialMenuItemTitle}>Chat</Text>
+                      <Text style={styles.specialMenuItemDesc}>Send a normal message</Text>
+                    </View>
+                    {messageType === 'text' && (
+                      <Ionicons name="checkmark-circle" size={24} color={Colors.primary} />
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.specialMenuItem, messageType === 'position_proposal' && styles.specialMenuItemSelected]}
+                    onPress={handleSelectProposeStatement}
+                  >
+                    <View style={[styles.specialMenuIcon, { backgroundColor: Colors.agree }]}>
+                      <Ionicons name="document-text" size={20} color="#fff" />
+                    </View>
+                    <View style={styles.specialMenuItemText}>
+                      <Text style={styles.specialMenuItemTitle}>Propose Statement</Text>
+                      <Text style={styles.specialMenuItemDesc}>Suggest a statement you both agree on</Text>
+                    </View>
+                    {messageType === 'position_proposal' && (
+                      <Ionicons name="checkmark-circle" size={24} color={Colors.agree} />
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.specialMenuItem, messageType === 'closure_proposal' && styles.specialMenuItemSelected]}
+                    onPress={handleSelectProposeClosure}
+                  >
+                    <View style={[styles.specialMenuIcon, { backgroundColor: Colors.chat }]}>
+                      <Ionicons name="checkmark-done" size={20} color="#fff" />
+                    </View>
+                    <View style={styles.specialMenuItemText}>
+                      <Text style={styles.specialMenuItemTitle}>Propose Closure</Text>
+                      <Text style={styles.specialMenuItemDesc}>Propose ending this chat amicably</Text>
+                    </View>
+                    {messageType === 'closure_proposal' && (
+                      <Ionicons name="checkmark-circle" size={24} color={Colors.chat} />
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+
             <TextInput
-              style={[styles.input, { maxHeight: maxInputHeight }]}
+              style={[styles.input, { height: inputHeight, maxHeight: maxInputHeight }]}
               value={inputText}
               onChangeText={handleTextChange}
-              placeholder="Type a message..."
+              onContentSizeChange={handleContentSizeChange}
+              placeholder={
+                messageType === 'position_proposal' ? 'Type a statement to propose...' :
+                messageType === 'closure_proposal' ? 'Type a closing message...' :
+                'Type a message...'
+              }
               placeholderTextColor={Colors.pass}
               multiline
               maxLength={1000}
               returnKeyType="send"
               blurOnSubmit={false}
-              scrollEnabled={true}
+              scrollEnabled={inputHeight >= maxInputHeight}
               onSubmitEditing={Platform.OS !== 'web' ? handleSend : undefined}
               onKeyPress={(e) => {
                 // On web: Enter sends, Shift+Enter adds newline
@@ -576,13 +1351,19 @@ export default function ChatScreen() {
             <TouchableOpacity
               style={[
                 styles.sendButton,
-                !inputText.trim() && styles.sendButtonDisabled,
+                !inputText.trim() && messageType === 'text' && styles.sendButtonDisabled,
+                messageType === 'position_proposal' && (inputText.trim() ? styles.sendButtonStatement : styles.sendButtonStatementDisabled),
+                messageType === 'closure_proposal' && (inputText.trim() ? styles.sendButtonClosure : styles.sendButtonClosureDisabled),
               ]}
               onPress={handleSend}
               disabled={!inputText.trim()}
             >
               <Ionicons
-                name="send"
+                name={
+                  messageType === 'position_proposal' ? 'document-text' :
+                  messageType === 'closure_proposal' ? 'checkmark-done' :
+                  'send'
+                }
                 size={20}
                 color={inputText.trim() ? '#fff' : Colors.pass}
               />
@@ -592,6 +1373,7 @@ export default function ChatScreen() {
       </KeyboardAvoidingView>
 
       {renderLeaveConfirmModal()}
+      {renderModifyModal()}
     </SafeAreaView>
   )
 }
@@ -731,6 +1513,32 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     marginBottom: 8,
   },
+  ownMessageContainer: {
+    position: 'relative',
+    maxWidth: '75%',
+  },
+  readIndicator: {
+    position: 'absolute',
+    bottom: -4,
+    left: -8,
+  },
+  readIndicatorAvatar: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#fff',
+  },
+  readIndicatorAvatarPlaceholder: {
+    backgroundColor: Colors.agree,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  readIndicatorInitial: {
+    color: '#fff',
+    fontSize: 8,
+    fontWeight: '600',
+  },
   otherMessageRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -765,6 +1573,7 @@ const styles = StyleSheet.create({
   ownMessage: {
     backgroundColor: Colors.messageYou,
     borderBottomRightRadius: 4,
+    maxWidth: '100%', // Override messageBubble maxWidth since container handles it
   },
   otherMessage: {
     backgroundColor: Colors.agree,
@@ -833,11 +1642,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.background,
     borderRadius: 20,
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingTop: 10,
+    paddingBottom: 10,
     fontSize: 15,
     minHeight: 40,
     color: Colors.light.text,
-    textAlignVertical: 'center',
+    textAlignVertical: 'top',
   },
   sendButton: {
     width: 40,
@@ -852,6 +1662,88 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: {
     backgroundColor: Colors.cardBorder,
+  },
+  sendButtonStatement: {
+    backgroundColor: Colors.agree,
+  },
+  sendButtonStatementDisabled: {
+    backgroundColor: Colors.agree + '40', // Light green (40% opacity)
+  },
+  sendButtonClosure: {
+    backgroundColor: Colors.chat,
+  },
+  sendButtonClosureDisabled: {
+    backgroundColor: Colors.chat + '40', // Light yellow (40% opacity)
+  },
+  specialMenuButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.primaryLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+    alignSelf: 'flex-end',
+  },
+  specialMenuButtonActive: {
+    backgroundColor: Colors.primary,
+  },
+  specialMenuBackdrop: {
+    position: 'absolute',
+    top: -1000,
+    left: -1000,
+    right: -1000,
+    bottom: -1000,
+    backgroundColor: 'transparent',
+    zIndex: 1,
+  },
+  specialMenuPopup: {
+    position: 'absolute',
+    bottom: 56,
+    left: 12,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    zIndex: 2,
+    padding: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+    minWidth: 260,
+    ...(Platform.OS === 'web' && {
+      boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.15)',
+    }),
+  },
+  specialMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    gap: 12,
+  },
+  specialMenuItemSelected: {
+    backgroundColor: Colors.primaryLight,
+  },
+  specialMenuIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  specialMenuItemText: {
+    flex: 1,
+  },
+  specialMenuItemTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1a1a1a',
+  },
+  specialMenuItemDesc: {
+    fontSize: 12,
+    color: Colors.pass,
+    marginTop: 2,
   },
   centerContent: {
     flex: 1,
@@ -875,6 +1767,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
+    ...(Platform.OS === 'web' && {
+      cursor: 'pointer',
+    }),
   },
   retryButtonText: {
     color: '#fff',
@@ -894,8 +1789,14 @@ const styles = StyleSheet.create({
   },
   endedBanner: {
     backgroundColor: Colors.pass,
-    paddingVertical: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  endedBannerClosure: {
+    backgroundColor: Colors.agree,
   },
   endedText: {
     color: '#fff',
@@ -1065,5 +1966,213 @@ const styles = StyleSheet.create({
   topicCreatorUsername: {
     fontSize: 12,
     color: Colors.pass,
+  },
+  // Proposal styles - stacked card layout
+  proposalStackContainer: {
+    alignItems: 'center',
+    marginVertical: 8,
+    paddingHorizontal: 24,
+  },
+  proposalStackedAbsolute: {
+    position: 'absolute',
+    left: 24,
+    right: 24,
+    alignItems: 'center',
+  },
+  proposalStackedOffsetLeft: {
+    // Shift container left by 40px to offset card from center
+    left: 24 - 40,
+    right: 24 + 40,
+  },
+  proposalStackedOffsetRight: {
+    // Shift container right by 40px to offset card from center
+    left: 24 + 40,
+    right: 24 - 40,
+  },
+  proposalCardContainer: {
+    alignItems: 'center',
+    marginVertical: 8,
+    paddingHorizontal: 24,
+  },
+  proposalCardOffsetLeft: {
+    alignSelf: 'flex-start',
+    marginLeft: -80,
+  },
+  proposalCardOffsetRight: {
+    alignSelf: 'flex-end',
+    marginRight: -80,
+  },
+  proposalCard: {
+    width: '100%',
+    minWidth: 200,
+    maxWidth: 300,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  proposalCardOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.45)',
+    borderRadius: 16,
+    zIndex: 10,
+  },
+  proposalTypeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  proposalTypeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    gap: 4,
+  },
+  proposalTypeBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  proposalStatusInline: {
+    marginLeft: 'auto',
+  },
+  proposalCardContent: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: '#fff',
+    textAlign: 'center',
+  },
+  proposalCardContentInactive: {
+    textDecorationLine: 'line-through',
+    opacity: 0.8,
+  },
+  proposalCardActions: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    marginTop: 12,
+  },
+  proposalCardButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  proposalCardButtonAccept: {
+    backgroundColor: '#fff',
+  },
+  closureWarningText: {
+    fontSize: 12,
+    fontStyle: 'italic',
+    color: '#fff',
+    textAlign: 'center',
+    marginTop: 10,
+    opacity: 0.85,
+  },
+  proposalCardWaiting: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.7)',
+    marginTop: 10,
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
+  // Both user avatars for accepted proposals
+  proposalAvatarsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 12,
+    paddingHorizontal: 4,
+  },
+  proposalAvatarLeft: {
+    position: 'relative',
+  },
+  proposalAvatarRight: {
+    position: 'relative',
+  },
+  proposalAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  proposalAvatarPlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  proposalAvatarInitial: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  proposalAvatarCheck: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: '#fff',
+    borderRadius: 7,
+  },
+  // Modify modal styles
+  modifyModalCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  modifyModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 16,
+  },
+  modifyModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.primary,
+  },
+  modifyInput: {
+    backgroundColor: Colors.light.background,
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 15,
+    color: Colors.light.text,
+    minHeight: 100,
+    textAlignVertical: 'top',
+    marginBottom: 16,
+  },
+  modifySubmitButton: {
+    paddingVertical: 14,
+    borderRadius: 25,
+    backgroundColor: Colors.agree,
+    alignItems: 'center',
+  },
+  modifySubmitButtonDisabled: {
+    backgroundColor: Colors.cardBorder,
+  },
+  modifySubmitText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
   },
 })
