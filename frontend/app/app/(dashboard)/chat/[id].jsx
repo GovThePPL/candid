@@ -53,7 +53,7 @@ const getTrustBadgeColor = (trustScore) => {
 }
 
 export default function ChatScreen() {
-  const { id: chatId } = useLocalSearchParams()
+  const { id: chatId, from } = useLocalSearchParams()
   const router = useRouter()
   const navigation = useNavigation()
   const { user } = useContext(UserContext)
@@ -81,6 +81,7 @@ export default function ChatScreen() {
   const [chatEnded, setChatEnded] = useState(false)
   const [chatEndedWithClosure, setChatEndedWithClosure] = useState(false)
   const [otherUserLeft, setOtherUserLeft] = useState(false)
+  const [isHistoricalView, setIsHistoricalView] = useState(false) // True when viewing archived chat from history
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
   const [inputHeight, setInputHeight] = useState(40)
   const [otherUserLastRead, setOtherUserLastRead] = useState(null) // Message ID other user has read up to
@@ -90,6 +91,7 @@ export default function ChatScreen() {
   const [modifyText, setModifyText] = useState('') // Text for modified proposal
   const [expandedProposalStack, setExpandedProposalStack] = useState(null) // ID of expanded proposal stack
   const [proposalHeights, setProposalHeights] = useState({}) // Track heights of proposal cards for stacking
+  const [kudosStatus, setKudosStatus] = useState(null) // null = show prompt, 'sent' = kudos sent, 'dismissed' = dismissed
 
   const flatListRef = useRef(null)
   const typingTimeoutRef = useRef(null)
@@ -236,6 +238,70 @@ export default function ChatScreen() {
         setLoading(true)
         setError(null)
 
+        // If viewing from chat history, load directly from API (no WebSocket needed)
+        if (from === 'chats') {
+          try {
+            const chatLog = await api.chat.getChatLog(chatId)
+            setChatInfo(chatLog)
+            setChatEnded(true)
+            setIsHistoricalView(true)
+
+            // Load messages and proposals from the chat log
+            const historicalMessages = []
+
+            // Load regular messages
+            if (chatLog.log?.messages && Array.isArray(chatLog.log.messages)) {
+              for (const msg of chatLog.log.messages) {
+                historicalMessages.push({
+                  id: msg.id || `msg-${msg.timestamp || Date.now()}`,
+                  content: msg.content,
+                  sender_id: msg.sender_id || msg.senderId,
+                  timestamp: msg.timestamp || msg.sendTime,
+                  type: msg.type || 'text',
+                  isProposal: msg.isProposal || ['proposed', 'accepted', 'rejected', 'modified'].includes(msg.type),
+                  proposalId: msg.proposalId || msg.proposal_id,
+                  isClosure: msg.isClosure || msg.is_closure,
+                  parentId: msg.parentId || msg.parent_id,
+                })
+              }
+            }
+
+            // Load agreed positions as proposal messages
+            if (chatLog.log?.agreedPositions && Array.isArray(chatLog.log.agreedPositions)) {
+              for (const pos of chatLog.log.agreedPositions) {
+                historicalMessages.push({
+                  id: pos.id || `proposal-${pos.timestamp || Date.now()}`,
+                  content: pos.content,
+                  sender_id: pos.proposer_id || pos.proposerId,
+                  timestamp: pos.timestamp,
+                  type: pos.status || 'proposed',
+                  isProposal: true,
+                  proposalId: pos.id,
+                  isClosure: pos.is_closure || pos.isClosure || false,
+                  parentId: pos.parent_id || pos.parentId || null,
+                })
+              }
+            }
+
+            // Sort by timestamp
+            historicalMessages.sort((a, b) => {
+              const timeA = new Date(a.timestamp || 0).getTime()
+              const timeB = new Date(b.timestamp || 0).getTime()
+              return timeA - timeB
+            })
+
+            setMessages(historicalMessages)
+            setLoading(false)
+            return
+          } catch (err) {
+            console.error('Failed to load chat history:', err)
+            setError(err.message || 'Failed to load chat history')
+            setLoading(false)
+            return
+          }
+        }
+
+        // For active chats, use WebSocket
         // Check socket connection
         if (!isConnected()) {
           setError('Not connected to chat server. Please try again.')
@@ -293,10 +359,57 @@ export default function ChatScreen() {
           try {
             const chatLog = await api.chat.getChatLog(chatId)
             if (chatLog.status === 'ended' || chatLog.status === 'archived') {
-              // Chat has ended, show it as ended without error
+              // Chat has ended, show it as a historical view
               setChatInfo(chatLog)
               setChatEnded(true)
-              setOtherUserLeft(true)
+              setIsHistoricalView(true)
+
+              // Load messages and proposals from the chat log
+              const historicalMessages = []
+
+              // Load regular messages
+              if (chatLog.log?.messages && Array.isArray(chatLog.log.messages)) {
+                for (const msg of chatLog.log.messages) {
+                  historicalMessages.push({
+                    id: msg.id || `msg-${msg.timestamp || Date.now()}`,
+                    content: msg.content,
+                    sender_id: msg.sender_id || msg.senderId,
+                    timestamp: msg.timestamp || msg.sendTime,
+                    type: msg.type || 'text',
+                    isProposal: msg.isProposal || ['proposed', 'accepted', 'rejected', 'modified'].includes(msg.type),
+                    proposalId: msg.proposalId || msg.proposal_id,
+                    isClosure: msg.isClosure || msg.is_closure,
+                    parentId: msg.parentId || msg.parent_id,
+                  })
+                }
+              }
+
+              // Load agreed positions as proposal messages
+              if (chatLog.log?.agreedPositions && Array.isArray(chatLog.log.agreedPositions)) {
+                for (const pos of chatLog.log.agreedPositions) {
+                  historicalMessages.push({
+                    id: pos.id || `proposal-${pos.timestamp || Date.now()}`,
+                    content: pos.content,
+                    sender_id: pos.proposer_id || pos.proposerId,
+                    timestamp: pos.timestamp,
+                    type: pos.status || 'proposed',
+                    isProposal: true,
+                    proposalId: pos.id,
+                    isClosure: pos.is_closure || pos.isClosure || false,
+                    parentId: pos.parent_id || pos.parentId || null,
+                  })
+                }
+              }
+
+              // Sort by timestamp
+              historicalMessages.sort((a, b) => {
+                const timeA = new Date(a.timestamp || 0).getTime()
+                const timeB = new Date(b.timestamp || 0).getTime()
+                return timeA - timeB
+              })
+
+              setMessages(historicalMessages)
+
               setLoading(false)
               return
             }
@@ -312,6 +425,59 @@ export default function ChatScreen() {
           setChatInfo(chatLog)
           if (chatLog.status === 'ended' || chatLog.status === 'archived') {
             setChatEnded(true)
+            setIsHistoricalView(true)
+
+            // For historical chats, load messages and proposals from the database log
+            // (WebSocket might return empty for archived chats)
+            setMessages(prevMessages => {
+              // Only replace if current messages are empty
+              if (prevMessages.length > 0) return prevMessages
+
+              const historicalMessages = []
+
+              // Load regular messages
+              if (chatLog.log?.messages && Array.isArray(chatLog.log.messages)) {
+                for (const msg of chatLog.log.messages) {
+                  historicalMessages.push({
+                    id: msg.id || `msg-${msg.timestamp || Date.now()}`,
+                    content: msg.content,
+                    sender_id: msg.sender_id || msg.senderId,
+                    timestamp: msg.timestamp || msg.sendTime,
+                    type: msg.type || 'text',
+                    isProposal: msg.isProposal || ['proposed', 'accepted', 'rejected', 'modified'].includes(msg.type),
+                    proposalId: msg.proposalId || msg.proposal_id,
+                    isClosure: msg.isClosure || msg.is_closure,
+                    parentId: msg.parentId || msg.parent_id,
+                  })
+                }
+              }
+
+              // Load agreed positions as proposal messages
+              if (chatLog.log?.agreedPositions && Array.isArray(chatLog.log.agreedPositions)) {
+                for (const pos of chatLog.log.agreedPositions) {
+                  historicalMessages.push({
+                    id: pos.id || `proposal-${pos.timestamp || Date.now()}`,
+                    content: pos.content,
+                    sender_id: pos.proposer_id || pos.proposerId,
+                    timestamp: pos.timestamp,
+                    type: pos.status || 'proposed', // 'pending', 'accepted', 'rejected', 'modified'
+                    isProposal: true,
+                    proposalId: pos.id,
+                    isClosure: pos.is_closure || pos.isClosure || false,
+                    parentId: pos.parent_id || pos.parentId || null,
+                  })
+                }
+              }
+
+              // Sort by timestamp
+              historicalMessages.sort((a, b) => {
+                const timeA = new Date(a.timestamp || 0).getTime()
+                const timeB = new Date(b.timestamp || 0).getTime()
+                return timeA - timeB
+              })
+
+              return historicalMessages
+            })
           }
         } catch (err) {
           console.error('Failed to get chat log:', err)
@@ -492,7 +658,7 @@ export default function ChatScreen() {
         clearTimeout(otherTypingTimeoutRef.current)
       }
     }
-  }, [chatId, user?.id])
+  }, [chatId, user?.id, from])
 
   // Handle sending a message
   const handleSend = useCallback(async () => {
@@ -562,11 +728,16 @@ export default function ChatScreen() {
   // Show leave confirmation
   const handleBackPress = useCallback(() => {
     if (chatEnded) {
-      router.back()
+      // Navigate based on where we came from
+      if (from === 'chats') {
+        router.replace('/chats')
+      } else {
+        router.back()
+      }
     } else {
       setShowLeaveConfirm(true)
     }
-  }, [chatEnded, router])
+  }, [chatEnded, router, from])
 
   // Handle confirmed exit chat
   const handleConfirmLeave = useCallback(async () => {
@@ -579,12 +750,32 @@ export default function ChatScreen() {
         console.error('Failed to exit chat:', err)
       }
     }
-    router.back()
-  }, [chatId, router, chatEnded])
+    // Navigate based on where we came from
+    if (from === 'chats') {
+      router.replace('/chats')
+    } else {
+      router.back()
+    }
+  }, [chatId, router, chatEnded, from])
 
   // Cancel leaving
   const handleCancelLeave = useCallback(() => {
     setShowLeaveConfirm(false)
+  }, [])
+
+  // Send kudos to the other user
+  const handleSendKudos = useCallback(async () => {
+    try {
+      await api.chat.sendKudos(chatId)
+      setKudosStatus('sent')
+    } catch (err) {
+      console.error('Failed to send kudos:', err)
+    }
+  }, [chatId])
+
+  // Dismiss kudos prompt
+  const handleDismissKudos = useCallback(() => {
+    setKudosStatus('dismissed')
   }, [])
 
   // Toggle special message menu
@@ -1214,20 +1405,54 @@ export default function ChatScreen() {
 
       {/* Chat ended banner */}
       {chatEnded && (
-        <View style={[styles.endedBanner, chatEndedWithClosure && styles.endedBannerClosure]}>
+        <View style={[styles.endedBanner, (chatEndedWithClosure || isHistoricalView) && styles.endedBannerClosure]}>
           <Ionicons
-            name={chatEndedWithClosure ? 'checkmark-circle' : (otherUserLeft ? 'exit-outline' : 'information-circle')}
+            name={isHistoricalView ? 'time' : (chatEndedWithClosure ? 'checkmark-circle' : (otherUserLeft ? 'exit-outline' : 'information-circle'))}
             size={18}
             color="#fff"
             style={{ marginRight: 8 }}
           />
           <Text style={styles.endedText}>
-            {chatEndedWithClosure
-              ? 'Chat ended with mutual agreement'
-              : otherUserLeft
-                ? `${otherUser?.displayName || 'The other user'} has left the chat`
-                : 'This chat has ended'}
+            {isHistoricalView
+              ? 'Viewing historical chat log'
+              : chatEndedWithClosure
+                ? 'Chat ended with mutual agreement'
+                : otherUserLeft
+                  ? `${otherUser?.displayName || 'The other user'} has left the chat`
+                  : 'This chat has ended'}
           </Text>
+        </View>
+      )}
+
+      {/* Kudos prompt - only show after mutual agreement, not for historical views */}
+      {chatEndedWithClosure && !isHistoricalView && kudosStatus === null && (
+        <View style={styles.kudosPrompt}>
+          <Text style={styles.kudosPromptText}>
+            Would you like to send kudos to {otherUser?.displayName || 'the other user'}?
+          </Text>
+          <View style={styles.kudosButtonsRow}>
+            <TouchableOpacity
+              style={styles.kudosDismissButton}
+              onPress={handleDismissKudos}
+            >
+              <Text style={styles.kudosDismissText}>No thanks</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.kudosSendButton}
+              onPress={handleSendKudos}
+            >
+              <Ionicons name="star" size={16} color="#fff" style={{ marginRight: 6 }} />
+              <Text style={styles.kudosSendText}>Send Kudos</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Kudos sent confirmation */}
+      {chatEndedWithClosure && !isHistoricalView && kudosStatus === 'sent' && (
+        <View style={styles.kudosSentBanner}>
+          <Ionicons name="star" size={18} color="#FFD700" style={{ marginRight: 8 }} />
+          <Text style={styles.kudosSentText}>Kudos sent to {otherUser?.displayName || 'the other user'}!</Text>
         </View>
       )}
 
@@ -1880,6 +2105,63 @@ const styles = StyleSheet.create({
   endedText: {
     color: '#fff',
     fontSize: 14,
+    fontWeight: '500',
+  },
+  kudosPrompt: {
+    backgroundColor: '#fff',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.cardBorder,
+  },
+  kudosPromptText: {
+    fontSize: 15,
+    color: Colors.light.text,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  kudosButtonsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  kudosDismissButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
+  },
+  kudosDismissText: {
+    fontSize: 14,
+    color: Colors.pass,
+    fontWeight: '500',
+  },
+  kudosSendButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    backgroundColor: '#FFD700',
+  },
+  kudosSendText: {
+    fontSize: 14,
+    color: '#1a1a1a',
+    fontWeight: '600',
+  },
+  kudosSentBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.cardBorder,
+  },
+  kudosSentText: {
+    fontSize: 14,
+    color: Colors.light.text,
     fontWeight: '500',
   },
   modalOverlay: {
