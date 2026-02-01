@@ -461,6 +461,14 @@ export const chatApiWrapper = {
       chatId
     )
   },
+
+  async acknowledgeKudos(chatId) {
+    // Acknowledge is the same as dismiss - just marks the kudos notification as seen
+    return await promisify(
+      chatApi.dismissKudos.bind(chatApi),
+      chatId
+    )
+  },
 }
 
 // Surveys API
@@ -501,6 +509,38 @@ export const categoriesApiWrapper = {
   },
 }
 
+// Stats API
+export const statsApiWrapper = {
+  async getStats(locationId, categoryId) {
+    const token = await getToken()
+    if (!token) {
+      throw new Error('Not authenticated')
+    }
+
+    // Use location-only endpoint for "all" categories
+    const url = categoryId === 'all' || !categoryId
+      ? `${API_BASE_URL}/stats/${locationId}`
+      : `${API_BASE_URL}/stats/${locationId}/${categoryId}`
+
+    const response = await fetch(
+      url,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    )
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.message || 'Failed to fetch stats')
+    }
+
+    return response.json()
+  },
+}
+
 export default {
   auth: authApi,
   users: usersApiWrapper,
@@ -509,5 +549,6 @@ export default {
   chat: chatApiWrapper,
   surveys: surveysApiWrapper,
   categories: categoriesApiWrapper,
+  stats: statsApiWrapper,
   initializeAuth,
 }

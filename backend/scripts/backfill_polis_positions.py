@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 """
-Backfill existing positions to Polis.
+Backfill existing positions and votes to Polis.
 
-This script queues all existing positions for Polis sync, which will:
+This script queues positions and votes for Polis sync, which will:
 1. Create Polis conversations for each location/category combination
 2. Create comments in Polis for each position
-3. Establish mappings in polis_comment table
+3. Sync existing votes to Polis conversations
 
-Use this script when positions were created before Polis sync was enabled,
-or after resetting Polis data.
+Use this script when:
+- Positions/votes were created before Polis sync was enabled
+- After resetting Polis data
+- When Polis reconnects after being unavailable
 
 Usage:
     python backfill_polis_positions.py [--dry-run] [--batch-size 50]
+    python backfill_polis_positions.py --positions-only  # Skip votes
+    python backfill_polis_positions.py --votes-only      # Skip positions
 
 Environment variables:
     DATABASE_URL: PostgreSQL connection string
@@ -26,6 +30,13 @@ import uuid
 
 import psycopg2
 import psycopg2.extras
+
+# Vote mapping: Candid response -> Polis vote value
+VOTE_MAPPING = {
+    "agree": -1,
+    "disagree": 1,
+    "pass": 0,
+}
 
 
 def get_db_connection():
@@ -62,6 +73,38 @@ def get_positions_to_sync(conn, limit=None):
         return cur.fetchall()
 
 
+def get_votes_to_sync(conn, limit=None):
+    """
+    Fetch all votes that need to be synced to Polis.
+
+    A vote needs syncing if:
+    - The position has been synced to Polis (has polis_comment entry)
+    - The vote hasn't been queued for sync yet (not in polis_sync_queue)
+    - The response is a valid vote type (agree/disagree/pass, not chat)
+    """
+    query = """
+        SELECT DISTINCT r.id, r.position_id, r.user_id, r.response,
+               p.statement, r.created_time
+        FROM response r
+        JOIN position p ON r.position_id = p.id
+        JOIN polis_comment pc ON p.id = pc.position_id
+        WHERE r.response IN ('agree', 'disagree', 'pass')
+          AND NOT EXISTS (
+              SELECT 1 FROM polis_sync_queue psq
+              WHERE psq.operation_type = 'vote'
+                AND psq.payload->>'position_id' = r.position_id::text
+                AND psq.payload->>'user_id' = r.user_id::text
+          )
+        ORDER BY r.created_time ASC
+    """
+    if limit:
+        query += f" LIMIT {limit}"
+
+    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(query)
+        return cur.fetchall()
+
+
 def get_sync_queue_stats(conn):
     """Get statistics about the current sync queue."""
     with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -75,23 +118,6 @@ def get_sync_queue_stats(conn):
             ORDER BY status, operation_type
         """)
         return cur.fetchall()
-
-
-def queue_position_for_sync(conn, position):
-    """Queue a single position for Polis sync."""
-    payload = {
-        "position_id": str(position["id"]),
-        "statement": position["statement"],
-        "category_id": str(position["category_id"]),
-        "location_id": str(position["location_id"]),
-        "creator_user_id": str(position["creator_user_id"]),
-    }
-
-    with conn.cursor() as cur:
-        cur.execute("""
-            INSERT INTO polis_sync_queue (id, operation_type, payload, status)
-            VALUES (%s, 'position', %s, 'pending')
-        """, (str(uuid.uuid4()), json.dumps(payload)))
 
 
 def batch_queue_positions(conn, positions):
@@ -112,15 +138,143 @@ def batch_queue_positions(conn, positions):
     conn.commit()
 
 
+def batch_queue_votes(conn, votes):
+    """Queue a batch of votes for Polis sync."""
+    with conn.cursor() as cur:
+        for vote in votes:
+            polis_vote = VOTE_MAPPING.get(vote["response"])
+            if polis_vote is None:
+                continue
+
+            payload = {
+                "position_id": str(vote["position_id"]),
+                "user_id": str(vote["user_id"]),
+                "response": vote["response"],
+                "polis_vote": polis_vote,
+            }
+            cur.execute("""
+                INSERT INTO polis_sync_queue (id, operation_type, payload, status)
+                VALUES (%s, 'vote', %s, 'pending')
+            """, (str(uuid.uuid4()), json.dumps(payload)))
+    conn.commit()
+
+
+def process_positions(conn, args):
+    """Process position backfill."""
+    print("\n" + "=" * 50)
+    print("POSITIONS")
+    print("=" * 50)
+
+    positions = get_positions_to_sync(conn, args.limit)
+    total = len(positions)
+    print(f"Found {total} positions without Polis sync")
+
+    if total == 0:
+        print("All positions are already synced!")
+        return 0
+
+    # Group by location/category for summary
+    location_category_counts = {}
+    for pos in positions:
+        key = f"{pos['location_name']}/{pos['category_name']}"
+        location_category_counts[key] = location_category_counts.get(key, 0) + 1
+
+    print("\nPositions by location/category:")
+    for key, count in sorted(location_category_counts.items()):
+        print(f"  {key}: {count}")
+
+    if args.dry_run:
+        print("\n[DRY RUN] Would queue positions:")
+        for pos in positions[:5]:
+            print(f"  - {pos['statement'][:60]}...")
+        if total > 5:
+            print(f"  ... and {total - 5} more")
+        return total
+
+    # Process in batches
+    queued = 0
+    start_time = time.time()
+
+    for i in range(0, total, args.batch_size):
+        batch = positions[i:i + args.batch_size]
+        batch_num = i // args.batch_size + 1
+        total_batches = (total + args.batch_size - 1) // args.batch_size
+
+        try:
+            batch_queue_positions(conn, batch)
+            queued += len(batch)
+            print(f"  Batch {batch_num}/{total_batches}: queued {len(batch)} positions")
+        except psycopg2.Error as e:
+            print(f"  Batch {batch_num} error: {e}")
+            conn.rollback()
+
+    elapsed = time.time() - start_time
+    print(f"\nQueued {queued}/{total} positions in {elapsed:.1f}s")
+    return queued
+
+
+def process_votes(conn, args):
+    """Process vote backfill."""
+    print("\n" + "=" * 50)
+    print("VOTES")
+    print("=" * 50)
+
+    votes = get_votes_to_sync(conn, args.limit)
+    total = len(votes)
+    print(f"Found {total} votes that need Polis sync")
+
+    if total == 0:
+        print("All votes are already synced or queued!")
+        return 0
+
+    # Group by response type
+    response_counts = {}
+    for vote in votes:
+        response_counts[vote["response"]] = response_counts.get(vote["response"], 0) + 1
+
+    print("\nVotes by response type:")
+    for response, count in sorted(response_counts.items()):
+        print(f"  {response}: {count}")
+
+    if args.dry_run:
+        print("\n[DRY RUN] Would queue votes:")
+        for vote in votes[:5]:
+            print(f"  - {vote['response']} on: {vote['statement'][:40]}...")
+        if total > 5:
+            print(f"  ... and {total - 5} more")
+        return total
+
+    # Process in batches
+    queued = 0
+    start_time = time.time()
+
+    for i in range(0, total, args.batch_size):
+        batch = votes[i:i + args.batch_size]
+        batch_num = i // args.batch_size + 1
+        total_batches = (total + args.batch_size - 1) // args.batch_size
+
+        try:
+            batch_queue_votes(conn, batch)
+            queued += len(batch)
+            print(f"  Batch {batch_num}/{total_batches}: queued {len(batch)} votes")
+        except psycopg2.Error as e:
+            print(f"  Batch {batch_num} error: {e}")
+            conn.rollback()
+
+    elapsed = time.time() - start_time
+    print(f"\nQueued {queued}/{total} votes in {elapsed:.1f}s")
+    return queued
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description='Backfill existing positions to Polis'
+        description='Backfill existing positions and votes to Polis'
     )
     parser.add_argument(
         '--batch-size',
         type=int,
         default=50,
-        help='Number of positions to queue per batch (default: 50)'
+        help='Number of items to queue per batch (default: 50)'
     )
     parser.add_argument(
         '--dry-run',
@@ -131,9 +285,23 @@ def main():
         '--limit',
         type=int,
         default=None,
-        help='Limit number of positions to process (for testing)'
+        help='Limit number of items to process (for testing)'
+    )
+    parser.add_argument(
+        '--positions-only',
+        action='store_true',
+        help='Only sync positions, skip votes'
+    )
+    parser.add_argument(
+        '--votes-only',
+        action='store_true',
+        help='Only sync votes, skip positions'
     )
     args = parser.parse_args()
+
+    if args.positions_only and args.votes_only:
+        print("Error: Cannot specify both --positions-only and --votes-only")
+        sys.exit(1)
 
     # Connect to database
     print("Connecting to database...")
@@ -148,85 +316,38 @@ def main():
     else:
         print("  (empty)")
 
-    # Get positions to sync
-    print("\nFetching positions that need Polis sync...")
-    positions = get_positions_to_sync(conn, args.limit)
-    total = len(positions)
-    print(f"Found {total} positions without Polis sync")
+    positions_queued = 0
+    votes_queued = 0
 
-    if total == 0:
-        print("\nNothing to do - all positions are already synced!")
-        conn.close()
-        return
+    # Process positions
+    if not args.votes_only:
+        positions_queued = process_positions(conn, args)
 
-    # Group by location/category for summary
-    location_category_counts = {}
-    for pos in positions:
-        key = f"{pos['location_name']}/{pos['category_name']}"
-        location_category_counts[key] = location_category_counts.get(key, 0) + 1
+    # Process votes
+    if not args.positions_only:
+        votes_queued = process_votes(conn, args)
 
-    print("\nPositions by location/category:")
-    for key, count in sorted(location_category_counts.items()):
-        print(f"  {key}: {count}")
+    # Final summary
+    print("\n" + "=" * 50)
+    print("SUMMARY")
+    print("=" * 50)
 
     if args.dry_run:
-        print("\n[DRY RUN] Would queue the following positions:")
-        for pos in positions[:10]:
-            print(f"  - {pos['id']}: {pos['statement'][:60]}...")
-        if total > 10:
-            print(f"  ... and {total - 10} more")
-        print(f"\nTotal: {total} positions would be queued")
-        conn.close()
-        return
+        print(f"[DRY RUN] Would queue:")
+        print(f"  Positions: {positions_queued}")
+        print(f"  Votes: {votes_queued}")
+    else:
+        print(f"Queued:")
+        print(f"  Positions: {positions_queued}")
+        print(f"  Votes: {votes_queued}")
 
-    # Confirm before proceeding
-    print(f"\nThis will queue {total} positions for Polis sync.")
-    print("The Polis worker will process them and create conversations as needed.")
+        print("\nUpdated sync queue statistics:")
+        stats = get_sync_queue_stats(conn)
+        for stat in stats:
+            print(f"  {stat['operation_type']}/{stat['status']}: {stat['count']}")
 
-    # Process in batches
-    queued = 0
-    errors = 0
-    start_time = time.time()
-
-    for i in range(0, total, args.batch_size):
-        batch = positions[i:i + args.batch_size]
-        batch_num = i // args.batch_size + 1
-        total_batches = (total + args.batch_size - 1) // args.batch_size
-
-        print(f"\nQueuing batch {batch_num}/{total_batches} ({len(batch)} positions)...")
-
-        try:
-            batch_queue_positions(conn, batch)
-            queued += len(batch)
-
-            elapsed = time.time() - start_time
-            rate = queued / elapsed if elapsed > 0 else 0
-            remaining = (total - queued) / rate if rate > 0 else 0
-
-            print(f"  Queued {queued}/{total} ({queued/total*100:.1f}%) - "
-                  f"{rate:.1f} pos/sec - ETA: {remaining:.0f}s")
-
-        except psycopg2.Error as e:
-            print(f"  Database error: {e}")
-            conn.rollback()
-            errors += len(batch)
-
-    # Show final queue stats
-    print("\n" + "=" * 50)
-    print("Backfill complete!")
-    print(f"  Queued: {queued}/{total}")
-    print(f"  Errors: {errors}")
-
-    elapsed = time.time() - start_time
-    print(f"  Time: {elapsed:.1f}s")
-
-    print("\nUpdated sync queue statistics:")
-    stats = get_sync_queue_stats(conn)
-    for stat in stats:
-        print(f"  {stat['operation_type']}/{stat['status']}: {stat['count']}")
-
-    print("\nThe Polis worker should now process these positions.")
-    print("Check the worker logs or run this script again to verify progress.")
+        print("\nThe Polis worker will process these items.")
+        print("Run this script again to check progress or sync new items.")
 
     conn.close()
 

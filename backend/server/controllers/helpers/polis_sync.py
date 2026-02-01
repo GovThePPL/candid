@@ -57,12 +57,14 @@ def queue_position_sync(
         "creator_user_id": creator_user_id,
     }
 
-    result = db.execute_query("""
-        INSERT INTO polis_sync_queue (id, operation_type, payload, status)
-        VALUES (%s, 'position', %s, 'pending')
-    """, (str(uuid.uuid4()), json.dumps(payload)))
-
-    return result is not None
+    try:
+        db.execute_query("""
+            INSERT INTO polis_sync_queue (id, operation_type, payload, status)
+            VALUES (%s, 'position', %s, 'pending')
+        """, (str(uuid.uuid4()), json.dumps(payload)))
+        return True
+    except Exception:
+        return False
 
 
 def queue_vote_sync(position_id: str, user_id: str, response: str) -> bool:
@@ -90,12 +92,14 @@ def queue_vote_sync(position_id: str, user_id: str, response: str) -> bool:
         "polis_vote": polis_vote,
     }
 
-    result = db.execute_query("""
-        INSERT INTO polis_sync_queue (id, operation_type, payload, status)
-        VALUES (%s, 'vote', %s, 'pending')
-    """, (str(uuid.uuid4()), json.dumps(payload)))
-
-    return result is not None
+    try:
+        db.execute_query("""
+            INSERT INTO polis_sync_queue (id, operation_type, payload, status)
+            VALUES (%s, 'vote', %s, 'pending')
+        """, (str(uuid.uuid4()), json.dumps(payload)))
+        return True
+    except Exception:
+        return False
 
 
 # ========== Time-Window Management ==========
@@ -369,13 +373,16 @@ def sync_vote(payload: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
 
     for comment in comments:
         try:
-            client.submit_vote(
+            success = client.submit_vote(
                 comment["polis_conversation_id"],
                 comment["polis_comment_tid"],
                 polis_vote,
                 xid
             )
-            synced_count += 1
+            if success:
+                synced_count += 1
+            else:
+                errors.append(f"Conv {comment['polis_conversation_id']}: vote submission failed")
         except PolisError as e:
             errors.append(f"Conv {comment['polis_conversation_id']}: {e}")
 
@@ -457,25 +464,54 @@ def _get_unvoted_positions_from_db(
     category_priorities: Dict[str, int],
     limit: int = 10
 ) -> List[Dict[str, Any]]:
-    """Fallback: Get unvoted positions directly from Candid DB."""
+    """Fallback: Get unvoted positions directly from Candid DB.
+
+    Includes positions from the user's location and all parent locations.
+    """
     category_ids = [cid for cid, priority in category_priorities.items() if priority > 0]
 
     if not category_ids:
         return []
 
     positions = db.execute_query("""
+        WITH RECURSIVE location_hierarchy AS (
+            -- Start with user's location
+            SELECT id, parent_location_id FROM location WHERE id = %s::uuid
+            UNION ALL
+            -- Recursively get parent locations
+            SELECT l.id, l.parent_location_id
+            FROM location l
+            JOIN location_hierarchy lh ON l.id = lh.parent_location_id
+        )
         SELECT p.id, p.statement, p.category_id, p.creator_user_id,
-               u.display_name as creator_display_name, u.username as creator_username
+               u.display_name as creator_display_name, u.username as creator_username,
+               u.status as creator_status, u.trust_score as creator_trust_score,
+               COALESCE((
+                   SELECT COUNT(*) FROM kudos k
+                   WHERE k.receiver_user_id = u.id AND k.status = 'sent'
+               ), 0) as creator_kudos_count,
+               pc.label as category_name, l.code as location_code, l.name as location_name,
+               up.id as user_position_id
         FROM position p
         JOIN users u ON p.creator_user_id = u.id
+        LEFT JOIN position_category pc ON p.category_id = pc.id
+        LEFT JOIN location l ON p.location_id = l.id
         LEFT JOIN response r ON r.position_id = p.id AND r.user_id = %s
-        WHERE p.location_id = %s::uuid
+        -- Get an active user_position for chat requests (prefer creator's)
+        LEFT JOIN LATERAL (
+            SELECT up.id FROM user_position up
+            WHERE up.position_id = p.id AND up.status = 'active'
+            ORDER BY CASE WHEN up.user_id = p.creator_user_id THEN 0 ELSE 1 END
+            LIMIT 1
+        ) up ON true
+        WHERE p.location_id IN (SELECT id FROM location_hierarchy)
           AND p.category_id = ANY(%s::uuid[])
           AND p.status = 'active'
           AND r.id IS NULL
+          AND p.creator_user_id != %s
         ORDER BY p.created_time DESC
         LIMIT %s
-    """, (user_id, location_id, category_ids, limit))
+    """, (location_id, user_id, category_ids, user_id, limit))
 
     result = []
     for p in (positions or []):
@@ -483,9 +519,16 @@ def _get_unvoted_positions_from_db(
             "id": str(p["id"]),
             "statement": p["statement"],
             "category_id": str(p["category_id"]),
+            "category_name": p["category_name"],
+            "location_code": p["location_code"],
+            "location_name": p["location_name"],
             "creator_user_id": str(p["creator_user_id"]),
             "creator_display_name": p["creator_display_name"],
             "creator_username": p["creator_username"],
+            "creator_status": p["creator_status"],
+            "creator_kudos_count": p["creator_kudos_count"],
+            "creator_trust_score": float(p["creator_trust_score"]) if p.get("creator_trust_score") is not None else None,
+            "user_position_id": str(p["user_position_id"]) if p.get("user_position_id") else None,
             "weight": category_priorities.get(str(p["category_id"]), 1),
         })
 
@@ -504,10 +547,25 @@ def _polis_comment_to_position(
     # Look up the position from our mapping table
     mapping = db.execute_query("""
         SELECT pc.position_id, p.statement, p.creator_user_id,
-               u.display_name, u.username
+               u.display_name, u.username, u.status, u.trust_score,
+               COALESCE((
+                   SELECT COUNT(*) FROM kudos k
+                   WHERE k.receiver_user_id = u.id AND k.status = 'sent'
+               ), 0) as kudos_count,
+               pcat.label as category_name, l.code as location_code, l.name as location_name,
+               up.id as user_position_id
         FROM polis_comment pc
         JOIN position p ON pc.position_id = p.id
         JOIN users u ON p.creator_user_id = u.id
+        LEFT JOIN position_category pcat ON p.category_id = pcat.id
+        LEFT JOIN location l ON p.location_id = l.id
+        -- Get an active user_position for chat requests (prefer creator's)
+        LEFT JOIN LATERAL (
+            SELECT up.id FROM user_position up
+            WHERE up.position_id = p.id AND up.status = 'active'
+            ORDER BY CASE WHEN up.user_id = p.creator_user_id THEN 0 ELSE 1 END
+            LIMIT 1
+        ) up ON true
         WHERE pc.polis_comment_tid = %s AND p.category_id = %s
         LIMIT 1
     """, (tid, category_id), fetchone=True)
@@ -519,9 +577,16 @@ def _polis_comment_to_position(
         "id": str(mapping["position_id"]),
         "statement": mapping["statement"],
         "category_id": category_id,
+        "category_name": mapping["category_name"],
+        "location_code": mapping["location_code"],
+        "location_name": mapping["location_name"],
         "creator_user_id": str(mapping["creator_user_id"]),
         "creator_display_name": mapping["display_name"],
         "creator_username": mapping["username"],
+        "creator_status": mapping["status"],
+        "creator_kudos_count": mapping["kudos_count"],
+        "creator_trust_score": float(mapping["trust_score"]) if mapping.get("trust_score") is not None else None,
+        "user_position_id": str(mapping["user_position_id"]) if mapping.get("user_position_id") else None,
     }
 
 
