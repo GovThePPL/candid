@@ -206,6 +206,17 @@ components:
         status:
           type: string
           enum: [active, inactive, removed]
+        source:
+          type: string
+          enum: [default, chatting_list]
+          description: Where this position came from in the card queue
+        hasPendingRequests:
+          type: boolean
+          description: Whether user has pending chat requests on this position (only for chatting_list source)
+        chattingListId:
+          type: string
+          format: uuid
+          description: ID of the chatting list item (only for chatting_list source)
 
     UserPosition:
       type: object
@@ -684,6 +695,171 @@ components:
         data:
           $ref: '#/components/schemas/DemographicCard'
 
+    PairwiseCardItem:
+      type: object
+      required:
+        - type
+        - data
+      properties:
+        type:
+          type: string
+          enum: [pairwise]
+        data:
+          $ref: '#/components/schemas/PairwiseComparison'
+
+    PairwiseComparison:
+      type: object
+      required:
+        - surveyId
+        - surveyTitle
+        - question
+        - optionA
+        - optionB
+      properties:
+        surveyId:
+          type: string
+          format: uuid
+        surveyTitle:
+          type: string
+        question:
+          type: string
+        optionA:
+          type: object
+          required:
+            - id
+            - text
+          properties:
+            id:
+              type: string
+              format: uuid
+            text:
+              type: string
+        optionB:
+          type: object
+          required:
+            - id
+            - text
+          properties:
+            id:
+              type: string
+              format: uuid
+            text:
+              type: string
+
+    CreatePairwiseSurveyRequest:
+      type: object
+      required:
+        - surveyTitle
+        - items
+        - startTime
+        - endTime
+      properties:
+        surveyTitle:
+          type: string
+        items:
+          type: array
+          minItems: 2
+          maxItems: 20
+          items:
+            type: string
+          description: Pool of items to compare
+        comparisonQuestion:
+          type: string
+          default: "Which better describes your views?"
+        polisConversationId:
+          type: string
+          description: Link to Polis conversation for group labeling
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+
+    PairwiseRankingResult:
+      type: object
+      properties:
+        surveyId:
+          type: string
+          format: uuid
+        surveyTitle:
+          type: string
+        totalResponses:
+          type: integer
+        totalRespondents:
+          type: integer
+          description: Number of unique users who responded
+        rankings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ItemRanking'
+        groupRankings:
+          type: object
+          description: Rankings broken down by Polis group ID
+          additionalProperties:
+            type: object
+            properties:
+              groupLabel:
+                type: string
+              memberCount:
+                type: integer
+              rankings:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ItemRanking'
+
+    ItemRanking:
+      type: object
+      properties:
+        itemId:
+          type: string
+          format: uuid
+        itemText:
+          type: string
+        rank:
+          type: integer
+        winCount:
+          type: integer
+        comparisonCount:
+          type: integer
+
+    PairwiseSurvey:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        surveyTitle:
+          type: string
+        comparisonQuestion:
+          type: string
+        polisConversationId:
+          type: string
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              text:
+                type: string
+              order:
+                type: integer
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [active, inactive, deleted]
+        createdTime:
+          type: string
+          format: date-time
+
 #    Location:
 #      type: object
 #      required:
@@ -854,6 +1030,10 @@ components:
         conversationId:
           type: string
           description: The Polis conversation ID
+        polisReportUrl:
+          type: string
+          nullable: true
+          description: URL to the Polis report for this conversation
         groups:
           type: array
           items:
@@ -872,6 +1052,19 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/GroupPosition'
+        userVotes:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [agree, disagree, pass]
+          description: Map of position IDs to user's vote (agree/disagree/pass)
+          nullable: true
+        userPositionIds:
+          type: array
+          items:
+            type: string
+          description: IDs of positions created by the current user
+          nullable: true
 
     OpinionGroup:
       type: object
@@ -880,6 +1073,25 @@ components:
           type: string
         label:
           type: string
+        customLabel:
+          type: string
+          nullable: true
+          description: Custom label from pairwise labeling survey
+        labelWins:
+          type: integer
+          nullable: true
+          description: Number of votes for the custom label
+        labelRankings:
+          type: array
+          nullable: true
+          description: All labels ranked by votes for this group
+          items:
+            type: object
+            properties:
+              label:
+                type: string
+              wins:
+                type: integer
         memberCount:
           type: integer
         hull:
@@ -923,6 +1135,48 @@ components:
         representativeness:
           type: number
 
+    GroupDemographics:
+      type: object
+      description: Aggregated demographics for an opinion group
+      properties:
+        groupId:
+          type: string
+          description: The group ID
+        groupLabel:
+          type: string
+          description: The group label (A, B, C, etc.)
+        memberCount:
+          type: integer
+          description: Total members in the group
+        respondentCount:
+          type: integer
+          description: Members with demographic data
+        lean:
+          type: object
+          description: Political lean distribution
+          additionalProperties:
+            type: integer
+        education:
+          type: object
+          description: Education level distribution
+          additionalProperties:
+            type: integer
+        geoLocale:
+          type: object
+          description: Geographic locale distribution (urban/suburban/rural)
+          additionalProperties:
+            type: integer
+        sex:
+          type: object
+          description: Sex distribution
+          additionalProperties:
+            type: integer
+        race:
+          type: object
+          description: Race distribution
+          additionalProperties:
+            type: integer
+
     ErrorModel:
       type: object
       properties:
@@ -932,6 +1186,33 @@ components:
           type: string
         details:
           type: object
+
+    DemographicCrosstab:
+      type: object
+      properties:
+        category:
+          type: string
+          description: The demographic category value (e.g., "male", "liberal", "urban")
+        categoryLabel:
+          type: string
+          description: Human-readable label for the category
+        totalInCategory:
+          type: integer
+          description: Total respondents in this demographic category
+        optionBreakdown:
+          type: array
+          description: Response counts for each option within this demographic
+          items:
+            type: object
+            properties:
+              optionId:
+                type: string
+                format: uuid
+              count:
+                type: integer
+              percentage:
+                type: number
+                format: float
 
     WebSocketEvent:
       type: object
@@ -1057,6 +1338,37 @@ components:
                 content:
                   type: string
                   description: Required when action is propose or modify
+
+    ChattingListItem:
+      type: object
+      required:
+        - id
+        - positionId
+        - isActive
+        - addedTime
+      properties:
+        id:
+          type: string
+          format: uuid
+        positionId:
+          type: string
+          format: uuid
+        position:
+          $ref: '#/components/schemas/Position'
+        isActive:
+          type: boolean
+        addedTime:
+          type: string
+          format: date-time
+        lastChatTime:
+          type: string
+          format: date-time
+          nullable: true
+        chatCount:
+          type: integer
+        pendingRequestCount:
+          type: integer
+          description: Number of pending chat requests for this position
 
 security:
   - BearerAuth: []
@@ -1350,6 +1662,7 @@ paths:
                     - $ref: '#/components/schemas/ChatRequestCardItem'
                     - $ref: '#/components/schemas/KudosCardItem'
                     - $ref: '#/components/schemas/DemographicCardItem'
+                    - $ref: '#/components/schemas/PairwiseCardItem'
                   discriminator:
                     propertyName: type
                     mapping:
@@ -1358,6 +1671,7 @@ paths:
                       chat_request: '#/components/schemas/ChatRequestCardItem'
                       kudos: '#/components/schemas/KudosCardItem'
                       demographic: '#/components/schemas/DemographicCardItem'
+                      pairwise: '#/components/schemas/PairwiseCardItem'
 
   /positions:
     post:
@@ -1831,6 +2145,191 @@ paths:
           description: Position deleted
         '404':
           description: Position not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /users/me/chatting-list:
+    get:
+      operationId: getChattingList
+      summary: Get user's chatting list positions
+      description: Returns positions the user has swiped up on and wants to continue chatting about
+      tags:
+        - ChattingList
+      responses:
+        '200':
+          description: List of chatting list items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChattingListItem'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+    post:
+      operationId: addToChattingList
+      summary: Add a position to the chatting list
+      tags:
+        - ChattingList
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - positionId
+              properties:
+                positionId:
+                  type: string
+                  format: uuid
+      responses:
+        '201':
+          description: Position added to chatting list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChattingListItem'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '409':
+          description: Position already in chatting list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /users/me/chatting-list/{id}:
+    patch:
+      operationId: updateChattingListItem
+      summary: Update a chatting list item (toggle active status)
+      tags:
+        - ChattingList
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                isActive:
+                  type: boolean
+      responses:
+        '200':
+          description: Chatting list item updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChattingListItem'
+        '404':
+          description: Chatting list item not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+    delete:
+      operationId: removeFromChattingList
+      summary: Remove a position from the chatting list
+      tags:
+        - ChattingList
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Position removed from chatting list
+        '404':
+          description: Chatting list item not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /users/me/chatting-list/explanation-seen:
+    post:
+      operationId: markChattingListExplanationSeen
+      summary: Mark the chatting list explanation as seen
+      tags:
+        - ChattingList
+      responses:
+        '204':
+          description: Explanation marked as seen
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /users/me/chatting-list/bulk-remove:
+    post:
+      operationId: bulkRemoveFromChattingList
+      summary: Remove multiple positions from chatting list
+      description: |
+        Bulk remove chatting list items by category, location, or specific item IDs.
+        At least one of categoryId, locationCode, or itemIds must be provided.
+      tags:
+        - ChattingList
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                categoryId:
+                  type: string
+                  format: uuid
+                  description: Remove all items with positions in this category
+                locationCode:
+                  type: string
+                  description: Remove all items with positions in this location
+                itemIds:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                  description: Specific chatting list item IDs to remove
+      responses:
+        '200':
+          description: Items removed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  removedCount:
+                    type: integer
+                    description: Number of items removed
+        '400':
+          description: Invalid input - at least one filter required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '401':
+          description: Not authenticated
           content:
             application/json:
               schema:
@@ -2351,6 +2850,286 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
+  /surveys/pairwise:
+    get:
+      operationId: getPairwiseSurveys
+      summary: Get list of pairwise surveys
+      description: Returns pairwise surveys, optionally filtered by location and category
+      tags:
+        - Surveys
+      parameters:
+        - name: locationId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by location ID
+        - name: categoryId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by category ID
+      responses:
+        '200':
+          description: List of pairwise surveys
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PairwiseSurvey'
+        '401':
+          description: Unauthorized - authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /surveys/pairwise/{surveyId}/rankings:
+    get:
+      operationId: getSurveyRankings
+      summary: Get rankings from a pairwise survey
+      description: Returns overall rankings and per-group rankings if the survey is linked to a Polis conversation
+      tags:
+        - Surveys
+      parameters:
+        - name: surveyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: filterLocationId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Only include responses from users in this location
+        - name: groupId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter to users in this Polis group (0, 1, 2, etc.). If not provided or "majority", includes all users.
+        - name: polisConversationId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Polis conversation ID to use for group membership lookup. Falls back to survey's linked conversation.
+      responses:
+        '200':
+          description: Survey rankings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PairwiseRankingResult'
+        '401':
+          description: Unauthorized - authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: Survey not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /surveys/{surveyId}/results:
+    get:
+      operationId: getStandardSurveyResults
+      summary: Get results from a standard survey
+      description: Returns response counts per option for each question
+      tags:
+        - Surveys
+      parameters:
+        - name: surveyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: filterLocationId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Only include responses from users in this location
+        - name: groupId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter to users in this Polis group (0, 1, 2, etc.). If not provided or "majority", includes all users.
+        - name: polisConversationId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Polis conversation ID to use for group membership lookup
+      responses:
+        '200':
+          description: Survey results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  surveyId:
+                    type: string
+                    format: uuid
+                  surveyTitle:
+                    type: string
+                  surveyLocationCode:
+                    type: string
+                  surveyLocationName:
+                    type: string
+                  totalRespondents:
+                    type: integer
+                  questions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        questionId:
+                          type: string
+                          format: uuid
+                        question:
+                          type: string
+                        totalResponses:
+                          type: integer
+                        options:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              optionId:
+                                type: string
+                                format: uuid
+                              optionText:
+                                type: string
+                              responseCount:
+                                type: integer
+        '401':
+          description: Unauthorized - authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: Survey not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /surveys/{surveyId}/questions/{questionId}/crosstabs:
+    get:
+      operationId: getQuestionCrosstabs
+      summary: Get demographic crosstabs for a survey question
+      description: Returns response counts broken down by demographic categories
+      tags:
+        - Surveys
+      parameters:
+        - name: surveyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: questionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: filterLocationId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Only include responses from users in this location
+        - name: groupId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter to users in this Polis group (0, 1, 2, etc.)
+        - name: polisConversationId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Polis conversation ID for group membership lookup
+      responses:
+        '200':
+          description: Demographic crosstabs for the question
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  questionId:
+                    type: string
+                    format: uuid
+                  questionText:
+                    type: string
+                  totalResponses:
+                    type: integer
+                  options:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        optionId:
+                          type: string
+                          format: uuid
+                        optionText:
+                          type: string
+                        totalCount:
+                          type: integer
+                  demographics:
+                    type: object
+                    properties:
+                      politicalLean:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/DemographicCrosstab'
+                      education:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/DemographicCrosstab'
+                      geoLocale:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/DemographicCrosstab'
+                      sex:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/DemographicCrosstab'
+                      affiliation:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/DemographicCrosstab'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: Survey or question not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
   /moderation/reports/{reportId}/response:
     post:
       operationId: takeModeratorAction
@@ -2604,6 +3383,137 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
+  /admin/surveys/pairwise:
+    post:
+      operationId: createPairwiseSurvey
+      summary: Create a pairwise comparison survey
+      description: |
+        Creates a survey where users compare items pairwise to generate rankings.
+        Used for generating custom labels for opinion groups.
+      tags:
+        - Admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePairwiseSurveyRequest'
+      responses:
+        '201':
+          description: Pairwise survey created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PairwiseSurvey'
+        '400':
+          description: Invalid input (e.g., fewer than 2 items)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '403':
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /admin/surveys/{surveyId}/rankings:
+    get:
+      operationId: getPairwiseRankings
+      summary: Get win-count rankings from pairwise survey
+      description: |
+        Returns rankings computed dynamically from pairwise responses.
+        Can filter by Polis group ID to get per-group rankings based on current membership.
+      tags:
+        - Admin
+      parameters:
+        - name: surveyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: groupId
+          in: query
+          schema:
+            type: string
+          description: Filter by Polis group ID (uses current group membership)
+      responses:
+        '200':
+          description: Pairwise rankings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PairwiseRankingResult'
+        '403':
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: Survey not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /pairwise/{surveyId}/respond:
+    post:
+      operationId: respondToPairwise
+      summary: Submit a pairwise comparison response
+      description: Records which item the user selected as the winner in a comparison
+      tags:
+        - Surveys
+      parameters:
+        - name: surveyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - winnerItemId
+                - loserItemId
+              properties:
+                winnerItemId:
+                  type: string
+                  format: uuid
+                  description: ID of the selected (winning) item
+                loserItemId:
+                  type: string
+                  format: uuid
+                  description: ID of the non-selected (losing) item
+      responses:
+        '200':
+          description: Response recorded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: Survey or item not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
   /stats/{locationId}:
     get:
       operationId: getLocationStats
@@ -2671,6 +3581,130 @@ paths:
                 $ref: '#/components/schemas/ErrorModel'
         '404':
           description: Location or category not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /stats/{locationId}/{categoryId}/demographics/{groupId}:
+    get:
+      operationId: getGroupDemographics
+      summary: Get demographic breakdown for an opinion group
+      description: |
+        Returns aggregated demographic data for members of a specific opinion group.
+        Demographics include political lean, education, geographic locale, sex, and race.
+      tags:
+        - Stats
+      parameters:
+        - name: locationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: categoryId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Category UUID or 'all' for all categories
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Group ID (0, 1, 2, etc.) or 'all' for all groups combined
+      responses:
+        '200':
+          description: Group demographics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupDemographics'
+        '401':
+          description: Unauthorized - authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: Location, category, or group not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /stats/report/{conversationId}:
+    get:
+      operationId: getPolisReport
+      summary: Get Polis report for a conversation
+      description: |
+        Proxies the Polis report page for a conversation. Returns HTML content
+        that can be displayed in an iframe or new browser tab. This endpoint is
+        publicly accessible since reports contain only aggregate data.
+      tags:
+        - Stats
+      security: []
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The Polis conversation ID
+      responses:
+        '200':
+          description: Polis report HTML
+          content:
+            text/html:
+              schema:
+                type: string
+        '404':
+          description: Conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '502':
+          description: Failed to fetch report from Polis
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /polis-asset/{path}:
+    get:
+      operationId: getPolisAsset
+      summary: Proxy Polis static assets
+      description: |
+        Proxies static assets (JS, CSS, images) from the Polis server.
+        Used by the Polis report page to load its dependencies.
+      tags:
+        - Stats
+      security: []
+      parameters:
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The asset path (e.g., "report_bundle.js")
+      responses:
+        '200':
+          description: Asset content
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Asset not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '502':
+          description: Failed to fetch asset from Polis
           content:
             application/json:
               schema:

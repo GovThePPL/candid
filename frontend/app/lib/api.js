@@ -13,7 +13,7 @@ import {
 } from 'candid_api'
 
 // API configuration
-const API_BASE_URL = __DEV__
+export const API_BASE_URL = __DEV__
   ? 'http://localhost:8000/api/v1'  // Development
   : 'https://api.candid.app/api/v1' // Production (placeholder)
 
@@ -481,6 +481,213 @@ export const surveysApiWrapper = {
       { optionId }
     )
   },
+
+  async respondToPairwise(surveyId, winnerItemId, loserItemId) {
+    const token = await getToken()
+    const response = await fetch(`${API_BASE_URL}/pairwise/${surveyId}/respond`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ winnerItemId, loserItemId }),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.message || 'Failed to submit pairwise response')
+    }
+
+    return response.json()
+  },
+
+  async getPairwiseSurveys(locationId, categoryId) {
+    const token = await getToken()
+    if (!token) {
+      throw new Error('Not authenticated')
+    }
+
+    const params = new URLSearchParams()
+    if (locationId) {
+      params.append('locationId', locationId)
+    }
+    if (categoryId && categoryId !== 'all') {
+      params.append('categoryId', categoryId)
+    }
+
+    const queryString = params.toString()
+    const url = `${API_BASE_URL}/surveys/pairwise${queryString ? `?${queryString}` : ''}`
+
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.message || 'Failed to fetch pairwise surveys')
+    }
+
+    return await response.json()
+  },
+
+  async getStandardSurveys(locationId, categoryId) {
+    const token = await getToken()
+    if (!token) {
+      throw new Error('Not authenticated')
+    }
+
+    const params = new URLSearchParams()
+    if (locationId) {
+      params.append('locationId', locationId)
+    }
+    if (categoryId && categoryId !== 'all') {
+      params.append('categoryId', categoryId)
+    }
+
+    const queryString = params.toString()
+    const url = `${API_BASE_URL}/surveys${queryString ? `?${queryString}` : ''}`
+
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.message || 'Failed to fetch standard surveys')
+    }
+
+    return await response.json()
+  },
+
+  async getAllSurveys(locationId, categoryId) {
+    const [pairwise, standard] = await Promise.all([
+      this.getPairwiseSurveys(locationId, categoryId),
+      this.getStandardSurveys(locationId, categoryId),
+    ])
+
+    const combined = [...pairwise, ...standard]
+    combined.sort((a, b) => {
+      if (a.isActive && !b.isActive) return -1
+      if (!a.isActive && b.isActive) return 1
+      if (a.endTime && b.endTime) {
+        return new Date(b.endTime) - new Date(a.endTime)
+      }
+      return 0
+    })
+
+    return combined
+  },
+
+  async getSurveyRankings(surveyId, filterLocationId, groupId, polisConversationId) {
+    const token = await getToken()
+    if (!token) {
+      throw new Error('Not authenticated')
+    }
+
+    const params = new URLSearchParams()
+    if (filterLocationId) {
+      params.append('filterLocationId', filterLocationId)
+    }
+    if (groupId && groupId !== 'majority') {
+      params.append('groupId', groupId)
+    }
+    if (polisConversationId) {
+      params.append('polisConversationId', polisConversationId)
+    }
+
+    const queryString = params.toString()
+    const url = `${API_BASE_URL}/surveys/pairwise/${surveyId}/rankings${queryString ? `?${queryString}` : ''}`
+
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.message || 'Failed to fetch survey rankings')
+    }
+
+    return await response.json()
+  },
+
+  async getStandardSurveyResults(surveyId, filterLocationId, groupId, polisConversationId) {
+    const token = await getToken()
+    if (!token) {
+      throw new Error('Not authenticated')
+    }
+
+    const params = new URLSearchParams()
+    if (filterLocationId) {
+      params.append('filterLocationId', filterLocationId)
+    }
+    if (groupId && groupId !== 'majority') {
+      params.append('groupId', groupId)
+    }
+    if (polisConversationId) {
+      params.append('polisConversationId', polisConversationId)
+    }
+
+    const queryString = params.toString()
+    const url = `${API_BASE_URL}/surveys/${surveyId}/results${queryString ? `?${queryString}` : ''}`
+
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.message || 'Failed to fetch survey results')
+    }
+
+    return await response.json()
+  },
+
+  async getQuestionCrosstabs(surveyId, questionId, filterLocationId, groupId, polisConversationId) {
+    const token = await getToken()
+    if (!token) {
+      throw new Error('Not authenticated')
+    }
+
+    const params = new URLSearchParams()
+    if (filterLocationId) {
+      params.append('filterLocationId', filterLocationId)
+    }
+    if (groupId && groupId !== 'majority') {
+      params.append('groupId', groupId)
+    }
+    if (polisConversationId) {
+      params.append('polisConversationId', polisConversationId)
+    }
+
+    const queryString = params.toString()
+    const url = `${API_BASE_URL}/surveys/${surveyId}/questions/${questionId}/crosstabs${queryString ? `?${queryString}` : ''}`
+
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.message || 'Failed to fetch crosstabs')
+    }
+
+    return await response.json()
+  },
 }
 
 // Categories API
@@ -503,6 +710,142 @@ export const categoriesApiWrapper = {
     if (!response.ok) {
       const error = await response.json()
       throw new Error(error.message || 'Failed to suggest category')
+    }
+
+    return response.json()
+  },
+}
+
+// Chatting List API
+export const chattingListApiWrapper = {
+  async getList() {
+    const token = await getToken()
+    if (!token) {
+      throw new Error('Not authenticated')
+    }
+
+    const response = await fetch(`${API_BASE_URL}/users/me/chatting-list`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.message || 'Failed to fetch chatting list')
+    }
+
+    return response.json()
+  },
+
+  async addPosition(positionId) {
+    const token = await getToken()
+    if (!token) {
+      throw new Error('Not authenticated')
+    }
+
+    const response = await fetch(`${API_BASE_URL}/users/me/chatting-list`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ positionId }),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.message || 'Failed to add to chatting list')
+    }
+
+    return response.json()
+  },
+
+  async toggleActive(id, isActive) {
+    const token = await getToken()
+    if (!token) {
+      throw new Error('Not authenticated')
+    }
+
+    const response = await fetch(`${API_BASE_URL}/users/me/chatting-list/${id}`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ isActive }),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.message || 'Failed to update chatting list item')
+    }
+
+    return response.json()
+  },
+
+  async remove(id) {
+    const token = await getToken()
+    if (!token) {
+      throw new Error('Not authenticated')
+    }
+
+    const response = await fetch(`${API_BASE_URL}/users/me/chatting-list/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.message || 'Failed to remove from chatting list')
+    }
+  },
+
+  async markExplanationSeen() {
+    const token = await getToken()
+    if (!token) {
+      throw new Error('Not authenticated')
+    }
+
+    const response = await fetch(`${API_BASE_URL}/users/me/chatting-list/explanation-seen`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.message || 'Failed to mark explanation as seen')
+    }
+  },
+
+  async bulkRemove({ categoryId, locationCode, itemIds }) {
+    const token = await getToken()
+    if (!token) {
+      throw new Error('Not authenticated')
+    }
+
+    const body = {}
+    if (categoryId) body.categoryId = categoryId
+    if (locationCode) body.locationCode = locationCode
+    if (itemIds) body.itemIds = itemIds
+
+    const response = await fetch(`${API_BASE_URL}/users/me/chatting-list/bulk-remove`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.message || 'Failed to bulk remove from chatting list')
     }
 
     return response.json()
@@ -537,7 +880,37 @@ export const statsApiWrapper = {
       throw new Error(error.message || 'Failed to fetch stats')
     }
 
-    return response.json()
+    const data = await response.json()
+
+    // API already returns camelCase, just pass through
+    return data
+  },
+
+  async getGroupDemographics(locationId, categoryId, groupId) {
+    const token = await getToken()
+    if (!token) {
+      throw new Error('Not authenticated')
+    }
+
+    // Use 'all' for location-wide stats
+    const catId = categoryId === 'all' || !categoryId ? 'all' : categoryId
+
+    const response = await fetch(
+      `${API_BASE_URL}/stats/${locationId}/${catId}/demographics/${groupId}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    )
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.message || 'Failed to fetch demographics')
+    }
+
+    return await response.json()
   },
 }
 
@@ -550,5 +923,6 @@ export default {
   surveys: surveysApiWrapper,
   categories: categoriesApiWrapper,
   stats: statsApiWrapper,
+  chattingList: chattingListApiWrapper,
   initializeAuth,
 }
