@@ -17,6 +17,7 @@ class Config:
 	# Polis integration
 	POLIS_API_URL = os.environ.get('POLIS_API_URL', 'http://polis:5000/api/v3')
 	POLIS_BASE_URL = os.environ.get('POLIS_BASE_URL', 'http://polis:5000')
+	POLIS_PUBLIC_URL = os.environ.get('POLIS_PUBLIC_URL', 'http://localhost:8080')  # Public URL for browser access
 	POLIS_ENABLED = os.environ.get('POLIS_ENABLED', 'true').lower() == 'true'
 	POLIS_TIMEOUT = int(os.environ.get('POLIS_TIMEOUT', '10'))
 	POLIS_CONVERSATION_WINDOW_MONTHS = 6  # How long each conversation stays active
@@ -30,6 +31,10 @@ class Config:
 	POLIS_OIDC_CLIENT_SECRET = os.environ.get('POLIS_OIDC_CLIENT_SECRET', 'dev_auth-client_secret')
 	POLIS_ADMIN_EMAIL = os.environ.get('POLIS_ADMIN_EMAIL', 'admin@polis.test')
 	POLIS_ADMIN_PASSWORD = os.environ.get('POLIS_ADMIN_PASSWORD', 'Te$tP@ssw0rd*')
+
+	# NLP service
+	NLP_SERVICE_URL = os.environ.get('NLP_SERVICE_URL', 'http://nlp:5001')
+	NLP_SERVICE_TIMEOUT = int(os.environ.get('NLP_SERVICE_TIMEOUT', '10'))
 
 class DevelopmentConfig(Config):
 	DEV = True

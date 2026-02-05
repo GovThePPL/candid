@@ -266,6 +266,45 @@ def process_votes(conn, args):
     return queued
 
 
+def relink_pairwise_surveys(conn):
+    """
+    Re-link pairwise surveys to current Polis conversations.
+
+    After a Polis reset, conversations get new IDs. This updates the
+    polis_conversation_id on pairwise surveys by matching on
+    location_id + position_category_id.
+    """
+    print("\n" + "=" * 50)
+    print("PAIRWISE SURVEY LINKS")
+    print("=" * 50)
+
+    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute("""
+            UPDATE survey s
+            SET polis_conversation_id = pc.polis_conversation_id
+            FROM polis_conversation pc
+            WHERE pc.location_id = s.location_id
+              AND (
+                (pc.category_id = s.position_category_id)
+                OR (pc.category_id IS NULL AND s.position_category_id IS NULL)
+              )
+              AND pc.status = 'active'
+              AND s.survey_type = 'pairwise'
+              AND s.status = 'active'
+              AND (s.polis_conversation_id IS NULL
+                   OR s.polis_conversation_id != pc.polis_conversation_id)
+        """)
+        updated = cur.rowcount
+    conn.commit()
+
+    if updated > 0:
+        print(f"Re-linked {updated} pairwise surveys to current conversations")
+    else:
+        print("All pairwise surveys already linked to current conversations")
+
+    return updated
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Backfill existing positions and votes to Polis'
@@ -326,6 +365,9 @@ def main():
     # Process votes
     if not args.positions_only:
         votes_queued = process_votes(conn, args)
+
+    # Re-link pairwise surveys to new conversations
+    relinked = relink_pairwise_surveys(conn)
 
     # Final summary
     print("\n" + "=" * 50)

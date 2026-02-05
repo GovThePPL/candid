@@ -4,4 +4,4 @@
 -- but kept for backwards compatibility with existing deployments
 
 -- Add comment explaining the column structure
-COMMENT ON COLUMN chat_log.log IS 'JSON blob containing chat export: {"messages": [...], "agreed_positions": [...], "agreed_closure": "..." or null, "export_time": "ISO8601"}';
+COMMENT ON COLUMN chat_log.log IS 'JSON blob containing chat export: {"messages": [...], "agreedPositions": [...], "agreedClosure": {...} or null, "exportTime": "ISO8601"} — all keys use camelCase';

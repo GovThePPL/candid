@@ -3,10 +3,10 @@ from typing import Dict
 from typing import Tuple
 from typing import Union
 
+from flask import make_response
+
 from candid.models.current_user import CurrentUser  # noqa: E501
 from candid.models.error_model import ErrorModel  # noqa: E501
-from candid.models.get_user_chats200_response_inner import GetUserChats200ResponseInner  # noqa: E501
-from candid.models.position import Position  # noqa: E501
 from candid.models.update_user_profile_request import UpdateUserProfileRequest  # noqa: E501
 from candid.models.user import User  # noqa: E501
 from candid.models.user_demographics import UserDemographics  # noqa: E501
@@ -17,10 +17,62 @@ from candid import util
 
 from candid.controllers import db
 from candid.controllers.helpers.config import Config
-from candid.controllers.helpers.auth import authorization, token_to_user, get_user_type
-
-from camel_converter import dict_to_camel
+from candid.controllers.helpers.auth import authorization, token_to_user
+from candid.controllers.helpers import nlp
+from candid.controllers.helpers.cache_headers import add_cache_headers
 import uuid
+
+
+def _row_to_current_user(row):
+    """Convert a DB row to a CurrentUser model."""
+    return CurrentUser(
+        id=str(row['id']),
+        username=row['username'],
+        display_name=row['display_name'],
+        email=row.get('email'),
+        avatar_url=row.get('avatar_url'),
+        avatar_icon_url=row.get('avatar_icon_url'),
+        user_type=row['user_type'],
+        status=row['status'],
+        join_time=str(row['join_time']) if row.get('join_time') else None,
+        trust_score=float(row['trust_score']) if row.get('trust_score') is not None else None,
+        kudos_count=row.get('kudos_count', 0),
+    )
+
+
+def _row_to_user_position(row):
+    """Convert a DB row to a UserPosition model."""
+    return UserPosition(
+        id=str(row['id']),
+        user_id=str(row['user_id']),
+        position_id=str(row['position_id']),
+        location_id=str(row['location_id']) if row.get('location_id') else None,
+        category_id=str(row['category_id']) if row.get('category_id') else None,
+        category_name=row.get('category_name'),
+        location_name=row.get('location_name'),
+        statement=row['statement'],
+        status=row['status'],
+        agree_count=row.get('agree_count', 0),
+        disagree_count=row.get('disagree_count', 0),
+        pass_count=row.get('pass_count', 0),
+        chat_count=row.get('chat_count', 0),
+    )
+
+
+def _row_to_user_demographics(row):
+    """Convert a DB row to a UserDemographics model."""
+    return UserDemographics(
+        location_id=str(row['location_id']) if row.get('location_id') else None,
+        lean=row.get('lean'),
+        affiliation=str(row['affiliation']) if row.get('affiliation') else None,
+        education=row.get('education'),
+        geo_locale=row.get('geo_locale'),
+        race=row.get('race'),
+        sex=row.get('sex'),
+        age_range=row.get('age_range'),
+        income_range=row.get('income_range'),
+        created_time=str(row['created_time']) if row.get('created_time') else None,
+    )
 
 WEIGHT_TO_PRIORITY = {
     'none': 0,
@@ -33,6 +85,17 @@ WEIGHT_TO_PRIORITY = {
 
 PRIORITY_TO_WEIGHT = {v: k for k, v in WEIGHT_TO_PRIORITY.items()}
 
+LIKELIHOOD_TO_INT = {
+    'off': 0,
+    'rarely': 1,
+    'less': 2,
+    'normal': 3,
+    'more': 4,
+    'often': 5,
+}
+
+INT_TO_LIKELIHOOD = {v: k for k, v in LIKELIHOOD_TO_INT.items()}
+
 DEMOGRAPHICS_API_TO_DB = {
     'locationId': 'location_id',
     'lean': 'lean',
@@ -41,22 +104,92 @@ DEMOGRAPHICS_API_TO_DB = {
     'geoLocale': 'geo_locale',
     'race': 'race',
     'sex': 'sex',
+    'ageRange': 'age_range',
+    'incomeRange': 'income_range',
 }
 
 
-def _get_user_card(user_id):
-    user = db.execute_query("""
-        SELECT
-            display_name,
-            id,
-            status,
-            username
-        FROM users
-        WHERE id = %s
-    """, (user_id,), fetchone=True)
-    if user is not None:
-        return User.from_dict(dict_to_camel(user))
-    return None
+def get_user_locations(token_info=None):  # noqa: E501
+    """Get current user's locations with hierarchy
+
+    Returns the user's locations ordered from highest level (country) to lowest level (city)
+
+    :rtype: Union[List[Location], Tuple[List[Location], int], Tuple[List[Location], int, Dict[str, str]]
+    """
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+    user = token_to_user(token_info)
+
+    # Get all locations the user is directly associated with
+    user_locations = db.execute_query("""
+        SELECT l.id, l.name, l.code, l.parent_location_id
+        FROM user_location ul
+        JOIN location l ON ul.location_id = l.id
+        WHERE ul.user_id = %s
+    """, (user.id,))
+
+    if not user_locations:
+        return []
+
+    # For each location, traverse up to get the full hierarchy
+    all_locations = {}  # id -> location dict with level
+
+    for loc in user_locations:
+        # Start from this location and go up the parent chain
+        current_id = loc['id']
+        chain = []
+
+        while current_id:
+            if current_id in all_locations:
+                # Already processed this location
+                break
+
+            location = db.execute_query("""
+                SELECT id, name, code, parent_location_id
+                FROM location
+                WHERE id = %s
+            """, (current_id,), fetchone=True)
+
+            if not location:
+                break
+
+            chain.append(location)
+            current_id = location['parent_location_id']
+
+        # Add chain to all_locations with level calculation
+        for loc_in_chain in chain:
+            if loc_in_chain['id'] not in all_locations:
+                all_locations[loc_in_chain['id']] = loc_in_chain
+
+    # Calculate levels: traverse from each location to root to get depth
+    def get_level(loc_id, memo={}):
+        if loc_id in memo:
+            return memo[loc_id]
+        loc = all_locations.get(loc_id)
+        if not loc or not loc['parent_location_id']:
+            memo[loc_id] = 0
+            return 0
+        parent_level = get_level(loc['parent_location_id'], memo)
+        memo[loc_id] = parent_level + 1
+        return memo[loc_id]
+
+    # Build result with levels
+    result = []
+    for loc_id, loc in all_locations.items():
+        level = get_level(loc_id)
+        result.append({
+            'id': str(loc['id']),
+            'name': loc['name'],
+            'code': loc['code'],
+            'parentLocationId': str(loc['parent_location_id']) if loc['parent_location_id'] else None,
+            'level': level
+        })
+
+    # Sort by level (highest/country first = level 0, then increasing)
+    result.sort(key=lambda x: x['level'])
+
+    return result
 
 
 def get_current_user(token_info=None):  # noqa: E501
@@ -75,23 +208,29 @@ def get_current_user(token_info=None):  # noqa: E501
 
     current_user = db.execute_query("""
         SELECT
-            display_name,
-            email,
-            id,
-            status,
-            trust_score,
-            user_type,
-            created_time,
-            username
-        FROM users
-        WHERE id = %s
+            u.display_name,
+            u.email,
+            u.id,
+            u.status,
+            u.trust_score,
+            u.user_type,
+            u.created_time as join_time,
+            u.username,
+            u.avatar_url,
+            u.avatar_icon_url,
+            COALESCE((
+                SELECT COUNT(*) FROM kudos k
+                WHERE k.receiver_user_id = u.id AND k.status = 'sent'
+            ), 0) as kudos_count
+        FROM users u
+        WHERE u.id = %s
         """,
     (user.id,),
     fetchone=True)
 
     if current_user is None:
         return ErrorModel(404, "Not Found"), 404
-    return CurrentUser.from_dict(dict_to_camel(current_user))
+    return _row_to_current_user(current_user)
 
 
 def get_current_user_positions(status='active', token_info=None):  # noqa: E501
@@ -121,17 +260,152 @@ def get_current_user_positions(status='active', token_info=None):  # noqa: E501
             p.statement,
             p.category_id,
             p.location_id,
-            u.id AS user_id
+            u.id AS user_id,
+            c.label AS category_name,
+            l.name AS location_name
         FROM users AS u
         JOIN user_position AS up ON u.id = up.user_id
         JOIN position AS p ON up.position_id = p.id
-        WHERE u.id = %s AND p.status= %s
+        LEFT JOIN position_category AS c ON p.category_id = c.id
+        LEFT JOIN location AS l ON p.location_id = l.id
+        WHERE u.id = %s
+            AND (up.status = %s OR %s = 'all')
+            AND up.status != 'deleted'
         """,
-    (user.id, status))
+    (user.id, status, status))
     if ret == None:
         return ErrorModel(500, "Internal Server Error"), 500
 
-    return [UserPosition.from_dict(dict_to_camel(p)) for p in ret]
+    return [_row_to_user_position(p) for p in ret]
+
+
+def get_current_user_positions_metadata(token_info=None):  # noqa: E501
+    """Get metadata about current user's positions for cache validation.
+
+    Returns count and last updated time without full position data.
+
+    :rtype: Union[dict, Tuple[dict, int]]
+    """
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+    user = token_to_user(token_info)
+
+    result = db.execute_query("""
+        SELECT
+            COUNT(*) as count,
+            MAX(up.updated_time) as last_updated_time
+        FROM user_position up
+        WHERE up.user_id = %s
+        AND up.status != 'deleted'
+    """, (user.id,), fetchone=True)
+
+    count = result["count"] if result else 0
+    last_updated_time = result["last_updated_time"] if result else None
+
+    response_data = {
+        "count": count,
+        "lastUpdatedTime": last_updated_time.isoformat() if last_updated_time else None,
+    }
+
+    response = make_response(response_data, 200)
+    if last_updated_time:
+        response = add_cache_headers(response, last_modified=last_updated_time)
+    return response
+
+
+def update_user_position(user_position_id, body, token_info=None):  # noqa: E501
+    """Update a user position (toggle active/inactive)
+
+     # noqa: E501
+
+    :param user_position_id: ID of the user position to update
+    :type user_position_id: str
+    :param body: Request body with status field
+    :type body: dict
+
+    :rtype: Union[UserPosition, Tuple[UserPosition, int], Tuple[UserPosition, int, Dict[str, str]]
+    """
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+    user = token_to_user(token_info)
+
+    # Verify ownership
+    existing = db.execute_query("""
+        SELECT id FROM user_position WHERE id = %s AND user_id = %s
+    """, (user_position_id, user.id), fetchone=True)
+
+    if not existing:
+        return ErrorModel(404, "Position not found"), 404
+
+    new_status = body.get('status')
+    if new_status not in ('active', 'inactive'):
+        return ErrorModel(400, "Invalid status. Must be 'active' or 'inactive'"), 400
+
+    db.execute_query("""
+        UPDATE user_position SET status = %s, updated_time = CURRENT_TIMESTAMP
+        WHERE id = %s
+    """, (new_status, user_position_id))
+
+    # Return updated position
+    ret = db.execute_query("""
+        SELECT
+            up.agree_count,
+            up.chat_count,
+            up.disagree_count,
+            up.pass_count,
+            up.id,
+            p.id AS position_id,
+            up.status,
+            p.statement,
+            p.category_id,
+            p.location_id,
+            up.user_id,
+            c.label AS category_name,
+            l.name AS location_name
+        FROM user_position AS up
+        JOIN position AS p ON up.position_id = p.id
+        LEFT JOIN position_category AS c ON p.category_id = c.id
+        LEFT JOIN location AS l ON p.location_id = l.id
+        WHERE up.id = %s
+    """, (user_position_id,), fetchone=True)
+
+    if ret is None:
+        return ErrorModel(500, "Internal Server Error"), 500
+
+    return _row_to_user_position(ret)
+
+
+def delete_user_position(user_position_id, token_info=None):  # noqa: E501
+    """Delete a user position (soft delete)
+
+     # noqa: E501
+
+    :param user_position_id: ID of the user position to delete
+    :type user_position_id: str
+
+    :rtype: Union[None, Tuple[None, int], Tuple[None, int, Dict[str, str]]
+    """
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+    user = token_to_user(token_info)
+
+    # Verify ownership
+    existing = db.execute_query("""
+        SELECT id FROM user_position WHERE id = %s AND user_id = %s
+    """, (user_position_id, user.id), fetchone=True)
+
+    if not existing:
+        return ErrorModel(404, "Position not found"), 404
+
+    db.execute_query("""
+        UPDATE user_position SET status = 'deleted', updated_time = CURRENT_TIMESTAMP
+        WHERE id = %s
+    """, (user_position_id,))
+
+    return None, 204
 
 
 def get_user_by_id(user_id, token_info=None):  # noqa: E501
@@ -162,114 +436,13 @@ def get_user_by_id(user_id, token_info=None):  # noqa: E501
         """,
     (user_id,), fetchone=True)
 
-    return User.from_dict(dict_to_camel(ret))
-
-
-def get_user_chats(user_id, position_id=None, limit=None, offset=None, token_info=None):  # noqa: E501
-    """Get a list of the user&#39;s historical chats
-
-     # noqa: E501
-
-    :param user_id:
-    :type user_id: str
-    :type user_id: str
-    :param position_id: Filter chats by position ID
-    :type position_id: str
-    :type position_id: str
-    :param limit: Maximum number of chats to return
-    :type limit: int
-    :param offset: Number of chats to skip
-    :type offset: int
-
-    :rtype: Union[List[GetUserChats200ResponseInner], Tuple[List[GetUserChats200ResponseInner], int], Tuple[List[GetUserChats200ResponseInner], int, Dict[str, str]]
-    """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-    user = token_to_user(token_info)
-    user_type = get_user_type(user.id)
-
-    # Users can only view their own chats (admins/moderators can view any)
-    if str(user.id) != str(user_id) and user_type not in ("admin", "moderator"):
-        return ErrorModel(403, "Not authorized to view these chats"), 403
-
-    if limit is None:
-        limit = 20
-    if offset is None:
-        offset = 0
-
-    query = """
-        SELECT
-            cl.id,
-            cl.start_time,
-            cl.end_time,
-            cl.end_type,
-            cr.initiator_user_id,
-            up.user_id AS position_holder_user_id,
-            up.position_id,
-            p.statement,
-            p.category_id,
-            p.status AS position_status,
-            p.agree_count,
-            p.disagree_count,
-            p.pass_count,
-            p.chat_count,
-            p.created_time AS position_created_time,
-            p.creator_user_id
-        FROM chat_log AS cl
-        JOIN chat_request AS cr ON cl.chat_request_id = cr.id
-        JOIN user_position AS up ON cr.user_position_id = up.id
-        JOIN position AS p ON up.position_id = p.id
-        WHERE (cr.initiator_user_id = %s OR up.user_id = %s)
-    """
-    params = [user_id, user_id]
-
-    if position_id is not None:
-        query += " AND up.position_id = %s"
-        params.append(position_id)
-
-    query += " ORDER BY cl.start_time DESC LIMIT %s OFFSET %s"
-    params.extend([limit, offset])
-
-    rows = db.execute_query(query, tuple(params))
-    if rows is None:
-        return ErrorModel(500, "Internal Server Error"), 500
-
-    results = []
-    for row in rows:
-        # Determine the "other user"
-        if str(row['initiator_user_id']) == str(user_id):
-            other_user_id = row['position_holder_user_id']
-        else:
-            other_user_id = row['initiator_user_id']
-
-        other_user = _get_user_card(other_user_id)
-        position_creator = _get_user_card(row['creator_user_id'])
-
-        position = Position.from_dict(dict_to_camel({
-            'id': row['position_id'],
-            'statement': row['statement'],
-            'category_id': row['category_id'],
-            'status': row['position_status'],
-            'agree_count': row['agree_count'],
-            'disagree_count': row['disagree_count'],
-            'pass_count': row['pass_count'],
-            'chat_count': row['chat_count'],
-            'created_time': str(row['position_created_time']) if row['position_created_time'] else None,
-        }))
-        position.creator = position_creator
-
-        chat_entry = GetUserChats200ResponseInner()
-        chat_entry.id = str(row['id'])
-        chat_entry.start_time = row['start_time']
-        chat_entry.end_time = row['end_time']
-        chat_entry.position = position
-        chat_entry.other_user = other_user
-        chat_entry.agreed_closure = None
-
-        results.append(chat_entry)
-
-    return results
+    return User(
+        id=str(ret['id']),
+        username=ret['username'],
+        display_name=ret['display_name'],
+        status=ret['status'],
+        trust_score=float(ret['trust_score']) if ret.get('trust_score') is not None else None,
+    )
 
 
 def get_user_demographics(token_info=None):  # noqa: E501
@@ -295,6 +468,8 @@ def get_user_demographics(token_info=None):  # noqa: E501
             geo_locale,
             race,
             sex,
+            age_range,
+            income_range,
             created_time
         FROM user_demographics
         WHERE user_id = %s
@@ -303,9 +478,7 @@ def get_user_demographics(token_info=None):  # noqa: E501
 
     if ret == None:
         return None, 204
-    if ret["created_time"]: # Constructor doesn't do this
-        ret["created_time"] = str(ret["created_time"])
-    return UserDemographics.from_dict(dict_to_camel(ret))
+    return _row_to_user_demographics(ret)
 
 
 def get_user_settings(token_info=None):  # noqa: E501
@@ -321,6 +494,7 @@ def get_user_settings(token_info=None):  # noqa: E501
         return auth_err, auth_err.code
     user = token_to_user(token_info)
 
+    # Get category weights
     rows = db.execute_query("""
         SELECT position_category_id, priority
         FROM user_position_categories
@@ -339,7 +513,24 @@ def get_user_settings(token_info=None):  # noqa: E501
             weight=weight
         ))
 
-    return UserSettings(category_weights=category_weights)
+    # Get likelihood settings from users table
+    user_row = db.execute_query("""
+        SELECT chat_request_likelihood, chatting_list_likelihood
+        FROM users
+        WHERE id = %s
+        """,
+    (user.id,), fetchone=True)
+
+    chat_request_likelihood = INT_TO_LIKELIHOOD.get(
+        user_row['chat_request_likelihood'] if user_row else 3, 'normal')
+    chatting_list_likelihood = INT_TO_LIKELIHOOD.get(
+        user_row['chatting_list_likelihood'] if user_row else 3, 'normal')
+
+    return UserSettings(
+        category_weights=category_weights,
+        chat_request_likelihood=chat_request_likelihood,
+        chatting_list_likelihood=chatting_list_likelihood
+    )
 
 
 def update_user_demographics(body, token_info=None):  # noqa: E501
@@ -362,8 +553,8 @@ def update_user_demographics(body, token_info=None):  # noqa: E501
         user_demographics = UserDemographics.from_dict(connexion.request.get_json())
 
     db.execute_query("""
-        INSERT INTO user_demographics (user_id, location_id, lean, affiliation_id, education, geo_locale, race, sex)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO user_demographics (user_id, location_id, lean, affiliation_id, education, geo_locale, race, sex, age_range, income_range)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (user_id) DO UPDATE SET
             location_id = EXCLUDED.location_id,
             lean = EXCLUDED.lean,
@@ -372,6 +563,8 @@ def update_user_demographics(body, token_info=None):  # noqa: E501
             geo_locale = EXCLUDED.geo_locale,
             race = EXCLUDED.race,
             sex = EXCLUDED.sex,
+            age_range = EXCLUDED.age_range,
+            income_range = EXCLUDED.income_range,
             updated_time = CURRENT_TIMESTAMP
         """,
     (user.id,
@@ -381,7 +574,9 @@ def update_user_demographics(body, token_info=None):  # noqa: E501
      user_demographics.education,
      user_demographics.geo_locale,
      user_demographics.race,
-     user_demographics.sex))
+     user_demographics.sex,
+     user_demographics.age_range,
+     user_demographics.income_range))
 
     ret = db.execute_query("""
         SELECT
@@ -392,6 +587,8 @@ def update_user_demographics(body, token_info=None):  # noqa: E501
             geo_locale,
             race,
             sex,
+            age_range,
+            income_range,
             created_time
         FROM user_demographics
         WHERE user_id = %s
@@ -400,9 +597,7 @@ def update_user_demographics(body, token_info=None):  # noqa: E501
 
     if ret is None:
         return ErrorModel(500, "Internal Server Error"), 500
-    if ret["created_time"]:
-        ret["created_time"] = str(ret["created_time"])
-    return UserDemographics.from_dict(dict_to_camel(ret))
+    return _row_to_user_demographics(ret)
 
 
 def update_user_demographics_partial(body, token_info=None):  # noqa: E501
@@ -465,6 +660,8 @@ def update_user_demographics_partial(body, token_info=None):  # noqa: E501
             geo_locale,
             race,
             sex,
+            age_range,
+            income_range,
             created_time
         FROM user_demographics
         WHERE user_id = %s
@@ -473,13 +670,11 @@ def update_user_demographics_partial(body, token_info=None):  # noqa: E501
 
     if ret is None:
         return ErrorModel(500, "Internal Server Error"), 500
-    if ret["created_time"]:
-        ret["created_time"] = str(ret["created_time"])
-    return UserDemographics.from_dict(dict_to_camel(ret))
+    return _row_to_user_demographics(ret)
 
 
 def update_user_profile(body, token_info=None):  # noqa: E501
-    """Update current user profile (only displayName and email)
+    """Update current user profile (displayName, email, avatarUrl)
 
      # noqa: E501
 
@@ -493,20 +688,23 @@ def update_user_profile(body, token_info=None):  # noqa: E501
         return auth_err, auth_err.code
     user = token_to_user(token_info)
 
-    update_user_profile_request = body
-    if connexion.request.is_json:
-        update_user_profile_request = UpdateUserProfileRequest.from_dict(connexion.request.get_json())
+    raw = connexion.request.get_json() if connexion.request.is_json else body
 
     set_clauses = []
     params = []
 
-    if update_user_profile_request.display_name is not None:
+    if 'displayName' in raw and raw['displayName'] is not None:
         set_clauses.append("display_name = %s")
-        params.append(update_user_profile_request.display_name)
+        params.append(raw['displayName'])
 
-    if update_user_profile_request.email is not None:
+    if 'email' in raw and raw['email'] is not None:
         set_clauses.append("email = %s")
-        params.append(update_user_profile_request.email)
+        params.append(raw['email'])
+
+    if 'avatarUrl' in raw:
+        # Allow setting to null to clear avatar
+        set_clauses.append("avatar_url = %s")
+        params.append(raw['avatarUrl'])
 
     if not set_clauses:
         return ErrorModel(400, "No fields provided to update"), 400
@@ -521,22 +719,27 @@ def update_user_profile(body, token_info=None):  # noqa: E501
 
     current_user = db.execute_query("""
         SELECT
-            display_name,
-            email,
-            id,
-            status,
-            trust_score,
-            user_type,
-            created_time,
-            username
-        FROM users
-        WHERE id = %s
+            u.display_name,
+            u.email,
+            u.id,
+            u.status,
+            u.trust_score,
+            u.user_type,
+            u.created_time as join_time,
+            u.username,
+            u.avatar_url,
+            COALESCE((
+                SELECT COUNT(*) FROM kudos k
+                WHERE k.receiver_user_id = u.id AND k.status = 'sent'
+            ), 0) as kudos_count
+        FROM users u
+        WHERE u.id = %s
         """,
     (user.id,), fetchone=True)
 
     if current_user is None:
         return ErrorModel(500, "Internal Server Error"), 500
-    return CurrentUser.from_dict(dict_to_camel(current_user))
+    return _row_to_current_user(current_user)
 
 
 def update_user_settings(body, token_info=None):  # noqa: E501
@@ -558,14 +761,15 @@ def update_user_settings(body, token_info=None):  # noqa: E501
     if connexion.request.is_json:
         user_settings = UserSettings.from_dict(connexion.request.get_json())
 
-    # Delete existing category weights
-    db.execute_query("""
-        DELETE FROM user_position_categories WHERE user_id = %s
-        """,
-    (user.id,))
+    # Handle category weights if provided
+    if user_settings.category_weights is not None:
+        # Delete existing category weights
+        db.execute_query("""
+            DELETE FROM user_position_categories WHERE user_id = %s
+            """,
+        (user.id,))
 
-    # Insert new category weights
-    if user_settings.category_weights:
+        # Insert new category weights
         for cw in user_settings.category_weights:
             priority = WEIGHT_TO_PRIORITY.get(cw.weight, 3)
             db.execute_query("""
@@ -574,4 +778,187 @@ def update_user_settings(body, token_info=None):  # noqa: E501
                 """,
             (user.id, cw.category_id, priority))
 
+    # Handle likelihood settings if provided
+    set_clauses = []
+    params = []
+
+    if user_settings.chat_request_likelihood is not None:
+        likelihood_int = LIKELIHOOD_TO_INT.get(user_settings.chat_request_likelihood, 3)
+        set_clauses.append("chat_request_likelihood = %s")
+        params.append(likelihood_int)
+
+    if user_settings.chatting_list_likelihood is not None:
+        likelihood_int = LIKELIHOOD_TO_INT.get(user_settings.chatting_list_likelihood, 3)
+        set_clauses.append("chatting_list_likelihood = %s")
+        params.append(likelihood_int)
+
+    if set_clauses:
+        set_clauses.append("updated_time = CURRENT_TIMESTAMP")
+        set_str = ', '.join(set_clauses)
+        params.append(user.id)
+        db.execute_query(
+            f"UPDATE users SET {set_str} WHERE id = %s",
+            tuple(params))
+
     return get_user_settings(token_info=token_info)
+
+
+def get_available_avatars():  # noqa: E501
+    """Get list of available avatar options
+
+    Returns an empty list - users now upload their own avatars.
+
+     # noqa: E501
+
+
+    :rtype: Union[List[object], Tuple[List[object], int], Tuple[List[object], int, Dict[str, str]]
+    """
+    return []
+
+
+def upload_avatar(body, token_info=None):  # noqa: E501
+    """Upload a custom avatar image
+
+    Upload a base64 encoded image as avatar. The image will be validated for
+    file size (max 5MB), format, and NSFW content. Images are resized to
+    256x256 (full) and 64x64 (icon) versions.
+
+    :param body: Request body with image data
+    :type body: dict | bytes
+
+    :rtype: Union[object, Tuple[object, int], Tuple[object, int, Dict[str, str]]
+    """
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    user = token_to_user(token_info)
+
+    if connexion.request.is_json:
+        body = connexion.request.get_json()
+
+    image_base64 = body.get('imageBase64')
+    if not image_base64:
+        return ErrorModel(400, "imageBase64 is required"), 400
+
+    # Process avatar: validate, check NSFW, and resize
+    try:
+        result = nlp.process_avatar(image_base64)
+
+        if result.get('error'):
+            # Check if it's an NSFW rejection
+            if not result.get('is_safe', True):
+                return ErrorModel(400, "Image contains inappropriate content and cannot be used as an avatar"), 400
+            return ErrorModel(400, f"Image processing failed: {result['error']}"), 400
+
+        if not result.get('full_base64') or not result.get('icon_base64'):
+            return ErrorModel(400, "Image processing failed"), 400
+
+    except nlp.NLPServiceError as e:
+        return ErrorModel(500, f"Image processing service error: {str(e)}"), 500
+
+    # Update user's avatar URLs (full size and icon)
+    db.execute_query("""
+        UPDATE users
+        SET avatar_url = %s, avatar_icon_url = %s
+        WHERE id = %s
+    """, (result['full_base64'], result['icon_base64'], user.id))
+
+    return {
+        "avatarUrl": result['full_base64'],
+        "avatarIconUrl": result['icon_base64'],
+        "message": "Avatar uploaded successfully"
+    }
+
+
+def delete_current_user(body, token_info=None):  # noqa: E501
+    """Soft delete current user account
+
+     # noqa: E501
+
+    :param body: Request body with password
+    :type body: dict | bytes
+
+    :rtype: Union[object, Tuple[object, int], Tuple[object, int, Dict[str, str]]
+    """
+    from candid.controllers.helpers.auth import does_password_match
+
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+    user = token_to_user(token_info)
+
+    raw = connexion.request.get_json() if connexion.request.is_json else body
+    password = raw.get('password')
+
+    if not password:
+        return ErrorModel(400, "Password is required"), 400
+
+    # Get user's password hash
+    user_row = db.execute_query("""
+        SELECT password_hash FROM users WHERE id = %s
+    """, (user.id,), fetchone=True)
+
+    if user_row is None:
+        return ErrorModel(404, "User not found"), 404
+
+    # Verify password
+    if not does_password_match(password, user_row['password_hash']):
+        return ErrorModel(401, "Password incorrect"), 401
+
+    # Soft delete the user
+    db.execute_query("""
+        UPDATE users SET status = 'deleted', updated_time = CURRENT_TIMESTAMP
+        WHERE id = %s
+    """, (user.id,))
+
+    return {'message': 'Account deleted successfully'}
+
+
+def change_password(body, token_info=None):  # noqa: E501
+    """Change current user's password
+
+     # noqa: E501
+
+    :param body: Request body with currentPassword and newPassword
+    :type body: dict | bytes
+
+    :rtype: Union[object, Tuple[object, int], Tuple[object, int, Dict[str, str]]
+    """
+    from candid.controllers.helpers.auth import does_password_match, hash_password
+
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+    user = token_to_user(token_info)
+
+    raw = connexion.request.get_json() if connexion.request.is_json else body
+    current_password = raw.get('currentPassword')
+    new_password = raw.get('newPassword')
+
+    if not current_password or not new_password:
+        return ErrorModel(400, "Both currentPassword and newPassword are required"), 400
+
+    if len(new_password) < 8:
+        return ErrorModel(400, "New password must be at least 8 characters"), 400
+
+    # Get user's current password hash
+    user_row = db.execute_query("""
+        SELECT password_hash FROM users WHERE id = %s
+    """, (user.id,), fetchone=True)
+
+    if user_row is None:
+        return ErrorModel(404, "User not found"), 404
+
+    # Verify current password
+    if not does_password_match(current_password, user_row['password_hash']):
+        return ErrorModel(401, "Current password is incorrect"), 401
+
+    # Hash and set new password
+    new_password_hash = hash_password(new_password)
+    db.execute_query("""
+        UPDATE users SET password_hash = %s, updated_time = CURRENT_TIMESTAMP
+        WHERE id = %s
+    """, (new_password_hash, user.id))
+
+    return {'message': 'Password changed successfully'}

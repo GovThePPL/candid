@@ -4,7 +4,11 @@ Stats Controller
 Handles Polis opinion group statistics and visualization data.
 """
 import math
+import time
+from datetime import datetime, timezone
 from typing import Dict, List, Tuple, Union, Optional, Any
+
+from flask import make_response, jsonify
 
 from candid.models.error_model import ErrorModel
 from candid.models.stats_response import StatsResponse
@@ -18,6 +22,332 @@ from candid.controllers.helpers.polis_sync import (
     generate_xid,
 )
 from candid.controllers.helpers.polis_client import get_client, PolisError
+from candid.controllers.helpers.cache_headers import add_cache_headers
+
+# Simple in-memory cache for group labels with TTL
+_label_cache = {}
+LABEL_CACHE_TTL = 300  # 5 minutes
+
+# Stats cache max-age in seconds (5 minutes - matches Polis backend cache)
+STATS_CACHE_MAX_AGE = 300
+
+
+def _add_stats_cache_headers(stats: StatsResponse):
+    """Add caching headers and computedAt timestamp to stats response.
+
+    Stats data is computed from Polis (which has its own 5-minute cache),
+    so we add a computedAt timestamp and appropriate cache headers.
+
+    :param stats: StatsResponse object
+    :return: Flask response with cache headers
+    """
+    computed_at = datetime.now(timezone.utc)
+
+    # Build camelCase dict from Model using attribute_map (same logic as JSONEncoder)
+    stats_dict = {}
+    for attr in stats.openapi_types:
+        value = getattr(stats, attr)
+        if value is not None:
+            stats_dict[stats.attribute_map[attr]] = value
+    stats_dict['computedAt'] = computed_at.isoformat()
+
+    response = make_response(jsonify(stats_dict), 200)
+    # Add Last-Modified header (current time since data is computed fresh)
+    # Also add Cache-Control with max-age to allow client caching
+    response = add_cache_headers(
+        response,
+        last_modified=computed_at,
+        max_age=STATS_CACHE_MAX_AGE
+    )
+    return response
+
+
+def _build_report_url(conversation_id: str) -> Optional[str]:
+    """Build the URL for the Polis report proxy endpoint.
+
+    Gets or creates a Polis report for the conversation and returns the URL.
+    """
+    if not conversation_id:
+        return None
+
+    if not config.POLIS_ENABLED:
+        return None
+
+    try:
+        client = get_client()
+        report_id = client.get_or_create_report(conversation_id)
+        if report_id:
+            # Use API path that we proxy
+            return f"/api/v1/stats/report/{report_id}"
+    except Exception as e:
+        print(f"Error getting/creating report: {e}", flush=True)
+
+    return None
+
+
+def get_group_demographics(location_id: str, category_id: str, group_id: str, token_info=None):
+    """Get demographic breakdown for an opinion group.
+
+    Aggregates demographic data for all members of the specified group.
+
+    :param location_id: UUID of the location
+    :param category_id: UUID of the category (or 'all' for all categories)
+    :param group_id: Group ID (0, 1, 2, etc.) or 'all' for all groups
+    :param token_info: JWT token info from authentication
+    :rtype: Union[Dict, Tuple[ErrorModel, int]]
+    """
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    # Validate location exists
+    location = db.execute_query(
+        "SELECT id, name FROM location WHERE id = %s",
+        (location_id,),
+        fetchone=True
+    )
+    if not location:
+        return ErrorModel(404, "Location not found"), 404
+
+    # Get the Polis conversation
+    if category_id == 'all':
+        conversation = get_oldest_active_conversation(location_id, None)
+    else:
+        # Validate category exists
+        category = db.execute_query(
+            "SELECT id, label FROM position_category WHERE id = %s",
+            (category_id,),
+            fetchone=True
+        )
+        if not category:
+            return ErrorModel(404, "Category not found"), 404
+        conversation = get_oldest_active_conversation(location_id, category_id)
+
+    if not config.POLIS_ENABLED or not conversation:
+        # Return empty demographics if no Polis data
+        return _empty_demographics(group_id)
+
+    polis_conv_id = conversation["polis_conversation_id"]
+
+    try:
+        client = get_client()
+        math_data = client.get_math_data(polis_conv_id)
+
+        if not math_data:
+            return _empty_demographics(group_id)
+
+        # Extract group member pids
+        pca_wrapper = math_data.get("pca", {})
+        pca_data = pca_wrapper.get("asPOJO", {}) if isinstance(pca_wrapper, dict) else {}
+        group_clusters = pca_data.get("group-clusters", [])
+
+        # Collect pids based on group_id
+        member_pids = []
+        group_label = "All"
+
+        if group_id == 'all':
+            # Get all pids from all groups
+            for cluster in group_clusters:
+                if cluster:
+                    member_pids.extend(cluster.get("members", []))
+        else:
+            # Get pids from specific group
+            try:
+                gid = int(group_id)
+                if gid < len(group_clusters) and group_clusters[gid]:
+                    member_pids = group_clusters[gid].get("members", [])
+                    labels = ["A", "B", "C", "D", "E", "F", "G", "H"]
+                    group_label = labels[gid] if gid < len(labels) else f"Group {gid + 1}"
+                else:
+                    return ErrorModel(404, "Group not found"), 404
+            except ValueError:
+                return ErrorModel(400, "Invalid group ID"), 400
+
+        if not member_pids:
+            return _empty_demographics(group_id, group_label)
+
+        # Map pids to user_ids via polis_participant table
+        user_ids = db.execute_query("""
+            SELECT DISTINCT user_id
+            FROM polis_participant
+            WHERE polis_conversation_id = %s
+              AND polis_pid = ANY(%s)
+        """, (polis_conv_id, member_pids))
+
+        user_id_list = [str(u["user_id"]) for u in (user_ids or [])]
+
+        if not user_id_list:
+            return _empty_demographics(group_id, group_label, len(member_pids))
+
+        # Get demographics for these users
+        placeholders = ",".join(["%s"] * len(user_id_list))
+        demographics = db.execute_query(f"""
+            SELECT lean, education, geo_locale, sex, race, age_range, income_range
+            FROM user_demographics
+            WHERE user_id IN ({placeholders})
+        """, tuple(user_id_list))
+
+        # Aggregate demographics
+        return _aggregate_demographics(
+            demographics or [],
+            group_id,
+            group_label,
+            len(member_pids)
+        )
+
+    except PolisError as e:
+        print(f"Polis error getting group demographics: {e}", flush=True)
+        return _empty_demographics(group_id)
+
+
+def _empty_demographics(group_id: str, group_label: str = "All", member_count: int = 0):
+    """Return empty demographics response."""
+    return {
+        "groupId": group_id,
+        "groupLabel": group_label,
+        "memberCount": member_count,
+        "respondentCount": 0,
+        "lean": {},
+        "education": {},
+        "geoLocale": {},
+        "sex": {},
+        "race": {},
+        "ageRange": {},
+        "incomeRange": {}
+    }
+
+
+def _aggregate_demographics(
+    demographics: List[Dict],
+    group_id: str,
+    group_label: str,
+    member_count: int
+) -> Dict[str, Any]:
+    """Aggregate demographic data into counts per category."""
+    lean_counts = {}
+    education_counts = {}
+    geo_locale_counts = {}
+    sex_counts = {}
+    race_counts = {}
+    age_range_counts = {}
+    income_range_counts = {}
+
+    for d in demographics:
+        if d.get("lean"):
+            lean_counts[d["lean"]] = lean_counts.get(d["lean"], 0) + 1
+        if d.get("education"):
+            education_counts[d["education"]] = education_counts.get(d["education"], 0) + 1
+        if d.get("geo_locale"):
+            geo_locale_counts[d["geo_locale"]] = geo_locale_counts.get(d["geo_locale"], 0) + 1
+        if d.get("sex"):
+            sex_counts[d["sex"]] = sex_counts.get(d["sex"], 0) + 1
+        if d.get("race"):
+            race_counts[d["race"]] = race_counts.get(d["race"], 0) + 1
+        if d.get("age_range"):
+            age_range_counts[d["age_range"]] = age_range_counts.get(d["age_range"], 0) + 1
+        if d.get("income_range"):
+            income_range_counts[d["income_range"]] = income_range_counts.get(d["income_range"], 0) + 1
+
+    return {
+        "groupId": group_id,
+        "groupLabel": group_label,
+        "memberCount": member_count,
+        "respondentCount": len(demographics),
+        "lean": lean_counts,
+        "education": education_counts,
+        "geoLocale": geo_locale_counts,
+        "sex": sex_counts,
+        "race": race_counts,
+        "ageRange": age_range_counts,
+        "incomeRange": income_range_counts
+    }
+
+
+def _get_cached_group_labels(polis_conv_id: str, math_data: Dict) -> Dict[str, Dict]:
+    """
+    Compute group labels from pairwise surveys, with caching.
+    Returns {group_id: {"label": label_text, "wins": win_count, "rankings": [{"label": str, "wins": int}, ...]}}
+    """
+    cache_key = f"labels:{polis_conv_id}"
+    now = time.time()
+
+    # Check cache
+    if cache_key in _label_cache:
+        cached, timestamp = _label_cache[cache_key]
+        if now - timestamp < LABEL_CACHE_TTL:
+            return cached
+
+    # Find pairwise survey linked to this conversation
+    survey = db.execute_query("""
+        SELECT id FROM survey
+        WHERE polis_conversation_id = %s
+          AND survey_type = 'pairwise'
+          AND status = 'active'
+        ORDER BY created_time DESC LIMIT 1
+    """, (polis_conv_id,), fetchone=True)
+
+    if not survey:
+        _label_cache[cache_key] = ({}, now)
+        return {}
+
+    survey_id = str(survey["id"])
+    labels = {}
+
+    # Get PCA data for group membership
+    pca_wrapper = math_data.get("pca", {})
+    pca_data = pca_wrapper.get("asPOJO", {}) if isinstance(pca_wrapper, dict) else {}
+    group_clusters = pca_data.get("group-clusters", [])
+
+    # For each group, compute all labels ranked by wins
+    for group_idx, cluster in enumerate(group_clusters):
+        if not cluster:
+            continue
+
+        group_id = str(group_idx)
+        pids = cluster.get("members", [])
+
+        if not pids:
+            continue
+
+        # Get user_ids for this group's members
+        user_ids = db.execute_query("""
+            SELECT user_id FROM polis_participant
+            WHERE polis_conversation_id = %s AND polis_pid = ANY(%s)
+        """, (polis_conv_id, pids))
+
+        user_id_list = [str(u["user_id"]) for u in (user_ids or [])]
+
+        if not user_id_list:
+            continue
+
+        # Get ALL items ranked by win count for these users
+        all_items = db.execute_query("""
+            SELECT pi.item_text, COUNT(pr.id) as wins
+            FROM pairwise_item pi
+            LEFT JOIN pairwise_response pr ON pr.winner_item_id = pi.id
+                AND pr.user_id = ANY(%s::uuid[])
+            WHERE pi.survey_id = %s::uuid
+            GROUP BY pi.id, pi.item_text
+            ORDER BY wins DESC
+        """, (user_id_list, survey_id))
+
+        # Build rankings list (only items with votes)
+        rankings = [
+            {"label": item["item_text"], "wins": item["wins"]}
+            for item in (all_items or [])
+            if item["wins"] > 0
+        ]
+
+        if rankings:
+            labels[group_id] = {
+                "label": rankings[0]["label"],
+                "wins": rankings[0]["wins"],
+                "rankings": rankings
+            }
+
+    # Update cache
+    _label_cache[cache_key] = (labels, now)
+    return labels
 
 
 def get_stats(location_id: str, category_id: str, token_info=None):
@@ -73,7 +403,7 @@ def get_stats(location_id: str, category_id: str, token_info=None):
             return _get_fallback_stats(location_id, category_id, user_id)
 
         # Transform Polis data to our format
-        groups = _extract_groups(math_data)
+        groups = _extract_groups(math_data, polis_conv_id)
         user_position = _extract_user_position(math_data, xid)
         user_votes = _get_user_votes(user_id, category_id, location_id) if user_id else None
         user_position_ids = _get_user_position_ids(user_id, category_id, location_id) if user_id else None
@@ -85,20 +415,23 @@ def get_stats(location_id: str, category_id: str, token_info=None):
             fallback = _get_fallback_stats(location_id, category_id, user_id)
             # Preserve the conversation ID so frontend knows Polis is connected
             fallback.conversation_id = polis_conv_id
-            return fallback
+            fallback.polis_report_url = _build_report_url(polis_conv_id)
+            return _add_stats_cache_headers(fallback)
 
-        return StatsResponse(
+        stats = StatsResponse(
             conversation_id=polis_conv_id,
+            polis_report_url=_build_report_url(polis_conv_id),
             groups=groups,
             user_position=user_position,
             positions=positions,
             user_votes=user_votes,
             user_position_ids=user_position_ids
         )
+        return _add_stats_cache_headers(stats)
 
     except PolisError as e:
         print(f"Polis error getting stats: {e}", flush=True)
-        return _get_fallback_stats(location_id, category_id, user_id)
+        return _add_stats_cache_headers(_get_fallback_stats(location_id, category_id, user_id))
 
 
 def get_location_stats(location_id: str, token_info=None):
@@ -143,7 +476,7 @@ def get_location_stats(location_id: str, token_info=None):
             return _get_fallback_stats(location_id, None, user_id)
 
         # Transform Polis data to our format
-        groups = _extract_groups(math_data)
+        groups = _extract_groups(math_data, polis_conv_id)
         user_position = _extract_user_position(math_data, xid)
         user_votes = _get_user_votes(user_id, None, location_id) if user_id else None
         user_position_ids = _get_user_position_ids(user_id, None, location_id) if user_id else None
@@ -153,20 +486,23 @@ def get_location_stats(location_id: str, token_info=None):
         if not groups and not positions:
             fallback = _get_fallback_stats(location_id, None, user_id)
             fallback.conversation_id = polis_conv_id
-            return fallback
+            fallback.polis_report_url = _build_report_url(polis_conv_id)
+            return _add_stats_cache_headers(fallback)
 
-        return StatsResponse(
+        stats = StatsResponse(
             conversation_id=polis_conv_id,
+            polis_report_url=_build_report_url(polis_conv_id),
             groups=groups,
             user_position=user_position,
             positions=positions,
             user_votes=user_votes,
             user_position_ids=user_position_ids
         )
+        return _add_stats_cache_headers(stats)
 
     except PolisError as e:
         print(f"Polis error getting location stats: {e}", flush=True)
-        return _get_fallback_stats(location_id, None, user_id)
+        return _add_stats_cache_headers(_get_fallback_stats(location_id, None, user_id))
 
 
 def _get_fallback_stats(
@@ -184,13 +520,34 @@ def _get_fallback_stats(
     if category_id:
         positions = db.execute_query("""
             SELECT p.id, p.statement,
+                   p.category_id,
+                   cat.label as category_label,
+                   p.location_id,
+                   loc.name as location_name,
+                   loc.code as location_code,
+                   p.creator_user_id,
+                   u.display_name as creator_display_name,
+                   u.username as creator_username,
+                   u.user_type as creator_user_type,
+                   u.trust_score as creator_trust_score,
+                   u.avatar_url as creator_avatar_url,
+                   u.avatar_icon_url as creator_avatar_icon_url,
+                   COALESCE((
+                       SELECT COUNT(*) FROM kudos k
+                       WHERE k.receiver_user_id = u.id AND k.status = 'sent'
+                   ), 0) as creator_kudos_count,
                    COALESCE(SUM(CASE WHEN r.response = 'agree' THEN 1 ELSE 0 END), 0) as agree_count,
                    COALESCE(SUM(CASE WHEN r.response = 'disagree' THEN 1 ELSE 0 END), 0) as disagree_count,
                    COALESCE(SUM(CASE WHEN r.response = 'pass' THEN 1 ELSE 0 END), 0) as pass_count
             FROM position p
             LEFT JOIN response r ON p.id = r.position_id
+            LEFT JOIN position_category cat ON p.category_id = cat.id
+            LEFT JOIN location loc ON p.location_id = loc.id
+            LEFT JOIN users u ON p.creator_user_id = u.id
             WHERE p.location_id = %s AND p.category_id = %s AND p.status = 'active'
-            GROUP BY p.id, p.statement
+            GROUP BY p.id, p.statement, p.category_id, cat.label, p.location_id,
+                     loc.name, loc.code, p.creator_user_id, u.id, u.display_name,
+                     u.username, u.user_type, u.trust_score, u.avatar_url, u.avatar_icon_url
             ORDER BY (COALESCE(SUM(CASE WHEN r.response = 'agree' THEN 1 ELSE 0 END), 0) +
                       COALESCE(SUM(CASE WHEN r.response = 'disagree' THEN 1 ELSE 0 END), 0)) DESC
             LIMIT 50
@@ -199,17 +556,56 @@ def _get_fallback_stats(
         # All categories for this location
         positions = db.execute_query("""
             SELECT p.id, p.statement,
+                   p.category_id,
+                   cat.label as category_label,
+                   p.location_id,
+                   loc.name as location_name,
+                   loc.code as location_code,
+                   p.creator_user_id,
+                   u.display_name as creator_display_name,
+                   u.username as creator_username,
+                   u.user_type as creator_user_type,
+                   u.trust_score as creator_trust_score,
+                   u.avatar_url as creator_avatar_url,
+                   u.avatar_icon_url as creator_avatar_icon_url,
+                   COALESCE((
+                       SELECT COUNT(*) FROM kudos k
+                       WHERE k.receiver_user_id = u.id AND k.status = 'sent'
+                   ), 0) as creator_kudos_count,
                    COALESCE(SUM(CASE WHEN r.response = 'agree' THEN 1 ELSE 0 END), 0) as agree_count,
                    COALESCE(SUM(CASE WHEN r.response = 'disagree' THEN 1 ELSE 0 END), 0) as disagree_count,
                    COALESCE(SUM(CASE WHEN r.response = 'pass' THEN 1 ELSE 0 END), 0) as pass_count
             FROM position p
             LEFT JOIN response r ON p.id = r.position_id
+            LEFT JOIN position_category cat ON p.category_id = cat.id
+            LEFT JOIN location loc ON p.location_id = loc.id
+            LEFT JOIN users u ON p.creator_user_id = u.id
             WHERE p.location_id = %s AND p.status = 'active'
-            GROUP BY p.id, p.statement
+            GROUP BY p.id, p.statement, p.category_id, cat.label, p.location_id,
+                     loc.name, loc.code, p.creator_user_id, u.id, u.display_name,
+                     u.username, u.user_type, u.trust_score, u.avatar_url, u.avatar_icon_url
             ORDER BY (COALESCE(SUM(CASE WHEN r.response = 'agree' THEN 1 ELSE 0 END), 0) +
                       COALESCE(SUM(CASE WHEN r.response = 'disagree' THEN 1 ELSE 0 END), 0)) DESC
             LIMIT 50
         """, (location_id,))
+
+    # Get closure counts for all positions
+    position_ids = [str(p["id"]) for p in (positions or [])]
+    closure_counts = {}
+    if position_ids:
+        placeholders = ",".join(["%s"] * len(position_ids))
+        counts = db.execute_query(f"""
+            SELECT up.position_id, COUNT(cl.id) as closure_count
+            FROM chat_log cl
+            JOIN chat_request cr ON cl.chat_request_id = cr.id
+            JOIN user_position up ON cr.user_position_id = up.id
+            WHERE up.position_id IN ({placeholders})
+              AND cl.end_type = 'agreed_closure'
+              AND cl.status != 'deleted'
+            GROUP BY up.position_id
+        """, tuple(position_ids))
+        for row in (counts or []):
+            closure_counts[str(row["position_id"])] = row["closure_count"]
 
     group_positions = []
     for p in (positions or []):
@@ -223,14 +619,39 @@ def _get_fallback_stats(
         else:
             vote_dist = {"agree": 0, "disagree": 0, "pass": 0}
 
-        group_positions.append(GroupPosition(
-            id=str(p["id"]),
-            statement=p["statement"],
-            group_id="majority",
-            vote_distribution=vote_dist,
-            is_defining=False,
-            representativeness=0.5
-        ))
+        creator = None
+        if p.get("creator_user_id"):
+            creator = {
+                "id": str(p["creator_user_id"]),
+                "displayName": p.get("creator_display_name", "Anonymous"),
+                "username": p.get("creator_username"),
+                "userType": p.get("creator_user_type", "normal"),
+                "trustScore": float(p.get("creator_trust_score", 0) or 0),
+                "avatarUrl": p.get("creator_avatar_url"),
+                "avatarIconUrl": p.get("creator_avatar_icon_url"),
+                "kudosCount": p.get("creator_kudos_count", 0)
+            }
+
+        group_positions.append({
+            "id": str(p["id"]),
+            "statement": p["statement"],
+            "category": {
+                "id": str(p["category_id"]) if p.get("category_id") else None,
+                "label": p.get("category_label", "Uncategorized")
+            },
+            "location": {
+                "id": str(p["location_id"]) if p.get("location_id") else None,
+                "name": p.get("location_name", "Unknown"),
+                "code": p.get("location_code", "")
+            },
+            "creator": creator,
+            "groupId": "majority",
+            "voteDistribution": vote_dist,
+            "totalVotes": total,
+            "isDefining": False,
+            "representativeness": 0.5,
+            "closureCount": closure_counts.get(str(p["id"]), 0)
+        })
 
     user_votes = _get_user_votes(user_id, category_id, location_id) if user_id else None
     user_position_ids = _get_user_position_ids(user_id, category_id, location_id) if user_id else None
@@ -309,7 +730,7 @@ def _get_user_position_ids(
     return [str(p["id"]) for p in (positions or [])]
 
 
-def _extract_groups(math_data: Dict[str, Any]) -> List[OpinionGroup]:
+def _extract_groups(math_data: Dict[str, Any], polis_conv_id: Optional[str] = None) -> List[OpinionGroup]:
     """
     Extract opinion groups from Polis math data.
 
@@ -318,6 +739,7 @@ def _extract_groups(math_data: Dict[str, Any]) -> List[OpinionGroup]:
     - base-clusters: Contains x, y, id arrays for visualization coordinates
 
     We compute convex hulls from member positions using base-clusters coordinates.
+    If polis_conv_id is provided, also fetches custom labels from pairwise surveys.
     """
     groups = []
 
@@ -343,12 +765,21 @@ def _extract_groups(math_data: Dict[str, Any]) -> List[OpinionGroup]:
     # Group labels (A, B, C, ...)
     labels = ["A", "B", "C", "D", "E", "F", "G", "H"]
 
+    # Get custom labels from pairwise surveys if available
+    custom_labels = {}
+    if polis_conv_id:
+        custom_labels = _get_cached_group_labels(polis_conv_id, math_data)
+
     for i, cluster in enumerate(group_clusters):
         if not cluster:
             continue
 
         group_id = str(i)
         label = labels[i] if i < len(labels) else f"Group {i+1}"
+        label_info = custom_labels.get(group_id, {})
+        custom_label = label_info.get("label") if label_info else None
+        label_wins = label_info.get("wins") if label_info else None
+        label_rankings = label_info.get("rankings") if label_info else None
 
         # Get member indices for this group
         members = cluster.get("members", [])
@@ -378,6 +809,9 @@ def _extract_groups(math_data: Dict[str, Any]) -> List[OpinionGroup]:
         groups.append(OpinionGroup(
             id=group_id,
             label=label,
+            custom_label=custom_label,
+            label_wins=label_wins,
+            label_rankings=label_rankings,
             member_count=member_count,
             hull=hull,
             centroid=centroid
@@ -505,8 +939,15 @@ def _extract_positions(
             loc.code as location_short_code,
             p.creator_user_id,
             u.display_name as creator_display_name,
+            u.username as creator_username,
             u.user_type as creator_user_type,
-            u.trust_score as creator_trust_score
+            u.trust_score as creator_trust_score,
+            u.avatar_url as creator_avatar_url,
+            u.avatar_icon_url as creator_avatar_icon_url,
+            COALESCE((
+                SELECT COUNT(*) FROM kudos k
+                WHERE k.receiver_user_id = u.id AND k.status = 'sent'
+            ), 0) as creator_kudos_count
         FROM polis_comment pc
         JOIN position p ON pc.position_id = p.id
         LEFT JOIN position_category cat ON p.category_id = cat.id
@@ -522,8 +963,12 @@ def _extract_positions(
             creator = {
                 "id": str(mapping["creator_user_id"]),
                 "displayName": mapping.get("creator_display_name", "Anonymous"),
+                "username": mapping.get("creator_username"),
                 "userType": mapping.get("creator_user_type", "normal"),
-                "trustScore": float(mapping.get("creator_trust_score", 0) or 0)
+                "trustScore": float(mapping.get("creator_trust_score", 0) or 0),
+                "avatarUrl": mapping.get("creator_avatar_url"),
+                "avatarIconUrl": mapping.get("creator_avatar_icon_url"),
+                "kudosCount": mapping.get("creator_kudos_count", 0)
             }
 
         tid_to_position[mapping["polis_comment_tid"]] = {
@@ -536,7 +981,7 @@ def _extract_positions(
             "location": {
                 "id": str(mapping["location_id"]) if mapping.get("location_id") else None,
                 "name": mapping.get("location_name", "Unknown"),
-                "shortCode": mapping.get("location_short_code", "")
+                "code": mapping.get("location_short_code", "")
             },
             "creator": creator
         }
@@ -730,8 +1175,15 @@ def _extract_positions(
                     loc.code as location_short_code,
                     p.creator_user_id,
                     u.display_name as creator_display_name,
+                    u.username as creator_username,
                     u.user_type as creator_user_type,
                     u.trust_score as creator_trust_score,
+                    u.avatar_url as creator_avatar_url,
+                    u.avatar_icon_url as creator_avatar_icon_url,
+                    COALESCE((
+                        SELECT COUNT(*) FROM kudos k
+                        WHERE k.receiver_user_id = u.id AND k.status = 'sent'
+                    ), 0) as creator_kudos_count,
                     pc.polis_comment_tid
                 FROM position p
                 LEFT JOIN position_category cat ON p.category_id = cat.id
@@ -750,8 +1202,12 @@ def _extract_positions(
                     creator = {
                         "id": str(up["creator_user_id"]),
                         "displayName": up.get("creator_display_name", "Anonymous"),
+                        "username": up.get("creator_username"),
                         "userType": up.get("creator_user_type", "normal"),
-                        "trustScore": float(up.get("creator_trust_score", 0) or 0)
+                        "trustScore": float(up.get("creator_trust_score", 0) or 0),
+                        "avatarUrl": up.get("creator_avatar_url"),
+                        "avatarIconUrl": up.get("creator_avatar_icon_url"),
+                        "kudosCount": up.get("creator_kudos_count", 0)
                     }
 
                 # Get vote distributions if we have a tid
@@ -773,7 +1229,7 @@ def _extract_positions(
                     "location": {
                         "id": str(up["location_id"]) if up.get("location_id") else None,
                         "name": up.get("location_name", "Unknown"),
-                        "shortCode": up.get("location_short_code", "")
+                        "code": up.get("location_short_code", "")
                     },
                     "creator": creator,
                     "groupId": None,
@@ -785,6 +1241,27 @@ def _extract_positions(
                     "consensusType": None,
                     "consensusScore": None
                 })
+
+    # Add closure counts for all positions
+    real_position_ids = [p["id"] for p in positions if not p["id"].startswith("polis:")]
+    closure_counts = {}
+    if real_position_ids:
+        placeholders = ",".join(["%s"] * len(real_position_ids))
+        counts = db.execute_query(f"""
+            SELECT up.position_id, COUNT(cl.id) as closure_count
+            FROM chat_log cl
+            JOIN chat_request cr ON cl.chat_request_id = cr.id
+            JOIN user_position up ON cr.user_position_id = up.id
+            WHERE up.position_id IN ({placeholders})
+              AND cl.end_type = 'agreed_closure'
+              AND cl.status != 'deleted'
+            GROUP BY up.position_id
+        """, tuple(real_position_ids))
+        for row in (counts or []):
+            closure_counts[str(row["position_id"])] = row["closure_count"]
+
+    for p in positions:
+        p["closureCount"] = closure_counts.get(p["id"], 0)
 
     # Sort by representativeness descending
     positions.sort(key=lambda p: p["representativeness"], reverse=True)
@@ -849,3 +1326,232 @@ def _compute_centroid(points: List[Dict[str, float]]) -> Dict[str, float]:
         "x": round(x_sum / n, 4),
         "y": round(y_sum / n, 4)
     }
+
+
+def get_polis_report(conversation_id: str, token_info=None):
+    """Proxy the Polis report page for a conversation or report.
+
+    Fetches the report from the internal Polis server and returns the HTML.
+    This endpoint is publicly accessible since Polis reports contain only
+    aggregate data (vote distributions, group summaries) and no personal info.
+
+    :param conversation_id: The Polis conversation ID or report ID (starts with 'r')
+    :param token_info: JWT token info from authentication
+    :rtype: Union[str, Tuple[ErrorModel, int]]
+    """
+    import re
+    import requests
+    from flask import Response
+
+    # Reports are public - they contain only aggregate data, no personal info
+
+    if not config.POLIS_ENABLED:
+        return ErrorModel(404, "Polis is not enabled"), 404
+
+    # Determine if this is a report_id (starts with 'r') or conversation_id
+    if conversation_id.startswith('r'):
+        # It's already a report_id - use it directly
+        polis_id = conversation_id
+    else:
+        # It's a conversation_id - validate it exists in our database
+        conversation = db.execute_query(
+            "SELECT polis_conversation_id FROM polis_conversation WHERE polis_conversation_id = %s",
+            (conversation_id,),
+            fetchone=True
+        )
+        if not conversation:
+            return ErrorModel(404, "Conversation not found"), 404
+
+        # Get or create a report for this conversation
+        try:
+            client = get_client()
+            report_id = client.get_or_create_report(conversation_id)
+            if report_id:
+                polis_id = report_id
+                print(f"[POLIS REPORT] Using report_id {report_id} for conversation {conversation_id}", flush=True)
+            else:
+                # Fall back to conversation_id if report creation fails
+                polis_id = conversation_id
+                print(f"[POLIS REPORT] Failed to get/create report, using conversation_id {conversation_id}", flush=True)
+        except Exception as e:
+            print(f"[POLIS REPORT] Error getting/creating report: {e}", flush=True)
+            polis_id = conversation_id
+
+    try:
+        # Fetch the report from internal Polis
+        polis_report_url = f"{config.POLIS_BASE_URL}/report/{polis_id}"
+        response = requests.get(polis_report_url, timeout=config.POLIS_TIMEOUT)
+
+        if response.status_code == 404:
+            return ErrorModel(404, "Report not found"), 404
+
+        if response.status_code != 200:
+            return ErrorModel(502, f"Failed to fetch report: {response.status_code}"), 502
+
+        # Rewrite relative URLs to go through our asset proxy
+        html_content = response.content.decode('utf-8')
+
+        # Rewrite src="/..." and href="/..." to use our proxy
+        # But keep external URLs (https://, http://) unchanged
+        html_content = re.sub(
+            r'(src|href)="(/[^"]+)"',
+            r'\1="/api/v1/polis-asset\2"',
+            html_content
+        )
+
+        # Inject script to set correct path context for Polis JavaScript
+        # The Polis JS parses window.location.pathname expecting /report/{id}
+        # but we serve at /api/v1/stats/report/{id}, so we need to provide the
+        # correct values via global variables that we'll use in a patched bundle
+        # For now, we inject a script that patches the path before the bundle runs
+        path_fix_script = f'''
+<script>
+// Fix path parsing for proxied Polis report
+// The bundle expects /report/{{id}} but we're at /api/v1/stats/report/{{id}}
+window.__POLIS_PROXY_REPORT_ID__ = "{polis_id}";
+window.__POLIS_PROXY_ROUTE_TYPE__ = "report";
+</script>
+'''
+        # Insert the fix script before </head>
+        html_content = html_content.replace('</head>', path_fix_script + '</head>')
+
+        return Response(
+            html_content,
+            status=200,
+            content_type=response.headers.get('Content-Type', 'text/html')
+        )
+
+    except requests.Timeout:
+        return ErrorModel(502, "Polis report request timed out"), 502
+    except requests.RequestException as e:
+        print(f"Error fetching Polis report: {e}", flush=True)
+        return ErrorModel(502, "Failed to connect to Polis"), 502
+
+
+def get_polis_asset(path: str):
+    """Proxy Polis static assets (JS, CSS, images).
+
+    This allows the Polis report to load its assets through our API
+    without exposing the Polis server directly.
+
+    :param path: The asset path (e.g., "report_bundle.js")
+    :rtype: Response
+    """
+    import re
+    import requests
+    from flask import Response, request
+
+    if not config.POLIS_ENABLED:
+        return ErrorModel(404, "Polis is not enabled"), 404
+
+    try:
+        # Fetch the asset from internal Polis
+        polis_asset_url = f"{config.POLIS_BASE_URL}/{path}"
+
+        # Forward query string if present
+        if request.query_string:
+            polis_asset_url += f"?{request.query_string.decode('utf-8')}"
+
+        response = requests.get(polis_asset_url, timeout=config.POLIS_TIMEOUT)
+
+        if response.status_code == 404:
+            return ErrorModel(404, "Asset not found"), 404
+
+        if response.status_code != 200:
+            return ErrorModel(502, f"Failed to fetch asset: {response.status_code}"), 502
+
+        content = response.content
+        content_type = response.headers.get('Content-Type', 'application/octet-stream')
+
+        # Patch the report bundle JavaScript to use our proxy path fix
+        # The Polis JS parses window.location.pathname expecting /report/{id}
+        # but we serve at /api/v1/stats/report/{id}
+        print(f"[POLIS ASSET] path={path}, is_report_bundle={'report_bundle' in path and path.endswith('.js')}", flush=True)
+        if 'report_bundle' in path and path.endswith('.js'):
+            js_content = content.decode('utf-8')
+
+            # Prepend a helper function that returns the correct pathname
+            # This gets called instead of directly accessing window.location.pathname
+            path_fix = '''
+(function(){
+  // Polis proxy path fix: provide correct pathname for path parsing
+  if(window.__POLIS_PROXY_REPORT_ID__){
+    window.__getPolisPathname=function(){return"/report/"+window.__POLIS_PROXY_REPORT_ID__};
+  }else{
+    window.__getPolisPathname=function(){return window.location.pathname};
+  }
+})();
+'''
+            # Replace window.location.pathname with our helper function call
+            # Handle various forms: window.location.pathname, self.location.pathname
+            js_content = re.sub(
+                r'\bwindow\.location\.pathname\b',
+                'window.__getPolisPathname()',
+                js_content
+            )
+            js_content = re.sub(
+                r'\bself\.location\.pathname\b',
+                '(window.__getPolisPathname?window.__getPolisPathname():self.location.pathname)',
+                js_content
+            )
+
+            content = (path_fix + js_content).encode('utf-8')
+            print(f"[POLIS ASSET] Patched report bundle, added {len(path_fix)} bytes", flush=True)
+
+        return Response(
+            content,
+            status=200,
+            content_type=content_type
+        )
+
+    except requests.Timeout:
+        return ErrorModel(502, "Polis asset request timed out"), 502
+    except requests.RequestException as e:
+        print(f"Error fetching Polis asset: {e}", flush=True)
+        return ErrorModel(502, "Failed to connect to Polis"), 502
+
+
+def proxy_polis_api(path: str):
+    """Proxy Polis API calls.
+
+    This allows the Polis report to make API calls through our API
+    without exposing the Polis server directly.
+
+    :param path: The API path (e.g., "math/pca2")
+    :rtype: Response
+    """
+    import requests
+    from flask import Response, request
+
+    if not config.POLIS_ENABLED:
+        return ErrorModel(404, "Polis is not enabled"), 404
+
+    try:
+        # Build the Polis API URL
+        polis_api_url = f"{config.POLIS_API_URL}/{path}"
+
+        # Forward query string if present
+        if request.query_string:
+            polis_api_url += f"?{request.query_string.decode('utf-8')}"
+
+        # Forward the request method and body
+        if request.method == 'POST':
+            response = requests.post(
+                polis_api_url,
+                json=request.get_json(silent=True),
+                timeout=config.POLIS_TIMEOUT
+            )
+        else:
+            response = requests.get(polis_api_url, timeout=config.POLIS_TIMEOUT)
+
+        return Response(
+            response.content,
+            status=response.status_code,
+            content_type=response.headers.get('Content-Type', 'application/json')
+        )
+
+    except requests.Timeout:
+        return ErrorModel(502, "Polis API request timed out"), 502
+    except requests.RequestException as e:
+        print(f"Error proxying Polis API: {e}", flush=True)
+        return ErrorModel(502, "Failed to connect to Polis"), 502

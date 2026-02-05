@@ -113,20 +113,35 @@ def register_connection_handlers(sio: socketio.AsyncServer) -> None:
         # Join the chat room
         await sio.enter_room(sid, room_manager.chat_room(chat_id))
 
+        # Update activity on join
+        room_manager.update_activity(sid)
+
         # Get chat history
         messages = await redis_store.get_messages(chat_id)
         positions = await redis_store.get_all_agreed_positions(chat_id)
 
-        logger.info(f"User {user_id} joined chat {chat_id}")
+        # Check if other participant is connected
+        metadata = await redis_store.get_chat_metadata(chat_id)
+        other_user_connected = False
+        if metadata:
+            for participant_id in metadata.participant_ids:
+                if participant_id != user_id and room_manager.is_user_connected(participant_id):
+                    other_user_connected = True
+                    break
+
+        logger.info(f"User {user_id} joined chat {chat_id}, other user connected: {other_user_connected}, returning {len(messages)} messages")
 
         return {
             "status": "joined",
             "chatId": chat_id,
             "messages": [m.to_dict() for m in messages],
             "agreedPositions": [p.to_dict() for p in positions],
+            "otherUserConnected": other_user_connected,
         }
 
     @sio.event
     async def ping(sid: str, data: dict = None) -> dict[str, str]:
-        """Heartbeat handler."""
+        """Heartbeat handler - also updates activity timestamp."""
+        room_manager = get_room_manager()
+        room_manager.update_activity(sid)
         return {"type": "pong"}

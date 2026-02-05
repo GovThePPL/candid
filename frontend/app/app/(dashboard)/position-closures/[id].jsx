@@ -144,7 +144,7 @@ export default function PositionClosures() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <Header />
+      <Header onBack={handleBack} />
 
       <ScrollView
         style={styles.scrollView}
@@ -158,14 +158,6 @@ export default function PositionClosures() {
           />
         }
       >
-        {/* Back button and page header */}
-        <View style={styles.headerRow}>
-          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-            <Ionicons name="arrow-back" size={20} color={Colors.primary} />
-            <Text style={styles.backText}>Stats</Text>
-          </TouchableOpacity>
-        </View>
-
         <View style={styles.pageHeader}>
           <Text style={styles.title}>Agreed Closures</Text>
           <Text style={styles.subtitle}>Chats that reached agreement</Text>
@@ -212,26 +204,9 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 24,
   },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-  },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    gap: 4,
-  },
-  backText: {
-    fontSize: 16,
-    color: Colors.primary,
-    fontWeight: '500',
-  },
   pageHeader: {
     paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingTop: 12,
     paddingBottom: 16,
   },
   title: {

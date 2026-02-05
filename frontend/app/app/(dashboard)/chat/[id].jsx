@@ -27,6 +27,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors } from '../../../constants/Colors'
 import { UserContext } from '../../../contexts/UserContext'
+import Header from '../../../components/Header'
 import api from '../../../lib/api'
 import {
   joinChat,
@@ -44,13 +45,8 @@ import {
   onAgreedPosition,
 } from '../../../lib/socket'
 import { playTypingSound, playMessageSound } from '../../../lib/sounds'
-
-const getTrustBadgeColor = (trustScore) => {
-  if (trustScore == null || trustScore < 0.35) return Colors.trustBadgeGray
-  if (trustScore < 0.6) return Colors.trustBadgeBronze
-  if (trustScore < 0.9) return Colors.trustBadgeSilver
-  return Colors.trustBadgeGold
-}
+import { getInitials, getInitialsColor, getAvatarImageUrl, getTrustBadgeColor } from '../../../lib/avatarUtils'
+import PositionInfoCard from '../../../components/PositionInfoCard'
 
 export default function ChatScreen() {
   const { id: chatId, from } = useLocalSearchParams()
@@ -267,18 +263,43 @@ export default function ChatScreen() {
             }
 
             // Load agreed positions as proposal messages
-            if (chatLog.log?.agreedPositions && Array.isArray(chatLog.log.agreedPositions)) {
-              for (const pos of chatLog.log.agreedPositions) {
+            const positions = chatLog.log?.agreedPositions || []
+            if (Array.isArray(positions)) {
+              for (const pos of positions) {
+                // Map status to display type
+                let displayType = pos.status || 'proposed'
+                if (displayType === 'pending') displayType = 'proposed'
+
                 historicalMessages.push({
                   id: pos.id || `proposal-${pos.timestamp || Date.now()}`,
                   content: pos.content,
                   sender_id: pos.proposer_id || pos.proposerId,
                   timestamp: pos.timestamp,
-                  type: pos.status || 'proposed',
+                  type: displayType,
                   isProposal: true,
                   proposalId: pos.id,
                   isClosure: pos.is_closure || pos.isClosure || false,
                   parentId: pos.parent_id || pos.parentId || null,
+                })
+              }
+            }
+
+            // Load accepted closure if present and not already in positions
+            const closureData = chatLog.log?.agreedClosure
+            if (closureData && chatLog.endType === 'agreed_closure' && closureData.content) {
+              const alreadyHasClosure = positions.some(p => (p.isClosure) && p.status === 'accepted')
+
+              if (!alreadyHasClosure) {
+                historicalMessages.push({
+                  id: closureData.id,
+                  content: closureData.content,
+                  sender_id: closureData.proposerId,
+                  timestamp: closureData.timestamp || chatLog.endTime,
+                  type: 'accepted',
+                  isProposal: true,
+                  proposalId: closureData.id,
+                  isClosure: true,
+                  parentId: null,
                 })
               }
             }
@@ -1000,24 +1021,24 @@ export default function ChatScreen() {
             {isLatest && pIsAccepted && (
               <View style={styles.proposalAvatarsRow}>
                 <View style={styles.proposalAvatarLeft}>
-                  {otherUser?.avatarUrl ? (
-                    <Image source={{ uri: otherUser.avatarUrl }} style={styles.proposalAvatar} />
+                  {(otherUser?.avatarIconUrl || otherUser?.avatarUrl) ? (
+                    <Image source={{ uri: getAvatarImageUrl(otherUser.avatarIconUrl || otherUser.avatarUrl) }} style={styles.proposalAvatar} />
                   ) : (
-                    <View style={[styles.proposalAvatar, styles.proposalAvatarPlaceholder, { backgroundColor: Colors.agree }]}>
+                    <View style={[styles.proposalAvatar, styles.proposalAvatarPlaceholder, { backgroundColor: getInitialsColor(otherUser?.displayName) }]}>
                       <Text style={styles.proposalAvatarInitial}>
-                        {otherUser?.displayName?.[0]?.toUpperCase() || '?'}
+                        {getInitials(otherUser?.displayName)}
                       </Text>
                     </View>
                   )}
                   <Ionicons name="checkmark-circle" size={14} color={Colors.agree} style={styles.proposalAvatarCheck} />
                 </View>
                 <View style={styles.proposalAvatarRight}>
-                  {user?.avatarUrl ? (
-                    <Image source={{ uri: user.avatarUrl }} style={styles.proposalAvatar} />
+                  {(user?.avatarIconUrl || user?.avatarUrl) ? (
+                    <Image source={{ uri: getAvatarImageUrl(user.avatarIconUrl || user.avatarUrl) }} style={styles.proposalAvatar} />
                   ) : (
-                    <View style={[styles.proposalAvatar, styles.proposalAvatarPlaceholder, { backgroundColor: Colors.messageYou }]}>
+                    <View style={[styles.proposalAvatar, styles.proposalAvatarPlaceholder, { backgroundColor: getInitialsColor(user?.displayName) }]}>
                       <Text style={styles.proposalAvatarInitial}>
-                        {user?.displayName?.[0]?.toUpperCase() || '?'}
+                        {getInitials(user?.displayName)}
                       </Text>
                     </View>
                   )}
@@ -1161,12 +1182,12 @@ export default function ChatScreen() {
             {/* Read indicator - small avatar bubble */}
             {isLastRead && otherUser && (
               <View style={styles.readIndicator}>
-                {otherUser.avatarUrl ? (
-                  <Image source={{ uri: otherUser.avatarUrl }} style={styles.readIndicatorAvatar} />
+                {(otherUser.avatarIconUrl || otherUser.avatarUrl) ? (
+                  <Image source={{ uri: getAvatarImageUrl(otherUser.avatarIconUrl || otherUser.avatarUrl) }} style={styles.readIndicatorAvatar} />
                 ) : (
-                  <View style={[styles.readIndicatorAvatar, styles.readIndicatorAvatarPlaceholder]}>
+                  <View style={[styles.readIndicatorAvatar, styles.readIndicatorAvatarPlaceholder, { backgroundColor: getInitialsColor(otherUser.displayName) }]}>
                     <Text style={styles.readIndicatorInitial}>
-                      {otherUser.displayName?.[0]?.toUpperCase() || '?'}
+                      {getInitials(otherUser.displayName)}
                     </Text>
                   </View>
                 )}
@@ -1187,12 +1208,12 @@ export default function ChatScreen() {
     return (
       <View style={styles.otherMessageRow}>
         {isLastInGroup ? (
-          otherUser?.avatarUrl ? (
-            <Image source={{ uri: otherUser.avatarUrl }} style={styles.messageAvatar} />
+          (otherUser?.avatarIconUrl || otherUser?.avatarUrl) ? (
+            <Image source={{ uri: getAvatarImageUrl(otherUser.avatarIconUrl || otherUser.avatarUrl) }} style={styles.messageAvatar} />
           ) : (
-            <View style={[styles.messageAvatar, styles.messageAvatarPlaceholder]}>
+            <View style={[styles.messageAvatar, styles.messageAvatarPlaceholder, { backgroundColor: getInitialsColor(otherUser?.displayName) }]}>
               <Text style={styles.messageAvatarInitial}>
-                {otherUser?.displayName?.[0]?.toUpperCase() || '?'}
+                {getInitials(otherUser?.displayName)}
               </Text>
             </View>
           )
@@ -1310,16 +1331,20 @@ export default function ChatScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={Colors.primary} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Chat</Text>
-          <View style={styles.headerRight} />
-        </View>
+        {from === 'chats' ? (
+          <Header onBack={handleBackPress} />
+        ) : (
+          <View style={styles.header}>
+            <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
+              <Ionicons name="arrow-back" size={24} color={Colors.primary} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Chat</Text>
+            <View style={styles.headerRight} />
+          </View>
+        )}
         <View style={styles.centerContent}>
           <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Joining chat...</Text>
+          <Text style={styles.loadingText}>{from === 'chats' ? 'Loading chat log...' : 'Joining chat...'}</Text>
         </View>
         {renderLeaveConfirmModal()}
       </SafeAreaView>
@@ -1330,13 +1355,17 @@ export default function ChatScreen() {
   if (error) {
     return (
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={Colors.primary} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Chat</Text>
-          <View style={styles.headerRight} />
-        </View>
+        {from === 'chats' ? (
+          <Header onBack={() => router.back()} />
+        ) : (
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+              <Ionicons name="arrow-back" size={24} color={Colors.primary} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Chat</Text>
+            <View style={styles.headerRight} />
+          </View>
+        )}
         <View style={styles.centerContent}>
           <Text style={styles.errorText}>{error}</Text>
           <Pressable
@@ -1355,53 +1384,57 @@ export default function ChatScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={Colors.primary} />
-        </TouchableOpacity>
-        <View style={styles.headerCenter}>
-          {otherUser ? (
-            <View style={styles.headerUserInfo}>
-              <View style={styles.headerAvatarContainer}>
-                {otherUser.avatarUrl ? (
-                  <Image source={{ uri: otherUser.avatarUrl }} style={styles.headerAvatar} />
-                ) : (
-                  <View style={[styles.headerAvatar, styles.headerAvatarPlaceholder]}>
-                    <Text style={styles.headerAvatarInitial}>
-                      {otherUser.displayName?.[0]?.toUpperCase() || '?'}
-                    </Text>
+      {isHistoricalView ? (
+        <Header onBack={handleBackPress} />
+      ) : (
+        <View style={styles.header}>
+          <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={Colors.primary} />
+          </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            {otherUser ? (
+              <View style={styles.headerUserInfo}>
+                <View style={styles.headerAvatarContainer}>
+                  {(otherUser.avatarIconUrl || otherUser.avatarUrl) ? (
+                    <Image source={{ uri: getAvatarImageUrl(otherUser.avatarIconUrl || otherUser.avatarUrl) }} style={styles.headerAvatar} />
+                  ) : (
+                    <View style={[styles.headerAvatar, styles.headerAvatarPlaceholder, { backgroundColor: getInitialsColor(otherUser.displayName) }]}>
+                      <Text style={styles.headerAvatarInitial}>
+                        {getInitials(otherUser.displayName)}
+                      </Text>
+                    </View>
+                  )}
+                  <View style={[styles.headerTrustBadge, { backgroundColor: getTrustBadgeColor(otherUser.trustScore) }]}>
+                    <Ionicons name="star" size={8} color={Colors.primary} />
+                    <Text style={styles.headerTrustCount}>{otherUser.kudosCount || 0}</Text>
                   </View>
-                )}
-                <View style={[styles.headerTrustBadge, { backgroundColor: getTrustBadgeColor(otherUser.trustScore) }]}>
-                  <Ionicons name="star" size={8} color={Colors.primary} />
-                  <Text style={styles.headerTrustCount}>{otherUser.kudosCount || 0}</Text>
+                </View>
+                <View style={styles.headerUserText}>
+                  <Text style={styles.headerDisplayName} numberOfLines={1}>{otherUser.displayName}</Text>
+                  <Text style={styles.headerUsername} numberOfLines={1}>@{otherUser.username}</Text>
                 </View>
               </View>
-              <View style={styles.headerUserText}>
-                <Text style={styles.headerDisplayName} numberOfLines={1}>{otherUser.displayName}</Text>
-                <Text style={styles.headerUsername} numberOfLines={1}>@{otherUser.username}</Text>
-              </View>
-            </View>
-          ) : (
-            <Text style={styles.headerTitle} numberOfLines={1}>Chat</Text>
-          )}
-        </View>
-        <View style={styles.headerRight}>
-          <View style={[styles.headerKudosBadge, { backgroundColor: getTrustBadgeColor(user?.trustScore) }]}>
-            <Ionicons name="star" size={14} color={Colors.primary} />
-            <Text style={styles.headerKudosCount}>{user?.kudosCount || 0}</Text>
+            ) : (
+              <Text style={styles.headerTitle} numberOfLines={1}>Chat</Text>
+            )}
           </View>
-          {user?.avatarUrl ? (
-            <Image source={{ uri: user.avatarUrl }} style={styles.headerUserAvatar} />
-          ) : (
-            <View style={[styles.headerUserAvatar, styles.headerUserAvatarPlaceholder]}>
-              <Text style={styles.headerUserAvatarInitial}>
-                {user?.displayName?.[0]?.toUpperCase() || '?'}
-              </Text>
+          <View style={styles.headerRight}>
+            <View style={[styles.headerKudosBadge, { backgroundColor: getTrustBadgeColor(user?.trustScore) }]}>
+              <Ionicons name="star" size={14} color={Colors.primary} />
+              <Text style={styles.headerKudosCount}>{user?.kudosCount || 0}</Text>
             </View>
-          )}
+            {(user?.avatarIconUrl || user?.avatarUrl) ? (
+              <Image source={{ uri: getAvatarImageUrl(user.avatarIconUrl || user.avatarUrl) }} style={styles.headerUserAvatar} />
+            ) : (
+              <View style={[styles.headerUserAvatar, styles.headerUserAvatarPlaceholder, { backgroundColor: getInitialsColor(user?.displayName) }]}>
+                <Text style={styles.headerUserAvatarInitial}>
+                  {getInitials(user?.displayName)}
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
-      </View>
+      )}
 
       {/* Chat ended banner */}
       {chatEnded && (
@@ -1477,52 +1510,13 @@ export default function ChatScreen() {
           viewabilityConfig={viewabilityConfig}
           ListHeaderComponent={
             chatInfo?.position ? (
-              <View style={styles.topicCard}>
-                {/* Header with location and category */}
-                <View style={styles.topicHeader}>
-                  {chatInfo.position.location?.code && (
-                    <View style={styles.topicLocationBadge}>
-                      <Text style={styles.topicLocationCode}>{chatInfo.position.location.code}</Text>
-                    </View>
-                  )}
-                  {chatInfo.position.category?.name && (
-                    <Text style={styles.topicCategoryName}>{chatInfo.position.category.name}</Text>
-                  )}
-                </View>
-
-                {/* Label */}
-                <Text style={styles.topicLabel}>Topic of Discussion</Text>
-
-                {/* Statement */}
-                <Text style={styles.topicStatement}>{chatInfo.position.statement}</Text>
-
-                {/* Creator info at bottom, centered */}
-                {chatInfo.position.creator && (
-                  <View style={styles.topicCreator}>
-                    <View style={styles.topicCreatorAvatarContainer}>
-                      {chatInfo.position.creator.avatarUrl ? (
-                        <Image source={{ uri: chatInfo.position.creator.avatarUrl }} style={styles.topicCreatorAvatar} />
-                      ) : (
-                        <View style={[styles.topicCreatorAvatar, styles.topicCreatorAvatarPlaceholder]}>
-                          <Text style={styles.topicCreatorAvatarInitial}>
-                            {chatInfo.position.creator.displayName?.[0]?.toUpperCase() || '?'}
-                          </Text>
-                        </View>
-                      )}
-                      {chatInfo.position.creator.kudosCount > 0 && (
-                        <View style={[styles.topicCreatorKudosBadge, { backgroundColor: getTrustBadgeColor(chatInfo.position.creator.trustScore) }]}>
-                          <Ionicons name="star" size={10} color={Colors.primary} />
-                          <Text style={styles.topicCreatorKudosCount}>{chatInfo.position.creator.kudosCount}</Text>
-                        </View>
-                      )}
-                    </View>
-                    <View style={styles.topicCreatorText}>
-                      <Text style={styles.topicCreatorDisplayName}>{chatInfo.position.creator.displayName || 'Anonymous'}</Text>
-                      <Text style={styles.topicCreatorUsername}>@{chatInfo.position.creator.username || 'anonymous'}</Text>
-                    </View>
-                  </View>
-                )}
-              </View>
+              <PositionInfoCard
+                position={chatInfo.position}
+                label="Topic of Discussion"
+                authorSubtitle="username"
+                style={styles.topicCard}
+                statementStyle={styles.topicStatement}
+              />
             ) : null
           }
           ListEmptyComponent={
@@ -1536,12 +1530,12 @@ export default function ChatScreen() {
           ListFooterComponent={
             otherUserTyping ? (
               <View style={styles.typingRow}>
-                {otherUser?.avatarUrl ? (
-                  <Image source={{ uri: otherUser.avatarUrl }} style={styles.messageAvatar} />
+                {(otherUser?.avatarIconUrl || otherUser?.avatarUrl) ? (
+                  <Image source={{ uri: getAvatarImageUrl(otherUser.avatarIconUrl || otherUser.avatarUrl) }} style={styles.messageAvatar} />
                 ) : (
-                  <View style={[styles.messageAvatar, styles.messageAvatarPlaceholder]}>
+                  <View style={[styles.messageAvatar, styles.messageAvatarPlaceholder, { backgroundColor: getInitialsColor(otherUser?.displayName) }]}>
                     <Text style={styles.messageAvatarInitial}>
-                      {otherUser?.displayName?.[0]?.toUpperCase() || '?'}
+                      {getInitials(otherUser?.displayName)}
                     </Text>
                   </View>
                 )}
@@ -1550,6 +1544,14 @@ export default function ChatScreen() {
                   <Animated.View style={[styles.typingDot, { transform: [{ translateY: dot2Anim.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }] }]} />
                   <Animated.View style={[styles.typingDot, { transform: [{ translateY: dot3Anim.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }] }]} />
                 </View>
+              </View>
+            ) : isHistoricalView && chatInfo?.endType === 'user_exit' ? (
+              <View style={styles.chatEndedRow}>
+                <Text style={styles.chatEndedText}>
+                  {chatInfo?.endedByUserId === user?.id
+                    ? 'You left the chat'
+                    : `${otherUser?.displayName || 'The other user'} left the chat`}
+                </Text>
               </View>
             ) : null
           }
@@ -1926,6 +1928,17 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#fff',
   },
+  chatEndedRow: {
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+  },
+  chatEndedText: {
+    fontSize: 14,
+    fontStyle: 'italic',
+    color: Colors.pass,
+    textAlign: 'center',
+  },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -2225,9 +2238,7 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   topicCard: {
-    backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 16,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
@@ -2237,96 +2248,10 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  topicHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
-  },
-  topicLocationBadge: {
-    backgroundColor: Colors.primaryMuted + '20',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  topicLocationCode: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.primary,
-  },
-  topicCategoryName: {
-    fontSize: 14,
-    color: Colors.primary,
-  },
-  topicLabel: {
-    fontSize: 12,
-    color: Colors.pass,
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
   topicStatement: {
     fontSize: 18,
     fontWeight: '500',
-    color: '#1a1a1a',
     lineHeight: 26,
-    marginBottom: 16,
-  },
-  topicCreator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: Colors.cardBorder,
-    gap: 10,
-  },
-  topicCreatorAvatarContainer: {
-    position: 'relative',
-  },
-  topicCreatorAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-  },
-  topicCreatorAvatarPlaceholder: {
-    backgroundColor: Colors.primaryMuted,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  topicCreatorAvatarInitial: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  topicCreatorKudosBadge: {
-    position: 'absolute',
-    bottom: -4,
-    left: -4,
-    borderRadius: 10,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    minWidth: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-  },
-  topicCreatorKudosCount: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: Colors.primary,
-  },
-  topicCreatorText: {
-    flexDirection: 'column',
-  },
-  topicCreatorDisplayName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1a1a1a',
-  },
-  topicCreatorUsername: {
-    fontSize: 12,
-    color: Colors.pass,
   },
   // Proposal styles - stacked card layout
   proposalStackContainer: {

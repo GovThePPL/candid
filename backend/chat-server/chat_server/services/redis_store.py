@@ -5,7 +5,7 @@ Redis storage service for active chat data.
 import json
 import logging
 import uuid
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Optional
 
@@ -28,11 +28,25 @@ class ChatMessage:
     timestamp: str
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        return {
+            "id": self.id,
+            "senderId": self.sender_id,
+            "type": self.type,
+            "content": self.content,
+            "targetId": self.target_id,
+            "timestamp": self.timestamp,
+        }
 
     @classmethod
     def from_dict(cls, data: dict) -> "ChatMessage":
-        return cls(**data)
+        return cls(
+            id=data["id"],
+            sender_id=data.get("senderId", data.get("sender_id")),
+            type=data["type"],
+            content=data["content"],
+            target_id=data.get("targetId", data.get("target_id")),
+            timestamp=data["timestamp"],
+        )
 
 
 @dataclass
@@ -48,11 +62,27 @@ class AgreedPosition:
     timestamp: str
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        return {
+            "id": self.id,
+            "proposerId": self.proposer_id,
+            "content": self.content,
+            "parentId": self.parent_id,
+            "status": self.status,
+            "isClosure": self.is_closure,
+            "timestamp": self.timestamp,
+        }
 
     @classmethod
     def from_dict(cls, data: dict) -> "AgreedPosition":
-        return cls(**data)
+        return cls(
+            id=data["id"],
+            proposer_id=data.get("proposerId", data.get("proposer_id")),
+            content=data["content"],
+            parent_id=data.get("parentId", data.get("parent_id")),
+            status=data["status"],
+            is_closure=data.get("isClosure", data.get("is_closure")),
+            timestamp=data["timestamp"],
+        )
 
 
 @dataclass
@@ -65,11 +95,21 @@ class ClosureProposal:
     timestamp: str
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        return {
+            "id": self.id,
+            "proposerId": self.proposer_id,
+            "content": self.content,
+            "timestamp": self.timestamp,
+        }
 
     @classmethod
     def from_dict(cls, data: dict) -> "ClosureProposal":
-        return cls(**data)
+        return cls(
+            id=data["id"],
+            proposer_id=data.get("proposerId", data.get("proposer_id")),
+            content=data["content"],
+            timestamp=data["timestamp"],
+        )
 
 
 @dataclass
@@ -81,11 +121,19 @@ class ChatMetadata:
     start_time: str
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        return {
+            "chatId": self.chat_id,
+            "participantIds": self.participant_ids,
+            "startTime": self.start_time,
+        }
 
     @classmethod
     def from_dict(cls, data: dict) -> "ChatMetadata":
-        return cls(**data)
+        return cls(
+            chat_id=data.get("chatId", data.get("chat_id")),
+            participant_ids=data.get("participantIds", data.get("participant_ids")),
+            start_time=data.get("startTime", data.get("start_time")),
+        )
 
 
 class RedisStore:
@@ -143,9 +191,9 @@ class RedisStore:
         await self._redis.hset(
             self._metadata_key(chat_id),
             mapping={
-                "chat_id": metadata.chat_id,
-                "participant_ids": json.dumps(metadata.participant_ids),
-                "start_time": metadata.start_time,
+                "chatId": metadata.chat_id,
+                "participantIds": json.dumps(metadata.participant_ids),
+                "startTime": metadata.start_time,
             },
         )
 
@@ -168,9 +216,9 @@ class RedisStore:
             return None
 
         return ChatMetadata(
-            chat_id=data["chat_id"],
-            participant_ids=json.loads(data["participant_ids"]),
-            start_time=data["start_time"],
+            chat_id=data.get("chatId", data.get("chat_id")),
+            participant_ids=json.loads(data.get("participantIds", data.get("participant_ids"))),
+            start_time=data.get("startTime", data.get("start_time")),
         )
 
     async def get_user_active_chats(self, user_id: str) -> list[str]:
@@ -337,10 +385,10 @@ class RedisStore:
 
         return {
             "messages": [m.to_dict() for m in messages],
-            "agreed_positions": [p.to_dict() for p in positions],
-            "agreed_closure": closure.to_dict() if closure else None,
+            "agreedPositions": [p.to_dict() for p in positions],
+            "agreedClosure": closure.to_dict() if closure else None,
             "metadata": metadata.to_dict() if metadata else None,
-            "export_time": datetime.utcnow().isoformat(),
+            "exportTime": datetime.utcnow().isoformat(),
         }
 
     async def delete_chat(self, chat_id: str) -> None:

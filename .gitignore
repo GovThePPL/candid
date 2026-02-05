@@ -3,3 +3,9 @@ frontend/api/
 backend/server/generated/
 .vscode
 *.swp
+__pycache__/
+*.pyc
+node_modules/
+openapitools.json
+frontend/openapitools.json
+backend/server/openapitools.json

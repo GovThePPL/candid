@@ -80,6 +80,17 @@ export function UserProvider({ children }) {
         onAccepted: (data) => {
           console.log('[UserContext] Chat request accepted:', data)
           updateChatRequestStatus('accepted')
+          // Navigate using chatLogId from the accepted event
+          // This is more reliable than waiting for chat_started since it comes via REST API pub/sub
+          if (data.chatLogId) {
+            console.log('[UserContext] Navigating to chat via chat_request_accepted:', data.chatLogId)
+            setActiveChatNavigation({
+              chatId: data.chatLogId,
+              otherUserId: null, // Will be populated when joining chat
+              positionStatement: null,
+              role: 'initiator',
+            })
+          }
           // Clear after a brief moment to allow UI to show acceptance
           setTimeout(() => clearPendingChatRequest(), 500)
         },
@@ -92,14 +103,30 @@ export function UserProvider({ children }) {
       })
 
       // Set up listener for chat started events (triggers navigation for both users)
+      // For initiators, this may arrive after chat_request_accepted already triggered navigation
+      // For responders, this is the primary navigation trigger (though they also navigate via REST response)
       const chatStartedCleanup = onChatStarted((data) => {
         console.log('[UserContext] Chat started:', data)
         // Set navigation state - the component will handle actual navigation
-        setActiveChatNavigation({
-          chatId: data.chatId,
-          otherUserId: data.otherUserId,
-          positionStatement: data.positionStatement,
-          role: data.role,
+        // This will update with full details even if already set by chat_request_accepted
+        setActiveChatNavigation((prev) => {
+          // If already navigating to this chat, just update with full details
+          if (prev?.chatId === data.chatId) {
+            console.log('[UserContext] Updating existing navigation with full details')
+            return {
+              ...prev,
+              otherUserId: data.otherUserId,
+              positionStatement: data.positionStatement,
+              role: data.role,
+            }
+          }
+          // New navigation
+          return {
+            chatId: data.chatId,
+            otherUserId: data.otherUserId,
+            positionStatement: data.positionStatement,
+            role: data.role,
+          }
         })
         // Clear pending request since we're entering the chat
         clearPendingChatRequest()
@@ -155,6 +182,18 @@ export function UserProvider({ children }) {
     setUser(null)
   }
 
+  // Refresh user data from API (used after profile updates)
+  async function refreshUser() {
+    try {
+      const currentUser = await api.auth.getCurrentUser()
+      setUser(currentUser)
+      return currentUser
+    } catch (error) {
+      console.error('[UserContext] Failed to refresh user:', error)
+      throw error
+    }
+  }
+
   async function getInitialUserValue() {
     try {
       // Initialize auth (restore token from storage)
@@ -191,7 +230,7 @@ export function UserProvider({ children }) {
 
   return (
     <UserContext.Provider value={{
-      user, login, logout, register, authChecked,
+      user, login, logout, register, authChecked, refreshUser,
       positionsVersion, invalidatePositions,
       pendingChatRequest, setPendingChatRequest, clearPendingChatRequest, updateChatRequestStatus,
       activeChatNavigation, clearActiveChatNavigation,

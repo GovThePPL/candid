@@ -14,10 +14,18 @@ CREATE TABLE users (
     created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     display_name VARCHAR(255),
+    avatar_url TEXT,
+    avatar_icon_url TEXT,
     trust_score DECIMAL(5,5),
     user_type VARCHAR(50) NOT NULL DEFAULT 'normal' CHECK (user_type IN ('normal', 'moderator', 'admin', 'guest')),
-    status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'deleted', 'banned'))
+    status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'deleted', 'banned')),
+    chat_request_likelihood INTEGER NOT NULL DEFAULT 3 CHECK (chat_request_likelihood BETWEEN 1 AND 5),
+    chatting_list_likelihood INTEGER NOT NULL DEFAULT 3 CHECK (chatting_list_likelihood BETWEEN 1 AND 5)
 );
+
+COMMENT ON COLUMN users.chat_request_likelihood IS '1=rarely, 2=less, 3=normal, 4=more, 5=often';
+COMMENT ON COLUMN users.chatting_list_likelihood IS '1=rarely, 2=less, 3=normal, 4=more, 5=often';
+COMMENT ON COLUMN users.avatar_url IS 'URL of user-selected avatar from pre-defined SFW image set';
 
 -- User activity tracking
 CREATE TABLE user_activity (
@@ -77,8 +85,10 @@ CREATE TABLE user_demographics (
     lean VARCHAR(50) CHECK (lean IN ('very_liberal', 'liberal', 'moderate', 'conservative', 'very_conservative')),
     education VARCHAR(100) CHECK (education IN ('less_than_high_school', 'high_school', 'some_college', 'associates', 'bachelors', 'masters', 'doctorate', 'professional')),
     geo_locale VARCHAR(100) CHECK (geo_locale IN ('urban', 'suburban', 'rural')),
-    race VARCHAR(100),
+    race VARCHAR(100) CHECK (race IN ('white', 'black', 'hispanic', 'asian', 'native_american', 'pacific_islander', 'multiracial', 'other')),
     sex VARCHAR(50) CHECK (sex IN ('male', 'female', 'other')),
+    age_range VARCHAR(20) CHECK (age_range IN ('18-24', '25-34', '35-44', '45-54', '55-64', '65+')),
+    income_range VARCHAR(30) CHECK (income_range IN ('under_25k', '25k-50k', '50k-75k', '75k-100k', '100k-150k', '150k-200k', 'over_200k')),
     created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id)
@@ -142,7 +152,7 @@ CREATE TABLE chat_log (
     chat_request_id UUID NOT NULL REFERENCES chat_request(id) ON DELETE CASCADE,
     start_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     end_time TIMESTAMPTZ,
-    log JSONB,  -- JSON blob: {"messages": [...], "agreed_positions": [...], "agreed_closure": "..." or null, "export_time": "ISO8601"}
+    log JSONB,  -- JSON blob: {"messages": [...], "agreedPositions": [...], "agreedClosure": {...} or null, "exportTime": "ISO8601"} — all keys use camelCase
     end_type VARCHAR(50) CHECK (end_type IN ('user_exit', 'agreed_closure')),
     status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'deleted', 'archived'))
 );

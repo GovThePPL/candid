@@ -14,8 +14,16 @@ RUN apk add --no-cache \
 RUN curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose \
     && chmod +x /usr/local/bin/docker-compose
 
-# Create certificate directory for development
-RUN mkdir -p /root/.simulacrum/certs
+# Install mkcert at build time
+RUN curl -JLO "https://dl.filippo.io/mkcert/latest?for=linux/amd64" \
+    && chmod +x mkcert-v*-linux-amd64 \
+    && mv mkcert-v*-linux-amd64 /usr/local/bin/mkcert
+
+# Create certificate directory and generate initial certs at build time
+RUN mkdir -p /root/.simulacrum/certs \
+    && mkcert -install \
+    && cd /root/.simulacrum/certs \
+    && mkcert localhost
 
 WORKDIR /workspace
 

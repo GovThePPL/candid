@@ -16,9 +16,6 @@ from candid import util
 
 from candid.controllers import db
 from candid.controllers.helpers.auth import authorization, token_to_user
-from camel_converter import dict_to_camel
-
-
 def _get_user_card(user_id):
     """Helper to fetch and return a User model for API responses."""
     user = db.execute_query("""
@@ -31,7 +28,12 @@ def _get_user_card(user_id):
         WHERE id = %s
     """, (user_id,), fetchone=True)
     if user is not None:
-        return User.from_dict(dict_to_camel(user))
+        return User(
+            id=str(user['id']),
+            username=user['username'],
+            display_name=user['display_name'],
+            status=user['status'],
+        )
     return None
 
 

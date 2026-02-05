@@ -1,14 +1,16 @@
 import connexion
 from typing import Dict, List, Tuple, Union
 
+from flask import jsonify, make_response
+
 from candid.models.error_model import ErrorModel
 from candid import util
 
 from candid.controllers import db
 from candid.controllers.helpers.config import Config
 from candid.controllers.helpers.auth import authorization, token_to_user
+from candid.controllers.helpers.cache_headers import add_cache_headers
 
-from camel_converter import dict_to_camel
 import uuid
 
 
@@ -94,7 +96,7 @@ def get_chatting_list(token_info=None):
         if item.get("category_name"):
             category = {
                 "id": str(item["category_id"]) if item.get("category_id") else None,
-                "name": item["category_name"]
+                "label": item["category_name"]
             }
 
         location = None
@@ -130,7 +132,67 @@ def get_chatting_list(token_info=None):
             "pendingRequestCount": item["pending_request_count"],
         })
 
-    return result, 200
+    # Compute Last-Modified from most recent activity
+    last_activity = None
+    for item in (items or []):
+        added_time = item.get("added_time")
+        last_chat = item.get("last_chat_time")
+        # Parse ISO strings to compare (they're formatted as strings)
+        # For simplicity, compare strings - ISO format is lexicographically sortable
+        if added_time and (not last_activity or added_time > last_activity):
+            last_activity = added_time
+        if last_chat and (not last_activity or last_chat > last_activity):
+            last_activity = last_chat
+
+    response = make_response(jsonify(result), 200)
+    if last_activity:
+        from datetime import datetime
+        try:
+            last_mod = datetime.fromisoformat(last_activity.replace('Z', '+00:00'))
+            response = add_cache_headers(response, last_modified=last_mod)
+        except (ValueError, AttributeError):
+            pass
+    return response
+
+
+def get_chatting_list_metadata(token_info=None):
+    """Get metadata about user's chatting list for cache validation.
+
+    Returns count and last updated time without full item data.
+
+    :param token_info: JWT token info from authentication
+    :type token_info: dict
+
+    :rtype: Union[dict, Tuple[dict, int]]
+    """
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    user = token_to_user(token_info)
+
+    result = db.execute_query("""
+        SELECT
+            COUNT(*) as count,
+            MAX(GREATEST(ucl.added_time, COALESCE(ucl.last_chat_time, ucl.added_time))) as last_updated_time
+        FROM user_chatting_list ucl
+        JOIN position p ON ucl.position_id = p.id
+        WHERE ucl.user_id = %s
+          AND p.status = 'active'
+    """, (str(user.id),), fetchone=True)
+
+    count = result["count"] if result else 0
+    last_updated_time = result["last_updated_time"] if result else None
+
+    response_data = {
+        "count": count,
+        "lastUpdatedTime": last_updated_time.isoformat() if last_updated_time else None,
+    }
+
+    response = make_response(response_data, 200)
+    if last_updated_time:
+        response = add_cache_headers(response, last_modified=last_updated_time)
+    return response
 
 
 def add_to_chatting_list(body, token_info=None):

@@ -3,15 +3,17 @@
 import pytest
 import requests
 import time
+import json
+import socketio
 from conftest import (
-    BASE_URL, CHAT_SERVER_URL,
+    BASE_URL, CHAT_SERVER_URL, REDIS_URL,
     NORMAL1_ID, NORMAL2_ID, NORMAL3_ID, ADMIN1_ID,
     USER_POSITION_NORMAL1, USER_POSITION_NORMAL2, USER_POSITION_NORMAL3,
     CHAT_LOG_1_ID, NONEXISTENT_UUID,
     cleanup_chat_request, cleanup_kudos,
     redis_get_chat_metadata, redis_get_chat_messages, redis_delete_chat,
     redis_add_test_message, get_chat_log_from_db,
-    db_query_one, db_execute,
+    db_query_one, db_execute, get_redis_client, login,
 )
 
 
@@ -619,6 +621,83 @@ class TestSendKudos:
 
 
 # ---------------------------------------------------------------------------
+# Dismiss Kudos Tests
+# ---------------------------------------------------------------------------
+
+class TestDismissKudos:
+    """POST /chats/{chatId}/kudos/dismiss"""
+
+    @pytest.fixture(autouse=True)
+    def cleanup(self):
+        """Clean up test kudos."""
+        cleanup_kudos(NORMAL1_ID, CHAT_LOG_1_ID)
+        yield
+        cleanup_kudos(NORMAL1_ID, CHAT_LOG_1_ID)
+
+    @pytest.mark.smoke
+    def test_dismiss_kudos_success(self, normal_headers):
+        """Participant can dismiss kudos prompt."""
+        resp = requests.post(
+            f"{BASE_URL}/chats/{CHAT_LOG_1_ID}/kudos/dismiss",
+            headers=normal_headers,
+        )
+        assert resp.status_code == 204
+
+    def test_dismiss_kudos_is_idempotent(self, normal_headers):
+        """Dismissing kudos twice is idempotent."""
+        # Dismiss first time
+        resp1 = requests.post(
+            f"{BASE_URL}/chats/{CHAT_LOG_1_ID}/kudos/dismiss",
+            headers=normal_headers,
+        )
+        assert resp1.status_code == 204
+
+        # Dismiss again - should still succeed
+        resp2 = requests.post(
+            f"{BASE_URL}/chats/{CHAT_LOG_1_ID}/kudos/dismiss",
+            headers=normal_headers,
+        )
+        assert resp2.status_code == 204
+
+    def test_dismiss_then_send_kudos(self, normal_headers):
+        """User can send kudos after dismissing."""
+        # First dismiss
+        dismiss_resp = requests.post(
+            f"{BASE_URL}/chats/{CHAT_LOG_1_ID}/kudos/dismiss",
+            headers=normal_headers,
+        )
+        assert dismiss_resp.status_code == 204
+
+        # Then send kudos - should work
+        send_resp = requests.post(
+            kudos_url(CHAT_LOG_1_ID),
+            headers=normal_headers,
+        )
+        assert send_resp.status_code == 201
+
+    def test_non_participant_cannot_dismiss_kudos(self, normal2_headers):
+        """Non-participant cannot dismiss kudos."""
+        resp = requests.post(
+            f"{BASE_URL}/chats/{CHAT_LOG_1_ID}/kudos/dismiss",
+            headers=normal2_headers,
+        )
+        assert resp.status_code == 403
+
+    def test_nonexistent_chat(self, normal_headers):
+        """Dismissing kudos for nonexistent chat returns 404."""
+        resp = requests.post(
+            f"{BASE_URL}/chats/{NONEXISTENT_UUID}/kudos/dismiss",
+            headers=normal_headers,
+        )
+        assert resp.status_code == 404
+
+    def test_unauthenticated_returns_401(self):
+        """Unauthenticated request returns 401."""
+        resp = requests.post(f"{BASE_URL}/chats/{CHAT_LOG_1_ID}/kudos/dismiss")
+        assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
 # Full Integration Flow Tests
 # ---------------------------------------------------------------------------
 
@@ -717,5 +796,317 @@ class TestChatIntegrationFlow:
             (request_id,)
         )
         assert chat_log is None
+
+
+# ---------------------------------------------------------------------------
+# Real-time Chat Request Notification Tests
+# ---------------------------------------------------------------------------
+
+class TestChatRequestNotifications:
+    """
+    Integration tests for real-time chat request notifications via Socket.IO.
+
+    These tests verify that when a chat request is accepted or dismissed,
+    the initiator receives a real-time notification via Socket.IO.
+    """
+
+    @pytest.fixture(autouse=True)
+    def cleanup(self):
+        """Clean up test data."""
+        cleanup_chat_request(NORMAL1_ID, USER_POSITION_NORMAL2)
+        yield
+        cleanup_chat_request(NORMAL1_ID, USER_POSITION_NORMAL2)
+
+    @pytest.mark.integration
+    def test_initiator_receives_accepted_notification(self, normal_token, normal2_headers):
+        """
+        Test that the initiator receives a real-time notification
+        when their chat request is accepted.
+        """
+        # Connect initiator to Socket.IO
+        sio = socketio.Client()
+        received_events = []
+
+        @sio.on("chat_request_accepted")
+        def on_accepted(data):
+            received_events.append(("accepted", data))
+
+        @sio.on("chat_started")
+        def on_started(data):
+            received_events.append(("started", data))
+
+        try:
+            sio.connect(CHAT_SERVER_URL)
+            auth_response = sio.call("authenticate", {"token": normal_token})
+            assert auth_response["status"] == "authenticated"
+
+            # Create chat request (as initiator - normal1)
+            create_resp = requests.post(
+                chat_requests_url(),
+                headers={"Authorization": f"Bearer {normal_token}"},
+                json={"userPositionId": USER_POSITION_NORMAL2},
+            )
+            assert create_resp.status_code == 201
+            request_id = create_resp.json()["id"]
+
+            # Accept the request (as recipient - normal2)
+            accept_resp = requests.patch(
+                chat_request_url(request_id),
+                headers=normal2_headers,
+                json={"response": "accepted"},
+            )
+            assert accept_resp.status_code == 200
+            chat_log_id = accept_resp.json()["chatLogId"]
+
+            # Wait for Socket.IO events to propagate
+            time.sleep(1.0)
+
+            # Verify initiator received chat_request_accepted
+            accepted_events = [e for e in received_events if e[0] == "accepted"]
+            assert len(accepted_events) >= 1
+            assert accepted_events[0][1]["requestId"] == request_id
+            assert accepted_events[0][1]["chatLogId"] == chat_log_id
+
+            # Verify initiator received chat_started
+            started_events = [e for e in received_events if e[0] == "started"]
+            assert len(started_events) >= 1
+            assert started_events[0][1]["chatId"] == chat_log_id
+            assert started_events[0][1]["role"] == "initiator"
+
+            # Cleanup
+            redis_delete_chat(chat_log_id)
+
+        finally:
+            if sio.connected:
+                sio.disconnect()
+
+    @pytest.mark.integration
+    def test_initiator_receives_declined_notification(self, normal_token, normal2_headers):
+        """
+        Test that the initiator receives a real-time notification
+        when their chat request is declined/dismissed.
+        """
+        sio = socketio.Client()
+        received_events = []
+
+        @sio.on("chat_request_declined")
+        def on_declined(data):
+            received_events.append(data)
+
+        try:
+            sio.connect(CHAT_SERVER_URL)
+            auth_response = sio.call("authenticate", {"token": normal_token})
+            assert auth_response["status"] == "authenticated"
+
+            # Create chat request
+            create_resp = requests.post(
+                chat_requests_url(),
+                headers={"Authorization": f"Bearer {normal_token}"},
+                json={"userPositionId": USER_POSITION_NORMAL2},
+            )
+            assert create_resp.status_code == 201
+            request_id = create_resp.json()["id"]
+
+            # Dismiss the request
+            dismiss_resp = requests.patch(
+                chat_request_url(request_id),
+                headers=normal2_headers,
+                json={"response": "dismissed"},
+            )
+            assert dismiss_resp.status_code == 200
+
+            # Wait for Socket.IO event
+            time.sleep(1.0)
+
+            # Verify initiator received chat_request_declined
+            assert len(received_events) >= 1
+            assert received_events[0]["requestId"] == request_id
+            assert "chatLogId" not in received_events[0]
+
+        finally:
+            if sio.connected:
+                sio.disconnect()
+
+    @pytest.mark.integration
+    def test_responder_receives_chat_started(self, normal_token, normal2_token, normal2_headers):
+        """
+        Test that the responder receives chat_started when they accept.
+        """
+        sio_initiator = socketio.Client()
+        sio_responder = socketio.Client()
+        responder_events = []
+
+        @sio_responder.on("chat_started")
+        def on_started(data):
+            responder_events.append(data)
+
+        try:
+            # Connect both users
+            sio_initiator.connect(CHAT_SERVER_URL)
+            sio_responder.connect(CHAT_SERVER_URL)
+
+            sio_initiator.call("authenticate", {"token": normal_token})
+            sio_responder.call("authenticate", {"token": normal2_token})
+
+            # Create and accept chat request
+            create_resp = requests.post(
+                chat_requests_url(),
+                headers={"Authorization": f"Bearer {normal_token}"},
+                json={"userPositionId": USER_POSITION_NORMAL2},
+            )
+            assert create_resp.status_code == 201
+            request_id = create_resp.json()["id"]
+
+            accept_resp = requests.patch(
+                chat_request_url(request_id),
+                headers=normal2_headers,
+                json={"response": "accepted"},
+            )
+            assert accept_resp.status_code == 200
+            chat_log_id = accept_resp.json()["chatLogId"]
+
+            # Wait for events
+            time.sleep(1.0)
+
+            # Verify responder received chat_started
+            assert len(responder_events) >= 1
+            assert responder_events[0]["chatId"] == chat_log_id
+            assert responder_events[0]["role"] == "responder"
+            assert responder_events[0]["otherUserId"] == NORMAL1_ID
+
+            # Cleanup
+            redis_delete_chat(chat_log_id)
+
+        finally:
+            if sio_initiator.connected:
+                sio_initiator.disconnect()
+            if sio_responder.connected:
+                sio_responder.disconnect()
+
+    @pytest.mark.integration
+    def test_non_participant_does_not_receive_events(
+        self, normal_token, normal2_headers, normal3_token
+    ):
+        """
+        Test that a third user who is not involved in the chat request
+        does not receive any notifications.
+        """
+        sio_bystander = socketio.Client()
+        bystander_events = []
+
+        @sio_bystander.on("chat_request_accepted")
+        def on_accepted(data):
+            bystander_events.append(("accepted", data))
+
+        @sio_bystander.on("chat_request_declined")
+        def on_declined(data):
+            bystander_events.append(("declined", data))
+
+        @sio_bystander.on("chat_started")
+        def on_started(data):
+            bystander_events.append(("started", data))
+
+        try:
+            sio_bystander.connect(CHAT_SERVER_URL)
+            sio_bystander.call("authenticate", {"token": normal3_token})
+
+            # Create and accept chat request between normal1 and normal2
+            create_resp = requests.post(
+                chat_requests_url(),
+                headers={"Authorization": f"Bearer {normal_token}"},
+                json={"userPositionId": USER_POSITION_NORMAL2},
+            )
+            assert create_resp.status_code == 201
+            request_id = create_resp.json()["id"]
+
+            accept_resp = requests.patch(
+                chat_request_url(request_id),
+                headers=normal2_headers,
+                json={"response": "accepted"},
+            )
+            assert accept_resp.status_code == 200
+            chat_log_id = accept_resp.json()["chatLogId"]
+
+            # Wait for potential events
+            time.sleep(1.0)
+
+            # Bystander should not receive any events
+            assert len(bystander_events) == 0
+
+            # Cleanup
+            redis_delete_chat(chat_log_id)
+
+        finally:
+            if sio_bystander.connected:
+                sio_bystander.disconnect()
+
+
+# ---------------------------------------------------------------------------
+# Chat Request Response Notification Timing Tests
+# ---------------------------------------------------------------------------
+
+class TestChatRequestNotificationTiming:
+    """
+    Tests for the timing and ordering of chat request notifications.
+    """
+
+    @pytest.fixture(autouse=True)
+    def cleanup(self):
+        """Clean up test data."""
+        cleanup_chat_request(NORMAL1_ID, USER_POSITION_NORMAL2)
+        yield
+        cleanup_chat_request(NORMAL1_ID, USER_POSITION_NORMAL2)
+
+    @pytest.mark.integration
+    def test_notification_arrives_before_http_response(
+        self, normal_token, normal2_token, normal2_headers
+    ):
+        """
+        Test that the Socket.IO notification arrives quickly,
+        within a reasonable timeframe of the HTTP response.
+        """
+        sio = socketio.Client()
+        event_timestamp = []
+
+        @sio.on("chat_request_accepted")
+        def on_accepted(data):
+            event_timestamp.append(time.time())
+
+        try:
+            sio.connect(CHAT_SERVER_URL)
+            sio.call("authenticate", {"token": normal_token})
+
+            # Create request
+            create_resp = requests.post(
+                chat_requests_url(),
+                headers={"Authorization": f"Bearer {normal_token}"},
+                json={"userPositionId": USER_POSITION_NORMAL2},
+            )
+            request_id = create_resp.json()["id"]
+
+            # Accept and record time
+            before_accept = time.time()
+            accept_resp = requests.patch(
+                chat_request_url(request_id),
+                headers=normal2_headers,
+                json={"response": "accepted"},
+            )
+            after_accept = time.time()
+            chat_log_id = accept_resp.json()["chatLogId"]
+
+            # Wait for event
+            time.sleep(1.5)
+
+            # Verify event arrived within 2 seconds of HTTP response
+            assert len(event_timestamp) >= 1
+            latency = event_timestamp[0] - after_accept
+            assert latency < 2.0, f"Notification latency was {latency}s, expected < 2s"
+
+            # Cleanup
+            redis_delete_chat(chat_log_id)
+
+        finally:
+            if sio.connected:
+                sio.disconnect()
 
 

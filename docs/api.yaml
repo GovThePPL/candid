@@ -37,6 +37,14 @@ components:
         email:
           type: string
           format: email
+        avatarUrl:
+          type: string
+          description: Full size avatar (256x256) as base64 data URI
+          nullable: true
+        avatarIconUrl:
+          type: string
+          description: Icon size avatar (64x64) as base64 data URI
+          nullable: true
         userType:
           type: string
           enum: [normal, moderator, admin, guest]
@@ -67,6 +75,14 @@ components:
           type: string
         displayName:
           type: string
+        avatarUrl:
+          type: string
+          description: Full size avatar (256x256) as base64 data URI
+          nullable: true
+        avatarIconUrl:
+          type: string
+          description: Icon size avatar (64x64) as base64 data URI
+          nullable: true
         status:
           type: string
           enum: [active, inactive, deleted, banned]
@@ -122,6 +138,14 @@ components:
               weight:
                 type: string
                 enum: [most, more, default, less, least, none]
+        chatRequestLikelihood:
+          type: string
+          enum: ["off", "rarely", "less", "normal", "more", "often"]
+          description: How likely user is to receive chat requests (0=off, 1=rarely to 5=often)
+        chattingListLikelihood:
+          type: string
+          enum: ["off", "rarely", "less", "normal", "more", "often"]
+          description: How frequently items appear in user's chatting list (0=off, 1=rarely to 5=often)
 
     UserDemographics:
       type: object
@@ -151,6 +175,14 @@ components:
           type: string
           nullable: true
           enum: [male, female, other]
+        ageRange:
+          type: string
+          nullable: true
+          enum: ['18-24', '25-34', '35-44', '45-54', '55-64', '65+']
+        incomeRange:
+          type: string
+          nullable: true
+          enum: [under_25k, 25k-50k, 50k-75k, 75k-100k, 100k-150k, 150k-200k, over_200k]
         createdTime:
           type: string
           format: date-time
@@ -182,7 +214,7 @@ components:
             id:
               type: string
               format: uuid
-            name:
+            label:
               type: string
         location:
           type: object
@@ -315,6 +347,11 @@ components:
         initiator:
           $ref: '#/components/schemas/User'
           readOnly: true
+        initiatorUserId:
+          type: string
+          format: uuid
+          readOnly: true
+          description: ID of the user who initiated the chat request
         userPositionId:
           type: string
           format: uuid
@@ -327,6 +364,19 @@ components:
           type: string
           format: date-time
           readOnly: true
+        createdTime:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedTime:
+          type: string
+          format: date-time
+          readOnly: true
+        chatLogId:
+          type: string
+          format: uuid
+          readOnly: true
+          description: The chat log ID, set when the request is accepted
 
     ChatLog:
       type: object
@@ -385,12 +435,10 @@ components:
       type: object
       required:
         - id
-        - creator
         - surveyTitle
         - createdTime
         - startTime
         - endTime
-        - questions
       properties:
         id:
           type: string
@@ -402,6 +450,44 @@ components:
           format: uuid
         surveyTitle:
           type: string
+        surveyType:
+          type: string
+          enum: [standard, pairwise]
+        locationId:
+          type: string
+          format: uuid
+          nullable: true
+        locationCode:
+          type: string
+          nullable: true
+        locationName:
+          type: string
+          nullable: true
+        categoryId:
+          type: string
+          format: uuid
+          nullable: true
+        categoryName:
+          type: string
+          nullable: true
+        questionCount:
+          type: integer
+        status:
+          type: string
+          enum: [active, inactive, deleted]
+        isActive:
+          type: boolean
+        daysRemaining:
+          type: integer
+          nullable: true
+        dateRange:
+          type: object
+          nullable: true
+          properties:
+            start:
+              type: string
+            end:
+              type: string
         createdTime:
           type: string
           format: date-time
@@ -574,8 +660,6 @@ components:
       type: object
       required:
         - id
-        - sender
-        - receiver
         - chatLogId
       properties:
         id:
@@ -583,9 +667,20 @@ components:
           format: uuid
         sender:
           $ref: '#/components/schemas/User'
+        senderUserId:
+          type: string
+          format: uuid
+          description: ID of the user who sent the kudos
+        receiverUserId:
+          type: string
+          format: uuid
+          description: ID of the user who received the kudos
         chatLogId:
           type: string
           format: uuid
+        createdTime:
+          type: string
+          format: date-time
 
     KudosCard:
       type: object
@@ -831,10 +926,30 @@ components:
           format: uuid
         surveyTitle:
           type: string
+        surveyType:
+          type: string
+          enum: [standard, pairwise]
         comparisonQuestion:
           type: string
         polisConversationId:
           type: string
+        locationId:
+          type: string
+          format: uuid
+          nullable: true
+        locationCode:
+          type: string
+          nullable: true
+        locationName:
+          type: string
+          nullable: true
+        categoryId:
+          type: string
+          format: uuid
+          nullable: true
+        categoryName:
+          type: string
+          nullable: true
         items:
           type: array
           items:
@@ -856,6 +971,19 @@ components:
         status:
           type: string
           enum: [active, inactive, deleted]
+        isActive:
+          type: boolean
+        daysRemaining:
+          type: integer
+          nullable: true
+        dateRange:
+          type: object
+          nullable: true
+          properties:
+            start:
+              type: string
+            end:
+              type: string
         createdTime:
           type: string
           format: date-time
@@ -1034,6 +1162,10 @@ components:
           type: string
           nullable: true
           description: URL to the Polis report for this conversation
+        computedAt:
+          type: string
+          format: date-time
+          description: When the stats were computed
         groups:
           type: array
           items:
@@ -1116,11 +1248,56 @@ components:
       properties:
         id:
           type: string
-          format: uuid
         statement:
           type: string
+        category:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+              nullable: true
+            label:
+              type: string
+        location:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+              nullable: true
+            name:
+              type: string
+            code:
+              type: string
+        creator:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            displayName:
+              type: string
+            username:
+              type: string
+            userType:
+              type: string
+            trustScore:
+              type: number
+            avatarUrl:
+              type: string
+              nullable: true
+            avatarIconUrl:
+              type: string
+              nullable: true
+            kudosCount:
+              type: integer
         groupId:
           type: string
+          nullable: true
         voteDistribution:
           type: object
           properties:
@@ -1130,10 +1307,37 @@ components:
               type: number
             pass:
               type: number
+        totalVotes:
+          type: integer
+          description: Total number of votes across all groups
+        groupVotes:
+          type: object
+          description: Vote distributions per group
+          additionalProperties:
+            type: object
+            properties:
+              agree:
+                type: number
+              disagree:
+                type: number
+              pass:
+                type: number
         isDefining:
           type: boolean
         representativeness:
           type: number
+        consensusType:
+          type: string
+          nullable: true
+          enum: [agree, disagree]
+          description: Whether this is a consensus agree or disagree position
+        consensusScore:
+          type: number
+          nullable: true
+          description: Strength of consensus (0-1)
+        closureCount:
+          type: integer
+          description: Number of agreed closures for this position
 
     GroupDemographics:
       type: object
@@ -1176,6 +1380,300 @@ components:
           description: Race distribution
           additionalProperties:
             type: integer
+        ageRange:
+          type: object
+          description: Age range distribution
+          additionalProperties:
+            type: integer
+        incomeRange:
+          type: object
+          description: Income range distribution
+          additionalProperties:
+            type: integer
+
+    AgreedClosuresResponse:
+      type: object
+      description: Response containing position info, opinion groups, and agreed closures
+      required:
+        - position
+        - groups
+        - closures
+      properties:
+        position:
+          type: object
+          required:
+            - id
+            - statement
+          properties:
+            id:
+              type: string
+              format: uuid
+            statement:
+              type: string
+            category:
+              type: object
+              nullable: true
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                label:
+                  type: string
+            location:
+              type: object
+              nullable: true
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                code:
+                  type: string
+                name:
+                  type: string
+            creator:
+              type: object
+              nullable: true
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                displayName:
+                  type: string
+                userType:
+                  type: string
+                trustScore:
+                  type: number
+                  format: float
+                  nullable: true
+                avatarUrl:
+                  type: string
+                  nullable: true
+                avatarIconUrl:
+                  type: string
+                  nullable: true
+                kudosCount:
+                  type: integer
+        groups:
+          type: array
+          description: Opinion groups (same as StatsResponse.groups) for map visualization
+          items:
+            $ref: '#/components/schemas/OpinionGroup'
+        allCategoriesGroups:
+          type: array
+          description: Opinion groups for the location-wide (all categories) Polis conversation
+          items:
+            $ref: '#/components/schemas/OpinionGroup'
+        closures:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgreedClosure'
+
+    AgreedClosure:
+      type: object
+      description: A single agreed closure from a chat
+      required:
+        - chatLogId
+        - closedAt
+        - positionHolderUser
+        - initiatorUser
+      properties:
+        chatLogId:
+          type: string
+          format: uuid
+        closureText:
+          nullable: true
+          description: The agreed closure proposal object
+          allOf:
+            - $ref: '#/components/schemas/AgreedPositionProposal'
+        closedAt:
+          type: string
+          format: date-time
+        hasAgreedStatements:
+          type: boolean
+          description: True if chat has more agreed statements beyond the closure
+        mutualKudos:
+          type: boolean
+          description: True if both users sent kudos to each other
+        crossGroup:
+          type: boolean
+          description: True if users are in different opinion groups
+        positionHolderUser:
+          $ref: '#/components/schemas/ClosureUserInfo'
+          description: The user who held/proposed the position
+        initiatorUser:
+          $ref: '#/components/schemas/ClosureUserInfo'
+          description: The user who initiated the chat (opposer)
+
+    ClosureUserInfo:
+      type: object
+      description: User info for display in closure cards
+      required:
+        - id
+        - displayName
+        - username
+      properties:
+        id:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+        username:
+          type: string
+        avatarUrl:
+          type: string
+          nullable: true
+        avatarIconUrl:
+          type: string
+          nullable: true
+        trustScore:
+          type: number
+          format: float
+          nullable: true
+        kudosCount:
+          type: integer
+          nullable: true
+        sentKudos:
+          type: boolean
+          description: Whether this user sent kudos to the other participant
+        opinionGroup:
+          type: object
+          nullable: true
+          description: The user's opinion group assignment (if available)
+          properties:
+            id:
+              type: string
+            label:
+              type: string
+        mapPosition:
+          type: object
+          nullable: true
+          description: The user's x,y position on the opinion map (if available)
+          properties:
+            x:
+              type: number
+            y:
+              type: number
+        allCategoriesMapPosition:
+          type: object
+          nullable: true
+          description: The user's x,y position on the all-categories opinion map
+          properties:
+            x:
+              type: number
+            y:
+              type: number
+
+    ChatLogBlob:
+      type: object
+      description: The JSONB blob stored in the chat_log.log column (camelCase keys)
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatLogMessage'
+        agreedPositions:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgreedPositionProposal'
+        agreedClosure:
+          $ref: '#/components/schemas/AgreedPositionProposal'
+          nullable: true
+        endedByUserId:
+          type: string
+          format: uuid
+          description: ID of the user who ended the chat
+        exportTime:
+          type: string
+          format: date-time
+          description: When the chat log was exported from the chat server
+
+    ChatLogMessage:
+      type: object
+      description: Individual message in a chat log blob
+      required:
+        - id
+        - senderId
+        - content
+        - timestamp
+      properties:
+        id:
+          type: string
+        senderId:
+          type: string
+          format: uuid
+        content:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        type:
+          type: string
+          enum: [message, system]
+
+    AgreedPositionProposal:
+      type: object
+      description: An agreed position or closure proposal in a chat
+      required:
+        - content
+      properties:
+        id:
+          type: string
+        proposerId:
+          type: string
+          format: uuid
+        content:
+          type: string
+        status:
+          type: string
+          enum: [proposed, accepted, rejected]
+        isClosure:
+          type: boolean
+          description: True if this is a closure proposal (vs an agreed position)
+        timestamp:
+          type: string
+          format: date-time
+
+    GetChatLogResponse:
+      type: object
+      description: Full chat log response with metadata
+      required:
+        - id
+        - chatRequestId
+        - startTime
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        chatRequestId:
+          type: string
+          format: uuid
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+          nullable: true
+        log:
+          $ref: '#/components/schemas/ChatLogBlob'
+          nullable: true
+        endType:
+          type: string
+          enum: [user_exit, agreed_closure]
+          nullable: true
+        status:
+          type: string
+          enum: [active, archived, deleted]
+        position:
+          $ref: '#/components/schemas/Position'
+        otherUser:
+          $ref: '#/components/schemas/User'
+        endedByUserId:
+          type: string
+          format: uuid
+          nullable: true
+          description: ID of the user who ended the chat
 
     ErrorModel:
       type: object
@@ -1775,6 +2273,37 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
+  /positions/{positionId}/agreed-closures:
+    get:
+      operationId: getPositionAgreedClosures
+      summary: Get all agreed closures for chats about a position
+      description: |
+        Returns all chats that ended with an agreed closure for the specified position.
+        Results are sorted by priority: mutual kudos + cross-group first, then cross-group only,
+        then mutual kudos only, then by date.
+      tags:
+        - Positions
+      parameters:
+        - name: positionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of agreed closures with position and group info
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgreedClosuresResponse'
+        '404':
+          description: Position not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
   /positions/response:
     post:
       operationId: respondToPositions
@@ -1895,6 +2424,35 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
+  /avatars:
+    get:
+      operationId: getAvailableAvatars
+      summary: Get list of available avatar options
+      tags:
+        - Users
+      security: []
+      responses:
+        '200':
+          description: List of available avatars
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required:
+                    - id
+                    - url
+                    - name
+                  properties:
+                    id:
+                      type: string
+                    url:
+                      type: string
+                      format: uri
+                    name:
+                      type: string
+
   /users/me:
     get:
       operationId: getCurrentUser
@@ -1910,7 +2468,7 @@ paths:
                 $ref: '#/components/schemas/CurrentUser'
     patch:
       operationId: updateUserProfile
-      summary: Update current user profile (only displayName and email)
+      summary: Update current user profile (displayName, email, avatarUrl)
       tags:
         - Users
       requestBody:
@@ -1925,6 +2483,10 @@ paths:
                 email:
                   type: string
                   format: email
+                avatarUrl:
+                  type: string
+                  format: uri
+                  nullable: true
       responses:
         '200':
           description: Profile updated successfully
@@ -1934,6 +2496,130 @@ paths:
                 $ref: '#/components/schemas/CurrentUser'
         '400':
           description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /users/me/password:
+    put:
+      operationId: changePassword
+      summary: Change current user's password
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - currentPassword
+                - newPassword
+              properties:
+                currentPassword:
+                  type: string
+                newPassword:
+                  type: string
+                  minLength: 8
+      responses:
+        '200':
+          description: Password changed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '400':
+          description: Invalid input (new password too short)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '401':
+          description: Current password incorrect
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /users/me/avatar:
+    post:
+      operationId: uploadAvatar
+      summary: Upload a custom avatar image
+      description: |
+        Upload a base64 encoded image as avatar. The image will be validated for:
+        - File size (max 5MB)
+        - Valid image format (JPEG, PNG, WebP, GIF)
+        - NSFW content (rejected if detected)
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - imageBase64
+              properties:
+                imageBase64:
+                  type: string
+                  description: Base64 encoded image data (with or without data URI prefix)
+      responses:
+        '200':
+          description: Avatar uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  avatarUrl:
+                    type: string
+                    description: Full size avatar (256x256) as base64 data URI
+                  avatarIconUrl:
+                    type: string
+                    description: Icon size avatar (64x64) as base64 data URI
+                  message:
+                    type: string
+        '400':
+          description: Invalid image or NSFW content detected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /users/me/delete:
+    post:
+      operationId: deleteCurrentUser
+      summary: Soft delete current user account
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - password
+              properties:
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Account deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '401':
+          description: Password incorrect
           content:
             application/json:
               schema:
@@ -2076,15 +2762,66 @@ paths:
             enum: [active, inactive, all]
             default: active
           description: Filter by status. Use 'all' to include both active and inactive positions.
+        - name: If-None-Match
+          in: header
+          required: false
+          schema:
+            type: string
+          description: ETag from a previous response for conditional request
+        - name: If-Modified-Since
+          in: header
+          required: false
+          schema:
+            type: string
+          description: Last-Modified date from a previous response for conditional request
       responses:
         '200':
           description: List of user's position statements
+          headers:
+            ETag:
+              schema:
+                type: string
+            Last-Modified:
+              schema:
+                type: string
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: '#/components/schemas/UserPosition'
+        '304':
+          description: Not Modified - cached version is still valid
+
+  /users/me/positions/metadata:
+    get:
+      operationId: getCurrentUserPositionsMetadata
+      summary: Get metadata about user's positions for cache validation
+      description: Returns lightweight metadata (count and last updated time) to check if full position list needs to be refetched
+      tags:
+        - Users
+      responses:
+        '200':
+          description: Position list metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                    description: Total number of positions for this user
+                  lastUpdatedTime:
+                    type: string
+                    format: date-time
+                    nullable: true
+                    description: Most recent position creation or update time
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
 
   /users/me/positions/{userPositionId}:
     patch:
@@ -2157,15 +2894,37 @@ paths:
       description: Returns positions the user has swiped up on and wants to continue chatting about
       tags:
         - ChattingList
+      parameters:
+        - name: If-None-Match
+          in: header
+          required: false
+          schema:
+            type: string
+          description: ETag from a previous response for conditional request
+        - name: If-Modified-Since
+          in: header
+          required: false
+          schema:
+            type: string
+          description: Last-Modified date from a previous response for conditional request
       responses:
         '200':
           description: List of chatting list items
+          headers:
+            ETag:
+              schema:
+                type: string
+            Last-Modified:
+              schema:
+                type: string
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: '#/components/schemas/ChattingListItem'
+        '304':
+          description: Not Modified - cached version is still valid
         '401':
           description: Not authenticated
           content:
@@ -2204,6 +2963,36 @@ paths:
                 $ref: '#/components/schemas/ErrorModel'
         '409':
           description: Position already in chatting list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /users/me/chatting-list/metadata:
+    get:
+      operationId: getChattingListMetadata
+      summary: Get metadata about chatting list for cache validation
+      description: Returns lightweight metadata (count and last updated time) to check if full chatting list needs to be refetched
+      tags:
+        - ChattingList
+      responses:
+        '200':
+          description: Chatting list metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                    description: Total number of items in the chatting list
+                  lastUpdatedTime:
+                    type: string
+                    format: date-time
+                    nullable: true
+                    description: Most recent chatting list modification time
+        '401':
+          description: Not authenticated
           content:
             application/json:
               schema:
@@ -2466,20 +3255,34 @@ paths:
           schema:
             type: string
             format: uuid
+        - name: If-None-Match
+          in: header
+          required: false
+          schema:
+            type: string
+          description: ETag from a previous response for conditional request
+        - name: If-Modified-Since
+          in: header
+          required: false
+          schema:
+            type: string
+          description: Last-Modified date from a previous response for conditional request
       responses:
         '200':
-          description: Complete chat log as JSON blob
+          description: Complete chat log with metadata
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  id:
-                    type: string
-                    format: uuid
-                  chatLog:
-                    type: object
-                    description: Complete JSON blob of the chat log
+                $ref: '#/components/schemas/GetChatLogResponse'
+          headers:
+            ETag:
+              schema:
+                type: string
+            Last-Modified:
+              schema:
+                type: string
+        '304':
+          description: Not Modified - cached version is still valid
         '403':
           description: Forbidden - user was not a participant in this chat
           content:
@@ -2610,8 +3413,8 @@ paths:
       operationId: getUserChats
       summary: Get a list of the user's historical chats
       tags:
-        - Users
         - Chat
+        - Users
       parameters:
         - name: userId
           in: path
@@ -2637,9 +3440,28 @@ paths:
             type: integer
             default: 0
           description: Number of chats to skip
+        - name: If-None-Match
+          in: header
+          required: false
+          schema:
+            type: string
+          description: ETag from a previous response for conditional request
+        - name: If-Modified-Since
+          in: header
+          required: false
+          schema:
+            type: string
+          description: Last-Modified date from a previous response for conditional request
       responses:
         '200':
           description: List of user's historical chats
+          headers:
+            ETag:
+              schema:
+                type: string
+            Last-Modified:
+              schema:
+                type: string
           content:
             application/json:
               schema:
@@ -2670,9 +3492,66 @@ paths:
                     otherUser:
                       $ref: '#/components/schemas/User'
                     agreedClosure:
+                      $ref: '#/components/schemas/AgreedPositionProposal'
+                      nullable: true
+                      description: The agreed closure object if the chat ended with one
+                    endedByUserId:
                       type: string
-                      description: The agreed closure message if the chat ended
-                        with one
+                      format: uuid
+                      nullable: true
+                      description: ID of the user who ended the chat
+                    kudosSent:
+                      type: boolean
+                      description: Whether the current user sent kudos to the other user for this chat
+                    kudosReceived:
+                      type: boolean
+                      description: Whether the other user sent kudos to the current user for this chat
+        '304':
+          description: Not Modified - cached version is still valid
+
+  /chats/user/{userId}/metadata:
+    get:
+      operationId: getUserChatsMetadata
+      summary: Get metadata about user's chat history for cache validation
+      description: Returns lightweight metadata (count and last activity time) to check if full chat list needs to be refetched
+      tags:
+        - Chat
+        - Users
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Chat list metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                    description: Total number of chats for this user
+                  lastActivityTime:
+                    type: string
+                    format: date-time
+                    nullable: true
+                    description: Most recent chat activity (start or end time)
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '403':
+          description: Forbidden - cannot view other user's chats
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
 
   /categories:
     get:
@@ -2750,6 +3629,21 @@ paths:
       summary: Get a list of currently active surveys
       tags:
         - Surveys
+      parameters:
+        - name: locationId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Filter by location ID (includes parent locations)
+        - name: categoryId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Filter by category ID
       responses:
         '200':
           description: List of active surveys
@@ -3530,10 +4424,22 @@ paths:
       responses:
         '200':
           description: Opinion group statistics
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+            ETag:
+              schema:
+                type: string
+            Last-Modified:
+              schema:
+                type: string
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/StatsResponse'
+        '304':
+          description: Not Modified - cached version is still valid
         '401':
           description: Unauthorized - authentication required
           content:
@@ -3569,10 +4475,22 @@ paths:
       responses:
         '200':
           description: Opinion group statistics
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+            ETag:
+              schema:
+                type: string
+            Last-Modified:
+              schema:
+                type: string
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/StatsResponse'
+        '304':
+          description: Not Modified - cached version is still valid
         '401':
           description: Unauthorized - authentication required
           content:

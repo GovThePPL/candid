@@ -493,12 +493,12 @@ class TestChatExport:
 
         assert "messages" in export
         assert len(export["messages"]) == 2
-        assert "agreed_positions" in export
-        assert len(export["agreed_positions"]) == 1
-        assert "agreed_closure" in export
-        assert export["agreed_closure"]["content"] == "Final"
+        assert "agreedPositions" in export
+        assert len(export["agreedPositions"]) == 1
+        assert "agreedClosure" in export
+        assert export["agreedClosure"]["content"] == "Final"
         assert "metadata" in export
-        assert "export_time" in export
+        assert "exportTime" in export
 
         # Cleanup
         await store.delete_chat(chat_id)
@@ -534,7 +534,7 @@ class TestDataClasses:
     """Tests for data class serialization."""
 
     def test_chat_message_to_dict(self):
-        """Test ChatMessage serialization."""
+        """Test ChatMessage serialization uses camelCase keys."""
         msg = ChatMessage(
             id="123",
             sender_id="user1",
@@ -546,11 +546,30 @@ class TestDataClasses:
 
         d = msg.to_dict()
         assert d["id"] == "123"
-        assert d["sender_id"] == "user1"
+        assert d["senderId"] == "user1"
         assert d["content"] == "Hello"
+        assert d["targetId"] is None
+        assert "sender_id" not in d
+        assert "target_id" not in d
 
-    def test_chat_message_from_dict(self):
-        """Test ChatMessage deserialization."""
+    def test_chat_message_from_dict_camel(self):
+        """Test ChatMessage deserialization from camelCase."""
+        d = {
+            "id": "123",
+            "senderId": "user1",
+            "type": "text",
+            "content": "Hello",
+            "targetId": None,
+            "timestamp": "2024-01-01T00:00:00",
+        }
+
+        msg = ChatMessage.from_dict(d)
+        assert msg.id == "123"
+        assert msg.sender_id == "user1"
+        assert msg.content == "Hello"
+
+    def test_chat_message_from_dict_snake_fallback(self):
+        """Test ChatMessage deserialization falls back to snake_case."""
         d = {
             "id": "123",
             "sender_id": "user1",
@@ -562,10 +581,10 @@ class TestDataClasses:
 
         msg = ChatMessage.from_dict(d)
         assert msg.id == "123"
-        assert msg.content == "Hello"
+        assert msg.sender_id == "user1"
 
     def test_agreed_position_to_dict(self):
-        """Test AgreedPosition serialization."""
+        """Test AgreedPosition serialization uses camelCase keys."""
         pos = AgreedPosition(
             id="123",
             proposer_id="user1",
@@ -578,10 +597,16 @@ class TestDataClasses:
 
         d = pos.to_dict()
         assert d["id"] == "123"
+        assert d["proposerId"] == "user1"
+        assert d["parentId"] is None
+        assert d["isClosure"] is False
         assert d["status"] == "pending"
+        assert "proposer_id" not in d
+        assert "parent_id" not in d
+        assert "is_closure" not in d
 
     def test_closure_proposal_to_dict(self):
-        """Test ClosureProposal serialization."""
+        """Test ClosureProposal serialization uses camelCase keys."""
         closure = ClosureProposal(
             id="123",
             proposer_id="user1",
@@ -591,3 +616,21 @@ class TestDataClasses:
 
         d = closure.to_dict()
         assert d["content"] == "Final"
+        assert d["proposerId"] == "user1"
+        assert "proposer_id" not in d
+
+    def test_chat_metadata_to_dict(self):
+        """Test ChatMetadata serialization uses camelCase keys."""
+        meta = ChatMetadata(
+            chat_id="chat-123",
+            participant_ids=["u1", "u2"],
+            start_time="2024-01-01T00:00:00",
+        )
+
+        d = meta.to_dict()
+        assert d["chatId"] == "chat-123"
+        assert d["participantIds"] == ["u1", "u2"]
+        assert d["startTime"] == "2024-01-01T00:00:00"
+        assert "chat_id" not in d
+        assert "participant_ids" not in d
+        assert "start_time" not in d

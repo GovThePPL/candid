@@ -135,14 +135,15 @@ export default function Create() {
     fetchData()
   }, [fetchMyPositions, fetchChattingList, positionsVersion])
 
-  // Refresh positions when screen comes into focus, but only if version changed
+  // Refresh positions and chatting list when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       if (lastFetchedVersion.current !== positionsVersion) {
         fetchMyPositions()
-        fetchChattingList()
         lastFetchedVersion.current = positionsVersion
       }
+      // Always refetch chatting list on focus - it can change from the cards page
+      fetchChattingList()
     }, [fetchMyPositions, fetchChattingList, positionsVersion])
   )
 
@@ -180,10 +181,10 @@ export default function Create() {
           const categoryScores = {}
           similarResults.forEach(result => {
             const catId = result.position.categoryId
-            const catName = result.position.category?.name
+            const catName = result.position.category?.label
             if (catId && catName) {
               if (!categoryScores[catId]) {
-                categoryScores[catId] = { id: catId, name: catName, score: 0, count: 0 }
+                categoryScores[catId] = { id: catId, label: catName, score: 0, count: 0 }
               }
               categoryScores[catId].score += result.similarity
               categoryScores[catId].count += 1
@@ -196,7 +197,7 @@ export default function Create() {
 
           if (topCategory) {
             setSuggestedCategory({
-              category: { id: topCategory.id, label: topCategory.name },
+              category: { id: topCategory.id, label: topCategory.label },
               score: topCategory.score / topCategory.count // Average similarity
             })
 
@@ -448,7 +449,7 @@ export default function Create() {
   function groupChattingList(items) {
     const grouped = {}
     items.forEach(item => {
-      const catName = item.position?.category?.name || 'Uncategorized'
+      const catName = item.position?.category?.label || 'Uncategorized'
       const catId = item.position?.categoryId
       const locCode = item.position?.location?.code || 'unknown'
       const locName = item.position?.location?.name || 'Unknown Location'
@@ -520,7 +521,7 @@ export default function Create() {
 
   const getSelectedCategoryName = () => {
     const category = categories.find(c => c.id === selectedCategory)
-    return category ? category.name : 'Select a category'
+    return category ? category.label : 'Select a category'
   }
 
   const getSelectedLocationName = () => {
@@ -590,7 +591,7 @@ export default function Create() {
                         </Text>
                         <Text style={styles.similarMeta}>
                           {Math.round(result.similarity * 100)}% match
-                          {result.position.category?.name && ` · ${result.position.category.name}`}
+                          {result.position.category?.label && ` · ${result.position.category.label}`}
                         </Text>
                       </View>
                       <TouchableOpacity
@@ -730,7 +731,7 @@ export default function Create() {
                           styles.modalItemText,
                           selectedCategory === category.id && styles.modalItemTextSelected
                         ]}>
-                          {category.name}
+                          {category.label}
                         </Text>
                         {selectedCategory === category.id && (
                           <Ionicons name="checkmark" size={20} color={Colors.primary} />
@@ -964,7 +965,7 @@ export default function Create() {
                 Chatting List
               </ThemedText>
               <Text style={styles.sectionSubtitle}>
-                Other people's positions you want to discuss
+                Positions you've chatted about or saved to discuss later
               </Text>
             </View>
 
@@ -975,7 +976,7 @@ export default function Create() {
                 <Text style={styles.explanationTitle}>What is the Chatting List?</Text>
               </View>
               <Text style={styles.explanationText}>
-                When you swipe up on a position card, it gets added here. These are other people's positions you want to chat with them about. Toggle items on/off to control which ones you're actively seeking chats about, or remove them entirely.
+                This list contains other people's positions that you've previously chatted about, as well as positions you've saved by tapping the chat button on a card. These will periodically reappear in your card queue. Toggle items on/off to control which ones are active, or remove them entirely.
               </Text>
             </View>
 
@@ -1022,7 +1023,7 @@ export default function Create() {
                           </Text>
                           <Text style={styles.chattingSearchResultMeta}>
                             {Math.round(result.similarity * 100)}% match
-                            {result.position.category?.name && ` · ${result.position.category.name}`}
+                            {result.position.category?.label && ` · ${result.position.category.label}`}
                           </Text>
                         </View>
                         <TouchableOpacity
@@ -1093,7 +1094,7 @@ export default function Create() {
                         {item.position?.statement}
                       </Text>
                       <Text style={styles.chattingListItemMeta}>
-                        {item.position?.location?.name || 'Unknown'} · {item.position?.category?.name || 'Uncategorized'}
+                        {item.position?.location?.name || 'Unknown'} · {item.position?.category?.label || 'Uncategorized'}
                         {item.pendingRequestCount > 0 && ` · ${item.pendingRequestCount} pending`}
                       </Text>
                     </View>

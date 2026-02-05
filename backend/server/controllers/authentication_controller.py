@@ -14,6 +14,17 @@ from candid import util
 from candid.controllers.helpers import auth
 from candid.controllers import db
 
+
+def _get_kudos_count(user_id):
+    """Get the number of kudos received by a user."""
+    result = db.execute_query("""
+        SELECT COUNT(*) as count
+        FROM kudos
+        WHERE receiver_user_id = %s AND status = 'sent'
+    """, (user_id,), fetchone=True)
+    return result['count'] if result else 0
+
+
 def login_user(body):  # noqa: E501
     """Log in a user
 
@@ -39,11 +50,19 @@ def login_user(body):  # noqa: E501
     if correct_pw:
         token = auth.create_token(login_info["id"])
         ret = LoginUser200Response.from_dict({"token": token})
+        kudos_count = _get_kudos_count(login_info["id"])
         current_user = CurrentUser.from_dict({
-            "displayName": login_info["display_name"],
+            "id": str(login_info["id"]),
             "username": login_info["username"],
+            "displayName": login_info["display_name"],
+            "userType": login_info["user_type"],
+            "status": login_info["status"],
+            "kudosCount": kudos_count,
+            "trustScore": float(login_info["trust_score"]) if login_info.get("trust_score") is not None else None,
+            "avatarUrl": login_info.get("avatar_url"),
+            "avatarIconUrl": login_info.get("avatar_icon_url"),
         })
-        ret.User = current_user
+        ret.user = current_user
         return ret
     else:
         return ErrorModel(401, "Unauthorized"), 401

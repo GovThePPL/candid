@@ -15,9 +15,6 @@ from candid import util
 
 from candid.controllers import db
 from candid.controllers.helpers.auth import authorization, token_to_user
-from camel_converter import dict_to_camel
-
-
 def _get_user_card(user_id):
     """Helper to fetch and return a User model for API responses."""
     user = db.execute_query("""
@@ -25,7 +22,12 @@ def _get_user_card(user_id):
         FROM users WHERE id = %s
     """, (user_id,), fetchone=True)
     if user is not None:
-        return User.from_dict(dict_to_camel(user))
+        return User(
+            id=str(user['id']),
+            username=user['username'],
+            display_name=user['display_name'],
+            status=user['status'],
+        )
     return None
 
 
@@ -335,3 +337,263 @@ def update_survey(survey_id, body, token_info=None):  # noqa: E501
     db.execute_query(query, tuple(params))
 
     return _build_survey_with_nested_data(survey_id)
+
+
+def create_pairwise_survey(body, token_info=None):  # noqa: E501
+    """Create a pairwise comparison survey
+
+     # noqa: E501
+
+    :param body: CreatePairwiseSurveyRequest
+    :type body: dict | bytes
+
+    :rtype: Union[dict, Tuple[dict, int], Tuple[dict, int, Dict[str, str]]
+    """
+    authorized, auth_err = authorization("admin", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    user = token_to_user(token_info)
+
+    # Parse request body
+    if connexion.request.is_json:
+        body = connexion.request.get_json()
+
+    survey_title = body.get('surveyTitle')
+    items = body.get('items', [])
+    comparison_question = body.get('comparisonQuestion', "Which better describes this group's views?")
+    polis_conversation_id = body.get('polisConversationId')
+    start_time = body.get('startTime')
+    end_time = body.get('endTime')
+
+    # Validate items
+    if not items or len(items) < 2:
+        return ErrorModel(400, "At least 2 items are required"), 400
+
+    if len(items) > 20:
+        return ErrorModel(400, "Maximum 20 items allowed"), 400
+
+    # Generate survey ID
+    survey_id = str(uuid.uuid4())
+
+    # Insert survey with survey_type='pairwise'
+    db.execute_query("""
+        INSERT INTO survey (id, creator_user_id, survey_title, survey_type, comparison_question,
+                           polis_conversation_id, start_time, end_time, status)
+        VALUES (%s, %s, %s, 'pairwise', %s, %s, %s, %s, 'active')
+    """, (
+        survey_id,
+        user.id,
+        survey_title,
+        comparison_question,
+        polis_conversation_id,
+        start_time,
+        end_time
+    ))
+
+    # Insert pairwise items
+    for i, item_text in enumerate(items):
+        item_id = str(uuid.uuid4())
+        db.execute_query("""
+            INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
+            VALUES (%s, %s, %s, %s)
+        """, (item_id, survey_id, item_text, i))
+
+    # Return the created survey
+    return _build_pairwise_survey(survey_id), 201
+
+
+def _build_pairwise_survey(survey_id):
+    """Build a pairwise survey response object."""
+    survey_row = db.execute_query("""
+        SELECT id, survey_title, comparison_question, polis_conversation_id,
+               start_time, end_time, status, created_time
+        FROM survey WHERE id = %s
+    """, (survey_id,), fetchone=True)
+
+    if survey_row is None:
+        return None
+
+    # Get items
+    item_rows = db.execute_query("""
+        SELECT id, item_text, item_order
+        FROM pairwise_item WHERE survey_id = %s
+        ORDER BY item_order
+    """, (survey_id,))
+
+    items = []
+    for row in (item_rows or []):
+        items.append({
+            "id": str(row['id']),
+            "text": row['item_text'],
+            "order": row['item_order']
+        })
+
+    return {
+        "id": str(survey_row['id']),
+        "surveyTitle": survey_row['survey_title'],
+        "comparisonQuestion": survey_row['comparison_question'],
+        "polisConversationId": survey_row['polis_conversation_id'],
+        "items": items,
+        "startTime": survey_row['start_time'].isoformat() if survey_row['start_time'] else None,
+        "endTime": survey_row['end_time'].isoformat() if survey_row['end_time'] else None,
+        "status": survey_row['status'],
+        "createdTime": survey_row['created_time'].isoformat() if survey_row['created_time'] else None
+    }
+
+
+def get_pairwise_rankings(survey_id, group_id=None, token_info=None):  # noqa: E501
+    """Get win-count rankings from pairwise survey
+
+     # noqa: E501
+
+    :param survey_id: Survey ID
+    :type survey_id: str
+    :param group_id: Optional Polis group ID filter
+    :type group_id: str
+
+    :rtype: Union[dict, Tuple[dict, int], Tuple[dict, int, Dict[str, str]]
+    """
+    authorized, auth_err = authorization("admin", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    # Check survey exists and is pairwise type
+    survey = db.execute_query("""
+        SELECT id, survey_type, polis_conversation_id
+        FROM survey WHERE id = %s
+    """, (survey_id,), fetchone=True)
+
+    if survey is None:
+        return ErrorModel(404, "Survey not found"), 404
+
+    if survey['survey_type'] != 'pairwise':
+        return ErrorModel(400, "Survey is not a pairwise survey"), 400
+
+    polis_conv_id = survey['polis_conversation_id']
+
+    # Get total response count
+    total_responses = db.execute_query("""
+        SELECT COUNT(*) as count FROM pairwise_response WHERE survey_id = %s
+    """, (survey_id,), fetchone=True)['count']
+
+    # If group_id provided and we have a polis conversation, filter by group membership
+    user_id_filter = None
+    if group_id and polis_conv_id:
+        user_id_filter = _get_group_user_ids(polis_conv_id, group_id)
+        if user_id_filter is None:
+            # Group not found
+            return ErrorModel(404, "Group not found"), 404
+
+    # Compute rankings
+    rankings = _compute_pairwise_rankings(survey_id, user_id_filter)
+
+    return {
+        "surveyId": str(survey_id),
+        "totalResponses": total_responses,
+        "rankings": rankings
+    }
+
+
+def _get_group_user_ids(polis_conv_id, group_id):
+    """Get user IDs for members of a specific Polis group."""
+    from candid.controllers.helpers.polis_client import get_client, PolisError
+
+    try:
+        client = get_client()
+        math_data = client.get_math_data(polis_conv_id)
+
+        if not math_data:
+            return None
+
+        pca_wrapper = math_data.get("pca", {})
+        pca_data = pca_wrapper.get("asPOJO", {}) if isinstance(pca_wrapper, dict) else {}
+        group_clusters = pca_data.get("group-clusters", [])
+
+        # Get pids for this group
+        try:
+            gid = int(group_id)
+            if gid >= len(group_clusters) or not group_clusters[gid]:
+                return None
+            member_pids = group_clusters[gid].get("members", [])
+        except ValueError:
+            return None
+
+        if not member_pids:
+            return []
+
+        # Map pids to user_ids via polis_participant table
+        user_rows = db.execute_query("""
+            SELECT DISTINCT user_id
+            FROM polis_participant
+            WHERE polis_conversation_id = %s
+              AND polis_pid = ANY(%s)
+        """, (polis_conv_id, member_pids))
+
+        return [str(u["user_id"]) for u in (user_rows or [])]
+
+    except PolisError:
+        return None
+
+
+def _compute_pairwise_rankings(survey_id, user_id_filter=None):
+    """Compute win counts for each item in a pairwise survey."""
+    # Get all items for this survey
+    items = db.execute_query("""
+        SELECT id, item_text FROM pairwise_item WHERE survey_id = %s ORDER BY item_order
+    """, (survey_id,))
+
+    if not items:
+        return []
+
+    # Build rankings with win counts
+    rankings = []
+    for item in items:
+        item_id = str(item['id'])
+
+        # Count wins (where this item was the winner)
+        if user_id_filter is not None and len(user_id_filter) > 0:
+            # Filter by specific users
+            win_count = db.execute_query("""
+                SELECT COUNT(*) as count
+                FROM pairwise_response
+                WHERE survey_id = %s AND winner_item_id = %s AND user_id = ANY(%s)
+            """, (survey_id, item_id, user_id_filter), fetchone=True)['count']
+
+            # Count total comparisons involving this item
+            comparison_count = db.execute_query("""
+                SELECT COUNT(*) as count
+                FROM pairwise_response
+                WHERE survey_id = %s AND (winner_item_id = %s OR loser_item_id = %s) AND user_id = ANY(%s)
+            """, (survey_id, item_id, item_id, user_id_filter), fetchone=True)['count']
+        elif user_id_filter is not None:
+            # Empty user list means no responses to count
+            win_count = 0
+            comparison_count = 0
+        else:
+            # No filter - count all
+            win_count = db.execute_query("""
+                SELECT COUNT(*) as count
+                FROM pairwise_response
+                WHERE survey_id = %s AND winner_item_id = %s
+            """, (survey_id, item_id), fetchone=True)['count']
+
+            comparison_count = db.execute_query("""
+                SELECT COUNT(*) as count
+                FROM pairwise_response
+                WHERE survey_id = %s AND (winner_item_id = %s OR loser_item_id = %s)
+            """, (survey_id, item_id, item_id), fetchone=True)['count']
+
+        rankings.append({
+            "itemId": item_id,
+            "itemText": item['item_text'],
+            "winCount": win_count,
+            "comparisonCount": comparison_count
+        })
+
+    # Sort by win count descending and assign ranks
+    rankings.sort(key=lambda r: r['winCount'], reverse=True)
+    for i, r in enumerate(rankings):
+        r['rank'] = i + 1
+
+    return rankings

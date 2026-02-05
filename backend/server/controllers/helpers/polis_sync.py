@@ -366,7 +366,15 @@ def sync_vote(payload: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
     """, (position_id,))
 
     if not comments:
-        return True, None  # No Polis comments to vote on (position not synced yet)
+        # Check if the position exists - if so, it hasn't been mapped to Polis yet
+        # and we should retry later; if not, the position was deleted and we can skip
+        position_exists = db.execute_query(
+            "SELECT 1 FROM position WHERE id = %s AND status = 'active'",
+            (position_id,), fetchone=True
+        )
+        if position_exists:
+            return False, "Position not yet synced to Polis (no polis_comment mapping)"
+        return True, None  # Position doesn't exist or is inactive, skip
 
     synced_count = 0
     errors = []
@@ -486,6 +494,8 @@ def _get_unvoted_positions_from_db(
         SELECT p.id, p.statement, p.category_id, p.creator_user_id,
                u.display_name as creator_display_name, u.username as creator_username,
                u.status as creator_status, u.trust_score as creator_trust_score,
+               u.avatar_url as creator_avatar_url,
+               u.avatar_icon_url as creator_avatar_icon_url,
                COALESCE((
                    SELECT COUNT(*) FROM kudos k
                    WHERE k.receiver_user_id = u.id AND k.status = 'sent'
@@ -528,6 +538,8 @@ def _get_unvoted_positions_from_db(
             "creator_status": p["creator_status"],
             "creator_kudos_count": p["creator_kudos_count"],
             "creator_trust_score": float(p["creator_trust_score"]) if p.get("creator_trust_score") is not None else None,
+            "creator_avatar_url": p.get("creator_avatar_url"),
+            "creator_avatar_icon_url": p.get("creator_avatar_icon_url"),
             "user_position_id": str(p["user_position_id"]) if p.get("user_position_id") else None,
             "weight": category_priorities.get(str(p["category_id"]), 1),
         })
@@ -547,7 +559,7 @@ def _polis_comment_to_position(
     # Look up the position from our mapping table
     mapping = db.execute_query("""
         SELECT pc.position_id, p.statement, p.creator_user_id,
-               u.display_name, u.username, u.status, u.trust_score,
+               u.display_name, u.username, u.status, u.trust_score, u.avatar_url, u.avatar_icon_url,
                COALESCE((
                    SELECT COUNT(*) FROM kudos k
                    WHERE k.receiver_user_id = u.id AND k.status = 'sent'
@@ -586,6 +598,8 @@ def _polis_comment_to_position(
         "creator_status": mapping["status"],
         "creator_kudos_count": mapping["kudos_count"],
         "creator_trust_score": float(mapping["trust_score"]) if mapping.get("trust_score") is not None else None,
+        "creator_avatar_url": mapping.get("avatar_url"),
+        "creator_avatar_icon_url": mapping.get("avatar_icon_url"),
         "user_position_id": str(mapping["user_position_id"]) if mapping.get("user_position_id") else None,
     }
 

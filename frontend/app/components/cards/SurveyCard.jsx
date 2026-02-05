@@ -43,7 +43,7 @@ const SurveyCard = forwardRef(function SurveyCard({
     }
   }, [onRespond, survey, flashOptions])
 
-  // Handle left/down swipe - skip survey
+  // Handle down swipe - skip survey
   const handleSkip = useCallback(() => {
     onSkip?.()
   }, [onSkip])
@@ -51,7 +51,7 @@ const SurveyCard = forwardRef(function SurveyCard({
   // Expose swipe methods via ref
   useImperativeHandle(ref, () => ({
     swipeRight: () => swipeableRef.current?.swipeRight?.(),
-    swipeLeft: () => swipeableRef.current?.swipeLeft?.(),
+    swipeLeft: () => {}, // No-op for survey (only right and down swipes)
     swipeDown: () => swipeableRef.current?.swipeDown?.(),
     swipeUp: () => {}, // No-op for survey
   }), [])
@@ -76,9 +76,9 @@ const SurveyCard = forwardRef(function SurveyCard({
     <SwipeableCard
       ref={swipeableRef}
       onSwipeRight={handleSwipeRight}
-      onSwipeLeft={handleSkip}
       onSwipeDown={handleSkip}
       enableVerticalSwipe={true}
+      rightSwipeAsSubmit={true}
       isBackCard={isBackCard}
       backCardAnimatedValue={backCardAnimatedValue}
     >
@@ -136,7 +136,7 @@ const SurveyCard = forwardRef(function SurveyCard({
           ) : (
             <Text style={styles.footerText}>Select an option</Text>
           )}
-          <Text style={styles.skipText}>Swipe left to skip</Text>
+          <Text style={styles.skipText}>Swipe down to skip</Text>
         </View>
       </View>
     </SwipeableCard>

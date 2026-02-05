@@ -43,7 +43,7 @@ const DemographicCard = forwardRef(function DemographicCard({
     }
   }, [onRespond, demographic, flashOptions])
 
-  // Handle left/down swipe - skip demographic
+  // Handle down swipe - skip demographic
   const handleSkip = useCallback(() => {
     onSkip?.()
   }, [onSkip])
@@ -51,7 +51,7 @@ const DemographicCard = forwardRef(function DemographicCard({
   // Expose swipe methods via ref
   useImperativeHandle(ref, () => ({
     swipeRight: () => swipeableRef.current?.swipeRight?.(),
-    swipeLeft: () => swipeableRef.current?.swipeLeft?.(),
+    swipeLeft: () => {}, // No-op for demographic (only right and down swipes)
     swipeDown: () => swipeableRef.current?.swipeDown?.(),
     swipeUp: () => {}, // No-op for demographic
   }), [])
@@ -74,9 +74,9 @@ const DemographicCard = forwardRef(function DemographicCard({
     <SwipeableCard
       ref={swipeableRef}
       onSwipeRight={handleSwipeRight}
-      onSwipeLeft={handleSkip}
       onSwipeDown={handleSkip}
       enableVerticalSwipe={true}
+      rightSwipeAsSubmit={true}
       isBackCard={isBackCard}
       backCardAnimatedValue={backCardAnimatedValue}
     >
@@ -131,7 +131,7 @@ const DemographicCard = forwardRef(function DemographicCard({
           ) : (
             <Text style={styles.footerText}>Select an option</Text>
           )}
-          <Text style={styles.skipText}>Swipe left to skip</Text>
+          <Text style={styles.skipText}>Swipe down to skip</Text>
         </View>
       </View>
     </SwipeableCard>

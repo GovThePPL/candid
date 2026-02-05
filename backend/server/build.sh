@@ -35,8 +35,12 @@ if [ $? -ne 0 ]; then
 fi
 echo "Generation completed successfully"
 
-cp -r ./controllers/ generated/candid/controllers/
+cp -r ./controllers/* generated/candid/controllers/
 echo "Copied controllers from ./controllers/"
+
+# Copy custom __main__.py with CORS configuration
+cp ./controllers/__main__.py generated/candid/__main__.py
+echo "Copied custom __main__.py with CORS"
 
 pipreqs --force ./generated/
 echo "generated requirements.txt"

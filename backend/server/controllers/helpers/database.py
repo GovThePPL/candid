@@ -1,6 +1,7 @@
 import psycopg2
 import psycopg2.extras
 
+
 class Database:
 	def __init__(self, config):
 		self.db = None
@@ -22,7 +23,8 @@ class Database:
 			return None
 
 		try:
-			is_select = query.strip().upper().startswith("SELECT")
+			query_upper = query.strip().upper()
+			is_select = query_upper.startswith("SELECT") or query_upper.startswith("WITH")
 			with self.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
 				if executemany:
 					cur.executemany(query, params)

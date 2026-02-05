@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "shelfie_app",
-    "slug": "shelfie_app",
-    "scheme": "shelfieapp",
+    "name": "Candid",
+    "slug": "candid",
+    "scheme": "candid",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -15,17 +15,18 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.shelfie-app"
+      "bundleIdentifier": "com.candid.app"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.anonymous.shelfie_app"
+      "package": "com.candid.app"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
     },
     "plugins": [
       "expo-router"

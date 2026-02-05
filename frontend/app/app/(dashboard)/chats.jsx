@@ -1,19 +1,15 @@
-import { StyleSheet, View, Text, FlatList, TouchableOpacity, Image, RefreshControl, ActivityIndicator } from 'react-native'
+import { StyleSheet, View, Text, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useCallback, useState, useEffect, useContext } from 'react'
+import { useCallback, useState, useEffect, useContext, useRef } from 'react'
 import { useRouter } from 'expo-router'
-import { Ionicons } from '@expo/vector-icons'
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { Colors } from '../../constants/Colors'
 import Header from '../../components/Header'
+import CardShell from '../../components/CardShell'
+import PositionInfoCard from '../../components/PositionInfoCard'
 import { UserContext } from '../../contexts/UserContext'
 import api from '../../lib/api'
-
-const getTrustBadgeColor = (trustScore) => {
-  if (trustScore == null || trustScore < 0.35) return Colors.trustBadgeGray
-  if (trustScore < 0.6) return Colors.trustBadgeBronze
-  if (trustScore < 0.9) return Colors.trustBadgeSilver
-  return Colors.trustBadgeGold
-}
+import { CacheManager, CacheKeys, CacheDurations } from '../../lib/cache'
 
 const formatDate = (dateString) => {
   if (!dateString) return ''
@@ -33,101 +29,152 @@ const formatDate = (dateString) => {
   }
 }
 
-const getEndTypeLabel = (endType) => {
+const getEndTypeLabel = (endType, endedByUserId, currentUserId) => {
   switch (endType) {
     case 'mutual_agreement':
     case 'agreed_closure':
-      return { label: 'Agreed', color: Colors.agree, icon: 'checkmark-circle' }
+      return { label: 'Agreed', color: Colors.agree, icon: 'handshake-outline', iconType: 'material-community' }
     case 'disagreement':
       return { label: 'Disagreed', color: Colors.disagree, icon: 'close-circle' }
     case 'timeout':
       return { label: 'Timed Out', color: Colors.pass, icon: 'time' }
     case 'abandoned':
     case 'user_exit':
+      if (endedByUserId && currentUserId) {
+        if (endedByUserId === currentUserId) {
+          return { label: 'You left', color: Colors.pass, icon: 'exit-outline' }
+        } else {
+          return { label: 'They left', color: Colors.pass, icon: 'exit-outline' }
+        }
+      }
       return { label: 'Ended', color: Colors.pass, icon: 'exit' }
     default:
       return { label: 'Active', color: Colors.primary, icon: 'chatbubbles' }
   }
 }
 
-function ChatHistoryCard({ chat, onPress }) {
-  const { position, otherUser, agreedClosure, startTime, endTime, endType, status } = chat
-  const endTypeInfo = getEndTypeLabel(endType)
-  const isActive = status === 'active' && !endTime
+// Kudos medallion component
+function KudosMedallion({ active, size = 32 }) {
+  const goldColor = active ? '#FFD700' : '#9CA3AF'
+  const starColor = active ? '#B8860B' : '#6B7280'
+  const ringColor = active ? '#DAA520' : '#D1D5DB'
 
   return (
-    <TouchableOpacity style={styles.chatCard} onPress={onPress} activeOpacity={0.7}>
-      {/* Time Header */}
-      <View style={styles.timeHeader}>
-        <Text style={styles.timeText}>{formatDate(endTime || startTime)}</Text>
-        <View style={[styles.statusBadge, { backgroundColor: endTypeInfo.color + '20' }]}>
-          <Ionicons name={endTypeInfo.icon} size={14} color={endTypeInfo.color} />
-          <Text style={[styles.statusText, { color: endTypeInfo.color }]}>{endTypeInfo.label}</Text>
+    <View style={[kudosMedallionStyles.container, { width: size, height: size }]}>
+      {/* Outer ring */}
+      <View style={[
+        kudosMedallionStyles.ring,
+        { borderColor: ringColor, width: size, height: size, borderRadius: size / 2 }
+      ]}>
+        {/* Inner medallion */}
+        <View style={[
+          kudosMedallionStyles.medallion,
+          { backgroundColor: goldColor, width: size - 6, height: size - 6, borderRadius: (size - 6) / 2 }
+        ]}>
+          <Ionicons name="star" size={size * 0.5} color={starColor} />
         </View>
       </View>
+    </View>
+  )
+}
 
-      {/* Position Card Section */}
-      <View style={styles.positionSection}>
-        <View style={styles.positionHeader}>
-          {position?.location?.code && (
-            <View style={styles.locationBadge}>
-              <Text style={styles.locationCode}>{position.location.code}</Text>
-            </View>
-          )}
-          {position?.category?.name && (
-            <Text style={styles.categoryName}>{position.category.name}</Text>
-          )}
-        </View>
-        <Text style={styles.positionStatement} numberOfLines={3}>
-          {position?.statement}
-        </Text>
-      </View>
+const kudosMedallionStyles = StyleSheet.create({
+  container: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ring: {
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  medallion: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+})
 
-      {/* Agreed Closure Section */}
-      {agreedClosure && (
-        <View style={styles.closureSection}>
-          <View style={styles.closureHeader}>
-            <Ionicons name="checkmark-circle" size={16} color={Colors.agree} />
-            <Text style={styles.closureLabel}>Agreed Closure</Text>
+function MetaBadgeIcon({ endTypeInfo }) {
+  if (endTypeInfo.iconType === 'material-community') {
+    return <MaterialCommunityIcons name={endTypeInfo.icon} size={14} color={endTypeInfo.color} />
+  }
+  return <Ionicons name={endTypeInfo.icon} size={14} color={endTypeInfo.color} />
+}
+
+function ChatHistoryCard({ chat, onPress, onSendKudos, currentUserId }) {
+  const { position, otherUser, agreedClosure, startTime, endTime, endType, status, endedByUserId, kudosSent, kudosReceived } = chat
+  const endTypeInfo = getEndTypeLabel(endType, endedByUserId, currentUserId)
+  const isActive = status === 'active' && !endTime
+  const showKudosSection = agreedClosure != null
+
+  const positionWithOtherUser = position ? { ...position, creator: otherUser } : position
+
+  const closureBottomSection = agreedClosure ? (
+    <View>
+      <Text style={styles.closureText} numberOfLines={2}>{agreedClosure?.content}</Text>
+
+      {showKudosSection && (
+        <View style={styles.kudosRow}>
+          <View style={styles.kudosLeft}>
+            {kudosReceived ? (
+              <View style={styles.kudosReceivedContainer}>
+                <KudosMedallion active={true} size={28} />
+                <Text style={styles.kudosReceivedText}>{otherUser?.displayName || 'Someone'} sent you kudos</Text>
+              </View>
+            ) : (
+              <View style={styles.kudosPlaceholder} />
+            )}
           </View>
-          <Text style={styles.closureText} numberOfLines={2}>{agreedClosure}</Text>
+
+          <TouchableOpacity
+            style={[styles.kudosPillButton, kudosSent && styles.kudosPillButtonSent]}
+            onPress={(e) => {
+              e.stopPropagation()
+              if (!kudosSent && onSendKudos) {
+                onSendKudos(chat.id)
+              }
+            }}
+            disabled={kudosSent}
+            activeOpacity={kudosSent ? 1 : 0.7}
+          >
+            <KudosMedallion active={kudosSent} size={22} />
+            <Text style={[styles.kudosPillText, kudosSent && styles.kudosPillTextSent]}>
+              {kudosSent ? 'Sent!' : 'Send Kudos'}
+            </Text>
+          </TouchableOpacity>
         </View>
       )}
+    </View>
+  ) : null
 
-      {/* Other User Section */}
-      <View style={styles.userSection}>
-        <Text style={styles.chatWithLabel}>Chat with</Text>
-        <View style={styles.userInfo}>
-          <View style={styles.avatarContainer}>
-            {otherUser?.avatarUrl ? (
-              <Image source={{ uri: otherUser.avatarUrl }} style={styles.avatar} />
-            ) : (
-              <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                <Text style={styles.avatarInitial}>
-                  {otherUser?.displayName?.[0]?.toUpperCase() || '?'}
-                </Text>
-              </View>
-            )}
-            {otherUser?.kudosCount > 0 && (
-              <View style={[styles.kudosBadge, { backgroundColor: getTrustBadgeColor(otherUser?.trustScore) }]}>
-                <Ionicons name="star" size={8} color={Colors.primary} />
-                <Text style={styles.kudosCount}>{otherUser.kudosCount}</Text>
-              </View>
-            )}
-          </View>
-          <View style={styles.userText}>
-            <Text style={styles.displayName}>{otherUser?.displayName || 'Anonymous'}</Text>
-            <Text style={styles.username}>@{otherUser?.username || 'anonymous'}</Text>
-          </View>
+  return (
+    <View style={styles.cardWrapper}>
+      {/* Metadata row */}
+      <View style={styles.chatMetaRow}>
+        <View style={styles.metaDateRow}>
+          <Text style={styles.metaDate}>{formatDate(endTime || startTime)}</Text>
+          {isActive && <View style={styles.activeDot} />}
         </View>
-        {isActive && (
-          <View style={styles.activeBadge}>
-            <View style={styles.activeDot} />
-            <Text style={styles.activeText}>Active now</Text>
-          </View>
-        )}
+        <View style={[styles.metaBadge, { backgroundColor: endTypeInfo.color + '20' }]}>
+          <MetaBadgeIcon endTypeInfo={endTypeInfo} />
+          <Text style={[styles.metaBadgeText, { color: endTypeInfo.color }]}>{endTypeInfo.label}</Text>
+        </View>
       </View>
-    </TouchableOpacity>
+
+      <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+        <CardShell
+          accentColor={agreedClosure ? Colors.agree : Colors.cardBackground}
+          bottomSection={closureBottomSection}
+          bottomStyle={styles.closureBottom}
+        >
+          <PositionInfoCard
+            position={positionWithOtherUser}
+            authorSubtitle="username"
+            numberOfLines={3}
+          />
+        </CardShell>
+      </TouchableOpacity>
+    </View>
   )
 }
 
@@ -138,9 +185,13 @@ export default function Chats() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState(null)
+  const [fromCache, setFromCache] = useState(false)
+  const cachedMetadataRef = useRef(null)
 
   const fetchChats = useCallback(async (isRefresh = false) => {
     if (!user?.id) return
+
+    const cacheKey = CacheKeys.userChats(user.id)
 
     try {
       if (isRefresh) {
@@ -150,10 +201,66 @@ export default function Chats() {
       }
       setError(null)
 
-      const data = await api.chat.getUserChats(user.id, { limit: 50 })
-      setChats(data)
+      // Try to show cached data immediately (stale-while-revalidate)
+      if (!isRefresh) {
+        const cached = await CacheManager.get(cacheKey)
+        if (cached?.data) {
+          setChats(cached.data)
+          setFromCache(true)
+          setLoading(false)
+          cachedMetadataRef.current = cached.metadata
+        }
+      }
+
+      // Check metadata to see if we need to fetch fresh data
+      const shouldFetch = await (async () => {
+        if (isRefresh) return true // Always fetch on pull-to-refresh
+
+        try {
+          const metadata = await api.chat.getUserChatsMetadata(user.id)
+          const cached = await CacheManager.get(cacheKey)
+
+          // No cache - need to fetch
+          if (!cached) return true
+
+          // Check if count changed
+          if (metadata.count !== cached.metadata?.count) return true
+
+          // Check if last activity time changed
+          if (metadata.lastActivityTime !== cached.metadata?.lastActivityTime) return true
+
+          // Cache is fresh - no need to fetch
+          return false
+        } catch {
+          // If metadata check fails, fetch full data to be safe
+          return true
+        }
+      })()
+
+      if (shouldFetch) {
+        const data = await api.chat.getUserChats(user.id, { limit: 50 })
+        setChats(data)
+        setFromCache(false)
+
+        // Get fresh metadata for cache
+        let metadata = null
+        try {
+          metadata = await api.chat.getUserChatsMetadata(user.id)
+        } catch {
+          metadata = { count: data.length, lastActivityTime: new Date().toISOString() }
+        }
+
+        // Cache the result
+        await CacheManager.set(cacheKey, data, { metadata })
+      }
     } catch (err) {
       console.error('Failed to fetch chats:', err)
+      // If we have cached data, show it with a warning
+      const cached = await CacheManager.get(cacheKey)
+      if (cached?.data) {
+        setChats(cached.data)
+        setFromCache(true)
+      }
       setError(err.message || 'Failed to load chat history')
     } finally {
       setLoading(false)
@@ -170,6 +277,22 @@ export default function Chats() {
     router.push(`/chat/${chat.id}?from=chats`)
   }, [router])
 
+  const handleSendKudos = useCallback(async (chatId) => {
+    try {
+      await api.chat.sendKudos(chatId)
+      // Update local state to reflect kudos sent
+      setChats(prev => prev.map(chat =>
+        chat.id === chatId ? { ...chat, kudosSent: true } : chat
+      ))
+      // Invalidate chat list cache since kudos status changed
+      if (user?.id) {
+        await CacheManager.invalidate(CacheKeys.userChats(user.id))
+      }
+    } catch (err) {
+      console.error('Failed to send kudos:', err)
+    }
+  }, [user?.id])
+
   const handleRefresh = useCallback(() => {
     fetchChats(true)
   }, [fetchChats])
@@ -178,8 +301,10 @@ export default function Chats() {
     <ChatHistoryCard
       chat={item}
       onPress={() => handleChatPress(item)}
+      onSendKudos={handleSendKudos}
+      currentUserId={user?.id}
     />
-  ), [handleChatPress])
+  ), [handleChatPress, handleSendKudos, user?.id])
 
   const keyExtractor = useCallback((item) => item.id, [])
 
@@ -316,33 +441,27 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
 
-  // Chat Card Styles
-  chatCard: {
-    backgroundColor: Colors.cardBackground,
-    borderRadius: 16,
+  // Card wrapper and metadata row
+  cardWrapper: {
     marginBottom: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
   },
-  timeHeader: {
+  chatMetaRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
+    marginBottom: 6,
+    paddingHorizontal: 4,
   },
-  timeText: {
-    fontSize: 13,
+  metaDateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  metaDate: {
+    fontSize: 12,
     color: Colors.pass,
   },
-  statusBadge: {
+  metaBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 8,
@@ -350,146 +469,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     gap: 4,
   },
-  statusText: {
+  metaBadgeText: {
     fontSize: 12,
     fontWeight: '600',
-  },
-
-  // Position Section
-  positionSection: {
-    padding: 16,
-    paddingBottom: 12,
-  },
-  positionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  locationBadge: {
-    backgroundColor: Colors.primaryMuted + '20',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-  },
-  locationCode: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.primary,
-  },
-  categoryName: {
-    fontSize: 12,
-    color: Colors.primary,
-  },
-  positionStatement: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#1a1a1a',
-    lineHeight: 22,
-  },
-
-  // Closure Section
-  closureSection: {
-    marginHorizontal: 16,
-    marginBottom: 12,
-    padding: 12,
-    backgroundColor: 'rgba(76, 175, 80, 0.1)',
-    borderRadius: 10,
-    borderLeftWidth: 3,
-    borderLeftColor: Colors.agree,
-  },
-  closureHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginBottom: 6,
-  },
-  closureLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.agree,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  closureText: {
-    fontSize: 14,
-    color: '#1a1a1a',
-    lineHeight: 20,
-  },
-
-  // User Section
-  userSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FAFAFA',
-    borderTopWidth: 1,
-    borderTopColor: Colors.cardBorder,
-  },
-  chatWithLabel: {
-    fontSize: 12,
-    color: Colors.pass,
-    marginRight: 10,
-  },
-  userInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  avatarContainer: {
-    position: 'relative',
-    marginRight: 8,
-  },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-  },
-  avatarPlaceholder: {
-    backgroundColor: Colors.primaryMuted,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarInitial: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  kudosBadge: {
-    position: 'absolute',
-    bottom: -2,
-    left: -2,
-    borderRadius: 6,
-    paddingHorizontal: 3,
-    paddingVertical: 1,
-    minWidth: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 1,
-  },
-  kudosCount: {
-    fontSize: 8,
-    fontWeight: '700',
-    color: Colors.primary,
-  },
-  userText: {
-    flexDirection: 'column',
-  },
-  displayName: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1a1a1a',
-  },
-  username: {
-    fontSize: 11,
-    color: Colors.pass,
-  },
-  activeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginLeft: 'auto',
   },
   activeDot: {
     width: 8,
@@ -497,9 +479,62 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: Colors.agree,
   },
-  activeText: {
+
+  // Closure bottom section
+  closureBottom: {
+    padding: 12,
+  },
+  closureText: {
+    fontSize: 14,
+    color: '#fff',
+    lineHeight: 20,
+  },
+
+  // Kudos row styles (for agreed closures)
+  kudosRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  kudosLeft: {
+    flex: 1,
+    alignItems: 'flex-start',
+  },
+  kudosReceivedContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  kudosReceivedText: {
     fontSize: 12,
-    color: Colors.agree,
+    color: '#fff',
     fontWeight: '500',
+  },
+  kudosPlaceholder: {
+    width: 28,
+    height: 28,
+  },
+  kudosPillButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255, 248, 220, 0.25)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    width: 130,
+    justifyContent: 'center',
+  },
+  kudosPillButtonSent: {
+    backgroundColor: 'rgba(255, 215, 0, 0.3)',
+  },
+  kudosPillText: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '600',
+  },
+  kudosPillTextSent: {
+    color: '#FFD700',
   },
 })

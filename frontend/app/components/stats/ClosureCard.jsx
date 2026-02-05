@@ -69,7 +69,7 @@ export default function ClosureCard({ closure, onShowMap, onViewStatements }) {
       <View style={styles.greenSection}>
         <View style={styles.closureRow}>
           <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
-          <Text style={styles.closureText}>"{closureText?.content || closureText}"</Text>
+          <Text style={styles.closureText}>"{closureText?.content}"</Text>
         </View>
         <TouchableOpacity style={styles.statementsButton} onPress={onViewStatements}>
           <Ionicons name="list-outline" size={14} color={Colors.agree} />

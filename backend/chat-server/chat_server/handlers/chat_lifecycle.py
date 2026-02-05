@@ -136,6 +136,9 @@ def register_lifecycle_handlers(sio: socketio.AsyncServer) -> None:
         # Get export data from Redis
         export_data = await redis_store.get_chat_export_data(chat_id)
 
+        # Add who ended the chat
+        export_data["endedByUserId"] = user_id
+
         # Export to PostgreSQL
         success = await chat_exporter.export_chat(
             chat_id=chat_id,

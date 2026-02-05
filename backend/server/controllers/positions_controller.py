@@ -23,7 +23,6 @@ from candid.controllers.helpers.polis_sync import (
 )
 from candid.controllers.helpers.polis_client import get_client, PolisError
 
-from camel_converter import dict_to_camel
 from candid.controllers.stats_controller import _get_cached_group_labels
 import uuid
 
@@ -42,8 +41,31 @@ def _get_user_card(user_id):
         WHERE u.id = %s
     """, (user_id,), fetchone=True)
     if user is not None:
-        return User.from_dict(dict_to_camel(user))
+        return User(
+            id=str(user['id']),
+            username=user['username'],
+            display_name=user['display_name'],
+            status=user['status'],
+            kudos_count=user.get('kudos_count', 0),
+        )
     return None
+
+def _row_to_user_position(row):
+    return UserPosition(
+        id=str(row['id']),
+        user_id=str(row['user_id']),
+        position_id=str(row['position_id']),
+        location_id=str(row['location_id']) if row.get('location_id') else None,
+        category_id=str(row['category_id']) if row.get('category_id') else None,
+        category_name=row.get('category_name'),
+        location_name=row.get('location_name'),
+        statement=row.get('statement'),
+        status=row['status'],
+        agree_count=row.get('agree_count', 0),
+        disagree_count=row.get('disagree_count', 0),
+        pass_count=row.get('pass_count', 0),
+        chat_count=row.get('chat_count', 0),
+    )
 
 def create_position(body, token_info=None):  # noqa: E501
     """Create a new position statement
@@ -166,9 +188,17 @@ def get_position_by_id(position_id, token_info=None):  # noqa: E501
         return ErrorModel(404, "Not Found"), 404
 
     user = _get_user_card(position['creator_user_id'])
-    ret = Position.from_dict(dict_to_camel(position))
-
-    ret.creator = user
+    ret = Position(
+        id=str(position['id']),
+        statement=position['statement'],
+        category_id=str(position['category_id']) if position.get('category_id') else None,
+        status=position['status'],
+        agree_count=position.get('agree_count', 0),
+        disagree_count=position.get('disagree_count', 0),
+        pass_count=position.get('pass_count', 0),
+        chat_count=position.get('chat_count', 0),
+        creator=user,
+    )
 
     return ret
 
@@ -327,7 +357,7 @@ def adopt_position(position_id, token_info=None):  # noqa: E501
         WHERE up.id = %s
     """, (user_position_id,), fetchone=True)
 
-    return UserPosition.from_dict(dict_to_camel(ret)), 201
+    return _row_to_user_position(ret), 201
 
 
 def search_similar_positions(body, token_info=None):  # noqa: E501
@@ -619,8 +649,8 @@ def get_position_agreed_closures(position_id, token_info=None):  # noqa: E501
     closures = []
     for closure in closures_raw:
         log = closure.get('log') or {}
-        agreed_closure = log.get('agreed_closure', '')
-        agreed_positions = log.get('agreed_positions', [])
+        agreed_closure = log.get('agreedClosure') if isinstance(log.get('agreedClosure'), dict) else None
+        agreed_positions = log.get('agreedPositions', [])
 
         # Determine mutual kudos
         mutual_kudos = closure['ph_sent_kudos'] and closure['iu_sent_kudos']

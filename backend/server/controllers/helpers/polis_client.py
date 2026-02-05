@@ -114,8 +114,9 @@ class PolisClient:
             logger.warning(f"Polis API timeout: {e}")
             raise PolisUnavailableError(f"Polis API timeout: {e}")
         except requests.exceptions.HTTPError as e:
-            logger.error(f"Polis API error: {e}, Response: {e.response.text if e.response else 'N/A'}")
-            raise PolisError(f"Polis API error: {e}", status_code=e.response.status_code if e.response else None)
+            resp = e.response
+            logger.error(f"Polis API error: {e}, Response: {resp.text if resp is not None else 'N/A'}")
+            raise PolisError(f"Polis API error: {e}", status_code=resp.status_code if resp is not None else None)
         except requests.exceptions.RequestException as e:
             logger.error(f"Polis request failed: {e}")
             raise PolisError(f"Polis request failed: {e}")
@@ -228,13 +229,13 @@ class PolisClient:
         # Get new token via participationInit
         try:
             result = self.initialize_participant(conversation_id, xid)
-            token = result.get('auth', {}).get('token')
+            token = result.get('auth', {}).get('token') if result.get('auth') else None
             pid = result.get('ptpt', {}).get('pid') if result.get('ptpt') else None
 
-            if token:
-                # Store token in database
-                token_issued = now
-                token_expires = now + timedelta(days=TOKEN_EXPIRY_DAYS)
+            # Store participant in database (even without token - Polis may not require auth)
+            if pid is not None:
+                token_issued = now if token else None
+                token_expires = now + timedelta(days=TOKEN_EXPIRY_DAYS) if token else None
 
                 db.execute_query("""
                     INSERT INTO polis_participant
@@ -242,23 +243,24 @@ class PolisClient:
                      polis_jwt_token, token_issued_at, token_expires_at)
                     VALUES (uuid_generate_v4(), %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (user_id, polis_conversation_id) DO UPDATE SET
-                        polis_jwt_token = EXCLUDED.polis_jwt_token,
                         polis_pid = COALESCE(EXCLUDED.polis_pid, polis_participant.polis_pid),
-                        token_issued_at = EXCLUDED.token_issued_at,
-                        token_expires_at = EXCLUDED.token_expires_at
+                        polis_jwt_token = COALESCE(EXCLUDED.polis_jwt_token, polis_participant.polis_jwt_token),
+                        token_issued_at = COALESCE(EXCLUDED.token_issued_at, polis_participant.token_issued_at),
+                        token_expires_at = COALESCE(EXCLUDED.token_expires_at, polis_participant.token_expires_at)
                 """, (user_id, conversation_id, xid, pid, token, token_issued, token_expires))
 
-                # Cache in memory
+                logger.info(f"Stored participant pid={pid} for XID {xid} in conversation {conversation_id}")
+
+            if token:
+                # Cache token in memory
                 with self._xid_tokens_lock:
                     if conversation_id not in self._xid_tokens:
                         self._xid_tokens[conversation_id] = {}
                     self._xid_tokens[conversation_id][xid] = token
-
-                logger.info(f"Stored new token for XID {xid} in conversation {conversation_id}")
                 return token
 
-            # If no token returned, the user might already exist
-            logger.debug(f"No token returned for XID {xid} in conversation {conversation_id}")
+            # No token needed - Polis doesn't require auth for this conversation
+            logger.debug(f"No token required for XID {xid} in conversation {conversation_id}")
             return ""
 
         except PolisError as e:
@@ -435,7 +437,21 @@ class PolisClient:
             logger.debug(f"Created comment tid={tid} in conversation {conversation_id}")
             return tid
         except PolisError as e:
-            logger.error(f"Failed to create comment: {e}")
+            if e.status_code == 409:
+                # Comment already exists - look up the existing tid by matching text
+                logger.info(f"Comment already exists in conversation {conversation_id}, looking up tid")
+                try:
+                    comments = self.get_comments(conversation_id)
+                    for comment in comments:
+                        if comment.get("txt") == text:
+                            tid = comment.get("tid")
+                            logger.info(f"Found existing comment tid={tid} for duplicate text")
+                            return tid
+                    logger.warning(f"409 but could not find matching comment text in conversation {conversation_id}")
+                except PolisError as lookup_err:
+                    logger.error(f"Failed to look up existing comments after 409: {lookup_err}")
+            else:
+                logger.error(f"Failed to create comment: {e}")
             return None
 
     # ========== Vote Operations (XID Auth) ==========
@@ -568,6 +584,128 @@ class PolisClient:
         except PolisError as e:
             logger.error(f"Failed to get conversation stats: {e}")
             return {}
+
+    def get_math_data(self, conversation_id: str, xid: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get PCA/clustering math data for a conversation.
+
+        Fetches participationInit with math=true to get:
+        - pca: Principal component analysis data
+        - group-clusters: Group membership and centroids
+        - repness: Representative comments per group
+        - group-votes: Aggregated votes per group
+
+        Args:
+            conversation_id: The Polis conversation ID
+            xid: Optional external ID for the user to get their position
+
+        Returns:
+            Dict with math data including pca, group-clusters, repness, etc.
+        """
+        params = {
+            "conversation_id": conversation_id,
+            "math_tick": 0,  # Request latest math data
+        }
+
+        if xid:
+            params["xid"] = xid
+
+        try:
+            return self._request("GET", "/participationInit", params=params)
+        except PolisError as e:
+            logger.error(f"Failed to get math data: {e}")
+            return {}
+
+    # ========== Report Operations (Admin Auth) ==========
+
+    def create_report(self, conversation_id: str) -> Optional[str]:
+        """
+        Create a report for a Polis conversation.
+
+        Reports are snapshots of the conversation's analysis at a point in time.
+        Requires admin authentication.
+
+        Args:
+            conversation_id: The Polis conversation ID
+
+        Returns:
+            The report_id if created successfully, None otherwise
+        """
+        print(f"[POLIS CLIENT] create_report called for {conversation_id}", flush=True)
+        try:
+            admin_token = self._get_admin_token()
+            print(f"[POLIS CLIENT] Got admin token: {admin_token[:20] if admin_token else 'None'}...", flush=True)
+        except PolisAuthError as e:
+            print(f"[POLIS CLIENT] Admin auth failed: {e}", flush=True)
+            logger.error(f"Cannot create report without admin auth: {e}")
+            return None
+
+        data = {
+            "conversation_id": conversation_id,
+        }
+
+        try:
+            response = self._request("POST", "/reports", auth_token=admin_token, json=data)
+            print(f"[POLIS CLIENT] POST /reports response: {response}", flush=True)
+            logger.info(f"Created report for conversation {conversation_id}")
+            return response.get("report_id")
+        except PolisError as e:
+            print(f"[POLIS CLIENT] POST /reports failed: {e}", flush=True)
+            logger.error(f"Failed to create report: {e}")
+            return None
+
+    def get_report(self, conversation_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get the latest report for a conversation.
+
+        Args:
+            conversation_id: The Polis conversation ID
+
+        Returns:
+            Report data if found, None otherwise
+        """
+        params = {"conversation_id": conversation_id}
+
+        try:
+            admin_token = self._get_admin_token()
+            response = self._request("GET", "/reports", auth_token=admin_token, params=params)
+            if isinstance(response, list) and len(response) > 0:
+                # Return the most recent report
+                return response[0]
+            return None
+        except PolisError as e:
+            logger.error(f"Failed to get report: {e}")
+            return None
+
+    def get_or_create_report(self, conversation_id: str) -> Optional[str]:
+        """
+        Get existing report or create one for a conversation.
+
+        Args:
+            conversation_id: The Polis conversation ID
+
+        Returns:
+            The report_id
+        """
+        print(f"[POLIS CLIENT] get_or_create_report called for {conversation_id}", flush=True)
+
+        # First try to get existing report
+        try:
+            existing = self.get_report(conversation_id)
+            print(f"[POLIS CLIENT] get_report returned: {existing}", flush=True)
+            if existing and existing.get("report_id"):
+                return existing["report_id"]
+        except Exception as e:
+            print(f"[POLIS CLIENT] Error getting report: {e}", flush=True)
+
+        # Create new report
+        try:
+            report_id = self.create_report(conversation_id)
+            print(f"[POLIS CLIENT] create_report returned: {report_id}", flush=True)
+            return report_id
+        except Exception as e:
+            print(f"[POLIS CLIENT] Error creating report: {e}", flush=True)
+            return None
 
 
 # Singleton instance for convenience

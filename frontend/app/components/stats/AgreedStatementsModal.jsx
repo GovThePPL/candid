@@ -95,9 +95,7 @@ export default function AgreedStatementsModal({ visible, onClose, chatLogId, clo
   // Resolve closure text from prop or fetched data
   const resolvedClosureText = (() => {
     const fetchedClosure = chatData?.log?.agreedClosure
-    const fetched = fetchedClosure?.content || fetchedClosure
-    const fromProp = closureTextProp?.content || closureTextProp
-    return fetched || fromProp
+    return fetchedClosure?.content || closureTextProp?.content
   })()
 
   const renderContent = () => {

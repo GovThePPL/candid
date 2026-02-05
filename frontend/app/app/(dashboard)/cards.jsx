@@ -2,6 +2,7 @@ import { StyleSheet, View, Text, ActivityIndicator, TouchableOpacity, Platform, 
 import { useState, useEffect, useCallback, useRef, useContext } from 'react'
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Colors } from '../../constants/Colors'
 import api from '../../lib/api'
 import { UserContext } from '../../contexts/UserContext'
@@ -11,8 +12,15 @@ import {
   SurveyCard,
   DemographicCard,
   KudosCard,
+  PairwiseCard,
 } from '../../components/cards'
 import Header from '../../components/Header'
+import ChattingListExplanationModal from '../../components/ChattingListExplanationModal'
+import AdoptPositionExplanationModal from '../../components/AdoptPositionExplanationModal'
+
+// AsyncStorage keys for tutorial tracking
+const TUTORIAL_CHATTING_LIST_KEY = '@tutorial_seen_chatting_list'
+const TUTORIAL_ADOPT_POSITION_KEY = '@tutorial_seen_adopt_position'
 
 // Configuration for continuous card loading
 const INITIAL_FETCH_SIZE = 20
@@ -24,11 +32,18 @@ const CHAT_REQUEST_TIMEOUT_MS = 2 * 60 * 1000
 
 export default function CardQueue() {
   const router = useRouter()
-  const { user, logout, invalidatePositions, setPendingChatRequest, activeChatNavigation, clearActiveChatNavigation, activeChat, clearActiveChat } = useContext(UserContext)
+  const { user, logout, invalidatePositions, setPendingChatRequest } = useContext(UserContext)
   const [cards, setCards] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [initialLoading, setInitialLoading] = useState(true)
   const [error, setError] = useState(null)
+
+  // Tutorial modal state (frontend-only, uses AsyncStorage)
+  const [showChattingListModal, setShowChattingListModal] = useState(false)
+  const [showAdoptPositionModal, setShowAdoptPositionModal] = useState(false)
+  const hasCheckedTutorialsRef = useRef(false)
+  const seenChattingListTutorialRef = useRef(false)
+  const seenAdoptPositionTutorialRef = useRef(false)
 
   // Animated value for back card transition
   const backCardProgress = useRef(new Animated.Value(0)).current
@@ -40,10 +55,33 @@ export default function CardQueue() {
   const isFetchingRef = useRef(false)
   const seenCardIdsRef = useRef(new Set())
 
+  // Load tutorial state from AsyncStorage on mount
+  useEffect(() => {
+    const loadTutorialState = async () => {
+      if (hasCheckedTutorialsRef.current) return
+      hasCheckedTutorialsRef.current = true
+      try {
+        const [chattingListSeen, adoptPositionSeen] = await Promise.all([
+          AsyncStorage.getItem(TUTORIAL_CHATTING_LIST_KEY),
+          AsyncStorage.getItem(TUTORIAL_ADOPT_POSITION_KEY),
+        ])
+        seenChattingListTutorialRef.current = chattingListSeen === 'true'
+        seenAdoptPositionTutorialRef.current = adoptPositionSeen === 'true'
+      } catch (err) {
+        console.error('Failed to load tutorial state:', err)
+      }
+    }
+    loadTutorialState()
+  }, [])
+
   // Get unique key for a card to track duplicates
   const getCardKey = useCallback((card) => {
     if (!card) return null
     if (card.type === 'demographic') return `demographic-${card.data?.field}`
+    // For chatting list cards, use chattingListId to ensure uniqueness
+    if (card.data?.source === 'chatting_list') {
+      return `chatting_list-${card.data?.chattingListId}`
+    }
     return `${card.type}-${card.data?.id}`
   }, [])
 
@@ -95,24 +133,6 @@ export default function CardQueue() {
     fetchMoreCards(true)
   }, [])
 
-  // Handle navigation when a chat starts (via socket event)
-  useEffect(() => {
-    if (activeChatNavigation?.chatId) {
-      router.push(`/chat/${activeChatNavigation.chatId}`)
-      clearActiveChatNavigation()
-    }
-  }, [activeChatNavigation, router, clearActiveChatNavigation])
-
-  // Handle navigation to existing active chat on app load
-  useEffect(() => {
-    console.log('[Cards] activeChat changed:', activeChat?.id || 'none')
-    if (activeChat?.id) {
-      console.log('[Cards] Navigating to active chat:', activeChat.id)
-      router.push(`/chat/${activeChat.id}`)
-      clearActiveChat()
-    }
-  }, [activeChat, router, clearActiveChat])
-
   // Calculate remaining cards
   const remainingCards = cards.length - currentIndex
 
@@ -125,6 +145,26 @@ export default function CardQueue() {
 
   const currentCard = cards[currentIndex]
   const nextCard = cards[currentIndex + 1]
+
+  const handleCloseChattingListModal = useCallback(async () => {
+    setShowChattingListModal(false)
+    seenChattingListTutorialRef.current = true
+    try {
+      await AsyncStorage.setItem(TUTORIAL_CHATTING_LIST_KEY, 'true')
+    } catch (err) {
+      console.error('Failed to save chatting list tutorial state:', err)
+    }
+  }, [])
+
+  const handleCloseAdoptPositionModal = useCallback(async () => {
+    setShowAdoptPositionModal(false)
+    seenAdoptPositionTutorialRef.current = true
+    try {
+      await AsyncStorage.setItem(TUTORIAL_ADOPT_POSITION_KEY, 'true')
+    } catch (err) {
+      console.error('Failed to save adopt position tutorial state:', err)
+    }
+  }, [])
 
   const goToNextCard = useCallback(() => {
     // Animate the back card forward, then advance
@@ -190,11 +230,22 @@ export default function CardQueue() {
       const response = await api.chat.createRequest(currentCard.data.userPositionId)
       // Set pending chat request with countdown info
       const now = new Date()
+      const author = currentCard.data.creator || {}
       setPendingChatRequest({
         id: response.id,
         createdTime: now.toISOString(),
         expiresAt: new Date(now.getTime() + CHAT_REQUEST_TIMEOUT_MS).toISOString(),
         positionStatement: currentCard.data.statement,
+        category: currentCard.data.category,
+        location: currentCard.data.location,
+        author: {
+          displayName: author.displayName,
+          username: author.username,
+          avatarUrl: author.avatarUrl,
+          avatarIconUrl: author.avatarIconUrl,
+          trustScore: author.trustScore,
+          kudosCount: author.kudosCount,
+        },
         status: 'pending',
       })
       goToNextCard()
@@ -213,6 +264,12 @@ export default function CardQueue() {
 
   const handleAddPosition = useCallback(async () => {
     if (currentCard?.type !== 'position') return
+
+    // Show tutorial on first use
+    if (!seenAdoptPositionTutorialRef.current) {
+      setShowAdoptPositionModal(true)
+    }
+
     const cardRef = currentCardRef.current
     if (cardRef?.swipeRightWithPlus) {
       // Trigger swipe animation with plus icon - API call happens after animation
@@ -227,6 +284,63 @@ export default function CardQueue() {
       console.error('Failed to adopt position:', err)
     }
   }, [currentCard, goToNextCard, invalidatePositions])
+
+  // Handle removing a position from the chatting list
+  const handleRemoveFromChattingList = useCallback(async () => {
+    if (currentCard?.type !== 'position' || !currentCard?.data?.chattingListId) return
+    try {
+      await api.chattingList.remove(currentCard.data.chattingListId)
+      // Update the card in state to show it's no longer in the chatting list
+      setCards(prev => prev.map((card, idx) => {
+        if (idx === currentIndex && card.type === 'position') {
+          return {
+            ...card,
+            data: {
+              ...card.data,
+              source: null,
+              chattingListId: null,
+            }
+          }
+        }
+        return card
+      }))
+    } catch (err) {
+      console.error('Failed to remove from chatting list:', err)
+    }
+  }, [currentCard, currentIndex])
+
+  // Handle adding a position to the chatting list
+  const handleAddToChattingList = useCallback(async () => {
+    if (currentCard?.type !== 'position' || !currentCard?.data?.id) return
+
+    // If already in chatting list, don't try to add again
+    if (currentCard?.data?.source === 'chatting_list') return
+
+    // Show tutorial on first use
+    if (!seenChattingListTutorialRef.current) {
+      setShowChattingListModal(true)
+    }
+
+    try {
+      const result = await api.chattingList.addPosition(currentCard.data.id)
+      // Update the card in state to show it's now in the chatting list
+      setCards(prev => prev.map((card, idx) => {
+        if (idx === currentIndex && card.type === 'position') {
+          return {
+            ...card,
+            data: {
+              ...card.data,
+              source: 'chatting_list',
+              chattingListId: result?.id,
+            }
+          }
+        }
+        return card
+      }))
+    } catch (err) {
+      console.error('Failed to add to chatting list:', err)
+    }
+  }, [currentCard, currentIndex, user?.seenChattingListExplanation])
 
   // Chat request handlers
   const handleAcceptChat = useCallback(async () => {
@@ -305,6 +419,34 @@ export default function CardQueue() {
     }
   }, [currentCard, goToNextCard])
 
+  // Acknowledge kudos (when user already sent kudos, just mark as seen)
+  const handleAcknowledgeKudos = useCallback(async () => {
+    if (currentCard?.type !== 'kudos') return
+    try {
+      await api.chat.acknowledgeKudos(currentCard.data.id)
+      goToNextCard()
+    } catch (err) {
+      console.error('Failed to acknowledge kudos:', err)
+      // Still move to next card even if API fails
+      goToNextCard()
+    }
+  }, [currentCard, goToNextCard])
+
+  // Pairwise comparison handlers
+  const handlePairwiseResponse = useCallback(async (surveyId, winnerItemId, loserItemId) => {
+    try {
+      await api.surveys.respondToPairwise(surveyId, winnerItemId, loserItemId)
+      goToNextCard()
+    } catch (err) {
+      console.error('Failed to submit pairwise response:', err)
+    }
+  }, [goToNextCard])
+
+  const handlePairwiseSkip = useCallback(() => {
+    // Just move to next card - the pairwise comparison will appear again later
+    goToNextCard()
+  }, [goToNextCard])
+
   // Keyboard support for PC
   useEffect(() => {
     if (Platform.OS !== 'web') return
@@ -357,6 +499,7 @@ export default function CardQueue() {
 
     switch (card.type) {
       case 'position':
+        const isFromChattingList = card.data?.source === 'chatting_list'
         return (
           <PositionCard
             ref={isBackCard ? undefined : currentCardRef}
@@ -370,6 +513,10 @@ export default function CardQueue() {
             onAddPosition={isBackCard ? undefined : handleAddPosition}
             isBackCard={isBackCard}
             backCardAnimatedValue={backCardProgress}
+            isFromChattingList={isFromChattingList}
+            hasPendingRequests={card.data?.hasPendingRequests || false}
+            onRemoveFromChattingList={isBackCard ? undefined : handleRemoveFromChattingList}
+            onAddToChattingList={isBackCard ? undefined : handleAddToChattingList}
           />
         )
 
@@ -419,7 +566,21 @@ export default function CardQueue() {
             key={key}
             kudos={card.data}
             onSendKudos={isBackCard ? undefined : handleSendKudos}
+            onAcknowledge={isBackCard ? undefined : handleAcknowledgeKudos}
             onDismiss={isBackCard ? undefined : handleDismissKudos}
+            isBackCard={isBackCard}
+            backCardAnimatedValue={backCardProgress}
+          />
+        )
+
+      case 'pairwise':
+        return (
+          <PairwiseCard
+            ref={isBackCard ? undefined : currentCardRef}
+            key={key}
+            pairwise={card}
+            onRespond={isBackCard ? undefined : handlePairwiseResponse}
+            onSkip={isBackCard ? undefined : handlePairwiseSkip}
             isBackCard={isBackCard}
             backCardAnimatedValue={backCardProgress}
           />
@@ -578,6 +739,18 @@ export default function CardQueue() {
           </View>
         </View>
       </View>
+
+      {/* Chatting list explanation modal (tutorial - shows on first use) */}
+      <ChattingListExplanationModal
+        visible={showChattingListModal}
+        onClose={handleCloseChattingListModal}
+      />
+
+      {/* Adopt position explanation modal (tutorial - shows on first use) */}
+      <AdoptPositionExplanationModal
+        visible={showAdoptPositionModal}
+        onClose={handleCloseAdoptPositionModal}
+      />
     </SafeAreaView>
   )
 }

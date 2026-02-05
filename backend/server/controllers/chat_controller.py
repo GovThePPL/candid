@@ -5,7 +5,7 @@ from typing import Union
 
 from candid.models.chat_request import ChatRequest
 from candid.models.error_model import ErrorModel
-from candid.models.get_chat_log200_response import GetChatLog200Response
+from candid.models.get_chat_log_response import GetChatLogResponse
 from candid.models.get_user_chats200_response_inner import GetUserChats200ResponseInner
 from candid.models.kudos import Kudos
 from candid import util
@@ -14,8 +14,14 @@ from candid.controllers import db
 from candid.controllers.helpers.config import Config
 from candid.controllers.helpers.auth import authorization, token_to_user
 from candid.controllers.helpers.chat_events import publish_chat_accepted, publish_chat_request_response
+from candid.controllers.helpers.cache_headers import (
+    add_cache_headers,
+    check_not_modified,
+    make_304_response,
+    generate_etag,
+)
 
-from camel_converter import dict_to_camel
+from flask import jsonify, make_response
 import uuid
 
 
@@ -46,7 +52,7 @@ def create_chat_request(body, token_info=None):
 
     # Verify the user_position exists and get the owner
     result = db.execute_query("""
-        SELECT up.id, up.user_id, p.statement
+        SELECT up.id, up.user_id, up.position_id, p.statement
         FROM user_position up
         JOIN position p ON up.position_id = p.id
         WHERE up.id = %s AND up.status = 'active'
@@ -56,6 +62,7 @@ def create_chat_request(body, token_info=None):
         return ErrorModel(code=404, message="User position not found"), 404
 
     recipient_user_id = str(result["user_id"])
+    position_id = str(result["position_id"])
 
     # Can't request to chat with yourself
     if recipient_user_id == str(user.id):
@@ -79,6 +86,9 @@ def create_chat_request(body, token_info=None):
         VALUES (%s, %s, %s, 'pending')
     """, (request_id, str(user.id), user_position_id))
 
+    # Add position to initiator's chatting list (or update if already exists)
+    _add_to_chatting_list(str(user.id), position_id)
+
     # Return the created request
     created = db.execute_query("""
         SELECT
@@ -93,15 +103,15 @@ def create_chat_request(body, token_info=None):
         WHERE cr.id = %s
     """, (request_id,), fetchone=True)
 
-    return dict_to_camel({
+    return {
         "id": str(created["id"]),
-        "initiator_user_id": str(created["initiator_user_id"]),
-        "user_position_id": str(created["user_position_id"]),
+        "initiatorUserId": str(created["initiator_user_id"]),
+        "userPositionId": str(created["user_position_id"]),
         "response": created["response"],
-        "response_time": created["response_time"].isoformat() if created["response_time"] else None,
-        "created_time": created["created_time"].isoformat() if created["created_time"] else None,
-        "updated_time": created["updated_time"].isoformat() if created["updated_time"] else None,
-    }), 201
+        "responseTime": created["response_time"].isoformat() if created["response_time"] else None,
+        "createdTime": created["created_time"].isoformat() if created["created_time"] else None,
+        "updatedTime": created["updated_time"].isoformat() if created["updated_time"] else None,
+    }, 201
 
 
 def respond_to_chat_request(request_id, body, token_info=None):
@@ -212,15 +222,15 @@ def respond_to_chat_request(request_id, body, token_info=None):
         WHERE cr.id = %s
     """, (request_id,), fetchone=True)
 
-    response_data = dict_to_camel({
+    response_data = {
         "id": str(updated["id"]),
-        "initiator_user_id": str(updated["initiator_user_id"]),
-        "user_position_id": str(updated["user_position_id"]),
+        "initiatorUserId": str(updated["initiator_user_id"]),
+        "userPositionId": str(updated["user_position_id"]),
         "response": updated["response"],
-        "response_time": updated["response_time"].isoformat() if updated["response_time"] else None,
-        "created_time": updated["created_time"].isoformat() if updated["created_time"] else None,
-        "updated_time": updated["updated_time"].isoformat() if updated["updated_time"] else None,
-    })
+        "responseTime": updated["response_time"].isoformat() if updated["response_time"] else None,
+        "createdTime": updated["created_time"].isoformat() if updated["created_time"] else None,
+        "updatedTime": updated["updated_time"].isoformat() if updated["updated_time"] else None,
+    }
 
     # Include chat_log_id if created
     if chat_log_id:
@@ -283,7 +293,7 @@ def get_chat_log(chat_id, token_info=None):
     :param token_info: JWT token info from authentication
     :type token_info: dict
 
-    :rtype: Union[GetChatLog200Response, Tuple[GetChatLog200Response, int], Tuple[GetChatLog200Response, int, Dict[str, str]]
+    :rtype: Union[GetChatLogResponse, Tuple[GetChatLogResponse, int], Tuple[GetChatLogResponse, int, Dict[str, str]]
     """
     authorized, auth_err = authorization("normal", token_info)
     if not authorized:
@@ -316,16 +326,22 @@ def get_chat_log(chat_id, token_info=None):
             pos_holder.username as position_holder_username,
             pos_holder.display_name as position_holder_display_name,
             pos_holder.trust_score as position_holder_trust_score,
+            pos_holder.avatar_url as position_holder_avatar_url,
+            pos_holder.avatar_icon_url as position_holder_avatar_icon_url,
             COALESCE(pos_holder_kudos.kudos_count, 0) as position_holder_kudos_count,
             -- Initiator user info
             init_u.username as initiator_username,
             init_u.display_name as initiator_display_name,
             init_u.trust_score as initiator_trust_score,
+            init_u.avatar_url as initiator_avatar_url,
+            init_u.avatar_icon_url as initiator_avatar_icon_url,
             COALESCE(init_kudos.kudos_count, 0) as initiator_kudos_count,
             -- Responder user info
             resp_u.username as responder_username,
             resp_u.display_name as responder_display_name,
             resp_u.trust_score as responder_trust_score,
+            resp_u.avatar_url as responder_avatar_url,
+            resp_u.avatar_icon_url as responder_avatar_icon_url,
             COALESCE(resp_kudos.kudos_count, 0) as responder_kudos_count
         FROM chat_log cl
         JOIN chat_request cr ON cl.chat_request_id = cr.id
@@ -369,19 +385,21 @@ def get_chat_log(chat_id, token_info=None):
         other_user = {
             "id": responder_id,
             "username": result["responder_username"],
-            "display_name": result["responder_display_name"],
-            "avatar_url": None,  # TODO: Add avatar_url column to users table
-            "trust_score": float(result["responder_trust_score"]) if result["responder_trust_score"] else None,
-            "kudos_count": result["responder_kudos_count"],
+            "displayName": result["responder_display_name"],
+            "avatarUrl": result["responder_avatar_url"],
+            "avatarIconUrl": result["responder_avatar_icon_url"],
+            "trustScore": float(result["responder_trust_score"]) if result["responder_trust_score"] else None,
+            "kudosCount": result["responder_kudos_count"],
         }
     else:
         other_user = {
             "id": initiator_id,
             "username": result["initiator_username"],
-            "display_name": result["initiator_display_name"],
-            "avatar_url": None,  # TODO: Add avatar_url column to users table
-            "trust_score": float(result["initiator_trust_score"]) if result["initiator_trust_score"] else None,
-            "kudos_count": result["initiator_kudos_count"],
+            "displayName": result["initiator_display_name"],
+            "avatarUrl": result["initiator_avatar_url"],
+            "avatarIconUrl": result["initiator_avatar_icon_url"],
+            "trustScore": float(result["initiator_trust_score"]) if result["initiator_trust_score"] else None,
+            "kudosCount": result["initiator_kudos_count"],
         }
 
     # Build position object with category, location, and creator
@@ -390,7 +408,7 @@ def get_chat_log(chat_id, token_info=None):
         "statement": result["position_statement"],
         "category": {
             "id": str(result["category_id"]) if result["category_id"] else None,
-            "name": result["category_name"],
+            "label": result["category_name"],
         } if result["category_id"] else None,
         "location": {
             "id": str(result["location_id"]) if result["location_id"] else None,
@@ -400,24 +418,108 @@ def get_chat_log(chat_id, token_info=None):
         "creator": {
             "id": str(result["responder_user_id"]),
             "username": result["position_holder_username"],
-            "display_name": result["position_holder_display_name"],
-            "avatar_url": None,  # TODO: Add avatar_url column to users table
-            "trust_score": float(result["position_holder_trust_score"]) if result["position_holder_trust_score"] else None,
-            "kudos_count": result["position_holder_kudos_count"],
+            "displayName": result["position_holder_display_name"],
+            "avatarUrl": result["position_holder_avatar_url"],
+            "avatarIconUrl": result["position_holder_avatar_icon_url"],
+            "trustScore": float(result["position_holder_trust_score"]) if result["position_holder_trust_score"] else None,
+            "kudosCount": result["position_holder_kudos_count"],
         },
     }
 
-    return dict_to_camel({
+    log_blob = result["log"]
+
+    # Extract endedByUserId from log if present
+    ended_by_user_id = None
+    if log_blob and isinstance(log_blob, dict):
+        ended_by_user_id = log_blob.get("endedByUserId")
+
+    # Get kudos status for ETag computation (kudos can change after chat ends)
+    kudos_status = db.execute_query("""
+        SELECT sender_user_id, receiver_user_id, status, created_time
+        FROM kudos
+        WHERE chat_log_id = %s
+        ORDER BY created_time
+    """, (chat_id,))
+
+    # Compute ETag based on chat data and kudos status
+    # For ended chats, the log itself is immutable, but kudos can change
+    etag_data = f"{chat_id}:{result['end_time']}:{result['status']}"
+    if kudos_status:
+        kudos_str = "|".join([f"{k['sender_user_id']}:{k['status']}" for k in kudos_status])
+        etag_data += f":{kudos_str}"
+    etag = generate_etag(etag_data)
+
+    # Use end_time as Last-Modified for ended chats (immutable after that)
+    # For active chats, don't cache
+    last_modified = result["end_time"] if result["end_time"] else None
+
+    # Check for conditional request (304 Not Modified)
+    if last_modified and check_not_modified(last_modified=last_modified, etag=etag):
+        return make_304_response()
+
+    response_data = {
         "id": str(result["id"]),
-        "chat_request_id": str(result["chat_request_id"]),
-        "start_time": result["start_time"].isoformat() if result["start_time"] else None,
-        "end_time": result["end_time"].isoformat() if result["end_time"] else None,
-        "log": result["log"],  # JSONB column
-        "end_type": result["end_type"],
+        "chatRequestId": str(result["chat_request_id"]),
+        "startTime": result["start_time"].isoformat() if result["start_time"] else None,
+        "endTime": result["end_time"].isoformat() if result["end_time"] else None,
+        "log": log_blob,  # JSONB column (camelCase keys)
+        "endType": result["end_type"],
         "status": result["status"],
         "position": position,
-        "other_user": other_user,
-    }), 200
+        "otherUser": other_user,
+        "endedByUserId": ended_by_user_id,
+    }
+
+    response = make_response(response_data, 200)
+    response = add_cache_headers(response, last_modified=last_modified, etag_data=etag_data)
+    return response
+
+
+def get_user_chats_metadata(user_id, token_info=None):
+    """Get metadata about user's chat history for cache validation.
+
+    Returns count and last activity time without full chat data.
+
+    :param user_id: User ID
+    :type user_id: str
+    :param token_info: JWT token info from authentication
+    :type token_info: dict
+
+    :rtype: Union[dict, Tuple[dict, int]]
+    """
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+    user = token_to_user(token_info)
+
+    # Users can only view their own chat metadata (or admins can view any)
+    if str(user.id) != user_id and user.user_type not in ("admin", "moderator"):
+        return ErrorModel(code=403, message="Not authorized to view these chats"), 403
+
+    # Get count and latest activity time
+    result = db.execute_query("""
+        SELECT
+            COUNT(*) as count,
+            MAX(GREATEST(cl.start_time, COALESCE(cl.end_time, cl.start_time))) as last_activity_time
+        FROM chat_log cl
+        JOIN chat_request cr ON cl.chat_request_id = cr.id
+        JOIN user_position up ON cr.user_position_id = up.id
+        WHERE (cr.initiator_user_id = %s OR up.user_id = %s)
+        AND cl.status != 'deleted'
+    """, (user_id, user_id), fetchone=True)
+
+    count = result["count"] if result else 0
+    last_activity_time = result["last_activity_time"] if result else None
+
+    response_data = {
+        "count": count,
+        "lastActivityTime": last_activity_time.isoformat() if last_activity_time else None,
+    }
+
+    response = make_response(response_data, 200)
+    if last_activity_time:
+        response = add_cache_headers(response, last_modified=last_activity_time)
+    return response
 
 
 def get_user_chats(user_id, position_id=None, limit=None, offset=None, token_info=None):
@@ -445,7 +547,7 @@ def get_user_chats(user_id, position_id=None, limit=None, offset=None, token_inf
     if str(user.id) != user_id and user.user_type not in ("admin", "moderator"):
         return ErrorModel(code=403, message="Not authorized to view these chats"), 403
 
-    # Build query
+    # Build query with full position, category, location, and user details
     query = """
         SELECT
             cl.id,
@@ -453,14 +555,50 @@ def get_user_chats(user_id, position_id=None, limit=None, offset=None, token_inf
             cl.end_time,
             cl.end_type,
             cl.status,
+            cl.log,
+            -- Position info
             p.id as position_id,
             p.statement as position_statement,
+            -- Category info
+            cat.id as category_id,
+            cat.label as category_name,
+            -- Location info
+            loc.id as location_id,
+            loc.code as location_code,
+            loc.name as location_name,
+            -- Chat participants
             cr.initiator_user_id,
-            up.user_id as responder_user_id
+            up.user_id as responder_user_id,
+            -- Position holder info (for author display)
+            pos_holder.id as position_holder_id,
+            pos_holder.username as position_holder_username,
+            pos_holder.display_name as position_holder_display_name,
+            pos_holder.trust_score as position_holder_trust_score,
+            pos_holder.avatar_url as position_holder_avatar_url,
+            pos_holder.avatar_icon_url as position_holder_avatar_icon_url,
+            -- Initiator user info
+            init_u.id as initiator_id,
+            init_u.username as initiator_username,
+            init_u.display_name as initiator_display_name,
+            init_u.trust_score as initiator_trust_score,
+            init_u.avatar_url as initiator_avatar_url,
+            init_u.avatar_icon_url as initiator_avatar_icon_url,
+            -- Responder user info
+            resp_u.id as responder_id,
+            resp_u.username as responder_username,
+            resp_u.display_name as responder_display_name,
+            resp_u.trust_score as responder_trust_score,
+            resp_u.avatar_url as responder_avatar_url,
+            resp_u.avatar_icon_url as responder_avatar_icon_url
         FROM chat_log cl
         JOIN chat_request cr ON cl.chat_request_id = cr.id
         JOIN user_position up ON cr.user_position_id = up.id
         JOIN position p ON up.position_id = p.id
+        LEFT JOIN position_category cat ON p.category_id = cat.id
+        LEFT JOIN location loc ON p.location_id = loc.id
+        JOIN users pos_holder ON up.user_id = pos_holder.id
+        JOIN users init_u ON cr.initiator_user_id = init_u.id
+        JOIN users resp_u ON up.user_id = resp_u.id
         WHERE (cr.initiator_user_id = %s OR up.user_id = %s)
         AND cl.status != 'deleted'
     """
@@ -482,26 +620,132 @@ def get_user_chats(user_id, position_id=None, limit=None, offset=None, token_inf
 
     results = db.execute_query(query, tuple(params))
 
+    # Get kudos counts for all relevant users in a single query
+    user_ids = set()
+    for row in results:
+        user_ids.add(str(row["initiator_id"]))
+        user_ids.add(str(row["responder_id"]))
+        user_ids.add(str(row["position_holder_id"]))
+
+    kudos_counts = {}
+    if user_ids:
+        kudos_results = db.execute_query("""
+            SELECT receiver_user_id, COUNT(*) as kudos_count
+            FROM kudos WHERE status = 'sent' AND receiver_user_id = ANY(%s::uuid[])
+            GROUP BY receiver_user_id
+        """, (list(user_ids),))
+        for kr in kudos_results:
+            kudos_counts[str(kr["receiver_user_id"])] = kr["kudos_count"]
+
+    # Get kudos status for each chat (who sent kudos to whom)
+    chat_ids = [str(row["id"]) for row in results]
+    chat_kudos = {}  # chat_id -> { user_sent: bool, received_from_other: bool }
+    if chat_ids:
+        kudos_for_chats = db.execute_query("""
+            SELECT chat_log_id, sender_user_id, receiver_user_id, status
+            FROM kudos
+            WHERE chat_log_id = ANY(%s::uuid[])
+        """, (chat_ids,))
+        for k in kudos_for_chats:
+            chat_id = str(k["chat_log_id"])
+            if chat_id not in chat_kudos:
+                chat_kudos[chat_id] = {"user_sent": False, "received_from_other": False}
+            # Check if current user sent kudos
+            if str(k["sender_user_id"]) == user_id and k["status"] == "sent":
+                chat_kudos[chat_id]["user_sent"] = True
+            # Check if the other user sent kudos to current user
+            if str(k["receiver_user_id"]) == user_id and k["status"] == "sent":
+                chat_kudos[chat_id]["received_from_other"] = True
+
     chats = []
     for row in results:
-        # Determine the other user
+        # Determine the other user based on current user
         if str(row["initiator_user_id"]) == user_id:
-            other_user_id = str(row["responder_user_id"])
+            other_user = {
+                "id": str(row["responder_id"]),
+                "username": row["responder_username"],
+                "displayName": row["responder_display_name"],
+                "avatarUrl": row["responder_avatar_url"],
+                "avatarIconUrl": row["responder_avatar_icon_url"],
+                "trustScore": float(row["responder_trust_score"]) if row["responder_trust_score"] else None,
+                "kudosCount": kudos_counts.get(str(row["responder_id"]), 0),
+            }
         else:
-            other_user_id = str(row["initiator_user_id"])
+            other_user = {
+                "id": str(row["initiator_id"]),
+                "username": row["initiator_username"],
+                "displayName": row["initiator_display_name"],
+                "avatarUrl": row["initiator_avatar_url"],
+                "avatarIconUrl": row["initiator_avatar_icon_url"],
+                "trustScore": float(row["initiator_trust_score"]) if row["initiator_trust_score"] else None,
+                "kudosCount": kudos_counts.get(str(row["initiator_id"]), 0),
+            }
 
-        chats.append(dict_to_camel({
-            "id": str(row["id"]),
-            "position_id": str(row["position_id"]),
-            "position_statement": row["position_statement"],
-            "other_user_id": other_user_id,
-            "start_time": row["start_time"].isoformat() if row["start_time"] else None,
-            "end_time": row["end_time"].isoformat() if row["end_time"] else None,
-            "end_type": row["end_type"],
+        # Build position object
+        position = {
+            "id": str(row["position_id"]),
+            "statement": row["position_statement"],
+            "category": {
+                "id": str(row["category_id"]) if row["category_id"] else None,
+                "label": row["category_name"],
+            } if row["category_id"] else None,
+            "location": {
+                "id": str(row["location_id"]) if row["location_id"] else None,
+                "code": row["location_code"],
+                "name": row["location_name"],
+            } if row["location_id"] else None,
+            "creator": {
+                "id": str(row["position_holder_id"]),
+                "username": row["position_holder_username"],
+                "displayName": row["position_holder_display_name"],
+                "avatarUrl": row["position_holder_avatar_url"],
+                "avatarIconUrl": row["position_holder_avatar_icon_url"],
+                "trustScore": float(row["position_holder_trust_score"]) if row["position_holder_trust_score"] else None,
+                "kudosCount": kudos_counts.get(str(row["position_holder_id"]), 0),
+            },
+        }
+        # Extract agreed closure and endedByUserId from log
+        agreed_closure = None
+        ended_by_user_id = None
+        if row["log"] and isinstance(row["log"], dict):
+            log = row["log"]
+            # Get who ended the chat
+            ended_by_user_id = log.get("endedByUserId")
+            # Get agreed closure object if chat ended with agreement
+            if row["end_type"] in ("mutual_agreement", "agreed_closure"):
+                closure = log.get("agreedClosure")
+                if isinstance(closure, dict) and "content" in closure:
+                    agreed_closure = closure
+
+        # Get kudos status for this chat
+        chat_id_str = str(row["id"])
+        kudos_info = chat_kudos.get(chat_id_str, {"user_sent": False, "received_from_other": False})
+
+        chats.append({
+            "id": chat_id_str,
+            "startTime": row["start_time"].isoformat() if row["start_time"] else None,
+            "endTime": row["end_time"].isoformat() if row["end_time"] else None,
+            "endType": row["end_type"],
             "status": row["status"],
-        }))
+            "position": position,
+            "otherUser": other_user,
+            "agreedClosure": agreed_closure,
+            "endedByUserId": ended_by_user_id,
+            "kudosSent": kudos_info["user_sent"],
+            "kudosReceived": kudos_info["received_from_other"],
+        })
 
-    return chats, 200
+    # Compute Last-Modified from latest chat activity
+    last_activity = None
+    for row in results:
+        activity_time = row["end_time"] or row["start_time"]
+        if activity_time and (last_activity is None or activity_time > last_activity):
+            last_activity = activity_time
+
+    response = make_response(jsonify(chats), 200)
+    if last_activity:
+        response = add_cache_headers(response, last_modified=last_activity)
+    return response
 
 
 def send_kudos(chat_id, token_info=None):
@@ -564,13 +808,13 @@ def send_kudos(chat_id, token_info=None):
         WHERE sender_user_id = %s AND chat_log_id = %s
     """, (str(user.id), chat_id), fetchone=True)
 
-    return dict_to_camel({
+    return {
         "id": str(created["id"]),
-        "sender_user_id": str(created["sender_user_id"]),
-        "receiver_user_id": str(created["receiver_user_id"]),
-        "chat_log_id": str(created["chat_log_id"]),
-        "created_time": created["created_time"].isoformat() if created["created_time"] else None,
-    }), 201
+        "senderUserId": str(created["sender_user_id"]),
+        "receiverUserId": str(created["receiver_user_id"]),
+        "chatLogId": str(created["chat_log_id"]),
+        "createdTime": created["created_time"].isoformat() if created["created_time"] else None,
+    }, 201
 
 
 def dismiss_kudos(chat_id, token_info=None):
@@ -630,3 +874,34 @@ def dismiss_kudos(chat_id, token_info=None):
     """, (kudos_id, str(user.id), receiver_id, chat_id))
 
     return None, 204
+
+
+def _add_to_chatting_list(user_id: str, position_id: str):
+    """Add a position to the user's chatting list or update if already exists.
+
+    This is called when a user swipes up to chat on a position. The position
+    is added to their chatting list so it can reappear in their queue later.
+    """
+    # Check if already in chatting list
+    existing = db.execute_query("""
+        SELECT id, is_active, chat_count FROM user_chatting_list
+        WHERE user_id = %s AND position_id = %s
+    """, (user_id, position_id), fetchone=True)
+
+    if existing:
+        # Update existing entry: increment chat_count, update last_chat_time,
+        # and reactivate if inactive
+        db.execute_query("""
+            UPDATE user_chatting_list
+            SET last_chat_time = CURRENT_TIMESTAMP,
+                chat_count = chat_count + 1,
+                is_active = true
+            WHERE id = %s
+        """, (str(existing["id"]),))
+    else:
+        # Create new entry
+        item_id = str(uuid.uuid4())
+        db.execute_query("""
+            INSERT INTO user_chatting_list (id, user_id, position_id, is_active, chat_count)
+            VALUES (%s, %s, %s, true, 1)
+        """, (item_id, user_id, position_id))

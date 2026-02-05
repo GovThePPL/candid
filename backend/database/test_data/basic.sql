@@ -67,9 +67,12 @@ INSERT INTO position_category (id, label, parent_position_category_id) VALUES
 ('26c8146e-d080-419e-b98b-5089c3a81b5b', 'Social Issues', NULL),
 ('cdc48d27-d636-481b-90b2-d6f6a2e6780e', 'Government & Democracy', NULL);
 
--- Test data for locations
+-- Test data for locations (hierarchical)
 INSERT INTO location (id, parent_location_id, code, name) VALUES
-('ba5e3dcf-af51-47f4-941d-ee3448ee826a', NULL, 'OR', 'Oregon');
+('f1a2b3c4-d5e6-7890-abcd-ef1234567890', NULL, 'US', 'United States'),
+('ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'f1a2b3c4-d5e6-7890-abcd-ef1234567890', 'OR', 'Oregon'),
+('c2b3a4d5-e6f7-8901-bcde-f12345678901', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'MULT', 'Multnomah County'),
+('d3c4b5a6-f7e8-9012-cdef-123456789012', 'c2b3a4d5-e6f7-8901-bcde-f12345678901', 'PDX', 'Portland');
 
 -- Test data for 50 position statements
 INSERT INTO position (id, creator_user_id, category_id, location_id, statement, created_time, updated_time, agree_count, disagree_count, pass_count, chat_count, status) VALUES
@@ -145,16 +148,18 @@ INSERT INTO position (id, creator_user_id, category_id, location_id, statement, 
 ('03755ed6-3aaf-40d0-8d8b-5e559af7f377', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'cdc48d27-d636-481b-90b2-d6f6a2e6780e', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'The Supreme Court should have term limits rather than lifetime appointments.', '2025-02-14 10:45:35+00', '2025-08-10 14:22:33+00', 0, 0, 0, 0, 'active');
 
 -- Test data for user_location entries
+-- Users are linked to Portland (most specific), which lets them see the full hierarchy:
+-- United States -> Oregon -> Multnomah County -> Portland
 INSERT INTO user_location (id, user_id, location_id, created_time) VALUES
--- Admin user
-('9d77bc28-34ba-46eb-a93e-8c59cb5dfa6a', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '2024-09-24 10:15:30+00'),
+-- Admin user - linked to Portland
+('9d77bc28-34ba-46eb-a93e-8c59cb5dfa6a', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'd3c4b5a6-f7e8-9012-cdef-123456789012', '2024-09-24 10:15:30+00'),
 
--- Moderator users
-('68339e80-a17e-4f11-9bf4-add6aab95b10', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '2024-11-10 14:22:18+00'),
-('163714b8-034d-4e92-b464-4772a6c361f9', '010f84ad-0abd-4352-a7b3-7f9b95d51983', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '2024-12-17 08:30:45+00'),
+-- Moderator users - linked to Portland
+('68339e80-a17e-4f11-9bf4-add6aab95b10', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'd3c4b5a6-f7e8-9012-cdef-123456789012', '2024-11-10 14:22:18+00'),
+('163714b8-034d-4e92-b464-4772a6c361f9', '010f84ad-0abd-4352-a7b3-7f9b95d51983', 'd3c4b5a6-f7e8-9012-cdef-123456789012', '2024-12-17 08:30:45+00'),
 
--- Normal users
-('c0917efc-f67e-490f-bf88-234fe38a77a0', '6c9344ed-0313-4b25-a616-5ac08967e84f', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '2024-10-05 12:40:22+00'),
+-- Normal users - linked to Portland
+('c0917efc-f67e-490f-bf88-234fe38a77a0', '6c9344ed-0313-4b25-a616-5ac08967e84f', 'd3c4b5a6-f7e8-9012-cdef-123456789012', '2024-10-05 12:40:22+00'),
 ('abc7621a-ed4b-4579-bf8b-7b07cb2cb56e', '4a67d0e6-56a4-4396-916b-922d27db71d8', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '2025-01-19 15:25:10+00'),
 ('ab764391-9a32-4929-9441-93e1afd3226d', '735565c1-93d9-4813-b227-3d9c06b78c8f', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '2024-08-31 09:18:55+00'),
 ('e84069e6-8d69-4317-9bc3-488481cac1ab', '2333392a-7c07-4733-8b46-00d32833d9bc', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '2025-03-07 16:45:33+00'),
@@ -556,22 +561,60 @@ INSERT INTO chat_request (id, initiator_user_id, user_position_id, response, res
 ('2f58e635-3c09-4bd7-a0d8-f52510ad30fa', '2333392a-7c07-4733-8b46-00d32833d9bc', '927a0293-5e92-4450-a584-bd42be3386be', 'accepted', '2025-07-15 14:05:00+00', '2025-07-15 14:02:00+00', '2025-07-15 14:02:20+00');
 
 -- Test data for chat logs (for accepted chat requests)
--- Note: log column is JSONB, using sample JSON structure
+-- Note: log column is JSONB, using sample JSON structure with messages
 INSERT INTO chat_log (id, chat_request_id, start_time, end_time, log, end_type, status) VALUES
 -- Chat 1: Normal1 -> Normal3's position (agreed_closure, active)
-('fc6127e3-a108-487b-8789-442ec42d41f3', '0da4d451-c6f1-47d9-aded-e4161592546c', '2024-10-15 13:48:25+00', '2024-10-15 14:05:00+00', '{"messages": [], "agreed_positions": [], "agreed_closure": "We agree to disagree respectfully", "export_time": "2024-10-15T14:05:00Z"}', 'agreed_closure', 'active'),
+('fc6127e3-a108-487b-8789-442ec42d41f3', '0da4d451-c6f1-47d9-aded-e4161592546c', '2024-10-15 13:48:25+00', '2024-10-15 14:05:00+00',
+'{"messages": [
+  {"id": "msg1", "senderId": "6c9344ed-0313-4b25-a616-5ac08967e84f", "content": "Hi! I wanted to discuss your position on this topic.", "timestamp": "2024-10-15T13:48:30Z"},
+  {"id": "msg2", "senderId": "735565c1-93d9-4813-b227-3d9c06b78c8f", "content": "Sure, I am happy to chat about it. What specifically interests you?", "timestamp": "2024-10-15T13:49:15Z"},
+  {"id": "msg3", "senderId": "6c9344ed-0313-4b25-a616-5ac08967e84f", "content": "I think there are some valid points on both sides.", "timestamp": "2024-10-15T13:52:00Z"},
+  {"id": "msg4", "senderId": "735565c1-93d9-4813-b227-3d9c06b78c8f", "content": "I agree. Perhaps we can find some common ground.", "timestamp": "2024-10-15T13:55:30Z"},
+  {"id": "msg5", "senderId": "6c9344ed-0313-4b25-a616-5ac08967e84f", "content": "Yes, I think we both want what is best for the community.", "timestamp": "2024-10-15T14:00:00Z"}
+], "agreedPositions": [], "agreedClosure": {"id": "closure-fc6127e3", "proposerId": "6c9344ed-0313-4b25-a616-5ac08967e84f", "content": "We agree to disagree respectfully", "timestamp": "2024-10-15T14:03:00Z"}, "exportTime": "2024-10-15T14:05:00Z"}', 'agreed_closure', 'active'),
 
 -- Chat 2: Normal3 -> Normal1's position (user_exit, active)
-('e698f2d0-10ac-422d-a80e-93c619e2f581', 'c6028e49-467a-46ea-876e-32b1140dd613', '2024-12-12 15:40:20+00', '2024-12-12 15:58:00+00', '{"messages": [], "agreed_positions": [], "agreed_closure": null, "export_time": "2024-12-12T15:58:00Z"}', 'user_exit', 'active'),
+('e698f2d0-10ac-422d-a80e-93c619e2f581', 'c6028e49-467a-46ea-876e-32b1140dd613', '2024-12-12 15:40:20+00', '2024-12-12 15:58:00+00',
+'{"messages": [
+  {"id": "msg1", "senderId": "735565c1-93d9-4813-b227-3d9c06b78c8f", "content": "Hey, I saw your position and wanted to understand it better.", "timestamp": "2024-12-12T15:40:25Z"},
+  {"id": "msg2", "senderId": "6c9344ed-0313-4b25-a616-5ac08967e84f", "content": "Of course! What would you like to know?", "timestamp": "2024-12-12T15:41:00Z"},
+  {"id": "msg3", "senderId": "735565c1-93d9-4813-b227-3d9c06b78c8f", "content": "I am not sure I fully agree with your reasoning.", "timestamp": "2024-12-12T15:45:00Z"},
+  {"id": "msg4", "senderId": "6c9344ed-0313-4b25-a616-5ac08967e84f", "content": "That is fair. Let me explain my perspective.", "timestamp": "2024-12-12T15:50:00Z"}
+], "agreedPositions": [], "agreedClosure": null, "endedByUserId": "735565c1-93d9-4813-b227-3d9c06b78c8f", "exportTime": "2024-12-12T15:58:00Z"}', 'user_exit', 'active'),
 
--- Chat 3: Normal2 -> Admin's position (agreed_closure, deleted)
-('1e665c62-0dc6-45ff-acde-e32d64e5b2ea', '3f0107a5-2c0d-44f2-b89d-7728226dda83', '2025-02-20 10:12:30+00', '2025-02-20 10:35:00+00', '{"messages": [], "agreed_positions": [], "agreed_closure": "Productive discussion", "export_time": "2025-02-20T10:35:00Z"}', 'agreed_closure', 'deleted'),
+-- Chat 3: Normal2 -> Admin's position (agreed_closure, archived) - includes proposals with different statuses
+('1e665c62-0dc6-45ff-acde-e32d64e5b2ea', '3f0107a5-2c0d-44f2-b89d-7728226dda83', '2025-02-20 10:12:30+00', '2025-02-20 10:35:00+00',
+'{"messages": [
+  {"id": "msg1", "senderId": "4a67d0e6-56a4-4396-916b-922d27db71d8", "content": "I appreciate your stance on this issue.", "timestamp": "2025-02-20T10:12:35Z", "type": "text"},
+  {"id": "msg2", "senderId": "0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e", "content": "Thank you for reaching out. I think open dialogue is important.", "timestamp": "2025-02-20T10:15:00Z", "type": "text"},
+  {"id": "msg3", "senderId": "4a67d0e6-56a4-4396-916b-922d27db71d8", "content": "I had some concerns initially, but you have addressed them well.", "timestamp": "2025-02-20T10:20:00Z", "type": "text"},
+  {"id": "msg4", "senderId": "0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e", "content": "I am glad we could have this productive discussion.", "timestamp": "2025-02-20T10:30:00Z", "type": "text"}
+], "agreedPositions": [
+  {"id": "prop1", "proposerId": "4a67d0e6-56a4-4396-916b-922d27db71d8", "content": "Healthcare should be affordable for everyone.", "parentId": null, "status": "accepted", "isClosure": false, "timestamp": "2025-02-20T10:22:00Z"},
+  {"id": "prop2", "proposerId": "0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e", "content": "The government should have no role in healthcare.", "parentId": null, "status": "rejected", "isClosure": false, "timestamp": "2025-02-20T10:25:00Z"},
+  {"id": "prop3", "proposerId": "4a67d0e6-56a4-4396-916b-922d27db71d8", "content": "A balanced approach combining public and private options is best.", "parentId": "prop2", "status": "accepted", "isClosure": false, "timestamp": "2025-02-20T10:28:00Z"},
+  {"id": "closure1", "proposerId": "0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e", "content": "Productive discussion", "parentId": null, "status": "accepted", "isClosure": true, "timestamp": "2025-02-20T10:32:00Z"}
+], "agreedClosure": {"id": "closure1", "proposerId": "0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e", "content": "Productive discussion", "timestamp": "2025-02-20T10:32:00Z"}, "exportTime": "2025-02-20T10:35:00Z"}', 'agreed_closure', 'archived'),
 
 -- Chat 4: Admin -> Normal2's position (user_exit, archived)
-('42f99c17-36cc-438f-bca2-f411d4238a63', '4b53468d-6811-4efd-84f6-7d2cd6b23106', '2025-03-10 16:42:25+00', '2025-03-10 16:55:00+00', '{"messages": [], "agreed_positions": [], "agreed_closure": null, "export_time": "2025-03-10T16:55:00Z"}', 'user_exit', 'archived'),
+('42f99c17-36cc-438f-bca2-f411d4238a63', '4b53468d-6811-4efd-84f6-7d2cd6b23106', '2025-03-10 16:42:25+00', '2025-03-10 16:55:00+00',
+'{"messages": [
+  {"id": "msg1", "senderId": "0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e", "content": "I would like to discuss your position on local governance.", "timestamp": "2025-03-10T16:42:30Z"},
+  {"id": "msg2", "senderId": "4a67d0e6-56a4-4396-916b-922d27db71d8", "content": "Sure, what aspects are you curious about?", "timestamp": "2025-03-10T16:43:00Z"},
+  {"id": "msg3", "senderId": "0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e", "content": "I think there might be some implementation challenges.", "timestamp": "2025-03-10T16:47:00Z"},
+  {"id": "msg4", "senderId": "4a67d0e6-56a4-4396-916b-922d27db71d8", "content": "You raise a good point. I had not considered that angle.", "timestamp": "2025-03-10T16:50:00Z"},
+  {"id": "msg5", "senderId": "0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e", "content": "I need to step away, but this was a good conversation.", "timestamp": "2025-03-10T16:54:00Z"}
+], "agreedPositions": [], "agreedClosure": null, "endedByUserId": "0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e", "exportTime": "2025-03-10T16:55:00Z"}', 'user_exit', 'archived'),
 
 -- Chat 5: Normal4 -> Normal5's position (agreed_closure, active)
-('1d06bf99-4d87-4700-8806-63de8c905eca', '2f58e635-3c09-4bd7-a0d8-f52510ad30fa', '2025-07-15 14:02:20+00', '2025-07-15 14:25:00+00', '{"messages": [], "agreed_positions": [], "agreed_closure": "Found common ground", "export_time": "2025-07-15T14:25:00Z"}', 'agreed_closure', 'active');
+('1d06bf99-4d87-4700-8806-63de8c905eca', '2f58e635-3c09-4bd7-a0d8-f52510ad30fa', '2025-07-15 14:02:20+00', '2025-07-15 14:25:00+00',
+'{"messages": [
+  {"id": "msg1", "senderId": "2333392a-7c07-4733-8b46-00d32833d9bc", "content": "I find your perspective on healthcare really interesting.", "timestamp": "2025-07-15T14:02:25Z"},
+  {"id": "msg2", "senderId": "c922be05-e355-4052-8d3f-7774669ddd32", "content": "Thanks! It is something I care deeply about.", "timestamp": "2025-07-15T14:05:00Z"},
+  {"id": "msg3", "senderId": "2333392a-7c07-4733-8b46-00d32833d9bc", "content": "I think we actually agree on the core principles.", "timestamp": "2025-07-15T14:10:00Z"},
+  {"id": "msg4", "senderId": "c922be05-e355-4052-8d3f-7774669ddd32", "content": "Yes! We just differ on the implementation approach.", "timestamp": "2025-07-15T14:15:00Z"},
+  {"id": "msg5", "senderId": "2333392a-7c07-4733-8b46-00d32833d9bc", "content": "Maybe we can propose a hybrid solution.", "timestamp": "2025-07-15T14:20:00Z"}
+], "agreedPositions": [], "agreedClosure": {"id": "closure-1d06bf99", "proposerId": "2333392a-7c07-4733-8b46-00d32833d9bc", "content": "Found common ground", "timestamp": "2025-07-15T14:22:00Z"}, "exportTime": "2025-07-15T14:25:00Z"}', 'agreed_closure', 'active');
 
 -- Test data for kudos entries
 INSERT INTO kudos (id, sender_user_id, receiver_user_id, chat_log_id, status, created_time) VALUES
@@ -594,37 +637,37 @@ INSERT INTO rule (id, creator_user_id, title, text, status, created_time, update
 ('e1d0f9a8-b7c6-4d5e-4f3a-2b1c0d9e8f7a', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'Not a Normative Political Statement', 'This content does not make a normative political statement', 'active', '2024-09-25 10:15:00+00', '2024-09-25 10:15:00+00');
 
 -- Test data for user demographics (varying from empty to complete)
-INSERT INTO user_demographics (id, user_id, location_id, affiliation_id, lean, education, geo_locale, race, sex, created_time, updated_time) VALUES
+INSERT INTO user_demographics (id, user_id, location_id, affiliation_id, lean, education, geo_locale, race, sex, age_range, income_range, created_time, updated_time) VALUES
 
 -- Admin user - Complete demographics
-('309206e2-b202-483a-8452-0fa15c4e2344', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '6a76fec7-bf77-4333-937f-07d48c1ae966', 'liberal', 'masters', 'urban', 'White', 'female', '2024-09-24 10:20:00+00', '2025-03-15 14:30:00+00'),
+('309206e2-b202-483a-8452-0fa15c4e2344', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '6a76fec7-bf77-4333-937f-07d48c1ae966', 'liberal', 'masters', 'urban', 'white', 'female', '35-44', '100k-150k', '2024-09-24 10:20:00+00', '2025-03-15 14:30:00+00'),
 
 -- Moderator1 - Mostly complete (missing race)
-('a2fc13b4-d1e5-41f6-bfe6-e07dd5425f5a', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '3373d56e-2776-4524-9ef6-2053b85df3c3', 'conservative', 'bachelors', 'suburban', NULL, 'male', '2024-11-10 14:25:00+00', '2025-04-08 11:15:00+00'),
+('a2fc13b4-d1e5-41f6-bfe6-e07dd5425f5a', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '3373d56e-2776-4524-9ef6-2053b85df3c3', 'conservative', 'bachelors', 'suburban', NULL, 'male', '45-54', '75k-100k', '2024-11-10 14:25:00+00', '2025-04-08 11:15:00+00'),
 
 -- Moderator2 - Partial demographics (location, lean, education only)
-('58737977-85ff-4527-9456-ec13d8455571', '010f84ad-0abd-4352-a7b3-7f9b95d51983', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', NULL, 'moderate', 'doctorate', NULL, NULL, NULL, '2024-12-17 08:35:00+00', '2025-06-20 16:45:00+00'),
+('58737977-85ff-4527-9456-ec13d8455571', '010f84ad-0abd-4352-a7b3-7f9b95d51983', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', NULL, 'moderate', 'doctorate', NULL, NULL, NULL, '55-64', '150k-200k', '2024-12-17 08:35:00+00', '2025-06-20 16:45:00+00'),
 
 -- Normal1 - Complete demographics
-('e0e297a8-bd10-466f-9c65-452b354286e9', '6c9344ed-0313-4b25-a616-5ac08967e84f', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '6a76fec7-bf77-4333-937f-07d48c1ae966', 'very_liberal', 'some_college', 'urban', 'Hispanic or Latino', 'other', '2024-10-05 12:45:00+00', '2025-02-18 09:20:00+00'),
+('e0e297a8-bd10-466f-9c65-452b354286e9', '6c9344ed-0313-4b25-a616-5ac08967e84f', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '6a76fec7-bf77-4333-937f-07d48c1ae966', 'very_liberal', 'some_college', 'urban', 'hispanic', 'other', '18-24', '25k-50k', '2024-10-05 12:45:00+00', '2025-02-18 09:20:00+00'),
 
 -- Normal2 - Basic demographics (lean and education only)
-('5f9db131-b7a5-463d-bc06-9d9138c8c379', '4a67d0e6-56a4-4396-916b-922d27db71d8', NULL, NULL, 'conservative', 'high_school', NULL, NULL, NULL, '2025-01-19 15:30:00+00', '2025-01-19 15:30:00+00'),
+('5f9db131-b7a5-463d-bc06-9d9138c8c379', '4a67d0e6-56a4-4396-916b-922d27db71d8', NULL, NULL, 'conservative', 'high_school', NULL, NULL, NULL, '25-34', 'under_25k', '2025-01-19 15:30:00+00', '2025-01-19 15:30:00+00'),
 
 -- Normal3 - Complete demographics
-('ce8ce134-0f45-4331-a3fb-ac56100cb75e', '735565c1-93d9-4813-b227-3d9c06b78c8f', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '9bfb76d1-0857-47bc-9e10-c7df3e25e762', 'liberal', 'professional', 'suburban', 'Asian', 'female', '2024-08-31 09:25:00+00', '2025-05-12 13:40:00+00'),
+('ce8ce134-0f45-4331-a3fb-ac56100cb75e', '735565c1-93d9-4813-b227-3d9c06b78c8f', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '9bfb76d1-0857-47bc-9e10-c7df3e25e762', 'liberal', 'professional', 'suburban', 'asian', 'female', '35-44', 'over_200k', '2024-08-31 09:25:00+00', '2025-05-12 13:40:00+00'),
 
 -- Normal4 - Moderate demographics (missing affiliation and race)
-('d890424b-a872-4306-8549-2272a695ecd6', '2333392a-7c07-4733-8b46-00d32833d9bc', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', NULL, 'very_conservative', 'associates', 'rural', NULL, 'male', '2025-03-07 16:50:00+00', '2025-07-25 10:15:00+00'),
+('d890424b-a872-4306-8549-2272a695ecd6', '2333392a-7c07-4733-8b46-00d32833d9bc', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', NULL, 'very_conservative', 'associates', 'rural', NULL, 'male', '65+', '50k-75k', '2025-03-07 16:50:00+00', '2025-07-25 10:15:00+00'),
 
 -- Normal5 - Minimal demographics (location and sex only)
-('4aacc55b-e460-4f5a-8253-d41373380f94', 'c922be05-e355-4052-8d3f-7774669ddd32', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', NULL, NULL, NULL, NULL, NULL, 'male', '2024-09-16 11:35:00+00', '2024-09-16 11:35:00+00'),
+('4aacc55b-e460-4f5a-8253-d41373380f94', 'c922be05-e355-4052-8d3f-7774669ddd32', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', NULL, NULL, NULL, NULL, NULL, 'male', NULL, NULL, '2024-09-16 11:35:00+00', '2024-09-16 11:35:00+00'),
 
 -- Guest1 - Empty demographics (only user_id)
-('0d20b95e-4aaa-49f3-bf3f-66e55727fe6d', 'a82b485b-114f-44b7-aa0b-8ae8ca96e4f3', NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-03-02 20:25:00+00', '2025-03-02 20:25:00+00'),
+('0d20b95e-4aaa-49f3-bf3f-66e55727fe6d', 'a82b485b-114f-44b7-aa0b-8ae8ca96e4f3', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-03-02 20:25:00+00', '2025-03-02 20:25:00+00'),
 
 -- Guest2 - Complete demographics (using remaining UUID)
-('d95e135b-eff7-4503-becf-013ea38f1706', 'a2ec25a9-2a12-4a01-baf8-c0d1e254c3db', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'c0e94b05-8722-4a67-afe4-0e6b255a2145', 'very_liberal', 'bachelors', 'urban', 'Black or African American', 'female', '2024-12-09 13:20:00+00', '2025-08-09 15:10:00+00');
+('d95e135b-eff7-4503-becf-013ea38f1706', 'a2ec25a9-2a12-4a01-baf8-c0d1e254c3db', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'c0e94b05-8722-4a67-afe4-0e6b255a2145', 'very_liberal', 'bachelors', 'urban', 'black', 'female', '25-34', '50k-75k', '2024-12-09 13:20:00+00', '2025-08-09 15:10:00+00');
 
 -- Test data for surveys
 INSERT INTO survey (id, creator_user_id, position_category_id, survey_title, start_time, end_time, status) VALUES

@@ -2,21 +2,27 @@
 # Start dockerd in background
 dockerd-entrypoint.sh &
 
-# Install and configure mkcert for local ssl auth
+# Ensure SSL certificates are valid for OIDC simulator
 WORK_DIR=$(pwd)
+CERT_DIR=/root/.simulacrum/certs
+CERT_FILE="$CERT_DIR/localhost.pem"
 
-if [ ! -f /usr/bin/mkcert ]; then
-    curl -JLO "https://dl.filippo.io/mkcert/latest?for=linux/amd64"
-    chmod +x mkcert-v*-linux-amd64
-    cp mkcert-v*-linux-amd64 /usr/local/bin/mkcert
-fi
+# Ensure certs directory exists
+mkdir -p $CERT_DIR
 
-if [ ! -d /root/.simulacrum/certs ]; then
-    mkdir -p /root/.simulacrum/certs
-    cd /root/.simulacrum/certs
-    mkcert -install   # Created a new local CA at the location returned from mkcert -CAROOT
-    mkcert localhost  # Using the local CA at CAROOT, create a new certificate valid for the following names
-    cd $WORK_DIR 
+# Always refresh the CA installation (idempotent, ensures CA is trusted)
+echo "Refreshing mkcert CA..."
+mkcert -install
+
+# Regenerate certs if missing or older than 30 days
+if [ ! -f "$CERT_FILE" ] || [ $(find "$CERT_FILE" -mtime +30 2>/dev/null | wc -l) -gt 0 ]; then
+    echo "Generating/refreshing SSL certificates..."
+    cd $CERT_DIR
+    mkcert localhost
+    cd $WORK_DIR
+    echo "Certificates ready"
+else
+    echo "Certificates are valid"
 fi
 
 # Wait for docker to be ready

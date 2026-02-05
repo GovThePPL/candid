@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Modal, TouchableOpacity, useWindowDimensions } 
 import Svg, { Polygon, Circle, Text as SvgText, G, ClipPath, Defs, Image as SvgImage, Line } from 'react-native-svg'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors } from '../../constants/Colors'
+import { getAvatarImageUrl, getInitials, getInitialsColor } from '../../lib/avatarUtils'
 
 // Group colors for visualization
 const GROUP_COLORS = [
@@ -15,34 +16,6 @@ const GROUP_COLORS = [
   '#1ABC9C', // Teal
   '#34495E', // Dark gray
 ]
-
-// Handle avatar URL for data URIs
-const getAvatarImageUrl = (url) => {
-  if (!url) return null
-  if (url.startsWith('data:')) return url
-  return url
-}
-
-// Get initials from display name for avatar fallback
-const getInitials = (name) => {
-  if (!name) return '?'
-  const parts = name.trim().split(/\s+/)
-  if (parts.length === 1) {
-    return parts[0].charAt(0).toUpperCase()
-  }
-  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase()
-}
-
-// Generate a consistent color from a string
-const getInitialsColor = (name) => {
-  if (!name) return Colors.primaryMuted
-  let hash = 0
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash)
-  }
-  const colors = ['#5C005C', '#9B59B6', '#3498DB', '#1ABC9C', '#27AE60', '#F39C12', '#E74C3C', '#E91E63']
-  return colors[Math.abs(hash) % colors.length]
-}
 
 /**
  * Modal showing opinion map with two users highlighted

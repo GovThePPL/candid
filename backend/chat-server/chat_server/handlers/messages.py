@@ -41,6 +41,9 @@ def register_message_handlers(sio: socketio.AsyncServer) -> None:
                 "message": "Not authenticated",
             }
 
+        # Update activity timestamp
+        room_manager.update_activity(sid)
+
         chat_id = data.get("chatId")
         content = data.get("content")
         message_type = data.get("messageType", "text")

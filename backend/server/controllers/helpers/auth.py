@@ -2,7 +2,6 @@ import bcrypt
 from datetime import datetime, timedelta, timezone
 import jwt
 import uuid
-from camel_converter import dict_to_camel
 
 from candid.models.user import User
 from candid.models.error_model import ErrorModel
@@ -36,7 +35,12 @@ def get_login_info(username):
             password_hash,
             display_name,
             username,
-            id
+            id,
+            user_type,
+            status,
+            trust_score,
+            avatar_url,
+            avatar_icon_url
         FROM users
         WHERE username = %s
     """,
@@ -75,7 +79,16 @@ def token_to_user(token_info):
         WHERE id = %s
     """, (token_info["sub"],), fetchone=True)
     if res is not None:
-        return User.from_dict(dict_to_camel(res))
+        return User(
+            id=str(res['id']),
+            username=res['username'],
+            display_name=res['display_name'],
+            avatar_url=res.get('avatar_url'),
+            avatar_icon_url=res.get('avatar_icon_url'),
+            status=res['status'],
+            trust_score=float(res['trust_score']) if res.get('trust_score') is not None else None,
+            kudos_count=res.get('kudos_count', 0),
+        )
     return None
 
 def authorization(required_level, token_info=None):
@@ -83,6 +96,8 @@ def authorization(required_level, token_info=None):
         return False, ErrorModel(401, "Authentication Required")
     user_id = token_info['sub']
     user_type = get_user_type(user_id)
+    if user_type is None:
+        return False, ErrorModel(401, "User not found")
     if _USER_ROLE_RANKING[user_type] >= _USER_ROLE_RANKING[required_level]:
         return True, None
     else:

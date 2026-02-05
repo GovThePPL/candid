@@ -3,6 +3,7 @@ import { forwardRef } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors } from '../../constants/Colors'
 import SwipeableCard from './SwipeableCard'
+import { getInitials, getInitialsColor, getTrustBadgeColor, getAvatarImageUrl } from '../../lib/avatarUtils'
 
 const PositionCard = forwardRef(function PositionCard({
   position,
@@ -14,8 +15,12 @@ const PositionCard = forwardRef(function PositionCard({
   onAddPosition,
   isBackCard,
   backCardAnimatedValue,
+  isFromChattingList = false,
+  hasPendingRequests = false,
+  onRemoveFromChattingList,
+  onAddToChattingList,
 }, ref) {
-  const { statement, category, location, author } = position
+  const { statement, category, location, creator: author } = position
 
   return (
     <SwipeableCard
@@ -36,15 +41,31 @@ const PositionCard = forwardRef(function PositionCard({
                 <Text style={styles.locationCode}>{location.code}</Text>
               </View>
             )}
-            {category?.name && (
-              <Text style={styles.categoryName}>{category.name}</Text>
+            {category?.label && (
+              <Text style={styles.categoryName}>{category.label}</Text>
             )}
           </View>
-          {author?.fastResponder && (
-            <View style={styles.fastResponderBadge}>
-              <Ionicons name="flash" size={18} color={Colors.chat} />
-            </View>
-          )}
+          <View style={styles.headerRight}>
+            {author?.fastResponder && (
+              <View style={styles.fastResponderBadge}>
+                <Ionicons name="flash" size={18} color={Colors.chat} />
+              </View>
+            )}
+            <TouchableOpacity
+              onPress={isFromChattingList ? onRemoveFromChattingList : onAddToChattingList}
+              style={[
+                styles.chattingListButton,
+                isFromChattingList ? styles.chattingListButtonSelected : styles.chattingListButtonUnselected
+              ]}
+            >
+              <Ionicons
+                name={isFromChattingList ? "chatbubbles" : "chatbubbles-outline"}
+                size={20}
+                color={isFromChattingList ? '#FFFFFF' : Colors.primary}
+              />
+              {hasPendingRequests && <View style={styles.pendingDot} />}
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Statement */}
@@ -54,23 +75,24 @@ const PositionCard = forwardRef(function PositionCard({
 
         {/* Footer */}
         <View style={styles.footer}>
-          <TouchableOpacity onPress={onReport} style={styles.iconButton}>
-            <Ionicons name="flag-outline" size={22} color={Colors.pass} />
+          <TouchableOpacity onPress={onReport} style={[styles.iconButton, styles.flagButton]}>
+            <Ionicons name="flag-outline" size={22} color="#E57373" />
           </TouchableOpacity>
 
           <View style={styles.authorInfo}>
             <View style={styles.avatarContainer}>
-              {author?.avatarUrl ? (
-                <Image source={{ uri: author.avatarUrl }} style={styles.avatar} />
+              {(author?.avatarIconUrl || author?.avatarUrl) ? (
+                <Image source={{ uri: getAvatarImageUrl(author.avatarIconUrl || author.avatarUrl) }} style={styles.avatar} />
               ) : (
-                <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                <View style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: getInitialsColor(author?.displayName) }]}>
                   <Text style={styles.avatarInitial}>
-                    {author?.displayName?.[0]?.toUpperCase() || '?'}
+                    {getInitials(author?.displayName)}
                   </Text>
                 </View>
               )}
               {author?.kudosCount > 0 && (
-                <View style={styles.kudosBadge}>
+                <View style={[styles.kudosBadge, { backgroundColor: getTrustBadgeColor(author.trustScore) }]}>
+                  <Ionicons name="star" size={10} color={Colors.primary} />
                   <Text style={styles.kudosCount}>{author.kudosCount}</Text>
                 </View>
               )}
@@ -81,8 +103,8 @@ const PositionCard = forwardRef(function PositionCard({
             </View>
           </View>
 
-          <TouchableOpacity onPress={onAddPosition} style={styles.iconButton}>
-            <Ionicons name="add-circle-outline" size={26} color={Colors.primaryMuted} />
+          <TouchableOpacity onPress={onAddPosition} style={[styles.iconButton, styles.addButton]}>
+            <Ionicons name="add-circle-outline" size={26} color="#81C784" />
           </TouchableOpacity>
         </View>
       </View>
@@ -102,10 +124,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   categoryRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flex: 1,
   },
   locationBadge: {
     backgroundColor: Colors.primaryMuted + '20',
@@ -121,6 +149,29 @@ const styles = StyleSheet.create({
   categoryName: {
     fontSize: 14,
     color: Colors.primary,
+  },
+  chattingListButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  chattingListButtonUnselected: {
+    backgroundColor: Colors.primaryMuted + '40',
+  },
+  chattingListButtonSelected: {
+    backgroundColor: Colors.primary,
+  },
+  pendingDot: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.agree,
   },
   fastResponderBadge: {
     backgroundColor: Colors.cardBackground,
@@ -150,6 +201,16 @@ const styles = StyleSheet.create({
   },
   iconButton: {
     padding: 8,
+    borderRadius: 20,
+  },
+  flagButton: {
+    backgroundColor: '#FFEBEE',
+  },
+  addButton: {
+    backgroundColor: '#E8F5E9',
+  },
+  removeButton: {
+    backgroundColor: Colors.pass + '30',
   },
   authorInfo: {
     flexDirection: 'row',
@@ -180,10 +241,12 @@ const styles = StyleSheet.create({
     left: -4,
     backgroundColor: Colors.kudosBadge,
     borderRadius: 10,
-    paddingHorizontal: 6,
+    paddingHorizontal: 5,
     paddingVertical: 2,
     minWidth: 20,
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 2,
   },
   kudosCount: {
     fontSize: 10,

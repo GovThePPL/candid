@@ -8,9 +8,12 @@ import {
   ChatApi,
   SurveysApi,
   CategoriesApi,
+  ChattingListApi,
+  StatsApi,
   LoginUserRequest,
   RegisterUserRequest,
 } from 'candid_api'
+import { CacheManager } from './cache'
 
 // API configuration
 export const API_BASE_URL = __DEV__
@@ -31,6 +34,8 @@ const positionsApi = new PositionsApi(apiClient)
 const chatApi = new ChatApi(apiClient)
 const surveysApi = new SurveysApi(apiClient)
 const categoriesApi = new CategoriesApi(apiClient)
+const chattingListApi = new ChattingListApi(apiClient)
+const statsApi = new StatsApi(apiClient)
 
 // Token management
 export async function getToken() {
@@ -98,6 +103,23 @@ function promisify(apiMethod, ...args) {
   })
 }
 
+/**
+ * Promisify variant that returns both data and response object.
+ * Used for endpoints that need cache header inspection (ETag, Last-Modified, 304).
+ * @returns {Promise<{data: any, response: object}>}
+ */
+function promisifyWithResponse(apiMethod, ...args) {
+  return new Promise((resolve, reject) => {
+    apiMethod(...args, (error, data, response) => {
+      if (error && response?.status !== 304) {
+        reject(error)
+      } else {
+        resolve({ data, response })
+      }
+    })
+  })
+}
+
 // Auth API
 export const authApi = {
   async login(username, password) {
@@ -130,6 +152,8 @@ export const authApi = {
   async logout() {
     await setToken(null)
     await setStoredUser(null)
+    // Clear all cached data on logout
+    await CacheManager.clearAll()
   },
 
   async getCurrentUser() {
@@ -173,121 +197,106 @@ export const usersApiWrapper = {
   },
 
   async getLocations() {
-    const token = await getToken()
-    const response = await fetch(`${API_BASE_URL}/users/me/locations`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to fetch locations')
-    }
-
-    return response.json()
+    return await promisify(usersApi.getUserLocations.bind(usersApi))
   },
 
   async getMyPositions(status = 'all') {
-    const token = await getToken()
-    const response = await fetch(`${API_BASE_URL}/users/me/positions?status=${status}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to fetch positions')
-    }
-
-    return response.json()
+    const opts = { status }
+    return await promisify(
+      usersApi.getCurrentUserPositions.bind(usersApi),
+      opts
+    )
   },
 
   async updatePosition(userPositionId, status) {
-    const token = await getToken()
-    const response = await fetch(`${API_BASE_URL}/users/me/positions/${userPositionId}`, {
-      method: 'PATCH',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ status }),
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to update position')
-    }
-
-    return response.json()
+    return await promisify(
+      usersApi.updateUserPosition.bind(usersApi),
+      userPositionId,
+      { status }
+    )
   },
 
   async deletePosition(userPositionId) {
-    const token = await getToken()
-    const response = await fetch(`${API_BASE_URL}/users/me/positions/${userPositionId}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    })
+    return await promisify(
+      usersApi.deleteUserPosition.bind(usersApi),
+      userPositionId
+    )
+  },
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to delete position')
+  /**
+   * Get positions metadata for cache validation
+   * @returns {Promise<{count: number, lastUpdatedTime: string|null}>}
+   */
+  async getPositionsMetadata() {
+    return await promisify(
+      usersApi.getCurrentUserPositionsMetadata.bind(usersApi)
+    )
+  },
+
+  /**
+   * Get positions with raw response for caching (includes headers)
+   * @param {string} status - Filter by status
+   * @param {object} conditionalHeaders - Cache headers (If-None-Match, If-Modified-Since)
+   * @returns {Promise<{data: any, response: object}>}
+   */
+  async getMyPositionsRaw(status = 'all', conditionalHeaders = {}) {
+    const opts = { status }
+    if (conditionalHeaders['If-None-Match']) {
+      opts.ifNoneMatch = conditionalHeaders['If-None-Match']
     }
+    if (conditionalHeaders['If-Modified-Since']) {
+      opts.ifModifiedSince = conditionalHeaders['If-Modified-Since']
+    }
+    return promisifyWithResponse(
+      usersApi.getCurrentUserPositions.bind(usersApi),
+      opts
+    )
+  },
+
+  async changePassword(currentPassword, newPassword) {
+    return await promisify(
+      usersApi.changePassword.bind(usersApi),
+      { currentPassword, newPassword }
+    )
+  },
+
+  async deleteAccount(password) {
+    return await promisify(
+      usersApi.deleteCurrentUser.bind(usersApi),
+      { password }
+    )
+  },
+
+  async getAvailableAvatars() {
+    return await promisify(usersApi.getAvailableAvatars.bind(usersApi))
+  },
+
+  async uploadAvatar(imageBase64) {
+    return await promisify(
+      usersApi.uploadAvatar.bind(usersApi),
+      { imageBase64 }
+    )
   },
 }
 
 // Cards API
 export const cardsApiWrapper = {
   async getCardQueue(limit = 10) {
-    // WORKAROUND: Bypass the generated client's oneOf validation
-    //
-    // The OpenAPI JavaScript generator has a bug with oneOf discriminators.
-    // When validating JSON, it checks if data matches ANY schema rather than
-    // using the discriminator field ('type') to select the correct one first.
-    // This causes "Multiple matches found" errors for card queue responses.
-    //
-    // Issue: openapi-generator doesn't properly validate discriminator enum values
-    // See: https://github.com/OpenAPITools/openapi-generator/issues/10010
-    //
-    // Future options:
-    // 1. Patch generated *CardItem.js files to check discriminator value first
-    // 2. Switch to typescript-fetch or typescript-axios generator (better discriminator support)
-    // 3. Keep this direct fetch workaround
-    //
-    const token = await getToken()
-    if (!token) {
-      throw new Error('Not authenticated')
-    }
-
-    let response
-    try {
-      response = await fetch(`${API_BASE_URL}/card-queue?limit=${limit}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+    // Use a custom callback that ignores oneOf deserialization errors and returns
+    // response.body (raw JSON) directly. The generated client's deserialize step
+    // throws because the oneOf/discriminator validation rejects valid cards whose
+    // nested data doesn't exactly match the spec schemas.
+    return new Promise((resolve, reject) => {
+      cardsApi.getCardQueue({ limit }, (error, data, response) => {
+        if (response?.body) {
+          resolve(response.body)
+        } else if (error) {
+          reject(error)
+        } else {
+          resolve([])
+        }
       })
-    } catch (networkError) {
-      throw new Error(`Network error: ${networkError.message}`)
-    }
-
-    if (!response.ok) {
-      let errorMessage = 'Failed to fetch card queue'
-      try {
-        const error = await response.json()
-        errorMessage = error.message || errorMessage
-      } catch {
-        errorMessage = `HTTP ${response.status}: ${response.statusText}`
-      }
-      throw new Error(errorMessage)
-    }
-
-    return response.json()
+    })
   },
 }
 
@@ -319,47 +328,30 @@ export const positionsApiWrapper = {
   },
 
   async adopt(positionId) {
-    const token = await getToken()
-    const response = await fetch(`${API_BASE_URL}/positions/${positionId}/adopt`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to adopt position')
-    }
-
-    return response.json()
+    return await promisify(
+      positionsApi.adoptPosition.bind(positionsApi),
+      positionId
+    )
   },
 
   async searchSimilar(statement, options = {}) {
     const { categoryId, locationId, limit = 5 } = options
-    const token = await getToken()
-
     const body = { statement }
     if (categoryId) body.categoryId = categoryId
     if (locationId) body.locationId = locationId
     if (limit) body.limit = limit
 
-    const response = await fetch(`${API_BASE_URL}/positions/search`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-    })
+    return await promisify(
+      positionsApi.searchSimilarPositions.bind(positionsApi),
+      body
+    )
+  },
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to search positions')
-    }
-
-    return response.json()
+  async getAgreedClosures(positionId) {
+    return await promisify(
+      positionsApi.getPositionAgreedClosures.bind(positionsApi),
+      positionId
+    )
   },
 }
 
@@ -374,23 +366,46 @@ export const chatApiWrapper = {
 
   async getUserChats(userId, options = {}) {
     const { limit = 20, offset = 0 } = options
-    const token = await getToken()
-    const response = await fetch(
-      `${API_BASE_URL}/chats/user/${userId}?limit=${limit}&offset=${offset}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      }
+    return await promisify(
+      chatApi.getUserChats.bind(chatApi),
+      userId,
+      { limit, offset }
     )
+  },
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to fetch user chats')
+  /**
+   * Get user chats metadata for cache validation
+   * @param {string} userId
+   * @returns {Promise<{count: number, lastActivityTime: string|null}>}
+   */
+  async getUserChatsMetadata(userId) {
+    return await promisify(
+      chatApi.getUserChatsMetadata.bind(chatApi),
+      userId
+    )
+  },
+
+  /**
+   * Get user chats with raw response for caching
+   * @param {string} userId
+   * @param {object} options - {limit, offset}
+   * @param {object} conditionalHeaders - Cache headers
+   * @returns {Promise<{data: any, response: object}>}
+   */
+  async getUserChatsRaw(userId, options = {}, conditionalHeaders = {}) {
+    const { limit = 20, offset = 0 } = options
+    const opts = { limit, offset }
+    if (conditionalHeaders['If-None-Match']) {
+      opts.ifNoneMatch = conditionalHeaders['If-None-Match']
     }
-
-    return response.json()
+    if (conditionalHeaders['If-Modified-Since']) {
+      opts.ifModifiedSince = conditionalHeaders['If-Modified-Since']
+    }
+    return promisifyWithResponse(
+      chatApi.getUserChats.bind(chatApi),
+      userId,
+      opts
+    )
   },
 
   async getActiveChat(userId) {
@@ -411,41 +426,39 @@ export const chatApiWrapper = {
   },
 
   async rescindChatRequest(requestId) {
-    const token = await getToken()
-    const response = await fetch(`${API_BASE_URL}/chats/requests/${requestId}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to rescind chat request')
-    }
-
-    return response.json()
+    return await promisify(
+      chatApi.rescindChatRequest.bind(chatApi),
+      requestId
+    )
   },
 
   async getChatLog(chatId) {
-    // WORKAROUND: Bypass generated client which drops extra fields
-    // The generated GetChatLog200Response model only has 'id' and 'chatLog'
-    // but backend returns more fields (otherUser, positionStatement, etc.)
-    const token = await getToken()
-    const response = await fetch(`${API_BASE_URL}/chats/${chatId}/log`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    })
+    return await promisify(
+      chatApi.getChatLog.bind(chatApi),
+      chatId,
+      {}  // opts parameter required before callback
+    )
+  },
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to fetch chat log')
+  /**
+   * Get chat log with raw response for caching (includes ETag, Last-Modified headers)
+   * @param {string} chatId
+   * @param {object} conditionalHeaders - Cache headers (If-None-Match, If-Modified-Since)
+   * @returns {Promise<{data: any, response: object}>}
+   */
+  async getChatLogRaw(chatId, conditionalHeaders = {}) {
+    const opts = {}
+    if (conditionalHeaders['If-None-Match']) {
+      opts.ifNoneMatch = conditionalHeaders['If-None-Match']
     }
-
-    return response.json()
+    if (conditionalHeaders['If-Modified-Since']) {
+      opts.ifModifiedSince = conditionalHeaders['If-Modified-Since']
+    }
+    return promisifyWithResponse(
+      chatApi.getChatLog.bind(chatApi),
+      chatId,
+      opts
+    )
   },
 
   async sendKudos(chatId) {
@@ -483,86 +496,33 @@ export const surveysApiWrapper = {
   },
 
   async respondToPairwise(surveyId, winnerItemId, loserItemId) {
-    const token = await getToken()
-    const response = await fetch(`${API_BASE_URL}/pairwise/${surveyId}/respond`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ winnerItemId, loserItemId }),
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to submit pairwise response')
-    }
-
-    return response.json()
+    return await promisify(
+      surveysApi.respondToPairwise.bind(surveysApi),
+      surveyId,
+      { winnerItemId, loserItemId }
+    )
   },
 
   async getPairwiseSurveys(locationId, categoryId) {
-    const token = await getToken()
-    if (!token) {
-      throw new Error('Not authenticated')
-    }
+    const opts = {}
+    if (locationId) opts.locationId = locationId
+    if (categoryId && categoryId !== 'all') opts.categoryId = categoryId
 
-    const params = new URLSearchParams()
-    if (locationId) {
-      params.append('locationId', locationId)
-    }
-    if (categoryId && categoryId !== 'all') {
-      params.append('categoryId', categoryId)
-    }
-
-    const queryString = params.toString()
-    const url = `${API_BASE_URL}/surveys/pairwise${queryString ? `?${queryString}` : ''}`
-
-    const response = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to fetch pairwise surveys')
-    }
-
-    return await response.json()
+    return await promisify(
+      surveysApi.getPairwiseSurveys.bind(surveysApi),
+      opts
+    )
   },
 
   async getStandardSurveys(locationId, categoryId) {
-    const token = await getToken()
-    if (!token) {
-      throw new Error('Not authenticated')
-    }
+    const opts = {}
+    if (locationId) opts.locationId = locationId
+    if (categoryId && categoryId !== 'all') opts.categoryId = categoryId
 
-    const params = new URLSearchParams()
-    if (locationId) {
-      params.append('locationId', locationId)
-    }
-    if (categoryId && categoryId !== 'all') {
-      params.append('categoryId', categoryId)
-    }
-
-    const queryString = params.toString()
-    const url = `${API_BASE_URL}/surveys${queryString ? `?${queryString}` : ''}`
-
-    const response = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to fetch standard surveys')
-    }
-
-    return await response.json()
+    return await promisify(
+      surveysApi.getActiveSurveys.bind(surveysApi),
+      opts
+    )
   },
 
   async getAllSurveys(locationId, categoryId) {
@@ -585,332 +545,165 @@ export const surveysApiWrapper = {
   },
 
   async getSurveyRankings(surveyId, filterLocationId, groupId, polisConversationId) {
-    const token = await getToken()
-    if (!token) {
-      throw new Error('Not authenticated')
-    }
+    const opts = {}
+    if (filterLocationId) opts.filterLocationId = filterLocationId
+    if (groupId && groupId !== 'majority') opts.groupId = groupId
+    if (polisConversationId) opts.polisConversationId = polisConversationId
 
-    const params = new URLSearchParams()
-    if (filterLocationId) {
-      params.append('filterLocationId', filterLocationId)
-    }
-    if (groupId && groupId !== 'majority') {
-      params.append('groupId', groupId)
-    }
-    if (polisConversationId) {
-      params.append('polisConversationId', polisConversationId)
-    }
-
-    const queryString = params.toString()
-    const url = `${API_BASE_URL}/surveys/pairwise/${surveyId}/rankings${queryString ? `?${queryString}` : ''}`
-
-    const response = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to fetch survey rankings')
-    }
-
-    return await response.json()
+    return await promisify(
+      surveysApi.getSurveyRankings.bind(surveysApi),
+      surveyId,
+      opts
+    )
   },
 
   async getStandardSurveyResults(surveyId, filterLocationId, groupId, polisConversationId) {
-    const token = await getToken()
-    if (!token) {
-      throw new Error('Not authenticated')
-    }
+    const opts = {}
+    if (filterLocationId) opts.filterLocationId = filterLocationId
+    if (groupId && groupId !== 'majority') opts.groupId = groupId
+    if (polisConversationId) opts.polisConversationId = polisConversationId
 
-    const params = new URLSearchParams()
-    if (filterLocationId) {
-      params.append('filterLocationId', filterLocationId)
-    }
-    if (groupId && groupId !== 'majority') {
-      params.append('groupId', groupId)
-    }
-    if (polisConversationId) {
-      params.append('polisConversationId', polisConversationId)
-    }
-
-    const queryString = params.toString()
-    const url = `${API_BASE_URL}/surveys/${surveyId}/results${queryString ? `?${queryString}` : ''}`
-
-    const response = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to fetch survey results')
-    }
-
-    return await response.json()
+    return await promisify(
+      surveysApi.getStandardSurveyResults.bind(surveysApi),
+      surveyId,
+      opts
+    )
   },
 
   async getQuestionCrosstabs(surveyId, questionId, filterLocationId, groupId, polisConversationId) {
-    const token = await getToken()
-    if (!token) {
-      throw new Error('Not authenticated')
-    }
+    const opts = {}
+    if (filterLocationId) opts.filterLocationId = filterLocationId
+    if (groupId && groupId !== 'majority') opts.groupId = groupId
+    if (polisConversationId) opts.polisConversationId = polisConversationId
 
-    const params = new URLSearchParams()
-    if (filterLocationId) {
-      params.append('filterLocationId', filterLocationId)
-    }
-    if (groupId && groupId !== 'majority') {
-      params.append('groupId', groupId)
-    }
-    if (polisConversationId) {
-      params.append('polisConversationId', polisConversationId)
-    }
-
-    const queryString = params.toString()
-    const url = `${API_BASE_URL}/surveys/${surveyId}/questions/${questionId}/crosstabs${queryString ? `?${queryString}` : ''}`
-
-    const response = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to fetch crosstabs')
-    }
-
-    return await response.json()
+    return await promisify(
+      surveysApi.getQuestionCrosstabs.bind(surveysApi),
+      surveyId,
+      questionId,
+      opts
+    )
   },
 }
 
 // Categories API
 export const categoriesApiWrapper = {
   async getAll() {
-    return await promisify(categoriesApi.getAllCategories.bind(categoriesApi))
+    return await promisify(
+      categoriesApi.getAllCategories.bind(categoriesApi)
+    )
   },
 
   async suggest(statement, limit = 3) {
-    const token = await getToken()
-    const response = await fetch(`${API_BASE_URL}/categories/suggest`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ statement, limit }),
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to suggest category')
-    }
-
-    return response.json()
+    return await promisify(
+      categoriesApi.suggestCategory.bind(categoriesApi),
+      { statement, limit }
+    )
   },
 }
 
 // Chatting List API
 export const chattingListApiWrapper = {
   async getList() {
-    const token = await getToken()
-    if (!token) {
-      throw new Error('Not authenticated')
+    return await promisify(
+      chattingListApi.getChattingList.bind(chattingListApi),
+      {}
+    )
+  },
+
+  /**
+   * Get chatting list metadata for cache validation
+   * @returns {Promise<{count: number, lastUpdatedTime: string|null}>}
+   */
+  async getListMetadata() {
+    return await promisify(
+      chattingListApi.getChattingListMetadata.bind(chattingListApi)
+    )
+  },
+
+  /**
+   * Get chatting list with raw response for caching
+   * @param {object} conditionalHeaders - Cache headers
+   * @returns {Promise<{data: any, response: object}>}
+   */
+  async getListRaw(conditionalHeaders = {}) {
+    const opts = {}
+    if (conditionalHeaders['If-None-Match']) {
+      opts.ifNoneMatch = conditionalHeaders['If-None-Match']
     }
-
-    const response = await fetch(`${API_BASE_URL}/users/me/chatting-list`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to fetch chatting list')
+    if (conditionalHeaders['If-Modified-Since']) {
+      opts.ifModifiedSince = conditionalHeaders['If-Modified-Since']
     }
-
-    return response.json()
+    return promisifyWithResponse(
+      chattingListApi.getChattingList.bind(chattingListApi),
+      opts
+    )
   },
 
   async addPosition(positionId) {
-    const token = await getToken()
-    if (!token) {
-      throw new Error('Not authenticated')
-    }
-
-    const response = await fetch(`${API_BASE_URL}/users/me/chatting-list`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ positionId }),
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to add to chatting list')
-    }
-
-    return response.json()
+    return await promisify(
+      chattingListApi.addToChattingList.bind(chattingListApi),
+      { positionId }
+    )
   },
 
   async toggleActive(id, isActive) {
-    const token = await getToken()
-    if (!token) {
-      throw new Error('Not authenticated')
-    }
-
-    const response = await fetch(`${API_BASE_URL}/users/me/chatting-list/${id}`, {
-      method: 'PATCH',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ isActive }),
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to update chatting list item')
-    }
-
-    return response.json()
+    return await promisify(
+      chattingListApi.updateChattingListItem.bind(chattingListApi),
+      id,
+      { isActive }
+    )
   },
 
   async remove(id) {
-    const token = await getToken()
-    if (!token) {
-      throw new Error('Not authenticated')
-    }
-
-    const response = await fetch(`${API_BASE_URL}/users/me/chatting-list/${id}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to remove from chatting list')
-    }
+    return await promisify(
+      chattingListApi.removeFromChattingList.bind(chattingListApi),
+      id
+    )
   },
 
   async markExplanationSeen() {
-    const token = await getToken()
-    if (!token) {
-      throw new Error('Not authenticated')
-    }
-
-    const response = await fetch(`${API_BASE_URL}/users/me/chatting-list/explanation-seen`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to mark explanation as seen')
-    }
+    return await promisify(
+      chattingListApi.markChattingListExplanationSeen.bind(chattingListApi)
+    )
   },
 
   async bulkRemove({ categoryId, locationCode, itemIds }) {
-    const token = await getToken()
-    if (!token) {
-      throw new Error('Not authenticated')
-    }
-
     const body = {}
     if (categoryId) body.categoryId = categoryId
     if (locationCode) body.locationCode = locationCode
     if (itemIds) body.itemIds = itemIds
 
-    const response = await fetch(`${API_BASE_URL}/users/me/chatting-list/bulk-remove`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to bulk remove from chatting list')
-    }
-
-    return response.json()
+    return await promisify(
+      chattingListApi.bulkRemoveFromChattingList.bind(chattingListApi),
+      body
+    )
   },
 }
 
 // Stats API
 export const statsApiWrapper = {
   async getStats(locationId, categoryId) {
-    const token = await getToken()
-    if (!token) {
-      throw new Error('Not authenticated')
+    if (categoryId === 'all' || !categoryId) {
+      return await promisify(
+        statsApi.getLocationStats.bind(statsApi),
+        locationId
+      )
     }
-
-    // Use location-only endpoint for "all" categories
-    const url = categoryId === 'all' || !categoryId
-      ? `${API_BASE_URL}/stats/${locationId}`
-      : `${API_BASE_URL}/stats/${locationId}/${categoryId}`
-
-    const response = await fetch(
-      url,
-      {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      }
+    return await promisify(
+      statsApi.getStats.bind(statsApi),
+      locationId,
+      categoryId
     )
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to fetch stats')
-    }
-
-    const data = await response.json()
-
-    // API already returns camelCase, just pass through
-    return data
   },
 
   async getGroupDemographics(locationId, categoryId, groupId) {
-    const token = await getToken()
-    if (!token) {
-      throw new Error('Not authenticated')
-    }
-
-    // Use 'all' for location-wide stats
     const catId = categoryId === 'all' || !categoryId ? 'all' : categoryId
-
-    const response = await fetch(
-      `${API_BASE_URL}/stats/${locationId}/${catId}/demographics/${groupId}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      }
+    return await promisify(
+      statsApi.getGroupDemographics.bind(statsApi),
+      locationId,
+      catId,
+      groupId
     )
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to fetch demographics')
-    }
-
-    return await response.json()
   },
 }
 

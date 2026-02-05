@@ -124,7 +124,7 @@ class TestAgreedPositionPropose:
 
         position = json.loads(list(positions.values())[0])
         assert position["content"] == "Stored position"
-        assert position["proposer_id"] == user1_id
+        assert position["proposerId"] == user1_id
         assert position["status"] == "pending"
 
         await client.disconnect()
@@ -577,7 +577,7 @@ class TestAgreedPositionModify:
         # Check Redis for parent_id
         positions = await redis_client.hgetall(f"chat:{setup_chat}:positions")
         new_position = json.loads(positions[new_id])
-        assert new_position["parent_id"] == original_id
+        assert new_position["parentId"] == original_id
 
         # Check original is marked as modified
         original_position = json.loads(positions[original_id])
@@ -640,7 +640,7 @@ class TestClosureProposal:
         assert closure is not None
         closure_data = json.loads(closure)
         assert closure_data["content"] == "Final agreement"
-        assert closure_data["proposer_id"] == user1_id
+        assert closure_data["proposerId"] == user1_id
 
         await client.disconnect()
 
