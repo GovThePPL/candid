@@ -178,11 +178,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     width: "100%",
     maxWidth: 320,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
     borderRadius: 12,
-    color: '#1a1a1a',
+    color: Colors.darkText,
   },
   button: {
     width: "100%",
@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   buttonText: {
-    color: '#fff',
+    color: Colors.white,
     fontSize: 16,
     fontWeight: '600',
   },

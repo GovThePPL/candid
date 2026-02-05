@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
 import { Colors } from '../../constants/Colors'
+import { SharedStyles } from '../../constants/SharedStyles'
 import api from '../../lib/api'
 import { useUser } from '../../hooks/useUser'
 
@@ -12,7 +13,8 @@ import ThemedText from "../../components/ThemedText"
 import ThemedButton from '../../components/ThemedButton'
 import Header from '../../components/Header'
 import ImageCropModal from '../../components/ImageCropModal'
-import { getInitials, getInitialsColor, getAvatarImageUrl } from '../../lib/avatarUtils'
+import Avatar from '../../components/Avatar'
+import { getAvatarImageUrl } from '../../lib/avatarUtils'
 
 const AGE_RANGE_OPTIONS = [
   { value: null, label: 'Prefer not to say' },
@@ -497,16 +499,7 @@ export default function Profile() {
               style={styles.avatarContainer}
               onPress={() => setAvatarModalOpen(true)}
             >
-              {avatarUrl ? (
-                <Image
-                  source={{ uri: getAvatarImageUrl(avatarUrl) }}
-                  style={styles.avatar}
-                />
-              ) : (
-                <View style={[styles.avatarPlaceholder, { backgroundColor: getInitialsColor(displayName) }]}>
-                  <Text style={styles.avatarInitials}>{getInitials(displayName)}</Text>
-                </View>
-              )}
+              <Avatar user={{ ...profile, displayName, avatarUrl }} size={100} showKudosBadge={false} />
               <View style={styles.avatarEditBadge}>
                 <Ionicons name="camera" size={16} color="#fff" />
               </View>
@@ -737,7 +730,7 @@ export default function Profile() {
           setAvatarModalOpen(false)
         }}
       >
-        <Pressable style={styles.modalOverlay} onPress={() => {
+        <Pressable style={SharedStyles.modalOverlay} onPress={() => {
           setCroppedImagePreview(null)
           setAvatarModalOpen(false)
         }}>
@@ -823,7 +816,7 @@ export default function Profile() {
         animationType="fade"
         onRequestClose={() => setPickerModalOpen(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={() => setPickerModalOpen(false)}>
+        <Pressable style={SharedStyles.modalOverlay} onPress={() => setPickerModalOpen(false)}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>{pickerModalConfig?.title}</Text>
             <ScrollView style={styles.modalScrollView}>
@@ -867,7 +860,7 @@ export default function Profile() {
         animationType="fade"
         onRequestClose={() => setPasswordModalOpen(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={() => setPasswordModalOpen(false)}>
+        <Pressable style={SharedStyles.modalOverlay} onPress={() => setPasswordModalOpen(false)}>
           <View style={styles.formModalContent}>
             <Text style={styles.modalTitle}>Change Password</Text>
 
@@ -949,7 +942,7 @@ export default function Profile() {
         animationType="fade"
         onRequestClose={() => setDeleteModalOpen(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={() => setDeleteModalOpen(false)}>
+        <Pressable style={SharedStyles.modalOverlay} onPress={() => setDeleteModalOpen(false)}>
           <View style={styles.formModalContent}>
             <Text style={[styles.modalTitle, styles.dangerTitle]}>Delete Account</Text>
 
@@ -1089,7 +1082,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: Colors.darkText,
   },
   sectionDescription: {
     fontSize: 14,
@@ -1105,27 +1098,6 @@ const styles = StyleSheet.create({
   avatarContainer: {
     position: 'relative',
   },
-  avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: Colors.light.background,
-  },
-  avatarPlaceholder: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: Colors.light.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  avatarInitials: {
-    fontSize: 36,
-    fontWeight: '600',
-    color: '#ffffff',
-  },
   avatarEditBadge: {
     position: 'absolute',
     bottom: 0,
@@ -1137,7 +1109,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#fff',
+    borderColor: Colors.white,
   },
   avatarHint: {
     marginTop: 8,
@@ -1160,7 +1132,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
-    color: '#1a1a1a',
+    color: Colors.darkText,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },
@@ -1183,7 +1155,7 @@ const styles = StyleSheet.create({
   },
   pickerLabel: {
     fontSize: 15,
-    color: '#1a1a1a',
+    color: Colors.darkText,
   },
   pickerValue: {
     flexDirection: 'row',
@@ -1239,7 +1211,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   saveProfileButtonText: {
-    color: '#fff',
+    color: Colors.white,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -1253,7 +1225,7 @@ const styles = StyleSheet.create({
   securityButtonText: {
     flex: 1,
     fontSize: 16,
-    color: '#1a1a1a',
+    color: Colors.darkText,
   },
   logoutButton: {
     flexDirection: 'row',
@@ -1288,15 +1260,8 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   // Modal styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
   modalContent: {
-    backgroundColor: '#ffffff',
+    backgroundColor: Colors.white,
     borderRadius: 12,
     width: '100%',
     maxWidth: 340,
@@ -1304,7 +1269,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   avatarModalContent: {
-    backgroundColor: '#ffffff',
+    backgroundColor: Colors.white,
     borderRadius: 12,
     width: '100%',
     maxWidth: 360,
@@ -1312,7 +1277,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   formModalContent: {
-    backgroundColor: '#ffffff',
+    backgroundColor: Colors.white,
     borderRadius: 12,
     width: '100%',
     maxWidth: 360,
@@ -1321,7 +1286,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: Colors.darkText,
     padding: 16,
     textAlign: 'center',
   },
@@ -1345,7 +1310,7 @@ const styles = StyleSheet.create({
   },
   modalItemLabel: {
     fontSize: 16,
-    color: '#1a1a1a',
+    color: Colors.darkText,
   },
   modalItemLabelSelected: {
     color: Colors.primary,
@@ -1365,7 +1330,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   uploadPhotoButtonText: {
-    color: '#fff',
+    color: Colors.white,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -1435,7 +1400,7 @@ const styles = StyleSheet.create({
   },
   previewAcceptButtonText: {
     fontSize: 16,
-    color: '#fff',
+    color: Colors.white,
     fontWeight: '600',
   },
   buttonDisabled: {
@@ -1506,7 +1471,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
-    color: '#1a1a1a',
+    color: Colors.darkText,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },
@@ -1547,7 +1512,7 @@ const styles = StyleSheet.create({
   },
   modalConfirmButtonText: {
     fontSize: 16,
-    color: '#fff',
+    color: Colors.white,
     fontWeight: '600',
   },
   modalDeleteButton: {
@@ -1559,7 +1524,7 @@ const styles = StyleSheet.create({
   },
   modalDeleteButtonText: {
     fontSize: 16,
-    color: '#fff',
+    color: Colors.white,
     fontWeight: '600',
   },
   modalButtonDisabled: {

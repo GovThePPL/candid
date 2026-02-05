@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, Modal, FlatList } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors } from '../constants/Colors'
+import { SharedStyles } from '../constants/SharedStyles'
 import { usersApiWrapper, categoriesApiWrapper } from '../lib/api'
 
 /**
@@ -98,9 +99,9 @@ export default function LocationCategorySelector({
     labelKey = 'name'
   ) => (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={onClose}>
-        <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>{title}</Text>
+      <TouchableOpacity style={SharedStyles.modalOverlay} activeOpacity={1} onPress={onClose}>
+        <View style={SharedStyles.modalContent}>
+          <Text style={SharedStyles.modalTitle}>{title}</Text>
           <FlatList
             data={items}
             keyExtractor={(item) => item.id}
@@ -234,7 +235,7 @@ const styles = StyleSheet.create({
   labelText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: Colors.darkText,
   },
   selector: {
     flex: 1,
@@ -262,27 +263,6 @@ const styles = StyleSheet.create({
     color: Colors.pass,
     textAlign: 'center',
     paddingVertical: 16,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  modalContent: {
-    backgroundColor: Colors.light.cardBackground,
-    borderRadius: 12,
-    width: '100%',
-    maxHeight: '60%',
-    padding: 16,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.primary,
-    marginBottom: 16,
-    textAlign: 'center',
   },
   pickerItem: {
     flexDirection: 'row',

@@ -1,4 +1,4 @@
-import { StyleSheet, View, Text, TouchableOpacity, Image, Platform } from 'react-native'
+import { StyleSheet, View, Text, TouchableOpacity, Platform } from 'react-native'
 import { useContext, useState, useCallback } from 'react'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -6,8 +6,9 @@ import { Colors } from '../constants/Colors'
 import { UserContext } from '../contexts/UserContext'
 import Sidebar from './Sidebar'
 import ChatRequestIndicator from './ChatRequestIndicator'
+import Avatar from './Avatar'
 import api from '../lib/api'
-import { getInitials, getInitialsColor, getTrustBadgeColor, getAvatarImageUrl } from '../lib/avatarUtils'
+import { getTrustBadgeColor } from '../lib/avatarUtils'
 
 export default function Header({ onBack }) {
   const router = useRouter()
@@ -72,15 +73,7 @@ export default function Header({ onBack }) {
             <Text style={styles.kudosCount}>{user?.kudosCount || 0}</Text>
           </View>
           <TouchableOpacity onPress={() => setSidebarVisible(true)}>
-            {(user?.avatarIconUrl || user?.avatarUrl) ? (
-              <Image source={{ uri: getAvatarImageUrl(user.avatarIconUrl || user.avatarUrl) }} style={styles.headerAvatar} />
-            ) : (
-              <View style={[styles.headerAvatar, styles.headerAvatarPlaceholder, { backgroundColor: getInitialsColor(user?.displayName) }]}>
-                <Text style={styles.headerAvatarInitial}>
-                  {getInitials(user?.displayName)}
-                </Text>
-              </View>
-            )}
+            <Avatar user={user} size={32} showKudosBadge={false} />
           </TouchableOpacity>
         </View>
       </View>
@@ -101,7 +94,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -161,20 +154,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: Colors.primary,
-  },
-  headerAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-  },
-  headerAvatarPlaceholder: {
-    backgroundColor: Colors.primaryMuted,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerAvatarInitial: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
   },
 })

@@ -9,6 +9,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors } from '../../constants/Colors'
+import { Shadows } from '../../constants/Theme'
 import { UserContext } from '../../contexts/UserContext'
 import api from '../../lib/api'
 
@@ -607,7 +608,7 @@ export default function Create() {
               disabled={loading || isOverLimit || !statement.trim() || !selectedCategory || !selectedLocation}
               style={{ paddingVertical: 12 }}
             >
-              <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>
+              <Text style={{ color: Colors.white, fontSize: 15, fontWeight: '600' }}>
                 {loading ? "Creating..." : "Create Position"}
               </Text>
             </ThemedButton>
@@ -1227,7 +1228,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: Colors.darkText,
     marginBottom: 8,
   },
   statementInput: {
@@ -1237,10 +1238,10 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
     fontSize: 15,
     lineHeight: 22,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
-    color: '#1a1a1a',
+    color: Colors.darkText,
   },
   charCount: {
     fontSize: 11,
@@ -1338,7 +1339,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     fontWeight: '500',
-    color: '#1a1a1a',
+    color: Colors.darkText,
     marginLeft: 6,
   },
   categoryCount: {
@@ -1383,7 +1384,7 @@ const styles = StyleSheet.create({
   positionStatement: {
     flex: 1,
     fontSize: 14,
-    color: '#1a1a1a',
+    color: Colors.darkText,
     lineHeight: 20,
   },
   positionStatementInactive: {
@@ -1424,13 +1425,13 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   deleteConfirmButtonText: {
-    color: '#fff',
+    color: Colors.white,
     fontSize: 14,
     fontWeight: '600',
   },
   deleteConfirmText: {
     fontSize: 14,
-    color: '#1a1a1a',
+    color: Colors.darkText,
     fontWeight: '500',
   },
   deleteConfirmButtons: {
@@ -1442,7 +1443,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },
@@ -1454,16 +1455,12 @@ const styles = StyleSheet.create({
   // Similar Positions Suggestions
   similarContainer: {
     marginTop: 10,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderRadius: 10,
     padding: 10,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    ...Shadows.card,
   },
   similarHeader: {
     flexDirection: 'row',
@@ -1503,7 +1500,7 @@ const styles = StyleSheet.create({
   },
   similarStatement: {
     fontSize: 13,
-    color: '#1a1a1a',
+    color: Colors.darkText,
     lineHeight: 18,
     fontStyle: 'italic',
   },
@@ -1558,10 +1555,10 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 12,
     fontSize: 16,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
-    color: '#1a1a1a',
+    color: Colors.darkText,
   },
   chattingSearchLoading: {
     flexDirection: 'row',
@@ -1594,7 +1591,7 @@ const styles = StyleSheet.create({
   },
   chattingSearchResultStatement: {
     fontSize: 14,
-    color: '#1a1a1a',
+    color: Colors.darkText,
     lineHeight: 20,
     fontStyle: 'italic',
   },
@@ -1630,7 +1627,7 @@ const styles = StyleSheet.create({
   emptyChattingListText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: Colors.darkText,
     marginTop: 12,
   },
   emptyChattingListSubtext: {
@@ -1674,7 +1671,7 @@ const styles = StyleSheet.create({
   chattingListItemStatement: {
     flex: 1,
     fontSize: 14,
-    color: '#1a1a1a',
+    color: Colors.darkText,
     lineHeight: 20,
   },
   chattingListItemStatementInactive: {
@@ -1757,7 +1754,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     fontWeight: '500',
-    color: '#1a1a1a',
+    color: Colors.darkText,
     marginLeft: 6,
   },
   chattingLocationCount: {
@@ -1773,27 +1770,23 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: Colors.overlay,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1000,
   },
   bulkDeleteModal: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderRadius: 16,
     padding: 24,
     margin: 20,
     maxWidth: 340,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
+    ...Shadows.elevated,
   },
   bulkDeleteTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: Colors.darkText,
     marginBottom: 12,
     textAlign: 'center',
   },
@@ -1819,7 +1812,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   bulkDeleteConfirmButtonText: {
-    color: '#fff',
+    color: Colors.white,
     fontSize: 15,
     fontWeight: '600',
   },
@@ -1827,7 +1820,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 24,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },

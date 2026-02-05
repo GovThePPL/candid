@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { Colors } from '../../constants/Colors'
+import { Shadows } from '../../constants/Theme'
 import UserMiniCard from './UserMiniCard'
 
 /**
@@ -93,14 +94,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.agree,
     marginHorizontal: 16,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    ...Shadows.card,
   },
   whiteSection: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.white,
     padding: 16,
     borderTopLeftRadius: 12,
     borderTopRightRadius: 12,
@@ -177,7 +174,7 @@ const styles = StyleSheet.create({
   closureText: {
     flex: 1,
     fontSize: 14,
-    color: '#FFFFFF',
+    color: Colors.white,
     lineHeight: 20,
   },
   statementsButton: {
@@ -194,6 +191,6 @@ const styles = StyleSheet.create({
   statementsButtonText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: Colors.white,
   },
 })

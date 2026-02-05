@@ -1,8 +1,9 @@
-import { StyleSheet, View, Text, TouchableOpacity, Animated, Platform, Modal, Image } from 'react-native'
+import { StyleSheet, View, Text, TouchableOpacity, Animated, Platform, Modal } from 'react-native'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import Svg, { Circle } from 'react-native-svg'
 import { Colors } from '../constants/Colors'
+import { SharedStyles } from '../constants/SharedStyles'
 import CardShell from './CardShell'
 import PositionInfoCard from './PositionInfoCard'
 
@@ -15,7 +16,7 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 // Animated Circle component for progress
 const AnimatedCircle = Animated.createAnimatedComponent(Circle)
 
-import { getInitials, getInitialsColor, getTrustBadgeColor, getAvatarImageUrl } from '../lib/avatarUtils'
+import Avatar from './Avatar'
 
 /**
  * Chat request indicator shown centered in the header bar.
@@ -136,7 +137,6 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
 
   const isDeclined = pendingRequest.status === 'declined'
   const author = pendingRequest.creator
-  const avatarUrl = author?.avatarIconUrl || author?.avatarUrl
 
   const bubbleBackground = colorAnim.interpolate({
     inputRange: [0, 1],
@@ -155,20 +155,7 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
       <TouchableOpacity onPress={handlePress} activeOpacity={0.8}>
         <Animated.View style={[styles.wrapper, { transform: [{ scale: scaleAnim }] }]}>
           {/* Author avatar */}
-          <View style={styles.avatarContainer}>
-            {avatarUrl ? (
-              <Image source={{ uri: getAvatarImageUrl(avatarUrl) }} style={styles.avatar} />
-            ) : (
-              <View style={[styles.avatar, { backgroundColor: getInitialsColor(author?.displayName) }]}>
-                <Text style={styles.avatarInitial}>{getInitials(author?.displayName)}</Text>
-              </View>
-            )}
-            {author?.kudosCount > 0 && (
-              <View style={[styles.kudosBadge, { backgroundColor: getTrustBadgeColor(author.trustScore) }]}>
-                <Ionicons name="star" size={8} color={Colors.primary} />
-              </View>
-            )}
-          </View>
+          <Avatar user={author} size={AVATAR_SIZE} showKudosBadge showKudosCount={false} />
 
           {/* Author name */}
           {author && (
@@ -226,8 +213,8 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
 
       {/* Cancel confirmation modal */}
       <Modal visible={showCancelModal} transparent animationType="fade" onRequestClose={() => setShowCancelModal(false)}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowCancelModal(false)}>
-          <TouchableOpacity activeOpacity={1} style={styles.modalContent}>
+        <TouchableOpacity style={SharedStyles.modalOverlay} activeOpacity={1} onPress={() => setShowCancelModal(false)}>
+          <TouchableOpacity activeOpacity={1} style={SharedStyles.modalContent}>
             {/* Card in stats page style: white on purple */}
             <CardShell
               style={styles.cardOuter}
@@ -279,33 +266,6 @@ const styles = StyleSheet.create({
     paddingLeft: 3,
     paddingRight: 5,
   },
-  avatarContainer: {
-    position: 'relative',
-  },
-  avatar: {
-    width: AVATAR_SIZE,
-    height: AVATAR_SIZE,
-    borderRadius: AVATAR_SIZE / 2,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarInitial: {
-    color: '#fff',
-    fontSize: 17,
-    fontWeight: '600',
-  },
-  kudosBadge: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: '#fff',
-  },
   nameContainer: {
     flexShrink: 1,
     maxWidth: 100,
@@ -336,21 +296,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  // Modal styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    width: '100%',
-    maxWidth: 360,
-  },
   // White-on-purple card (stats page pattern)
   cardOuter: {
     marginBottom: 16,
@@ -368,7 +313,7 @@ const styles = StyleSheet.create({
   pendingText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: Colors.white,
   },
   modalQuestion: {
     fontSize: 16,
@@ -389,7 +334,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   keepButtonText: {
-    color: '#fff',
+    color: Colors.white,
     fontSize: 14,
     fontWeight: '600',
   },

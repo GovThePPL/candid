@@ -1,7 +1,6 @@
-import { View, Text, Image, StyleSheet } from 'react-native'
-import { Ionicons } from '@expo/vector-icons'
+import { View, Text, StyleSheet } from 'react-native'
 import { Colors } from '../constants/Colors'
-import { getInitials, getInitialsColor, getTrustBadgeColor, getAvatarImageUrl } from '../lib/avatarUtils'
+import Avatar from './Avatar'
 
 /**
  * Reusable card section displaying position info:
@@ -62,26 +61,12 @@ export default function PositionInfoCard({
       {/* Creator info */}
       {creator && (
         <View style={styles.creatorRow}>
-          <View style={styles.avatarContainer}>
-            {(creator.avatarIconUrl || creator.avatarUrl) ? (
-              <Image
-                source={{ uri: getAvatarImageUrl(creator.avatarIconUrl || creator.avatarUrl) }}
-                style={styles.avatarImage}
-              />
-            ) : (
-              <View style={[styles.avatar, { backgroundColor: getInitialsColor(creator.displayName) }]}>
-                <Text style={styles.avatarText}>
-                  {getInitials(creator.displayName)}
-                </Text>
-              </View>
-            )}
-            {creator.kudosCount > 0 && (
-              <View style={[styles.kudosBadge, { backgroundColor: getTrustBadgeColor(creator.trustScore) }]}>
-                <Ionicons name="star" size={10} color={Colors.primary} />
-                <Text style={styles.kudosCount}>{creator.kudosCount}</Text>
-              </View>
-            )}
-          </View>
+          <Avatar
+            user={creator}
+            size={32}
+            showKudosCount
+            badgePosition="bottom-left"
+          />
           <View style={styles.creatorInfo}>
             <Text style={styles.creatorName}>{creator.displayName || 'Anonymous'}</Text>
             <Text style={styles.creatorSubtitle}>
@@ -98,7 +83,7 @@ export default function PositionInfoCard({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.white,
     padding: 16,
   },
   label: {
@@ -151,44 +136,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.cardBorder,
     gap: 10,
-  },
-  avatarContainer: {
-    position: 'relative',
-  },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarImage: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.light.background,
-  },
-  avatarText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  kudosBadge: {
-    position: 'absolute',
-    bottom: -4,
-    left: -4,
-    borderRadius: 10,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    minWidth: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-  },
-  kudosCount: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: Colors.primary,
   },
   creatorInfo: {},
   creatorName: {

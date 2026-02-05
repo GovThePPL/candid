@@ -376,7 +376,7 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   headerTitle: {
-    color: '#fff',
+    color: Colors.white,
     fontSize: 18,
     fontWeight: '600',
   },
@@ -398,7 +398,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     borderRadius: CIRCLE_SIZE / 2,
     borderWidth: 2,
-    borderColor: '#fff',
+    borderColor: Colors.white,
   },
   footer: {
     height: FOOTER_HEIGHT,
@@ -426,7 +426,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   acceptButtonText: {
-    color: '#fff',
+    color: Colors.white,
     fontSize: 18,
     fontWeight: '600',
   },

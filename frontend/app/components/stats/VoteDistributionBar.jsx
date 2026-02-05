@@ -157,7 +157,7 @@ const styles = StyleSheet.create({
   segmentLabel: {
     fontSize: 10,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: Colors.white,
   },
   passLabel: {
     color: '#666666',

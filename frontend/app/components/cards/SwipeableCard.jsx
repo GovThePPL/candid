@@ -472,12 +472,12 @@ const styles = StyleSheet.create({
   passText: {
     fontSize: 48,
     fontWeight: 'bold',
-    color: '#fff',
+    color: Colors.white,
   },
   submitText: {
     fontSize: 48,
     fontWeight: 'bold',
-    color: '#fff',
+    color: Colors.white,
   },
   plusOverlay: {
     ...StyleSheet.absoluteFillObject,

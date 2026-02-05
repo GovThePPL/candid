@@ -1,5 +1,6 @@
 import { View, StyleSheet } from 'react-native'
 import { Colors } from '../constants/Colors'
+import { Shadows } from '../constants/Theme'
 
 /**
  * Reusable card wrapper with a white content section on top and an optional
@@ -40,14 +41,10 @@ export default function CardShell({
 const styles = StyleSheet.create({
   container: {
     borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    ...Shadows.card,
   },
   whiteSection: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.white,
     borderTopLeftRadius: 12,
     borderTopRightRadius: 12,
     borderBottomLeftRadius: 16,

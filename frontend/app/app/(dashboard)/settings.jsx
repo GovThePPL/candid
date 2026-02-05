@@ -4,6 +4,7 @@ import { useFocusEffect, useRouter, useLocalSearchParams } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors } from '../../constants/Colors'
+import { SharedStyles } from '../../constants/SharedStyles'
 import api from '../../lib/api'
 
 import ThemedText from "../../components/ThemedText"
@@ -355,7 +356,7 @@ export default function Settings() {
         animationType="fade"
         onRequestClose={() => setWeightModalOpen(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={() => setWeightModalOpen(false)}>
+        <Pressable style={SharedStyles.modalOverlay} onPress={() => setWeightModalOpen(false)}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>
               {selectedCategoryForWeight?.label || selectedCategoryForWeight?.name}
@@ -457,7 +458,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: Colors.darkText,
   },
   sectionDescription: {
     fontSize: 14,
@@ -484,7 +485,7 @@ const styles = StyleSheet.create({
   },
   categoryName: {
     fontSize: 15,
-    color: '#1a1a1a',
+    color: Colors.darkText,
     flex: 1,
   },
   categoryWeightButton: {
@@ -493,7 +494,7 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderRadius: 6,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
@@ -528,7 +529,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   likelihoodOptionLabelSelected: {
-    color: '#fff',
+    color: Colors.white,
   },
   likelihoodDescription: {
     fontSize: 13,
@@ -549,15 +550,8 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
   // Modal styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
   modalContent: {
-    backgroundColor: '#ffffff',
+    backgroundColor: Colors.white,
     borderRadius: 12,
     width: '100%',
     maxWidth: 340,
@@ -567,7 +561,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: Colors.darkText,
     padding: 16,
     paddingBottom: 4,
     textAlign: 'center',
@@ -602,7 +596,7 @@ const styles = StyleSheet.create({
   },
   modalItemLabel: {
     fontSize: 16,
-    color: '#1a1a1a',
+    color: Colors.darkText,
     fontWeight: '500',
   },
   modalItemLabelSelected: {

@@ -2,20 +2,9 @@ import { useState } from 'react'
 import { View, Text, StyleSheet, Modal, TouchableOpacity, useWindowDimensions } from 'react-native'
 import Svg, { Polygon, Circle, Text as SvgText, G, ClipPath, Defs, Image as SvgImage, Line } from 'react-native-svg'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../../constants/Colors'
+import { Colors, GROUP_COLORS } from '../../constants/Colors'
+import { SharedStyles } from '../../constants/SharedStyles'
 import { getAvatarImageUrl, getInitials, getInitialsColor } from '../../lib/avatarUtils'
-
-// Group colors for visualization
-const GROUP_COLORS = [
-  '#5C005C', // Purple (primary)
-  '#9B59B6', // Light purple
-  '#3498DB', // Blue
-  '#2ECC71', // Green
-  '#F39C12', // Orange
-  '#E74C3C', // Red
-  '#1ABC9C', // Teal
-  '#34495E', // Dark gray
-]
 
 /**
  * Modal showing opinion map with two users highlighted
@@ -274,7 +263,7 @@ export default function OpinionMapModal({
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} onDismiss={onDismiss}>
       <TouchableOpacity
-        style={styles.overlay}
+        style={SharedStyles.modalOverlay}
         activeOpacity={1}
         onPress={onClose}
       >
@@ -357,13 +346,6 @@ export default function OpinionMapModal({
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
-  },
   content: {
     backgroundColor: Colors.light.cardBackground,
     borderRadius: 16,
@@ -402,7 +384,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   tabActive: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.white,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -470,7 +452,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   doneButtonText: {
-    color: '#FFFFFF',
+    color: Colors.white,
     fontSize: 16,
     fontWeight: '600',
   },

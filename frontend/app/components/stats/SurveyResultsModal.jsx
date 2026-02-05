@@ -1,31 +1,16 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import {
   View,
   Text,
   StyleSheet,
-  Modal,
   TouchableOpacity,
   ScrollView,
-  ActivityIndicator,
-  Animated,
-  Dimensions,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../../constants/Colors'
-
-const SCREEN_HEIGHT = Dimensions.get('window').height
-
-// Group colors matching OpinionMapVisualization
-const GROUP_COLORS = [
-  '#5C005C', // Purple (primary)
-  '#9B59B6', // Light purple
-  '#3498DB', // Blue
-  '#2ECC71', // Green
-  '#F39C12', // Orange
-  '#E74C3C', // Red
-  '#1ABC9C', // Teal
-  '#34495E', // Dark gray
-]
+import { Colors, GROUP_COLORS } from '../../constants/Colors'
+import BottomDrawerModal from '../BottomDrawerModal'
+import LoadingView from '../LoadingView'
+import EmptyState from '../EmptyState'
 
 /**
  * Modal for viewing survey results (both pairwise and standard)
@@ -67,54 +52,20 @@ export default function SurveyResultsModal({
   const [selectedSurvey, setSelectedSurvey] = useState(null)
   const [rankings, setRankings] = useState(null)
   const [loadingRankings, setLoadingRankings] = useState(false)
-  const [modalVisible, setModalVisible] = useState(false)
 
   // Crosstabs state
   const [crosstabsData, setCrosstabsData] = useState(null)
   const [loadingCrosstabs, setLoadingCrosstabs] = useState(false)
   const [selectedQuestionForCrosstabs, setSelectedQuestionForCrosstabs] = useState(null)
 
-  // Animation values
-  const overlayOpacity = useRef(new Animated.Value(0)).current
-  const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current
-
-  // Handle opening/closing animations
+  // Reset state when modal closes
   useEffect(() => {
-    if (visible) {
-      setModalVisible(true)
-      Animated.parallel([
-        Animated.timing(overlayOpacity, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]).start()
-    } else {
-      Animated.parallel([
-        Animated.timing(overlayOpacity, {
-          toValue: 0,
-          duration: 250,
-          useNativeDriver: true,
-        }),
-        Animated.timing(slideAnim, {
-          toValue: SCREEN_HEIGHT,
-          duration: 250,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        setModalVisible(false)
-        // Reset all state when modal closes to return to default page
-        setSelectedSurvey(null)
-        setRankings(null)
-        setCrosstabsData(null)
-        setSelectedQuestionForCrosstabs(null)
-        setError(null)
-      })
+    if (!visible) {
+      setSelectedSurvey(null)
+      setRankings(null)
+      setCrosstabsData(null)
+      setSelectedQuestionForCrosstabs(null)
+      setError(null)
     }
   }, [visible])
 
@@ -275,28 +226,8 @@ export default function SurveyResultsModal({
 
     return (
       <>
-        <View style={styles.header}>
-          <View style={styles.headerTitleContainer}>
-            <Text style={styles.title}>
-              Survey Results
-              {groupInfo && ` · Group ${groupInfo.letter}`}
-            </Text>
-            <Text style={styles.subtitle}>
-              {groupInfo?.label
-                ? `"${groupInfo.label}" · Select a survey`
-                : 'All respondents · Select a survey'}
-            </Text>
-          </View>
-          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-            <Ionicons name="close" size={24} color={Colors.light.text} />
-          </TouchableOpacity>
-        </View>
-
         {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={Colors.primary} />
-            <Text style={styles.loadingText}>Loading surveys...</Text>
-          </View>
+          <LoadingView message="Loading surveys..." />
         ) : error ? (
           <View style={styles.errorContainer}>
             <Ionicons name="alert-circle-outline" size={48} color={Colors.disagree} />
@@ -306,12 +237,10 @@ export default function SurveyResultsModal({
             </TouchableOpacity>
           </View>
         ) : surveys.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="clipboard-outline" size={48} color={Colors.pass} />
-            <Text style={styles.emptyText}>
-              No surveys available for this location/category.
-            </Text>
-          </View>
+          <EmptyState
+            icon="clipboard-outline"
+            title="No surveys available for this location/category."
+          />
         ) : (
           <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
             {locationGroups.map((group, groupIndex) => (
@@ -338,49 +267,10 @@ export default function SurveyResultsModal({
     const isPairwise = selectedSurvey?.surveyType === 'pairwise'
     const hasGroupRankings = isPairwise && rankings.groupRankings && Object.keys(rankings.groupRankings).length > 0
 
-    // Build subtitle showing location, group info, and respondent count
-    const locationName = rankings.surveyLocationName || rankings.surveyLocationCode || 'Unknown'
-
-    // Build group/respondent info
-    let groupAndRespondentInfo = ''
-    if (groupInfo) {
-      // Group is selected - show letter, label, and count
-      groupAndRespondentInfo = `Group ${groupInfo.letter}`
-      if (groupInfo.label) {
-        groupAndRespondentInfo += ` "${groupInfo.label}"`
-      }
-      groupAndRespondentInfo += ` · ${rankings.totalRespondents} ${rankings.totalRespondents === 1 ? 'respondent' : 'respondents'}`
-    } else {
-      // All respondents
-      groupAndRespondentInfo = `All respondents · ${rankings.totalRespondents} ${rankings.totalRespondents === 1 ? 'respondent' : 'respondents'}`
-    }
-
-    if (isPairwise) {
-      groupAndRespondentInfo += `, ${rankings.totalResponses} votes`
-    }
-
     return (
       <>
-        <View style={styles.header}>
-          <View style={styles.headerWithBack}>
-            <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-              <Ionicons name="arrow-back" size={24} color={Colors.primary} />
-            </TouchableOpacity>
-            <View style={styles.headerTitleContainer}>
-              <Text style={styles.title}>{rankings.surveyTitle}</Text>
-              <Text style={styles.subtitle}>{locationName} · {groupAndRespondentInfo}</Text>
-            </View>
-          </View>
-          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-            <Ionicons name="close" size={24} color={Colors.light.text} />
-          </TouchableOpacity>
-        </View>
-
         {loadingRankings ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={Colors.primary} />
-            <Text style={styles.loadingText}>Loading results...</Text>
-          </View>
+          <LoadingView message="Loading results..." />
         ) : error ? (
           <View style={styles.errorContainer}>
             <Ionicons name="alert-circle-outline" size={48} color={Colors.disagree} />
@@ -590,28 +480,8 @@ export default function SurveyResultsModal({
 
     return (
       <>
-        <View style={styles.header}>
-          <View style={styles.headerWithBack}>
-            <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-              <Ionicons name="arrow-back" size={24} color={Colors.primary} />
-            </TouchableOpacity>
-            <View style={styles.headerTitleContainer}>
-              <Text style={styles.title}>Demographics</Text>
-              <Text style={styles.subtitle} numberOfLines={2}>
-                {crosstabsData.questionText}
-              </Text>
-            </View>
-          </View>
-          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-            <Ionicons name="close" size={24} color={Colors.light.text} />
-          </TouchableOpacity>
-        </View>
-
         {loadingCrosstabs ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={Colors.primary} />
-            <Text style={styles.loadingText}>Loading demographics...</Text>
-          </View>
+          <LoadingView message="Loading demographics..." />
         ) : error ? (
           <View style={styles.errorContainer}>
             <Ionicons name="alert-circle-outline" size={48} color={Colors.disagree} />
@@ -725,95 +595,72 @@ export default function SurveyResultsModal({
     }
   }
 
+  // Compute dynamic title, subtitle, and header elements based on current view
+  const getHeaderProps = () => {
+    if (crosstabsData) {
+      return {
+        title: 'Demographics',
+        subtitle: crosstabsData.questionText,
+        headerLeft: (
+          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
+            <Ionicons name="arrow-back" size={24} color={Colors.primary} />
+          </TouchableOpacity>
+        ),
+      }
+    }
+    if (selectedSurvey && rankings) {
+      const locationName = rankings.surveyLocationName || rankings.surveyLocationCode || 'Unknown'
+      let groupAndRespondentInfo = ''
+      if (groupInfo) {
+        groupAndRespondentInfo = `Group ${groupInfo.letter}`
+        if (groupInfo.label) groupAndRespondentInfo += ` "${groupInfo.label}"`
+        groupAndRespondentInfo += ` · ${rankings.totalRespondents} ${rankings.totalRespondents === 1 ? 'respondent' : 'respondents'}`
+      } else {
+        groupAndRespondentInfo = `All respondents · ${rankings.totalRespondents} ${rankings.totalRespondents === 1 ? 'respondent' : 'respondents'}`
+      }
+      if (selectedSurvey.surveyType === 'pairwise') {
+        groupAndRespondentInfo += `, ${rankings.totalResponses} votes`
+      }
+      return {
+        title: rankings.surveyTitle,
+        subtitle: `${locationName} · ${groupAndRespondentInfo}`,
+        headerLeft: (
+          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
+            <Ionicons name="arrow-back" size={24} color={Colors.primary} />
+          </TouchableOpacity>
+        ),
+      }
+    }
+    return {
+      title: `Survey Results${groupInfo ? ` · Group ${groupInfo.letter}` : ''}`,
+      subtitle: groupInfo?.label
+        ? `"${groupInfo.label}" · Select a survey`
+        : 'All respondents · Select a survey',
+    }
+  }
+
+  const headerProps = getHeaderProps()
+
   return (
-    <Modal
-      visible={modalVisible}
-      transparent
-      animationType="none"
-      onRequestClose={onClose}
+    <BottomDrawerModal
+      visible={visible}
+      onClose={onClose}
+      title={headerProps.title}
+      subtitle={headerProps.subtitle}
+      headerLeft={headerProps.headerLeft}
     >
-      <View style={styles.container}>
-        <Animated.View
-          style={[
-            styles.overlay,
-            { opacity: overlayOpacity },
-          ]}
-        />
-        <Animated.View
-          style={[
-            styles.modalContent,
-            { transform: [{ translateY: slideAnim }] },
-          ]}
-        >
-          {renderContent()}
-        </Animated.View>
-      </View>
-    </Modal>
+      {renderContent()}
+    </BottomDrawerModal>
   )
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  modalContent: {
-    backgroundColor: Colors.light.background,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    height: '85%',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
-    backgroundColor: Colors.light.cardBackground,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-  },
-  headerWithBack: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
   backButton: {
-    padding: 4,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.primary,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: Colors.pass,
-    marginTop: 4,
-  },
-  closeButton: {
     padding: 4,
   },
   scrollContent: {
     flex: 1,
     padding: 16,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 48,
-  },
-  loadingText: {
-    fontSize: 15,
-    color: Colors.pass,
-    marginTop: 12,
   },
   errorContainer: {
     flex: 1,
@@ -835,21 +682,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   retryText: {
-    color: '#FFFFFF',
+    color: Colors.white,
     fontSize: 14,
     fontWeight: '600',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 48,
-  },
-  emptyText: {
-    fontSize: 15,
-    color: Colors.pass,
-    textAlign: 'center',
-    marginTop: 12,
   },
   surveyItem: {
     flexDirection: 'row',
@@ -912,9 +747,6 @@ const styles = StyleSheet.create({
   surveyInactive: {
     fontSize: 12,
     color: Colors.pass,
-  },
-  headerTitleContainer: {
-    flex: 1,
   },
   section: {
     marginBottom: 24,

@@ -7,6 +7,7 @@ import {
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors } from '../constants/Colors'
+import { SharedStyles } from '../constants/SharedStyles'
 
 /**
  * Reusable info/explanation modal triggered by help icons throughout the app.
@@ -44,7 +45,7 @@ export default function InfoModal({
       onRequestClose={onClose}
     >
       <TouchableOpacity
-        style={styles.overlay}
+        style={SharedStyles.modalOverlay}
         activeOpacity={1}
         onPress={onClose}
       >
@@ -115,13 +116,6 @@ InfoModal.Item = function Item({ icon, iconColor = Colors.primary, children }) {
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
   container: {
     backgroundColor: Colors.cardBackground,
     borderRadius: 20,
@@ -183,7 +177,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   buttonText: {
-    color: '#fff',
+    color: Colors.white,
     fontSize: 16,
     fontWeight: '600',
   },

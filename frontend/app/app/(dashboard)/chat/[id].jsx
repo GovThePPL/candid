@@ -10,7 +10,6 @@ import {
   Platform,
   ActivityIndicator,
   Modal,
-  Image,
   Animated,
   LayoutAnimation,
   UIManager,
@@ -45,7 +44,8 @@ import {
   onAgreedPosition,
 } from '../../../lib/socket'
 import { playTypingSound, playMessageSound } from '../../../lib/sounds'
-import { getInitials, getInitialsColor, getAvatarImageUrl, getTrustBadgeColor } from '../../../lib/avatarUtils'
+import { getTrustBadgeColor } from '../../../lib/avatarUtils'
+import Avatar from '../../../components/Avatar'
 import PositionInfoCard from '../../../components/PositionInfoCard'
 
 export default function ChatScreen() {
@@ -1021,27 +1021,11 @@ export default function ChatScreen() {
             {isLatest && pIsAccepted && (
               <View style={styles.proposalAvatarsRow}>
                 <View style={styles.proposalAvatarLeft}>
-                  {(otherUser?.avatarIconUrl || otherUser?.avatarUrl) ? (
-                    <Image source={{ uri: getAvatarImageUrl(otherUser.avatarIconUrl || otherUser.avatarUrl) }} style={styles.proposalAvatar} />
-                  ) : (
-                    <View style={[styles.proposalAvatar, styles.proposalAvatarPlaceholder, { backgroundColor: getInitialsColor(otherUser?.displayName) }]}>
-                      <Text style={styles.proposalAvatarInitial}>
-                        {getInitials(otherUser?.displayName)}
-                      </Text>
-                    </View>
-                  )}
+                  <Avatar user={otherUser} size={28} showKudosBadge={false} borderStyle={styles.proposalAvatarBorder} />
                   <Ionicons name="checkmark-circle" size={14} color={Colors.agree} style={styles.proposalAvatarCheck} />
                 </View>
                 <View style={styles.proposalAvatarRight}>
-                  {(user?.avatarIconUrl || user?.avatarUrl) ? (
-                    <Image source={{ uri: getAvatarImageUrl(user.avatarIconUrl || user.avatarUrl) }} style={styles.proposalAvatar} />
-                  ) : (
-                    <View style={[styles.proposalAvatar, styles.proposalAvatarPlaceholder, { backgroundColor: getInitialsColor(user?.displayName) }]}>
-                      <Text style={styles.proposalAvatarInitial}>
-                        {getInitials(user?.displayName)}
-                      </Text>
-                    </View>
-                  )}
+                  <Avatar user={user} size={28} showKudosBadge={false} borderStyle={styles.proposalAvatarBorder} />
                   <Ionicons name="checkmark-circle" size={14} color={Colors.agree} style={styles.proposalAvatarCheck} />
                 </View>
               </View>
@@ -1182,15 +1166,7 @@ export default function ChatScreen() {
             {/* Read indicator - small avatar bubble */}
             {isLastRead && otherUser && (
               <View style={styles.readIndicator}>
-                {(otherUser.avatarIconUrl || otherUser.avatarUrl) ? (
-                  <Image source={{ uri: getAvatarImageUrl(otherUser.avatarIconUrl || otherUser.avatarUrl) }} style={styles.readIndicatorAvatar} />
-                ) : (
-                  <View style={[styles.readIndicatorAvatar, styles.readIndicatorAvatarPlaceholder, { backgroundColor: getInitialsColor(otherUser.displayName) }]}>
-                    <Text style={styles.readIndicatorInitial}>
-                      {getInitials(otherUser.displayName)}
-                    </Text>
-                  </View>
-                )}
+                <Avatar user={otherUser} size={16} showKudosBadge={false} borderStyle={styles.readIndicatorBorder} />
               </View>
             )}
           </View>
@@ -1208,15 +1184,7 @@ export default function ChatScreen() {
     return (
       <View style={styles.otherMessageRow}>
         {isLastInGroup ? (
-          (otherUser?.avatarIconUrl || otherUser?.avatarUrl) ? (
-            <Image source={{ uri: getAvatarImageUrl(otherUser.avatarIconUrl || otherUser.avatarUrl) }} style={styles.messageAvatar} />
-          ) : (
-            <View style={[styles.messageAvatar, styles.messageAvatarPlaceholder, { backgroundColor: getInitialsColor(otherUser?.displayName) }]}>
-              <Text style={styles.messageAvatarInitial}>
-                {getInitials(otherUser?.displayName)}
-              </Text>
-            </View>
-          )
+          <Avatar user={otherUser} size={28} showKudosBadge={false} />
         ) : (
           <View style={styles.messageAvatarSpacer} />
         )}
@@ -1394,21 +1362,7 @@ export default function ChatScreen() {
           <View style={styles.headerCenter}>
             {otherUser ? (
               <View style={styles.headerUserInfo}>
-                <View style={styles.headerAvatarContainer}>
-                  {(otherUser.avatarIconUrl || otherUser.avatarUrl) ? (
-                    <Image source={{ uri: getAvatarImageUrl(otherUser.avatarIconUrl || otherUser.avatarUrl) }} style={styles.headerAvatar} />
-                  ) : (
-                    <View style={[styles.headerAvatar, styles.headerAvatarPlaceholder, { backgroundColor: getInitialsColor(otherUser.displayName) }]}>
-                      <Text style={styles.headerAvatarInitial}>
-                        {getInitials(otherUser.displayName)}
-                      </Text>
-                    </View>
-                  )}
-                  <View style={[styles.headerTrustBadge, { backgroundColor: getTrustBadgeColor(otherUser.trustScore) }]}>
-                    <Ionicons name="star" size={8} color={Colors.primary} />
-                    <Text style={styles.headerTrustCount}>{otherUser.kudosCount || 0}</Text>
-                  </View>
-                </View>
+                <Avatar user={otherUser} size="md" showKudosCount badgePosition="bottom-left" />
                 <View style={styles.headerUserText}>
                   <Text style={styles.headerDisplayName} numberOfLines={1}>{otherUser.displayName}</Text>
                   <Text style={styles.headerUsername} numberOfLines={1}>@{otherUser.username}</Text>
@@ -1423,15 +1377,7 @@ export default function ChatScreen() {
               <Ionicons name="star" size={14} color={Colors.primary} />
               <Text style={styles.headerKudosCount}>{user?.kudosCount || 0}</Text>
             </View>
-            {(user?.avatarIconUrl || user?.avatarUrl) ? (
-              <Image source={{ uri: getAvatarImageUrl(user.avatarIconUrl || user.avatarUrl) }} style={styles.headerUserAvatar} />
-            ) : (
-              <View style={[styles.headerUserAvatar, styles.headerUserAvatarPlaceholder, { backgroundColor: getInitialsColor(user?.displayName) }]}>
-                <Text style={styles.headerUserAvatarInitial}>
-                  {getInitials(user?.displayName)}
-                </Text>
-              </View>
-            )}
+            <Avatar user={user} size={32} showKudosBadge={false} />
           </View>
         </View>
       )}
@@ -1530,15 +1476,7 @@ export default function ChatScreen() {
           ListFooterComponent={
             otherUserTyping ? (
               <View style={styles.typingRow}>
-                {(otherUser?.avatarIconUrl || otherUser?.avatarUrl) ? (
-                  <Image source={{ uri: getAvatarImageUrl(otherUser.avatarIconUrl || otherUser.avatarUrl) }} style={styles.messageAvatar} />
-                ) : (
-                  <View style={[styles.messageAvatar, styles.messageAvatarPlaceholder, { backgroundColor: getInitialsColor(otherUser?.displayName) }]}>
-                    <Text style={styles.messageAvatarInitial}>
-                      {getInitials(otherUser?.displayName)}
-                    </Text>
-                  </View>
-                )}
+                <Avatar user={otherUser} size={28} showKudosBadge={false} />
                 <View style={styles.typingBubble}>
                   <Animated.View style={[styles.typingDot, { transform: [{ translateY: dot1Anim.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }] }]} />
                   <Animated.View style={[styles.typingDot, { transform: [{ translateY: dot2Anim.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }] }]} />
@@ -1568,7 +1506,7 @@ export default function ChatScreen() {
               <Ionicons
                 name={showSpecialMenu ? 'close' : 'add'}
                 size={24}
-                color={showSpecialMenu ? '#fff' : Colors.primary}
+                color={showSpecialMenu ? Colors.white : Colors.primary}
               />
             </TouchableOpacity>
 
@@ -1671,7 +1609,7 @@ export default function ChatScreen() {
                   'send'
                 }
                 size={20}
-                color={inputText.trim() ? '#fff' : Colors.pass}
+                color={inputText.trim() ? Colors.white : Colors.pass}
               />
             </TouchableOpacity>
           </View>
@@ -1694,7 +1632,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 12,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -1709,40 +1647,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-  },
-  headerAvatarContainer: {
-    position: 'relative',
-  },
-  headerAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-  },
-  headerAvatarPlaceholder: {
-    backgroundColor: Colors.agree,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerAvatarInitial: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  headerTrustBadge: {
-    position: 'absolute',
-    bottom: -2,
-    left: -2,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    borderRadius: 8,
-    gap: 2,
-  },
-  headerTrustCount: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: Colors.primary,
   },
   headerUserText: {
     flex: 1,
@@ -1773,21 +1677,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: Colors.primary,
-  },
-  headerUserAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-  },
-  headerUserAvatarPlaceholder: {
-    backgroundColor: Colors.primaryMuted,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerUserAvatarInitial: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
   },
   backButton: {
     padding: 4,
@@ -1828,43 +1717,15 @@ const styles = StyleSheet.create({
     bottom: -4,
     left: -8,
   },
-  readIndicatorAvatar: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+  readIndicatorBorder: {
     borderWidth: 1.5,
-    borderColor: '#fff',
-  },
-  readIndicatorAvatarPlaceholder: {
-    backgroundColor: Colors.agree,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  readIndicatorInitial: {
-    color: '#fff',
-    fontSize: 8,
-    fontWeight: '600',
+    borderColor: Colors.white,
   },
   otherMessageRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     marginBottom: 8,
     gap: 8,
-  },
-  messageAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-  },
-  messageAvatarPlaceholder: {
-    backgroundColor: Colors.agree,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  messageAvatarInitial: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
   },
   messageAvatarSpacer: {
     width: 28,
@@ -1890,10 +1751,10 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   ownMessageText: {
-    color: '#fff',
+    color: Colors.white,
   },
   otherMessageText: {
-    color: '#fff',
+    color: Colors.white,
   },
   messageTime: {
     fontSize: 10,
@@ -1926,7 +1787,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
   },
   chatEndedRow: {
     alignItems: 'center',
@@ -1944,7 +1805,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
@@ -2018,7 +1879,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 56,
     left: 12,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderRadius: 12,
     zIndex: 2,
     padding: 8,
@@ -2055,7 +1916,7 @@ const styles = StyleSheet.create({
   specialMenuItemTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: Colors.darkText,
   },
   specialMenuItemDesc: {
     fontSize: 12,
@@ -2089,7 +1950,7 @@ const styles = StyleSheet.create({
     }),
   },
   retryButtonText: {
-    color: '#fff',
+    color: Colors.white,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -2116,12 +1977,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.agree,
   },
   endedText: {
-    color: '#fff',
+    color: Colors.white,
     fontSize: 14,
     fontWeight: '500',
   },
   kudosPrompt: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     paddingVertical: 16,
     paddingHorizontal: 20,
     alignItems: 'center',
@@ -2159,14 +2020,14 @@ const styles = StyleSheet.create({
   },
   kudosSendText: {
     fontSize: 14,
-    color: '#1a1a1a',
+    color: Colors.darkText,
     fontWeight: '600',
   },
   kudosSentBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
@@ -2185,7 +2046,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   modalCard: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderRadius: 16,
     padding: 24,
     width: '100%',
@@ -2235,7 +2096,7 @@ const styles = StyleSheet.create({
   modalConfirmText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: Colors.white,
   },
   topicCard: {
     borderRadius: 12,
@@ -2333,7 +2194,7 @@ const styles = StyleSheet.create({
   proposalTypeBadgeText: {
     fontSize: 10,
     fontWeight: '600',
-    color: '#fff',
+    color: Colors.white,
   },
   proposalStatusInline: {
     marginLeft: 'auto',
@@ -2341,7 +2202,7 @@ const styles = StyleSheet.create({
   proposalCardContent: {
     fontSize: 15,
     lineHeight: 22,
-    color: '#fff',
+    color: Colors.white,
     textAlign: 'center',
   },
   proposalCardContentInactive: {
@@ -2363,12 +2224,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   proposalCardButtonAccept: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
   },
   closureWarningText: {
     fontSize: 12,
     fontStyle: 'italic',
-    color: '#fff',
+    color: Colors.white,
     textAlign: 'center',
     marginTop: 10,
     opacity: 0.85,
@@ -2393,32 +2254,20 @@ const styles = StyleSheet.create({
   proposalAvatarRight: {
     position: 'relative',
   },
-  proposalAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+  proposalAvatarBorder: {
     borderWidth: 2,
-    borderColor: '#fff',
-  },
-  proposalAvatarPlaceholder: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  proposalAvatarInitial: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
+    borderColor: Colors.white,
   },
   proposalAvatarCheck: {
     position: 'absolute',
     bottom: -2,
     right: -2,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderRadius: 7,
   },
   // Modify modal styles
   modifyModalCard: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderRadius: 16,
     padding: 20,
     width: '100%',
@@ -2462,6 +2311,6 @@ const styles = StyleSheet.create({
   modifySubmitText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: Colors.white,
   },
 })

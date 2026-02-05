@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
   question: {
     fontSize: 22,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: Colors.darkText,
     lineHeight: 30,
     textAlign: 'center',
   },
@@ -188,10 +188,10 @@ const styles = StyleSheet.create({
   optionText: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#1a1a1a',
+    color: Colors.darkText,
   },
   optionTextSelected: {
-    color: '#fff',
+    color: Colors.white,
   },
   noOptionsText: {
     fontSize: 16,

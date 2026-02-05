@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 10,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: Colors.white,
   },
   // Purple stats section
   definingStatement: {
@@ -333,12 +333,12 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   labelContainerActive: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.white,
   },
   groupLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: Colors.white,
   },
   groupLabelActive: {
     fontWeight: '700',
@@ -408,6 +408,6 @@ const styles = StyleSheet.create({
   viewClosuresText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: Colors.white,
   },
 })

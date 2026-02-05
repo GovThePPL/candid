@@ -1,19 +1,7 @@
 import { View, Text, StyleSheet, Image } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../../constants/Colors'
+import { Colors, GROUP_COLORS } from '../../constants/Colors'
 import { getAvatarImageUrl, getInitials, getInitialsColor } from '../../lib/avatarUtils'
-
-// Group colors for visualization
-const GROUP_COLORS = [
-  '#5C005C', // Purple (primary)
-  '#9B59B6', // Light purple
-  '#3498DB', // Blue
-  '#2ECC71', // Green
-  '#F39C12', // Orange
-  '#E74C3C', // Red
-  '#1ABC9C', // Teal
-  '#34495E', // Dark gray
-]
 
 /**
  * Mini card displaying a user with avatar, name, opinion group, and role
@@ -135,7 +123,7 @@ const styles = StyleSheet.create({
   avatarText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: Colors.white,
   },
   avatarTextCompact: {
     fontSize: 13,
@@ -151,7 +139,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: '#FFFFFF',
+    borderColor: Colors.white,
   },
   infoContainer: {
     flex: 1,

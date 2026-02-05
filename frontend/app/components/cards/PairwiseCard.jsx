@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   headerTitle: {
-    color: '#fff',
+    color: Colors.white,
     fontSize: 22,
     fontWeight: '600',
     fontStyle: 'italic',
@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
   },
   contentCard: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     overflow: 'hidden',
@@ -257,7 +257,7 @@ const styles = StyleSheet.create({
   question: {
     fontSize: 22,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: Colors.darkText,
     lineHeight: 30,
     textAlign: 'center',
   },
@@ -277,10 +277,10 @@ const styles = StyleSheet.create({
   optionText: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#1a1a1a',
+    color: Colors.darkText,
   },
   optionTextSelected: {
-    color: '#fff',
+    color: Colors.white,
   },
   footer: {
     alignItems: 'center',

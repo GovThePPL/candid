@@ -109,7 +109,7 @@ const styles = StyleSheet.create({
     color: Colors.light.text,
   },
   activeButtonLabel: {
-    color: '#FFFFFF',
+    color: Colors.white,
     fontWeight: '600',
   },
 })

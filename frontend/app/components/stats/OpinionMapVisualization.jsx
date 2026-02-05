@@ -2,21 +2,9 @@ import { useState } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, Image, useWindowDimensions } from 'react-native'
 import Svg, { Polygon, Circle, Text as SvgText, G, ClipPath, Defs, Image as SvgImage } from 'react-native-svg'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../../constants/Colors'
+import { Colors, GROUP_COLORS } from '../../constants/Colors'
 import InfoModal from '../InfoModal'
 import { getAvatarImageUrl, getInitials, getInitialsColor } from '../../lib/avatarUtils'
-
-// Group colors for visualization
-const GROUP_COLORS = [
-  '#5C005C', // Purple (primary)
-  '#9B59B6', // Light purple
-  '#3498DB', // Blue
-  '#2ECC71', // Green
-  '#F39C12', // Orange
-  '#E74C3C', // Red
-  '#1ABC9C', // Teal
-  '#34495E', // Dark gray
-]
 
 /**
  * SVG visualization of opinion groups as convex hulls

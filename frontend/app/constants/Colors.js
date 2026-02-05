@@ -1,3 +1,15 @@
+// Group colors for opinion group visualization (used by stats components)
+export const GROUP_COLORS = [
+  '#5C005C', // Purple (primary)
+  '#9B59B6', // Light purple
+  '#3498DB', // Blue
+  '#2ECC71', // Green
+  '#F39C12', // Orange
+  '#E74C3C', // Red
+  '#1ABC9C', // Teal
+  '#34495E', // Dark gray
+]
+
 // Candid brand colors based on Figma design
 export const Colors = {
   // Brand colors
@@ -14,6 +26,9 @@ export const Colors = {
   // UI colors
   warning: "#EF4C45",
   success: "#008800",
+  overlay: 'rgba(0, 0, 0, 0.5)',
+  white: '#FFFFFF',
+  darkText: '#1a1a1a',
 
   // Badge colors (trust score based)
   kudosBadge: "#FFCCAA",     // Peach for kudos/trust badge (default/legacy)

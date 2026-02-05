@@ -1,9 +1,9 @@
-import { StyleSheet, View, Text, Image } from 'react-native'
+import { StyleSheet, View, Text } from 'react-native'
 import { forwardRef } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors } from '../../constants/Colors'
 import SwipeableCard from './SwipeableCard'
-import { getInitials, getInitialsColor, getTrustBadgeColor, getAvatarImageUrl } from '../../lib/avatarUtils'
+import Avatar from '../Avatar'
 
 const ChatRequestCard = forwardRef(function ChatRequestCard({
   chatRequest,
@@ -39,21 +39,7 @@ const ChatRequestCard = forwardRef(function ChatRequestCard({
 
             {/* User Info Pill */}
             <View style={styles.userPill}>
-              <View style={styles.avatarContainer}>
-                {(requester?.avatarIconUrl || requester?.avatarUrl) ? (
-                  <Image source={{ uri: getAvatarImageUrl(requester.avatarIconUrl || requester.avatarUrl) }} style={styles.avatar} />
-                ) : (
-                  <View style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: getInitialsColor(requester?.displayName) }]}>
-                    <Text style={styles.avatarInitial}>
-                      {getInitials(requester?.displayName)}
-                    </Text>
-                  </View>
-                )}
-                <View style={[styles.kudosBadge, { backgroundColor: getTrustBadgeColor(requester?.trustScore) }]}>
-                  <Ionicons name="star" size={10} color={Colors.primary} />
-                  <Text style={styles.kudosCount}>{requester?.kudosCount || 0}</Text>
-                </View>
-              </View>
+              <Avatar user={requester} size="md" showKudosCount badgePosition="bottom-left" />
               <View style={styles.userTextContainer}>
                 <Text style={styles.displayName}>{requester?.displayName || 'Anonymous'}</Text>
                 <Text style={styles.username}>@{requester?.username || 'anonymous'}</Text>
@@ -83,21 +69,7 @@ const ChatRequestCard = forwardRef(function ChatRequestCard({
             {/* Position Author - Centered */}
             <View style={styles.positionFooter}>
               <View style={styles.authorInfo}>
-                <View style={styles.authorAvatarContainer}>
-                  {(position?.creator?.avatarIconUrl || position?.creator?.avatarUrl) ? (
-                    <Image source={{ uri: getAvatarImageUrl(position.creator.avatarIconUrl || position.creator.avatarUrl) }} style={styles.authorAvatar} />
-                  ) : (
-                    <View style={[styles.authorAvatar, styles.avatarPlaceholder, { backgroundColor: getInitialsColor(position?.creator?.displayName) }]}>
-                      <Text style={styles.authorAvatarInitial}>
-                        {getInitials(position?.creator?.displayName)}
-                      </Text>
-                    </View>
-                  )}
-                  <View style={[styles.authorKudosBadge, { backgroundColor: getTrustBadgeColor(position?.creator?.trustScore) }]}>
-                    <Ionicons name="star" size={10} color={Colors.primary} />
-                    <Text style={styles.authorKudosCount}>{position?.creator?.kudosCount || 0}</Text>
-                  </View>
-                </View>
+                <Avatar user={position?.creator} size="md" showKudosCount badgePosition="bottom-left" />
                 <View style={styles.authorTextContainer}>
                   <Text style={styles.authorDisplayName}>{position?.creator?.displayName || 'Anonymous'}</Text>
                   <Text style={styles.authorUsername}>@{position?.creator?.username || 'you'}</Text>
@@ -125,7 +97,7 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   headerText: {
-    color: '#fff',
+    color: Colors.white,
     fontSize: 22,
     fontWeight: '600',
     fontStyle: 'italic',
@@ -145,47 +117,12 @@ const styles = StyleSheet.create({
   userPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderRadius: 25,
     paddingVertical: 8,
     paddingHorizontal: 14,
     paddingRight: 18,
     gap: 10,
-  },
-  avatarContainer: {
-    position: 'relative',
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-  },
-  avatarPlaceholder: {
-    backgroundColor: Colors.primaryMuted,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarInitial: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  kudosBadge: {
-    position: 'absolute',
-    bottom: -3,
-    left: -3,
-    borderRadius: 8,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    minWidth: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-  },
-  kudosCount: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: Colors.primary,
   },
   userTextContainer: {
     flexDirection: 'column',
@@ -193,7 +130,7 @@ const styles = StyleSheet.create({
   displayName: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: Colors.darkText,
   },
   username: {
     fontSize: 12,
@@ -205,7 +142,7 @@ const styles = StyleSheet.create({
   },
   topicCard: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     overflow: 'hidden',
@@ -236,7 +173,7 @@ const styles = StyleSheet.create({
   statement: {
     fontSize: 22,
     fontWeight: '500',
-    color: '#1a1a1a',
+    color: Colors.darkText,
     lineHeight: 30,
   },
   positionFooter: {
@@ -251,43 +188,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  authorAvatarContainer: {
-    position: 'relative',
-  },
-  authorAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-  },
-  authorAvatarInitial: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  authorKudosBadge: {
-    position: 'absolute',
-    bottom: -4,
-    left: -4,
-    borderRadius: 10,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    minWidth: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-  },
-  authorKudosCount: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: Colors.primary,
-  },
   authorTextContainer: {
     flexDirection: 'column',
   },
   authorDisplayName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: Colors.darkText,
   },
   authorUsername: {
     fontSize: 12,

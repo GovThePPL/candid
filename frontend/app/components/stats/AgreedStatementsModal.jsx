@@ -1,21 +1,17 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import {
   View,
   Text,
   StyleSheet,
-  Modal,
   TouchableOpacity,
-  ActivityIndicator,
   ScrollView,
-  Animated,
-  Dimensions,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors } from '../../constants/Colors'
 import { chatApiWrapper } from '../../lib/api'
-
-const { height: SCREEN_HEIGHT } = Dimensions.get('window')
-const ANIM_DURATION = 300
+import BottomDrawerModal from '../BottomDrawerModal'
+import LoadingView from '../LoadingView'
+import EmptyState from '../EmptyState'
 
 /**
  * Modal showing all agreed statements from a chat
@@ -30,47 +26,6 @@ export default function AgreedStatementsModal({ visible, onClose, chatLogId, clo
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [chatData, setChatData] = useState(null)
-  const [modalVisible, setModalVisible] = useState(false)
-
-  const overlayOpacity = useRef(new Animated.Value(0)).current
-  const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current
-
-  // Animate in when visible becomes true, animate out when false
-  useEffect(() => {
-    if (visible) {
-      setModalVisible(true)
-      Animated.parallel([
-        Animated.timing(overlayOpacity, {
-          toValue: 1,
-          duration: ANIM_DURATION,
-          useNativeDriver: true,
-        }),
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: ANIM_DURATION,
-          useNativeDriver: true,
-        }),
-      ]).start()
-    }
-  }, [visible])
-
-  const handleClose = () => {
-    Animated.parallel([
-      Animated.timing(overlayOpacity, {
-        toValue: 0,
-        duration: ANIM_DURATION,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: SCREEN_HEIGHT,
-        duration: ANIM_DURATION,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      setModalVisible(false)
-      onClose()
-    })
-  }
 
   useEffect(() => {
     if (visible && chatLogId) {
@@ -100,12 +55,7 @@ export default function AgreedStatementsModal({ visible, onClose, chatLogId, clo
 
   const renderContent = () => {
     if (loading) {
-      return (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Loading agreed statements...</Text>
-        </View>
-      )
+      return <LoadingView message="Loading agreed statements..." />
     }
 
     if (error) {
@@ -151,88 +101,37 @@ export default function AgreedStatementsModal({ visible, onClose, chatLogId, clo
 
         {/* No data case */}
         {!resolvedClosureText && agreedPositions.length === 0 && !loading && (
-          <View style={styles.centerContainer}>
-            <Ionicons name="document-text-outline" size={48} color={Colors.pass} />
-            <Text style={styles.noDataText}>No agreed statements in this chat.</Text>
-          </View>
+          <EmptyState
+            icon="document-text-outline"
+            title="No agreed statements in this chat."
+          />
         )}
       </ScrollView>
     )
   }
 
   return (
-    <Modal visible={modalVisible} transparent animationType="none" onRequestClose={handleClose}>
-      <View style={styles.modalContainer}>
-        {/* Overlay - fades in/out independently */}
-        <Animated.View
-          style={[styles.overlayBackground, { opacity: overlayOpacity }]}
-        >
-          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={handleClose} />
-        </Animated.View>
+    <BottomDrawerModal
+      visible={visible}
+      onClose={onClose}
+      title="Agreed Statements"
+      maxHeight="80%"
+    >
+      <View style={styles.contentWrapper}>
+        {renderContent()}
 
-        {/* Drawer content - slides up/down */}
-        <Animated.View style={[styles.content, { transform: [{ translateY: slideAnim }] }]}>
-          <View style={styles.header}>
-            <View style={styles.titleRow}>
-              <Text style={styles.title}>Agreed Statements</Text>
-              <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
-                <Ionicons name="close" size={24} color={Colors.light.text} />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {renderContent()}
-
-          <TouchableOpacity style={styles.doneButton} onPress={handleClose}>
-            <Text style={styles.doneButtonText}>Done</Text>
-          </TouchableOpacity>
-        </Animated.View>
+        <TouchableOpacity style={styles.doneButton} onPress={onClose}>
+          <Text style={styles.doneButtonText}>Done</Text>
+        </TouchableOpacity>
       </View>
-    </Modal>
+    </BottomDrawerModal>
   )
 }
 
 const styles = StyleSheet.create({
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  overlayBackground: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  content: {
-    backgroundColor: Colors.light.cardBackground,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+  contentWrapper: {
     paddingHorizontal: 16,
     paddingBottom: 24,
-    maxHeight: '80%',
-  },
-  header: {
-    alignItems: 'center',
-    paddingTop: 12,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
-    marginBottom: 16,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '100%',
-    paddingHorizontal: 8,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.primary,
-  },
-  closeButton: {
-    padding: 4,
-  },
-  scrollView: {
     flex: 1,
   },
   centerContainer: {
@@ -241,20 +140,9 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
     paddingHorizontal: 16,
   },
-  loadingText: {
-    fontSize: 14,
-    color: Colors.pass,
-    marginTop: 12,
-  },
   errorText: {
     fontSize: 14,
     color: Colors.disagree,
-    textAlign: 'center',
-    marginTop: 12,
-  },
-  noDataText: {
-    fontSize: 14,
-    color: Colors.pass,
     textAlign: 'center',
     marginTop: 12,
   },
@@ -266,8 +154,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   retryButtonText: {
-    color: '#FFFFFF',
+    color: Colors.white,
     fontWeight: '600',
+  },
+  scrollView: {
+    flex: 1,
   },
   section: {
     marginBottom: 20,
@@ -318,7 +209,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   doneButtonText: {
-    color: '#FFFFFF',
+    color: Colors.white,
     fontSize: 16,
     fontWeight: '600',
   },

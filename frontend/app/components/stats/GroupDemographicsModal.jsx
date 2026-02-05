@@ -1,18 +1,17 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import {
   View,
   Text,
   StyleSheet,
-  Modal,
   TouchableOpacity,
   ScrollView,
-  ActivityIndicator,
-  Animated,
-  Dimensions,
 } from 'react-native'
 import Svg, { Path, G } from 'react-native-svg'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors } from '../../constants/Colors'
+import BottomDrawerModal from '../BottomDrawerModal'
+import LoadingView from '../LoadingView'
+import EmptyState from '../EmptyState'
 
 // Labels for demographic categories
 const LEAN_LABELS = {
@@ -268,8 +267,6 @@ function DemographicSection({ title, data, labels, total, sortOrder }) {
 /**
  * Modal showing demographic breakdown for an opinion group
  */
-const SCREEN_HEIGHT = Dimensions.get('window').height
-
 export default function GroupDemographicsModal({
   visible,
   onClose,
@@ -283,47 +280,6 @@ export default function GroupDemographicsModal({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [data, setData] = useState(null)
-  const [modalVisible, setModalVisible] = useState(false)
-
-  // Animation values
-  const overlayOpacity = useRef(new Animated.Value(0)).current
-  const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current
-
-  // Handle opening/closing animations
-  useEffect(() => {
-    if (visible) {
-      setModalVisible(true)
-      // Animate in: fade overlay and slide content
-      Animated.parallel([
-        Animated.timing(overlayOpacity, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]).start()
-    } else {
-      // Animate out: fade overlay and slide content
-      Animated.parallel([
-        Animated.timing(overlayOpacity, {
-          toValue: 0,
-          duration: 250,
-          useNativeDriver: true,
-        }),
-        Animated.timing(slideAnim, {
-          toValue: SCREEN_HEIGHT,
-          duration: 250,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        setModalVisible(false)
-      })
-    }
-  }, [visible])
 
   useEffect(() => {
     if (visible && locationId && categoryId && groupId !== undefined) {
@@ -350,48 +306,15 @@ export default function GroupDemographicsModal({
   const respondentCount = data?.respondentCount || 0
 
   return (
-    <Modal
-      visible={modalVisible}
-      transparent
-      animationType="none"
-      onRequestClose={onClose}
+    <BottomDrawerModal
+      visible={visible}
+      onClose={onClose}
+      title={`${groupId === 'all' ? 'All Groups' : `Group ${displayLabel}`} Demographics`}
+      subtitle={`${respondentCount} of ${memberCount} members have demographic data`}
     >
-      <View style={styles.container}>
-        {/* Animated overlay that fades in across whole screen */}
-        <Animated.View
-          style={[
-            styles.overlay,
-            { opacity: overlayOpacity },
-          ]}
-        />
-        {/* Animated content that slides up */}
-        <Animated.View
-          style={[
-            styles.modalContent,
-            { transform: [{ translateY: slideAnim }] },
-          ]}
-        >
-          {/* Header */}
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.title}>
-                {groupId === 'all' ? 'All Groups' : `Group ${displayLabel}`} Demographics
-              </Text>
-              <Text style={styles.subtitle}>
-                {respondentCount} of {memberCount} members have demographic data
-              </Text>
-            </View>
-            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <Ionicons name="close" size={24} color={Colors.light.text} />
-            </TouchableOpacity>
-          </View>
-
           {/* Content */}
           {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={Colors.primary} />
-              <Text style={styles.loadingText}>Loading demographics...</Text>
-            </View>
+            <LoadingView message="Loading demographics..." />
           ) : error ? (
             <View style={styles.errorContainer}>
               <Ionicons name="alert-circle-outline" size={48} color={Colors.disagree} />
@@ -401,12 +324,10 @@ export default function GroupDemographicsModal({
               </TouchableOpacity>
             </View>
           ) : respondentCount === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="people-outline" size={48} color={Colors.pass} />
-              <Text style={styles.emptyText}>
-                No demographic data available for this group yet.
-              </Text>
-            </View>
+            <EmptyState
+              icon="people-outline"
+              title="No demographic data available for this group yet."
+            />
           ) : (
             <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
               {/* Group Identity Rankings */}
@@ -487,66 +408,14 @@ export default function GroupDemographicsModal({
               <View style={styles.bottomPadding} />
             </ScrollView>
           )}
-        </Animated.View>
-      </View>
-    </Modal>
+    </BottomDrawerModal>
   )
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  modalContent: {
-    backgroundColor: Colors.light.background,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '85%',
-    minHeight: 300,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
-    backgroundColor: Colors.light.cardBackground,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.primary,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#555555',
-    marginTop: 4,
-  },
-  closeButton: {
-    padding: 4,
-  },
   scrollContent: {
     flex: 1,
     padding: 16,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 48,
-  },
-  loadingText: {
-    fontSize: 15,
-    color: '#555555',
-    marginTop: 12,
   },
   errorContainer: {
     flex: 1,
@@ -568,21 +437,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   retryText: {
-    color: '#FFFFFF',
+    color: Colors.white,
     fontSize: 14,
     fontWeight: '600',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 48,
-  },
-  emptyText: {
-    fontSize: 15,
-    color: '#555555',
-    textAlign: 'center',
-    marginTop: 12,
   },
   section: {
     marginBottom: 24,

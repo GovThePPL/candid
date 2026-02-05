@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router'
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { Colors } from '../../constants/Colors'
 import Header from '../../components/Header'
+import EmptyState from '../../components/EmptyState'
 import CardShell from '../../components/CardShell'
 import PositionInfoCard from '../../components/PositionInfoCard'
 import { UserContext } from '../../contexts/UserContext'
@@ -314,13 +315,12 @@ export default function Chats() {
   const renderEmpty = () => {
     if (loading) return null
     return (
-      <View style={styles.emptyContainer}>
-        <Ionicons name="chatbubbles-outline" size={64} color={Colors.pass} />
-        <Text style={styles.emptyTitle}>No chats yet</Text>
-        <Text style={styles.emptySubtitle}>
-          Start a conversation by swiping up on a position card
-        </Text>
-      </View>
+      <EmptyState
+        icon="chatbubbles-outline"
+        title="No chats yet"
+        subtitle="Start a conversation by swiping up on a position card"
+        style={styles.emptyContainer}
+      />
     )
   }
 
@@ -420,28 +420,12 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   retryText: {
-    color: '#fff',
+    color: Colors.white,
     fontSize: 12,
     fontWeight: '600',
   },
   emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 32,
     paddingBottom: 100,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: Colors.light.text,
-    marginTop: 16,
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: Colors.pass,
-    textAlign: 'center',
-    marginTop: 8,
   },
 
   // Card wrapper and metadata row
@@ -495,7 +479,7 @@ const styles = StyleSheet.create({
   closureText: {
     flex: 1,
     fontSize: 14,
-    color: '#fff',
+    color: Colors.white,
     lineHeight: 20,
   },
 
@@ -517,7 +501,7 @@ const styles = StyleSheet.create({
   },
   kudosReceivedText: {
     fontSize: 12,
-    color: '#fff',
+    color: Colors.white,
     fontWeight: '500',
   },
   kudosPlaceholder: {

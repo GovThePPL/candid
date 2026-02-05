@@ -55,7 +55,7 @@ export default function DashboardLayout() {
         screenOptions={{
           headerShown: false,
           tabBarStyle: {
-            backgroundColor: '#fff',
+            backgroundColor: Colors.white,
             paddingTop: 8,
             paddingBottom: 8,
             height: isWideScreen ? 70 : 60,

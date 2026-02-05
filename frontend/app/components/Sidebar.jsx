@@ -1,9 +1,9 @@
-import { StyleSheet, View, Text, TouchableOpacity, Image, Animated, Dimensions, Pressable } from 'react-native'
+import { StyleSheet, View, Text, TouchableOpacity, Animated, Dimensions, Pressable } from 'react-native'
 import { useEffect, useRef } from 'react'
 import { useRouter, usePathname } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors } from '../constants/Colors'
-import { getInitials, getInitialsColor, getAvatarImageUrl } from '../lib/avatarUtils'
+import Avatar from './Avatar'
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window')
 const SIDEBAR_WIDTH = SCREEN_WIDTH * 0.65
@@ -67,17 +67,7 @@ export default function Sidebar({ visible, onClose, user, onLogout }) {
       <Animated.View style={[styles.sidebar, { transform: [{ translateX: slideAnim }] }]}>
         {/* User Info */}
         <View style={styles.userSection}>
-          <View style={styles.avatarContainer}>
-            {user?.avatarUrl ? (
-              <Image source={{ uri: getAvatarImageUrl(user.avatarUrl) }} style={styles.avatar} />
-            ) : (
-              <View style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: getInitialsColor(user?.displayName) }]}>
-                <Text style={styles.avatarInitial}>
-                  {getInitials(user?.displayName)}
-                </Text>
-              </View>
-            )}
-          </View>
+          <Avatar user={user} size="lg" showKudosBadge={false} />
           <View style={styles.kudosBadge}>
             <Ionicons name="star" size={14} color={Colors.primary} />
             <Text style={styles.kudosCount}>{user?.kudosCount || 0}</Text>
@@ -132,7 +122,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     width: SIDEBAR_WIDTH,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     paddingTop: 60,
     shadowColor: '#000',
     shadowOffset: { width: -2, height: 0 },
@@ -146,21 +136,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.cardBorder,
   },
-  avatarContainer: {
-    marginBottom: 8,
-  },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-  },
-  avatarPlaceholder: {
-    backgroundColor: Colors.primaryMuted,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   avatarInitial: {
-    color: '#fff',
+    color: Colors.white,
     fontSize: 32,
     fontWeight: '600',
   },
@@ -182,7 +159,7 @@ const styles = StyleSheet.create({
   displayName: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: Colors.darkText,
   },
   username: {
     fontSize: 14,
@@ -200,7 +177,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   menuText: {
-    color: '#fff',
+    color: Colors.white,
     fontSize: 16,
     fontWeight: '500',
   },
