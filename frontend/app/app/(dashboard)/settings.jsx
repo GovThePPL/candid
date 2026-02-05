@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable } from 'react-native'
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useFocusEffect } from 'expo-router'
+import { useFocusEffect, useRouter, useLocalSearchParams } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors } from '../../constants/Colors'
@@ -28,6 +28,17 @@ const LIKELIHOOD_OPTIONS = [
 ]
 
 export default function Settings() {
+  const router = useRouter()
+  const { returnTo } = useLocalSearchParams()
+
+  const handleBack = () => {
+    if (returnTo) {
+      router.navigate(returnTo)
+    } else {
+      router.back()
+    }
+  }
+
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
@@ -197,7 +208,7 @@ export default function Settings() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <Header />
+        <Header onBack={handleBack} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Loading settings...</Text>
@@ -208,7 +219,7 @@ export default function Settings() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <Header />
+      <Header onBack={handleBack} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.pageHeader}>
           <ThemedText title={true} style={styles.pageTitle}>

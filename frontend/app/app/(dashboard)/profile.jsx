@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, Image, TextInput, Alert, Platform } from 'react-native'
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useFocusEffect, useRouter } from 'expo-router'
+import { useFocusEffect, useRouter, useLocalSearchParams } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
@@ -85,6 +85,15 @@ const SEX_OPTIONS = [
 export default function Profile() {
   const { logout, user, refreshUser } = useUser()
   const router = useRouter()
+  const { returnTo } = useLocalSearchParams()
+
+  const handleBack = () => {
+    if (returnTo) {
+      router.navigate(returnTo)
+    } else {
+      router.back()
+    }
+  }
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -448,7 +457,7 @@ export default function Profile() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <Header />
+        <Header onBack={handleBack} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Loading profile...</Text>
@@ -459,7 +468,7 @@ export default function Profile() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <Header />
+      <Header onBack={handleBack} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.pageHeader}>
           <ThemedText title={true} style={styles.pageTitle}>

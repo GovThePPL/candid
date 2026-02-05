@@ -1,6 +1,6 @@
 import { StyleSheet, View, Text, TouchableOpacity, Image, Animated, Dimensions, Pressable } from 'react-native'
 import { useEffect, useRef } from 'react'
-import { useRouter } from 'expo-router'
+import { useRouter, usePathname } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors } from '../constants/Colors'
 import { getInitials, getInitialsColor, getAvatarImageUrl } from '../lib/avatarUtils'
@@ -10,6 +10,7 @@ const SIDEBAR_WIDTH = SCREEN_WIDTH * 0.65
 
 export default function Sidebar({ visible, onClose, user, onLogout }) {
   const router = useRouter()
+  const pathname = usePathname()
   const slideAnim = useRef(new Animated.Value(SIDEBAR_WIDTH)).current
   const overlayOpacity = useRef(new Animated.Value(0)).current
 
@@ -45,7 +46,7 @@ export default function Sidebar({ visible, onClose, user, onLogout }) {
 
   const handleMenuPress = (route) => {
     onClose()
-    router.push(route)
+    router.push({ pathname: route, params: { returnTo: pathname } })
   }
 
   const handleLogout = () => {

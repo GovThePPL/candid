@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, Modal, FlatList } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../../constants/Colors'
-import { usersApiWrapper, categoriesApiWrapper } from '../../lib/api'
+import { Colors } from '../constants/Colors'
+import { usersApiWrapper, categoriesApiWrapper } from '../lib/api'
 
 /**
  * Dropdown selectors for location and category
@@ -12,12 +12,21 @@ import { usersApiWrapper, categoriesApiWrapper } from '../../lib/api'
  * @param {string} props.selectedCategory - Currently selected category ID
  * @param {Function} props.onLocationChange - Callback when location changes
  * @param {Function} props.onCategoryChange - Callback when category changes
+ * @param {boolean} [props.showAllCategories=false] - Prepend "All Categories" option
+ * @param {'first'|'last'} [props.defaultLocation='first'] - Which location to auto-select on load
+ * @param {boolean} [props.showLabels=false] - Show "Location"/"Category" labels above buttons (hides left icons)
+ * @param {boolean} [props.categoryAutoSelected=false] - Show sparkles icon + highlight border on category button
  */
 export default function LocationCategorySelector({
   selectedLocation,
   selectedCategory,
   onLocationChange,
   onCategoryChange,
+  showAllCategories = false,
+  defaultLocation = 'first',
+  showLabels = false,
+  categoryAutoSelected = false,
+  style,
 }) {
   const [locations, setLocations] = useState([])
   const [categories, setCategories] = useState([])
@@ -25,7 +34,6 @@ export default function LocationCategorySelector({
   const [showCategoryPicker, setShowCategoryPicker] = useState(false)
   const [loading, setLoading] = useState(true)
 
-  // Special "All Categories" option
   const ALL_CATEGORIES_OPTION = { id: 'all', label: 'All Categories' }
 
   useEffect(() => {
@@ -40,15 +48,24 @@ export default function LocationCategorySelector({
         categoriesApiWrapper.getAll(),
       ])
       setLocations(locData || [])
-      // Add "All Categories" option at the beginning
-      setCategories([ALL_CATEGORIES_OPTION, ...(catData || [])])
 
-      // Auto-select first options if not already selected
-      if (!selectedLocation && locData?.length > 0) {
-        onLocationChange(locData[0].id)
+      if (showAllCategories) {
+        setCategories([ALL_CATEGORIES_OPTION, ...(catData || [])])
+      } else {
+        setCategories(catData || [])
       }
-      // Default to "All Categories"
-      if (!selectedCategory) {
+
+      // Auto-select location if not already selected
+      if (!selectedLocation && locData?.length > 0) {
+        if (defaultLocation === 'last') {
+          onLocationChange(locData[locData.length - 1].id)
+        } else {
+          onLocationChange(locData[0].id)
+        }
+      }
+
+      // Default to "All Categories" when showAllCategories is enabled
+      if (showAllCategories && !selectedCategory) {
         onCategoryChange('all')
       }
     } catch (error) {
@@ -119,35 +136,61 @@ export default function LocationCategorySelector({
 
   if (loading) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, style]}>
         <Text style={styles.loadingText}>Loading...</Text>
       </View>
     )
   }
 
   return (
-    <View style={styles.container}>
-      <TouchableOpacity
-        style={styles.selector}
-        onPress={() => setShowLocationPicker(true)}
-      >
-        <Ionicons name="location-outline" size={18} color={Colors.primary} />
-        <Text style={styles.selectorText} numberOfLines={1}>
-          {getSelectedLocationName()}
-        </Text>
-        <Ionicons name="chevron-down" size={16} color={Colors.pass} />
-      </TouchableOpacity>
+    <View style={[styles.container, style]}>
+      {/* Location selector */}
+      <View style={styles.selectorWrapper}>
+        {showLabels && (
+          <View style={styles.labelRow}>
+            <Text style={styles.labelText}>Location</Text>
+          </View>
+        )}
+        <TouchableOpacity
+          style={styles.selector}
+          onPress={() => setShowLocationPicker(true)}
+        >
+          {!showLabels && (
+            <Ionicons name="location-outline" size={18} color={Colors.primary} />
+          )}
+          <Text style={styles.selectorText} numberOfLines={1}>
+            {getSelectedLocationName()}
+          </Text>
+          <Ionicons name="chevron-down" size={16} color={Colors.pass} />
+        </TouchableOpacity>
+      </View>
 
-      <TouchableOpacity
-        style={styles.selector}
-        onPress={() => setShowCategoryPicker(true)}
-      >
-        <Ionicons name="folder-outline" size={18} color={Colors.primary} />
-        <Text style={styles.selectorText} numberOfLines={1}>
-          {getSelectedCategoryName()}
-        </Text>
-        <Ionicons name="chevron-down" size={16} color={Colors.pass} />
-      </TouchableOpacity>
+      {/* Category selector */}
+      <View style={styles.selectorWrapper}>
+        {showLabels && (
+          <View style={styles.labelRow}>
+            <Text style={styles.labelText}>Category</Text>
+            {categoryAutoSelected && (
+              <Ionicons name="sparkles" size={10} color={Colors.primary} style={{ marginLeft: 4 }} />
+            )}
+          </View>
+        )}
+        <TouchableOpacity
+          style={[
+            styles.selector,
+            categoryAutoSelected && styles.selectorAutoSelected,
+          ]}
+          onPress={() => setShowCategoryPicker(true)}
+        >
+          {!showLabels && (
+            <Ionicons name="folder-outline" size={18} color={Colors.primary} />
+          )}
+          <Text style={styles.selectorText} numberOfLines={1}>
+            {getSelectedCategoryName()}
+          </Text>
+          <Ionicons name="chevron-down" size={16} color={Colors.pass} />
+        </TouchableOpacity>
+      </View>
 
       {renderPickerModal(
         showLocationPicker,
@@ -179,6 +222,20 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     gap: 12,
   },
+  selectorWrapper: {
+    flex: 1,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+    height: 18,
+  },
+  labelText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1a1a1a',
+  },
   selector: {
     flex: 1,
     flexDirection: 'row',
@@ -190,6 +247,10 @@ const styles = StyleSheet.create({
     gap: 8,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
+  },
+  selectorAutoSelected: {
+    borderColor: Colors.primary,
+    borderWidth: 2,
   },
   selectorText: {
     flex: 1,

@@ -48,11 +48,18 @@ export default function ClosureCard({ closure, onShowMap, onViewStatements }) {
 
         {/* Users row with handshake */}
         <View style={styles.usersRow}>
-          <UserMiniCard user={positionHolderUser} role="PROPOSER" />
+          <UserMiniCard
+            user={positionHolderUser?.mapPosition ? positionHolderUser : { ...positionHolderUser, opinionGroup: null }}
+            role="PROPOSER"
+          />
           <View style={styles.handshakeContainer}>
             <MaterialCommunityIcons name="handshake-outline" size={22} color={Colors.agree} />
           </View>
-          <UserMiniCard user={initiatorUser} role="OPPOSER" reverse />
+          <UserMiniCard
+            user={initiatorUser?.mapPosition ? initiatorUser : { ...initiatorUser, opinionGroup: null }}
+            role="OPPOSER"
+            reverse
+          />
         </View>
 
         {/* Date and actions row */}
@@ -68,11 +75,11 @@ export default function ClosureCard({ closure, onShowMap, onViewStatements }) {
       {/* Green section - closure text and statements button */}
       <View style={styles.greenSection}>
         <View style={styles.closureRow}>
-          <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
-          <Text style={styles.closureText}>"{closureText?.content}"</Text>
+          <MaterialCommunityIcons name="handshake-outline" size={18} color="#FFFFFF" />
+          <Text style={styles.closureText}>{closureText?.content}</Text>
         </View>
         <TouchableOpacity style={styles.statementsButton} onPress={onViewStatements}>
-          <Ionicons name="list-outline" size={14} color={Colors.agree} />
+          <Ionicons name="list-outline" size={14} color="#FFFFFF" />
           <Text style={styles.statementsButtonText}>Statements</Text>
         </TouchableOpacity>
       </View>
@@ -164,13 +171,12 @@ const styles = StyleSheet.create({
   },
   closureRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: 8,
   },
   closureText: {
     flex: 1,
     fontSize: 14,
-    fontStyle: 'italic',
     color: '#FFFFFF',
     lineHeight: 20,
   },

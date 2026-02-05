@@ -482,7 +482,7 @@ def search_similar_positions(body, token_info=None):  # noqa: E501
         if pos['category_name']:
             position_data['category'] = {
                 'id': pos['category_id'],
-                'name': pos['category_name']
+                'label': pos['category_name']
             }
 
         # Add location info if available

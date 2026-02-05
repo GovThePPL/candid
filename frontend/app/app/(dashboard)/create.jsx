@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, Alert as RNAlert, ActivityIndicator, Animated, LayoutAnimation, UIManager, Modal, Pressable } from 'react-native'
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, Alert as RNAlert, ActivityIndicator, Animated, LayoutAnimation, UIManager } from 'react-native'
 import { useRouter, useFocusEffect } from 'expo-router'
 import { useState, useEffect, useCallback, useRef, useContext } from 'react'
 
@@ -17,6 +17,8 @@ import ThemedTextInput from "../../components/ThemedTextInput"
 import ThemedButton from '../../components/ThemedButton'
 import Spacer from '../../components/Spacer'
 import Header from '../../components/Header'
+import InfoModal from '../../components/InfoModal'
+import LocationCategorySelector from '../../components/LocationCategorySelector'
 
 const MAX_STATEMENT_LENGTH = 140  // Polis has a 140 character limit
 const SEARCH_DEBOUNCE_MS = 500
@@ -47,12 +49,8 @@ const Alert = {
 
 export default function Create() {
   const [statement, setStatement] = useState("")
-  const [categories, setCategories] = useState([])
-  const [locations, setLocations] = useState([])
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [selectedLocation, setSelectedLocation] = useState(null)
-  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false)
-  const [locationDropdownOpen, setLocationDropdownOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [myPositions, setMyPositions] = useState([])
@@ -75,6 +73,7 @@ export default function Create() {
   const [chattingSearchQuery, setChattingSearchQuery] = useState('')
   const [chattingSearchResults, setChattingSearchResults] = useState([])
   const [searchingChatting, setSearchingChatting] = useState(false)
+  const [showChattingExplanation, setShowChattingExplanation] = useState(false)
 
   const router = useRouter()
   const searchTimeoutRef = useRef(null)
@@ -109,25 +108,6 @@ export default function Create() {
 
   useEffect(() => {
     async function fetchData() {
-      try {
-        const categoriesData = await api.categories.getAll()
-        setCategories(categoriesData || [])
-      } catch (err) {
-        console.error('Failed to fetch categories:', err)
-      }
-
-      try {
-        const locationsData = await api.users.getLocations()
-        setLocations(locationsData || [])
-        // Default to the most specific location (last in the list)
-        if (locationsData && locationsData.length > 0) {
-          setSelectedLocation(locationsData[locationsData.length - 1].id)
-        }
-      } catch (err) {
-        console.error('Failed to fetch locations:', err)
-        setError('Failed to load locations: ' + err.message)
-      }
-
       await fetchMyPositions()
       await fetchChattingList()
       lastFetchedVersion.current = positionsVersion
@@ -519,16 +499,6 @@ export default function Create() {
   const groupedChattingList = groupChattingList(chattingList)
   const showChattingCollapsible = chattingList.length >= 25
 
-  const getSelectedCategoryName = () => {
-    const category = categories.find(c => c.id === selectedCategory)
-    return category ? category.label : 'Select a category'
-  }
-
-  const getSelectedLocationName = () => {
-    const location = locations.find(l => l.id === selectedLocation)
-    return location ? location.name : 'Select a location'
-  }
-
   const remainingChars = MAX_STATEMENT_LENGTH - statement.length
   const isOverLimit = remainingChars < 0
 
@@ -612,136 +582,19 @@ export default function Create() {
               )}
             </View>
 
-            {/* Location and Category in a row */}
-            <View style={styles.dropdownRow}>
-              <View style={styles.dropdownHalf}>
-                <View style={styles.labelRowCompact}>
-                  <Text style={styles.labelSmall}>Location</Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.dropdownCompact}
-                  onPress={() => {
-                    setLocationDropdownOpen(true)
-                    setCategoryDropdownOpen(false)
-                  }}
-                >
-                  <Text style={[styles.dropdownTextCompact, !selectedLocation && styles.dropdownPlaceholder]} numberOfLines={1}>
-                    {getSelectedLocationName()}
-                  </Text>
-                  <Ionicons
-                    name="chevron-down"
-                    size={16}
-                    color={Colors.pass}
-                  />
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.dropdownHalf}>
-                <View style={styles.labelRowCompact}>
-                  <Text style={styles.labelSmall}>Category</Text>
-                  {categoryAutoSelected && (
-                    <Ionicons name="sparkles" size={10} color={Colors.primary} style={{ marginLeft: 4 }} />
-                  )}
-                </View>
-                <TouchableOpacity
-                  style={[styles.dropdownCompact, categoryAutoSelected && styles.dropdownAutoSelected]}
-                  onPress={() => {
-                    setCategoryDropdownOpen(true)
-                    setLocationDropdownOpen(false)
-                  }}
-                >
-                  <Text style={[styles.dropdownTextCompact, !selectedCategory && styles.dropdownPlaceholder]} numberOfLines={1}>
-                    {getSelectedCategoryName()}
-                  </Text>
-                  <Ionicons
-                    name="chevron-down"
-                    size={16}
-                    color={Colors.pass}
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Location Dropdown Modal */}
-            <Modal
-              visible={locationDropdownOpen}
-              transparent={true}
-              animationType="fade"
-              onRequestClose={() => setLocationDropdownOpen(false)}
-            >
-              <Pressable style={styles.modalOverlay} onPress={() => setLocationDropdownOpen(false)}>
-                <View style={styles.modalContent}>
-                  <Text style={styles.modalTitle}>Select Location</Text>
-                  <ScrollView style={styles.modalScrollView}>
-                    {locations.map((location, index) => (
-                      <TouchableOpacity
-                        key={location.id}
-                        style={[
-                          styles.modalItem,
-                          selectedLocation === location.id && styles.modalItemSelected,
-                          index === locations.length - 1 && styles.modalItemLast,
-                        ]}
-                        onPress={() => {
-                          setSelectedLocation(location.id)
-                          setLocationDropdownOpen(false)
-                        }}
-                      >
-                        <Text style={[
-                          styles.modalItemText,
-                          selectedLocation === location.id && styles.modalItemTextSelected
-                        ]}>
-                          {location.name}
-                        </Text>
-                        {selectedLocation === location.id && (
-                          <Ionicons name="checkmark" size={20} color={Colors.primary} />
-                        )}
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-              </Pressable>
-            </Modal>
-
-            {/* Category Dropdown Modal */}
-            <Modal
-              visible={categoryDropdownOpen}
-              transparent={true}
-              animationType="fade"
-              onRequestClose={() => setCategoryDropdownOpen(false)}
-            >
-              <Pressable style={styles.modalOverlay} onPress={() => setCategoryDropdownOpen(false)}>
-                <View style={styles.modalContent}>
-                  <Text style={styles.modalTitle}>Select Category</Text>
-                  <ScrollView style={styles.modalScrollView}>
-                    {categories.map((category, index) => (
-                      <TouchableOpacity
-                        key={category.id}
-                        style={[
-                          styles.modalItem,
-                          selectedCategory === category.id && styles.modalItemSelected,
-                          index === categories.length - 1 && styles.modalItemLast,
-                        ]}
-                        onPress={() => {
-                          setSelectedCategory(category.id)
-                          setCategoryDropdownOpen(false)
-                          setCategoryAutoSelected(false)
-                        }}
-                      >
-                        <Text style={[
-                          styles.modalItemText,
-                          selectedCategory === category.id && styles.modalItemTextSelected
-                        ]}>
-                          {category.label}
-                        </Text>
-                        {selectedCategory === category.id && (
-                          <Ionicons name="checkmark" size={20} color={Colors.primary} />
-                        )}
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-              </Pressable>
-            </Modal>
+            <LocationCategorySelector
+              selectedLocation={selectedLocation}
+              selectedCategory={selectedCategory}
+              onLocationChange={setSelectedLocation}
+              onCategoryChange={(id) => {
+                setSelectedCategory(id)
+                setCategoryAutoSelected(false)
+              }}
+              showLabels
+              defaultLocation="last"
+              categoryAutoSelected={categoryAutoSelected}
+              style={{ paddingHorizontal: 0, marginBottom: 12 }}
+            />
 
             {error && (
               <View style={styles.errorContainerCompact}>
@@ -961,24 +814,30 @@ export default function Create() {
           {/* Chatting List Section */}
           <View style={styles.chattingListSection}>
             <View style={styles.sectionHeader}>
-              <ThemedText title={true} style={styles.sectionHeading}>
-                Chatting List
-              </ThemedText>
+              <View style={styles.sectionHeadingRow}>
+                <ThemedText title={true} style={styles.sectionHeading}>
+                  Chatting List
+                </ThemedText>
+                <TouchableOpacity onPress={() => setShowChattingExplanation(true)} hitSlop={8}>
+                  <Ionicons name="help-circle-outline" size={20} color={Colors.pass} />
+                </TouchableOpacity>
+              </View>
               <Text style={styles.sectionSubtitle}>
                 Positions you've chatted about or saved to discuss later
               </Text>
             </View>
 
-            {/* Explanation Card */}
-            <View style={styles.explanationCard}>
-              <View style={styles.explanationHeader}>
-                <Ionicons name="information-circle-outline" size={20} color={Colors.primary} />
-                <Text style={styles.explanationTitle}>What is the Chatting List?</Text>
-              </View>
-              <Text style={styles.explanationText}>
-                This list contains other people's positions that you've previously chatted about, as well as positions you've saved by tapping the chat button on a card. These will periodically reappear in your card queue. Toggle items on/off to control which ones are active, or remove them entirely.
-              </Text>
-            </View>
+            <InfoModal
+              visible={showChattingExplanation}
+              onClose={() => setShowChattingExplanation(false)}
+              icon="chatbubbles"
+              iconColor={Colors.chat}
+              title="What is the Chatting List?"
+              paragraphs={[
+                "This list contains other people's positions that you've previously chatted about, as well as positions you've saved by tapping the chat button on a card.",
+                'These will periodically reappear in your card queue. Toggle items on/off to control which ones are active, or remove them entirely.',
+              ]}
+            />
 
             {/* Add Position Button */}
             <TouchableOpacity
@@ -1371,42 +1230,6 @@ const styles = StyleSheet.create({
     color: '#1a1a1a',
     marginBottom: 8,
   },
-  labelSmall: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1a1a1a',
-    marginBottom: 4,
-  },
-  labelRowCompact: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-    height: 18,
-  },
-  labelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 0,
-  },
-  autoSelectedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.primaryLight,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-    gap: 4,
-  },
-  autoSelectedText: {
-    fontSize: 11,
-    color: Colors.primary,
-    fontWeight: '500',
-  },
-  dropdownAutoSelected: {
-    borderColor: Colors.primary,
-    borderWidth: 2,
-  },
   statementInput: {
     padding: 12,
     borderRadius: 10,
@@ -1438,147 +1261,6 @@ const styles = StyleSheet.create({
   errorText: {
     color: Colors.warning,
     fontSize: 14,
-  },
-  locationHint: {
-    fontSize: 13,
-    color: Colors.pass,
-    marginBottom: 8,
-  },
-  dropdown: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: Colors.cardBackground,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    borderRadius: 12,
-    padding: 14,
-  },
-  dropdownText: {
-    fontSize: 16,
-    color: '#1a1a1a',
-  },
-  dropdownPlaceholder: {
-    color: Colors.pass,
-  },
-  dropdownList: {
-    marginTop: 8,
-    backgroundColor: Colors.cardBackground,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  dropdownItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
-  },
-  dropdownItemFirst: {
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-  },
-  dropdownItemLast: {
-    borderBottomWidth: 0,
-    borderBottomLeftRadius: 12,
-    borderBottomRightRadius: 12,
-  },
-  dropdownItemSelected: {
-    backgroundColor: Colors.primaryLight,
-  },
-  dropdownItemText: {
-    fontSize: 16,
-    color: '#1a1a1a',
-  },
-  dropdownItemTextSelected: {
-    color: Colors.primary,
-    fontWeight: '600',
-  },
-  locationIndent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  locationCode: {
-    fontSize: 13,
-    color: Colors.pass,
-  },
-  // Compact form styles
-  dropdownRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 12,
-  },
-  dropdownHalf: {
-    flex: 1,
-  },
-  dropdownCompact: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    borderRadius: 8,
-    padding: 10,
-    height: 42,
-  },
-  dropdownTextCompact: {
-    fontSize: 14,
-    color: '#1a1a1a',
-    flex: 1,
-  },
-  // Modal dropdown styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    width: '100%',
-    maxWidth: 340,
-    maxHeight: '70%',
-    overflow: 'hidden',
-  },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1a1a1a',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
-  },
-  modalScrollView: {
-    maxHeight: 300,
-  },
-  modalItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
-  },
-  modalItemSelected: {
-    backgroundColor: Colors.primaryLight,
-  },
-  modalItemLast: {
-    borderBottomWidth: 0,
-  },
-  modalItemText: {
-    fontSize: 15,
-    color: '#1a1a1a',
-  },
-  modalItemTextSelected: {
-    color: Colors.primary,
-    fontWeight: '600',
   },
   errorContainerCompact: {
     backgroundColor: '#ffe6e6',
@@ -1847,27 +1529,10 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.cardBorder,
   },
-  explanationCard: {
-    backgroundColor: Colors.primaryLight,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 16,
-  },
-  explanationHeader: {
+  sectionHeadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
-  },
-  explanationTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.primary,
-    marginLeft: 8,
-  },
-  explanationText: {
-    fontSize: 13,
-    color: '#1a1a1a',
-    lineHeight: 20,
+    gap: 8,
   },
   addToListButton: {
     flexDirection: 'row',

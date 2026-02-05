@@ -24,7 +24,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 import { useState, useEffect, useRef, useCallback, useContext } from 'react'
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
-import { Ionicons } from '@expo/vector-icons'
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { Colors } from '../../../constants/Colors'
 import { UserContext } from '../../../contexts/UserContext'
 import Header from '../../../components/Header'
@@ -958,7 +958,7 @@ export default function ChatScreen() {
               </View>
               {pIsAccepted && (
                 <View style={styles.proposalStatusInline}>
-                  <Ionicons name="checkmark-circle" size={14} color="#fff" />
+                  <MaterialCommunityIcons name="handshake-outline" size={14} color="#fff" />
                 </View>
               )}
               {pIsRejected && (

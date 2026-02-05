@@ -504,7 +504,7 @@ def _get_chatting_list_item(item_id: str, user_id: str) -> dict:
     if item.get("category_name"):
         category = {
             "id": str(item["category_id"]) if item.get("category_id") else None,
-            "name": item["category_name"]
+            "label": item["category_name"]
         }
 
     location = None

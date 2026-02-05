@@ -111,7 +111,10 @@ function ChatHistoryCard({ chat, onPress, onSendKudos, currentUserId }) {
 
   const closureBottomSection = agreedClosure ? (
     <View>
-      <Text style={styles.closureText} numberOfLines={2}>{agreedClosure?.content}</Text>
+      <View style={styles.closureRow}>
+        <MaterialCommunityIcons name="handshake-outline" size={18} color="#FFFFFF" />
+        <Text style={styles.closureText} numberOfLines={2}>{agreedClosure?.content}</Text>
+      </View>
 
       {showKudosSection && (
         <View style={styles.kudosRow}>
@@ -484,7 +487,13 @@ const styles = StyleSheet.create({
   closureBottom: {
     padding: 12,
   },
+  closureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   closureText: {
+    flex: 1,
     fontSize: 14,
     color: '#fff',
     lineHeight: 20,

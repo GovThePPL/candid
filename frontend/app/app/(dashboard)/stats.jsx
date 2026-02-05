@@ -7,7 +7,6 @@ import {
   RefreshControl,
   ActivityIndicator,
   TouchableOpacity,
-  Modal,
   Linking,
   Platform,
 } from 'react-native'
@@ -16,12 +15,13 @@ import { router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors } from '../../constants/Colors'
 import Header from '../../components/Header'
-import LocationCategorySelector from '../../components/stats/LocationCategorySelector'
+import LocationCategorySelector from '../../components/LocationCategorySelector'
 import OpinionMapVisualization from '../../components/stats/OpinionMapVisualization'
 import GroupTabBar from '../../components/stats/GroupTabBar'
 import PositionCarousel from '../../components/stats/PositionCarousel'
 import GroupDemographicsModal from '../../components/stats/GroupDemographicsModal'
 import SurveyResultsModal from '../../components/stats/SurveyResultsModal'
+import InfoModal from '../../components/InfoModal'
 import { statsApiWrapper, surveysApiWrapper, API_BASE_URL } from '../../lib/api'
 import { UserContext } from '../../contexts/UserContext'
 
@@ -126,40 +126,22 @@ export default function Stats() {
   }
 
   const renderHelpModal = () => (
-    <Modal
+    <InfoModal
       visible={showHelpModal}
-      transparent
-      animationType="fade"
-      onRequestClose={() => setShowHelpModal(false)}
+      onClose={() => setShowHelpModal(false)}
+      title={sectionInfo.helpTitle}
     >
-      <TouchableOpacity
-        style={styles.modalOverlay}
-        activeOpacity={1}
-        onPress={() => setShowHelpModal(false)}
-      >
-        <View style={styles.helpModalContent}>
-          <Text style={styles.helpModalTitle}>{sectionInfo.helpTitle}</Text>
-          <Text style={styles.helpModalText}>
-            {sectionInfo.helpText}
-          </Text>
-          <Text style={styles.helpModalText}>
-            The bars show the percentage who agreed (green), passed (gray), or disagreed (red).
-          </Text>
-          <Text style={styles.helpModalText}>
-            <Text style={styles.helpBold}>All:</Text> How everyone voted overall
-          </Text>
-          <Text style={styles.helpModalText}>
-            <Text style={styles.helpBold}>A, B, C, D:</Text> How each opinion group voted
-          </Text>
-          <TouchableOpacity
-            style={styles.helpCloseButton}
-            onPress={() => setShowHelpModal(false)}
-          >
-            <Text style={styles.helpCloseText}>Got it</Text>
-          </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
-    </Modal>
+      <InfoModal.Paragraph>{sectionInfo.helpText}</InfoModal.Paragraph>
+      <InfoModal.Paragraph>
+        The bars show the percentage who agreed (green), passed (gray), or disagreed (red).
+      </InfoModal.Paragraph>
+      <InfoModal.Paragraph>
+        <Text style={{ fontWeight: '600' }}>All:</Text> How everyone voted overall
+      </InfoModal.Paragraph>
+      <InfoModal.Paragraph>
+        <Text style={{ fontWeight: '600' }}>A, B, C, D:</Text> How each opinion group voted
+      </InfoModal.Paragraph>
+    </InfoModal>
   )
 
   const renderContent = () => {
@@ -339,6 +321,7 @@ export default function Stats() {
           selectedCategory={selectedCategory}
           onLocationChange={setSelectedLocation}
           onCategoryChange={setSelectedCategory}
+          showAllCategories
         />
 
         {renderContent()}
@@ -367,41 +350,21 @@ export default function Stats() {
       />
 
       {/* Label Help Modal */}
-      <Modal visible={showLabelHelpModal} transparent animationType="fade">
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowLabelHelpModal(false)}
-        >
-          <View style={styles.labelHelpModalContent}>
-            <Text style={styles.labelHelpModalTitle}>How Group Labels Work</Text>
-            <View style={styles.labelHelpItem}>
-              <Ionicons name="swap-horizontal-outline" size={20} color={Colors.primary} />
-              <Text style={styles.labelHelpText}>
-                Group members vote on pairs of labels, choosing which one better describes themselves.
-              </Text>
-            </View>
-            <View style={styles.labelHelpItem}>
-              <Ionicons name="trophy-outline" size={20} color={Colors.primary} />
-              <Text style={styles.labelHelpText}>
-                Labels are ranked by total votes received. The top-voted label becomes the group's identity.
-              </Text>
-            </View>
-            <View style={styles.labelHelpItem}>
-              <Ionicons name="people-outline" size={20} color={Colors.primary} />
-              <Text style={styles.labelHelpText}>
-                Only votes from members of this specific group count toward its label ranking.
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={styles.labelHelpCloseButton}
-              onPress={() => setShowLabelHelpModal(false)}
-            >
-              <Text style={styles.labelHelpCloseText}>Got it</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
+      <InfoModal
+        visible={showLabelHelpModal}
+        onClose={() => setShowLabelHelpModal(false)}
+        title="How Group Labels Work"
+      >
+        <InfoModal.Item icon="swap-horizontal-outline">
+          Group members vote on pairs of labels, choosing which one better describes themselves.
+        </InfoModal.Item>
+        <InfoModal.Item icon="trophy-outline">
+          Labels are ranked by total votes received. The top-voted label becomes the group's identity.
+        </InfoModal.Item>
+        <InfoModal.Item icon="people-outline">
+          Only votes from members of this specific group count toward its label ranking.
+        </InfoModal.Item>
+      </InfoModal>
 
       {/* Survey Results Modal */}
       <SurveyResultsModal
@@ -590,85 +553,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.pass,
     textAlign: 'center',
-  },
-  // Help Modal styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  helpModalContent: {
-    backgroundColor: Colors.light.cardBackground,
-    borderRadius: 12,
-    padding: 20,
-    width: '100%',
-    maxWidth: 400,
-  },
-  helpModalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.primary,
-    marginBottom: 16,
-  },
-  helpModalText: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: Colors.light.text,
-    marginBottom: 12,
-  },
-  helpBold: {
-    fontWeight: '600',
-  },
-  helpCloseButton: {
-    backgroundColor: Colors.primary,
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  helpCloseText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  // Label Help Modal styles
-  labelHelpModalContent: {
-    backgroundColor: Colors.light.cardBackground,
-    borderRadius: 12,
-    padding: 20,
-    width: '100%',
-    maxWidth: 340,
-  },
-  labelHelpModalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.primary,
-    marginBottom: 16,
-  },
-  labelHelpItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    marginBottom: 14,
-  },
-  labelHelpText: {
-    flex: 1,
-    fontSize: 14,
-    color: Colors.light.text,
-    lineHeight: 20,
-  },
-  labelHelpCloseButton: {
-    backgroundColor: Colors.primary,
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  labelHelpCloseText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
   },
 })

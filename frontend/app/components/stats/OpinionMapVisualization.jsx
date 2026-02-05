@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, Modal, Image, useWindowDimensions } from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, Image, useWindowDimensions } from 'react-native'
 import Svg, { Polygon, Circle, Text as SvgText, G, ClipPath, Defs, Image as SvgImage } from 'react-native-svg'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors } from '../../constants/Colors'
+import InfoModal from '../InfoModal'
 import { getAvatarImageUrl, getInitials, getInitialsColor } from '../../lib/avatarUtils'
 
 // Group colors for visualization
@@ -168,7 +169,7 @@ export default function OpinionMapVisualization({
     const clipId = 'userAvatarClip'
 
     // Get initials and color for fallback avatar
-    const displayName = userInfo?.displayName || 'You'
+    const displayName = 'You'
     const initials = getInitials(displayName)
     const initialsColor = getInitialsColor(displayName)
 
@@ -305,41 +306,21 @@ export default function OpinionMapVisualization({
         })}
       </View>
 
-      <Modal visible={showHelp} transparent animationType="fade">
-        <TouchableOpacity
-          style={styles.helpOverlay}
-          activeOpacity={1}
-          onPress={() => setShowHelp(false)}
-        >
-          <View style={styles.helpContent}>
-            <Text style={styles.helpTitle}>Understanding the Opinion Map</Text>
-            <View style={styles.helpItem}>
-              <Ionicons name="shapes-outline" size={20} color={Colors.primary} />
-              <Text style={styles.helpText}>
-                Each colored shape represents a group of people with similar voting patterns.
-              </Text>
-            </View>
-            <View style={styles.helpItem}>
-              <Ionicons name="resize-outline" size={20} color={Colors.primary} />
-              <Text style={styles.helpText}>
-                Distance between groups shows how different their opinions are.
-              </Text>
-            </View>
-            <View style={styles.helpItem}>
-              <Ionicons name="person-circle-outline" size={20} color={Colors.primary} />
-              <Text style={styles.helpText}>
-                The "You" marker shows where you fall based on your votes.
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={styles.helpClose}
-              onPress={() => setShowHelp(false)}
-            >
-              <Text style={styles.helpCloseText}>Got it</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
+      <InfoModal
+        visible={showHelp}
+        onClose={() => setShowHelp(false)}
+        title="Understanding the Opinion Map"
+      >
+        <InfoModal.Item icon="shapes-outline">
+          Each colored shape represents a group of people with similar voting patterns.
+        </InfoModal.Item>
+        <InfoModal.Item icon="resize-outline">
+          Distance between groups shows how different their opinions are.
+        </InfoModal.Item>
+        <InfoModal.Item icon="person-circle-outline">
+          The "You" marker shows where you fall based on your votes.
+        </InfoModal.Item>
+      </InfoModal>
     </View>
   )
 }
@@ -422,50 +403,5 @@ const styles = StyleSheet.create({
   },
   legendMemberTextSelected: {
     color: Colors.primary,
-  },
-  helpOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  helpContent: {
-    backgroundColor: Colors.light.cardBackground,
-    borderRadius: 12,
-    padding: 24,
-    width: '100%',
-    maxWidth: 320,
-  },
-  helpTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.primary,
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  helpItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    marginBottom: 12,
-  },
-  helpText: {
-    flex: 1,
-    fontSize: 14,
-    color: Colors.light.text,
-    lineHeight: 20,
-  },
-  helpClose: {
-    backgroundColor: Colors.primary,
-    borderRadius: 8,
-    paddingVertical: 12,
-    marginTop: 16,
-  },
-  helpCloseText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center',
   },
 })
