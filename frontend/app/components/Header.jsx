@@ -1,5 +1,5 @@
 import { StyleSheet, View, Text, TouchableOpacity, Platform } from 'react-native'
-import { useContext, useState, useCallback } from 'react'
+import { useContext, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors } from '../constants/Colors'
@@ -14,6 +14,18 @@ export default function Header({ onBack }) {
   const router = useRouter()
   const { user, logout, pendingChatRequest, clearPendingChatRequest } = useContext(UserContext)
   const [sidebarVisible, setSidebarVisible] = useState(false)
+  const [headerWidth, setHeaderWidth] = useState(0)
+  const [rightWidth, setRightWidth] = useState(0)
+  const logoWidthRef = useRef(0)
+
+  // Dynamically show logo if there's room for both logo + full indicator
+  // Full indicator: avatar(40) + name(~60) + bubble(40) + gaps(16) + border+padding(12) ≈ 170px
+  const COMFORTABLE_INDICATOR_WIDTH = 180
+  const HEADER_PADDING = 24 // paddingHorizontal(12) * 2
+  const SECTION_GAPS = 26 // headerLeft gap(10) + headerCenter marginHorizontal(8*2)
+  const availableWidth = headerWidth - rightWidth - HEADER_PADDING
+  const showLogo = !pendingChatRequest ||
+    availableWidth >= logoWidthRef.current + SECTION_GAPS + COMFORTABLE_INDICATOR_WIDTH
 
   const handleLogout = async () => {
     await logout()
@@ -46,18 +58,34 @@ export default function Header({ onBack }) {
 
   return (
     <>
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
+      <View style={styles.header} onLayout={e => setHeaderWidth(e.nativeEvent.layout.width)}>
+        {/* Left section */}
+        <View style={[styles.headerLeft, pendingChatRequest && !showLogo && styles.headerLeftExpanded]}>
           {onBack && (
             <TouchableOpacity onPress={onBack} style={styles.backButton}>
               <Ionicons name="arrow-back" size={22} color={Colors.primary} />
             </TouchableOpacity>
           )}
-          <Text style={styles.logo}>Candid</Text>
+          {showLogo && (
+            <Text
+              style={styles.logo}
+              onLayout={e => { logoWidthRef.current = e.nativeEvent.layout.width }}
+            >
+              Candid
+            </Text>
+          )}
+          {/* Narrow: indicator replaces logo, left-aligned */}
+          {pendingChatRequest && !showLogo && (
+            <ChatRequestIndicator
+              pendingRequest={pendingChatRequest}
+              onTimeout={handleChatRequestTimeout}
+              onCancel={handleChatRequestCancel}
+            />
+          )}
         </View>
 
-        {/* Centered chat request indicator */}
-        {pendingChatRequest && (
+        {/* Center section: indicator between logo and right when there's room */}
+        {pendingChatRequest && showLogo && (
           <View style={styles.headerCenter}>
             <ChatRequestIndicator
               pendingRequest={pendingChatRequest}
@@ -67,7 +95,8 @@ export default function Header({ onBack }) {
           </View>
         )}
 
-        <View style={styles.headerRight}>
+        {/* Right section */}
+        <View style={styles.headerRight} onLayout={e => setRightWidth(e.nativeEvent.layout.width)}>
           <View style={[styles.kudosBadge, { backgroundColor: getTrustBadgeColor(user?.trustScore) }]}>
             <Ionicons name="star" size={16} color={Colors.primary} />
             <Text style={styles.kudosCount}>{user?.kudosCount || 0}</Text>
@@ -94,6 +123,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 8,
+    minHeight: 66,
     backgroundColor: Colors.white,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -111,6 +141,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+  },
+  headerLeftExpanded: {
+    flex: 1,
+    overflow: 'hidden',
   },
   backButton: {
     padding: 4,
@@ -135,6 +169,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginHorizontal: 8,
+    overflow: 'hidden',
   },
   headerRight: {
     flexDirection: 'row',

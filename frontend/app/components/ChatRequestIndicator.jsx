@@ -1,7 +1,7 @@
 import { StyleSheet, View, Text, TouchableOpacity, Animated, Platform, Modal } from 'react-native'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Ionicons } from '@expo/vector-icons'
-import Svg, { Circle } from 'react-native-svg'
+import Svg, { Circle, G } from 'react-native-svg'
 import { Colors } from '../constants/Colors'
 import { SharedStyles } from '../constants/SharedStyles'
 import CardShell from './CardShell'
@@ -136,23 +136,22 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
   if (!pendingRequest) return null
 
   const isDeclined = pendingRequest.status === 'declined'
-  const author = pendingRequest.creator
+  const author = pendingRequest.author
 
   const bubbleBackground = colorAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [Colors.chat, Colors.disagree],
   })
 
-  // Inverted: strokeDashoffset starts at CIRCUMFERENCE (full ring) and decreases to 0 (empty)
-  // So purple ring shows how much time is LEFT
+  // Purple ring shows time remaining: starts full, empties counterclockwise
   const strokeDashoffset = progressAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [CIRCUMFERENCE, 0],
+    outputRange: [0, CIRCUMFERENCE],
   })
 
   return (
     <>
-      <TouchableOpacity onPress={handlePress} activeOpacity={0.8}>
+      <TouchableOpacity onPress={handlePress} activeOpacity={0.8} style={styles.touchable}>
         <Animated.View style={[styles.wrapper, { transform: [{ scale: scaleAnim }] }]}>
           {/* Author avatar */}
           <Avatar user={author} size={AVATAR_SIZE} showKudosBadge showKudosCount={false} />
@@ -173,31 +172,33 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
             ]}
           >
             <Svg width={INDICATOR_SIZE} height={INDICATOR_SIZE} style={styles.svgContainer}>
-              {/* Track circle */}
-              <Circle
-                cx={INDICATOR_SIZE / 2}
-                cy={INDICATOR_SIZE / 2}
-                r={RADIUS}
-                stroke="rgba(255, 255, 255, 0.3)"
-                strokeWidth={STROKE_WIDTH}
-                fill="transparent"
-              />
-              {/* Progress circle - purple showing time remaining */}
-              {!isDeclined && (
-                <AnimatedCircle
+              <G transform={`translate(${INDICATOR_SIZE}, 0) scale(-1, 1)`}>
+                {/* Track circle */}
+                <Circle
                   cx={INDICATOR_SIZE / 2}
                   cy={INDICATOR_SIZE / 2}
                   r={RADIUS}
-                  stroke={Colors.primary}
+                  stroke="rgba(255, 255, 255, 0.3)"
                   strokeWidth={STROKE_WIDTH}
                   fill="transparent"
-                  strokeDasharray={CIRCUMFERENCE}
-                  strokeDashoffset={strokeDashoffset}
-                  strokeLinecap="round"
-                  rotation="-90"
-                  origin={`${INDICATOR_SIZE / 2}, ${INDICATOR_SIZE / 2}`}
                 />
-              )}
+                {/* Progress circle - purple showing time remaining */}
+                {!isDeclined && (
+                  <AnimatedCircle
+                    cx={INDICATOR_SIZE / 2}
+                    cy={INDICATOR_SIZE / 2}
+                    r={RADIUS}
+                    stroke={Colors.primary}
+                    strokeWidth={STROKE_WIDTH}
+                    fill="transparent"
+                    strokeDasharray={CIRCUMFERENCE}
+                    strokeDashoffset={strokeDashoffset}
+                    strokeLinecap="round"
+                    rotation="-90"
+                    origin={`${INDICATOR_SIZE / 2}, ${INDICATOR_SIZE / 2}`}
+                  />
+                )}
+              </G>
             </Svg>
 
             <View style={styles.bubbleCenter}>
@@ -255,6 +256,9 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
 }
 
 const styles = StyleSheet.create({
+  touchable: {
+    maxWidth: '100%',
+  },
   wrapper: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -265,10 +269,10 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     paddingLeft: 3,
     paddingRight: 5,
+    overflow: 'hidden',
   },
   nameContainer: {
     flexShrink: 1,
-    maxWidth: 100,
   },
   displayName: {
     fontSize: 12,

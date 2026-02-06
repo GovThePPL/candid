@@ -1,6 +1,9 @@
 import { createContext, useEffect, useState, useCallback, useRef } from "react"
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import api, { getStoredUser, initializeAuth, getToken } from "../lib/api"
 import socket, { connectSocket, disconnectSocket, onChatRequestResponse, onChatStarted } from "../lib/socket"
+
+const PENDING_CHAT_REQUEST_KEY = 'candid_pending_chat_request'
 
 export const UserContext = createContext()
 
@@ -52,14 +55,20 @@ export function UserProvider({ children }) {
     setPositionsVersion(v => v + 1)
   }
 
-  // Set a new pending chat request
+  // Set a new pending chat request (persisted to storage)
   const setPendingChatRequest = useCallback((request) => {
     setPendingChatRequestState(request)
+    if (request) {
+      AsyncStorage.setItem(PENDING_CHAT_REQUEST_KEY, JSON.stringify(request)).catch(() => {})
+    } else {
+      AsyncStorage.removeItem(PENDING_CHAT_REQUEST_KEY).catch(() => {})
+    }
   }, [])
 
   // Clear pending chat request
   const clearPendingChatRequest = useCallback(() => {
     setPendingChatRequestState(null)
+    AsyncStorage.removeItem(PENDING_CHAT_REQUEST_KEY).catch(() => {})
   }, [])
 
   // Update pending chat request status (for accept/decline feedback)
@@ -211,6 +220,18 @@ export function UserProvider({ children }) {
           initializeSocket()
           // Check for any active chats to rejoin
           checkForActiveChat(currentUser.id)
+          // Restore pending chat request if not expired
+          try {
+            const stored = await AsyncStorage.getItem(PENDING_CHAT_REQUEST_KEY)
+            if (stored) {
+              const request = JSON.parse(stored)
+              if (request.expiresAt && new Date(request.expiresAt).getTime() > Date.now()) {
+                setPendingChatRequestState(request)
+              } else {
+                AsyncStorage.removeItem(PENDING_CHAT_REQUEST_KEY).catch(() => {})
+              }
+            }
+          } catch {}
         } catch {
           // Token expired or invalid, clear the user
           await api.auth.logout()

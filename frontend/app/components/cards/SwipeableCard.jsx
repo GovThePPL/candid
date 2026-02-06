@@ -31,13 +31,15 @@ const SwipeableCard = forwardRef(function SwipeableCard({
 }, ref) {
   const position = useRef(new Animated.ValueXY()).current
 
-  // Refs to track swipe style props for pan responder access
+  // Refs to track swipe style/handler props for pan responder access
   const rightSwipeAsChatAcceptRef = useRef(rightSwipeAsChatAccept)
   rightSwipeAsChatAcceptRef.current = rightSwipeAsChatAccept
   const rightSwipeAsSubmitRef = useRef(rightSwipeAsSubmit)
   rightSwipeAsSubmitRef.current = rightSwipeAsSubmit
   const rightSwipeAsKudosRef = useRef(rightSwipeAsKudos)
   rightSwipeAsKudosRef.current = rightSwipeAsKudos
+  const onSwipeUpRef = useRef(onSwipeUp)
+  onSwipeUpRef.current = onSwipeUp
 
   // Separate animated values for each color overlay
   const greenOverlay = useRef(new Animated.Value(0)).current
@@ -89,7 +91,7 @@ const SwipeableCard = forwardRef(function SwipeableCard({
     switch (direction) {
       case 'right': result = onSwipeRight?.(); break
       case 'left': result = onSwipeLeft?.(); break
-      case 'up': result = onSwipeUp?.(); break
+      case 'up': result = onSwipeUpRef.current?.(); break
       case 'down': result = onSwipeDown?.(); break
     }
 
@@ -204,7 +206,7 @@ const SwipeableCard = forwardRef(function SwipeableCard({
       },
       onPanResponderMove: (_, gesture) => {
         // Only allow vertical movement if there's a handler for that direction
-        const canSwipeUp = enableVerticalSwipe && onSwipeUp
+        const canSwipeUp = enableVerticalSwipe && onSwipeUpRef.current
         const canSwipeDown = enableVerticalSwipe && onSwipeDown
         const canSwipeVertically = canSwipeUp || canSwipeDown
 
@@ -293,7 +295,7 @@ const SwipeableCard = forwardRef(function SwipeableCard({
       },
       onPanResponderRelease: (_, gesture) => {
         const isHorizontal = Math.abs(gesture.dx) > Math.abs(gesture.dy)
-        const canSwipeUp = enableVerticalSwipe && onSwipeUp
+        const canSwipeUp = enableVerticalSwipe && onSwipeUpRef.current
         const canSwipeDown = enableVerticalSwipe && onSwipeDown
 
         if (isHorizontal) {

@@ -32,7 +32,7 @@ const CHAT_REQUEST_TIMEOUT_MS = 2 * 60 * 1000
 
 export default function CardQueue() {
   const router = useRouter()
-  const { user, logout, invalidatePositions, setPendingChatRequest } = useContext(UserContext)
+  const { user, logout, invalidatePositions, pendingChatRequest, setPendingChatRequest } = useContext(UserContext)
   const [cards, setCards] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [initialLoading, setInitialLoading] = useState(true)
@@ -226,6 +226,7 @@ export default function CardQueue() {
 
   const handleChatRequest = useCallback(async () => {
     if (currentCard?.type !== 'position') return
+    if (pendingChatRequest) return
     try {
       const response = await api.chat.createRequest(currentCard.data.userPositionId)
       // Set pending chat request with countdown info
@@ -252,7 +253,7 @@ export default function CardQueue() {
     } catch (err) {
       console.error('Failed to create chat request:', err)
     }
-  }, [currentCard, goToNextCard, setPendingChatRequest])
+  }, [currentCard, goToNextCard, setPendingChatRequest, pendingChatRequest])
 
   const handleReport = useCallback(() => {
     // Navigate to report screen
@@ -481,7 +482,7 @@ export default function CardQueue() {
           break
         case 'ArrowUp':
           event.preventDefault()
-          if (cardRef?.swipeUp && currentCard?.type === 'position') {
+          if (cardRef?.swipeUp && currentCard?.type === 'position' && !pendingChatRequest) {
             cardRef.swipeUp()
           }
           break
@@ -490,7 +491,7 @@ export default function CardQueue() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [currentCard])
+  }, [currentCard, pendingChatRequest])
 
   const renderCard = (card, isBackCard = false) => {
     if (!card) return null
@@ -508,7 +509,7 @@ export default function CardQueue() {
             onAgree={isBackCard ? undefined : handleAgree}
             onDisagree={isBackCard ? undefined : handleDisagree}
             onPass={isBackCard ? undefined : handlePass}
-            onChatRequest={isBackCard ? undefined : handleChatRequest}
+            onChatRequest={isBackCard || pendingChatRequest ? undefined : handleChatRequest}
             onReport={isBackCard ? undefined : handleReport}
             onAddPosition={isBackCard ? undefined : handleAddPosition}
             isBackCard={isBackCard}
