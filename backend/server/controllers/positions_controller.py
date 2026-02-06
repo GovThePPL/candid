@@ -14,7 +14,7 @@ from candid import util
 
 from candid.controllers import db, config
 from candid.controllers.helpers.config import Config
-from candid.controllers.helpers.auth import authorization, token_to_user
+from candid.controllers.helpers.auth import authorization, authorization_allow_banned, token_to_user
 from candid.controllers.helpers import polis_sync
 from candid.controllers.helpers import nlp
 from candid.controllers.helpers.polis_sync import (
@@ -513,7 +513,7 @@ def get_position_agreed_closures(position_id, token_info=None):  # noqa: E501
 
     :rtype: Union[Dict, Tuple[ErrorModel, int]]
     """
-    authorized, auth_err = authorization("normal", token_info)
+    authorized, auth_err = authorization_allow_banned("normal", token_info)
     if not authorized:
         return auth_err, auth_err.code
 

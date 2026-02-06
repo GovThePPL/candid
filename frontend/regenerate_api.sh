@@ -1,10 +1,17 @@
 #!/bin/bash
+# Resolve the directory this script lives in (frontend/)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+API_DIR="$SCRIPT_DIR/api"
+APP_DIR="$SCRIPT_DIR/app"
+
 echo "Removing existing api directory..."
-rm -rf api/
-cd ../
+rm -rf "$API_DIR"
+
 echo "Rebuilding api from defintion..."
-openapi-generator-cli generate -i docs/api.yaml -g javascript -o frontend/api
-cd frontend/api/
+openapi-generator-cli generate -i "$PROJECT_ROOT/docs/api.yaml" -g javascript -o "$API_DIR"
+
+cd "$API_DIR"
 
 # Fix discriminator validation in CardItem models
 # The OpenAPI generator doesn't properly validate enum values in oneOf discriminators
@@ -27,13 +34,9 @@ patch_card_item() {
 [ -f src/model/PairwiseCardItem.js ] && patch_card_item src/model/PairwiseCardItem.js "pairwise"
 
 echo "Packaging and linking to app..."
-npm install
-npm link
+cd "$API_DIR" && npm install
+cd "$API_DIR" && npm link
 echo "Linking in app..."
-cd ../app/
-npm link ../api/
-cd ../api/
-npm run build
-cd ../
+cd "$APP_DIR" && npm link ../api/
+cd "$API_DIR" && npm run build
 echo "Done"
-

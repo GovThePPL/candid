@@ -14,7 +14,7 @@ from candid.models.user import User  # noqa: E501
 from candid import util
 
 from candid.controllers import db
-from candid.controllers.helpers.auth import authorization, token_to_user
+from candid.controllers.helpers.auth import authorization, authorization_allow_banned, token_to_user
 def _get_user_card(user_id):
     """Helper to fetch and return a User model for API responses."""
     user = db.execute_query("""
@@ -155,7 +155,7 @@ def get_active_surveys(location_id=None, category_id=None, token_info=None):  # 
 
     :rtype: Union[List[dict], Tuple[List[dict], int]]
     """
-    authorized, auth_err = authorization("normal", token_info)
+    authorized, auth_err = authorization_allow_banned("normal", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -265,7 +265,7 @@ def get_survey_by_id(survey_id, token_info=None):  # noqa: E501
 
     :rtype: Union[Survey, Tuple[Survey, int], Tuple[Survey, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
+    authorized, auth_err = authorization_allow_banned("normal", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -445,7 +445,7 @@ def get_pairwise_surveys(location_id=None, category_id=None, token_info=None):  
 
     :rtype: Union[List[dict], Tuple[List[dict], int]]
     """
-    authorized, auth_err = authorization("normal", token_info)
+    authorized, auth_err = authorization_allow_banned("normal", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -575,7 +575,7 @@ def get_survey_rankings(survey_id, filter_location_id=None, group_id=None, polis
 
     :rtype: Union[dict, Tuple[dict, int]]
     """
-    authorized, auth_err = authorization("normal", token_info)
+    authorized, auth_err = authorization_allow_banned("normal", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -864,7 +864,7 @@ def get_standard_survey_results(survey_id, filter_location_id=None, group_id=Non
 
     :rtype: Union[dict, Tuple[dict, int]]
     """
-    authorized, auth_err = authorization("normal", token_info)
+    authorized, auth_err = authorization_allow_banned("normal", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -1048,7 +1048,7 @@ def get_question_crosstabs(survey_id, question_id, filter_location_id=None, grou
 
     :rtype: Union[dict, Tuple[dict, int]]
     """
-    authorized, auth_err = authorization("normal", token_info)
+    authorized, auth_err = authorization_allow_banned("normal", token_info)
     if not authorized:
         return auth_err, auth_err.code
 

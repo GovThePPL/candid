@@ -17,7 +17,7 @@ from candid import util
 
 from candid.controllers import db
 from candid.controllers.helpers.config import Config
-from candid.controllers.helpers.auth import authorization, token_to_user
+from candid.controllers.helpers.auth import authorization, authorization_allow_banned, token_to_user
 from candid.controllers.helpers import nlp
 from candid.controllers.helpers.cache_headers import add_cache_headers
 import uuid
@@ -116,7 +116,7 @@ def get_user_locations(token_info=None):  # noqa: E501
 
     :rtype: Union[List[Location], Tuple[List[Location], int], Tuple[List[Location], int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
+    authorized, auth_err = authorization_allow_banned("normal", token_info)
     if not authorized:
         return auth_err, auth_err.code
     user = token_to_user(token_info)
@@ -197,7 +197,7 @@ def get_all_locations(token_info=None):  # noqa: E501
 
     :rtype: Union[List[Location], Tuple[List[Location], int]]
     """
-    authorized, auth_err = authorization("normal", token_info)
+    authorized, auth_err = authorization_allow_banned("normal", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -287,7 +287,7 @@ def get_current_user(token_info=None):  # noqa: E501
     :rtype: Union[CurrentUser, Tuple[CurrentUser, int], Tuple[CurrentUser, int, Dict[str, str]]
     """
 
-    authorized, auth_err = authorization("normal", token_info)
+    authorized, auth_err = authorization_allow_banned("normal", token_info)
     if not authorized:
         return auth_err, auth_err.code
     user = token_to_user(token_info)
@@ -329,7 +329,7 @@ def get_current_user_positions(status='active', token_info=None):  # noqa: E501
 
     :rtype: Union[List[UserPosition], Tuple[List[UserPosition], int], Tuple[List[UserPosition], int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
+    authorized, auth_err = authorization_allow_banned("normal", token_info)
     if not authorized:
         return auth_err, auth_err.code
     user = token_to_user(token_info)
@@ -372,7 +372,7 @@ def get_current_user_positions_metadata(token_info=None):  # noqa: E501
 
     :rtype: Union[dict, Tuple[dict, int]]
     """
-    authorized, auth_err = authorization("normal", token_info)
+    authorized, auth_err = authorization_allow_banned("normal", token_info)
     if not authorized:
         return auth_err, auth_err.code
     user = token_to_user(token_info)
@@ -575,7 +575,7 @@ def get_user_settings(token_info=None):  # noqa: E501
 
     :rtype: Union[UserSettings, Tuple[UserSettings, int], Tuple[UserSettings, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
+    authorized, auth_err = authorization_allow_banned("normal", token_info)
     if not authorized:
         return auth_err, auth_err.code
     user = token_to_user(token_info)

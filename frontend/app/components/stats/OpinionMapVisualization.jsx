@@ -156,10 +156,10 @@ export default function OpinionMapVisualization({
     const avatarRadius = 14
     const clipId = 'userAvatarClip'
 
-    // Get initials and color for fallback avatar
-    const displayName = 'You'
-    const initials = getInitials(displayName)
-    const initialsColor = getInitialsColor(displayName)
+    // Get initials and color for fallback avatar (use real name, not "You")
+    const actualName = userInfo?.displayName || userInfo?.username || 'You'
+    const initials = getInitials(actualName)
+    const initialsColor = getInitialsColor(actualName)
 
     // Prefer icon URL for small avatar
     const avatarUrl = userInfo?.avatarIconUrl || userInfo?.avatarUrl
@@ -222,7 +222,7 @@ export default function OpinionMapVisualization({
           fill={Colors.primary}
           textAnchor="middle"
         >
-          {displayName}
+          You
         </SvgText>
       </G>
     )

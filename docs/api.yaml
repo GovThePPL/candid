@@ -654,7 +654,97 @@ components:
           type: string
         appealState:
           type: string
-          enum: [pending, approved, denied]
+          enum: [pending, approved, denied, escalated, modified, overruled]
+
+    ModerationHistoryEvent:
+      type: object
+      required:
+        - id
+        - actionType
+        - actionDate
+        - moderator
+      properties:
+        id:
+          type: string
+          format: uuid
+        actionType:
+          type: string
+          enum: [warning, temporary_ban, permanent_ban, removed, dismiss]
+        actionDate:
+          type: string
+          format: date-time
+        durationDays:
+          type: integer
+          nullable: true
+          description: Duration in days for temporary bans
+        rule:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            title:
+              type: string
+        targetContent:
+          type: string
+          nullable: true
+        reporter:
+          type: object
+          nullable: true
+          properties:
+            displayName:
+              type: string
+            username:
+              type: string
+        reportReason:
+          type: string
+          nullable: true
+        moderator:
+          type: object
+          properties:
+            displayName:
+              type: string
+            username:
+              type: string
+        moderatorComment:
+          type: string
+          nullable: true
+        appealState:
+          type: string
+          nullable: true
+          enum: [pending, approved, denied, escalated, modified, overruled]
+        appealUser:
+          type: object
+          nullable: true
+          properties:
+            displayName:
+              type: string
+            username:
+              type: string
+        appealText:
+          type: string
+          nullable: true
+        appealResponses:
+          type: array
+          nullable: true
+          items:
+            type: object
+            properties:
+              responder:
+                type: object
+                properties:
+                  displayName:
+                    type: string
+                  username:
+                    type: string
+              responseText:
+                type: string
+              outcome:
+                type: string
+                nullable: true
+                enum: [overruled, escalated, admin_decision]
+                description: Role of this response in the appeal chain
 
     Kudos:
       type: object
@@ -801,6 +891,254 @@ components:
           enum: [pairwise]
         data:
           $ref: '#/components/schemas/PairwiseComparison'
+
+    BanNotificationCardItem:
+      type: object
+      required:
+        - type
+        - data
+      properties:
+        type:
+          type: string
+          enum: [ban_notification]
+        data:
+          type: object
+          properties:
+            banType:
+              type: string
+              enum: [permanent_ban, temporary_ban]
+            reason:
+              type: string
+              nullable: true
+            ruleTitle:
+              type: string
+              nullable: true
+            modActionId:
+              type: string
+              format: uuid
+              nullable: true
+            expiresAt:
+              type: string
+              format: date-time
+              nullable: true
+            hasAppealed:
+              type: boolean
+              nullable: true
+            targetContent:
+              type: object
+              nullable: true
+              description: The content (position or chat) that triggered the ban
+              properties:
+                type:
+                  type: string
+                  enum: [position, chat_log]
+                statement:
+                  type: string
+                  nullable: true
+                positionStatement:
+                  type: string
+                  nullable: true
+                category:
+                  type: object
+                  nullable: true
+                  properties:
+                    id:
+                      type: string
+                    label:
+                      type: string
+                location:
+                  type: object
+                  nullable: true
+                  properties:
+                    code:
+                      type: string
+                    name:
+                      type: string
+                creator:
+                  type: object
+                  nullable: true
+                participants:
+                  type: array
+                  nullable: true
+                  items:
+                    type: object
+            actionChain:
+              type: object
+              nullable: true
+              description: Privacy-filtered action chain for this ban
+              properties:
+                actionType:
+                  type: string
+                actionDate:
+                  type: string
+                  format: date-time
+                  nullable: true
+                durationDays:
+                  type: integer
+                  nullable: true
+                ruleTitle:
+                  type: string
+                  nullable: true
+                moderatorComment:
+                  type: string
+                  nullable: true
+                appealState:
+                  type: string
+                  nullable: true
+                  enum: [pending, approved, denied, escalated, modified, overruled]
+                appealText:
+                  type: string
+                  nullable: true
+                appealResponses:
+                  type: array
+                  nullable: true
+                  items:
+                    type: object
+                    properties:
+                      role:
+                        type: string
+                      responseText:
+                        type: string
+                        nullable: true
+                      outcome:
+                        type: string
+                        nullable: true
+
+    PositionRemovedCardItem:
+      type: object
+      required:
+        - type
+        - data
+      properties:
+        type:
+          type: string
+          enum: [position_removed_notification]
+        data:
+          type: object
+          properties:
+            userPositionId:
+              type: string
+              format: uuid
+            positionId:
+              type: string
+              format: uuid
+            statement:
+              type: string
+            category:
+              type: string
+              nullable: true
+            location:
+              type: string
+              nullable: true
+
+    AdminResponseNotificationCardItem:
+      type: object
+      required:
+        - type
+        - data
+      properties:
+        type:
+          type: string
+          enum: [admin_response_notification]
+        data:
+          type: object
+          properties:
+            modActionAppealId:
+              type: string
+              format: uuid
+            appealState:
+              type: string
+              enum: [approved, denied, modified]
+            adminResponseText:
+              type: string
+              nullable: true
+            adminResponder:
+              type: object
+              nullable: true
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                username:
+                  type: string
+                displayName:
+                  type: string
+                status:
+                  type: string
+                avatarUrl:
+                  type: string
+                  nullable: true
+                avatarIconUrl:
+                  type: string
+                  nullable: true
+            originalAction:
+              type: object
+              nullable: true
+              properties:
+                responder:
+                  type: object
+                  nullable: true
+                  properties:
+                    id:
+                      type: string
+                      format: uuid
+                    username:
+                      type: string
+                    displayName:
+                      type: string
+                    status:
+                      type: string
+                    avatarUrl:
+                      type: string
+                      nullable: true
+                    avatarIconUrl:
+                      type: string
+                      nullable: true
+                modResponse:
+                  type: string
+                modResponseText:
+                  type: string
+                  nullable: true
+                actions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      userClass:
+                        type: string
+                      action:
+                        type: string
+                      durationDays:
+                        type: integer
+                        nullable: true
+                        description: Duration in days for temporary bans
+            priorResponses:
+              type: array
+              items:
+                type: object
+                properties:
+                  responder:
+                    type: object
+                    nullable: true
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      username:
+                        type: string
+                      displayName:
+                        type: string
+                      status:
+                        type: string
+                      avatarUrl:
+                        type: string
+                        nullable: true
+                      avatarIconUrl:
+                        type: string
+                        nullable: true
+                  responseText:
+                    type: string
+                    nullable: true
 
     PairwiseComparison:
       type: object
@@ -1030,6 +1368,21 @@ components:
 #        name:
 #          type: string
 
+    Rule:
+      type: object
+      required:
+        - id
+        - title
+        - text
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        text:
+          type: string
+
     ModActionAppealResponse:
       type: object
       required:
@@ -1051,7 +1404,7 @@ components:
           type: string
         response:
           type: string
-          enum: [approve, deny]
+          enum: [approve, deny, modify, accept, escalate]
 
     ModActionRequest:
       type: object
@@ -2161,6 +2514,8 @@ paths:
                     - $ref: '#/components/schemas/KudosCardItem'
                     - $ref: '#/components/schemas/DemographicCardItem'
                     - $ref: '#/components/schemas/PairwiseCardItem'
+                    - $ref: '#/components/schemas/BanNotificationCardItem'
+                    - $ref: '#/components/schemas/PositionRemovedCardItem'
                   discriminator:
                     propertyName: type
                     mapping:
@@ -2170,6 +2525,56 @@ paths:
                       kudos: '#/components/schemas/KudosCardItem'
                       demographic: '#/components/schemas/DemographicCardItem'
                       pairwise: '#/components/schemas/PairwiseCardItem'
+                      ban_notification: '#/components/schemas/BanNotificationCardItem'
+                      position_removed_notification: '#/components/schemas/PositionRemovedCardItem'
+
+  /cards/notifications/{positionId}/dismiss:
+    post:
+      operationId: dismissPositionRemovedNotification
+      summary: Dismiss a position removed notification
+      tags:
+        - Cards
+      parameters:
+        - name: positionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Notification dismissed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+
+  /moderation/notifications/{appealId}/dismiss-admin-response:
+    post:
+      operationId: dismissAdminResponseNotification
+      summary: Dismiss an admin response notification
+      tags:
+        - Moderation
+      parameters:
+        - name: appealId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Notification dismissed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
 
   /positions:
     post:
@@ -4062,6 +4467,22 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
+  /rules:
+    get:
+      operationId: getRules
+      summary: Get all active community rules
+      tags:
+        - Moderation
+      responses:
+        '200':
+          description: List of active rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Rule'
+
   /moderation/reports/{reportId}/response:
     post:
       operationId: takeModeratorAction
@@ -4122,13 +4543,59 @@ paths:
                   properties:
                     type:
                       type: string
-                      enum: [report, appeal]
+                      enum: [report, appeal, admin_response_notification]
                     data:
                       oneOf:
                         - $ref: '#/components/schemas/Report'
                         - $ref: '#/components/schemas/ModActionAppeal'
+                        - $ref: '#/components/schemas/AdminResponseNotificationCardItem'
         '403':
           description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /moderation/actions/{actionId}/appeal:
+    post:
+      operationId: createAppeal
+      summary: Create an appeal for a moderation action
+      tags:
+        - Moderation
+      parameters:
+        - name: actionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - appealText
+              properties:
+                appealText:
+                  type: string
+                  maxLength: 1000
+      responses:
+        '201':
+          description: Appeal created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModActionAppeal'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '403':
+          description: Forbidden
           content:
             application/json:
               schema:
@@ -4159,9 +4626,27 @@ paths:
               properties:
                 response:
                   type: string
-                  enum: [approve, deny]
+                  enum: [approve, deny, modify, accept, escalate]
                 responseText:
                   type: string
+                actions:
+                  type: array
+                  description: Required when response is modify. Same format as ModActionRequest actions.
+                  items:
+                    type: object
+                    required:
+                      - userClass
+                      - action
+                    properties:
+                      userClass:
+                        type: string
+                        enum: [submitter, active_adopter, passive_adopter]
+                      action:
+                        type: string
+                        enum: [permanent_ban, temporary_ban, warning, removed]
+                      duration:
+                        type: integer
+                        description: Duration in days for temporary bans
       responses:
         '200':
           description: Appeal response recorded successfully
@@ -4171,6 +4656,44 @@ paths:
                 $ref: '#/components/schemas/ModActionAppealResponse'
         '400':
           description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '403':
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /moderation/users/{userId}/history:
+    get:
+      operationId: getUserModerationHistory
+      summary: Get moderation history for a user
+      description: Returns all moderation actions taken against a user, sorted by most recent first. Requires moderator or admin role.
+      tags:
+        - Moderation
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of moderation history events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ModerationHistoryEvent'
+        '401':
+          description: Unauthorized
           content:
             application/json:
               schema:

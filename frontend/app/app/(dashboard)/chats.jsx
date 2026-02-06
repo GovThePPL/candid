@@ -11,6 +11,7 @@ import PositionInfoCard from '../../components/PositionInfoCard'
 import { UserContext } from '../../contexts/UserContext'
 import api from '../../lib/api'
 import { CacheManager, CacheKeys, CacheDurations } from '../../lib/cache'
+import ReportModal from '../../components/ReportModal'
 
 const formatDate = (dateString) => {
   if (!dateString) return ''
@@ -102,7 +103,7 @@ function MetaBadgeIcon({ endTypeInfo }) {
   return <Ionicons name={endTypeInfo.icon} size={14} color={endTypeInfo.color} />
 }
 
-function ChatHistoryCard({ chat, onPress, onSendKudos, currentUserId }) {
+function ChatHistoryCard({ chat, onPress, onSendKudos, onReport, currentUserId }) {
   const { position, otherUser, agreedClosure, startTime, endTime, endType, status, endedByUserId, kudosSent, kudosReceived } = chat
   const endTypeInfo = getEndTypeLabel(endType, endedByUserId, currentUserId)
   const isActive = status === 'active' && !endTime
@@ -159,9 +160,20 @@ function ChatHistoryCard({ chat, onPress, onSendKudos, currentUserId }) {
           <Text style={styles.metaDate}>{formatDate(endTime || startTime)}</Text>
           {isActive && <View style={styles.activeDot} />}
         </View>
-        <View style={[styles.metaBadge, { backgroundColor: endTypeInfo.color + '20' }]}>
-          <MetaBadgeIcon endTypeInfo={endTypeInfo} />
-          <Text style={[styles.metaBadgeText, { color: endTypeInfo.color }]}>{endTypeInfo.label}</Text>
+        <View style={styles.metaRightRow}>
+          <View style={[styles.metaBadge, { backgroundColor: endTypeInfo.color + '20' }]}>
+            <MetaBadgeIcon endTypeInfo={endTypeInfo} />
+            <Text style={[styles.metaBadgeText, { color: endTypeInfo.color }]}>{endTypeInfo.label}</Text>
+          </View>
+          {!isActive && onReport && (
+            <TouchableOpacity
+              onPress={() => onReport(chat.id)}
+              style={styles.reportIconButton}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="flag-outline" size={16} color={Colors.pass} />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -191,6 +203,8 @@ export default function Chats() {
   const [error, setError] = useState(null)
   const [fromCache, setFromCache] = useState(false)
   const cachedMetadataRef = useRef(null)
+  const [reportModalVisible, setReportModalVisible] = useState(false)
+  const [reportChatId, setReportChatId] = useState(null)
 
   const fetchChats = useCallback(async (isRefresh = false) => {
     if (!user?.id) return
@@ -301,14 +315,26 @@ export default function Chats() {
     fetchChats(true)
   }, [fetchChats])
 
+  const handleReportChat = useCallback((chatId) => {
+    setReportChatId(chatId)
+    setReportModalVisible(true)
+  }, [])
+
+  const handleSubmitChatReport = useCallback(async (ruleId, comment) => {
+    if (!reportChatId) return
+    await api.moderation.reportChat(reportChatId, ruleId, comment)
+    setReportModalVisible(false)
+  }, [reportChatId])
+
   const renderChatItem = useCallback(({ item }) => (
     <ChatHistoryCard
       chat={item}
       onPress={() => handleChatPress(item)}
       onSendKudos={handleSendKudos}
+      onReport={handleReportChat}
       currentUserId={user?.id}
     />
-  ), [handleChatPress, handleSendKudos, user?.id])
+  ), [handleChatPress, handleSendKudos, handleReportChat, user?.id])
 
   const keyExtractor = useCallback((item) => item.id, [])
 
@@ -364,6 +390,12 @@ export default function Chats() {
           }
         />
       )}
+
+      <ReportModal
+        visible={reportModalVisible}
+        onClose={() => setReportModalVisible(false)}
+        onSubmit={handleSubmitChatReport}
+      />
     </SafeAreaView>
   )
 }
@@ -459,6 +491,14 @@ const styles = StyleSheet.create({
   metaBadgeText: {
     fontSize: 12,
     fontWeight: '600',
+  },
+  metaRightRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  reportIconButton: {
+    padding: 2,
   },
   activeDot: {
     width: 8,

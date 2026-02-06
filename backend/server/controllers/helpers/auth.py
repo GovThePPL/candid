@@ -91,7 +91,63 @@ def token_to_user(token_info):
         )
     return None
 
+def _check_ban_status(user_id):
+    """Check if user is banned and handle temp ban expiry.
+
+    Returns (is_banned, error_model) where is_banned is True if actively banned.
+    """
+    user_info = db.execute_query("""
+        SELECT status FROM users WHERE id = %s
+    """, (user_id,), fetchone=True)
+
+    if not user_info or user_info['status'] != 'banned':
+        return False, None
+
+    # Check if there's a temp ban that has expired
+    active_ban = db.execute_query("""
+        SELECT mac.action_end_time
+        FROM mod_action_target mat
+        JOIN mod_action_class mac ON mat.mod_action_class_id = mac.id
+        WHERE mat.user_id = %s AND mac.action IN ('permanent_ban', 'temporary_ban')
+        ORDER BY mac.action_start_time DESC LIMIT 1
+    """, (user_id,), fetchone=True)
+
+    if active_ban and active_ban['action_end_time']:
+        now = datetime.now(timezone.utc)
+        if active_ban['action_end_time'].tzinfo is None:
+            end_time = active_ban['action_end_time'].replace(tzinfo=timezone.utc)
+        else:
+            end_time = active_ban['action_end_time']
+        if end_time < now:
+            # Temp ban expired, restore user
+            db.execute_query("UPDATE users SET status = 'active' WHERE id = %s", (user_id,))
+            return False, None
+
+    return True, ErrorModel(403, "Your account has been suspended")
+
+
 def authorization(required_level, token_info=None):
+    if not token_info:
+        return False, ErrorModel(401, "Authentication Required")
+    user_id = token_info['sub']
+    user_type = get_user_type(user_id)
+    if user_type is None:
+        return False, ErrorModel(401, "User not found")
+    if _USER_ROLE_RANKING[user_type] < _USER_ROLE_RANKING[required_level]:
+        return False, ErrorModel(403, "Unauthorized")
+
+    # Check ban status
+    is_banned, ban_err = _check_ban_status(user_id)
+    if is_banned:
+        return False, ban_err
+
+    return True, None
+
+
+def authorization_allow_banned(required_level, token_info=None):
+    """Same as authorization() but skips ban check.
+    Used for endpoints banned users still need: card queue, profile, appeal creation.
+    """
     if not token_info:
         return False, ErrorModel(401, "Authentication Required")
     user_id = token_info['sub']

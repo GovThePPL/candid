@@ -10,7 +10,7 @@ from candid.models.position_category import PositionCategory  # noqa: E501
 from candid import util
 
 from candid.controllers import db
-from candid.controllers.helpers.auth import authorization
+from candid.controllers.helpers.auth import authorization, authorization_allow_banned
 from candid.controllers.helpers import nlp
 from candid.controllers.helpers.cache_headers import add_cache_headers
 
@@ -27,7 +27,7 @@ def get_all_categories(token_info=None):  # noqa: E501
 
     :rtype: Union[List[PositionCategory], Tuple[List[PositionCategory], int], Tuple[List[PositionCategory], int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
+    authorized, auth_err = authorization_allow_banned("normal", token_info)
     if not authorized:
         return auth_err, auth_err.code
 

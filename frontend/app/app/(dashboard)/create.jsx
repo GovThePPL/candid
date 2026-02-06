@@ -81,7 +81,7 @@ export default function Create() {
   const router = useRouter()
   const searchTimeoutRef = useRef(null)
   const chattingSearchTimeoutRef = useRef(null)
-  const { positionsVersion } = useContext(UserContext)
+  const { positionsVersion, isBanned } = useContext(UserContext)
   const lastFetchedVersion = useRef(-1) // -1 means never fetched
 
   // Animation values for similar positions
@@ -504,6 +504,19 @@ export default function Create() {
 
   const remainingChars = MAX_STATEMENT_LENGTH - statement.length
   const isOverLimit = remainingChars < 0
+
+  if (isBanned) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <Header />
+        <EmptyState
+          icon="ban-outline"
+          title="Account Suspended"
+          subtitle="You cannot create positions while your account is suspended. Check the card queue for more details."
+        />
+      </SafeAreaView>
+    )
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>

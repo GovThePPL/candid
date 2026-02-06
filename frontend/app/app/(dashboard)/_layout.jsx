@@ -14,7 +14,8 @@ export default function DashboardLayout() {
   const { width } = useWindowDimensions()
   const isWideScreen = width >= WIDE_SCREEN_THRESHOLD
   const router = useRouter()
-  const { activeChatNavigation, clearActiveChatNavigation, activeChat, clearActiveChat } = useContext(UserContext)
+  const { user, activeChatNavigation, clearActiveChatNavigation, activeChat, clearActiveChat } = useContext(UserContext)
+  const isModerator = user?.userType === 'moderator' || user?.userType === 'admin'
 
   // Handle navigation when a chat starts (via socket event) - works from any tab
   useEffect(() => {
@@ -103,6 +104,14 @@ export default function DashboardLayout() {
             title: "Stats",
             tabBarIcon: renderTabIcon(Ionicons, 'stats-chart-outline', 'stats-chart', 'Stats'),
           }}
+        />
+        {/* Moderation queue - only visible to moderators and admins */}
+        <Tabs.Screen
+          name="moderation"
+          options={isModerator ? {
+            title: "Mod",
+            tabBarIcon: renderTabIcon(Ionicons, 'shield-outline', 'shield', 'Mod'),
+          } : { href: null }}
         />
         {/* Hide chat folder - requires chat ID, accessed via direct navigation */}
         <Tabs.Screen

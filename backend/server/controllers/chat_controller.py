@@ -12,7 +12,7 @@ from candid import util
 
 from candid.controllers import db
 from candid.controllers.helpers.config import Config
-from candid.controllers.helpers.auth import authorization, token_to_user
+from candid.controllers.helpers.auth import authorization, authorization_allow_banned, token_to_user
 from candid.controllers.helpers.chat_events import publish_chat_accepted, publish_chat_request_response
 from candid.controllers.helpers.cache_headers import (
     add_cache_headers,
@@ -295,7 +295,7 @@ def get_chat_log(chat_id, token_info=None):
 
     :rtype: Union[GetChatLogResponse, Tuple[GetChatLogResponse, int], Tuple[GetChatLogResponse, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
+    authorized, auth_err = authorization_allow_banned("normal", token_info)
     if not authorized:
         return auth_err, auth_err.code
     user = token_to_user(token_info)
@@ -376,9 +376,27 @@ def get_chat_log(chat_id, token_info=None):
     # Verify user is a participant
     initiator_id = str(result["initiator_user_id"])
     responder_id = str(result["responder_user_id"])
+    is_participant = str(user.id) in (initiator_id, responder_id)
 
-    if str(user.id) not in (initiator_id, responder_id):
-        return ErrorModel(code=403, message="Not authorized to view this chat"), 403
+    # Non-participants can only see agreed statements (no chat messages or user details)
+    if not is_participant:
+        log_blob = result["log"]
+        agreed_closure = None
+        agreed_positions = []
+        if log_blob and isinstance(log_blob, dict):
+            agreed_closure = log_blob.get("agreedClosure")
+            agreed_positions = log_blob.get("agreedPositions", [])
+
+        if not agreed_closure and not agreed_positions:
+            return ErrorModel(code=403, message="Not authorized to view this chat"), 403
+
+        return {
+            "id": str(result["id"]),
+            "log": {
+                "agreedClosure": agreed_closure,
+                "agreedPositions": agreed_positions,
+            },
+        }, 200
 
     # Determine the other user based on current user
     if str(user.id) == initiator_id:
@@ -487,7 +505,7 @@ def get_user_chats_metadata(user_id, token_info=None):
 
     :rtype: Union[dict, Tuple[dict, int]]
     """
-    authorized, auth_err = authorization("normal", token_info)
+    authorized, auth_err = authorization_allow_banned("normal", token_info)
     if not authorized:
         return auth_err, auth_err.code
     user = token_to_user(token_info)
@@ -538,7 +556,7 @@ def get_user_chats(user_id, position_id=None, limit=None, offset=None, token_inf
 
     :rtype: Union[List[GetUserChats200ResponseInner], Tuple[List[GetUserChats200ResponseInner], int], Tuple[List[GetUserChats200ResponseInner], int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
+    authorized, auth_err = authorization_allow_banned("normal", token_info)
     if not authorized:
         return auth_err, auth_err.code
     user = token_to_user(token_info)

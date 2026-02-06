@@ -252,6 +252,7 @@ export function UserProvider({ children }) {
   return (
     <UserContext.Provider value={{
       user, login, logout, register, authChecked, refreshUser,
+      isBanned: user?.status === 'banned',
       positionsVersion, invalidatePositions,
       pendingChatRequest, setPendingChatRequest, clearPendingChatRequest, updateChatRequestStatus,
       activeChatNavigation, clearActiveChatNavigation,

@@ -13,10 +13,13 @@ import {
   DemographicCard,
   KudosCard,
   PairwiseCard,
+  BanNotificationCard,
+  PositionRemovedCard,
 } from '../../components/cards'
 import Header from '../../components/Header'
 import ChattingListExplanationModal from '../../components/ChattingListExplanationModal'
 import AdoptPositionExplanationModal from '../../components/AdoptPositionExplanationModal'
+import ReportModal from '../../components/ReportModal'
 
 // AsyncStorage keys for tutorial tracking
 const TUTORIAL_CHATTING_LIST_KEY = '@tutorial_seen_chatting_list'
@@ -44,6 +47,10 @@ export default function CardQueue() {
   const hasCheckedTutorialsRef = useRef(false)
   const seenChattingListTutorialRef = useRef(false)
   const seenAdoptPositionTutorialRef = useRef(false)
+
+  // Report modal state
+  const [reportModalVisible, setReportModalVisible] = useState(false)
+  const [reportPositionId, setReportPositionId] = useState(null)
 
   // Animated value for back card transition
   const backCardProgress = useRef(new Animated.Value(0)).current
@@ -256,12 +263,27 @@ export default function CardQueue() {
   }, [currentCard, goToNextCard, setPendingChatRequest, pendingChatRequest])
 
   const handleReport = useCallback(() => {
-    // Navigate to report screen
-    router.push({
-      pathname: '/report',
-      params: { positionId: currentCard?.data?.id }
-    })
-  }, [currentCard, router])
+    setReportPositionId(currentCard?.data?.id)
+    setReportModalVisible(true)
+  }, [currentCard])
+
+  const handleSubmitReport = useCallback(async (ruleId, comment) => {
+    if (!reportPositionId) return
+    await api.positions.report(reportPositionId, ruleId, comment)
+    setReportModalVisible(false)
+    goToNextCard()
+  }, [reportPositionId, goToNextCard])
+
+  // Dismiss position removed notification
+  const handleDismissRemoval = useCallback(async () => {
+    if (currentCard?.type !== 'position_removed_notification') return
+    try {
+      await api.cards.dismissPositionRemovedNotification(currentCard.data.positionId)
+      goToNextCard()
+    } catch (err) {
+      console.error('Failed to dismiss removal notification:', err)
+    }
+  }, [currentCard, goToNextCard])
 
   const handleAddPosition = useCallback(async () => {
     if (currentCard?.type !== 'position') return
@@ -587,6 +609,23 @@ export default function CardQueue() {
           />
         )
 
+      case 'ban_notification':
+        return (
+          <BanNotificationCard
+            key={key}
+            banData={card.data}
+          />
+        )
+
+      case 'position_removed_notification':
+        return (
+          <PositionRemovedCard
+            key={key}
+            data={card.data}
+            onDismiss={isBackCard ? undefined : handleDismissRemoval}
+          />
+        )
+
       default:
         return (
           <View style={styles.unknownCard}>
@@ -751,6 +790,13 @@ export default function CardQueue() {
       <AdoptPositionExplanationModal
         visible={showAdoptPositionModal}
         onClose={handleCloseAdoptPositionModal}
+      />
+
+      {/* Report modal */}
+      <ReportModal
+        visible={reportModalVisible}
+        onClose={() => setReportModalVisible(false)}
+        onSubmit={handleSubmitReport}
       />
     </SafeAreaView>
   )

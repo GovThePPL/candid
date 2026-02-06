@@ -48,6 +48,7 @@ import { playTypingSound, playMessageSound } from '../../../lib/sounds'
 import { getTrustBadgeColor } from '../../../lib/avatarUtils'
 import Avatar from '../../../components/Avatar'
 import PositionInfoCard from '../../../components/PositionInfoCard'
+import ReportModal from '../../../components/ReportModal'
 
 export default function ChatScreen() {
   const { id: chatId, from } = useLocalSearchParams()
@@ -89,6 +90,7 @@ export default function ChatScreen() {
   const [expandedProposalStack, setExpandedProposalStack] = useState(null) // ID of expanded proposal stack
   const [proposalHeights, setProposalHeights] = useState({}) // Track heights of proposal cards for stacking
   const [kudosStatus, setKudosStatus] = useState(null) // null = show prompt, 'sent' = kudos sent, 'dismissed' = dismissed
+  const [reportModalVisible, setReportModalVisible] = useState(false)
 
   const flatListRef = useRef(null)
   const typingTimeoutRef = useRef(null)
@@ -800,6 +802,11 @@ export default function ChatScreen() {
     setKudosStatus('dismissed')
   }, [])
 
+  const handleSubmitChatReport = useCallback(async (ruleId, comment) => {
+    await api.moderation.reportChat(chatId, ruleId, comment)
+    setReportModalVisible(false)
+  }, [chatId])
+
   // Toggle special message menu
   const handleToggleSpecialMenu = useCallback(() => {
     setShowSpecialMenu(prev => !prev)
@@ -1401,6 +1408,14 @@ export default function ChatScreen() {
                   ? `${otherUser?.displayName || 'The other user'} has left the chat`
                   : 'This chat has ended'}
           </Text>
+          {(isHistoricalView || chatEnded) && (
+            <TouchableOpacity
+              onPress={() => setReportModalVisible(true)}
+              style={styles.reportButton}
+            >
+              <Ionicons name="flag-outline" size={18} color="#fff" />
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
@@ -1619,6 +1634,12 @@ export default function ChatScreen() {
 
       {renderLeaveConfirmModal()}
       {renderModifyModal()}
+
+      <ReportModal
+        visible={reportModalVisible}
+        onClose={() => setReportModalVisible(false)}
+        onSubmit={handleSubmitChatReport}
+      />
     </SafeAreaView>
   )
 }
@@ -1970,9 +1991,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.agree,
   },
   endedText: {
+    flex: 1,
     color: Colors.white,
     fontSize: 14,
     fontWeight: '500',
+  },
+  reportButton: {
+    padding: 6,
+    marginLeft: 8,
   },
   kudosPrompt: {
     backgroundColor: Colors.white,

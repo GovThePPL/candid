@@ -10,6 +10,7 @@ import {
   CategoriesApi,
   ChattingListApi,
   StatsApi,
+  ModerationApi,
   LoginUserRequest,
   RegisterUserRequest,
 } from 'candid_api'
@@ -36,6 +37,7 @@ const surveysApi = new SurveysApi(apiClient)
 const categoriesApi = new CategoriesApi(apiClient)
 const chattingListApi = new ChattingListApi(apiClient)
 const statsApi = new StatsApi(apiClient)
+const moderationApi = new ModerationApi(apiClient)
 
 // Token management
 export async function getToken() {
@@ -309,6 +311,14 @@ export const cardsApiWrapper = {
       })
     })
   },
+
+  async dismissPositionRemovedNotification(positionId) {
+    return await promisify(
+      cardsApi.dismissPositionRemovedNotification.bind(cardsApi),
+      positionId
+    )
+  },
+
 }
 
 // Positions API
@@ -332,7 +342,7 @@ export const positionsApiWrapper = {
     if (comment) body.comment = comment
 
     return await promisify(
-      positionsApi.reportPosition.bind(positionsApi),
+      moderationApi.reportPosition.bind(moderationApi),
       positionId,
       body
     )
@@ -718,6 +728,77 @@ export const statsApiWrapper = {
   },
 }
 
+// Moderation API
+export const moderationApiWrapper = {
+  async getRules() {
+    return await promisify(moderationApi.getRules.bind(moderationApi))
+  },
+
+  async getQueue() {
+    // Use raw response.body pattern (like cards) since queue returns oneOf items
+    return new Promise((resolve, reject) => {
+      moderationApi.getModerationQueue((error, data, response) => {
+        if (response?.body) {
+          resolve(response.body)
+        } else if (error) {
+          reject(error)
+        } else {
+          resolve([])
+        }
+      })
+    })
+  },
+
+  async reportChat(chatId, ruleId, comment = null) {
+    const body = { ruleId }
+    if (comment) body.comment = comment
+
+    return await promisify(
+      moderationApi.reportChat.bind(moderationApi),
+      chatId,
+      body
+    )
+  },
+
+  async takeAction(reportId, body) {
+    return await promisify(
+      moderationApi.takeModeratorAction.bind(moderationApi),
+      reportId,
+      body
+    )
+  },
+
+  async respondToAppeal(appealId, body) {
+    return await promisify(
+      moderationApi.respondToAppeal.bind(moderationApi),
+      appealId,
+      body
+    )
+  },
+
+  async createAppeal(actionId, appealText) {
+    return await promisify(
+      moderationApi.createAppeal.bind(moderationApi),
+      actionId,
+      { appealText }
+    )
+  },
+
+  async dismissAdminResponseNotification(appealId) {
+    return await promisify(
+      moderationApi.dismissAdminResponseNotification.bind(moderationApi),
+      appealId
+    )
+  },
+
+  async getUserModerationHistory(userId) {
+    return await promisify(
+      moderationApi.getUserModerationHistory.bind(moderationApi),
+      userId
+    )
+  },
+}
+
 export default {
   auth: authApi,
   users: usersApiWrapper,
@@ -728,5 +809,6 @@ export default {
   categories: categoriesApiWrapper,
   stats: statsApiWrapper,
   chattingList: chattingListApiWrapper,
+  moderation: moderationApiWrapper,
   initializeAuth,
 }

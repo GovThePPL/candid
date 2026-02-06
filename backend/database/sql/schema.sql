@@ -260,8 +260,9 @@ CREATE TABLE mod_action_appeal (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     mod_action_id UUID NOT NULL REFERENCES mod_action(id) ON DELETE CASCADE,
+    modified_mod_action_id UUID REFERENCES mod_action(id) ON DELETE SET NULL,
     appeal_text TEXT NOT NULL,
-    appeal_state VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK (appeal_state IN ('pending', 'approved', 'denied')),
+    appeal_state VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK (appeal_state IN ('pending', 'approved', 'denied', 'escalated', 'modified', 'overruled')),
     status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'deleted', 'withdrawn')),
     created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -274,6 +275,16 @@ CREATE TABLE mod_action_appeal_response (
     responder_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     appeal_response_text TEXT NOT NULL,
     created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Admin response notifications for moderators
+CREATE TABLE mod_appeal_response_notification (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    mod_action_appeal_id UUID NOT NULL REFERENCES mod_action_appeal(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    dismissed BOOLEAN DEFAULT FALSE,
+    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(mod_action_appeal_id, user_id)
 );
 
 -- Create indexes for performance
@@ -298,3 +309,4 @@ CREATE INDEX idx_report_submitter_user_id ON report(submitter_user_id);
 CREATE INDEX idx_report_status ON report(status);
 CREATE INDEX idx_mod_action_report_id ON mod_action(report_id);
 CREATE INDEX idx_mod_action_responder_user_id ON mod_action(responder_user_id);
+CREATE INDEX idx_mod_action_target_user_id ON mod_action_target(user_id);

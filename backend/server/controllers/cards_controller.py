@@ -5,8 +5,9 @@ from candid import util
 
 from candid.controllers import db
 from candid.controllers.helpers.config import Config
-from candid.controllers.helpers.auth import authorization, token_to_user
+from candid.controllers.helpers.auth import authorization, authorization_allow_banned, token_to_user
 from candid.controllers.helpers import polis_sync
+from candid.controllers.moderation_controller import _get_target_content
 
 import random
 from itertools import combinations
@@ -71,6 +72,188 @@ def _value_to_label(value: str) -> str:
     return value.replace('_', ' ').title()
 
 
+def _get_ban_notification(user_id):
+    """Check if user is banned and return a ban notification card."""
+    user_info = db.execute_query("""
+        SELECT status FROM users WHERE id = %s
+    """, (user_id,), fetchone=True)
+
+    if not user_info or user_info['status'] != 'banned':
+        return None
+
+    # Fetch latest ban action details
+    ban_info = db.execute_query("""
+        SELECT mac.action, mac.action_end_time, mac.action_start_time,
+               ma.mod_response_text, ma.id as mod_action_id,
+               r.title as rule_title,
+               rp.target_object_type, rp.target_object_id
+        FROM mod_action_target mat
+        JOIN mod_action_class mac ON mat.mod_action_class_id = mac.id
+        JOIN mod_action ma ON mac.mod_action_id = ma.id
+        JOIN report rp ON ma.report_id = rp.id
+        LEFT JOIN rule r ON rp.rule_id = r.id
+        WHERE mat.user_id = %s AND mac.action IN ('permanent_ban', 'temporary_ban')
+        ORDER BY mac.action_start_time DESC LIMIT 1
+    """, (user_id,), fetchone=True)
+
+    # Check if user already has an active appeal for this action
+    has_appealed = False
+    if ban_info and ban_info.get('mod_action_id'):
+        existing_appeal = db.execute_query("""
+            SELECT id FROM mod_action_appeal
+            WHERE mod_action_id = %s AND user_id = %s AND status = 'active'
+        """, (ban_info['mod_action_id'], user_id), fetchone=True)
+        has_appealed = existing_appeal is not None
+
+    # Fetch target content (the position/chat that caused the ban)
+    target_content = None
+    if ban_info and ban_info.get('target_object_type') and ban_info.get('target_object_id'):
+        target_content = _get_target_content(
+            ban_info['target_object_type'], str(ban_info['target_object_id'])
+        )
+
+    # Build action chain (privacy-filtered, no moderator/reporter names)
+    action_chain = None
+    if ban_info:
+        # Compute duration for temporary bans
+        duration_days = None
+        if ban_info['action'] == 'temporary_ban' and ban_info.get('action_start_time') and ban_info.get('action_end_time'):
+            delta = ban_info['action_end_time'] - ban_info['action_start_time']
+            duration_days = max(1, round(delta.total_seconds() / 86400))
+
+        action_chain = {
+            'actionType': ban_info['action'],
+            'actionDate': ban_info['action_start_time'].isoformat() if ban_info.get('action_start_time') else None,
+            'durationDays': duration_days,
+            'ruleTitle': ban_info.get('rule_title'),
+            'moderatorComment': ban_info.get('mod_response_text'),
+        }
+
+        # Fetch appeal info for this user's appeal on this action
+        appeal = db.execute_query("""
+            SELECT id, appeal_state, appeal_text
+            FROM mod_action_appeal
+            WHERE mod_action_id = %s AND user_id = %s AND status = 'active'
+            ORDER BY created_time DESC LIMIT 1
+        """, (ban_info['mod_action_id'], user_id), fetchone=True)
+
+        if appeal:
+            action_chain['appealState'] = appeal['appeal_state']
+            action_chain['appealText'] = appeal['appeal_text']
+
+            # Fetch appeal responses with anonymous role labels
+            responses = db.execute_query("""
+                SELECT r.appeal_response_text, r.created_time,
+                       r.responder_user_id
+                FROM mod_action_appeal_response r
+                WHERE r.mod_action_appeal_id = %s
+                ORDER BY r.created_time ASC
+            """, (appeal['id'],))
+
+            # Get the original moderator ID for role labeling
+            original_mod = db.execute_query("""
+                SELECT responder_user_id FROM mod_action WHERE id = %s
+            """, (ban_info['mod_action_id'],), fetchone=True)
+            original_mod_id = str(original_mod['responder_user_id']) if original_mod else None
+
+            appeal_responses = []
+            resp_list = responses or []
+            for idx, resp in enumerate(resp_list):
+                responder_id = str(resp['responder_user_id'])
+                # Determine anonymous role label
+                responder_type = db.execute_query("""
+                    SELECT user_type FROM users WHERE id = %s
+                """, (responder_id,), fetchone=True)
+                is_admin = responder_type and responder_type['user_type'] == 'admin'
+
+                if is_admin:
+                    role = 'Admin'
+                elif responder_id == original_mod_id:
+                    role = 'Original Moderator'
+                else:
+                    role = 'Second Moderator'
+
+                # Determine outcome based on position and appeal state
+                outcome = None
+                if appeal['appeal_state'] in ('overruled', 'escalated', 'denied', 'approved', 'modified'):
+                    if len(resp_list) >= 2 and idx == 0:
+                        outcome = 'overruled'
+                    elif len(resp_list) >= 2 and idx == 1:
+                        outcome = 'escalated'
+                    elif len(resp_list) >= 3 and idx == 2:
+                        outcome = 'admin_decision'
+                    elif len(resp_list) == 1:
+                        outcome = 'admin_decision' if appeal['appeal_state'] in ('approved', 'denied', 'modified') else None
+
+                appeal_responses.append({
+                    'role': role,
+                    'responseText': resp.get('appeal_response_text'),
+                    'outcome': outcome,
+                })
+
+            action_chain['appealResponses'] = appeal_responses if appeal_responses else None
+
+    data = {
+        'banType': ban_info['action'] if ban_info else 'permanent_ban',
+        'reason': ban_info.get('mod_response_text') if ban_info else None,
+        'ruleTitle': ban_info.get('rule_title') if ban_info else None,
+        'modActionId': str(ban_info['mod_action_id']) if ban_info else None,
+        'hasAppealed': has_appealed,
+        'targetContent': target_content,
+        'actionChain': action_chain,
+    }
+    if ban_info and ban_info.get('action_end_time'):
+        data['expiresAt'] = ban_info['action_end_time'].isoformat()
+
+    return {'type': 'ban_notification', 'data': data}
+
+
+def _get_position_removed_notifications(user_id):
+    """Get notification cards for positions that were removed."""
+    removed = db.execute_query("""
+        SELECT up.id as user_position_id, up.position_id,
+               p.statement, pc.label as category_name,
+               l.name as location_name
+        FROM user_position up
+        JOIN position p ON up.position_id = p.id
+        LEFT JOIN position_category pc ON p.category_id = pc.id
+        LEFT JOIN location l ON p.location_id = l.id
+        WHERE up.user_id = %s
+          AND up.status = 'removed'
+          AND COALESCE(up.notified_removed, FALSE) = FALSE
+    """, (user_id,))
+
+    cards = []
+    for r in (removed or []):
+        cards.append({
+            'type': 'position_removed_notification',
+            'data': {
+                'userPositionId': str(r['user_position_id']),
+                'positionId': str(r['position_id']),
+                'statement': r['statement'],
+                'category': r.get('category_name'),
+                'location': r.get('location_name'),
+            }
+        })
+    return cards
+
+
+def dismiss_position_removed_notification(position_id, token_info=None):
+    """Dismiss a position removed notification."""
+    authorized, auth_err = authorization_allow_banned("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    user = token_to_user(token_info)
+    db.execute_query("""
+        UPDATE user_position SET notified_removed = TRUE
+        WHERE position_id = %s AND user_id = %s
+    """, (position_id, user.id))
+
+    return {'status': 'ok'}
+
+
+
 def get_card_queue(limit=None, token_info=None):  # noqa: E501
     """Get mixed queue of positions, surveys, chat requests, kudos, and demographics
 
@@ -81,7 +264,7 @@ def get_card_queue(limit=None, token_info=None):  # noqa: E501
 
     :rtype: Union[List[GetCardQueue200ResponseInner], Tuple[List[GetCardQueue200ResponseInner], int], Tuple[List[GetCardQueue200ResponseInner], int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
+    authorized, auth_err = authorization_allow_banned("normal", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -89,8 +272,16 @@ def get_card_queue(limit=None, token_info=None):  # noqa: E501
     if limit is None:
         limit = 10
 
+    # Check if user is banned - return only ban notification
+    ban_card = _get_ban_notification(str(user.id))
+    if ban_card:
+        return [ban_card]
+
+    # Check for position removal notifications - prepend to queue
+    removal_cards = _get_position_removed_notifications(str(user.id))
+
     # 1. Priority cards - kudos appear at front, chat requests inserted after first position card
-    priority_cards = []
+    priority_cards = list(removal_cards)
 
     # Kudos cards first (only where other participant sent kudos first)
     kudos_prompts = _get_pending_kudos_cards(user.id, limit=2)

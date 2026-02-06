@@ -16,7 +16,7 @@ from candid.models.opinion_group import OpinionGroup
 from candid.models.group_position import GroupPosition
 
 from candid.controllers import db, config
-from candid.controllers.helpers.auth import authorization
+from candid.controllers.helpers.auth import authorization, authorization_allow_banned
 from candid.controllers.helpers.polis_sync import (
     get_oldest_active_conversation,
     generate_xid,
@@ -96,7 +96,7 @@ def get_group_demographics(location_id: str, category_id: str, group_id: str, to
     :param token_info: JWT token info from authentication
     :rtype: Union[Dict, Tuple[ErrorModel, int]]
     """
-    authorized, auth_err = authorization("normal", token_info)
+    authorized, auth_err = authorization_allow_banned("normal", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -361,7 +361,7 @@ def get_stats(location_id: str, category_id: str, token_info=None):
     :param token_info: JWT token info from authentication
     :rtype: Union[StatsResponse, Tuple[ErrorModel, int]]
     """
-    authorized, auth_err = authorization("normal", token_info)
+    authorized, auth_err = authorization_allow_banned("normal", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -443,7 +443,7 @@ def get_location_stats(location_id: str, token_info=None):
     :param token_info: JWT token info from authentication
     :rtype: Union[StatsResponse, Tuple[ErrorModel, int]]
     """
-    authorized, auth_err = authorization("normal", token_info)
+    authorized, auth_err = authorization_allow_banned("normal", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
