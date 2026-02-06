@@ -15,6 +15,7 @@ import Header from '../../components/Header'
 import ImageCropModal from '../../components/ImageCropModal'
 import Avatar from '../../components/Avatar'
 import LoadingView from '../../components/LoadingView'
+import LocationPicker from '../../components/LocationPicker'
 import { getAvatarImageUrl } from '../../lib/avatarUtils'
 
 const AGE_RANGE_OPTIONS = [
@@ -128,6 +129,11 @@ export default function Profile() {
   const [hasProfileChanges, setHasProfileChanges] = useState(false)
   const [savingProfile, setSavingProfile] = useState(false)
 
+  // Location picker state
+  const [allLocations, setAllLocations] = useState([])
+  const [locationPickerOpen, setLocationPickerOpen] = useState(false)
+  const [savingLocation, setSavingLocation] = useState(false)
+
   // Modal state
   const [avatarModalOpen, setAvatarModalOpen] = useState(false)
   const [pickerModalOpen, setPickerModalOpen] = useState(false)
@@ -161,15 +167,17 @@ export default function Profile() {
       setLoading(true)
       setError(null)
 
-      const [profileData, demographicsData, locationsData] = await Promise.all([
+      const [profileData, demographicsData, locationsData, allLocationsData] = await Promise.all([
         api.users.getProfile(),
         api.users.getDemographics().catch(() => null),
         api.users.getLocations().catch(() => []),
+        api.users.getAllLocations().catch(() => []),
       ])
 
       setProfile(profileData)
       setDemographics(demographicsData)
       setLocations(locationsData || [])
+      setAllLocations(allLocationsData || [])
 
       // Initialize edit state
       setDisplayName(profileData?.displayName || '')
@@ -272,6 +280,23 @@ export default function Profile() {
       setSaving(false)
     }
   }, [ageRange, incomeRange, lean, education, geoLocale, race, sex, refreshUser])
+
+  // Handle location selection
+  const handleSetLocation = async (locationId) => {
+    try {
+      setSavingLocation(true)
+      setError(null)
+      const updatedLocations = await api.users.setLocation(locationId)
+      setLocations(updatedLocations || [])
+      setLocationPickerOpen(false)
+    } catch (err) {
+      console.error('Failed to set location:', err)
+      setError(err.message || 'Failed to update location')
+      setTimeout(() => setError(null), 3000)
+    } finally {
+      setSavingLocation(false)
+    }
+  }
 
   // Debounced field change handler
   const handleFieldChange = (setter, fieldName) => (value) => {
@@ -651,22 +676,25 @@ export default function Profile() {
         </View>
 
         {/* Location Section */}
-        {locations.length > 0 && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="location-outline" size={22} color={Colors.primary} />
-              <Text style={styles.sectionTitle}>Location</Text>
-            </View>
-            <View style={styles.locationList}>
-              {locations.map((loc, index) => (
-                <View key={loc.id} style={styles.locationItem}>
-                  <Text style={styles.locationText}>{loc.name}</Text>
-                  {loc.code && <Text style={styles.locationCode}>({loc.code})</Text>}
-                </View>
-              ))}
-            </View>
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="location-outline" size={22} color={Colors.primary} />
+            <Text style={styles.sectionTitle}>Location</Text>
           </View>
-        )}
+          <TouchableOpacity
+            style={styles.locationSelector}
+            onPress={() => setLocationPickerOpen(true)}
+          >
+            {locations.length > 0 ? (
+              <Text style={styles.locationBreadcrumb} numberOfLines={2}>
+                {locations.map(loc => loc.name).join(' \u203A ')}
+              </Text>
+            ) : (
+              <Text style={styles.locationPlaceholder}>Tap to set your location</Text>
+            )}
+            <Ionicons name="chevron-forward" size={18} color={Colors.pass} />
+          </TouchableOpacity>
+        </View>
 
         {/* Auto-save indicator */}
         {saving && (
@@ -996,6 +1024,16 @@ export default function Profile() {
         </Pressable>
       </Modal>
 
+      {/* Location Picker Modal */}
+      <LocationPicker
+        visible={locationPickerOpen}
+        onClose={() => setLocationPickerOpen(false)}
+        allLocations={allLocations}
+        currentLocationId={locations.length > 0 ? locations[locations.length - 1].id : null}
+        onSelect={handleSetLocation}
+        saving={savingLocation}
+      />
+
       {/* Image Crop Modal */}
       <ImageCropModal
         visible={cropModalVisible}
@@ -1155,27 +1193,23 @@ const styles = StyleSheet.create({
     color: Colors.pass,
   },
   // Location styles
-  locationList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  locationItem: {
+  locationSelector: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.primaryLight + '40',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    gap: 4,
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    gap: 8,
   },
-  locationText: {
-    fontSize: 14,
+  locationBreadcrumb: {
+    flex: 1,
+    fontSize: 15,
     color: Colors.primary,
   },
-  locationCode: {
-    fontSize: 12,
+  locationPlaceholder: {
+    flex: 1,
+    fontSize: 15,
     color: Colors.pass,
+    fontStyle: 'italic',
   },
   // Auto-save indicator
   savingIndicator: {

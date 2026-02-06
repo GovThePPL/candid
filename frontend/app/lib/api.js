@@ -200,6 +200,17 @@ export const usersApiWrapper = {
     return await promisify(usersApi.getUserLocations.bind(usersApi))
   },
 
+  async getAllLocations() {
+    return await promisify(usersApi.getAllLocations.bind(usersApi))
+  },
+
+  async setLocation(locationId) {
+    return await promisify(
+      usersApi.setUserLocation.bind(usersApi),
+      { locationId }
+    )
+  },
+
   async getMyPositions(status = 'all') {
     const opts = { status }
     return await promisify(

@@ -2747,6 +2747,44 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
+    put:
+      operationId: setUserLocation
+      summary: Set the current user's location
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - locationId
+              properties:
+                locationId:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Updated location hierarchy
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Location'
+        '400':
+          description: Invalid location ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
 
   /users/me/positions:
     get:
@@ -4144,27 +4182,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
-#  /locations:
-#    get:
-#      operationId: getAllLocations
-#      summary: Get hierarchical structure of all locations and affiliations
-#      tags:
-#        - Locations
-#      responses:
-#        '200':
-#          description: Complete hierarchical structure of locations with nested children and affiliations
-#          content:
-#            application/json:
-#              schema:
-#                type: array
-#                items:
-#                  $ref: '#/components/schemas/Location'
-#        '401':
-#          description: Unauthorized - authentication required
-#          content:
-#            application/json:
-#              schema:
-#                $ref: '#/components/schemas/ErrorModel'
+  /locations:
+    get:
+      operationId: getAllLocations
+      summary: Get all locations as a flat list with hierarchy info
+      tags:
+        - Users
+      responses:
+        '200':
+          description: Flat list of all locations with hierarchy info
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Location'
+        '401':
+          description: Unauthorized - authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
 
   /users/{userId}:
     get:

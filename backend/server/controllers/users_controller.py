@@ -192,6 +192,92 @@ def get_user_locations(token_info=None):  # noqa: E501
     return result
 
 
+def get_all_locations(token_info=None):  # noqa: E501
+    """Get all locations as a flat list with hierarchy info
+
+    :rtype: Union[List[Location], Tuple[List[Location], int]]
+    """
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    all_locs = db.execute_query("""
+        SELECT id, name, code, parent_location_id
+        FROM location
+        ORDER BY name
+    """)
+
+    if all_locs is None:
+        return []
+
+    # Build lookup for level calculation
+    loc_map = {loc['id']: loc for loc in all_locs}
+
+    def get_level(loc_id, memo={}):
+        if loc_id in memo:
+            return memo[loc_id]
+        loc = loc_map.get(loc_id)
+        if not loc or not loc['parent_location_id']:
+            memo[loc_id] = 0
+            return 0
+        parent_level = get_level(loc['parent_location_id'], memo)
+        memo[loc_id] = parent_level + 1
+        return memo[loc_id]
+
+    result = []
+    for loc in all_locs:
+        level = get_level(loc['id'])
+        result.append({
+            'id': str(loc['id']),
+            'name': loc['name'],
+            'code': loc['code'],
+            'parentLocationId': str(loc['parent_location_id']) if loc['parent_location_id'] else None,
+            'level': level
+        })
+
+    result.sort(key=lambda x: (x['level'], x['name']))
+    return result
+
+
+def set_user_location(body, token_info=None):  # noqa: E501
+    """Set the current user's location
+
+    :param body: Request body with locationId
+    :type body: dict
+
+    :rtype: Union[List[Location], Tuple[List[Location], int]]
+    """
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+    user = token_to_user(token_info)
+
+    location_id = body.get('locationId')
+    if not location_id:
+        return ErrorModel(400, "locationId is required"), 400
+
+    # Validate location exists
+    loc = db.execute_query("""
+        SELECT id FROM location WHERE id = %s
+    """, (location_id,), fetchone=True)
+
+    if not loc:
+        return ErrorModel(400, "Invalid location ID"), 400
+
+    # Delete existing user locations
+    db.execute_query("""
+        DELETE FROM user_location WHERE user_id = %s
+    """, (user.id,))
+
+    # Insert new location
+    db.execute_query("""
+        INSERT INTO user_location (user_id, location_id) VALUES (%s, %s)
+    """, (user.id, location_id))
+
+    # Return updated hierarchy
+    return get_user_locations(token_info=token_info)
+
+
 def get_current_user(token_info=None):  # noqa: E501
     """Get current user profile
 
