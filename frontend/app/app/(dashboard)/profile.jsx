@@ -14,6 +14,7 @@ import ThemedButton from '../../components/ThemedButton'
 import Header from '../../components/Header'
 import ImageCropModal from '../../components/ImageCropModal'
 import Avatar from '../../components/Avatar'
+import LoadingView from '../../components/LoadingView'
 import { getAvatarImageUrl } from '../../lib/avatarUtils'
 
 const AGE_RANGE_OPTIONS = [
@@ -460,10 +461,7 @@ export default function Profile() {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <Header onBack={handleBack} />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Loading profile...</Text>
-        </View>
+        <LoadingView message="Loading profile..." />
       </SafeAreaView>
     )
   }
@@ -1014,16 +1012,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.light.background,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 12,
-  },
-  loadingText: {
-    fontSize: 16,
-    color: Colors.pass,
-  },
   scrollContent: {
     flexGrow: 1,
     padding: 20,
@@ -1405,55 +1393,6 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.6,
-  },
-  avatarDividerText: {
-    textAlign: 'center',
-    color: Colors.pass,
-    fontSize: 14,
-    marginVertical: 12,
-  },
-  avatarGrid: {
-    maxHeight: 400,
-  },
-  avatarGridContent: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    padding: 16,
-    gap: 12,
-    justifyContent: 'center',
-  },
-  avatarOption: {
-    alignItems: 'center',
-    padding: 8,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: 'transparent',
-    width: 90,
-  },
-  avatarOptionSelected: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primaryLight + '30',
-  },
-  avatarOptionImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-  },
-  avatarOptionPlaceholder: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: Colors.light.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-  },
-  avatarOptionLabel: {
-    marginTop: 6,
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'center',
   },
   // Form modal styles
   modalInputGroup: {

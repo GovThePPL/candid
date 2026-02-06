@@ -20,6 +20,8 @@ import Spacer from '../../components/Spacer'
 import Header from '../../components/Header'
 import InfoModal from '../../components/InfoModal'
 import LocationCategorySelector from '../../components/LocationCategorySelector'
+import EmptyState from '../../components/EmptyState'
+import LoadingView from '../../components/LoadingView'
 
 const MAX_STATEMENT_LENGTH = 140  // Polis has a 140 character limit
 const SEARCH_DEBOUNCE_MS = 500
@@ -913,22 +915,17 @@ export default function Create() {
 
             {/* Empty State */}
             {chattingList.length === 0 && !chattingListLoading && (
-              <View style={styles.emptyChattingList}>
-                <Ionicons name="chatbubbles-outline" size={48} color={Colors.pass} />
-                <Text style={styles.emptyChattingListText}>
-                  Your chatting list is empty
-                </Text>
-                <Text style={styles.emptyChattingListSubtext}>
-                  Swipe up on position cards to add them here. You'll be able to request chats with the people who hold these positions.
-                </Text>
-              </View>
+              <EmptyState
+                icon="chatbubbles-outline"
+                title="Your chatting list is empty"
+                subtitle="Swipe up on position cards to add them here. You'll be able to request chats with the people who hold these positions."
+                style={styles.emptyChattingList}
+              />
             )}
 
             {/* Loading State */}
             {chattingListLoading && chattingList.length === 0 && (
-              <View style={styles.chattingListLoading}>
-                <ActivityIndicator size="large" color={Colors.primary} />
-              </View>
+              <LoadingView style={styles.chattingListLoading} />
             )}
 
             {/* Flat list for fewer than 25 items */}
@@ -1617,25 +1614,11 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   emptyChattingList: {
-    alignItems: 'center',
-    paddingVertical: 32,
     backgroundColor: Colors.cardBackground,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
-  },
-  emptyChattingListText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.darkText,
-    marginTop: 12,
-  },
-  emptyChattingListSubtext: {
-    fontSize: 14,
-    color: Colors.pass,
-    marginTop: 4,
-    textAlign: 'center',
-    paddingHorizontal: 24,
+    paddingVertical: 32,
   },
   chattingListLoading: {
     paddingVertical: 32,

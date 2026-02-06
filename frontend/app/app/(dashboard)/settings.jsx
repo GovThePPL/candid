@@ -9,6 +9,7 @@ import api from '../../lib/api'
 
 import ThemedText from "../../components/ThemedText"
 import Header from '../../components/Header'
+import LoadingView from '../../components/LoadingView'
 
 const WEIGHT_OPTIONS = [
   { value: 'most', label: 'Most', description: 'See much more often' },
@@ -210,10 +211,7 @@ export default function Settings() {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <Header onBack={handleBack} />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Loading settings...</Text>
-        </View>
+        <LoadingView message="Loading settings..." />
       </SafeAreaView>
     )
   }
@@ -403,16 +401,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.light.background,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 12,
-  },
-  loadingText: {
-    fontSize: 16,
-    color: Colors.pass,
   },
   scrollContent: {
     flexGrow: 1,
