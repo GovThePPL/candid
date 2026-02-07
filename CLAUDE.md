@@ -97,6 +97,19 @@ PostgreSQL 17 with schema in `01-schema.sql` and test data in `02-basic-data.sql
 - **Polis roll-over script and automation**: Automate Polis conversation roll-over (creating new conversations, migrating data, relinking pairwise surveys). Currently requires manual steps via `backend/scripts/backfill_polis_positions.py`.
 - **Position timeouts**: Implement expiration/archival of positions after a configurable time period.
 
+## Development Workflow
+
+### Test-Driven Development
+
+When planning a feature, design and create tests for it first. Tests live in `backend/tests/` and follow existing patterns (see `conftest.py` for shared fixtures and helpers).
+
+Before committing or pushing, always run the test suite and ensure there are tests covering the changes since the last commit:
+
+```bash
+python3 -m pytest tests/ -v                    # Run all tests
+python3 -m pytest tests/test_<module>.py -v     # Run specific test file
+```
+
 ## Known Issues
 
 ### Connexion First-Tag Routing

@@ -13,7 +13,7 @@ _BASELINE = {
     "affiliation": DEM_PARTY_ID,
     "education": "high_school",
     "geoLocale": "rural",
-    "race": "baseline",
+    "race": "other",
     "sex": "other",
 }
 
@@ -80,7 +80,7 @@ class TestPartialUpdateDemographics:
             "affiliation": DEM_PARTY_ID,
             "education": "bachelors",
             "geoLocale": "suburban",
-            "race": "test",
+            "race": "asian",
             "sex": "female",
         }
         resp = requests.put(DEMOGRAPHICS_URL, headers=admin_headers, json=base)

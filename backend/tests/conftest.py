@@ -53,8 +53,8 @@ RULE_SPAM_ID = "d0c9e8f7-a6b5-4c4d-3e2f-1a0b9c8d7e6f"
 RULE_NOT_POLITICAL_ID = "e1d0f9a8-b7c6-4d5e-4f3a-2b1c0d9e8f7a"
 
 # Chat logs (from seed data)
-# Chat where normal3 initiated with normal1 (normal1 is participant)
-CHAT_LOG_1_ID = "e698f2d0-10ac-422d-a80e-93c619e2f581"  # Normal3 -> Normal1
+# Chat where normal1 initiated with normal3 (both are participants)
+CHAT_LOG_1_ID = "b2222222-2222-2222-2222-222222222222"  # Normal1 -> Normal3
 # Chat where normal4 initiated with normal5
 CHAT_LOG_2_ID = "1d06bf99-4d87-4700-8806-63de8c905eca"  # Normal4 -> Normal5
 
@@ -233,18 +233,43 @@ def get_chat_log_from_db(chat_id):
 # Session-scoped token fixtures (login once per test run)
 # ---------------------------------------------------------------------------
 
+@pytest.fixture(scope="session", autouse=True)
+def _ensure_seed_users_active():
+    """Ensure admin1 and normal4 are active at the start of each test session.
+    Moderation tests may ban these users, breaking later tests."""
+    db_execute("UPDATE users SET status = 'active' WHERE username IN ('admin1', 'normal4')")
+    # Clear Redis ban cache so auth checks see the updated status
+    try:
+        r = redis.from_url(REDIS_URL, encoding="utf-8", decode_responses=True)
+        for key in r.keys("ban_status:*"):
+            r.delete(key)
+        r.close()
+    except Exception:
+        pass
+    yield
+    # Also restore at end of session
+    db_execute("UPDATE users SET status = 'active' WHERE username IN ('admin1', 'normal4')")
+    try:
+        r = redis.from_url(REDIS_URL, encoding="utf-8", decode_responses=True)
+        for key in r.keys("ban_status:*"):
+            r.delete(key)
+        r.close()
+    except Exception:
+        pass
+
+
 @pytest.fixture(scope="session")
-def admin_token():
+def admin_token(_ensure_seed_users_active):
     return login("admin1")
 
 
 @pytest.fixture(scope="session")
-def normal_token():
+def normal_token(_ensure_seed_users_active):
     return login("normal1")
 
 
 @pytest.fixture(scope="session")
-def moderator_token():
+def moderator_token(_ensure_seed_users_active):
     return login("moderator1")
 
 

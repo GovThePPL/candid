@@ -57,7 +57,7 @@ class TestCardQueueBasic:
         assert resp.status_code == 200
         data = resp.json()
 
-        valid_types = {"position", "survey", "chat_request", "kudos", "demographic"}
+        valid_types = {"position", "survey", "chat_request", "kudos", "demographic", "pairwise", "chatting_list", "ban_notification", "position_removed_notification"}
         for card in data:
             assert "type" in card
             assert "data" in card

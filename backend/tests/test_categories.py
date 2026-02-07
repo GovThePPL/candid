@@ -64,3 +64,41 @@ class TestGetAllCategories:
         """Moderator users can access categories."""
         resp = requests.get(CATEGORIES_URL, headers=moderator_headers)
         assert resp.status_code == 200
+
+
+class TestSuggestCategory:
+    """POST /categories/suggest"""
+
+    def test_suggest_too_short_400(self, normal_headers):
+        """Statement shorter than 10 chars returns 400."""
+        resp = requests.post(
+            f"{CATEGORIES_URL}/suggest",
+            headers=normal_headers,
+            json={"statement": "short"},
+        )
+        assert resp.status_code == 400
+
+    def test_suggest_valid_statement(self, normal_headers):
+        """Valid statement returns suggestions (or 503 if NLP unavailable)."""
+        resp = requests.post(
+            f"{CATEGORIES_URL}/suggest",
+            headers=normal_headers,
+            json={"statement": "Healthcare should be available to everyone regardless of income"},
+        )
+        # NLP service may or may not be running in test env
+        if resp.status_code == 200:
+            body = resp.json()
+            assert isinstance(body, list)
+            assert len(body) > 0
+            assert "category" in body[0]
+            assert "score" in body[0]
+        else:
+            assert resp.status_code in (500, 503)
+
+    def test_suggest_unauthenticated(self):
+        """Unauthenticated request returns 401."""
+        resp = requests.post(
+            f"{CATEGORIES_URL}/suggest",
+            json={"statement": "Healthcare should be available to everyone regardless of income"},
+        )
+        assert resp.status_code == 401

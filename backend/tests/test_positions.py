@@ -1,4 +1,5 @@
-"""Tests for GET /positions/{positionId}, POST /positions, POST /positions/response."""
+"""Tests for GET /positions/{positionId}, POST /positions, POST /positions/response,
+POST /positions/{positionId}/adopt, POST /positions/search, GET /positions/{positionId}/agreed-closures."""
 
 import pytest
 import requests
@@ -9,6 +10,8 @@ from conftest import (
     NONEXISTENT_UUID,
     HEALTHCARE_CAT_ID,
     OREGON_LOCATION_ID,
+    NORMAL2_ID,
+    db_execute,
 )
 
 POSITIONS_URL = f"{BASE_URL}/positions"
@@ -104,4 +107,147 @@ class TestRespondToPositions:
             ]
         }
         resp = requests.post(f"{POSITIONS_URL}/response", json=payload)
+        assert resp.status_code == 401
+
+
+class TestAdoptPosition:
+    """POST /positions/{positionId}/adopt"""
+
+    def _cleanup_adoption(self, user_id, position_id):
+        """Remove user_position and response records for a user/position pair."""
+        db_execute(
+            "DELETE FROM response WHERE user_id = %s AND position_id = %s",
+            (user_id, position_id),
+        )
+        db_execute(
+            "DELETE FROM user_position WHERE user_id = %s AND position_id = %s",
+            (user_id, position_id),
+        )
+
+    @pytest.mark.mutation
+    def test_adopt_success(self, normal2_headers):
+        """Normal user can adopt a position they haven't adopted yet."""
+        # Use a position normal2 hasn't adopted: POSITION1_ID (admin1's position)
+        # First clean up in case of leftover
+        self._cleanup_adoption(NORMAL2_ID, POSITION1_ID)
+        try:
+            resp = requests.post(
+                f"{POSITIONS_URL}/{POSITION1_ID}/adopt",
+                headers=normal2_headers,
+            )
+            assert resp.status_code == 201
+            body = resp.json()
+            assert body["positionId"] == POSITION1_ID
+            assert "id" in body
+        finally:
+            self._cleanup_adoption(NORMAL2_ID, POSITION1_ID)
+
+    @pytest.mark.mutation
+    def test_adopt_already_adopted_400(self, normal2_headers):
+        """Adopting a position already adopted returns 400."""
+        self._cleanup_adoption(NORMAL2_ID, POSITION1_ID)
+        try:
+            # Adopt first
+            resp1 = requests.post(
+                f"{POSITIONS_URL}/{POSITION1_ID}/adopt",
+                headers=normal2_headers,
+            )
+            assert resp1.status_code == 201
+
+            # Try again
+            resp2 = requests.post(
+                f"{POSITIONS_URL}/{POSITION1_ID}/adopt",
+                headers=normal2_headers,
+            )
+            assert resp2.status_code == 400
+        finally:
+            self._cleanup_adoption(NORMAL2_ID, POSITION1_ID)
+
+    def test_adopt_not_found_404(self, normal_headers):
+        """Adopting a nonexistent position returns 404."""
+        resp = requests.post(
+            f"{POSITIONS_URL}/{NONEXISTENT_UUID}/adopt",
+            headers=normal_headers,
+        )
+        assert resp.status_code == 404
+
+    def test_adopt_unauthenticated(self):
+        """Unauthenticated request returns 401."""
+        resp = requests.post(f"{POSITIONS_URL}/{POSITION1_ID}/adopt")
+        assert resp.status_code == 401
+
+
+class TestSearchSimilarPositions:
+    """POST /positions/search"""
+
+    def test_search_too_short_400(self, normal_headers):
+        """Statement shorter than 20 chars returns 400."""
+        resp = requests.post(
+            f"{POSITIONS_URL}/search",
+            headers=normal_headers,
+            json={"statement": "too short"},
+        )
+        assert resp.status_code == 400
+
+    def test_search_valid_statement(self, normal_headers):
+        """Valid statement returns results (or 503 if NLP unavailable)."""
+        resp = requests.post(
+            f"{POSITIONS_URL}/search",
+            headers=normal_headers,
+            json={"statement": "Universal healthcare should be a fundamental right for everyone"},
+        )
+        if resp.status_code == 200:
+            body = resp.json()
+            assert isinstance(body, list)
+        else:
+            assert resp.status_code in (500, 503)
+
+    def test_search_unauthenticated(self):
+        """Unauthenticated request returns 401."""
+        resp = requests.post(
+            f"{POSITIONS_URL}/search",
+            json={"statement": "Universal healthcare should be a fundamental right for everyone"},
+        )
+        assert resp.status_code == 401
+
+
+class TestGetPositionAgreedClosures:
+    """GET /positions/{positionId}/agreed-closures"""
+
+    def test_get_closures_success(self, normal_headers):
+        """Can retrieve agreed closures for a known position."""
+        resp = requests.get(
+            f"{POSITIONS_URL}/{POSITION1_ID}/agreed-closures",
+            headers=normal_headers,
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "position" in body
+        assert "closures" in body
+
+    def test_get_closures_structure(self, normal_headers):
+        """Response has expected structure."""
+        resp = requests.get(
+            f"{POSITIONS_URL}/{POSITION1_ID}/agreed-closures",
+            headers=normal_headers,
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "position" in body
+        assert "closures" in body
+        assert isinstance(body["closures"], list)
+
+    def test_get_closures_not_found_404(self, normal_headers):
+        """Nonexistent position returns 404."""
+        resp = requests.get(
+            f"{POSITIONS_URL}/{NONEXISTENT_UUID}/agreed-closures",
+            headers=normal_headers,
+        )
+        assert resp.status_code == 404
+
+    def test_get_closures_unauthenticated(self):
+        """Unauthenticated request returns 401."""
+        resp = requests.get(
+            f"{POSITIONS_URL}/{POSITION1_ID}/agreed-closures",
+        )
         assert resp.status_code == 401

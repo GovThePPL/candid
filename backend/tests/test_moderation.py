@@ -10,12 +10,14 @@ from conftest import (
     RULE_VIOLENCE_ID,
     RULE_SPAM_ID,
     CHAT_LOG_1_ID,  # Normal1 <-> Normal3
-    CHAT_LOG_2_ID,  # Normal3 <-> Normal1
+    CHAT_LOG_2_ID,  # Normal4 <-> Normal5
     NORMAL1_ID,
     NORMAL2_ID,
     NORMAL3_ID,
+    ADMIN1_ID,
     login,
     auth_header,
+    db_execute,
 )
 
 MODERATION_URL = f"{BASE_URL}/moderation"
@@ -230,6 +232,25 @@ class TestModerationQueue:
 
 class TestTakeModeratorAction:
     """POST /moderation/reports/{reportId}/response"""
+
+    @pytest.fixture(autouse=True)
+    def _restore_users_after_action(self):
+        """Moderation actions may ban position creators. Restore after each test."""
+        yield
+        # Restore admin1 (creator of POSITION1_ID) and moderator1 (creator of POSITION2_ID)
+        db_execute(
+            "UPDATE users SET status = 'active' WHERE id IN (%s, %s)",
+            (ADMIN1_ID, "a443c4ff-86ab-4751-aec9-d9b23d7acb9c"),
+        )
+        # Clear ban-related moderation_action records that could affect future tests
+        import redis
+        try:
+            r = redis.from_url("redis://localhost:6379", encoding="utf-8", decode_responses=True)
+            for key in r.keys("ban_status:*"):
+                r.delete(key)
+            r.close()
+        except Exception:
+            pass
 
     @pytest.fixture
     def pending_report_id(self, normal_headers):
@@ -480,3 +501,32 @@ class TestRespondToAppeal:
             json=payload,
         )
         assert resp.status_code == 400
+
+
+class TestGetRules:
+    """GET /rules"""
+
+    def test_get_rules_success(self, normal_headers):
+        """Authenticated user can get the list of rules."""
+        resp = requests.get(f"{BASE_URL}/rules", headers=normal_headers)
+        assert resp.status_code == 200
+        body = resp.json()
+        assert isinstance(body, list)
+        assert len(body) > 0
+        for rule in body:
+            assert "id" in rule
+            assert "title" in rule
+            assert "text" in rule
+
+    def test_get_rules_includes_known_rules(self, normal_headers):
+        """Rules list includes known seed data rules."""
+        resp = requests.get(f"{BASE_URL}/rules", headers=normal_headers)
+        assert resp.status_code == 200
+        rule_ids = {r["id"] for r in resp.json()}
+        assert RULE_VIOLENCE_ID in rule_ids
+        assert RULE_SPAM_ID in rule_ids
+
+    def test_get_rules_unauthenticated(self):
+        """Unauthenticated request returns 401."""
+        resp = requests.get(f"{BASE_URL}/rules")
+        assert resp.status_code == 401
