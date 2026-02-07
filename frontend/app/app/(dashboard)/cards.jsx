@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Colors } from '../../constants/Colors'
 import api from '../../lib/api'
 import { UserContext } from '../../contexts/UserContext'
+import { CacheManager, CacheKeys, CacheDurations } from '../../lib/cache'
 import {
   PositionCard,
   ChatRequestCard,
@@ -20,6 +21,7 @@ import Header from '../../components/Header'
 import ChattingListExplanationModal from '../../components/ChattingListExplanationModal'
 import AdoptPositionExplanationModal from '../../components/AdoptPositionExplanationModal'
 import ReportModal from '../../components/ReportModal'
+import { useToast } from '../../components/Toast'
 
 // AsyncStorage keys for tutorial tracking
 const TUTORIAL_CHATTING_LIST_KEY = '@tutorial_seen_chatting_list'
@@ -35,6 +37,7 @@ const CHAT_REQUEST_TIMEOUT_MS = 2 * 60 * 1000
 
 export default function CardQueue() {
   const router = useRouter()
+  const showToast = useToast()
   const { user, logout, invalidatePositions, pendingChatRequest, setPendingChatRequest } = useContext(UserContext)
   const [cards, setCards] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -61,6 +64,9 @@ export default function CardQueue() {
   // Track fetching state and seen card IDs to prevent duplicates
   const isFetchingRef = useRef(false)
   const seenCardIdsRef = useRef(new Set())
+
+  // Local cache of chatting list: positionId → { id (chattingListId), hasPendingRequests }
+  const chattingListMapRef = useRef(new Map())
 
   // Load tutorial state from AsyncStorage on mount
   useEffect(() => {
@@ -92,6 +98,50 @@ export default function CardQueue() {
     return `${card.type}-${card.data?.id}`
   }, [])
 
+  // Enrich position cards with local chatting list state
+  const enrichWithChattingList = useCallback((cards) => {
+    const map = chattingListMapRef.current
+    if (map.size === 0) return cards
+    return cards.map(card => {
+      if (card.type !== 'position' || !card.data?.id) return card
+      const clInfo = map.get(card.data.id)
+      if (clInfo) {
+        return {
+          ...card,
+          data: {
+            ...card.data,
+            source: 'chatting_list',
+            chattingListId: clInfo.id,
+            hasPendingRequests: clInfo.hasPendingRequests,
+          }
+        }
+      }
+      return card
+    })
+  }, [])
+
+  // Refresh chatting list from API and update local cache + map
+  const refreshChattingList = useCallback(async () => {
+    try {
+      const chattingList = await api.chattingList.getList()
+      if (chattingList) {
+        const map = chattingListMapRef.current
+        map.clear()
+        for (const item of chattingList) {
+          map.set(item.positionId, {
+            id: item.id,
+            hasPendingRequests: (item.pendingRequestCount || 0) > 0,
+          })
+        }
+        if (user?.id) {
+          await CacheManager.set(CacheKeys.chattingList(user.id), chattingList)
+        }
+      }
+    } catch {
+      // Silently fail — chatting list is supplementary
+    }
+  }, [user?.id])
+
   // Fetch cards and append to queue (avoiding duplicates)
   const fetchMoreCards = useCallback(async (isInitial = false) => {
     if (isFetchingRef.current) return
@@ -103,17 +153,44 @@ export default function CardQueue() {
         setError(null)
       }
 
+      // Check if chatting list cache is stale
+      const chattingListCacheKey = user?.id ? CacheKeys.chattingList(user.id) : null
+      let needsChattingListFetch = true
+
+      if (chattingListCacheKey) {
+        const cachedChattingList = await CacheManager.get(chattingListCacheKey)
+        if (cachedChattingList && !CacheManager.isStale(cachedChattingList, CacheDurations.CHATTING_LIST)) {
+          // Rebuild map from cache if map is empty (e.g., first load with warm cache)
+          if (chattingListMapRef.current.size === 0 && cachedChattingList.data) {
+            for (const item of cachedChattingList.data) {
+              chattingListMapRef.current.set(item.positionId, {
+                id: item.id,
+                hasPendingRequests: (item.pendingRequestCount || 0) > 0,
+              })
+            }
+          }
+          needsChattingListFetch = false
+        }
+      }
+
+      // Fetch card queue (always) and chatting list (only if stale) in parallel
       const fetchSize = isInitial ? INITIAL_FETCH_SIZE : REFETCH_SIZE
-      const response = await api.cards.getCardQueue(fetchSize)
+      const fetches = [api.cards.getCardQueue(fetchSize)]
+      if (needsChattingListFetch) {
+        fetches.push(refreshChattingList())
+      }
+
+      const [response] = await Promise.all(fetches)
+
       const newCards = response || []
 
       // Filter out cards we've already seen
-      const uniqueNewCards = newCards.filter(card => {
+      const uniqueNewCards = enrichWithChattingList(newCards.filter(card => {
         const key = getCardKey(card)
         if (!key || seenCardIdsRef.current.has(key)) return false
         seenCardIdsRef.current.add(key)
         return true
-      })
+      }))
 
       if (isInitial) {
         setCards(uniqueNewCards)
@@ -133,11 +210,21 @@ export default function CardQueue() {
         setInitialLoading(false)
       }
     }
-  }, [getCardKey])
+  }, [getCardKey, user?.id, refreshChattingList])
 
   // Initial fetch
   useEffect(() => {
     fetchMoreCards(true)
+  }, [])
+
+  // Heartbeat: send presence signal every 30s while on card queue
+  useEffect(() => {
+    const sendHeartbeat = () => {
+      api.users.heartbeat().catch(() => {})
+    }
+    sendHeartbeat()
+    const interval = setInterval(sendHeartbeat, 30000)
+    return () => clearInterval(interval)
   }, [])
 
   // Calculate remaining cards
@@ -234,6 +321,22 @@ export default function CardQueue() {
   const handleChatRequest = useCallback(async () => {
     if (currentCard?.type !== 'position') return
     if (pendingChatRequest) return
+
+    // If no users are available, add to chatting list + show toast instead
+    if (currentCard.data?.availability === 'none') {
+      const isAlreadyInChattingList = currentCard.data?.source === 'chatting_list'
+      if (!isAlreadyInChattingList) {
+        try {
+          await api.chattingList.addPosition(currentCard.data.id)
+        } catch (err) {
+          console.error('Failed to add to chatting list:', err)
+        }
+      }
+      showToast("Added to chatting list \u2014 you'll be matched when someone is online")
+      goToNextCard()
+      return
+    }
+
     try {
       const response = await api.chat.createRequest(currentCard.data.userPositionId)
       // Set pending chat request with countdown info
@@ -260,7 +363,7 @@ export default function CardQueue() {
     } catch (err) {
       console.error('Failed to create chat request:', err)
     }
-  }, [currentCard, goToNextCard, setPendingChatRequest, pendingChatRequest])
+  }, [currentCard, goToNextCard, setPendingChatRequest, pendingChatRequest, showToast])
 
   const handleReport = useCallback(() => {
     setReportPositionId(currentCard?.data?.id)
@@ -313,6 +416,10 @@ export default function CardQueue() {
     if (currentCard?.type !== 'position' || !currentCard?.data?.chattingListId) return
     try {
       await api.chattingList.remove(currentCard.data.chattingListId)
+      // Update local map
+      chattingListMapRef.current.delete(currentCard.data.id)
+      // Invalidate chatting list cache
+      if (user?.id) await CacheManager.invalidate(CacheKeys.chattingList(user.id))
       // Update the card in state to show it's no longer in the chatting list
       setCards(prev => prev.map((card, idx) => {
         if (idx === currentIndex && card.type === 'position') {
@@ -346,6 +453,15 @@ export default function CardQueue() {
 
     try {
       const result = await api.chattingList.addPosition(currentCard.data.id)
+      // Update local map
+      if (result?.id) {
+        chattingListMapRef.current.set(currentCard.data.id, {
+          id: result.id,
+          hasPendingRequests: false,
+        })
+      }
+      // Invalidate chatting list cache
+      if (user?.id) await CacheManager.invalidate(CacheKeys.chattingList(user.id))
       // Update the card in state to show it's now in the chatting list
       setCards(prev => prev.map((card, idx) => {
         if (idx === currentIndex && card.type === 'position') {

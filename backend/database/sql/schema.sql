@@ -20,7 +20,21 @@ CREATE TABLE users (
     user_type VARCHAR(50) NOT NULL DEFAULT 'normal' CHECK (user_type IN ('normal', 'moderator', 'admin', 'guest')),
     status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'deleted', 'banned')),
     chat_request_likelihood INTEGER NOT NULL DEFAULT 3 CHECK (chat_request_likelihood BETWEEN 1 AND 5),
-    chatting_list_likelihood INTEGER NOT NULL DEFAULT 3 CHECK (chatting_list_likelihood BETWEEN 1 AND 5)
+    chatting_list_likelihood INTEGER NOT NULL DEFAULT 3 CHECK (chatting_list_likelihood BETWEEN 1 AND 5),
+    -- Push notification support
+    push_token TEXT,
+    push_platform VARCHAR(20) CHECK (push_platform IN ('expo', 'web')),
+    notifications_enabled BOOLEAN DEFAULT FALSE,
+    notification_frequency SMALLINT DEFAULT 3 CHECK (notification_frequency BETWEEN 0 AND 5),
+    notifications_sent_today SMALLINT DEFAULT 0,
+    notifications_sent_date DATE,
+    quiet_hours_start SMALLINT CHECK (quiet_hours_start BETWEEN 0 AND 23),
+    quiet_hours_end SMALLINT CHECK (quiet_hours_end BETWEEN 0 AND 23),
+    timezone VARCHAR(50) DEFAULT 'America/New_York',
+    -- Context-specific response rates
+    response_rate_swiping DECIMAL(3,2) DEFAULT 1.00,
+    response_rate_in_app DECIMAL(3,2) DEFAULT 1.00,
+    response_rate_notification DECIMAL(3,2) DEFAULT 1.00
 );
 
 COMMENT ON COLUMN users.chat_request_likelihood IS '1=rarely, 2=less, 3=normal, 4=more, 5=often';
@@ -143,7 +157,8 @@ CREATE TABLE chat_request (
     response VARCHAR(50) DEFAULT 'pending' CHECK (response IN ('pending', 'accepted', 'dismissed', 'timeout')),
     response_time TIMESTAMPTZ,
     created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    delivery_context VARCHAR(20) DEFAULT 'swiping' CHECK (delivery_context IN ('swiping', 'in_app', 'notification'))
 );
 
 -- Chat logs

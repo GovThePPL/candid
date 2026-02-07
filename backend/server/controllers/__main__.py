@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import connexion
 from flask import request, Response
 from flask_cors import CORS
@@ -9,7 +10,8 @@ from candid import encoder
 from candid.controllers import config
 
 
-def main():
+def create_app():
+    """Create and configure the Connexion/Flask application."""
     app = connexion.App(__name__, specification_dir='./openapi/')
     app.app.json_encoder = encoder.JSONEncoder
     app.add_api('openapi.yaml',
@@ -73,6 +75,16 @@ def main():
         }
     })
 
+    return app
+
+
+def create_wsgi_app():
+    """Factory function for gunicorn. Returns the Flask WSGI app."""
+    return create_app().app
+
+
+def main():
+    app = create_app()
     app.run(port=8000, host='0.0.0.0')
 
 

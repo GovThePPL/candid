@@ -20,11 +20,20 @@ services:
             POLIS_OIDC_CLIENT_SECRET: dev_auth-client_secret
             POLIS_ADMIN_EMAIL: admin@polis.test
             POLIS_ADMIN_PASSWORD: "Te$$tP@ssw0rd*"
+            # Redis
+            REDIS_URL: redis://redis:6379
+            # Connection pooling
+            DB_POOL_MIN: 4
+            DB_POOL_MAX: 20
+            # Worker processes (2x CPU cores is a good starting point)
+            GUNICORN_WORKERS: 4
             # NLP service
             NLP_SERVICE_URL: http://nlp:5001
         depends_on:
             db:
                 condition: service_healthy
+            redis:
+                condition: service_started
             polis:
                 condition: service_started
             nlp:

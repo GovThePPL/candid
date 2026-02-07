@@ -4,7 +4,7 @@ RUN apt install -y postgresql-common
 RUN /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
 
 RUN apt -y install default-jre python3 python3-pip postgresql-client-17
-RUN pip3 install openapi-generator-cli pipreqs psycopg2-binary bcrypt PyJWT camel-converter redis python-dateutil requests flask-cors --break-system-packages
+RUN pip3 install openapi-generator-cli pipreqs psycopg2-binary bcrypt PyJWT camel-converter redis python-dateutil requests flask-cors gunicorn --break-system-packages
 RUN mkdir -p /usr/src/docs
 
 COPY ./docs/api.yaml /usr/src/docs/
@@ -28,6 +28,12 @@ RUN pip3 install --no-cache-dir -r requirements.txt --break-system-packages
 
 EXPOSE 8000
 
-ENTRYPOINT ["python3"]
-
-CMD ["-m", "candid"]
+# Use gunicorn for production with configurable workers
+# Each worker is a separate process with its own DB/Redis connection pools
+# Default: 4 workers, override via GUNICORN_WORKERS env var
+CMD gunicorn \
+    --bind 0.0.0.0:8000 \
+    --workers ${GUNICORN_WORKERS:-4} \
+    --timeout 120 \
+    --access-logfile - \
+    "candid.__main__:create_wsgi_app()"

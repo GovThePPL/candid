@@ -43,6 +43,10 @@ cp ./controllers/__main__.py generated/candid/__main__.py
 echo "Copied custom __main__.py with CORS"
 
 pipreqs --force ./generated/
+# Add gunicorn (not detected by pipreqs since it's a CLI entrypoint, not imported)
+if ! grep -q 'gunicorn' ./generated/requirements.txt; then
+    echo "gunicorn==23.0.0" >> ./generated/requirements.txt
+fi
 echo "generated requirements.txt"
 
 echo "Build and run the container:"

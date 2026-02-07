@@ -12,6 +12,7 @@ import { Colors } from '../../constants/Colors'
 import { Shadows } from '../../constants/Theme'
 import { UserContext } from '../../contexts/UserContext'
 import api from '../../lib/api'
+import { CacheManager, CacheKeys, CacheDurations } from '../../lib/cache'
 
 import ThemedText from "../../components/ThemedText"
 import ThemedTextInput from "../../components/ThemedTextInput"
@@ -81,7 +82,7 @@ export default function Create() {
   const router = useRouter()
   const searchTimeoutRef = useRef(null)
   const chattingSearchTimeoutRef = useRef(null)
-  const { positionsVersion, isBanned } = useContext(UserContext)
+  const { user, positionsVersion, isBanned } = useContext(UserContext)
   const lastFetchedVersion = useRef(-1) // -1 means never fetched
 
   // Animation values for similar positions
@@ -90,24 +91,49 @@ export default function Create() {
 
   const fetchMyPositions = useCallback(async () => {
     try {
+      const cacheKey = user?.id ? CacheKeys.userPositions(user.id) : null
+      if (cacheKey) {
+        const cached = await CacheManager.get(cacheKey)
+        if (cached && !CacheManager.isStale(cached, CacheDurations.POSITIONS)) {
+          setMyPositions(cached.data)
+          return
+        }
+      }
+
       const positionsData = await api.users.getMyPositions('all')
       setMyPositions(positionsData || [])
+      if (cacheKey) {
+        await CacheManager.set(cacheKey, positionsData || [])
+      }
     } catch (err) {
       console.error('Failed to fetch my positions:', err)
     }
-  }, [])
+  }, [user?.id])
 
   const fetchChattingList = useCallback(async () => {
     try {
       setChattingListLoading(true)
+      const cacheKey = user?.id ? CacheKeys.chattingList(user.id) : null
+      if (cacheKey) {
+        const cached = await CacheManager.get(cacheKey)
+        if (cached && !CacheManager.isStale(cached, CacheDurations.CHATTING_LIST)) {
+          setChattingList(cached.data)
+          setChattingListLoading(false)
+          return
+        }
+      }
+
       const data = await api.chattingList.getList()
       setChattingList(data || [])
+      if (cacheKey) {
+        await CacheManager.set(cacheKey, data || [])
+      }
     } catch (err) {
       console.error('Failed to fetch chatting list:', err)
     } finally {
       setChattingListLoading(false)
     }
-  }, [])
+  }, [user?.id])
 
   useEffect(() => {
     async function fetchData() {
@@ -122,12 +148,14 @@ export default function Create() {
   useFocusEffect(
     useCallback(() => {
       if (lastFetchedVersion.current !== positionsVersion) {
+        // Invalidate positions cache when version changes
+        if (user?.id) CacheManager.invalidate(CacheKeys.userPositions(user.id))
         fetchMyPositions()
         lastFetchedVersion.current = positionsVersion
       }
-      // Always refetch chatting list on focus - it can change from the cards page
+      // Chatting list uses cache - will only fetch if stale
       fetchChattingList()
-    }, [fetchMyPositions, fetchChattingList, positionsVersion])
+    }, [fetchMyPositions, fetchChattingList, positionsVersion, user?.id])
   )
 
   // Debounced search for similar positions and category suggestion
@@ -236,6 +264,8 @@ export default function Create() {
   async function handleAdoptPosition(positionId) {
     try {
       await api.positions.adopt(positionId)
+      // Invalidate positions cache
+      if (user?.id) await CacheManager.invalidate(CacheKeys.userPositions(user.id))
       // Clear form and refresh my positions
       setStatement('')
       setSimilarPositions([])
@@ -268,6 +298,9 @@ export default function Create() {
     try {
       await api.positions.create(statement.trim(), selectedCategory, selectedLocation)
 
+      // Invalidate positions cache
+      if (user?.id) await CacheManager.invalidate(CacheKeys.userPositions(user.id))
+
       setStatement("")
       setSelectedCategory(null)
       setCategoryAutoSelected(false)
@@ -287,6 +320,8 @@ export default function Create() {
     const newStatus = position.status === 'active' ? 'inactive' : 'active'
     try {
       await api.users.updatePosition(position.id, newStatus)
+      // Invalidate positions cache
+      if (user?.id) await CacheManager.invalidate(CacheKeys.userPositions(user.id))
       // Update local state
       setMyPositions(prev => prev.map(p =>
         p.id === position.id ? { ...p, status: newStatus } : p
@@ -303,6 +338,8 @@ export default function Create() {
   async function confirmDeletePosition(positionId) {
     try {
       await api.users.deletePosition(positionId)
+      // Invalidate positions cache
+      if (user?.id) await CacheManager.invalidate(CacheKeys.userPositions(user.id))
       // Remove from local state
       setMyPositions(prev => prev.filter(p => p.id !== positionId))
       setConfirmingDeleteId(null)
@@ -320,6 +357,8 @@ export default function Create() {
   async function handleToggleChattingActive(item) {
     try {
       await api.chattingList.toggleActive(item.id, !item.isActive)
+      // Invalidate chatting list cache
+      if (user?.id) await CacheManager.invalidate(CacheKeys.chattingList(user.id))
       setChattingList(prev => prev.map(i =>
         i.id === item.id ? { ...i, isActive: !item.isActive } : i
       ))
@@ -335,6 +374,8 @@ export default function Create() {
   async function confirmDeleteChattingItem(itemId) {
     try {
       await api.chattingList.remove(itemId)
+      // Invalidate chatting list cache
+      if (user?.id) await CacheManager.invalidate(CacheKeys.chattingList(user.id))
       setChattingList(prev => prev.filter(i => i.id !== itemId))
       setConfirmingChattingDeleteId(null)
     } catch (err) {
@@ -363,6 +404,8 @@ export default function Create() {
       } else if (type === 'categoryLocation') {
         await api.chattingList.bulkRemove({ categoryId, locationCode })
       }
+      // Invalidate chatting list cache
+      if (user?.id) await CacheManager.invalidate(CacheKeys.chattingList(user.id))
       await fetchChattingList()
       setConfirmingBulkDelete(null)
     } catch (err) {
@@ -420,6 +463,8 @@ export default function Create() {
   async function handleAddToChattingList(positionId) {
     try {
       await api.chattingList.addPosition(positionId)
+      // Invalidate chatting list cache
+      if (user?.id) await CacheManager.invalidate(CacheKeys.chattingList(user.id))
       await fetchChattingList()
       // Remove from search results
       setChattingSearchResults(prev => prev.filter(r => r.position.id !== positionId))

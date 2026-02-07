@@ -73,6 +73,11 @@ const PositionCard = forwardRef(function PositionCard({
           <Text style={styles.statement}>{statement}</Text>
         </View>
 
+        {/* Availability indicator */}
+        {position.availability === 'none' && (
+          <Text style={styles.availabilityNone}>No users available to chat right now</Text>
+        )}
+
         {/* Footer */}
         <View style={styles.footer}>
           <TouchableOpacity onPress={onReport} style={[styles.iconButton, styles.flagButton]}>
@@ -174,6 +179,13 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: Colors.darkText,
     lineHeight: 32,
+  },
+  availabilityNone: {
+    fontSize: 13,
+    fontStyle: 'italic',
+    color: Colors.pass,
+    textAlign: 'center',
+    marginBottom: 8,
   },
   footer: {
     flexDirection: 'row',

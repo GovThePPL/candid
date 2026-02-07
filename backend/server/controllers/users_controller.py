@@ -19,7 +19,9 @@ from candid.controllers import db
 from candid.controllers.helpers.config import Config
 from candid.controllers.helpers.auth import authorization, authorization_allow_banned, token_to_user
 from candid.controllers.helpers import nlp
+from candid.controllers.helpers import presence
 from candid.controllers.helpers.cache_headers import add_cache_headers
+from candid.controllers.cards_controller import invalidate_user_context_cache
 import uuid
 
 
@@ -95,6 +97,17 @@ LIKELIHOOD_TO_INT = {
 }
 
 INT_TO_LIKELIHOOD = {v: k for k, v in LIKELIHOOD_TO_INT.items()}
+
+NOTIFICATION_FREQ_TO_INT = {
+    'off': 0,
+    'rarely': 1,
+    'less': 2,
+    'normal': 3,
+    'more': 4,
+    'often': 5,
+}
+
+NOTIFICATION_FREQ_TO_LABEL = {v: k for k, v in NOTIFICATION_FREQ_TO_INT.items()}
 
 DEMOGRAPHICS_API_TO_DB = {
     'locationId': 'location_id',
@@ -273,6 +286,9 @@ def set_user_location(body, token_info=None):  # noqa: E501
     db.execute_query("""
         INSERT INTO user_location (user_id, location_id) VALUES (%s, %s)
     """, (user.id, location_id))
+
+    # Invalidate cached user context (location changed)
+    invalidate_user_context_cache(user.id)
 
     # Return updated hierarchy
     return get_user_locations(token_info=token_info)
@@ -599,9 +615,11 @@ def get_user_settings(token_info=None):  # noqa: E501
             weight=weight
         ))
 
-    # Get likelihood settings from users table
+    # Get likelihood settings and notification settings from users table
     user_row = db.execute_query("""
-        SELECT chat_request_likelihood, chatting_list_likelihood
+        SELECT chat_request_likelihood, chatting_list_likelihood,
+               notifications_enabled, notification_frequency,
+               quiet_hours_start, quiet_hours_end, timezone
         FROM users
         WHERE id = %s
         """,
@@ -612,11 +630,24 @@ def get_user_settings(token_info=None):  # noqa: E501
     chatting_list_likelihood = INT_TO_LIKELIHOOD.get(
         user_row['chatting_list_likelihood'] if user_row else 3, 'normal')
 
-    return UserSettings(
-        category_weights=category_weights,
-        chat_request_likelihood=chat_request_likelihood,
-        chatting_list_likelihood=chatting_list_likelihood
-    )
+    # Notification settings
+    notifications_enabled = user_row.get('notifications_enabled', False) if user_row else False
+    notification_frequency = NOTIFICATION_FREQ_TO_LABEL.get(
+        user_row['notification_frequency'] if user_row else 3, 'normal')
+    quiet_hours_start = user_row.get('quiet_hours_start') if user_row else None
+    quiet_hours_end = user_row.get('quiet_hours_end') if user_row else None
+    timezone = user_row.get('timezone', 'America/New_York') if user_row else 'America/New_York'
+
+    return {
+        "categoryWeights": [cw.to_dict() if hasattr(cw, 'to_dict') else {"categoryId": cw.category_id, "weight": cw.weight} for cw in category_weights],
+        "chatRequestLikelihood": chat_request_likelihood,
+        "chattingListLikelihood": chatting_list_likelihood,
+        "notificationsEnabled": notifications_enabled,
+        "notificationFrequency": notification_frequency,
+        "quietHoursStart": quiet_hours_start,
+        "quietHoursEnd": quiet_hours_end,
+        "timezone": timezone,
+    }
 
 
 def update_user_demographics(body, token_info=None):  # noqa: E501
@@ -864,9 +895,12 @@ def update_user_settings(body, token_info=None):  # noqa: E501
                 """,
             (user.id, cw.category_id, priority))
 
-    # Handle likelihood settings if provided
+    # Handle likelihood settings and notification settings if provided
     set_clauses = []
     params = []
+
+    # Also check raw JSON for notification fields (not part of UserSettings model yet)
+    raw = connexion.request.get_json() if connexion.request.is_json else {}
 
     if user_settings.chat_request_likelihood is not None:
         likelihood_int = LIKELIHOOD_TO_INT.get(user_settings.chat_request_likelihood, 3)
@@ -878,6 +912,28 @@ def update_user_settings(body, token_info=None):  # noqa: E501
         set_clauses.append("chatting_list_likelihood = %s")
         params.append(likelihood_int)
 
+    # Notification settings (from raw JSON since they may not be in the generated model)
+    if 'notificationsEnabled' in raw:
+        set_clauses.append("notifications_enabled = %s")
+        params.append(bool(raw['notificationsEnabled']))
+
+    if 'notificationFrequency' in raw:
+        freq_int = NOTIFICATION_FREQ_TO_INT.get(raw['notificationFrequency'], 3)
+        set_clauses.append("notification_frequency = %s")
+        params.append(freq_int)
+
+    if 'quietHoursStart' in raw:
+        set_clauses.append("quiet_hours_start = %s")
+        params.append(raw['quietHoursStart'])
+
+    if 'quietHoursEnd' in raw:
+        set_clauses.append("quiet_hours_end = %s")
+        params.append(raw['quietHoursEnd'])
+
+    if 'timezone' in raw:
+        set_clauses.append("timezone = %s")
+        params.append(raw['timezone'])
+
     if set_clauses:
         set_clauses.append("updated_time = CURRENT_TIMESTAMP")
         set_str = ', '.join(set_clauses)
@@ -885,6 +941,9 @@ def update_user_settings(body, token_info=None):  # noqa: E501
         db.execute_query(
             f"UPDATE users SET {set_str} WHERE id = %s",
             tuple(params))
+
+    # Invalidate cached user context (category weights may have changed)
+    invalidate_user_context_cache(user.id)
 
     return get_user_settings(token_info=token_info)
 
@@ -1048,3 +1107,51 @@ def change_password(body, token_info=None):  # noqa: E501
     """, (new_password_hash, user.id))
 
     return {'message': 'Password changed successfully'}
+
+
+def heartbeat(token_info=None):  # noqa: E501
+    """Record user heartbeat for presence tracking
+
+    :rtype: Union[dict, Tuple[dict, int]]
+    """
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+    user = token_to_user(token_info)
+
+    presence.record_heartbeat(str(user.id))
+    return {"status": "ok"}
+
+
+def register_push_token(body, token_info=None):  # noqa: E501
+    """Register a push notification token
+
+    :param body: Request body with token and platform
+    :type body: dict
+
+    :rtype: Union[dict, Tuple[dict, int]]
+    """
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+    user = token_to_user(token_info)
+
+    if connexion.request.is_json:
+        body = connexion.request.get_json()
+
+    token = body.get("token")
+    platform = body.get("platform", "expo")
+
+    if not token:
+        return ErrorModel(400, "token is required"), 400
+
+    if platform not in ("expo", "web"):
+        return ErrorModel(400, "platform must be 'expo' or 'web'"), 400
+
+    db.execute_query("""
+        UPDATE users
+        SET push_token = %s, push_platform = %s, notifications_enabled = TRUE
+        WHERE id = %s
+    """, (token, platform, user.id))
+
+    return {"status": "ok"}

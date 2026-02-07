@@ -15,7 +15,7 @@ from candid.models.user import User
 from candid import util
 
 from candid.controllers import db
-from candid.controllers.helpers.auth import authorization, authorization_allow_banned, token_to_user, get_user_type
+from candid.controllers.helpers.auth import authorization, authorization_allow_banned, token_to_user, get_user_type, invalidate_ban_cache
 
 
 def get_user_moderation_history(user_id, token_info=None):  # noqa: E501
@@ -380,6 +380,7 @@ def _reverse_mod_action(mod_action_id):
             db.execute_query("""
                 UPDATE users SET status = 'active' WHERE id = %s
             """, (t['user_id'],))
+            invalidate_ban_cache(t['user_id'])
 
         # Reverse content removal
         if t['action'] == 'removed' and t['target_object_type'] == 'position':
@@ -1103,6 +1104,7 @@ def respond_to_appeal(appeal_id, body, token_info=None):  # noqa: E501
                             db.execute_query("""
                                 UPDATE users SET status = 'banned' WHERE id = %s
                             """, (target_user_id,))
+                            invalidate_ban_cache(target_user_id)
 
                     # Enforce content removal
                     if action == 'removed' and report['target_object_type'] == 'position':
@@ -1273,6 +1275,7 @@ def take_moderator_action(report_id, body, token_info=None):  # noqa: E501
                     db.execute_query("""
                         UPDATE users SET status = 'banned' WHERE id = %s
                     """, (target_user_id,))
+                    invalidate_ban_cache(target_user_id)
 
             # Enforce content removal
             if action.action == 'removed' and report['target_object_type'] == 'position':

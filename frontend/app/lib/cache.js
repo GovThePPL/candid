@@ -330,9 +330,9 @@ export const CacheDurations = {
   CHAT_LIST: 5 * 60 * 1000, // 5 minutes
   STATS: 5 * 60 * 1000, // 5 minutes (matches backend Polis cache)
   POSITIONS: 5 * 60 * 1000, // 5 minutes
-  PROFILE: 30 * 60 * 1000, // 30 minutes (rarely changes)
-  DEMOGRAPHICS: 30 * 60 * 1000, // 30 minutes (rarely changes)
-  SETTINGS: 30 * 60 * 1000, // 30 minutes (rarely changes)
+  PROFILE: 60 * 60 * 1000, // 1 hour (rarely changes)
+  DEMOGRAPHICS: 60 * 60 * 1000, // 1 hour (rarely changes)
+  SETTINGS: 60 * 60 * 1000, // 1 hour (rarely changes)
   CATEGORIES: Infinity, // Static data, never expires
   CHATTING_LIST: 5 * 60 * 1000, // 5 minutes
 };

@@ -6,6 +6,7 @@ Uses a queue-based approach for reliability and graceful degradation.
 """
 
 import json
+import math
 import uuid
 from datetime import date, timedelta
 from dateutil.relativedelta import relativedelta
@@ -412,7 +413,10 @@ def get_unvoted_positions_for_user(
 ) -> List[Dict[str, Any]]:
     """
     Get positions the user hasn't voted on, weighted by category priority.
-    Reads from the oldest active conversation for broadest range.
+
+    Uses Polis's nextComment endpoint for server-side PCA math-based
+    prioritization. Pre-calculates how many positions to fetch per category
+    based on priority weights, and terminates early when enough are collected.
 
     Args:
         user_id: The Candid user UUID
@@ -428,42 +432,60 @@ def get_unvoted_positions_for_user(
 
     xid = generate_xid(user_id)
     client = get_client()
+
+    # Pre-calculate target count per category based on priority weights
+    active_priorities = {cid: p for cid, p in category_priorities.items() if p > 0}
+    total_weight = sum(active_priorities.values())
+    if total_weight == 0:
+        return []
+
+    category_targets = {}
+    for cat_id, priority in active_priorities.items():
+        category_targets[cat_id] = max(1, math.ceil(limit * priority / total_weight))
+
+    # Sort by priority descending so highest-priority categories go first
+    sorted_cats = sorted(category_targets.items(),
+                         key=lambda x: active_priorities[x[0]], reverse=True)
+
     positions = []
+    for cat_id, target in sorted_cats:
+        if len(positions) >= limit:
+            break  # Early termination — already have enough
 
-    # Get positions from each category based on priority
-    for category_id, priority in category_priorities.items():
-        if priority == 0:
-            continue  # Skip categories with no priority
-
-        conv = get_oldest_active_conversation(location_id, category_id)
+        conv = get_oldest_active_conversation(location_id, cat_id)
         if not conv:
-            # No Polis conversation exists yet, fall back to DB for this category
+            # No Polis conversation, fall back to DB for this category
             db_positions = _get_unvoted_positions_from_db(
-                user_id, location_id, {category_id: priority}, limit=5
+                user_id, location_id, {cat_id: active_priorities[cat_id]}, limit=target
             )
             positions.extend(db_positions)
             continue
 
         try:
-            unvoted = client.get_unvoted_comments(conv["polis_conversation_id"], xid)
+            # Call nextComment up to `target` times for this category
+            tids = []
+            for _ in range(target):
+                comment = client.get_next_comment(
+                    conv["polis_conversation_id"], xid, without_tids=tids)
+                if not comment:
+                    break  # No more unvoted comments in this conversation
+                tids.append(comment["tid"])
 
-            # Map back to Candid positions
-            for comment in unvoted:
-                position = _polis_comment_to_position(comment, category_id)
-                if position:
-                    position["weight"] = priority
-                    positions.append(position)
+            if tids:
+                # Batch map all tids to positions in ONE query
+                mapped = _batch_polis_comments_to_positions(tids, cat_id)
+                for pos in mapped:
+                    pos["weight"] = active_priorities[cat_id]
+                positions.extend(mapped)
 
         except PolisError as e:
-            print(f"Error fetching unvoted from Polis: {e}", flush=True)
-            # Fall back to DB query for this category
+            print(f"Error fetching from Polis: {e}", flush=True)
             db_positions = _get_unvoted_positions_from_db(
-                user_id, location_id, {category_id: priority}, limit=5
+                user_id, location_id, {cat_id: active_priorities[cat_id]}, limit=target
             )
             positions.extend(db_positions)
 
-    # Weight and select positions
-    return _weighted_sample(positions, limit)
+    return positions[:limit]
 
 
 def _get_unvoted_positions_from_db(
@@ -547,19 +569,18 @@ def _get_unvoted_positions_from_db(
     return result
 
 
-def _polis_comment_to_position(
-    comment: Dict[str, Any],
+def _batch_polis_comments_to_positions(
+    tids: List[int],
     category_id: str
-) -> Optional[Dict[str, Any]]:
-    """Map a Polis comment back to a Candid position."""
-    tid = comment.get("tid")
-    if tid is None:
-        return None
+) -> List[Dict[str, Any]]:
+    """Map multiple Polis comment tids to Candid positions in one DB query."""
+    if not tids:
+        return []
 
-    # Look up the position from our mapping table
-    mapping = db.execute_query("""
-        SELECT pc.position_id, p.statement, p.creator_user_id,
-               u.display_name, u.username, u.status, u.trust_score, u.avatar_url, u.avatar_icon_url,
+    rows = db.execute_query("""
+        SELECT pc.polis_comment_tid, pc.position_id, p.statement, p.creator_user_id,
+               u.display_name, u.username, u.status, u.trust_score,
+               u.avatar_url, u.avatar_icon_url,
                COALESCE((
                    SELECT COUNT(*) FROM kudos k
                    WHERE k.receiver_user_id = u.id AND k.status = 'sent'
@@ -571,82 +592,36 @@ def _polis_comment_to_position(
         JOIN users u ON p.creator_user_id = u.id
         LEFT JOIN position_category pcat ON p.category_id = pcat.id
         LEFT JOIN location l ON p.location_id = l.id
-        -- Get an active user_position for chat requests (prefer creator's)
         LEFT JOIN LATERAL (
             SELECT up.id FROM user_position up
             WHERE up.position_id = p.id AND up.status = 'active'
             ORDER BY CASE WHEN up.user_id = p.creator_user_id THEN 0 ELSE 1 END
             LIMIT 1
         ) up ON true
-        WHERE pc.polis_comment_tid = %s AND p.category_id = %s
-        LIMIT 1
-    """, (tid, category_id), fetchone=True)
+        WHERE pc.polis_comment_tid = ANY(%s) AND p.category_id = %s
+    """, (tids, category_id))
 
-    if not mapping:
-        return None
+    result = []
+    for mapping in (rows or []):
+        result.append({
+            "id": str(mapping["position_id"]),
+            "statement": mapping["statement"],
+            "category_id": category_id,
+            "category_name": mapping["category_name"],
+            "location_code": mapping["location_code"],
+            "location_name": mapping["location_name"],
+            "creator_user_id": str(mapping["creator_user_id"]),
+            "creator_display_name": mapping["display_name"],
+            "creator_username": mapping["username"],
+            "creator_status": mapping["status"],
+            "creator_kudos_count": mapping["kudos_count"],
+            "creator_trust_score": float(mapping["trust_score"]) if mapping.get("trust_score") is not None else None,
+            "creator_avatar_url": mapping.get("avatar_url"),
+            "creator_avatar_icon_url": mapping.get("avatar_icon_url"),
+            "user_position_id": str(mapping["user_position_id"]) if mapping.get("user_position_id") else None,
+        })
 
-    return {
-        "id": str(mapping["position_id"]),
-        "statement": mapping["statement"],
-        "category_id": category_id,
-        "category_name": mapping["category_name"],
-        "location_code": mapping["location_code"],
-        "location_name": mapping["location_name"],
-        "creator_user_id": str(mapping["creator_user_id"]),
-        "creator_display_name": mapping["display_name"],
-        "creator_username": mapping["username"],
-        "creator_status": mapping["status"],
-        "creator_kudos_count": mapping["kudos_count"],
-        "creator_trust_score": float(mapping["trust_score"]) if mapping.get("trust_score") is not None else None,
-        "creator_avatar_url": mapping.get("avatar_url"),
-        "creator_avatar_icon_url": mapping.get("avatar_icon_url"),
-        "user_position_id": str(mapping["user_position_id"]) if mapping.get("user_position_id") else None,
-    }
-
-
-def _weighted_sample(positions: List[Dict], limit: int) -> List[Dict]:
-    """Sample positions weighted by their priority."""
-    import random
-
-    if len(positions) <= limit:
-        return positions
-
-    # Use weights for random selection
-    weights = [p.get("weight", 1) for p in positions]
-    total = sum(weights)
-    if total == 0:
-        return positions[:limit]
-
-    # Normalize weights
-    probs = [w / total for w in weights]
-
-    # Weighted sampling without replacement
-    selected = []
-    available = list(range(len(positions)))
-
-    for _ in range(min(limit, len(positions))):
-        if not available:
-            break
-
-        # Calculate remaining probabilities
-        remaining_probs = [probs[i] for i in available]
-        total_prob = sum(remaining_probs)
-        if total_prob == 0:
-            break
-        normalized = [p / total_prob for p in remaining_probs]
-
-        # Select one
-        r = random.random()
-        cumulative = 0
-        for idx, prob in enumerate(normalized):
-            cumulative += prob
-            if r <= cumulative:
-                selected_idx = available[idx]
-                selected.append(positions[selected_idx])
-                available.remove(selected_idx)
-                break
-
-    return selected
+    return result
 
 
 # ========== Position Adoption ==========

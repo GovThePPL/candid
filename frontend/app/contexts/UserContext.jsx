@@ -2,6 +2,7 @@ import { createContext, useEffect, useState, useCallback, useRef } from "react"
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import api, { getStoredUser, initializeAuth, getToken } from "../lib/api"
 import socket, { connectSocket, disconnectSocket, onChatRequestResponse, onChatStarted } from "../lib/socket"
+import { setupNotificationHandler, addNotificationResponseListener } from "../lib/notifications"
 
 const PENDING_CHAT_REQUEST_KEY = 'candid_pending_chat_request'
 
@@ -16,6 +17,7 @@ export function UserProvider({ children }) {
   // Shape: { id, createdTime, expiresAt, positionStatement, status: 'pending'|'accepted'|'declined' }
   const [pendingChatRequest, setPendingChatRequestState] = useState(null)
   const socketCleanupRef = useRef(null)
+  const notifCleanupRef = useRef(null)
 
   // Active chat navigation state - when a chat starts, this triggers navigation
   // Shape: { chatId, otherUserId, positionStatement, role }
@@ -145,16 +147,29 @@ export function UserProvider({ children }) {
         requestCleanup()
         chatStartedCleanup()
       }
+
+      // Set up push notification handling
+      setupNotificationHandler()
+      notifCleanupRef.current = addNotificationResponseListener((data) => {
+        if (data?.action === 'open_cards') {
+          // Navigate to cards page when user taps a chat request notification
+          setActiveChatNavigation(null) // Clear any stale navigation
+        }
+      })
     } catch (error) {
       console.error('[UserContext] Socket connection failed:', error)
     }
   }, [updateChatRequestStatus, clearPendingChatRequest])
 
-  // Clean up socket on logout
+  // Clean up socket and notifications on logout
   const cleanupSocket = useCallback(() => {
     if (socketCleanupRef.current) {
       socketCleanupRef.current()
       socketCleanupRef.current = null
+    }
+    if (notifCleanupRef.current) {
+      notifCleanupRef.current()
+      notifCleanupRef.current = null
     }
     disconnectSocket()
     clearPendingChatRequest()

@@ -1,31 +1,40 @@
+import os
 import psycopg2
 import psycopg2.extras
+from psycopg2.pool import ThreadedConnectionPool
 
 
 class Database:
 	def __init__(self, config):
-		self.db = None
+		self.pool = None
 		self.connect_to_db(config)
 
 	def connect_to_db(self, config):
-		"""Establishes a global database connection."""
+		"""Establishes a connection pool."""
 		try:
-			self.db = psycopg2.connect(config['SQLALCHEMY_DATABASE_URI'])
-			print("Database connection established.")
+			minconn = int(os.environ.get('DB_POOL_MIN', 4))
+			maxconn = int(os.environ.get('DB_POOL_MAX', 20))
+			self.pool = ThreadedConnectionPool(
+				minconn=minconn,
+				maxconn=maxconn,
+				dsn=config['SQLALCHEMY_DATABASE_URI']
+			)
+			print(f"Database connection pool established (min={minconn}, max={maxconn}).")
 		except psycopg2.Error as e:
-			self.db = None
-			print(f"Error connecting to database: {e}")
+			self.pool = None
+			print(f"Error creating database connection pool: {e}")
 
 	def execute_query(self, query, params=None, fetchone=False, executemany=False):
-		"""Executes a SQL query using the global connection."""
-		if self.db is None:
-			print("Database connection not established. Call connect_to_db() first.")
+		"""Executes a SQL query using a connection from the pool."""
+		if self.pool is None:
+			print("Database connection pool not established. Call connect_to_db() first.")
 			return None
 
+		conn = self.pool.getconn()
 		try:
 			query_upper = query.strip().upper()
 			is_select = query_upper.startswith("SELECT") or query_upper.startswith("WITH")
-			with self.db.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+			with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
 				if executemany:
 					cur.executemany(query, params)
 				else:
@@ -37,18 +46,19 @@ class Database:
 					else:
 						retval = cur.fetchall()
 				if not is_select:
-					self.db.commit()  # Commit changes for DML operations
+					conn.commit()
 
-				return retval  # No rows to fetch for DML
+				return retval
 		except psycopg2.Error as e:
 			print(f"Error executing query: {e}", flush=True)
-			self.db.rollback()  # Rollback changes on error
+			conn.rollback()
 			return None
+		finally:
+			self.pool.putconn(conn)
 
 	def close_db_connection(self):
-		"""Closes the global database connection."""
-		if self.db:
-			self.db.close()
-			print("Database connection closed.")
-			self.db = None
-
+		"""Closes all connections in the pool."""
+		if self.pool:
+			self.pool.closeall()
+			print("Database connection pool closed.")
+			self.pool = None

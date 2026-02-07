@@ -1,4 +1,5 @@
 import connexion
+import time
 from typing import Dict, List, Tuple, Union
 
 from candid import util
@@ -7,6 +8,8 @@ from candid.controllers import db
 from candid.controllers.helpers.config import Config
 from candid.controllers.helpers.auth import authorization, authorization_allow_banned, token_to_user
 from candid.controllers.helpers import polis_sync
+from candid.controllers.helpers import presence
+from candid.controllers.helpers.chat_availability import get_batch_availability
 from candid.controllers.moderation_controller import _get_target_content
 
 import random
@@ -74,36 +77,35 @@ def _value_to_label(value: str) -> str:
 
 def _get_ban_notification(user_id):
     """Check if user is banned and return a ban notification card."""
-    user_info = db.execute_query("""
-        SELECT status FROM users WHERE id = %s
-    """, (user_id,), fetchone=True)
-
-    if not user_info or user_info['status'] != 'banned':
-        return None
-
-    # Fetch latest ban action details
+    # Combined query: user status + ban details + active appeal in one round-trip
+    # For non-banned users (99%+), the LEFT JOINs return NULLs and we bail out early
     ban_info = db.execute_query("""
-        SELECT mac.action, mac.action_end_time, mac.action_start_time,
+        SELECT u.status,
+               mac.action, mac.action_end_time, mac.action_start_time,
                ma.mod_response_text, ma.id as mod_action_id,
                r.title as rule_title,
-               rp.target_object_type, rp.target_object_id
-        FROM mod_action_target mat
-        JOIN mod_action_class mac ON mat.mod_action_class_id = mac.id
-        JOIN mod_action ma ON mac.mod_action_id = ma.id
-        JOIN report rp ON ma.report_id = rp.id
+               rp.target_object_type, rp.target_object_id,
+               appeal.id as appeal_id
+        FROM users u
+        LEFT JOIN LATERAL (
+            SELECT mat.id, mat.mod_action_class_id FROM mod_action_target mat
+            WHERE mat.user_id = u.id
+            ORDER BY mat.id DESC LIMIT 1
+        ) mat ON u.status = 'banned'
+        LEFT JOIN mod_action_class mac ON mat.mod_action_class_id = mac.id
+            AND mac.action IN ('permanent_ban', 'temporary_ban')
+        LEFT JOIN mod_action ma ON mac.mod_action_id = ma.id
+        LEFT JOIN report rp ON ma.report_id = rp.id
         LEFT JOIN rule r ON rp.rule_id = r.id
-        WHERE mat.user_id = %s AND mac.action IN ('permanent_ban', 'temporary_ban')
-        ORDER BY mac.action_start_time DESC LIMIT 1
+        LEFT JOIN mod_action_appeal appeal
+            ON appeal.mod_action_id = ma.id AND appeal.user_id = u.id AND appeal.status = 'active'
+        WHERE u.id = %s
     """, (user_id,), fetchone=True)
 
-    # Check if user already has an active appeal for this action
-    has_appealed = False
-    if ban_info and ban_info.get('mod_action_id'):
-        existing_appeal = db.execute_query("""
-            SELECT id FROM mod_action_appeal
-            WHERE mod_action_id = %s AND user_id = %s AND status = 'active'
-        """, (ban_info['mod_action_id'], user_id), fetchone=True)
-        has_appealed = existing_appeal is not None
+    if not ban_info or ban_info['status'] != 'banned':
+        return None
+
+    has_appealed = ban_info.get('appeal_id') is not None
 
     # Fetch target content (the position/chat that caused the ban)
     target_content = None
@@ -129,69 +131,62 @@ def _get_ban_notification(user_id):
             'moderatorComment': ban_info.get('mod_response_text'),
         }
 
-        # Fetch appeal info for this user's appeal on this action
-        appeal = db.execute_query("""
-            SELECT id, appeal_state, appeal_text
-            FROM mod_action_appeal
-            WHERE mod_action_id = %s AND user_id = %s AND status = 'active'
-            ORDER BY created_time DESC LIMIT 1
-        """, (ban_info['mod_action_id'], user_id), fetchone=True)
+        # Fetch appeal info + responses + responder roles in combined queries
+        if ban_info.get('appeal_id') and ban_info.get('mod_action_id'):
+            appeal = db.execute_query("""
+                SELECT id, appeal_state, appeal_text
+                FROM mod_action_appeal
+                WHERE id = %s
+            """, (ban_info['appeal_id'],), fetchone=True)
 
-        if appeal:
-            action_chain['appealState'] = appeal['appeal_state']
-            action_chain['appealText'] = appeal['appeal_text']
+            if appeal:
+                action_chain['appealState'] = appeal['appeal_state']
+                action_chain['appealText'] = appeal['appeal_text']
 
-            # Fetch appeal responses with anonymous role labels
-            responses = db.execute_query("""
-                SELECT r.appeal_response_text, r.created_time,
-                       r.responder_user_id
-                FROM mod_action_appeal_response r
-                WHERE r.mod_action_appeal_id = %s
-                ORDER BY r.created_time ASC
-            """, (appeal['id'],))
+                # Fetch appeal responses with responder roles and original mod in one query
+                responses = db.execute_query("""
+                    SELECT r.appeal_response_text, r.created_time,
+                           r.responder_user_id, u.user_type,
+                           ma.responder_user_id as original_mod_id
+                    FROM mod_action_appeal_response r
+                    JOIN users u ON r.responder_user_id = u.id
+                    CROSS JOIN mod_action ma
+                    WHERE r.mod_action_appeal_id = %s AND ma.id = %s
+                    ORDER BY r.created_time ASC
+                """, (appeal['id'], ban_info['mod_action_id']))
 
-            # Get the original moderator ID for role labeling
-            original_mod = db.execute_query("""
-                SELECT responder_user_id FROM mod_action WHERE id = %s
-            """, (ban_info['mod_action_id'],), fetchone=True)
-            original_mod_id = str(original_mod['responder_user_id']) if original_mod else None
+                appeal_responses = []
+                resp_list = responses or []
+                for idx, resp in enumerate(resp_list):
+                    responder_id = str(resp['responder_user_id'])
+                    original_mod_id = str(resp['original_mod_id']) if resp.get('original_mod_id') else None
+                    is_admin = resp.get('user_type') == 'admin'
 
-            appeal_responses = []
-            resp_list = responses or []
-            for idx, resp in enumerate(resp_list):
-                responder_id = str(resp['responder_user_id'])
-                # Determine anonymous role label
-                responder_type = db.execute_query("""
-                    SELECT user_type FROM users WHERE id = %s
-                """, (responder_id,), fetchone=True)
-                is_admin = responder_type and responder_type['user_type'] == 'admin'
+                    if is_admin:
+                        role = 'Admin'
+                    elif responder_id == original_mod_id:
+                        role = 'Original Moderator'
+                    else:
+                        role = 'Second Moderator'
 
-                if is_admin:
-                    role = 'Admin'
-                elif responder_id == original_mod_id:
-                    role = 'Original Moderator'
-                else:
-                    role = 'Second Moderator'
+                    outcome = None
+                    if appeal['appeal_state'] in ('overruled', 'escalated', 'denied', 'approved', 'modified'):
+                        if len(resp_list) >= 2 and idx == 0:
+                            outcome = 'overruled'
+                        elif len(resp_list) >= 2 and idx == 1:
+                            outcome = 'escalated'
+                        elif len(resp_list) >= 3 and idx == 2:
+                            outcome = 'admin_decision'
+                        elif len(resp_list) == 1:
+                            outcome = 'admin_decision' if appeal['appeal_state'] in ('approved', 'denied', 'modified') else None
 
-                # Determine outcome based on position and appeal state
-                outcome = None
-                if appeal['appeal_state'] in ('overruled', 'escalated', 'denied', 'approved', 'modified'):
-                    if len(resp_list) >= 2 and idx == 0:
-                        outcome = 'overruled'
-                    elif len(resp_list) >= 2 and idx == 1:
-                        outcome = 'escalated'
-                    elif len(resp_list) >= 3 and idx == 2:
-                        outcome = 'admin_decision'
-                    elif len(resp_list) == 1:
-                        outcome = 'admin_decision' if appeal['appeal_state'] in ('approved', 'denied', 'modified') else None
+                    appeal_responses.append({
+                        'role': role,
+                        'responseText': resp.get('appeal_response_text'),
+                        'outcome': outcome,
+                    })
 
-                appeal_responses.append({
-                    'role': role,
-                    'responseText': resp.get('appeal_response_text'),
-                    'outcome': outcome,
-                })
-
-            action_chain['appealResponses'] = appeal_responses if appeal_responses else None
+                action_chain['appealResponses'] = appeal_responses if appeal_responses else None
 
     data = {
         'banType': ban_info['action'] if ban_info else 'permanent_ban',
@@ -272,6 +267,9 @@ def get_card_queue(limit=None, token_info=None):  # noqa: E501
     if limit is None:
         limit = 10
 
+    # Record presence: user is on card queue = swiping
+    presence.record_swiping(str(user.id))
+
     # Check if user is banned - return only ban notification
     ban_card = _get_ban_notification(str(user.id))
     if ban_card:
@@ -295,14 +293,8 @@ def get_card_queue(limit=None, token_info=None):  # noqa: E501
     # 2. Get positions first to determine if we need to fill with other content
     position_cards = []
 
-    # Get user's category priorities
-    priorities = _get_user_category_priorities(user.id)
-    # Get user's location
-    location_id = _get_user_location(user.id)
-
-    # If user has no priorities, default to all categories with equal priority
-    if not priorities:
-        priorities = _get_default_category_priorities()
+    # Get user's location and category priorities (cached)
+    location_id, priorities = _get_user_context(user.id)
 
     # Fetch unvoted positions (using Polis if enabled, otherwise DB)
     remaining_slots = max(1, limit - len(priority_cards))
@@ -317,11 +309,38 @@ def get_card_queue(limit=None, token_info=None):  # noqa: E501
         for pos in positions:
             position_cards.append(_position_to_card(pos))
 
+    # Enrich position cards with availability info
+    if position_cards:
+        pos_ids = [card["data"]["id"] for card in position_cards]
+        availability = get_batch_availability(pos_ids, str(user.id), db)
+        for card in position_cards:
+            pid = card["data"]["id"]
+            avail_info = availability.get(pid, {})
+            card["data"]["availability"] = avail_info.get("availability", "none")
+            # Override userPositionId with best online target if available
+            if avail_info.get("userPositionId"):
+                card["data"]["userPositionId"] = avail_info["userPositionId"]
+
     # 2b. Get chatting list cards (positions user wants to continue chatting about)
     # Mix ~1 chatting list card per ~5 regular position cards
     chatting_list_limit = max(1, len(position_cards) // 5 + 1)
     chatting_list_positions = _get_chatting_list_cards(str(user.id), limit=chatting_list_limit)
     chatting_list_cards = [_chatting_list_position_to_card(pos) for pos in chatting_list_positions]
+
+    # Filter chatting list: only show cards where at least one adopter is online
+    if chatting_list_cards:
+        cl_pos_ids = [card["data"]["id"] for card in chatting_list_cards]
+        cl_availability = get_batch_availability(cl_pos_ids, str(user.id), db)
+        filtered_cl_cards = []
+        for card in chatting_list_cards:
+            pid = card["data"]["id"]
+            avail_info = cl_availability.get(pid, {})
+            if avail_info.get("availability") == "online":
+                card["data"]["availability"] = "online"
+                if avail_info.get("userPositionId"):
+                    card["data"]["userPositionId"] = avail_info["userPositionId"]
+                filtered_cl_cards.append(card)
+        chatting_list_cards = filtered_cl_cards
 
     # 3. Get demographics and surveys
     # If no positions available, guarantee these appear; otherwise use probability
@@ -532,47 +551,52 @@ def _chatting_list_position_to_card(pos: dict) -> dict:
     return {"type": "position", "data": data}
 
 
-def _get_user_category_priorities(user_id: str) -> Dict[str, int]:
-    """Get user's category priorities as dict of category_id -> priority."""
-    priorities = db.execute_query("""
+# Per-user context cache: location + category priorities
+_user_context_cache = {}  # {user_id: {"location_id": str, "priorities": dict, "time": float}}
+USER_CONTEXT_TTL = 300  # 5 minutes
+
+
+def invalidate_user_context_cache(user_id: str):
+    """Invalidate cached context for a user. Call after settings/location changes."""
+    _user_context_cache.pop(str(user_id), None)
+
+
+def _get_user_context(user_id: str):
+    """Get user's location and category priorities (cached per-user)."""
+    uid = str(user_id)
+    cached = _user_context_cache.get(uid)
+    if cached and (time.time() - cached["time"]) < USER_CONTEXT_TTL:
+        return cached["location_id"], cached["priorities"]
+
+    # Fetch location
+    location = db.execute_query("""
+        SELECT location_id FROM user_location
+        WHERE user_id = %s ORDER BY created_time ASC LIMIT 1
+    """, (user_id,), fetchone=True)
+    location_id = str(location["location_id"]) if location else None
+
+    # Fetch category priorities
+    priorities_rows = db.execute_query("""
         SELECT position_category_id, priority
-        FROM user_position_categories
-        WHERE user_id = %s
+        FROM user_position_categories WHERE user_id = %s
     """, (user_id,))
 
-    result = {}
-    for p in (priorities or []):
-        result[str(p["position_category_id"])] = p["priority"]
+    priorities = {}
+    for p in (priorities_rows or []):
+        priorities[str(p["position_category_id"])] = p["priority"]
 
-    return result
+    # If no priorities set, default all categories to 3
+    if not priorities:
+        categories = db.execute_query("SELECT id FROM position_category")
+        for c in (categories or []):
+            priorities[str(c["id"])] = 3
 
-
-def _get_default_category_priorities() -> Dict[str, int]:
-    """Get all categories with equal priority (3) for users without preferences."""
-    categories = db.execute_query("""
-        SELECT id FROM position_category
-    """)
-
-    result = {}
-    for c in (categories or []):
-        result[str(c["id"])] = 3  # Medium priority for all
-
-    return result
-
-
-def _get_user_location(user_id: str) -> str:
-    """Get user's primary location (first one found)."""
-    location = db.execute_query("""
-        SELECT location_id
-        FROM user_location
-        WHERE user_id = %s
-        ORDER BY created_time ASC
-        LIMIT 1
-    """, (user_id,), fetchone=True)
-
-    if location:
-        return str(location["location_id"])
-    return None
+    _user_context_cache[uid] = {
+        "location_id": location_id,
+        "priorities": priorities,
+        "time": time.time()
+    }
+    return location_id, priorities
 
 
 def _get_unvoted_positions_fallback(user_id: str, location_id: str, limit: int = 10) -> List[dict]:
@@ -714,44 +738,79 @@ def _position_to_card(pos: dict) -> dict:
     return {"type": "position", "data": data}
 
 
-def _get_pending_surveys(user_id: str, limit: int = 2) -> List[dict]:
-    """Get survey questions the user hasn't answered yet."""
-    surveys = db.execute_query("""
-        SELECT
-            sq.id as question_id,
-            sq.survey_question as question,
-            s.id as survey_id,
-            s.survey_title
+# In-memory survey cache: all active surveys with questions and options
+_survey_cache = None
+_survey_cache_time = 0
+SURVEY_CACHE_TTL = 3600  # 1 hour
+
+
+def _get_cached_surveys():
+    """Get all active surveys with questions and options (cached in-memory)."""
+    global _survey_cache, _survey_cache_time
+    now = time.time()
+    if _survey_cache is not None and (now - _survey_cache_time) < SURVEY_CACHE_TTL:
+        return _survey_cache
+
+    rows = db.execute_query("""
+        SELECT sq.id as question_id, sq.survey_question as question,
+               s.id as survey_id, s.survey_title, s.end_time,
+               sqo.id as option_id, sqo.survey_question_option as option_text
         FROM survey_question sq
         JOIN survey s ON sq.survey_id = s.id
+        LEFT JOIN survey_question_option sqo ON sqo.survey_question_id = sq.id
         WHERE s.status = 'active'
+          AND s.survey_type != 'pairwise'
           AND (s.start_time IS NULL OR s.start_time <= CURRENT_TIMESTAMP)
           AND (s.end_time IS NULL OR s.end_time > CURRENT_TIMESTAMP)
-          AND NOT EXISTS (
-              SELECT 1 FROM survey_question_response sqr
-              JOIN survey_question_option sqo ON sqr.survey_question_option_id = sqo.id
-              WHERE sqo.survey_question_id = sq.id AND sqr.user_id = %s
-          )
-        ORDER BY s.created_time DESC
-        LIMIT %s
-    """, (user_id, limit))
+        ORDER BY s.created_time DESC, sq.id, sqo.id
+    """)
 
+    # Group into questions with their options
+    questions = {}
+    for row in (rows or []):
+        qid = str(row["question_id"])
+        if qid not in questions:
+            questions[qid] = {
+                "question_id": qid,
+                "question": row["question"],
+                "survey_id": str(row["survey_id"]),
+                "survey_title": row["survey_title"],
+                "options": []
+            }
+        if row.get("option_id"):
+            questions[qid]["options"].append({
+                "id": row["option_id"],
+                "survey_question_option": row["option_text"]
+            })
+
+    _survey_cache = list(questions.values())
+    _survey_cache_time = now
+    return _survey_cache
+
+
+def _get_pending_surveys(user_id: str, limit: int = 2) -> List[dict]:
+    """Get survey questions the user hasn't answered yet."""
+    all_surveys = _get_cached_surveys()
+    if not all_surveys:
+        return []
+
+    # Get question IDs the user has already answered (single query)
+    answered = db.execute_query("""
+        SELECT DISTINCT sqo.survey_question_id
+        FROM survey_question_response sqr
+        JOIN survey_question_option sqo ON sqr.survey_question_option_id = sqo.id
+        WHERE sqr.user_id = %s
+    """, (user_id,))
+
+    answered_ids = {str(r["survey_question_id"]) for r in (answered or [])}
+
+    # Filter to unanswered questions
     result = []
-    for s in (surveys or []):
-        # Get options for this question
-        options = db.execute_query("""
-            SELECT id, survey_question_option
-            FROM survey_question_option
-            WHERE survey_question_id = %s
-        """, (s["question_id"],))
-
-        result.append({
-            "question_id": str(s["question_id"]),
-            "question": s["question"],
-            "survey_id": str(s["survey_id"]),
-            "survey_title": s["survey_title"],
-            "options": options or []
-        })
+    for survey in all_surveys:
+        if survey["question_id"] not in answered_ids:
+            result.append(survey)
+            if len(result) >= limit:
+                break
 
     return result
 
@@ -1073,51 +1132,86 @@ def _demographic_to_card(field: str) -> dict:
     return {"type": "demographic", "data": data}
 
 
-def _get_pending_pairwise(user_id: str, limit: int = 2) -> List[dict]:
-    """
-    Get random pairwise comparisons for a user.
-    Selects pairs the user hasn't compared yet from active pairwise surveys.
-    """
-    # Get active pairwise surveys with location and category data (directly from survey table)
-    surveys = db.execute_query("""
+# In-memory pairwise survey cache: all active pairwise surveys with items
+_pairwise_cache = None
+_pairwise_cache_time = 0
+PAIRWISE_CACHE_TTL = 3600  # 1 hour
+
+
+def _get_cached_pairwise_surveys():
+    """Get all active pairwise surveys with items (cached in-memory)."""
+    global _pairwise_cache, _pairwise_cache_time
+    now = time.time()
+    if _pairwise_cache is not None and (now - _pairwise_cache_time) < PAIRWISE_CACHE_TTL:
+        return _pairwise_cache
+
+    rows = db.execute_query("""
         SELECT s.id, s.survey_title, s.comparison_question,
                loc.code as location_code, loc.name as location_name,
-               cat.label as category_name
+               cat.label as category_name,
+               pi.id as item_id, pi.item_text, pi.item_order
         FROM survey s
         LEFT JOIN location loc ON s.location_id = loc.id
         LEFT JOIN position_category cat ON s.position_category_id = cat.id
+        LEFT JOIN pairwise_item pi ON pi.survey_id = s.id
         WHERE s.survey_type = 'pairwise'
           AND s.status = 'active'
           AND (s.start_time IS NULL OR s.start_time <= CURRENT_TIMESTAMP)
           AND (s.end_time IS NULL OR s.end_time > CURRENT_TIMESTAMP)
+        ORDER BY s.id, pi.item_order
     """)
 
+    # Group into surveys with items
+    surveys = {}
+    for row in (rows or []):
+        sid = str(row["id"])
+        if sid not in surveys:
+            surveys[sid] = {
+                "id": sid,
+                "survey_title": row["survey_title"],
+                "comparison_question": row["comparison_question"],
+                "location_code": row.get("location_code"),
+                "location_name": row.get("location_name"),
+                "category_name": row.get("category_name"),
+                "items": []
+            }
+        if row.get("item_id"):
+            surveys[sid]["items"].append({
+                "id": row["item_id"],
+                "item_text": row["item_text"]
+            })
+
+    _pairwise_cache = [s for s in surveys.values() if len(s["items"]) >= 2]
+    _pairwise_cache_time = now
+    return _pairwise_cache
+
+
+def _get_pending_pairwise(user_id: str, limit: int = 2) -> List[dict]:
+    """Get random pairwise comparisons for a user."""
+    all_surveys = _get_cached_pairwise_surveys()
+    if not all_surveys:
+        return []
+
+    # Get all of this user's pairwise responses in one query
+    compared = db.execute_query("""
+        SELECT survey_id, winner_item_id, loser_item_id FROM pairwise_response
+        WHERE user_id = %s
+    """, (user_id,))
+
+    compared_by_survey = {}
+    for r in (compared or []):
+        sid = str(r["survey_id"])
+        if sid not in compared_by_survey:
+            compared_by_survey[sid] = set()
+        pair = tuple(sorted([str(r["winner_item_id"]), str(r["loser_item_id"])]))
+        compared_by_survey[sid].add(pair)
+
     cards = []
-    for survey in (surveys or []):
-        # Get items for this survey
-        items = db.execute_query("""
-            SELECT id, item_text FROM pairwise_item
-            WHERE survey_id = %s
-            ORDER BY item_order
-        """, (survey["id"],))
-
-        if not items or len(items) < 2:
-            continue
-
-        # Get pairs user has already compared (in either direction)
-        compared = db.execute_query("""
-            SELECT winner_item_id, loser_item_id FROM pairwise_response
-            WHERE survey_id = %s AND user_id = %s
-        """, (survey["id"], user_id))
-
-        compared_set = set()
-        for r in (compared or []):
-            # Add both orderings to the set
-            pair = tuple(sorted([str(r["winner_item_id"]), str(r["loser_item_id"])]))
-            compared_set.add(pair)
+    for survey in all_surveys:
+        compared_set = compared_by_survey.get(survey["id"], set())
 
         # Generate all possible pairs and filter out already compared
-        all_pairs = list(combinations(items, 2))
+        all_pairs = list(combinations(survey["items"], 2))
         available = []
         for item_a, item_b in all_pairs:
             pair = tuple(sorted([str(item_a["id"]), str(item_b["id"])]))
@@ -1132,19 +1226,17 @@ def _get_pending_pairwise(user_id: str, limit: int = 2) -> List[dict]:
                 item_a, item_b = item_b, item_a
 
             card_data = {
-                "surveyId": str(survey["id"]),
+                "surveyId": survey["id"],
                 "surveyTitle": survey["survey_title"],
                 "question": survey["comparison_question"] or "Which do you prefer?",
                 "optionA": {"id": str(item_a["id"]), "text": item_a["item_text"]},
                 "optionB": {"id": str(item_b["id"]), "text": item_b["item_text"]},
             }
-            # Include location if available
             if survey.get("location_code"):
                 card_data["location"] = {
                     "code": survey["location_code"],
                     "name": survey.get("location_name")
                 }
-            # Include category if available
             if survey.get("category_name"):
                 card_data["category"] = {
                     "label": survey["category_name"]

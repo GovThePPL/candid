@@ -146,6 +146,26 @@ components:
           type: string
           enum: ["off", "rarely", "less", "normal", "more", "often"]
           description: How frequently items appear in user's chatting list (0=off, 1=rarely to 5=often)
+        notificationsEnabled:
+          type: boolean
+          description: Whether push notifications are enabled
+        notificationFrequency:
+          type: string
+          enum: ["off", "rarely", "less", "normal", "more", "often"]
+          description: How many chat request notifications per day
+        quietHoursStart:
+          type: integer
+          minimum: 0
+          maximum: 23
+          description: Hour to start quiet period (no notifications)
+        quietHoursEnd:
+          type: integer
+          minimum: 0
+          maximum: 23
+          description: Hour to end quiet period
+        timezone:
+          type: string
+          description: User timezone (e.g. America/New_York)
 
     UserDemographics:
       type: object
@@ -249,6 +269,10 @@ components:
           type: string
           format: uuid
           description: ID of the chatting list item (only for chatting_list source)
+        availability:
+          type: string
+          enum: [online, notifiable, none]
+          description: Whether users are available to chat about this position
 
     UserPosition:
       type: object
@@ -3029,6 +3053,60 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
+
+  /users/me/heartbeat:
+    post:
+      operationId: heartbeat
+      summary: Record user heartbeat for presence tracking
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Heartbeat recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+
+  /users/me/push-token:
+    post:
+      operationId: registerPushToken
+      summary: Register a push notification token
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+              properties:
+                token:
+                  type: string
+                  description: Expo push token
+                platform:
+                  type: string
+                  enum: [expo, web]
+                  default: expo
+      responses:
+        '200':
+          description: Token registered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
 
   /users/me/settings:
     get:

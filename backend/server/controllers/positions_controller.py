@@ -16,6 +16,7 @@ from candid.controllers import db, config
 from candid.controllers.helpers.config import Config
 from candid.controllers.helpers.auth import authorization, authorization_allow_banned, token_to_user
 from candid.controllers.helpers import polis_sync
+from candid.controllers.helpers import presence
 from candid.controllers.helpers import nlp
 from candid.controllers.helpers.polis_sync import (
     get_oldest_active_conversation,
@@ -221,6 +222,9 @@ def respond_to_positions(body, token_info=None):  # noqa: E501
     if not authorized:
         return auth_err, auth_err.code
     user = token_to_user(token_info)
+
+    # Record presence: user is swiping (responding to positions)
+    presence.record_swiping(str(user.id))
 
     resp_by_id = {}
     for resp in position_response.responses:

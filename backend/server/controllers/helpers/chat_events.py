@@ -5,8 +5,7 @@ These events are consumed by the chat WebSocket server.
 """
 
 import json
-import redis
-from .config import Config
+from .redis_pool import get_redis
 
 # Channel name (must match chat server)
 CHAT_EVENTS_CHANNEL = "chat:events"
@@ -33,8 +32,7 @@ def publish_chat_request_response(
         True if published successfully, False otherwise
     """
     try:
-        redis_url = Config.REDIS_URL
-        r = redis.from_url(redis_url, encoding="utf-8", decode_responses=True)
+        r = get_redis()
 
         event = {
             "event": "chat_request_response",
@@ -47,7 +45,6 @@ def publish_chat_request_response(
             event["chatLogId"] = chat_log_id
 
         r.publish(CHAT_EVENTS_CHANNEL, json.dumps(event))
-        r.close()
 
         return True
 
@@ -80,10 +77,7 @@ def publish_chat_accepted(
         True if published successfully, False otherwise
     """
     try:
-        # Get Redis URL from config
-        redis_url = Config.REDIS_URL
-
-        r = redis.from_url(redis_url, encoding="utf-8", decode_responses=True)
+        r = get_redis()
 
         event = {
             "event": "chat_accepted",
@@ -95,7 +89,6 @@ def publish_chat_accepted(
         }
 
         r.publish(CHAT_EVENTS_CHANNEL, json.dumps(event))
-        r.close()
 
         return True
 

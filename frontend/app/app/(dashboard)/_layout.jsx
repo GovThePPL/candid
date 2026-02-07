@@ -6,6 +6,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons"
 
 import UserOnly from "../../components/auth/UserOnly"
 import { UserContext } from "../../contexts/UserContext"
+import { ToastProvider } from "../../components/Toast"
 
 // Screen width threshold for showing labels beside icons
 const WIDE_SCREEN_THRESHOLD = 768
@@ -52,6 +53,7 @@ export default function DashboardLayout() {
 
   return (
     <UserOnly>
+      <ToastProvider>
       <Tabs
         screenOptions={{
           headerShown: false,
@@ -133,6 +135,7 @@ export default function DashboardLayout() {
           options={{ href: null }}
         />
       </Tabs>
+      </ToastProvider>
     </UserOnly>
   )
 }

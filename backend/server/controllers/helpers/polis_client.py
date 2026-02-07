@@ -545,9 +545,57 @@ class PolisClient:
             logger.error(f"Failed to get votes: {e}")
             return []
 
+    def get_next_comment(self, conversation_id: str, xid: str,
+                         without_tids: Optional[List[int]] = None) -> Optional[Dict[str, Any]]:
+        """
+        Get the next prioritized comment for this user from Polis.
+
+        Uses Polis's server-side PCA math-based prioritization to return the
+        single most important unvoted comment via weighted probabilistic selection.
+
+        Args:
+            conversation_id: The Polis conversation ID
+            xid: External ID for the user (candid:{user_uuid})
+            without_tids: Optional list of tids to exclude (already fetched this request)
+
+        Returns:
+            Comment dict with tid, txt, remaining, total — or None if no comments left
+        """
+        token = self._get_xid_token(conversation_id, xid)
+
+        # Look up the stored pid for this user+conversation
+        user_id = xid.replace("candid:", "") if xid.startswith("candid:") else None
+        if not user_id:
+            return None
+
+        stored = db.execute_query("""
+            SELECT polis_pid FROM polis_participant
+            WHERE user_id = %s AND polis_conversation_id = %s
+        """, (user_id, conversation_id), fetchone=True)
+
+        if not stored or stored["polis_pid"] is None:
+            return None
+
+        params = {
+            "conversation_id": conversation_id,
+            "not_voted_by_pid": stored["polis_pid"]
+        }
+        if without_tids:
+            params["without"] = without_tids
+
+        try:
+            result = self._request("GET", "/nextComment", auth_token=token, params=params)
+            if not result or "tid" not in result:
+                return None
+            return result
+        except PolisError as e:
+            logger.error(f"Failed to get next comment: {e}")
+            return None
+
     def get_unvoted_comments(self, conversation_id: str, xid: str) -> List[Dict[str, Any]]:
         """
         Get comments the user hasn't voted on yet.
+        DEPRECATED: Use get_next_comment() instead for better performance.
 
         Args:
             conversation_id: The Polis conversation ID

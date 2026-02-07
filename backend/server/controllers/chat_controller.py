@@ -14,6 +14,9 @@ from candid.controllers import db
 from candid.controllers.helpers.config import Config
 from candid.controllers.helpers.auth import authorization, authorization_allow_banned, token_to_user
 from candid.controllers.helpers.chat_events import publish_chat_accepted, publish_chat_request_response
+from candid.controllers.helpers import presence
+from candid.controllers.helpers.push_notifications import send_chat_request_notification
+from candid.controllers.helpers.chat_availability import _is_notifiable
 from candid.controllers.helpers.cache_headers import (
     add_cache_headers,
     check_not_modified,
@@ -79,12 +82,46 @@ def create_chat_request(body, token_info=None):
     if existing:
         return ErrorModel(code=409, message="A pending chat request already exists"), 409
 
-    # Create the chat request
+    # Record presence: user is swiping (creating a chat request)
+    presence.record_swiping(str(user.id))
+
+    # Determine delivery context based on recipient's presence
+    if presence.is_user_swiping(recipient_user_id):
+        delivery_context = 'swiping'
+    elif presence.is_user_in_app(recipient_user_id):
+        delivery_context = 'in_app'
+    else:
+        delivery_context = 'notification'
+
+    # Create the chat request with delivery context
     request_id = str(uuid.uuid4())
     db.execute_query("""
-        INSERT INTO chat_request (id, initiator_user_id, user_position_id, response)
-        VALUES (%s, %s, %s, 'pending')
-    """, (request_id, str(user.id), user_position_id))
+        INSERT INTO chat_request (id, initiator_user_id, user_position_id, response, delivery_context)
+        VALUES (%s, %s, %s, 'pending', %s)
+    """, (request_id, str(user.id), user_position_id, delivery_context))
+
+    # Send push notification if recipient is offline
+    if delivery_context == 'notification':
+        recipient_info = db.execute_query("""
+            SELECT push_token, notifications_enabled, notification_frequency,
+                   notifications_sent_today, notifications_sent_date,
+                   quiet_hours_start, quiet_hours_end, timezone
+            FROM users WHERE id = %s
+        """, (recipient_user_id,), fetchone=True)
+
+        if recipient_info and _is_notifiable(recipient_info):
+            initiator_info = db.execute_query("""
+                SELECT display_name FROM users WHERE id = %s
+            """, (str(user.id),), fetchone=True)
+            initiator_name = initiator_info["display_name"] if initiator_info else "Someone"
+
+            send_chat_request_notification(
+                push_token=recipient_info["push_token"],
+                initiator_display_name=initiator_name,
+                position_statement=result["statement"],
+                db=db,
+                recipient_user_id=recipient_user_id,
+            )
 
     # Add position to initiator's chatting list (or update if already exists)
     _add_to_chatting_list(str(user.id), position_id)
@@ -207,6 +244,9 @@ def respond_to_chat_request(request_id, body, token_info=None):
         initiator_user_id=initiator_user_id,
         chat_log_id=chat_log_id,
     )
+
+    # Update context-specific response rates for the responder
+    _update_response_rates(str(user.id))
 
     # Return the updated request
     updated = db.execute_query("""
@@ -892,6 +932,38 @@ def dismiss_kudos(chat_id, token_info=None):
     """, (kudos_id, str(user.id), receiver_id, chat_id))
 
     return None, 204
+
+
+def _update_response_rates(user_id: str):
+    """Recalculate context-specific response rates for a user."""
+    db.execute_query("""
+        UPDATE users SET
+            response_rate_swiping = COALESCE((
+                SELECT COUNT(*) FILTER (WHERE cr.response = 'accepted')::decimal /
+                    NULLIF(COUNT(*) FILTER (WHERE cr.response IN ('accepted', 'dismissed')), 0)
+                FROM chat_request cr
+                JOIN user_position up ON cr.user_position_id = up.id
+                WHERE up.user_id = %s AND cr.delivery_context = 'swiping'
+                  AND cr.response IN ('accepted', 'dismissed')
+            ), 1.00),
+            response_rate_in_app = COALESCE((
+                SELECT COUNT(*) FILTER (WHERE cr.response = 'accepted')::decimal /
+                    NULLIF(COUNT(*) FILTER (WHERE cr.response IN ('accepted', 'dismissed')), 0)
+                FROM chat_request cr
+                JOIN user_position up ON cr.user_position_id = up.id
+                WHERE up.user_id = %s AND cr.delivery_context = 'in_app'
+                  AND cr.response IN ('accepted', 'dismissed')
+            ), 1.00),
+            response_rate_notification = COALESCE((
+                SELECT COUNT(*) FILTER (WHERE cr.response = 'accepted')::decimal /
+                    NULLIF(COUNT(*) FILTER (WHERE cr.response IN ('accepted', 'dismissed')), 0)
+                FROM chat_request cr
+                JOIN user_position up ON cr.user_position_id = up.id
+                WHERE up.user_id = %s AND cr.delivery_context = 'notification'
+                  AND cr.response IN ('accepted', 'dismissed')
+            ), 1.00)
+        WHERE id = %s
+    """, (user_id, user_id, user_id, user_id))
 
 
 def _add_to_chatting_list(user_id: str, position_id: str):

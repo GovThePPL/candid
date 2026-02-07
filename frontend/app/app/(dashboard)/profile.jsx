@@ -8,6 +8,7 @@ import { Colors } from '../../constants/Colors'
 import { SharedStyles } from '../../constants/SharedStyles'
 import api from '../../lib/api'
 import { useUser } from '../../hooks/useUser'
+import { CacheManager, CacheKeys, CacheDurations } from '../../lib/cache'
 
 import ThemedText from "../../components/ThemedText"
 import ThemedButton from '../../components/ThemedButton'
@@ -162,36 +163,88 @@ export default function Profile() {
   const [cropModalVisible, setCropModalVisible] = useState(false)
   const [croppedImagePreview, setCroppedImagePreview] = useState(null)
 
+  const applyProfileData = useCallback((profileData) => {
+    setProfile(profileData)
+    setDisplayName(profileData?.displayName || '')
+    setEmail(profileData?.email || '')
+    setAvatarUrl(profileData?.avatarUrl || null)
+  }, [])
+
+  const applyDemographicsData = useCallback((demographicsData) => {
+    setDemographics(demographicsData)
+    if (demographicsData) {
+      setAgeRange(demographicsData.ageRange || null)
+      setIncomeRange(demographicsData.incomeRange || null)
+      setLean(demographicsData.lean || null)
+      setEducation(demographicsData.education || null)
+      setGeoLocale(demographicsData.geoLocale || null)
+      setRace(demographicsData.race || null)
+      setSex(demographicsData.sex || null)
+    }
+  }, [])
+
   const fetchData = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
 
-      const [profileData, demographicsData, locationsData, allLocationsData] = await Promise.all([
-        api.users.getProfile(),
-        api.users.getDemographics().catch(() => null),
-        api.users.getLocations().catch(() => []),
-        api.users.getAllLocations().catch(() => []),
+      const profileCacheKey = CacheKeys.profile(user?.id)
+      const demographicsCacheKey = CacheKeys.demographics(user?.id)
+
+      const [cachedProfile, cachedDemographics] = await Promise.all([
+        CacheManager.get(profileCacheKey),
+        CacheManager.get(demographicsCacheKey),
       ])
 
-      setProfile(profileData)
-      setDemographics(demographicsData)
-      setLocations(locationsData || [])
-      setAllLocations(allLocationsData || [])
+      const profileFresh = cachedProfile && !CacheManager.isStale(cachedProfile, CacheDurations.PROFILE)
+      const demographicsFresh = cachedDemographics && !CacheManager.isStale(cachedDemographics, CacheDurations.DEMOGRAPHICS)
 
-      // Initialize edit state
-      setDisplayName(profileData?.displayName || '')
-      setEmail(profileData?.email || '')
-      setAvatarUrl(profileData?.avatarUrl || null)
+      // Apply cached data immediately if fresh
+      if (profileFresh) {
+        applyProfileData(cachedProfile.data)
+        setLocations(cachedProfile.data._locations || [])
+        setAllLocations(cachedProfile.data._allLocations || [])
+      }
+      if (demographicsFresh) {
+        applyDemographicsData(cachedDemographics.data)
+      }
 
-      if (demographicsData) {
-        setAgeRange(demographicsData.ageRange || null)
-        setIncomeRange(demographicsData.incomeRange || null)
-        setLean(demographicsData.lean || null)
-        setEducation(demographicsData.education || null)
-        setGeoLocale(demographicsData.geoLocale || null)
-        setRace(demographicsData.race || null)
-        setSex(demographicsData.sex || null)
+      // Fetch stale data
+      const needsProfile = !profileFresh
+      const needsDemographics = !demographicsFresh
+
+      if (needsProfile || needsDemographics) {
+        const fetches = []
+        if (needsProfile) {
+          fetches.push(api.users.getProfile())
+          fetches.push(api.users.getLocations().catch(() => []))
+          fetches.push(api.users.getAllLocations().catch(() => []))
+        } else {
+          fetches.push(null, null, null)
+        }
+        if (needsDemographics) {
+          fetches.push(api.users.getDemographics().catch(() => null))
+        } else {
+          fetches.push(null)
+        }
+
+        const [profileData, locationsData, allLocationsData, demographicsData] = await Promise.all(fetches)
+
+        if (needsProfile && profileData) {
+          applyProfileData(profileData)
+          setLocations(locationsData || [])
+          setAllLocations(allLocationsData || [])
+          // Bundle locations with profile cache for consistency
+          await CacheManager.set(profileCacheKey, {
+            ...profileData,
+            _locations: locationsData || [],
+            _allLocations: allLocationsData || [],
+          })
+        }
+        if (needsDemographics && demographicsData !== undefined) {
+          applyDemographicsData(demographicsData)
+          await CacheManager.set(demographicsCacheKey, demographicsData)
+        }
       }
 
       // Mark initial load complete after a short delay to prevent auto-save on load
@@ -204,7 +257,7 @@ export default function Profile() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [user?.id, applyProfileData, applyDemographicsData])
 
   useEffect(() => {
     fetchData()
@@ -239,6 +292,8 @@ export default function Profile() {
         // Update local profile state
         setProfile(prev => ({ ...prev, ...profileUpdates }))
         await refreshUser()
+        // Invalidate profile cache
+        if (user?.id) await CacheManager.invalidate(CacheKeys.profile(user.id))
       }
 
       setHasProfileChanges(false)
@@ -260,7 +315,7 @@ export default function Profile() {
       setError(null)
 
       // Update demographics
-      await api.users.updateDemographics({
+      const demographicsPayload = {
         ageRange: updates.ageRange ?? ageRange,
         incomeRange: updates.incomeRange ?? incomeRange,
         lean: updates.lean ?? lean,
@@ -268,7 +323,13 @@ export default function Profile() {
         geoLocale: updates.geoLocale ?? geoLocale,
         race: updates.race ?? race,
         sex: updates.sex ?? sex,
-      })
+      }
+      await api.users.updateDemographics(demographicsPayload)
+
+      // Optimistic cache update
+      if (user?.id) {
+        await CacheManager.set(CacheKeys.demographics(user.id), demographicsPayload)
+      }
 
       // Refresh user context to update header/sidebar
       await refreshUser()
@@ -289,6 +350,8 @@ export default function Profile() {
       const updatedLocations = await api.users.setLocation(locationId)
       setLocations(updatedLocations || [])
       setLocationPickerOpen(false)
+      // Invalidate profile cache since locations are bundled with it
+      if (user?.id) await CacheManager.invalidate(CacheKeys.profile(user.id))
     } catch (err) {
       console.error('Failed to set location:', err)
       setError(err.message || 'Failed to update location')

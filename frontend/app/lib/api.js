@@ -266,6 +266,17 @@ export const usersApiWrapper = {
     )
   },
 
+  async heartbeat() {
+    return await promisify(usersApi.heartbeat.bind(usersApi))
+  },
+
+  async registerPushToken(token, platform) {
+    return await promisify(
+      usersApi.registerPushToken.bind(usersApi),
+      { token, platform }
+    )
+  },
+
   async changePassword(currentPassword, newPassword) {
     return await promisify(
       usersApi.changePassword.bind(usersApi),

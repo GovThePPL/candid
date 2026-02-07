@@ -1,4 +1,5 @@
 import bcrypt
+import json
 from datetime import datetime, timedelta, timezone
 import jwt
 import uuid
@@ -6,6 +7,7 @@ import uuid
 from candid.models.user import User
 from candid.models.error_model import ErrorModel
 from candid.controllers import config, db
+from candid.controllers.helpers.redis_pool import get_redis
 
 _USER_ROLE_RANKING = {
     "guest": 1,
@@ -91,16 +93,45 @@ def token_to_user(token_info):
         )
     return None
 
+BAN_CACHE_TTL = 60  # seconds
+
+
+def invalidate_ban_cache(user_id):
+    """Invalidate cached ban status. Call after banning/unbanning a user."""
+    try:
+        r = get_redis()
+        r.delete(f"ban_status:{user_id}")
+    except Exception:
+        pass  # Redis failure shouldn't break moderation
+
+
 def _check_ban_status(user_id):
     """Check if user is banned and handle temp ban expiry.
 
     Returns (is_banned, error_model) where is_banned is True if actively banned.
+    Caches non-banned status in Redis for 60s to avoid DB queries on every request.
     """
+    # Check Redis cache first
+    try:
+        r = get_redis()
+        cached = r.get(f"ban_status:{user_id}")
+        if cached == "not_banned":
+            return False, None
+        # If cached == "banned" or cache miss, check DB
+    except Exception:
+        pass  # Redis failure falls through to DB check
+
     user_info = db.execute_query("""
         SELECT status FROM users WHERE id = %s
     """, (user_id,), fetchone=True)
 
     if not user_info or user_info['status'] != 'banned':
+        # Cache non-banned status
+        try:
+            r = get_redis()
+            r.setex(f"ban_status:{user_id}", BAN_CACHE_TTL, "not_banned")
+        except Exception:
+            pass
         return False, None
 
     # Check if there's a temp ban that has expired
@@ -121,6 +152,11 @@ def _check_ban_status(user_id):
         if end_time < now:
             # Temp ban expired, restore user
             db.execute_query("UPDATE users SET status = 'active' WHERE id = %s", (user_id,))
+            try:
+                r = get_redis()
+                r.setex(f"ban_status:{user_id}", BAN_CACHE_TTL, "not_banned")
+            except Exception:
+                pass
             return False, None
 
     return True, ErrorModel(403, "Your account has been suspended")
