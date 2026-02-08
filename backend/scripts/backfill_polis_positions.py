@@ -279,20 +279,28 @@ def relink_pairwise_surveys(conn):
     print("=" * 50)
 
     with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        # Use a subquery to pick the oldest conversation per location+category,
+        # matching the behavior of get_oldest_active_conversation() in the stats endpoint.
+        # DISTINCT ON ensures one row per (location_id, category_id) combination.
         cur.execute("""
             UPDATE survey s
-            SET polis_conversation_id = pc.polis_conversation_id
-            FROM polis_conversation pc
-            WHERE pc.location_id = s.location_id
+            SET polis_conversation_id = oldest.polis_conversation_id
+            FROM (
+                SELECT DISTINCT ON (location_id, COALESCE(category_id, '00000000-0000-0000-0000-000000000000'))
+                    location_id, category_id, polis_conversation_id
+                FROM polis_conversation
+                WHERE status = 'active'
+                ORDER BY location_id, COALESCE(category_id, '00000000-0000-0000-0000-000000000000'), created_time ASC
+            ) oldest
+            WHERE oldest.location_id = s.location_id
               AND (
-                (pc.category_id = s.position_category_id)
-                OR (pc.category_id IS NULL AND s.position_category_id IS NULL)
+                (oldest.category_id = s.position_category_id)
+                OR (oldest.category_id IS NULL AND s.position_category_id IS NULL)
               )
-              AND pc.status = 'active'
               AND s.survey_type = 'pairwise'
               AND s.status = 'active'
               AND (s.polis_conversation_id IS NULL
-                   OR s.polis_conversation_id != pc.polis_conversation_id)
+                   OR s.polis_conversation_id != oldest.polis_conversation_id)
         """)
         updated = cur.rowcount
     conn.commit()
@@ -336,6 +344,11 @@ def main():
         action='store_true',
         help='Only sync votes, skip positions'
     )
+    parser.add_argument(
+        '--relink-only',
+        action='store_true',
+        help='Only re-link pairwise surveys to Polis conversations (skip position/vote sync)'
+    )
     args = parser.parse_args()
 
     if args.positions_only and args.votes_only:
@@ -358,15 +371,20 @@ def main():
     positions_queued = 0
     votes_queued = 0
 
-    # Process positions
-    if not args.votes_only:
-        positions_queued = process_positions(conn, args)
+    if not args.relink_only:
+        # Process positions
+        if not args.votes_only:
+            positions_queued = process_positions(conn, args)
 
-    # Process votes
-    if not args.positions_only:
-        votes_queued = process_votes(conn, args)
+        # Process votes
+        if not args.positions_only:
+            votes_queued = process_votes(conn, args)
 
-    # Re-link pairwise surveys to new conversations
+    # Re-link pairwise surveys to current Polis conversations.
+    # NOTE: This only works if conversations already exist (from a previous run).
+    # On a fresh backfill, conversations are created asynchronously by the worker
+    # after positions are processed, so re-run this script (or use --relink-only)
+    # once the worker has finished processing positions.
     relinked = relink_pairwise_surveys(conn)
 
     # Final summary
@@ -388,8 +406,13 @@ def main():
         for stat in stats:
             print(f"  {stat['operation_type']}/{stat['status']}: {stat['count']}")
 
-        print("\nThe Polis worker will process these items.")
-        print("Run this script again to check progress or sync new items.")
+        if positions_queued > 0 and relinked == 0:
+            print("\nNOTE: Positions were queued but pairwise surveys could not be linked yet.")
+            print("The worker needs to process positions first (creates conversations).")
+            print("Re-run this script after the worker finishes to link pairwise surveys.")
+        else:
+            print("\nThe Polis worker will process these items.")
+            print("Run this script again to check progress or sync new items.")
 
     conn.close()
 

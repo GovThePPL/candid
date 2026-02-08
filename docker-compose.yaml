@@ -29,11 +29,17 @@ services:
             GUNICORN_WORKERS: 4
             # NLP service
             NLP_SERVICE_URL: http://nlp:5001
+        healthcheck:
+            test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/ui/')\" || exit 1"]
+            interval: 10s
+            timeout: 5s
+            start_period: 15s
+            retries: 3
         depends_on:
             db:
                 condition: service_healthy
             redis:
-                condition: service_started
+                condition: service_healthy
             polis:
                 condition: service_started
             nlp:
@@ -84,6 +90,11 @@ services:
         volumes:
             - redis_data:/data
         command: redis-server --appendonly yes
+        healthcheck:
+            test: ["CMD", "redis-cli", "ping"]
+            interval: 5s
+            timeout: 3s
+            retries: 3
 
     chat:
         build:
@@ -96,11 +107,17 @@ services:
             REDIS_URL: redis://redis:6379
             JWT_SECRET: abc
             PORT: 8002
+        healthcheck:
+            test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
+            interval: 10s
+            timeout: 5s
+            start_period: 10s
+            retries: 3
         depends_on:
             db:
                 condition: service_healthy
             redis:
-                condition: service_started
+                condition: service_healthy
         volumes:
             - ./backend/chat-server:/app  # Mount for development
 

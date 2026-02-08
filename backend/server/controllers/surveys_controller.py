@@ -189,7 +189,7 @@ def get_active_surveys(location_id=None, category_id=None, token_info=None):  # 
             LEFT JOIN position_category pc ON s.position_category_id = pc.id
             WHERE s.survey_type = 'standard'
               AND s.status != 'deleted'
-              AND s.location_id = ANY(%s::uuid[])
+              AND (s.location_id = ANY(%s::uuid[]) OR s.location_id IS NULL)
         """
         params = [location_ids]
 

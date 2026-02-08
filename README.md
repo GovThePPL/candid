@@ -1,25 +1,61 @@
-# candid
-Candid is a chat platform for peaceful and productive discussion of issues of public concern
+# Candid
 
-# Getting Started
-You'll need the most recent version of docker from docker's website.
+Candid is a chat platform for peaceful and productive discussion of issues of public concern. Users post position statements, swipe to agree/disagree, request one-on-one chats to discuss disagreements, and view group opinion analytics powered by Pol.is.
 
-Download sysbox (for polis docker-in-docker):
+## Architecture
 
-`$ wget https://downloads.nestybox.com/sysbox/releases/v0.6.7/sysbox-ce_0.6.7-0.linux_amd64.deb`
-
-Stop running Docker containers:
-
-`$ docker rm $(docker ps -a -q) -f`
-
-Install Sysbox:
-
-`$ sudo apt-get install jq`
-
-`$ sudo apt-get install ./sysbox-ce_0.6.7-0.linux_amd64.deb`
-
-Update docker config (`/etc/docker/daemon.json`):
 ```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   Frontend   │────▶│   Flask API  │────▶│  PostgreSQL  │
+│  Expo / RN   │     │   (Gunicorn) │     │   + pgvector │
+└─────────────┘     └──────┬──────┘     └─────────────┘
+       │                   │
+       │            ┌──────┴──────┐
+       │            │  NLP Service │
+       │            │ (embeddings) │
+       │            └─────────────┘
+       │
+       ├───────────▶┌─────────────┐     ┌─────────────┐
+       │            │ Chat Server  │────▶│    Redis     │
+       │            │  (WebSocket) │     │  (pub/sub)   │
+       │            └─────────────┘     └─────────────┘
+       │
+       └───────────▶┌─────────────┐
+                    │   Pol.is     │
+                    │  (Sysbox)    │
+                    └─────────────┘
+```
+
+Six Docker services orchestrated via `docker-compose.yaml`:
+
+| Service | Port | Description |
+|---------|------|-------------|
+| api     | 8000 | Flask REST API (OpenAPI-first, Gunicorn) |
+| chat    | 8002 | WebSocket chat server (aiohttp, Redis pub/sub) |
+| db      | 5432 | PostgreSQL 17 with pgvector |
+| redis   | 6379 | Message broker and presence tracking |
+| nlp     | 5001 | Sentence embeddings and NSFW detection |
+| polis   | 8080 | Pol.is opinion analytics (Docker-in-Docker via Sysbox) |
+
+The project follows **OpenAPI-first development** -- the spec at `docs/api.yaml` is the source of truth for both the backend (Python Flask) and frontend (generated JS client).
+
+## Prerequisites
+
+- **Docker** (latest)
+- **Sysbox runtime v0.6.7** for Pol.is Docker-in-Docker
+- **Node.js / npm** for frontend development
+- **openapi-generator-cli, pipreqs** for local backend builds (optional)
+
+### Installing Sysbox
+
+```bash
+wget https://downloads.nestybox.com/sysbox/releases/v0.6.7/sysbox-ce_0.6.7-0.linux_amd64.deb
+sudo apt-get install jq
+sudo apt-get install ./sysbox-ce_0.6.7-0.linux_amd64.deb
+```
+
+Add to `/etc/docker/daemon.json`:
+```json
 {
   "runtimes": {
     "sysbox-runc": {
@@ -29,56 +65,99 @@ Update docker config (`/etc/docker/daemon.json`):
 }
 ```
 
-Restart Docker: `$ sudo systemctl restart docker`
+Then `sudo systemctl restart docker`.
 
-Start the development environment: `$ docker compose up -d`
+## Getting Started
 
-# Useful things
-Connect to the database: `$ psql -h localhost -p 5432 -U user -d candid`
+```bash
+./dev.sh              # Build, start, wait for health, seed dev data
+```
 
-Password is `postgres`
+This single command starts all services, waits for health checks, and seeds the database with 50 users, ~36 positions, chats, moderation scenarios, and demographic data.
 
-Reset the database: `$ docker volume rm candid_postgres_data`
+Other modes:
+```bash
+./dev.sh --reset-db           # Reset DB volume, then start + reseed
+./dev.sh --reset-all          # Reset DB + Polis + Redis volumes
+./dev.sh --skip-seed          # Start without seeding
+./dev.sh --seed-only          # Re-run seed (services must be up)
+./dev.sh --snapshot           # Save volume state to snapshots/
+./dev.sh --reset-all --restore  # Fast reset from snapshot (~30s)
+```
 
-Reset polis and rebuild: `$ docker volume rm candid_polis_docker_data`
+## Key URLs
 
-Navigate to `127.0.0.1:8000/api/v1/ui` to use the Swagger UI to test endpoints
+| URL | Description |
+|-----|-------------|
+| http://localhost:8000/api/v1/ui | Swagger UI |
+| http://localhost:8080 | Pol.is UI |
+| ws://localhost:8002 | Chat WebSocket |
+| http://localhost:5001 | NLP Service |
 
-Pol.is frontend is running on dev mode on localhost:8080, the default login is:
+**Polis login:** `admin@polis.test` / `Te$tP@ssw0rd*`
+If Polis sign-in stalls, accept the self-signed cert at https://localhost:3000/.
 
-Username: `admin@polis.test`
+**Test users** (password: `password`): `admin1`, `moderator1`, `normal1`-`normal5`, `guest1`-`guest2`. After seeding, `normal4` is banned.
 
-Password: `Te$tP@ssw0rd*`
+## Running Tests
 
-If you get stuck at the "sign in" button, navigate to `https://localhost:3000/` and accept the security risk from the self signed certificate.
-This should allow you to reach the sign in page.
+Tests are integration tests that run against the live API:
 
-Run `backend/server/build.sh` to build the server locally, then run it from the docker container in `backend/server/generated`
+```bash
+docker compose up -d                           # Ensure services are running
+python3 -m pytest backend/tests/ -v            # All tests
+python3 -m pytest backend/tests/ -v -m smoke   # Quick smoke tests
+python3 -m pytest backend/tests/ -v -m "not mutation"  # Read-only tests
+```
 
-Start the frontend in candid/frontend: `$ frontend/start.sh`
+## Frontend
 
-Download Expo Go on your phone and scan the QR code to open the live version of the frontend.
+```bash
+frontend/start.sh             # Regenerate API client + start Expo dev server
+frontend/regenerate_api.sh    # Regenerate JS API client only
+```
 
-Rebuild the API used in the frontend: `$ frontend/regenerate_api.sh`
+Download Expo Go on your phone and scan the QR code to open the app.
 
-# Running Tests
+## Project Structure
 
-Integration tests run against the live API, so make sure the Docker environment is up first:
+```
+candid/
+├── backend/
+│   ├── server/           # Flask REST API (OpenAPI-generated + custom controllers)
+│   ├── chat-server/      # WebSocket chat service (aiohttp + Redis)
+│   ├── database/         # PostgreSQL schema and seed data
+│   ├── nlp-service/      # Sentence embeddings + NSFW detection
+│   ├── polis-sysbox/     # Pol.is Docker-in-Docker integration
+│   ├── scripts/          # Dev/ops scripts (seeding, backfills)
+│   └── tests/            # Integration test suite
+├── docs/
+│   ├── api.yaml          # OpenAPI 3.0 spec (source of truth)
+│   └── candid_app_screens/  # UI mockups
+├── frontend/
+│   ├── app/              # React Native / Expo application
+│   ├── regenerate_api.sh # API client generator
+│   └── start.sh          # Dev server startup
+├── dev.sh                # One-command dev environment setup
+└── docker-compose.yaml   # Service orchestration
+```
 
-`$ docker compose up -d`
+## Database
 
-Install test dependencies:
+```bash
+psql -h localhost -p 5432 -U user -d candid    # Connect (password: postgres)
+docker volume rm candid_postgres_data          # Reset database
+docker volume rm candid_polis_docker_data      # Reset Polis
+```
 
-`$ pip install pytest requests`
+## Rebuilding Generated Code
 
-Run all tests:
+```bash
+backend/server/build.sh       # Rebuild Flask server from OpenAPI spec
+frontend/regenerate_api.sh    # Rebuild JS API client from OpenAPI spec
+```
 
-`$ pytest backend/tests/ -v`
-
-Run only quick smoke tests:
-
-`$ pytest backend/tests/ -v -m smoke`
-
-Run only non-mutating tests (skip tests that write to the database):
-
-`$ pytest backend/tests/ -v -m "not mutation"`
+After regenerating the frontend API client, re-run npm linking:
+```bash
+cd frontend/api && npm link && cd ../app && npm link ../api/
+```

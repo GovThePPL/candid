@@ -10,8 +10,12 @@ Candid is a chat platform for peaceful and productive discussion of issues of pu
 
 ### Starting the environment
 ```bash
-docker compose up -d          # Start all services
-docker compose up -d --build  # Rebuild and start
+./dev.sh                      # Start all services, wait for readiness, seed if needed
+./dev.sh --reset-db           # Reset DB volume, then start + reseed
+./dev.sh --reset-all          # Reset DB + Polis + Redis volumes, then start + reseed
+./dev.sh --skip-seed          # Start services without running seed script
+./dev.sh --seed-only          # Only run seed (services must already be up)
+docker compose up -d --build  # Manual start (no auto-seed or health checks)
 ```
 
 ### Database
@@ -70,7 +74,7 @@ Runs Pol.is as a Docker-in-Docker container using the Sysbox runtime. The `polis
 
 ### Database (backend/database/)
 
-PostgreSQL 17 with schema in `01-schema.sql` and test data in `02-basic-data.sql`. The schema has 24 tables covering users (4 role types), position statements, chat logs, moderation (reports/actions/appeals), surveys, and demographics. Default test password for all seeded users is `password`.
+PostgreSQL 17 with schema in `01-schema.sql` and test data in `02-basic-data.sql` (infrastructure-only: users, categories, locations, rules, surveys, and test-critical positions/chats). Rich dev data (50 generated users, ~36 positions with coherent voting, chats, moderation scenarios, demographics, pairwise data) is created by `backend/scripts/seed_dev_data.py`, which runs automatically via `./dev.sh`. After seeding, `normal4` is banned. Default test password for all seeded users is `password`.
 
 ## Docker Services and Ports
 
@@ -98,6 +102,10 @@ PostgreSQL 17 with schema in `01-schema.sql` and test data in `02-basic-data.sql
 - **Position timeouts**: Implement expiration/archival of positions after a configurable time period.
 
 ## Development Workflow
+
+### README Maintenance
+
+Each directory contains a README.md describing its purpose and structure. Before committing, update any README.md files affected by your changes -- if you added, removed, or renamed files, or changed the design/structure of a directory, update its README.md to reflect the current state.
 
 ### Test-Driven Development
 

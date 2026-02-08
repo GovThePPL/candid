@@ -375,6 +375,13 @@ CREATE TABLE polis_conversation (
     UNIQUE(location_id, category_id, active_from)
 );
 
+-- PostgreSQL UNIQUE constraints treat NULLs as distinct, so the above constraint
+-- doesn't prevent duplicate location_all conversations (where category_id IS NULL).
+-- This partial index ensures at most one location_all per location per window.
+CREATE UNIQUE INDEX uq_polis_conversation_location_all
+    ON polis_conversation (location_id, active_from)
+    WHERE category_id IS NULL;
+
 COMMENT ON TABLE polis_conversation IS 'Maps Candid location+category combinations to time-windowed Polis conversations';
 
 -- Polis integration: Map positions to Polis comments

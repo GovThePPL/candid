@@ -9,3 +9,27 @@ node_modules/
 openapitools.json
 frontend/openapitools.json
 backend/server/openapitools.json
+
+# Testing / coverage
+.coverage
+.coverage.*
+.pytest_cache/
+htmlcov/
+
+# Debug artifacts
+docs/debug/
+*.har
+
+# Environment variables
+.env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Dev snapshots (large binary tar files)
+snapshots/

@@ -217,22 +217,45 @@ def get_or_create_conversation(
         if not polis_conv_id:
             return None
 
-        # Store mapping
-        db.execute_query("""
-            INSERT INTO polis_conversation
-            (id, location_id, category_id, polis_conversation_id, conversation_type, active_from, active_until)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """, (
-            str(uuid.uuid4()),
-            location_id,
-            category_id,
-            polis_conv_id,
-            conversation_type,
-            active_from,
-            active_until
-        ))
+        # Store mapping (ON CONFLICT handles race conditions from parallel workers)
+        if category_id:
+            result = db.execute_query("""
+                INSERT INTO polis_conversation
+                (id, location_id, category_id, polis_conversation_id, conversation_type, active_from, active_until)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (location_id, category_id, active_from) DO NOTHING
+                RETURNING polis_conversation_id
+            """, (
+                str(uuid.uuid4()), location_id, category_id,
+                polis_conv_id, conversation_type, active_from, active_until
+            ), fetchone=True)
+        else:
+            result = db.execute_query("""
+                INSERT INTO polis_conversation
+                (id, location_id, category_id, polis_conversation_id, conversation_type, active_from, active_until)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (location_id, active_from) WHERE category_id IS NULL DO NOTHING
+                RETURNING polis_conversation_id
+            """, (
+                str(uuid.uuid4()), location_id, None,
+                polis_conv_id, conversation_type, active_from, active_until
+            ), fetchone=True)
 
-        return polis_conv_id
+        if result:
+            return polis_conv_id
+
+        # Another worker won the race — return the existing conversation
+        if category_id:
+            existing = db.execute_query("""
+                SELECT polis_conversation_id FROM polis_conversation
+                WHERE location_id = %s AND category_id = %s AND active_from = %s
+            """, (location_id, category_id, active_from), fetchone=True)
+        else:
+            existing = db.execute_query("""
+                SELECT polis_conversation_id FROM polis_conversation
+                WHERE location_id = %s AND category_id IS NULL AND active_from = %s
+            """, (location_id, active_from), fetchone=True)
+        return existing["polis_conversation_id"] if existing else None
 
     except PolisError as e:
         print(f"Failed to create Polis conversation: {e}", flush=True)

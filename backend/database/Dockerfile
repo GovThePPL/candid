@@ -15,6 +15,7 @@ ENV POSTGRES_PASSWORD=postgres
 # All migrations have been rolled into schema.sql (pre-production)
 COPY sql/schema.sql /docker-entrypoint-initdb.d/01-schema.sql
 COPY test_data/basic.sql /docker-entrypoint-initdb.d/02-basic-data.sql
+COPY test_data/pairwise_surveys.sql /docker-entrypoint-initdb.d/03-pairwise-data.sql
 
 # Expose the default PostgreSQL port
 EXPOSE 5432

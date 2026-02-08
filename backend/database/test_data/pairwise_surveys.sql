@@ -34,12 +34,17 @@ DECLARE
     v_environment_survey UUID;
     v_immigration_survey UUID;
 
-    -- Item IDs for all-categories survey
+    -- Item IDs for all-categories survey (10 community labels)
     v_item_progressive UUID;
-    v_item_conservative UUID;
+    v_item_liberal UUID;
+    v_item_social_democrat UUID;
+    v_item_socialist UUID;
     v_item_moderate UUID;
+    v_item_centrist UUID;
     v_item_libertarian UUID;
-    v_item_pragmatic UUID;
+    v_item_conservative UUID;
+    v_item_populist UUID;
+    v_item_traditionalist UUID;
 
     -- Item IDs for healthcare
     v_hc_universal UUID;
@@ -85,80 +90,121 @@ BEGIN
     -- ============================================
     -- ALL CATEGORIES SURVEY (general political identity labels)
     -- ============================================
-    INSERT INTO survey (id, survey_title, survey_type, comparison_question, status, start_time, end_time, created_time)
+    INSERT INTO survey (id, survey_title, survey_type, comparison_question, status, location_id, start_time, end_time, created_time)
     VALUES (
         uuid_generate_v4(),
         'Oregon Community Labels',
         'pairwise',
         'Which label better describes your political views?',
         'active',
+        'ba5e3dcf-af51-47f4-941d-ee3448ee826a',
         NOW() - INTERVAL '7 days',
         NOW() + INTERVAL '30 days',
         NOW() - INTERVAL '7 days'
     ) RETURNING id INTO v_all_categories_survey;
 
-    -- Items for all-categories survey
+    -- Items for all-categories survey (10 community labels spanning the political spectrum)
     INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
     VALUES (uuid_generate_v4(), v_all_categories_survey, 'Progressive', 1)
     RETURNING id INTO v_item_progressive;
 
     INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
-    VALUES (uuid_generate_v4(), v_all_categories_survey, 'Conservative', 2)
-    RETURNING id INTO v_item_conservative;
+    VALUES (uuid_generate_v4(), v_all_categories_survey, 'Liberal', 2)
+    RETURNING id INTO v_item_liberal;
 
     INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
-    VALUES (uuid_generate_v4(), v_all_categories_survey, 'Moderate', 3)
+    VALUES (uuid_generate_v4(), v_all_categories_survey, 'Social Democrat', 3)
+    RETURNING id INTO v_item_social_democrat;
+
+    INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
+    VALUES (uuid_generate_v4(), v_all_categories_survey, 'Socialist', 4)
+    RETURNING id INTO v_item_socialist;
+
+    INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
+    VALUES (uuid_generate_v4(), v_all_categories_survey, 'Moderate', 5)
     RETURNING id INTO v_item_moderate;
 
     INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
-    VALUES (uuid_generate_v4(), v_all_categories_survey, 'Libertarian', 4)
+    VALUES (uuid_generate_v4(), v_all_categories_survey, 'Centrist', 6)
+    RETURNING id INTO v_item_centrist;
+
+    INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
+    VALUES (uuid_generate_v4(), v_all_categories_survey, 'Libertarian', 7)
     RETURNING id INTO v_item_libertarian;
 
     INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
-    VALUES (uuid_generate_v4(), v_all_categories_survey, 'Pragmatic', 5)
-    RETURNING id INTO v_item_pragmatic;
+    VALUES (uuid_generate_v4(), v_all_categories_survey, 'Conservative', 8)
+    RETURNING id INTO v_item_conservative;
 
-    -- Responses for all-categories survey
-    -- Liberal users (admin1, normal1, normal3) prefer Progressive
+    INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
+    VALUES (uuid_generate_v4(), v_all_categories_survey, 'Populist', 9)
+    RETURNING id INTO v_item_populist;
+
+    INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
+    VALUES (uuid_generate_v4(), v_all_categories_survey, 'Traditionalist', 10)
+    RETURNING id INTO v_item_traditionalist;
+
+    -- Responses for all-categories survey (belief-coherent with 10 labels)
+    -- admin1 (liberal): prefers Liberal, Progressive over right-leaning labels
     INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
-    VALUES (v_all_categories_survey, v_admin1_id, v_item_progressive, v_item_conservative);
+    VALUES (v_all_categories_survey, v_admin1_id, v_item_liberal, v_item_conservative);
+    INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+    VALUES (v_all_categories_survey, v_admin1_id, v_item_progressive, v_item_traditionalist);
+
+    -- normal1 (progressive): prefers Progressive, Social Democrat over right-leaning
     INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
     VALUES (v_all_categories_survey, v_normal1_id, v_item_progressive, v_item_conservative);
     INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
-    VALUES (v_all_categories_survey, v_normal1_id, v_item_progressive, v_item_moderate);
-    INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
-    VALUES (v_all_categories_survey, v_normal3_id, v_item_progressive, v_item_libertarian);
+    VALUES (v_all_categories_survey, v_normal1_id, v_item_social_democrat, v_item_populist);
 
-    -- Conservative users (mod1, normal2, normal4) prefer Conservative
+    -- normal3 (liberal): prefers Liberal over Libertarian
+    INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+    VALUES (v_all_categories_survey, v_normal3_id, v_item_liberal, v_item_libertarian);
+    INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+    VALUES (v_all_categories_survey, v_normal3_id, v_item_progressive, v_item_populist);
+
+    -- mod1 (conservative): prefers Conservative, Libertarian over left-leaning
     INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
     VALUES (v_all_categories_survey, v_mod1_id, v_item_conservative, v_item_progressive);
     INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
-    VALUES (v_all_categories_survey, v_normal2_id, v_item_conservative, v_item_progressive);
-    INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
-    VALUES (v_all_categories_survey, v_normal4_id, v_item_conservative, v_item_progressive);
-    INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
-    VALUES (v_all_categories_survey, v_normal4_id, v_item_conservative, v_item_moderate);
+    VALUES (v_all_categories_survey, v_mod1_id, v_item_libertarian, v_item_socialist);
 
-    -- Moderate user (mod2) prefers Moderate or Pragmatic
+    -- normal2 (conservative): prefers Conservative over Socialist
     INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
-    VALUES (v_all_categories_survey, v_mod2_id, v_item_moderate, v_item_progressive);
+    VALUES (v_all_categories_survey, v_normal2_id, v_item_conservative, v_item_socialist);
     INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
-    VALUES (v_all_categories_survey, v_mod2_id, v_item_pragmatic, v_item_conservative);
+    VALUES (v_all_categories_survey, v_normal2_id, v_item_centrist, v_item_progressive);
 
-    -- normal5 (no lean) votes randomly
+    -- normal4 (populist): prefers Populist, Traditionalist over left-leaning
     INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
-    VALUES (v_all_categories_survey, v_normal5_id, v_item_pragmatic, v_item_libertarian);
+    VALUES (v_all_categories_survey, v_normal4_id, v_item_populist, v_item_progressive);
+    INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+    VALUES (v_all_categories_survey, v_normal4_id, v_item_traditionalist, v_item_liberal);
+
+    -- mod2 (moderate): prefers Moderate, Centrist
+    INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+    VALUES (v_all_categories_survey, v_mod2_id, v_item_moderate, v_item_traditionalist);
+    INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+    VALUES (v_all_categories_survey, v_mod2_id, v_item_centrist, v_item_socialist);
+
+    -- normal5 (centrist/no lean): prefers Centrist, Moderate
+    INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+    VALUES (v_all_categories_survey, v_normal5_id, v_item_centrist, v_item_populist);
+    INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+    VALUES (v_all_categories_survey, v_normal5_id, v_item_moderate, v_item_socialist);
 
     -- ============================================
     -- HEALTHCARE SURVEY
     -- ============================================
-    INSERT INTO survey (id, survey_title, survey_type, comparison_question, status, start_time, end_time, created_time)
+    INSERT INTO survey (id, survey_title, survey_type, comparison_question, status, location_id, position_category_id, start_time, end_time, created_time)
     VALUES (
         uuid_generate_v4(),
         'Healthcare Policy Labels',
         'pairwise',
         'Which label better describes your healthcare views?',
         'active',
+        'ba5e3dcf-af51-47f4-941d-ee3448ee826a',
+        '4d439108-2128-46ec-b4b2-80ec3dbf6aa3',
         NOW() - INTERVAL '7 days',
         NOW() + INTERVAL '30 days',
         NOW() - INTERVAL '7 days'
@@ -209,13 +255,15 @@ BEGIN
     -- ============================================
     -- ECONOMY SURVEY
     -- ============================================
-    INSERT INTO survey (id, survey_title, survey_type, comparison_question, status, start_time, end_time, created_time)
+    INSERT INTO survey (id, survey_title, survey_type, comparison_question, status, location_id, position_category_id, start_time, end_time, created_time)
     VALUES (
         uuid_generate_v4(),
         'Economy & Tax Policy Labels',
         'pairwise',
         'Which label better describes your economic views?',
         'active',
+        'ba5e3dcf-af51-47f4-941d-ee3448ee826a',
+        '63e233e9-187e-441f-a7a9-f5f44dffadf0',
         NOW() - INTERVAL '7 days',
         NOW() + INTERVAL '30 days',
         NOW() - INTERVAL '7 days'
@@ -262,13 +310,15 @@ BEGIN
     -- ============================================
     -- EDUCATION SURVEY
     -- ============================================
-    INSERT INTO survey (id, survey_title, survey_type, comparison_question, status, start_time, end_time, created_time)
+    INSERT INTO survey (id, survey_title, survey_type, comparison_question, status, location_id, position_category_id, start_time, end_time, created_time)
     VALUES (
         uuid_generate_v4(),
         'Education Policy Labels',
         'pairwise',
         'Which label better describes your education views?',
         'active',
+        'ba5e3dcf-af51-47f4-941d-ee3448ee826a',
+        'be3305f5-df1a-4cf5-855e-49a88ed3cbd3',
         NOW() - INTERVAL '7 days',
         NOW() + INTERVAL '30 days',
         NOW() - INTERVAL '7 days'
@@ -313,13 +363,15 @@ BEGIN
     -- ============================================
     -- ENVIRONMENT SURVEY
     -- ============================================
-    INSERT INTO survey (id, survey_title, survey_type, comparison_question, status, start_time, end_time, created_time)
+    INSERT INTO survey (id, survey_title, survey_type, comparison_question, status, location_id, position_category_id, start_time, end_time, created_time)
     VALUES (
         uuid_generate_v4(),
         'Environment & Climate Labels',
         'pairwise',
         'Which label better describes your environmental views?',
         'active',
+        'ba5e3dcf-af51-47f4-941d-ee3448ee826a',
+        '66344e48-ecfe-4b7f-aa33-fe05e0d08873',
         NOW() - INTERVAL '7 days',
         NOW() + INTERVAL '30 days',
         NOW() - INTERVAL '7 days'
@@ -370,13 +422,15 @@ BEGIN
     -- ============================================
     -- IMMIGRATION SURVEY
     -- ============================================
-    INSERT INTO survey (id, survey_title, survey_type, comparison_question, status, start_time, end_time, created_time)
+    INSERT INTO survey (id, survey_title, survey_type, comparison_question, status, location_id, position_category_id, start_time, end_time, created_time)
     VALUES (
         uuid_generate_v4(),
         'Immigration Policy Labels',
         'pairwise',
         'Which label better describes your immigration views?',
         'active',
+        'ba5e3dcf-af51-47f4-941d-ee3448ee826a',
+        'e2e608f7-169e-409b-9678-6dee57fab9c3',
         NOW() - INTERVAL '7 days',
         NOW() + INTERVAL '30 days',
         NOW() - INTERVAL '7 days'
@@ -428,7 +482,340 @@ BEGIN
     INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
     VALUES (v_immigration_survey, v_normal5_id, v_imm_pathway, v_imm_merit);
 
+    -- ============================================
+    -- CIVIL RIGHTS & LIBERTIES SURVEY
+    -- ============================================
+    DECLARE
+        v_civil_rights_survey UUID;
+        v_cr_rights_expansion UUID;
+        v_cr_constitutional UUID;
+        v_cr_balanced UUID;
+        v_cr_civil_libertarian UUID;
+    BEGIN
+        INSERT INTO survey (id, survey_title, survey_type, comparison_question, status, location_id, position_category_id, start_time, end_time, created_time)
+        VALUES (
+            uuid_generate_v4(),
+            'Civil Rights Policy Labels',
+            'pairwise',
+            'Which label better describes your civil rights views?',
+            'active',
+            'ba5e3dcf-af51-47f4-941d-ee3448ee826a',
+            '2d83d6eb-3000-47eb-b136-9d1c44f9b98d',
+            NOW() - INTERVAL '7 days',
+            NOW() + INTERVAL '30 days',
+            NOW() - INTERVAL '7 days'
+        ) RETURNING id INTO v_civil_rights_survey;
+
+        INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
+        VALUES (uuid_generate_v4(), v_civil_rights_survey, 'Rights Expansion', 1)
+        RETURNING id INTO v_cr_rights_expansion;
+
+        INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
+        VALUES (uuid_generate_v4(), v_civil_rights_survey, 'Constitutional Originalist', 2)
+        RETURNING id INTO v_cr_constitutional;
+
+        INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
+        VALUES (uuid_generate_v4(), v_civil_rights_survey, 'Balanced Protection', 3)
+        RETURNING id INTO v_cr_balanced;
+
+        INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
+        VALUES (uuid_generate_v4(), v_civil_rights_survey, 'Civil Libertarian', 4)
+        RETURNING id INTO v_cr_civil_libertarian;
+
+        -- Liberal users prefer Rights Expansion
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_civil_rights_survey, v_admin1_id, v_cr_rights_expansion, v_cr_constitutional);
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_civil_rights_survey, v_normal1_id, v_cr_rights_expansion, v_cr_constitutional);
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_civil_rights_survey, v_normal3_id, v_cr_rights_expansion, v_cr_balanced);
+
+        -- Conservative users prefer Constitutional Originalist
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_civil_rights_survey, v_mod1_id, v_cr_constitutional, v_cr_rights_expansion);
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_civil_rights_survey, v_normal2_id, v_cr_constitutional, v_cr_rights_expansion);
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_civil_rights_survey, v_normal4_id, v_cr_constitutional, v_cr_rights_expansion);
+
+        -- Moderate prefers Balanced
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_civil_rights_survey, v_mod2_id, v_cr_balanced, v_cr_constitutional);
+
+        -- normal5 prefers Civil Libertarian
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_civil_rights_survey, v_normal5_id, v_cr_civil_libertarian, v_cr_balanced);
+    END;
+
+    -- ============================================
+    -- CRIMINAL JUSTICE SURVEY
+    -- ============================================
+    DECLARE
+        v_criminal_justice_survey UUID;
+        v_cj_reform UUID;
+        v_cj_tough UUID;
+        v_cj_restorative UUID;
+        v_cj_balanced UUID;
+    BEGIN
+        INSERT INTO survey (id, survey_title, survey_type, comparison_question, status, location_id, position_category_id, start_time, end_time, created_time)
+        VALUES (
+            uuid_generate_v4(),
+            'Criminal Justice Policy Labels',
+            'pairwise',
+            'Which label better describes your criminal justice views?',
+            'active',
+            'ba5e3dcf-af51-47f4-941d-ee3448ee826a',
+            '04edc480-aded-4b93-94c4-d62cbb507dc4',
+            NOW() - INTERVAL '7 days',
+            NOW() + INTERVAL '30 days',
+            NOW() - INTERVAL '7 days'
+        ) RETURNING id INTO v_criminal_justice_survey;
+
+        INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
+        VALUES (uuid_generate_v4(), v_criminal_justice_survey, 'Reform & Rehabilitation', 1)
+        RETURNING id INTO v_cj_reform;
+
+        INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
+        VALUES (uuid_generate_v4(), v_criminal_justice_survey, 'Tough on Crime', 2)
+        RETURNING id INTO v_cj_tough;
+
+        INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
+        VALUES (uuid_generate_v4(), v_criminal_justice_survey, 'Restorative Justice', 3)
+        RETURNING id INTO v_cj_restorative;
+
+        INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
+        VALUES (uuid_generate_v4(), v_criminal_justice_survey, 'Balanced Approach', 4)
+        RETURNING id INTO v_cj_balanced;
+
+        -- Liberal users prefer Reform & Rehabilitation / Restorative
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_criminal_justice_survey, v_admin1_id, v_cj_reform, v_cj_tough);
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_criminal_justice_survey, v_normal1_id, v_cj_restorative, v_cj_tough);
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_criminal_justice_survey, v_normal3_id, v_cj_reform, v_cj_tough);
+
+        -- Conservative users prefer Tough on Crime
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_criminal_justice_survey, v_mod1_id, v_cj_tough, v_cj_reform);
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_criminal_justice_survey, v_normal2_id, v_cj_tough, v_cj_restorative);
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_criminal_justice_survey, v_normal4_id, v_cj_tough, v_cj_reform);
+
+        -- Moderate prefers Balanced
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_criminal_justice_survey, v_mod2_id, v_cj_balanced, v_cj_tough);
+
+        -- normal5 prefers Balanced
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_criminal_justice_survey, v_normal5_id, v_cj_balanced, v_cj_reform);
+    END;
+
+    -- ============================================
+    -- FOREIGN POLICY & DEFENSE SURVEY
+    -- ============================================
+    DECLARE
+        v_foreign_policy_survey UUID;
+        v_fp_diplomacy UUID;
+        v_fp_strength UUID;
+        v_fp_nonintervention UUID;
+        v_fp_global_leadership UUID;
+    BEGIN
+        INSERT INTO survey (id, survey_title, survey_type, comparison_question, status, location_id, position_category_id, start_time, end_time, created_time)
+        VALUES (
+            uuid_generate_v4(),
+            'Foreign Policy Labels',
+            'pairwise',
+            'Which label better describes your foreign policy views?',
+            'active',
+            'ba5e3dcf-af51-47f4-941d-ee3448ee826a',
+            '92d7131c-bf5c-40c1-89ef-e58b40e67bc8',
+            NOW() - INTERVAL '7 days',
+            NOW() + INTERVAL '30 days',
+            NOW() - INTERVAL '7 days'
+        ) RETURNING id INTO v_foreign_policy_survey;
+
+        INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
+        VALUES (uuid_generate_v4(), v_foreign_policy_survey, 'Diplomacy First', 1)
+        RETURNING id INTO v_fp_diplomacy;
+
+        INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
+        VALUES (uuid_generate_v4(), v_foreign_policy_survey, 'Peace Through Strength', 2)
+        RETURNING id INTO v_fp_strength;
+
+        INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
+        VALUES (uuid_generate_v4(), v_foreign_policy_survey, 'Non-Interventionist', 3)
+        RETURNING id INTO v_fp_nonintervention;
+
+        INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
+        VALUES (uuid_generate_v4(), v_foreign_policy_survey, 'Global Leadership', 4)
+        RETURNING id INTO v_fp_global_leadership;
+
+        -- Liberal users prefer Diplomacy First
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_foreign_policy_survey, v_admin1_id, v_fp_diplomacy, v_fp_strength);
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_foreign_policy_survey, v_normal1_id, v_fp_diplomacy, v_fp_strength);
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_foreign_policy_survey, v_normal3_id, v_fp_diplomacy, v_fp_global_leadership);
+
+        -- Conservative users prefer Peace Through Strength
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_foreign_policy_survey, v_mod1_id, v_fp_strength, v_fp_diplomacy);
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_foreign_policy_survey, v_normal2_id, v_fp_strength, v_fp_diplomacy);
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_foreign_policy_survey, v_normal4_id, v_fp_strength, v_fp_nonintervention);
+
+        -- Moderate prefers Global Leadership
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_foreign_policy_survey, v_mod2_id, v_fp_global_leadership, v_fp_strength);
+
+        -- normal5 prefers Non-Interventionist
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_foreign_policy_survey, v_normal5_id, v_fp_nonintervention, v_fp_diplomacy);
+    END;
+
+    -- ============================================
+    -- GOVERNMENT & DEMOCRACY SURVEY
+    -- ============================================
+    DECLARE
+        v_government_survey UUID;
+        v_gov_active UUID;
+        v_gov_limited UUID;
+        v_gov_direct UUID;
+        v_gov_constitutional UUID;
+    BEGIN
+        INSERT INTO survey (id, survey_title, survey_type, comparison_question, status, location_id, position_category_id, start_time, end_time, created_time)
+        VALUES (
+            uuid_generate_v4(),
+            'Government & Democracy Labels',
+            'pairwise',
+            'Which label better describes your government views?',
+            'active',
+            'ba5e3dcf-af51-47f4-941d-ee3448ee826a',
+            'cdc48d27-d636-481b-90b2-d6f6a2e6780e',
+            NOW() - INTERVAL '7 days',
+            NOW() + INTERVAL '30 days',
+            NOW() - INTERVAL '7 days'
+        ) RETURNING id INTO v_government_survey;
+
+        INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
+        VALUES (uuid_generate_v4(), v_government_survey, 'Active Government', 1)
+        RETURNING id INTO v_gov_active;
+
+        INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
+        VALUES (uuid_generate_v4(), v_government_survey, 'Limited Government', 2)
+        RETURNING id INTO v_gov_limited;
+
+        INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
+        VALUES (uuid_generate_v4(), v_government_survey, 'Direct Democracy', 3)
+        RETURNING id INTO v_gov_direct;
+
+        INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
+        VALUES (uuid_generate_v4(), v_government_survey, 'Constitutional Republic', 4)
+        RETURNING id INTO v_gov_constitutional;
+
+        -- Liberal users prefer Active Government
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_government_survey, v_admin1_id, v_gov_active, v_gov_limited);
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_government_survey, v_normal1_id, v_gov_active, v_gov_limited);
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_government_survey, v_normal1_id, v_gov_direct, v_gov_constitutional);
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_government_survey, v_normal3_id, v_gov_active, v_gov_constitutional);
+
+        -- Conservative users prefer Limited Government / Constitutional Republic
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_government_survey, v_mod1_id, v_gov_limited, v_gov_active);
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_government_survey, v_normal2_id, v_gov_constitutional, v_gov_direct);
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_government_survey, v_normal4_id, v_gov_limited, v_gov_active);
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_government_survey, v_normal4_id, v_gov_constitutional, v_gov_direct);
+
+        -- Moderate prefers Direct Democracy
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_government_survey, v_mod2_id, v_gov_direct, v_gov_limited);
+
+        -- normal5 prefers Constitutional Republic
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_government_survey, v_normal5_id, v_gov_constitutional, v_gov_active);
+    END;
+
+    -- ============================================
+    -- SOCIAL ISSUES SURVEY
+    -- ============================================
+    DECLARE
+        v_social_survey UUID;
+        v_si_progressive UUID;
+        v_si_conservative UUID;
+        v_si_individual UUID;
+        v_si_community UUID;
+    BEGIN
+        INSERT INTO survey (id, survey_title, survey_type, comparison_question, status, location_id, position_category_id, start_time, end_time, created_time)
+        VALUES (
+            uuid_generate_v4(),
+            'Social Issues Labels',
+            'pairwise',
+            'Which label better describes your social views?',
+            'active',
+            'ba5e3dcf-af51-47f4-941d-ee3448ee826a',
+            '26c8146e-d080-419e-b98b-5089c3a81b5b',
+            NOW() - INTERVAL '7 days',
+            NOW() + INTERVAL '30 days',
+            NOW() - INTERVAL '7 days'
+        ) RETURNING id INTO v_social_survey;
+
+        INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
+        VALUES (uuid_generate_v4(), v_social_survey, 'Social Progressive', 1)
+        RETURNING id INTO v_si_progressive;
+
+        INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
+        VALUES (uuid_generate_v4(), v_social_survey, 'Social Conservative', 2)
+        RETURNING id INTO v_si_conservative;
+
+        INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
+        VALUES (uuid_generate_v4(), v_social_survey, 'Individual Liberty', 3)
+        RETURNING id INTO v_si_individual;
+
+        INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
+        VALUES (uuid_generate_v4(), v_social_survey, 'Community Values', 4)
+        RETURNING id INTO v_si_community;
+
+        -- Liberal users prefer Social Progressive
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_social_survey, v_admin1_id, v_si_progressive, v_si_conservative);
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_social_survey, v_normal1_id, v_si_progressive, v_si_conservative);
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_social_survey, v_normal1_id, v_si_progressive, v_si_community);
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_social_survey, v_normal3_id, v_si_progressive, v_si_conservative);
+
+        -- Conservative users prefer Social Conservative / Community Values
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_social_survey, v_mod1_id, v_si_conservative, v_si_progressive);
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_social_survey, v_normal2_id, v_si_community, v_si_progressive);
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_social_survey, v_normal4_id, v_si_conservative, v_si_progressive);
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_social_survey, v_normal4_id, v_si_community, v_si_individual);
+
+        -- Moderate prefers Individual Liberty
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_social_survey, v_mod2_id, v_si_individual, v_si_conservative);
+
+        -- normal5 prefers Individual Liberty
+        INSERT INTO pairwise_response (survey_id, user_id, winner_item_id, loser_item_id)
+        VALUES (v_social_survey, v_normal5_id, v_si_individual, v_si_community);
+    END;
+
     RAISE NOTICE 'Pairwise survey test data created successfully';
-    RAISE NOTICE 'Created 6 surveys: All Categories, Healthcare, Economy, Education, Environment, Immigration';
-    RAISE NOTICE 'Users responded based on ideological leanings';
+    RAISE NOTICE 'Created 11 surveys: All Categories (10 labels), Healthcare, Economy, Education, Environment, Immigration, Civil Rights, Criminal Justice, Foreign Policy, Government, Social Issues';
+    RAISE NOTICE 'Users responded based on ideological leanings (10 belief systems)';
 END $$;

@@ -1,5 +1,7 @@
 """Shared fixtures for Candid API integration tests."""
 
+import os
+import subprocess
 import pytest
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -13,6 +15,14 @@ CHAT_SERVER_URL = "http://127.0.0.1:8002"
 DEFAULT_PASSWORD = "password"
 DB_URL = "postgresql://user:postgres@localhost:5432/candid"
 REDIS_URL = "redis://localhost:6379"
+
+# Path to the snapshot file used for DB save/restore around test sessions
+_DB_SNAPSHOT_PATH = "/tmp/candid_pre_test.dump"
+
+# Paths to the SQL seed files (relative to repo root)
+_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+_BASIC_SQL = os.path.join(_REPO_ROOT, "backend", "database", "test_data", "basic.sql")
+_PAIRWISE_SQL = os.path.join(_REPO_ROOT, "backend", "database", "test_data", "pairwise_surveys.sql")
 
 # ---------------------------------------------------------------------------
 # Known UUIDs from seed data (backend/database/test_data/basic.sql)
@@ -232,32 +242,132 @@ def get_chat_log_from_db(chat_id):
 
 
 # ---------------------------------------------------------------------------
+# DB snapshot / restore — swap in minimal test data, restore after
+# ---------------------------------------------------------------------------
+
+def _snapshot_db():
+    """Save current DB data to a dump file via docker exec (avoids pg version mismatch).
+
+    Pipes pg_dump output through stdout to avoid file permission issues
+    inside the container.
+    """
+    result = subprocess.run(
+        ["docker", "compose", "exec", "-T", "db",
+         "pg_dump", "-U", "user", "-d", "candid", "--data-only", "-Fc"],
+        check=True, capture_output=True,
+    )
+    with open(_DB_SNAPSHOT_PATH, "wb") as f:
+        f.write(result.stdout)
+
+
+def _load_test_data():
+    """Truncate all tables and reload minimal test seed data.
+
+    Also clears polis_sync_queue so the Polis worker doesn't sync test
+    artifacts to Polis during the test run.
+    """
+    conn = psycopg2.connect(DB_URL)
+    conn.autocommit = True
+    try:
+        with conn.cursor() as cur:
+            # Get all user-created tables
+            cur.execute("""
+                SELECT tablename FROM pg_tables
+                WHERE schemaname = 'public'
+                ORDER BY tablename
+            """)
+            tables = [r[0] for r in cur.fetchall()]
+
+            # Truncate everything (CASCADE handles FK dependencies)
+            if tables:
+                cur.execute(
+                    f"TRUNCATE TABLE {', '.join(tables)} RESTART IDENTITY CASCADE"
+                )
+
+            # Reload minimal seed data
+            with open(_BASIC_SQL, "r") as f:
+                cur.execute(f.read())
+            with open(_PAIRWISE_SQL, "r") as f:
+                cur.execute(f.read())
+
+            # Clear any Polis sync queue entries so test data doesn't leak
+            cur.execute("TRUNCATE TABLE polis_sync_queue")
+    finally:
+        conn.close()
+
+
+def _restore_snapshot():
+    """Truncate all tables and restore from the pre-test snapshot."""
+    conn = psycopg2.connect(DB_URL)
+    conn.autocommit = True
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT tablename FROM pg_tables
+                WHERE schemaname = 'public'
+                ORDER BY tablename
+            """)
+            tables = [r[0] for r in cur.fetchall()]
+            if tables:
+                cur.execute(
+                    f"TRUNCATE TABLE {', '.join(tables)} RESTART IDENTITY CASCADE"
+                )
+    finally:
+        conn.close()
+
+    # Pipe dump into pg_restore via stdin
+    with open(_DB_SNAPSHOT_PATH, "rb") as f:
+        subprocess.run(
+            ["docker", "compose", "exec", "-T", "db",
+             "pg_restore", "-U", "user", "-d", "candid", "--data-only",
+             "--disable-triggers"],
+            check=True, input=f.read(), capture_output=True,
+        )
+
+
+def _clear_redis_ban_cache():
+    """Clear Redis ban cache so auth checks see fresh DB status."""
+    try:
+        r = redis.from_url(REDIS_URL, encoding="utf-8", decode_responses=True)
+        for key in r.keys("ban_status:*"):
+            r.delete(key)
+        r.close()
+    except Exception:
+        pass
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _db_snapshot_restore():
+    """Snapshot the current DB (seeded dev data), swap in minimal test data,
+    and restore the original state after all tests complete.
+
+    This keeps seeded/Polis data safe from test pollution and prevents test
+    data from being synced to Polis.
+    """
+    # --- Setup: save current state, load minimal test data ---
+    _snapshot_db()
+    _load_test_data()
+    _clear_redis_ban_cache()
+
+    yield
+
+    # --- Teardown: restore original state ---
+    _restore_snapshot()
+    _clear_redis_ban_cache()
+
+
+# ---------------------------------------------------------------------------
 # Session-scoped token fixtures (login once per test run)
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(scope="session", autouse=True)
-def _ensure_seed_users_active():
+def _ensure_seed_users_active(_db_snapshot_restore):
     """Ensure admin1 and normal4 are active at the start of each test session.
-    Moderation tests may ban these users, breaking later tests."""
+    Moderation tests may ban these users, breaking later tests.
+    Depends on _db_snapshot_restore so it runs after the DB is loaded."""
     db_execute("UPDATE users SET status = 'active' WHERE username IN ('admin1', 'normal4')")
-    # Clear Redis ban cache so auth checks see the updated status
-    try:
-        r = redis.from_url(REDIS_URL, encoding="utf-8", decode_responses=True)
-        for key in r.keys("ban_status:*"):
-            r.delete(key)
-        r.close()
-    except Exception:
-        pass
+    _clear_redis_ban_cache()
     yield
-    # Also restore at end of session
-    db_execute("UPDATE users SET status = 'active' WHERE username IN ('admin1', 'normal4')")
-    try:
-        r = redis.from_url(REDIS_URL, encoding="utf-8", decode_responses=True)
-        for key in r.keys("ban_status:*"):
-            r.delete(key)
-        r.close()
-    except Exception:
-        pass
 
 
 @pytest.fixture(scope="session")
