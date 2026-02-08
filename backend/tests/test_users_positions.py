@@ -35,7 +35,8 @@ class TestGetCurrentUserPositions:
         body = resp.json()
         assert len(body) > 0
         pos = body[0]
-        for field in ("id", "positionId", "status", "statement", "categoryId"):
+        for field in ("id", "positionId", "status", "statement", "categoryId",
+                      "locationName", "locationCode", "categoryName"):
             assert field in pos, f"Missing field: {field}"
 
     def test_admin_has_positions(self, admin_headers):

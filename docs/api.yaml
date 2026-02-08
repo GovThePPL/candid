@@ -308,6 +308,9 @@ components:
         locationName:
           type: string
           description: Name of the position location
+        locationCode:
+          type: string
+          description: Short code of the position location
         status:
           type: string
           enum: [active, inactive, deleted, removed]

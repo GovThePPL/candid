@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, Alert as RNAlert, ActivityIndicator, Animated, LayoutAnimation, UIManager } from 'react-native'
 import { useRouter, useFocusEffect } from 'expo-router'
-import { useState, useEffect, useCallback, useRef, useContext } from 'react'
+import { useState, useEffect, useCallback, useRef, useContext, useMemo } from 'react'
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -17,12 +17,12 @@ import { CacheManager, CacheKeys, CacheDurations } from '../../lib/cache'
 import ThemedText from "../../components/ThemedText"
 import ThemedTextInput from "../../components/ThemedTextInput"
 import ThemedButton from '../../components/ThemedButton'
-import Spacer from '../../components/Spacer'
 import Header from '../../components/Header'
 import InfoModal from '../../components/InfoModal'
 import LocationCategorySelector from '../../components/LocationCategorySelector'
 import EmptyState from '../../components/EmptyState'
-import LoadingView from '../../components/LoadingView'
+import BottomDrawerModal from '../../components/BottomDrawerModal'
+import PositionListManager from '../../components/PositionListManager'
 
 const MAX_STATEMENT_LENGTH = 140  // Polis has a 140 character limit
 const SEARCH_DEBOUNCE_MS = 500
@@ -58,26 +58,29 @@ export default function Create() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [myPositions, setMyPositions] = useState([])
-  const [expandedLocations, setExpandedLocations] = useState({})
-  const [expandedCategories, setExpandedCategories] = useState({})
   const [similarPositions, setSimilarPositions] = useState([])
   const [searchingSimilar, setSearchingSimilar] = useState(false)
   const [suggestedCategory, setSuggestedCategory] = useState(null)
   const [categoryAutoSelected, setCategoryAutoSelected] = useState(false)
-  const [confirmingDeleteId, setConfirmingDeleteId] = useState(null)
+
+  // Rules modal state
+  const [showRules, setShowRules] = useState(false)
+  const [rules, setRules] = useState([])
+  const [rulesLoading, setRulesLoading] = useState(false)
 
   // Chatting List state
   const [chattingList, setChattingList] = useState([])
   const [chattingListLoading, setChattingListLoading] = useState(false)
-  const [expandedChattingCategories, setExpandedChattingCategories] = useState({})
-  const [expandedChattingLocations, setExpandedChattingLocations] = useState({})
-  const [confirmingChattingDeleteId, setConfirmingChattingDeleteId] = useState(null)
-  const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(null) // { type: 'category'|'location', categoryId?, categoryName?, locationCode?, locationName?, count }
   const [showChattingSearch, setShowChattingSearch] = useState(false)
   const [chattingSearchQuery, setChattingSearchQuery] = useState('')
   const [chattingSearchResults, setChattingSearchResults] = useState([])
   const [searchingChatting, setSearchingChatting] = useState(false)
   const [showChattingExplanation, setShowChattingExplanation] = useState(false)
+
+  // Floating action bar state (shared across both PositionListManagers, supports delete and chat modes)
+  const [floatingBar, setFloatingBar] = useState({ visible: false, count: 0, mode: null, ref: null })
+  const positionsListRef = useRef(null)
+  const chattingListRef = useRef(null)
 
   const router = useRouter()
   const searchTimeoutRef = useRef(null)
@@ -134,6 +137,24 @@ export default function Create() {
       setChattingListLoading(false)
     }
   }, [user?.id])
+
+  async function fetchRules() {
+    if (rules.length > 0) return // Already fetched
+    setRulesLoading(true)
+    try {
+      const data = await api.moderation.getRules()
+      setRules(data || [])
+    } catch (err) {
+      console.error('Failed to fetch rules:', err)
+    } finally {
+      setRulesLoading(false)
+    }
+  }
+
+  function handleOpenRules() {
+    setShowRules(true)
+    fetchRules()
+  }
 
   useEffect(() => {
     async function fetchData() {
@@ -316,107 +337,120 @@ export default function Create() {
     }
   }
 
-  async function handleToggleStatus(position) {
-    const newStatus = position.status === 'active' ? 'inactive' : 'active'
+  // --- PositionListManager callbacks for My Positions ---
+
+  async function handleTogglePositionActive(id, newActive) {
+    const newStatus = newActive ? 'active' : 'inactive'
     try {
-      await api.users.updatePosition(position.id, newStatus)
-      // Invalidate positions cache
+      await api.users.updatePosition(id, newStatus)
       if (user?.id) await CacheManager.invalidate(CacheKeys.userPositions(user.id))
-      // Update local state
       setMyPositions(prev => prev.map(p =>
-        p.id === position.id ? { ...p, status: newStatus } : p
+        p.id === id ? { ...p, status: newStatus } : p
       ))
     } catch (err) {
       Alert.alert('Error', err.message || 'Failed to update position')
     }
   }
 
-  function handleDeletePosition(position) {
-    setConfirmingDeleteId(position.id)
-  }
-
-  async function confirmDeletePosition(positionId) {
+  async function handleDeletePositions(ids) {
     try {
-      await api.users.deletePosition(positionId)
-      // Invalidate positions cache
+      for (const id of ids) {
+        await api.users.deletePosition(id)
+      }
       if (user?.id) await CacheManager.invalidate(CacheKeys.userPositions(user.id))
-      // Remove from local state
-      setMyPositions(prev => prev.filter(p => p.id !== positionId))
-      setConfirmingDeleteId(null)
+      setMyPositions(prev => prev.filter(p => !ids.includes(p.id)))
     } catch (err) {
-      Alert.alert('Error', err.message || 'Failed to delete position')
-      setConfirmingDeleteId(null)
+      Alert.alert('Error', err.message || 'Failed to delete positions')
+      // Refresh to get accurate state
+      await fetchMyPositions()
     }
   }
 
-  function cancelDeletePosition() {
-    setConfirmingDeleteId(null)
+  async function handleBulkTogglePositions(ids, newActive) {
+    const newStatus = newActive ? 'active' : 'inactive'
+    try {
+      for (const id of ids) {
+        await api.users.updatePosition(id, newStatus)
+      }
+      if (user?.id) await CacheManager.invalidate(CacheKeys.userPositions(user.id))
+      setMyPositions(prev => prev.map(p =>
+        ids.includes(p.id) ? { ...p, status: newStatus } : p
+      ))
+    } catch (err) {
+      Alert.alert('Error', err.message || 'Failed to update positions')
+      await fetchMyPositions()
+    }
   }
 
-  // Chatting List handlers
-  async function handleToggleChattingActive(item) {
+  // --- PositionListManager callbacks for Chatting List ---
+
+  async function handleToggleChattingActive(id, newActive) {
     try {
-      await api.chattingList.toggleActive(item.id, !item.isActive)
-      // Invalidate chatting list cache
+      await api.chattingList.toggleActive(id, newActive)
       if (user?.id) await CacheManager.invalidate(CacheKeys.chattingList(user.id))
       setChattingList(prev => prev.map(i =>
-        i.id === item.id ? { ...i, isActive: !item.isActive } : i
+        i.id === id ? { ...i, isActive: newActive } : i
       ))
     } catch (err) {
       Alert.alert('Error', err.message || 'Failed to update item')
     }
   }
 
-  function handleDeleteChattingItem(item) {
-    setConfirmingChattingDeleteId(item.id)
-  }
-
-  async function confirmDeleteChattingItem(itemId) {
+  async function handleDeleteChattingItems(ids) {
     try {
-      await api.chattingList.remove(itemId)
-      // Invalidate chatting list cache
+      await api.chattingList.bulkRemove({ itemIds: ids })
       if (user?.id) await CacheManager.invalidate(CacheKeys.chattingList(user.id))
-      setChattingList(prev => prev.filter(i => i.id !== itemId))
-      setConfirmingChattingDeleteId(null)
-    } catch (err) {
-      Alert.alert('Error', err.message || 'Failed to remove item')
-      setConfirmingChattingDeleteId(null)
-    }
-  }
-
-  function cancelDeleteChattingItem() {
-    setConfirmingChattingDeleteId(null)
-  }
-
-  function handleBulkDelete(type, params) {
-    setConfirmingBulkDelete({ type, ...params })
-  }
-
-  async function confirmBulkDelete() {
-    if (!confirmingBulkDelete) return
-
-    try {
-      const { type, categoryId, locationCode } = confirmingBulkDelete
-      if (type === 'category') {
-        await api.chattingList.bulkRemove({ categoryId })
-      } else if (type === 'location') {
-        await api.chattingList.bulkRemove({ locationCode })
-      } else if (type === 'categoryLocation') {
-        await api.chattingList.bulkRemove({ categoryId, locationCode })
-      }
-      // Invalidate chatting list cache
-      if (user?.id) await CacheManager.invalidate(CacheKeys.chattingList(user.id))
-      await fetchChattingList()
-      setConfirmingBulkDelete(null)
+      const idSet = new Set(ids)
+      setChattingList(prev => prev.filter(i => !idSet.has(i.id)))
     } catch (err) {
       Alert.alert('Error', err.message || 'Failed to remove items')
-      setConfirmingBulkDelete(null)
+      await fetchChattingList()
     }
   }
 
-  function cancelBulkDelete() {
-    setConfirmingBulkDelete(null)
+  async function handleBulkToggleChattingItems(ids, newActive) {
+    try {
+      for (const id of ids) {
+        await api.chattingList.toggleActive(id, newActive)
+      }
+      if (user?.id) await CacheManager.invalidate(CacheKeys.chattingList(user.id))
+      setChattingList(prev => prev.map(i =>
+        ids.includes(i.id) ? { ...i, isActive: newActive } : i
+      ))
+    } catch (err) {
+      Alert.alert('Error', err.message || 'Failed to update items')
+      await fetchChattingList()
+    }
   }
+
+  // --- Normalize data for PositionListManager ---
+
+  const normalizedMyPositions = useMemo(() =>
+    myPositions.map(p => ({
+      id: p.id,
+      statement: p.statement,
+      isActive: p.status === 'active',
+      locationName: p.locationName || 'Unknown Location',
+      locationCode: p.locationCode || '',
+      categoryName: p.categoryName || 'Uncategorized',
+      categoryId: p.categoryId,
+    })),
+    [myPositions]
+  )
+
+  const normalizedChattingList = useMemo(() =>
+    chattingList.map(item => ({
+      id: item.id,
+      statement: item.position?.statement,
+      isActive: item.isActive,
+      locationName: item.position?.location?.name || 'Unknown Location',
+      locationCode: item.position?.location?.code || '',
+      categoryName: item.position?.category?.label || 'Uncategorized',
+      categoryId: item.position?.categoryId,
+      meta: item.pendingRequestCount > 0 ? `${item.pendingRequestCount} pending` : undefined,
+    })),
+    [chattingList]
+  )
 
   // Chatting list search with debounce
   useEffect(() => {
@@ -473,80 +507,6 @@ export default function Create() {
     }
   }
 
-  // Group chatting list by category, then by location
-  function groupChattingList(items) {
-    const grouped = {}
-    items.forEach(item => {
-      const catName = item.position?.category?.label || 'Uncategorized'
-      const catId = item.position?.categoryId
-      const locCode = item.position?.location?.code || 'unknown'
-      const locName = item.position?.location?.name || 'Unknown Location'
-
-      if (!grouped[catName]) {
-        grouped[catName] = { categoryId: catId, locations: {} }
-      }
-      if (!grouped[catName].locations[locName]) {
-        grouped[catName].locations[locName] = { locationCode: locCode, items: [] }
-      }
-      grouped[catName].locations[locName].items.push(item)
-    })
-    return grouped
-  }
-
-  function toggleChattingCategoryExpanded(categoryName) {
-    setExpandedChattingCategories(prev => ({
-      ...prev,
-      [categoryName]: prev[categoryName] === false ? true : false
-    }))
-  }
-
-  function toggleChattingLocationExpanded(categoryName, locationName) {
-    const key = `${categoryName}|${locationName}`
-    setExpandedChattingLocations(prev => ({
-      ...prev,
-      [key]: prev[key] === false ? true : false
-    }))
-  }
-
-  // Group positions by location, then by category
-  function groupPositions(positions) {
-    const grouped = {}
-    positions.forEach(position => {
-      const locName = position.locationName || 'Unknown Location'
-      const catName = position.categoryName || 'Uncategorized'
-
-      if (!grouped[locName]) {
-        grouped[locName] = {}
-      }
-      if (!grouped[locName][catName]) {
-        grouped[locName][catName] = []
-      }
-      grouped[locName][catName].push(position)
-    })
-    return grouped
-  }
-
-  function toggleLocationExpanded(locationName) {
-    setExpandedLocations(prev => ({
-      ...prev,
-      [locationName]: prev[locationName] === false ? true : false
-    }))
-  }
-
-  function toggleCategoryExpanded(locationName, categoryName) {
-    const key = `${locationName}|${categoryName}`
-    setExpandedCategories(prev => ({
-      ...prev,
-      [key]: prev[key] === false ? true : false
-    }))
-  }
-
-  const groupedPositions = groupPositions(myPositions)
-  const showCollapsible = myPositions.length >= 25
-
-  const groupedChattingList = groupChattingList(chattingList)
-  const showChattingCollapsible = chattingList.length >= 25
-
   const remainingChars = MAX_STATEMENT_LENGTH - statement.length
   const isOverLimit = remainingChars < 0
 
@@ -572,9 +532,15 @@ export default function Create() {
       >
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <View style={styles.sectionHeaderAreaCompact}>
-            <ThemedText title={true} style={styles.headingCompact}>
-              Add a Position
-            </ThemedText>
+            <View style={styles.headingRow}>
+              <ThemedText title={true} style={styles.headingCompact}>
+                Add a Position
+              </ThemedText>
+              <TouchableOpacity style={styles.rulesButton} onPress={handleOpenRules}>
+                <Ionicons name="book-outline" size={15} color={Colors.primary} />
+                <Text style={styles.rulesButtonText}>Community Rules</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.form}>
@@ -675,202 +641,27 @@ export default function Create() {
           </View>
 
           {/* My Positions Section */}
-          {myPositions.length > 0 && (
-            <View style={styles.myPositionsSection}>
-              <View style={styles.sectionHeader}>
-                <ThemedText title={true} style={styles.sectionHeading}>
-                  My Positions
-                </ThemedText>
-                <Text style={styles.sectionSubtitle}>
-                  Positions you hold that others can chat with you about
-                </Text>
-              </View>
-
-              {/* Simple flat list for fewer than 25 positions */}
-              {!showCollapsible && (
-                <View style={styles.flatPositionsList}>
-                  {myPositions.map(position => (
-                    <View
-                      key={position.id}
-                      style={[
-                        styles.positionItem,
-                        styles.positionItemFlat,
-                        position.status === 'inactive' && styles.positionItemInactive,
-                      ]}
-                    >
-                      {/* Normal position UI - always rendered to maintain height */}
-                      <View style={[styles.positionContent, confirmingDeleteId === position.id && styles.hiddenContent]}>
-                        <Text
-                          style={[
-                            styles.positionStatement,
-                            position.status === 'inactive' && styles.positionStatementInactive
-                          ]}
-                          numberOfLines={2}
-                        >
-                          {position.statement}
-                        </Text>
-                        <Text style={styles.positionMeta}>
-                          {position.locationName} · {position.categoryName}
-                        </Text>
-                      </View>
-                      <View style={[styles.positionActions, confirmingDeleteId === position.id && styles.hiddenContent]}>
-                        <TouchableOpacity
-                          style={styles.actionButton}
-                          onPress={() => handleToggleStatus(position)}
-                        >
-                          <Ionicons
-                            name={position.status === 'active' ? 'chatbubble' : 'chatbubble-outline'}
-                            size={22}
-                            color={position.status === 'active' ? Colors.primary : Colors.pass}
-                          />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.actionButton}
-                          onPress={() => handleDeletePosition(position)}
-                        >
-                          <Ionicons name="trash-outline" size={22} color={Colors.warning} />
-                        </TouchableOpacity>
-                      </View>
-
-                      {/* Delete confirmation overlay */}
-                      {confirmingDeleteId === position.id && (
-                        <View style={styles.deleteConfirmOverlay}>
-                          <Text style={styles.deleteConfirmText}>Are you sure?</Text>
-                          <View style={styles.deleteConfirmButtons}>
-                            <TouchableOpacity
-                              style={styles.deleteConfirmButton}
-                              onPress={() => confirmDeletePosition(position.id)}
-                            >
-                              <Ionicons name="trash" size={18} color="#fff" />
-                              <Text style={styles.deleteConfirmButtonText}>Delete</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              style={styles.cancelDeleteButton}
-                              onPress={cancelDeletePosition}
-                            >
-                              <Text style={styles.cancelDeleteButtonText}>Cancel</Text>
-                            </TouchableOpacity>
-                          </View>
-                        </View>
-                      )}
-                    </View>
-                  ))}
-                </View>
-              )}
-
-              {/* Collapsible grouped view for 25+ positions */}
-              {showCollapsible && Object.entries(groupedPositions).map(([locationName, categories]) => (
-                <View key={locationName} style={styles.locationGroup}>
-                  <TouchableOpacity
-                    style={styles.locationHeader}
-                    onPress={() => toggleLocationExpanded(locationName)}
-                  >
-                    <Ionicons
-                      name={expandedLocations[locationName] !== false ? 'chevron-down' : 'chevron-forward'}
-                      size={18}
-                      color={Colors.primary}
-                    />
-                    <Text style={styles.locationTitle}>{locationName}</Text>
-                    <Text style={styles.locationCount}>
-                      {Object.values(categories).flat().length}
-                    </Text>
-                  </TouchableOpacity>
-
-                  {expandedLocations[locationName] !== false && (
-                    <View style={styles.categoriesContainer}>
-                      {Object.entries(categories).map(([categoryName, positions]) => {
-                        const categoryKey = `${locationName}|${categoryName}`
-                        const isCategoryExpanded = expandedCategories[categoryKey] !== false
-
-                        return (
-                          <View key={categoryKey} style={styles.categoryGroup}>
-                            <TouchableOpacity
-                              style={styles.categoryHeader}
-                              onPress={() => toggleCategoryExpanded(locationName, categoryName)}
-                            >
-                              <Ionicons
-                                name={isCategoryExpanded ? 'chevron-down' : 'chevron-forward'}
-                                size={16}
-                                color={Colors.pass}
-                              />
-                              <Text style={styles.categoryTitle}>{categoryName}</Text>
-                              <Text style={styles.categoryCount}>{positions.length}</Text>
-                            </TouchableOpacity>
-
-                            {isCategoryExpanded && (
-                              <View style={styles.positionsList}>
-                                {positions.map(position => (
-                                  <View
-                                    key={position.id}
-                                    style={[
-                                      styles.positionItem,
-                                      position.status === 'inactive' && styles.positionItemInactive,
-                                    ]}
-                                  >
-                                    {/* Normal position UI - always rendered to maintain height */}
-                                    <Text
-                                      style={[
-                                        styles.positionStatement,
-                                        position.status === 'inactive' && styles.positionStatementInactive,
-                                        confirmingDeleteId === position.id && styles.hiddenContent,
-                                      ]}
-                                      numberOfLines={2}
-                                    >
-                                      {position.statement}
-                                    </Text>
-                                    <View style={[styles.positionActions, confirmingDeleteId === position.id && styles.hiddenContent]}>
-                                      <TouchableOpacity
-                                        style={styles.actionButton}
-                                        onPress={() => handleToggleStatus(position)}
-                                      >
-                                        <Ionicons
-                                          name={position.status === 'active' ? 'chatbubble' : 'chatbubble-outline'}
-                                          size={22}
-                                          color={position.status === 'active' ? Colors.primary : Colors.pass}
-                                        />
-                                      </TouchableOpacity>
-                                      <TouchableOpacity
-                                        style={styles.actionButton}
-                                        onPress={() => handleDeletePosition(position)}
-                                      >
-                                        <Ionicons name="trash-outline" size={22} color={Colors.warning} />
-                                      </TouchableOpacity>
-                                    </View>
-
-                                    {/* Delete confirmation overlay */}
-                                    {confirmingDeleteId === position.id && (
-                                      <View style={styles.deleteConfirmOverlay}>
-                                        <Text style={styles.deleteConfirmText}>Are you sure?</Text>
-                                        <View style={styles.deleteConfirmButtons}>
-                                          <TouchableOpacity
-                                            style={styles.deleteConfirmButton}
-                                            onPress={() => confirmDeletePosition(position.id)}
-                                          >
-                                            <Ionicons name="trash" size={18} color="#fff" />
-                                            <Text style={styles.deleteConfirmButtonText}>Delete</Text>
-                                          </TouchableOpacity>
-                                          <TouchableOpacity
-                                            style={styles.cancelDeleteButton}
-                                            onPress={cancelDeletePosition}
-                                          >
-                                            <Text style={styles.cancelDeleteButtonText}>Cancel</Text>
-                                          </TouchableOpacity>
-                                        </View>
-                                      </View>
-                                    )}
-                                  </View>
-                                ))}
-                              </View>
-                            )}
-                          </View>
-                        )
-                      })}
-                    </View>
-                  )}
-                </View>
-              ))}
+          <View style={styles.myPositionsSection}>
+            <View style={styles.sectionHeader}>
+              <ThemedText title={true} style={styles.sectionHeading}>
+                My Positions
+              </ThemedText>
+              <Text style={styles.sectionSubtitle}>
+                Positions you hold that others can chat with you about
+              </Text>
             </View>
-          )}
+            <PositionListManager
+              ref={positionsListRef}
+              items={normalizedMyPositions}
+              onToggleActive={handleTogglePositionActive}
+              onDeleteItems={handleDeletePositions}
+              onBulkToggle={handleBulkTogglePositions}
+              onFloatingBarChange={(state) => setFloatingBar({ ...state, ref: positionsListRef })}
+              emptyIcon="megaphone-outline"
+              emptyTitle="No positions yet"
+              emptySubtitle="Create your first position above"
+            />
+          </View>
 
           {/* Chatting List Section */}
           <View style={styles.chattingListSection}>
@@ -971,272 +762,84 @@ export default function Create() {
               </View>
             )}
 
-            {/* Empty State */}
-            {chattingList.length === 0 && !chattingListLoading && (
-              <EmptyState
-                icon="chatbubbles-outline"
-                title="Your chatting list is empty"
-                subtitle="Swipe up on position cards to add them here. You'll be able to request chats with the people who hold these positions."
-                style={styles.emptyChattingList}
-              />
-            )}
-
-            {/* Loading State */}
-            {chattingListLoading && chattingList.length === 0 && (
-              <LoadingView style={styles.chattingListLoading} />
-            )}
-
-            {/* Flat list for fewer than 25 items */}
-            {chattingList.length > 0 && !showChattingCollapsible && (
-              <View style={styles.flatChattingList}>
-                {chattingList.map(item => (
-                  <View
-                    key={item.id}
-                    style={[
-                      styles.chattingListItem,
-                      styles.chattingListItemFlat,
-                      !item.isActive && styles.chattingListItemInactive,
-                    ]}
-                  >
-                    <View style={[styles.chattingListItemContent, confirmingChattingDeleteId === item.id && styles.hiddenContent]}>
-                      <Text
-                        style={[
-                          styles.chattingListItemStatement,
-                          !item.isActive && styles.chattingListItemStatementInactive
-                        ]}
-                        numberOfLines={2}
-                      >
-                        {item.position?.statement}
-                      </Text>
-                      <Text style={styles.chattingListItemMeta}>
-                        {item.position?.location?.name || 'Unknown'} · {item.position?.category?.label || 'Uncategorized'}
-                        {item.pendingRequestCount > 0 && ` · ${item.pendingRequestCount} pending`}
-                      </Text>
-                    </View>
-                    <View style={[styles.chattingListItemActions, confirmingChattingDeleteId === item.id && styles.hiddenContent]}>
-                      <TouchableOpacity
-                        style={styles.actionButton}
-                        onPress={() => handleToggleChattingActive(item)}
-                      >
-                        <Ionicons
-                          name={item.isActive ? 'chatbubble' : 'chatbubble-outline'}
-                          size={22}
-                          color={item.isActive ? Colors.primary : Colors.pass}
-                        />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.actionButton}
-                        onPress={() => handleDeleteChattingItem(item)}
-                      >
-                        <Ionicons name="trash-outline" size={22} color={Colors.warning} />
-                      </TouchableOpacity>
-                    </View>
-
-                    {/* Delete confirmation overlay */}
-                    {confirmingChattingDeleteId === item.id && (
-                      <View style={styles.deleteConfirmOverlay}>
-                        <Text style={styles.deleteConfirmText}>Remove from list?</Text>
-                        <View style={styles.deleteConfirmButtons}>
-                          <TouchableOpacity
-                            style={styles.deleteConfirmButton}
-                            onPress={() => confirmDeleteChattingItem(item.id)}
-                          >
-                            <Ionicons name="trash" size={18} color="#fff" />
-                            <Text style={styles.deleteConfirmButtonText}>Remove</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={styles.cancelDeleteButton}
-                            onPress={cancelDeleteChattingItem}
-                          >
-                            <Text style={styles.cancelDeleteButtonText}>Cancel</Text>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    )}
-                  </View>
-                ))}
-              </View>
-            )}
-
-            {/* Hierarchical view for 25+ items */}
-            {chattingList.length > 0 && showChattingCollapsible && Object.entries(groupedChattingList).map(([categoryName, categoryData]) => {
-              const isCategoryExpanded = expandedChattingCategories[categoryName] !== false
-              const categoryItemCount = Object.values(categoryData.locations).reduce((sum, loc) => sum + loc.items.length, 0)
-
-              return (
-                <View key={categoryName} style={styles.chattingCategoryGroup}>
-                  <View style={styles.chattingCategoryHeaderRow}>
-                    <TouchableOpacity
-                      style={styles.chattingCategoryHeader}
-                      onPress={() => toggleChattingCategoryExpanded(categoryName)}
-                    >
-                      <Ionicons
-                        name={isCategoryExpanded ? 'chevron-down' : 'chevron-forward'}
-                        size={18}
-                        color={Colors.primary}
-                      />
-                      <Text style={styles.chattingCategoryTitle}>{categoryName}</Text>
-                      <Text style={styles.chattingCategoryCount}>{categoryItemCount}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.bulkRemoveButton}
-                      onPress={() => handleBulkDelete('category', {
-                        categoryId: categoryData.categoryId,
-                        categoryName,
-                        count: categoryItemCount
-                      })}
-                    >
-                      <Ionicons name="trash-outline" size={16} color={Colors.warning} />
-                    </TouchableOpacity>
-                  </View>
-
-                  {isCategoryExpanded && (
-                    <View style={styles.chattingLocationsContainer}>
-                      {Object.entries(categoryData.locations).map(([locationName, locationData]) => {
-                        const locationKey = `${categoryName}|${locationName}`
-                        const isLocationExpanded = expandedChattingLocations[locationKey] !== false
-
-                        return (
-                          <View key={locationKey} style={styles.chattingLocationGroup}>
-                            <View style={styles.chattingLocationHeaderRow}>
-                              <TouchableOpacity
-                                style={styles.chattingLocationHeader}
-                                onPress={() => toggleChattingLocationExpanded(categoryName, locationName)}
-                              >
-                                <Ionicons
-                                  name={isLocationExpanded ? 'chevron-down' : 'chevron-forward'}
-                                  size={16}
-                                  color={Colors.pass}
-                                />
-                                <Text style={styles.chattingLocationTitle}>{locationName}</Text>
-                                <Text style={styles.chattingLocationCount}>{locationData.items.length}</Text>
-                              </TouchableOpacity>
-                              <TouchableOpacity
-                                style={styles.bulkRemoveButtonSmall}
-                                onPress={() => handleBulkDelete('categoryLocation', {
-                                  categoryId: categoryData.categoryId,
-                                  categoryName,
-                                  locationCode: locationData.locationCode,
-                                  locationName,
-                                  count: locationData.items.length
-                                })}
-                              >
-                                <Ionicons name="trash-outline" size={14} color={Colors.warning} />
-                              </TouchableOpacity>
-                            </View>
-
-                            {isLocationExpanded && (
-                              <View style={styles.chattingItemsList}>
-                                {locationData.items.map(item => (
-                                  <View
-                                    key={item.id}
-                                    style={[
-                                      styles.chattingListItem,
-                                      !item.isActive && styles.chattingListItemInactive,
-                                    ]}
-                                  >
-                                    <Text
-                                      style={[
-                                        styles.chattingListItemStatement,
-                                        !item.isActive && styles.chattingListItemStatementInactive,
-                                        confirmingChattingDeleteId === item.id && styles.hiddenContent,
-                                      ]}
-                                      numberOfLines={2}
-                                    >
-                                      {item.position?.statement}
-                                    </Text>
-                                    <View style={[styles.chattingListItemActions, confirmingChattingDeleteId === item.id && styles.hiddenContent]}>
-                                      <TouchableOpacity
-                                        style={styles.actionButton}
-                                        onPress={() => handleToggleChattingActive(item)}
-                                      >
-                                        <Ionicons
-                                          name={item.isActive ? 'chatbubble' : 'chatbubble-outline'}
-                                          size={22}
-                                          color={item.isActive ? Colors.primary : Colors.pass}
-                                        />
-                                      </TouchableOpacity>
-                                      <TouchableOpacity
-                                        style={styles.actionButton}
-                                        onPress={() => handleDeleteChattingItem(item)}
-                                      >
-                                        <Ionicons name="trash-outline" size={22} color={Colors.warning} />
-                                      </TouchableOpacity>
-                                    </View>
-
-                                    {/* Delete confirmation overlay */}
-                                    {confirmingChattingDeleteId === item.id && (
-                                      <View style={styles.deleteConfirmOverlay}>
-                                        <Text style={styles.deleteConfirmText}>Remove?</Text>
-                                        <View style={styles.deleteConfirmButtons}>
-                                          <TouchableOpacity
-                                            style={styles.deleteConfirmButton}
-                                            onPress={() => confirmDeleteChattingItem(item.id)}
-                                          >
-                                            <Ionicons name="trash" size={18} color="#fff" />
-                                            <Text style={styles.deleteConfirmButtonText}>Remove</Text>
-                                          </TouchableOpacity>
-                                          <TouchableOpacity
-                                            style={styles.cancelDeleteButton}
-                                            onPress={cancelDeleteChattingItem}
-                                          >
-                                            <Text style={styles.cancelDeleteButtonText}>Cancel</Text>
-                                          </TouchableOpacity>
-                                        </View>
-                                      </View>
-                                    )}
-                                  </View>
-                                ))}
-                              </View>
-                            )}
-                          </View>
-                        )
-                      })}
-                    </View>
-                  )}
-                </View>
-              )
-            })}
-
-            {/* Bulk Delete Confirmation Modal */}
-            {confirmingBulkDelete && (
-              <View style={styles.bulkDeleteOverlay}>
-                <View style={styles.bulkDeleteModal}>
-                  <Text style={styles.bulkDeleteTitle}>
-                    Remove {confirmingBulkDelete.count} positions?
-                  </Text>
-                  <Text style={styles.bulkDeleteMessage}>
-                    {confirmingBulkDelete.type === 'category' && (
-                      `All positions in "${confirmingBulkDelete.categoryName}" will be removed from your chatting list.`
-                    )}
-                    {confirmingBulkDelete.type === 'location' && (
-                      `All positions in "${confirmingBulkDelete.locationName}" will be removed from your chatting list.`
-                    )}
-                    {confirmingBulkDelete.type === 'categoryLocation' && (
-                      `All positions in "${confirmingBulkDelete.categoryName}" from "${confirmingBulkDelete.locationName}" will be removed from your chatting list.`
-                    )}
-                  </Text>
-                  <View style={styles.bulkDeleteButtons}>
-                    <TouchableOpacity
-                      style={styles.bulkDeleteConfirmButton}
-                      onPress={confirmBulkDelete}
-                    >
-                      <Ionicons name="trash" size={18} color="#fff" />
-                      <Text style={styles.bulkDeleteConfirmButtonText}>Remove All</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.bulkDeleteCancelButton}
-                      onPress={cancelBulkDelete}
-                    >
-                      <Text style={styles.bulkDeleteCancelButtonText}>Cancel</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            )}
+            <PositionListManager
+              ref={chattingListRef}
+              items={normalizedChattingList}
+              onToggleActive={handleToggleChattingActive}
+              onDeleteItems={handleDeleteChattingItems}
+              onBulkToggle={handleBulkToggleChattingItems}
+              onFloatingBarChange={(state) => setFloatingBar({ ...state, ref: chattingListRef })}
+              loading={chattingListLoading}
+              emptyIcon="chatbubbles-outline"
+              emptyTitle="Your chatting list is empty"
+              emptySubtitle="Swipe up on position cards to add them here. You'll be able to request chats with the people who hold these positions."
+            />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Floating delete bar - positioned above tab bar */}
+      {floatingBar.visible && (
+        <View style={styles.floatingDeleteBar}>
+          <Text style={styles.floatingDeleteCount}>
+            {floatingBar.count} selected
+          </Text>
+          <View style={styles.floatingDeleteActions}>
+            <TouchableOpacity
+              style={styles.floatingDeleteCancelButton}
+              onPress={() => floatingBar.ref?.current?.cancelDelete()}
+            >
+              <Text style={styles.floatingDeleteCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.floatingDeleteButton}
+              onPress={() => floatingBar.ref?.current?.confirmDelete()}
+            >
+              <Ionicons name="trash" size={18} color={Colors.white} />
+              <Text style={styles.floatingDeleteButtonText}>Delete Selected</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      <BottomDrawerModal
+        visible={showRules}
+        onClose={() => setShowRules(false)}
+        title="Community Rules"
+        maxHeight="70%"
+      >
+        {rulesLoading ? (
+          <ActivityIndicator size="large" color={Colors.primary} style={{ paddingVertical: 32 }} />
+        ) : rules.length === 0 ? (
+          <Text style={styles.rulesEmptyText}>No rules have been defined yet.</Text>
+        ) : (
+          <ScrollView style={styles.rulesScrollView}>
+            {rules.map((rule, index) => (
+              <View key={rule.id} style={[styles.ruleItem, index === rules.length - 1 && { borderBottomWidth: 0 }]}>
+                <View style={styles.ruleHeader}>
+                  <Text style={styles.ruleTitle}>{rule.title}</Text>
+                  {rule.severity && (
+                    <View style={[
+                      styles.severityBadge,
+                      rule.severity === 'high' && styles.severityHigh,
+                      rule.severity === 'medium' && styles.severityMedium,
+                    ]}>
+                      <Text style={[
+                        styles.severityText,
+                        rule.severity === 'high' && styles.severityTextHigh,
+                        rule.severity === 'medium' && styles.severityTextMedium,
+                      ]}>
+                        Severity: {rule.severity}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.ruleText}>{rule.text}</Text>
+              </View>
+            ))}
+          </ScrollView>
+        )}
+      </BottomDrawerModal>
     </SafeAreaView>
   )
 }
@@ -1250,41 +853,19 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: 20,
   },
-  sectionHeaderArea: {
-    marginBottom: 24,
-  },
   sectionHeaderAreaCompact: {
     marginBottom: 12,
   },
-  heading: {
-    fontWeight: "bold",
+  headingCompact: {
+    fontWeight: '700',
     fontSize: 24,
     color: Colors.primary,
-  },
-  headingCompact: {
-    fontWeight: "bold",
-    fontSize: 18,
-    color: Colors.primary,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: Colors.pass,
-    marginTop: 4,
   },
   form: {
     flex: 1,
   },
-  inputGroup: {
-    marginBottom: 24,
-  },
   inputGroupCompact: {
     marginBottom: 12,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.darkText,
-    marginBottom: 8,
   },
   statementInput: {
     padding: 12,
@@ -1306,13 +887,6 @@ const styles = StyleSheet.create({
   },
   charCountOver: {
     color: Colors.warning,
-  },
-  errorContainer: {
-    backgroundColor: '#ffe6e6',
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.warning,
   },
   errorText: {
     color: Colors.warning,
@@ -1337,175 +911,14 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   sectionHeading: {
-    fontWeight: "bold",
-    fontSize: 20,
+    fontWeight: '700',
+    fontSize: 24,
     color: Colors.primary,
   },
   sectionSubtitle: {
     fontSize: 14,
     color: Colors.pass,
     marginTop: 2,
-  },
-  locationGroup: {
-    marginBottom: 12,
-    backgroundColor: Colors.cardBackground,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    overflow: 'hidden',
-  },
-  locationHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    backgroundColor: Colors.cardBackground,
-  },
-  locationTitle: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.primary,
-    marginLeft: 8,
-  },
-  locationCount: {
-    fontSize: 14,
-    color: Colors.pass,
-    backgroundColor: Colors.light.background,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  categoriesContainer: {
-    borderTopWidth: 1,
-    borderTopColor: Colors.cardBorder,
-  },
-  categoryGroup: {
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
-  },
-  categoryHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    paddingLeft: 24,
-    backgroundColor: Colors.light.background,
-  },
-  categoryTitle: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '500',
-    color: Colors.darkText,
-    marginLeft: 6,
-  },
-  categoryCount: {
-    fontSize: 13,
-    color: Colors.pass,
-  },
-  positionsList: {
-    backgroundColor: Colors.cardBackground,
-  },
-  flatPositionsList: {
-    backgroundColor: Colors.cardBackground,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    overflow: 'hidden',
-  },
-  positionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    paddingLeft: 40,
-    borderTopWidth: 1,
-    borderTopColor: Colors.cardBorder,
-  },
-  positionItemFlat: {
-    paddingLeft: 12,
-    borderTopWidth: 0,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
-  },
-  positionContent: {
-    flex: 1,
-  },
-  positionMeta: {
-    fontSize: 12,
-    color: Colors.pass,
-    marginTop: 4,
-  },
-  positionItemInactive: {
-    backgroundColor: '#f9f9f9',
-  },
-  positionStatement: {
-    flex: 1,
-    fontSize: 14,
-    color: Colors.darkText,
-    lineHeight: 20,
-  },
-  positionStatementInactive: {
-    color: Colors.pass,
-  },
-  positionActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 12,
-    gap: 8,
-  },
-  actionButton: {
-    padding: 6,
-  },
-  // Delete confirmation styles
-  hiddenContent: {
-    opacity: 0,
-  },
-  deleteConfirmOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: '#FFEBEE',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-  },
-  deleteConfirmButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.warning,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 6,
-  },
-  deleteConfirmButtonText: {
-    color: Colors.white,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  deleteConfirmText: {
-    fontSize: 14,
-    color: Colors.darkText,
-    fontWeight: '500',
-  },
-  deleteConfirmButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  cancelDeleteButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-  },
-  cancelDeleteButtonText: {
-    fontSize: 14,
-    color: Colors.pass,
-    fontWeight: '500',
   },
   // Similar Positions Suggestions
   similarContainer: {
@@ -1671,203 +1084,128 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: 12,
   },
-  emptyChattingList: {
-    backgroundColor: Colors.cardBackground,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    paddingVertical: 32,
-  },
-  chattingListLoading: {
-    paddingVertical: 32,
-    alignItems: 'center',
-  },
-  flatChattingList: {
-    backgroundColor: Colors.cardBackground,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    overflow: 'hidden',
-  },
-  chattingListItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    paddingLeft: 40,
-    borderTopWidth: 1,
-    borderTopColor: Colors.cardBorder,
-  },
-  chattingListItemFlat: {
-    paddingLeft: 12,
-    borderTopWidth: 0,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
-  },
-  chattingListItemInactive: {
-    backgroundColor: '#f9f9f9',
-  },
-  chattingListItemContent: {
-    flex: 1,
-  },
-  chattingListItemStatement: {
-    flex: 1,
-    fontSize: 14,
-    color: Colors.darkText,
-    lineHeight: 20,
-  },
-  chattingListItemStatementInactive: {
-    color: Colors.pass,
-  },
-  chattingListItemMeta: {
-    fontSize: 12,
-    color: Colors.pass,
-    marginTop: 4,
-  },
-  chattingListItemActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 12,
-    gap: 8,
-  },
-  chattingCategoryGroup: {
-    marginBottom: 12,
-    backgroundColor: Colors.cardBackground,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    overflow: 'hidden',
-  },
-  chattingCategoryHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  chattingCategoryHeader: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    backgroundColor: Colors.cardBackground,
-  },
-  chattingCategoryTitle: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.primary,
-    marginLeft: 8,
-  },
-  chattingCategoryCount: {
-    fontSize: 14,
-    color: Colors.pass,
-    backgroundColor: Colors.light.background,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  bulkRemoveButton: {
-    padding: 14,
-    paddingLeft: 8,
-  },
-  bulkRemoveButtonSmall: {
-    padding: 12,
-    paddingLeft: 8,
-  },
-  chattingLocationsContainer: {
-    borderTopWidth: 1,
-    borderTopColor: Colors.cardBorder,
-  },
-  chattingLocationGroup: {
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
-  },
-  chattingLocationHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  chattingLocationHeader: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    paddingLeft: 24,
-    backgroundColor: Colors.light.background,
-  },
-  chattingLocationTitle: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '500',
-    color: Colors.darkText,
-    marginLeft: 6,
-  },
-  chattingLocationCount: {
-    fontSize: 13,
-    color: Colors.pass,
-  },
-  chattingItemsList: {
-    backgroundColor: Colors.cardBackground,
-  },
-  bulkDeleteOverlay: {
+  // Floating delete bar (positioned above tab bar)
+  floatingDeleteBar: {
     position: 'absolute',
-    top: 0,
+    bottom: 0,
     left: 0,
     right: 0,
-    bottom: 0,
-    backgroundColor: Colors.overlay,
-    justifyContent: 'center',
+    flexDirection: 'row',
     alignItems: 'center',
-    zIndex: 1000,
-  },
-  bulkDeleteModal: {
+    justifyContent: 'space-between',
     backgroundColor: Colors.white,
-    borderRadius: 16,
-    padding: 24,
-    margin: 20,
-    maxWidth: 340,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.warning,
     ...Shadows.elevated,
   },
-  bulkDeleteTitle: {
-    fontSize: 18,
+  floatingDeleteCount: {
+    fontSize: 15,
     fontWeight: '600',
     color: Colors.darkText,
-    marginBottom: 12,
-    textAlign: 'center',
   },
-  bulkDeleteMessage: {
+  floatingDeleteActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  floatingDeleteCancelButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  floatingDeleteCancelText: {
     fontSize: 14,
     color: Colors.pass,
-    lineHeight: 20,
-    marginBottom: 20,
-    textAlign: 'center',
+    fontWeight: '500',
   },
-  bulkDeleteButtons: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  bulkDeleteConfirmButton: {
+  floatingDeleteButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.warning,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 24,
-    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
   },
-  bulkDeleteConfirmButtonText: {
+  floatingDeleteButtonText: {
     color: Colors.white,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
   },
-  bulkDeleteCancelButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 24,
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
+  // Community Rules
+  headingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  bulkDeleteCancelButtonText: {
-    fontSize: 15,
-    color: Colors.pass,
+  rulesButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  rulesButtonText: {
+    fontSize: 13,
+    color: Colors.primary,
     fontWeight: '500',
+  },
+  rulesScrollView: {
+    paddingHorizontal: 16,
+  },
+  rulesEmptyText: {
+    fontSize: 14,
+    color: Colors.pass,
+    textAlign: 'center',
+    paddingVertical: 32,
+  },
+  ruleItem: {
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.cardBorder,
+  },
+  ruleHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+    gap: 8,
+  },
+  ruleTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.darkText,
+    flex: 1,
+  },
+  ruleText: {
+    fontSize: 14,
+    color: Colors.pass,
+    lineHeight: 20,
+  },
+  severityBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    backgroundColor: '#e8f5e9',
+  },
+  severityHigh: {
+    backgroundColor: '#ffebee',
+  },
+  severityMedium: {
+    backgroundColor: '#fff3e0',
+  },
+  severityText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#388e3c',
+    textTransform: 'capitalize',
+  },
+  severityTextHigh: {
+    color: Colors.warning,
+  },
+  severityTextMedium: {
+    color: '#e65100',
   },
 })

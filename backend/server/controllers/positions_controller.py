@@ -60,6 +60,7 @@ def _row_to_user_position(row):
         category_id=str(row['category_id']) if row.get('category_id') else None,
         category_name=row.get('category_name'),
         location_name=row.get('location_name'),
+        location_code=row.get('location_code'),
         statement=row.get('statement'),
         status=row['status'],
         agree_count=row.get('agree_count', 0),
@@ -353,7 +354,8 @@ def adopt_position(position_id, token_info=None):  # noqa: E501
             p.category_id,
             p.location_id,
             c.label AS category_name,
-            l.name AS location_name
+            l.name AS location_name,
+            l.code AS location_code
         FROM user_position AS up
         JOIN position AS p ON up.position_id = p.id
         LEFT JOIN position_category AS c ON p.category_id = c.id

@@ -52,6 +52,7 @@ def _row_to_user_position(row):
         category_id=str(row['category_id']) if row.get('category_id') else None,
         category_name=row.get('category_name'),
         location_name=row.get('location_name'),
+        location_code=row.get('location_code'),
         statement=row['statement'],
         status=row['status'],
         agree_count=row.get('agree_count', 0),
@@ -364,7 +365,8 @@ def get_current_user_positions(status='active', token_info=None):  # noqa: E501
             p.location_id,
             u.id AS user_id,
             c.label AS category_name,
-            l.name AS location_name
+            l.name AS location_name,
+            l.code AS location_code
         FROM users AS u
         JOIN user_position AS up ON u.id = up.user_id
         JOIN position AS p ON up.position_id = p.id
@@ -465,7 +467,8 @@ def update_user_position(user_position_id, body, token_info=None):  # noqa: E501
             p.location_id,
             up.user_id,
             c.label AS category_name,
-            l.name AS location_name
+            l.name AS location_name,
+            l.code AS location_code
         FROM user_position AS up
         JOIN position AS p ON up.position_id = p.id
         LEFT JOIN position_category AS c ON p.category_id = c.id
