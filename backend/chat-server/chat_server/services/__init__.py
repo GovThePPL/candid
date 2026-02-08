@@ -51,6 +51,7 @@ async def initialize_services(app: web.Application) -> None:
     await pubsub_service.start_listener(
         on_chat_accepted=_handle_chat_accepted,
         on_chat_request_response=_handle_chat_request_response,
+        on_chat_request_received=_handle_chat_request_received,
     )
 
     # Start background task for checking timed-out sessions
@@ -194,6 +195,28 @@ async def _handle_chat_accepted(data: dict) -> None:
         )
 
     logger.info(f"Chat {chat_log_id} setup complete, users notified")
+
+
+async def _handle_chat_request_received(data: dict) -> None:
+    """
+    Handle chat_request_received event from REST API via pub/sub.
+
+    This delivers the chat request card to the recipient in real-time.
+    """
+    recipient_user_id = data.get("recipientUserId")
+    card = data.get("card")
+
+    if not all([recipient_user_id, card]):
+        logger.error(f"Invalid chat_request_received event data: {data}")
+        return
+
+    logger.info(f"Handling chat_request_received for user {recipient_user_id}")
+
+    # Emit to recipient's user room
+    if _sio:
+        recipient_room = room_manager.user_room(recipient_user_id)
+        await _sio.emit("chat_request_received", card, room=recipient_room)
+        logger.info(f"Emitted chat_request_received to user {recipient_user_id}")
 
 
 async def _handle_chat_request_response(data: dict) -> None:

@@ -119,6 +119,131 @@ class ChatExporter:
             logger.error(f"Failed to create chat_log for request {chat_request_id}: {e}")
             return None
 
+    async def get_pending_chat_requests(self, user_id: str) -> list[dict]:
+        """
+        Get pending chat requests for a user (where they own the position).
+
+        Returns card-format dicts matching _chat_request_to_card output shape,
+        used for catch-up delivery on socket authentication.
+
+        Args:
+            user_id: The user whose pending chat requests to fetch
+
+        Returns:
+            List of card-format dicts
+        """
+        if not self._pool:
+            logger.error("PostgreSQL pool not initialized")
+            return []
+
+        try:
+            async with self._pool.acquire() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT
+                        cr.id,
+                        cr.user_position_id,
+                        cr.response,
+                        TO_CHAR(cr.created_time, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as created_time,
+                        u.id as initiator_id,
+                        u.display_name as initiator_display_name,
+                        u.username as initiator_username,
+                        u.status as initiator_status,
+                        u.trust_score as initiator_trust_score,
+                        u.avatar_url as initiator_avatar_url,
+                        u.avatar_icon_url as initiator_avatar_icon_url,
+                        COALESCE((
+                            SELECT COUNT(*) FROM kudos k
+                            WHERE k.receiver_user_id = u.id AND k.status = 'sent'
+                        ), 0) as initiator_kudos_count,
+                        p.id as position_id,
+                        p.statement as position_statement,
+                        pc.label as position_category_name,
+                        loc.code as position_location_code,
+                        loc.name as position_location_name,
+                        author.id as author_id,
+                        author.display_name as author_display_name,
+                        author.username as author_username,
+                        author.status as author_status,
+                        author.trust_score as author_trust_score,
+                        author.avatar_url as author_avatar_url,
+                        author.avatar_icon_url as author_avatar_icon_url,
+                        COALESCE((
+                            SELECT COUNT(*) FROM kudos k
+                            WHERE k.receiver_user_id = author.id AND k.status = 'sent'
+                        ), 0) as author_kudos_count
+                    FROM chat_request cr
+                    JOIN user_position up ON cr.user_position_id = up.id
+                    JOIN users u ON cr.initiator_user_id = u.id
+                    JOIN position p ON up.position_id = p.id
+                    JOIN users author ON up.user_id = author.id
+                    LEFT JOIN position_category pc ON p.category_id = pc.id
+                    LEFT JOIN location loc ON p.location_id = loc.id
+                    WHERE up.user_id = $1::uuid
+                      AND cr.response = 'pending'
+                    ORDER BY cr.created_time DESC
+                    """,
+                    user_id,
+                )
+
+                cards = []
+                for row in rows:
+                    initiator = {
+                        "id": str(row["initiator_id"]),
+                        "displayName": row["initiator_display_name"],
+                        "username": row["initiator_username"],
+                        "status": row["initiator_status"],
+                        "kudosCount": row.get("initiator_kudos_count", 0),
+                        "trustScore": float(row["initiator_trust_score"]) if row.get("initiator_trust_score") is not None else None,
+                        "avatarUrl": row.get("initiator_avatar_url"),
+                        "avatarIconUrl": row.get("initiator_avatar_icon_url"),
+                    }
+
+                    creator = {
+                        "id": str(row["author_id"]),
+                        "displayName": row["author_display_name"],
+                        "username": row["author_username"],
+                        "status": row["author_status"],
+                        "kudosCount": row.get("author_kudos_count", 0),
+                        "trustScore": float(row["author_trust_score"]) if row.get("author_trust_score") is not None else None,
+                        "avatarUrl": row.get("author_avatar_url"),
+                        "avatarIconUrl": row.get("author_avatar_icon_url"),
+                    }
+
+                    position = {
+                        "id": str(row["position_id"]),
+                        "statement": row["position_statement"],
+                        "creator": creator,
+                    }
+
+                    if row.get("position_category_name"):
+                        position["category"] = {"label": row["position_category_name"]}
+
+                    if row.get("position_location_code"):
+                        position["location"] = {
+                            "code": row["position_location_code"],
+                            "name": row.get("position_location_name"),
+                        }
+
+                    cards.append({
+                        "type": "chat_request",
+                        "data": {
+                            "id": str(row["id"]),
+                            "requester": initiator,
+                            "userPositionId": str(row["user_position_id"]),
+                            "position": position,
+                            "response": row["response"],
+                            "createdTime": row.get("created_time"),
+                        },
+                    })
+
+                logger.info(f"Found {len(cards)} pending chat requests for user {user_id}")
+                return cards
+
+        except Exception as e:
+            logger.error(f"Failed to get pending chat requests for user {user_id}: {e}")
+            return []
+
     async def get_chat_participants(self, chat_id: str) -> Optional[list[str]]:
         """
         Get the participant IDs for a chat.

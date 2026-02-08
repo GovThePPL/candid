@@ -40,14 +40,14 @@ class PubSubService:
         await self._pubsub.subscribe(CHAT_EVENTS_CHANNEL)
         logger.info(f"Subscribed to channel: {CHAT_EVENTS_CHANNEL}")
 
-    async def start_listener(self, on_chat_accepted, on_chat_request_response=None) -> None:
+    async def start_listener(self, on_chat_accepted, on_chat_request_response=None, on_chat_request_received=None) -> None:
         """Start the background listener task."""
         self._listener_task = asyncio.create_task(
-            self._listen(on_chat_accepted, on_chat_request_response)
+            self._listen(on_chat_accepted, on_chat_request_response, on_chat_request_received)
         )
         logger.info("Started pub/sub listener task")
 
-    async def _listen(self, on_chat_accepted, on_chat_request_response=None) -> None:
+    async def _listen(self, on_chat_accepted, on_chat_request_response=None, on_chat_request_received=None) -> None:
         """Listen for messages and dispatch to handlers."""
         try:
             async for message in self._pubsub.listen():
@@ -63,6 +63,9 @@ class PubSubService:
                     elif event_type == "chat_request_response":
                         if on_chat_request_response:
                             await on_chat_request_response(data)
+                    elif event_type == "chat_request_received":
+                        if on_chat_request_received:
+                            await on_chat_request_received(data)
                     else:
                         logger.warning(f"Unknown event type: {event_type}")
 

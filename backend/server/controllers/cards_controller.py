@@ -250,7 +250,7 @@ def dismiss_position_removed_notification(position_id, token_info=None):
 
 
 def get_card_queue(limit=None, token_info=None):  # noqa: E501
-    """Get mixed queue of positions, surveys, chat requests, kudos, and demographics
+    """Get mixed queue of positions, surveys, kudos, and demographics
 
      # noqa: E501
 
@@ -278,17 +278,13 @@ def get_card_queue(limit=None, token_info=None):  # noqa: E501
     # Check for position removal notifications - prepend to queue
     removal_cards = _get_position_removed_notifications(str(user.id))
 
-    # 1. Priority cards - kudos appear at front, chat requests inserted after first position card
+    # 1. Priority cards - kudos appear at front
     priority_cards = list(removal_cards)
 
     # Kudos cards first (only where other participant sent kudos first)
     kudos_prompts = _get_pending_kudos_cards(user.id, limit=2)
     for kudos in kudos_prompts:
         priority_cards.append(_kudos_to_card(kudos, user.id))
-
-    # Chat requests will be inserted as "next card" after we have position cards
-    chat_requests = _get_pending_chat_requests(user.id, limit=2)
-    chat_request_cards = [_chat_request_to_card(chat_req) for chat_req in chat_requests]
 
     # 2. Get positions first to determine if we need to fill with other content
     position_cards = []
@@ -387,15 +383,6 @@ def get_card_queue(limit=None, token_info=None):  # noqa: E501
 
     # 4. Combine: priority cards first, then shuffled
     all_cards = priority_cards + shuffled_cards
-
-    # 5. Insert chat request cards as "next card" (position index 1)
-    # This ensures they don't replace the current top card
-    if chat_request_cards and len(all_cards) > 0:
-        # Insert after the first card
-        all_cards = all_cards[:1] + chat_request_cards + all_cards[1:]
-    elif chat_request_cards:
-        # No other cards, just use chat requests
-        all_cards = chat_request_cards
 
     return all_cards[:limit]
 

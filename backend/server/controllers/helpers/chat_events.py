@@ -53,6 +53,41 @@ def publish_chat_request_response(
         return False
 
 
+def publish_chat_request_received(
+    recipient_user_id: str,
+    card_data: dict,
+) -> bool:
+    """
+    Publish a chat_request_received event to notify the recipient in real-time.
+
+    This should be called after a chat request is created, for swiping/in_app
+    delivery contexts where the recipient is online.
+
+    Args:
+        recipient_user_id: User who owns the position (recipient of the request)
+        card_data: The chat request card data (same shape as _chat_request_to_card output)
+
+    Returns:
+        True if published successfully, False otherwise
+    """
+    try:
+        r = get_redis()
+
+        event = {
+            "event": "chat_request_received",
+            "recipientUserId": recipient_user_id,
+            "card": card_data,
+        }
+
+        r.publish(CHAT_EVENTS_CHANNEL, json.dumps(event))
+
+        return True
+
+    except Exception as e:
+        print(f"Error publishing chat_request_received event: {e}")
+        return False
+
+
 def publish_chat_accepted(
     chat_log_id: str,
     chat_request_id: str,

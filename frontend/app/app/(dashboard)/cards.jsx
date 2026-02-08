@@ -1,4 +1,4 @@
-import { StyleSheet, View, Text, ActivityIndicator, TouchableOpacity, Platform, Animated } from 'react-native'
+import { StyleSheet, View, Text, ActivityIndicator, TouchableOpacity, Platform, Animated, Dimensions } from 'react-native'
 import { useState, useEffect, useCallback, useRef, useContext } from 'react'
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -35,10 +35,18 @@ const REFETCH_SIZE = 15
 // Chat request timeout duration in milliseconds (2 minutes)
 const CHAT_REQUEST_TIMEOUT_MS = 2 * 60 * 1000
 
+// How long after last swipe to consider user "actively swiping" (15 seconds)
+const SWIPING_ACTIVITY_WINDOW_MS = 15 * 1000
+
+// How long to wait before promoting a back-card chat request to top (10 seconds)
+const PROMOTION_DELAY_MS = 10 * 1000
+
+const SCREEN_HEIGHT = Dimensions.get('window').height
+
 export default function CardQueue() {
   const router = useRouter()
   const showToast = useToast()
-  const { user, logout, invalidatePositions, pendingChatRequest, setPendingChatRequest } = useContext(UserContext)
+  const { user, logout, invalidatePositions, pendingChatRequest, setPendingChatRequest, incomingChatRequest, clearIncomingChatRequest } = useContext(UserContext)
   const [cards, setCards] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [initialLoading, setInitialLoading] = useState(true)
@@ -64,6 +72,22 @@ export default function CardQueue() {
   // Track fetching state and seen card IDs to prevent duplicates
   const isFetchingRef = useRef(false)
   const seenCardIdsRef = useRef(new Set())
+
+  // Swiping activity tracking for chat request delivery mode
+  const lastSwipeTimeRef = useRef(0)
+  const isActivelySwiping = useCallback(() => {
+    return Date.now() - lastSwipeTimeRef.current < SWIPING_ACTIVITY_WINDOW_MS
+  }, [])
+
+  // Slide-in animation state for incoming chat requests
+  const slideInAnim = useRef(new Animated.Value(0)).current
+  const [slidingInCard, setSlidingInCard] = useState(null)
+
+  // Promotion timer: promotes back-card chat request to top after delay
+  const promotionTimerRef = useRef(null)
+
+  // Expiration timers for chat request cards
+  const expirationTimerRef = useRef(null)
 
   // Local cache of chatting list: positionId → { id (chattingListId), hasPendingRequests }
   const chattingListMapRef = useRef(new Map())
@@ -261,6 +285,21 @@ export default function CardQueue() {
   }, [])
 
   const goToNextCard = useCallback(() => {
+    // Track swiping activity for chat request delivery mode
+    lastSwipeTimeRef.current = Date.now()
+
+    // Clear promotion timer - user swiped so the back card will naturally advance
+    if (promotionTimerRef.current) {
+      clearTimeout(promotionTimerRef.current)
+      promotionTimerRef.current = null
+    }
+
+    // Clear expiration timer for the current card (user is moving on)
+    if (expirationTimerRef.current) {
+      clearTimeout(expirationTimerRef.current)
+      expirationTimerRef.current = null
+    }
+
     // Animate the back card forward, then advance
     Animated.timing(backCardProgress, {
       toValue: 1,
@@ -277,6 +316,156 @@ export default function CardQueue() {
       }
     })
   }, [currentIndex, cards.length, fetchMoreCards, backCardProgress])
+
+  // Trigger slide-in animation to insert a card at the current position (pushes queue back)
+  const triggerSlideIn = useCallback((card) => {
+    setSlidingInCard(card)
+    slideInAnim.setValue(0)
+    Animated.timing(slideInAnim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: false,
+    }).start(() => {
+      // Insert card at current index
+      setCards(prev => {
+        const next = [...prev]
+        next.splice(currentIndex, 0, card)
+        return next
+      })
+      setSlidingInCard(null)
+      slideInAnim.setValue(0)
+    })
+  }, [currentIndex, slideInAnim])
+
+  // Consume incoming chat request from context
+  useEffect(() => {
+    if (!incomingChatRequest) return
+
+    const cardKey = `chat_request-${incomingChatRequest?.data?.id}`
+
+    // Deduplication: skip if already seen
+    if (seenCardIdsRef.current.has(cardKey)) {
+      clearIncomingChatRequest()
+      return
+    }
+
+    // Mark as seen
+    seenCardIdsRef.current.add(cardKey)
+
+    if (isActivelySwiping()) {
+      // User is actively swiping: insert as the next card (back card)
+      setCards(prev => {
+        const next = [...prev]
+        next.splice(currentIndex + 1, 0, incomingChatRequest)
+        return next
+      })
+
+      // Start promotion timer: if user doesn't swipe to it in 10s, slide it to top
+      if (promotionTimerRef.current) clearTimeout(promotionTimerRef.current)
+      promotionTimerRef.current = setTimeout(() => {
+        promotionTimerRef.current = null
+        // Check if the chat request is still the back card (user hasn't swiped to it)
+        setCards(prev => {
+          const backIdx = currentIndex + 1
+          if (backIdx < prev.length && prev[backIdx]?.type === 'chat_request' && prev[backIdx]?.data?.id === incomingChatRequest?.data?.id) {
+            // Remove from back position and slide in at top
+            const next = [...prev]
+            next.splice(backIdx, 1)
+            // Trigger slide-in will insert at currentIndex
+            setTimeout(() => triggerSlideIn(incomingChatRequest), 0)
+            return next
+          }
+          return prev
+        })
+      }, PROMOTION_DELAY_MS)
+    } else {
+      // User is NOT actively swiping: slide in from top
+      triggerSlideIn(incomingChatRequest)
+    }
+
+    clearIncomingChatRequest()
+  }, [incomingChatRequest, clearIncomingChatRequest, isActivelySwiping, currentIndex, triggerSlideIn])
+
+  // Chat request expiration: auto-dismiss when a chat request card is current
+  useEffect(() => {
+    // Clear previous timer
+    if (expirationTimerRef.current) {
+      clearTimeout(expirationTimerRef.current)
+      expirationTimerRef.current = null
+    }
+
+    if (!currentCard || currentCard.type !== 'chat_request') return
+
+    const createdTime = currentCard.data?.createdTime
+    if (!createdTime) return
+
+    const expiresAt = new Date(createdTime).getTime() + CHAT_REQUEST_TIMEOUT_MS
+    const remaining = expiresAt - Date.now()
+
+    if (remaining <= 0) {
+      // Already expired - dismiss immediately with animation
+      if (currentCardRef.current?.swipeDown) {
+        currentCardRef.current.swipeDown()
+      } else {
+        api.chat.respondToRequest(currentCard.data.id, 'dismissed').catch(() => {})
+        goToNextCard()
+      }
+      return
+    }
+
+    expirationTimerRef.current = setTimeout(() => {
+      expirationTimerRef.current = null
+      // Auto-dismiss: trigger swipe down animation which calls onDecline -> goToNextCard
+      if (currentCardRef.current?.swipeDown) {
+        currentCardRef.current.swipeDown()
+      } else {
+        // Fallback: dismiss via API and advance manually
+        api.chat.respondToRequest(currentCard.data.id, 'dismissed').catch(() => {})
+        goToNextCard()
+      }
+    }, remaining)
+
+    return () => {
+      if (expirationTimerRef.current) {
+        clearTimeout(expirationTimerRef.current)
+        expirationTimerRef.current = null
+      }
+    }
+  }, [currentIndex, currentCard?.type, currentCard?.data?.id])
+
+  // Expiration for chat request cards that are still in the back of the queue
+  useEffect(() => {
+    const timers = []
+    cards.forEach((card, idx) => {
+      // Only for chat request cards behind the current card
+      if (idx <= currentIndex || card.type !== 'chat_request' || !card.data?.createdTime) return
+
+      const expiresAt = new Date(card.data.createdTime).getTime() + CHAT_REQUEST_TIMEOUT_MS
+      const remaining = expiresAt - Date.now()
+
+      if (remaining <= 0) {
+        // Already expired - remove silently
+        api.chat.respondToRequest(card.data.id, 'dismissed').catch(() => {})
+        setCards(prev => prev.filter((_, i) => i !== idx))
+      } else {
+        const timer = setTimeout(() => {
+          api.chat.respondToRequest(card.data.id, 'dismissed').catch(() => {})
+          setCards(prev => prev.filter(c => c.data?.id !== card.data.id || c.type !== 'chat_request'))
+        }, remaining)
+        timers.push(timer)
+      }
+    })
+
+    return () => timers.forEach(t => clearTimeout(t))
+  }, [cards.length, currentIndex])
+
+  // Clean up timers on unmount
+  useEffect(() => {
+    return () => {
+      if (promotionTimerRef.current) clearTimeout(promotionTimerRef.current)
+      if (expirationTimerRef.current) clearTimeout(expirationTimerRef.current)
+    }
+  }, [])
 
   // Position card handlers
   const handleAgree = useCallback(async () => {
@@ -874,14 +1063,40 @@ export default function CardQueue() {
               {
                 zIndex: 1,
                 transform: [
-                  { scale: backCardProgress.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.96, 1],
-                  })},
-                  { translateY: backCardProgress.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [24, 0],
-                  })},
+                  { scale: slidingInCard
+                    ? Animated.add(
+                        // During slide-in: push back from 0.96→0.92
+                        slideInAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, -0.04],
+                        }),
+                        backCardProgress.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.96, 1],
+                        })
+                      )
+                    : backCardProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.96, 1],
+                      })
+                  },
+                  { translateY: slidingInCard
+                    ? Animated.add(
+                        // During slide-in: push back from 24→48
+                        slideInAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, 24],
+                        }),
+                        backCardProgress.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [24, 0],
+                        })
+                      )
+                    : backCardProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [24, 0],
+                      })
+                  },
                 ],
               }
             ]}>
@@ -889,10 +1104,42 @@ export default function CardQueue() {
             </Animated.View>
           )}
 
-          {/* Current card - main card on top */}
-          <View style={styles.currentCard}>
+          {/* Current card - main card on top, shifts back during slide-in */}
+          <Animated.View style={[
+            styles.currentCard,
+            slidingInCard ? {
+              transform: [
+                { scale: slideInAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [1, 0.96],
+                })},
+                { translateY: slideInAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 24],
+                })},
+              ],
+            } : undefined,
+          ]}>
             {renderCard(currentCard, false)}
-          </View>
+          </Animated.View>
+
+          {/* Sliding-in chat request card from top */}
+          {slidingInCard && (
+            <Animated.View style={[
+              styles.stackedCard,
+              {
+                zIndex: 3,
+                transform: [
+                  { translateY: slideInAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-SCREEN_HEIGHT, 0],
+                  })},
+                ],
+              }
+            ]}>
+              {renderCard(slidingInCard, true)}
+            </Animated.View>
+          )}
         </View>
       </View>
 

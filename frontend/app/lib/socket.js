@@ -130,6 +130,23 @@ export function onChatRequestResponse(handlers) {
 }
 
 /**
+ * Set up event listener for incoming chat request cards (real-time delivery).
+ * @param {Function} handler - Called with chat request card data
+ * @returns {Function} - Cleanup function
+ */
+export function onChatRequestReceived(handler) {
+  if (!socket) {
+    console.warn('[Socket] Cannot set up listener - not connected')
+    return () => {}
+  }
+
+  socket.on('chat_request_received', handler)
+  return () => {
+    if (socket) socket.off('chat_request_received', handler)
+  }
+}
+
+/**
  * Set up event listener for chat started events.
  * @param {Function} handler - Called when a chat is started
  * @returns {Function} - Cleanup function
@@ -389,6 +406,7 @@ export default {
   getSocket,
   isConnected,
   onChatRequestResponse,
+  onChatRequestReceived,
   onChatStarted,
   joinChat,
   sendMessage,

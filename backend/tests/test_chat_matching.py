@@ -845,8 +845,8 @@ class TestCardQueueComposition:
             assert "availability" in data
             assert "userPositionId" in data
 
-    def test_chat_request_card_in_recipient_queue(self, normal1_headers, normal2_headers):
-        """Pending chat request appears as card in recipient's queue."""
+    def test_chat_request_not_in_card_queue(self, normal1_headers, normal2_headers):
+        """Chat requests are no longer included in card queue (delivered via socket instead)."""
         resp = requests.post(
             CHAT_REQUESTS_URL,
             headers=normal2_headers,
@@ -854,39 +854,12 @@ class TestCardQueueComposition:
         )
         assert resp.status_code == 201
 
-        # Normal1 fetches queue
+        # Normal1 fetches queue - should NOT contain chat_request cards
         resp = requests.get(CARD_QUEUE_URL, headers=normal1_headers, params={"limit": 20})
         assert resp.status_code == 200
         cards = resp.json()
         chat_req_cards = [c for c in cards if c.get("type") == "chat_request"]
-        assert len(chat_req_cards) >= 1
-
-        # Verify it has requester info and position info
-        cr_data = chat_req_cards[0]["data"]
-        assert "requester" in cr_data
-        assert "position" in cr_data
-        assert cr_data["requester"]["id"] == NORMAL2_ID
-
-    def test_chat_request_card_positioned_after_first(self, normal1_headers, normal2_headers):
-        """Chat request card appears at index 1 (after the first card)."""
-        resp = requests.post(
-            CHAT_REQUESTS_URL,
-            headers=normal2_headers,
-            json={"userPositionId": USER_POSITION_NORMAL1},
-        )
-        assert resp.status_code == 201
-
-        resp = requests.get(CARD_QUEUE_URL, headers=normal1_headers, params={"limit": 20})
-        assert resp.status_code == 200
-        cards = resp.json()
-        if len(cards) > 1:
-            # Chat request card should be at index 1 (after priority cards)
-            # Find the first chat_request card
-            for i, card in enumerate(cards):
-                if card.get("type") == "chat_request":
-                    # Should not be at index 0
-                    assert i >= 1
-                    break
+        assert len(chat_req_cards) == 0
 
     def test_unauthenticated_cannot_get_queue(self):
         """No auth header returns 401."""
@@ -1245,12 +1218,13 @@ class TestFullLifecycle:
         )
         assert row["delivery_context"] == "swiping"
 
-        # 5. Normal1 fetches cards → sees chat_request card
+        # 5. Chat requests are now delivered via socket (not in card queue)
+        # Verify card queue does NOT include chat_request cards
         resp = requests.get(CARD_QUEUE_URL, headers=normal1_headers, params={"limit": 20})
         assert resp.status_code == 200
         cards = resp.json()
         cr_cards = [c for c in cards if c.get("type") == "chat_request"]
-        assert len(cr_cards) >= 1
+        assert len(cr_cards) == 0
 
         # 6. Normal1 accepts
         resp = requests.patch(

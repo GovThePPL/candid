@@ -20,6 +20,7 @@ const ChatRequestCard = forwardRef(function ChatRequestCard({
       onSwipeRight={onAccept}
       onSwipeLeft={onDecline}
       onSwipeUp={onAccept}
+      onSwipeDown={onDecline}
       enableVerticalSwipe={true}
       rightSwipeAsChatAccept={true}
       isBackCard={isBackCard}

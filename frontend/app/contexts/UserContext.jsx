@@ -1,7 +1,7 @@
 import { createContext, useEffect, useState, useCallback, useRef } from "react"
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import api, { getStoredUser, initializeAuth, getToken } from "../lib/api"
-import socket, { connectSocket, disconnectSocket, onChatRequestResponse, onChatStarted } from "../lib/socket"
+import socket, { connectSocket, disconnectSocket, onChatRequestResponse, onChatRequestReceived, onChatStarted } from "../lib/socket"
 import { setupNotificationHandler, addNotificationResponseListener } from "../lib/notifications"
 
 const PENDING_CHAT_REQUEST_KEY = 'candid_pending_chat_request'
@@ -18,6 +18,15 @@ export function UserProvider({ children }) {
   const [pendingChatRequest, setPendingChatRequestState] = useState(null)
   const socketCleanupRef = useRef(null)
   const notifCleanupRef = useRef(null)
+
+  // Incoming chat request card delivered via socket (real-time push)
+  // Shape: { type: 'chat_request', data: { id, requester, position, ... } }
+  const [incomingChatRequest, setIncomingChatRequest] = useState(null)
+
+  // Clear incoming chat request (called after card queue consumes it)
+  const clearIncomingChatRequest = useCallback(() => {
+    setIncomingChatRequest(null)
+  }, [])
 
   // Active chat navigation state - when a chat starts, this triggers navigation
   // Shape: { chatId, otherUserId, positionStatement, role }
@@ -113,6 +122,12 @@ export function UserProvider({ children }) {
         },
       })
 
+      // Set up listener for incoming chat request cards (real-time delivery to recipient)
+      const chatRequestReceivedCleanup = onChatRequestReceived((cardData) => {
+        console.log('[UserContext] Chat request received:', cardData?.data?.id)
+        setIncomingChatRequest(cardData)
+      })
+
       // Set up listener for chat started events (triggers navigation for both users)
       // For initiators, this may arrive after chat_request_accepted already triggered navigation
       // For responders, this is the primary navigation trigger (though they also navigate via REST response)
@@ -145,6 +160,7 @@ export function UserProvider({ children }) {
 
       socketCleanupRef.current = () => {
         requestCleanup()
+        chatRequestReceivedCleanup()
         chatStartedCleanup()
       }
 
@@ -270,6 +286,7 @@ export function UserProvider({ children }) {
       isBanned: user?.status === 'banned',
       positionsVersion, invalidatePositions,
       pendingChatRequest, setPendingChatRequest, clearPendingChatRequest, updateChatRequestStatus,
+      incomingChatRequest, clearIncomingChatRequest,
       activeChatNavigation, clearActiveChatNavigation,
       activeChat, clearActiveChat,
     }}>

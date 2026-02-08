@@ -57,7 +57,7 @@ class TestCardQueueBasic:
         assert resp.status_code == 200
         data = resp.json()
 
-        valid_types = {"position", "survey", "chat_request", "kudos", "demographic", "pairwise", "chatting_list", "ban_notification", "position_removed_notification"}
+        valid_types = {"position", "survey", "kudos", "demographic", "pairwise", "chatting_list", "ban_notification", "position_removed_notification"}
         for card in data:
             assert "type" in card
             assert "data" in card
@@ -72,22 +72,16 @@ class TestCardQueueBasic:
 
 
 class TestCardQueuePriorityOrdering:
-    """Tests for priority card ordering (chat requests and kudos at front)."""
+    """Tests for priority card ordering (kudos at front, chat requests delivered via socket)."""
 
-    def test_chat_requests_appear_at_front(self, normal_headers):
-        """Chat requests should appear at the front of the queue."""
-        resp = requests.get(f"{BASE_URL}/card-queue?limit=10", headers=normal_headers)
+    def test_chat_requests_not_in_queue(self, normal_headers):
+        """Chat requests are no longer included in card queue (delivered via socket)."""
+        resp = requests.get(f"{BASE_URL}/card-queue?limit=20", headers=normal_headers)
         assert resp.status_code == 200
         data = resp.json()
 
-        # Find indices of chat_request cards
-        chat_request_indices = [i for i, card in enumerate(data) if card["type"] == "chat_request"]
-
-        if chat_request_indices:
-            # All chat requests should be at the beginning
-            # The max index should be less than the number of chat requests
-            max_chat_idx = max(chat_request_indices)
-            assert max_chat_idx < len(chat_request_indices), "Chat requests should be at the front"
+        chat_request_cards = [c for c in data if c["type"] == "chat_request"]
+        assert len(chat_request_cards) == 0, "Chat requests should not appear in card queue"
 
 
 class TestKudosCards:

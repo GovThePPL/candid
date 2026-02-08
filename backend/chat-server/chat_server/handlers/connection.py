@@ -8,7 +8,7 @@ from typing import Any
 import socketio
 
 from ..auth import validate_token
-from ..services import get_redis_store, get_room_manager
+from ..services import get_redis_store, get_room_manager, get_chat_exporter
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +76,17 @@ def register_connection_handlers(sio: socketio.AsyncServer) -> None:
         logger.info(
             f"User {user_id} authenticated (sid: {sid}), active chats: {active_chats}"
         )
+
+        # Catch-up: deliver any pending chat requests the user may have missed
+        try:
+            chat_exporter = get_chat_exporter()
+            pending_requests = await chat_exporter.get_pending_chat_requests(user_id)
+            for card in pending_requests:
+                await sio.emit("chat_request_received", card, to=sid)
+            if pending_requests:
+                logger.info(f"Delivered {len(pending_requests)} pending chat requests to user {user_id}")
+        except Exception as e:
+            logger.error(f"Failed to deliver pending chat requests to user {user_id}: {e}")
 
         return {
             "status": "authenticated",
