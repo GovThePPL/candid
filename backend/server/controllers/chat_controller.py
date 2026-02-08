@@ -12,7 +12,7 @@ from candid import util
 
 from candid.controllers import db
 from candid.controllers.helpers.config import Config
-from candid.controllers.helpers.auth import authorization, authorization_allow_banned, token_to_user
+from candid.controllers.helpers.auth import authorization, authorization_allow_banned, token_to_user, get_user_type
 from candid.controllers.helpers.chat_events import publish_chat_accepted, publish_chat_request_response
 from candid.controllers.helpers import presence
 from candid.controllers.helpers.push_notifications import send_chat_request_notification
@@ -413,13 +413,14 @@ def get_chat_log(chat_id, token_info=None):
     if not result:
         return ErrorModel(code=404, message="Chat log not found"), 404
 
-    # Verify user is a participant
+    # Verify user is a participant or moderator
     initiator_id = str(result["initiator_user_id"])
     responder_id = str(result["responder_user_id"])
     is_participant = str(user.id) in (initiator_id, responder_id)
+    is_moderator = get_user_type(user.id) in ('moderator', 'admin')
 
-    # Non-participants can only see agreed statements (no chat messages or user details)
-    if not is_participant:
+    # Non-participants (except moderators) can only see agreed statements
+    if not is_participant and not is_moderator:
         log_blob = result["log"]
         agreed_closure = None
         agreed_positions = []
@@ -439,6 +440,7 @@ def get_chat_log(chat_id, token_info=None):
         }, 200
 
     # Determine the other user based on current user
+    # For moderators viewing as non-participants, the else branch shows initiator info
     if str(user.id) == initiator_id:
         other_user = {
             "id": responder_id,
@@ -527,6 +529,29 @@ def get_chat_log(chat_id, token_info=None):
         "otherUser": other_user,
         "endedByUserId": ended_by_user_id,
     }
+
+    # For moderator non-participant viewers, include both participants
+    if not is_participant and is_moderator:
+        response_data["participants"] = [
+            {
+                "id": initiator_id,
+                "username": result["initiator_username"],
+                "displayName": result["initiator_display_name"],
+                "avatarUrl": result["initiator_avatar_url"],
+                "avatarIconUrl": result["initiator_avatar_icon_url"],
+                "trustScore": float(result["initiator_trust_score"]) if result["initiator_trust_score"] else None,
+                "kudosCount": result["initiator_kudos_count"],
+            },
+            {
+                "id": responder_id,
+                "username": result["responder_username"],
+                "displayName": result["responder_display_name"],
+                "avatarUrl": result["responder_avatar_url"],
+                "avatarIconUrl": result["responder_avatar_icon_url"],
+                "trustScore": float(result["responder_trust_score"]) if result["responder_trust_score"] else None,
+                "kudosCount": result["responder_kudos_count"],
+            },
+        ]
 
     response = make_response(response_data, 200)
     response = add_cache_headers(response, last_modified=last_modified, etag_data=etag_data)

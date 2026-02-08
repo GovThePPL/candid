@@ -1406,6 +1406,26 @@ components:
           type: string
         text:
           type: string
+        severity:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Severity level 1-5 (1=low, 5=critical)
+        defaultActions:
+          type: array
+          description: Default moderation actions for this rule
+          items:
+            type: object
+            properties:
+              userClass:
+                type: string
+              action:
+                type: string
+              duration:
+                type: integer
+        sentencingGuidelines:
+          type: string
+          description: Guidelines for moderators on appropriate actions
 
     ModActionAppealResponse:
       type: object
@@ -1452,7 +1472,7 @@ components:
             properties:
               userClass:
                 type: string
-                enum: [submitter, active_adopter, passive_adopter]
+                enum: [submitter, active_adopter, passive_adopter, reporter, reported]
               action:
                 type: string
                 enum: [permanent_ban, temporary_ban, warning, removed]
@@ -4600,6 +4620,92 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
+  /moderation/reports/{reportId}/claim:
+    post:
+      operationId: claimReport
+      summary: Claim a report for review
+      description: Claims a report so other moderators won't review it simultaneously. Claims expire after 15 minutes.
+      tags:
+        - Moderation
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Report claimed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  claimedBy:
+                    type: string
+                    format: uuid
+                  claimedAt:
+                    type: string
+                    format: date-time
+        '400':
+          description: Report not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '403':
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '409':
+          description: Report already claimed by another moderator
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /moderation/reports/{reportId}/release:
+    post:
+      operationId: releaseReport
+      summary: Release a claimed report
+      description: Releases a claim on a report so other moderators can review it.
+      tags:
+        - Moderation
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Report released successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+        '400':
+          description: Report not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '403':
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
   /moderation/queue:
     get:
       operationId: getModerationQueue
@@ -4718,7 +4824,7 @@ paths:
                     properties:
                       userClass:
                         type: string
-                        enum: [submitter, active_adopter, passive_adopter]
+                        enum: [submitter, active_adopter, passive_adopter, reporter, reported]
                       action:
                         type: string
                         enum: [permanent_ban, temporary_ban, warning, removed]

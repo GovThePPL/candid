@@ -174,16 +174,23 @@ def get_rules(token_info=None):  # noqa: E501
         return auth_err, auth_err.code
 
     rules = db.execute_query("""
-        SELECT id, title, text
+        SELECT id, title, text, severity, default_actions, sentencing_guidelines
         FROM rule
         WHERE status = 'active'
         ORDER BY created_time ASC
     """)
 
-    return [
-        {'id': str(r['id']), 'title': r['title'], 'text': r['text']}
-        for r in (rules or [])
-    ]
+    result = []
+    for r in (rules or []):
+        rule_dict = {'id': str(r['id']), 'title': r['title'], 'text': r['text']}
+        if r.get('severity') is not None:
+            rule_dict['severity'] = r['severity']
+        if r.get('default_actions') is not None:
+            rule_dict['defaultActions'] = r['default_actions']
+        if r.get('sentencing_guidelines') is not None:
+            rule_dict['sentencingGuidelines'] = r['sentencing_guidelines']
+        result.append(rule_dict)
+    return result
 
 
 def _get_user_card(user_id):
@@ -242,13 +249,81 @@ def _get_user_info(user_id):
     return None
 
 
+def _get_reported_user_role(target_object_type, target_object_id):
+    """Determine the highest role among the 'reported' users for a report.
+
+    Returns the user_type string ('normal', 'moderator', 'admin') of the
+    highest-role user affected by the report.
+    """
+    role_hierarchy = {'guest': 0, 'normal': 1, 'moderator': 2, 'admin': 3}
+    highest_role = 'normal'
+
+    if target_object_type == 'position':
+        row = db.execute_query("""
+            SELECT u.user_type FROM position p
+            JOIN users u ON p.creator_user_id = u.id
+            WHERE p.id = %s
+        """, (target_object_id,), fetchone=True)
+        if row:
+            highest_role = row['user_type']
+
+    elif target_object_type == 'chat_log':
+        rows = db.execute_query("""
+            SELECT u.user_type FROM (
+                SELECT cr.initiator_user_id AS uid FROM chat_log cl
+                JOIN chat_request cr ON cl.chat_request_id = cr.id
+                WHERE cl.id = %s
+                UNION
+                SELECT up.user_id AS uid FROM chat_log cl
+                JOIN chat_request cr ON cl.chat_request_id = cr.id
+                JOIN user_position up ON cr.user_position_id = up.id
+                WHERE cl.id = %s
+            ) participants
+            JOIN users u ON participants.uid = u.id
+        """, (target_object_id, target_object_id))
+        for r in (rows or []):
+            if role_hierarchy.get(r['user_type'], 0) > role_hierarchy.get(highest_role, 0):
+                highest_role = r['user_type']
+
+    return highest_role
+
+
+def _get_reported_user_ids(target_object_type, target_object_id):
+    """Get user IDs of users who are the 'reported' party in a report target."""
+    if target_object_type == 'position':
+        row = db.execute_query("""
+            SELECT creator_user_id FROM position WHERE id = %s
+        """, (target_object_id,), fetchone=True)
+        if row and row['creator_user_id']:
+            return [str(row['creator_user_id'])]
+    elif target_object_type == 'chat_log':
+        row = db.execute_query("""
+            SELECT cr.initiator_user_id, up.user_id AS position_holder_user_id
+            FROM chat_log cl
+            JOIN chat_request cr ON cl.chat_request_id = cr.id
+            JOIN user_position up ON cr.user_position_id = up.id
+            WHERE cl.id = %s
+        """, (target_object_id,), fetchone=True)
+        if row:
+            return [str(row['initiator_user_id']), str(row['position_holder_user_id'])]
+    return []
+
+
 def _get_rule_info(rule_id):
     """Fetch rule info dict for queue enrichment."""
     row = db.execute_query("""
-        SELECT id, title, text FROM rule WHERE id = %s
+        SELECT id, title, text, severity, default_actions, sentencing_guidelines
+        FROM rule WHERE id = %s
     """, (rule_id,), fetchone=True)
     if row:
-        return {'id': str(row['id']), 'title': row['title'], 'text': row['text']}
+        result = {'id': str(row['id']), 'title': row['title'], 'text': row['text']}
+        if row.get('severity') is not None:
+            result['severity'] = row['severity']
+        if row.get('default_actions') is not None:
+            result['defaultActions'] = row['default_actions']
+        if row.get('sentencing_guidelines') is not None:
+            result['sentencingGuidelines'] = row['sentencing_guidelines']
+        return result
     return None
 
 
@@ -275,7 +350,7 @@ def _get_target_content(target_type, target_id):
             }
     elif target_type == 'chat_log':
         row = db.execute_query("""
-            SELECT cl.id, cl.start_time, cl.end_time,
+            SELECT cl.id, cl.start_time, cl.end_time, cl.log,
                    cr.initiator_user_id, up.user_id AS position_holder_user_id,
                    p.statement AS position_statement
             FROM chat_log cl
@@ -287,11 +362,23 @@ def _get_target_content(target_type, target_id):
         if row:
             initiator = _get_user_info(row['initiator_user_id'])
             holder = _get_user_info(row['position_holder_user_id'])
-            return {
+            result = {
                 'type': 'chat_log',
                 'positionStatement': row['position_statement'],
                 'participants': [initiator, holder],
             }
+            # Include chat messages from the log JSONB column
+            log_data = row.get('log')
+            if log_data and isinstance(log_data, dict):
+                result['messages'] = log_data.get('messages', [])
+            elif log_data and isinstance(log_data, str):
+                import json as json_module
+                try:
+                    parsed = json_module.loads(log_data)
+                    result['messages'] = parsed.get('messages', [])
+                except (ValueError, TypeError):
+                    pass
+            return result
     return None
 
 
@@ -527,6 +614,7 @@ def _get_admin_response_notifications(user_id):
                 original_report = {
                     'id': str(report_row['id']),
                     'reportType': report_row['target_object_type'],
+                    'targetId': str(report_row['target_object_id']),
                     'rule': _get_rule_info(report_row['rule_id']),
                     'targetContent': _get_target_content(
                         report_row['target_object_type'],
@@ -599,6 +687,78 @@ def dismiss_admin_response_notification(appeal_id, token_info=None):
     return {'status': 'ok'}
 
 
+def claim_report(report_id, token_info=None):  # noqa: E501
+    """Claim a report for review
+
+    :param report_id:
+    :type report_id: str
+
+    :rtype: Union[dict, Tuple[dict, int]]
+    """
+    authorized, auth_err = authorization("moderator", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    user = token_to_user(token_info)
+
+    # Check report exists
+    report = db.execute_query("""
+        SELECT id, claimed_by_user_id, claimed_at FROM report WHERE id = %s
+    """, (report_id,), fetchone=True)
+
+    if report is None:
+        return ErrorModel(400, "Report not found"), 400
+
+    # Check if already claimed by another user with an active claim
+    if (report['claimed_by_user_id'] is not None
+            and str(report['claimed_by_user_id']) != str(user.id)):
+        from datetime import datetime, timezone, timedelta
+        if report['claimed_at'] and report['claimed_at'].replace(tzinfo=timezone.utc) > datetime.now(timezone.utc) - timedelta(minutes=15):
+            return ErrorModel(409, "Report is already claimed by another moderator"), 409
+
+    # Claim it
+    db.execute_query("""
+        UPDATE report SET claimed_by_user_id = %s, claimed_at = CURRENT_TIMESTAMP
+        WHERE id = %s
+    """, (str(user.id), report_id))
+
+    return {
+        'status': 'claimed',
+        'claimedBy': str(user.id),
+    }
+
+
+def release_report(report_id, token_info=None):  # noqa: E501
+    """Release a claimed report
+
+    :param report_id:
+    :type report_id: str
+
+    :rtype: Union[dict, Tuple[dict, int]]
+    """
+    authorized, auth_err = authorization("moderator", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    user = token_to_user(token_info)
+
+    # Check report exists
+    report = db.execute_query("""
+        SELECT id, claimed_by_user_id FROM report WHERE id = %s
+    """, (report_id,), fetchone=True)
+
+    if report is None:
+        return ErrorModel(400, "Report not found"), 400
+
+    # Clear the claim
+    db.execute_query("""
+        UPDATE report SET claimed_by_user_id = NULL, claimed_at = NULL
+        WHERE id = %s
+    """, (report_id,))
+
+    return {'status': 'released'}
+
+
 def get_moderation_queue(token_info=None):  # noqa: E501
     """Get unified moderation queue with all items requiring moderator attention
 
@@ -615,14 +775,20 @@ def get_moderation_queue(token_info=None):  # noqa: E501
     current_user_type = get_user_type(user.id)
     is_admin = current_user_type == 'admin'
 
-    # Get pending reports
+    # Get pending reports (exclude those claimed by other users with active claims)
     reports = db.execute_query("""
         SELECT id, target_object_type, target_object_id, submitter_user_id,
-               rule_id, status, submitter_comment, created_time
+               rule_id, status, submitter_comment, created_time,
+               claimed_by_user_id, claimed_at
         FROM report
         WHERE status = 'pending'
+          AND (
+            claimed_by_user_id IS NULL
+            OR claimed_by_user_id = %s
+            OR claimed_at < NOW() - INTERVAL '15 minutes'
+          )
         ORDER BY created_time ASC
-    """)
+    """, (str(user.id),))
 
     # Get active appeals needing review
     appeal_states = ['pending', 'overruled']
@@ -642,9 +808,24 @@ def get_moderation_queue(token_info=None):  # noqa: E501
     admin_notifications = _get_admin_response_notifications(str(user.id))
     queue.extend(admin_notifications)
 
-    # Add enriched reports to queue
+    # Add enriched reports to queue (with role-based routing)
+    role_hierarchy = {'guest': 0, 'normal': 1, 'moderator': 2, 'admin': 3}
     if reports:
         for r in reports:
+            # Role-based routing: determine reported user's role
+            reported_role = _get_reported_user_role(r['target_object_type'], r['target_object_id'])
+            reported_role_level = role_hierarchy.get(reported_role, 0)
+
+            # Moderators cannot see reports against moderators or admins
+            if not is_admin and reported_role_level >= role_hierarchy['moderator']:
+                continue
+
+            # Admins cannot see reports against themselves
+            if is_admin and reported_role_level >= role_hierarchy['admin']:
+                reported_ids = _get_reported_user_ids(r['target_object_type'], r['target_object_id'])
+                if str(user.id) in reported_ids:
+                    continue
+
             rule = _get_rule_info(r['rule_id'])
             submitter = _get_user_info(r['submitter_user_id'])
             target_content = _get_target_content(r['target_object_type'], r['target_object_id'])
@@ -711,6 +892,7 @@ def get_moderation_queue(token_info=None):  # noqa: E501
                     original_report = {
                         'id': str(report_row['id']),
                         'reportType': report_row['target_object_type'],
+                        'targetId': str(report_row['target_object_id']),
                         'rule': _get_rule_info(report_row['rule_id']),
                         'targetContent': _get_target_content(
                             report_row['target_object_type'],
@@ -1089,7 +1271,8 @@ def respond_to_appeal(appeal_id, body, token_info=None):  # noqa: E501
 
                     # Identify and record target users
                     target_user_ids = _get_target_users(
-                        user_class, report['target_object_type'], report['target_object_id']
+                        user_class, report['target_object_type'], report['target_object_id'],
+                        report_id=original_mod['report_id']
                     )
                     for target_user_id in target_user_ids:
                         target_id = str(uuid.uuid4())
@@ -1190,6 +1373,23 @@ def take_moderator_action(report_id, body, token_info=None):  # noqa: E501
     if report['status'] != 'pending':
         return ErrorModel(400, "Report has already been processed"), 400
 
+    # Role-based check: moderators cannot action reports against moderators+
+    current_user_type = get_user_type(user.id)
+    reported_role = _get_reported_user_role(report['target_object_type'], report['target_object_id'])
+    role_hierarchy = {'guest': 0, 'normal': 1, 'moderator': 2, 'admin': 3}
+    if current_user_type != 'admin' and role_hierarchy.get(reported_role, 0) >= role_hierarchy['moderator']:
+        return ErrorModel(403, "Reports against moderators or admins require admin privileges"), 403
+    if current_user_type == 'admin' and role_hierarchy.get(reported_role, 0) >= role_hierarchy['admin']:
+        reported_ids = _get_reported_user_ids(report['target_object_type'], report['target_object_id'])
+        if str(user.id) in reported_ids:
+            return ErrorModel(403, "You cannot take action on reports against yourself"), 403
+
+    # Auto-claim if unclaimed
+    db.execute_query("""
+        UPDATE report SET claimed_by_user_id = %s, claimed_at = CURRENT_TIMESTAMP
+        WHERE id = %s AND (claimed_by_user_id IS NULL OR claimed_at < NOW() - INTERVAL '15 minutes')
+    """, (str(user.id), report_id))
+
     # Validate request based on mod_response
     if mod_action_request.mod_response == 'take_action':
         if not mod_action_request.actions or len(mod_action_request.actions) == 0:
@@ -1258,7 +1458,8 @@ def take_moderator_action(report_id, body, token_info=None):  # noqa: E501
             target_user_ids = _get_target_users(
                 action.user_class,
                 report['target_object_type'],
-                report['target_object_id']
+                report['target_object_id'],
+                report_id=report_id
             )
 
             # Insert mod_action_target for each identified user
@@ -1299,7 +1500,7 @@ def take_moderator_action(report_id, body, token_info=None):  # noqa: E501
     )
 
 
-def _get_target_users(user_class, target_object_type, target_object_id):
+def _get_target_users(user_class, target_object_type, target_object_id, report_id=None):
     """
     Auto-identify target users based on user_class and the report's target.
 
@@ -1310,9 +1511,46 @@ def _get_target_users(user_class, target_object_type, target_object_id):
 
     For chat_log reports:
     - submitter: both chat participants (initiator and position holder)
+    - reporter: the user who submitted the report
+    - reported: the other participant (not the reporter) in a chat
     - active_adopter/passive_adopter: no targets (chats don't have adopters)
     """
     user_ids = []
+
+    # Handle reporter/reported classes (work for both position and chat_log)
+    if user_class == 'reporter' and report_id:
+        report_row = db.execute_query("""
+            SELECT submitter_user_id FROM report WHERE id = %s
+        """, (report_id,), fetchone=True)
+        if report_row and report_row['submitter_user_id']:
+            return [str(report_row['submitter_user_id'])]
+        return []
+
+    if user_class == 'reported' and report_id:
+        if target_object_type == 'chat_log':
+            # The 'reported' user is the participant who is NOT the reporter
+            report_row = db.execute_query("""
+                SELECT submitter_user_id FROM report WHERE id = %s
+            """, (report_id,), fetchone=True)
+            chat_row = db.execute_query("""
+                SELECT cr.initiator_user_id, up.user_id AS position_holder_user_id
+                FROM chat_log cl
+                JOIN chat_request cr ON cl.chat_request_id = cr.id
+                JOIN user_position up ON cr.user_position_id = up.id
+                WHERE cl.id = %s
+            """, (target_object_id,), fetchone=True)
+            if report_row and chat_row:
+                reporter_id = str(report_row['submitter_user_id'])
+                participants = [str(chat_row['initiator_user_id']), str(chat_row['position_holder_user_id'])]
+                return [uid for uid in participants if uid != reporter_id]
+        elif target_object_type == 'position':
+            # For positions, 'reported' is the same as 'submitter' (the creator)
+            result = db.execute_query("""
+                SELECT creator_user_id FROM position WHERE id = %s
+            """, (target_object_id,), fetchone=True)
+            if result and result['creator_user_id']:
+                return [str(result['creator_user_id'])]
+        return []
 
     if target_object_type == 'position':
         if user_class == 'submitter':

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   View,
   Text,
@@ -20,14 +20,18 @@ const ACTION_OPTIONS = [
   { value: 'permanent_ban', label: 'Permanent Ban' },
 ]
 
-const USER_CLASSES = [
+const POSITION_USER_CLASSES = [
   { value: 'submitter', label: 'Creator' },
   { value: 'active_adopter', label: 'Active Adopters' },
   { value: 'passive_adopter', label: 'Passive Adopters' },
 ]
 
-function ActionRow({ userClass, action, onActionChange, duration, onDurationChange, isChatReport }) {
-  if (isChatReport && userClass.value !== 'submitter') return null
+const CHAT_USER_CLASSES = [
+  { value: 'reported', label: 'Reported User' },
+  { value: 'reporter', label: 'Reporting User' },
+]
+
+function ActionRow({ userClass, action, onActionChange, duration, onDurationChange }) {
 
   const [open, setOpen] = useState(false)
   const selected = ACTION_OPTIONS.find(o => o.value === action) || ACTION_OPTIONS[0]
@@ -90,15 +94,42 @@ function ActionRow({ userClass, action, onActionChange, duration, onDurationChan
   )
 }
 
-export default function ModerationActionModal({ visible, onClose, onSubmit, reportType }) {
-  const [actions, setActions] = useState({
-    submitter: { action: 'removed', duration: '' },
-    active_adopter: { action: 'removed', duration: '' },
-    passive_adopter: { action: 'removed', duration: '' },
-  })
+function buildDefaultActions(rule, isChatReport) {
+  const classes = isChatReport ? CHAT_USER_CLASSES : POSITION_USER_CLASSES
+  const defaults = {}
+  for (const uc of classes) {
+    defaults[uc.value] = { action: 'none', duration: '' }
+  }
+  if (rule?.defaultActions && Array.isArray(rule.defaultActions)) {
+    for (const da of rule.defaultActions) {
+      // Map position-oriented classes to chat classes
+      let targetClass = da.userClass
+      if (isChatReport && targetClass === 'submitter') targetClass = 'reported'
+      if (targetClass && defaults[targetClass]) {
+        defaults[targetClass] = {
+          action: da.action || 'none',
+          duration: da.duration ? String(da.duration) : '',
+        }
+      }
+    }
+  }
+  return defaults
+}
+
+export default function ModerationActionModal({ visible, onClose, onSubmit, reportType, rule }) {
+  const isChatReport = reportType === 'chat_log'
+  const userClasses = isChatReport ? CHAT_USER_CLASSES : POSITION_USER_CLASSES
+  const [actions, setActions] = useState(() => buildDefaultActions(rule, isChatReport))
   const [modNotes, setModNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const isChatReport = reportType === 'chat_log'
+
+  // Reset actions from rule defaults when the modal opens or rule changes
+  useEffect(() => {
+    if (visible) {
+      setActions(buildDefaultActions(rule, isChatReport))
+      setModNotes('')
+    }
+  }, [visible, rule, isChatReport])
 
   const setAction = (userClass, action) => {
     setActions(prev => ({
@@ -148,16 +179,28 @@ export default function ModerationActionModal({ visible, onClose, onSubmit, repo
       maxHeight="85%"
     >
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        {rule && (
+          <View style={styles.ruleSection}>
+            <Text style={styles.ruleTitle}>{rule.title}</Text>
+            {rule.text && <Text style={styles.ruleText}>{rule.text}</Text>}
+            {rule.sentencingGuidelines && (
+              <View style={styles.guidelinesBox}>
+                <Ionicons name="book-outline" size={14} color={Colors.primary} style={{ marginTop: 1 }} />
+                <Text style={styles.guidelinesText}>{rule.sentencingGuidelines}</Text>
+              </View>
+            )}
+          </View>
+        )}
+
         <View style={styles.actionsGroup}>
-          {USER_CLASSES.map((uc) => (
+          {userClasses.map((uc) => (
             <ActionRow
               key={uc.value}
               userClass={uc}
-              action={actions[uc.value].action}
+              action={actions[uc.value]?.action || 'none'}
               onActionChange={(v) => setAction(uc.value, v)}
-              duration={actions[uc.value].duration}
+              duration={actions[uc.value]?.duration || ''}
               onDurationChange={(v) => setDuration(uc.value, v)}
-              isChatReport={isChatReport}
             />
           ))}
         </View>
@@ -195,6 +238,40 @@ export default function ModerationActionModal({ visible, onClose, onSubmit, repo
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 16,
+  },
+  ruleSection: {
+    backgroundColor: Colors.white,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  ruleTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.light.text,
+    marginBottom: 4,
+  },
+  ruleText: {
+    fontSize: 13,
+    color: Colors.pass,
+    lineHeight: 18,
+    marginBottom: 8,
+  },
+  guidelinesBox: {
+    flexDirection: 'row',
+    gap: 8,
+    backgroundColor: Colors.primary + '10',
+    borderRadius: 8,
+    padding: 10,
+  },
+  guidelinesText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
+    color: Colors.primary,
+    lineHeight: 18,
   },
   actionsGroup: {
     gap: 8,

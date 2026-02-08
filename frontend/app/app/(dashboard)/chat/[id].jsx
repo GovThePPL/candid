@@ -51,7 +51,7 @@ import PositionInfoCard from '../../../components/PositionInfoCard'
 import ReportModal from '../../../components/ReportModal'
 
 export default function ChatScreen() {
-  const { id: chatId, from } = useLocalSearchParams()
+  const { id: chatId, from, reporterId } = useLocalSearchParams()
   const router = useRouter()
   const navigation = useNavigation()
   const { user } = useContext(UserContext)
@@ -80,6 +80,8 @@ export default function ChatScreen() {
   const [chatEndedWithClosure, setChatEndedWithClosure] = useState(false)
   const [otherUserLeft, setOtherUserLeft] = useState(false)
   const [isHistoricalView, setIsHistoricalView] = useState(false) // True when viewing archived chat from history
+  const [isModerationView, setIsModerationView] = useState(false) // True when moderator is viewing a reported chat
+  const [participants, setParticipants] = useState(null) // Both participants when in moderation view
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
   const [inputHeight, setInputHeight] = useState(40)
   const [otherUserLastRead, setOtherUserLastRead] = useState(null) // Message ID other user has read up to
@@ -237,13 +239,27 @@ export default function ChatScreen() {
         setLoading(true)
         setError(null)
 
-        // If viewing from chat history, load directly from API (no WebSocket needed)
-        if (from === 'chats') {
+        // If viewing from chat history or moderation, load directly from API (no WebSocket needed)
+        if (from === 'chats' || from === 'moderation') {
           try {
             const chatLog = await api.chat.getChatLog(chatId)
             setChatInfo(chatLog)
             setChatEnded(true)
             setIsHistoricalView(true)
+
+            // If moderator view, capture participants for message attribution
+            if (from === 'moderation') {
+              setIsModerationView(true)
+              const chatParticipants = chatLog.participants
+                || [chatLog.otherUser, chatLog.position?.creator].filter(Boolean)
+              if (chatParticipants.length >= 2) {
+                // Order so reporter is participants[0] (right/own side), non-reporter is participants[1] (left/other side)
+                if (reporterId && String(chatParticipants[1]?.id) === String(reporterId)) {
+                  chatParticipants.reverse()
+                }
+                setParticipants(chatParticipants)
+              }
+            }
 
             // Load messages and proposals from the chat log
             const historicalMessages = []
@@ -755,6 +771,8 @@ export default function ChatScreen() {
       // Navigate based on where we came from
       if (from === 'chats') {
         router.replace('/chats')
+      } else if (from === 'moderation') {
+        router.replace('/moderation')
       } else {
         router.back()
       }
@@ -777,6 +795,8 @@ export default function ChatScreen() {
     // Navigate based on where we came from
     if (from === 'chats') {
       router.replace('/chats')
+    } else if (from === 'moderation') {
+      router.replace('/moderation')
     } else {
       router.back()
     }
@@ -884,7 +904,15 @@ export default function ChatScreen() {
     // - real-time message event: sender, sendTime (manually mapped to camelCase)
     const senderId = String(item.sender_id || item.sender || item.senderId || '')
     const currentUserId = String(user?.id || '')
-    const isOwnMessage = senderId === currentUserId
+    // In moderation view, treat first participant as "right" side, second as "left"
+    const isOwnMessage = isModerationView && participants
+      ? senderId === String(participants[0]?.id || '')
+      : senderId === currentUserId
+
+    // In moderation view, determine which participant sent this message
+    const moderationSender = isModerationView && participants
+      ? participants.find(p => String(p.id) === senderId)
+      : null
     // Handle both timestamp formats: sendTime (real-time) and timestamp (from Redis/join_chat)
     const rawTime = item.sendTime || item.timestamp
     const messageTime = rawTime
@@ -930,7 +958,9 @@ export default function ChatScreen() {
       // skipOffset: when true, offset styles are applied to wrapper instead
       const renderProposalCard = (proposal, isLatest = false, skipOffset = false) => {
         const pSenderId = String(proposal.sender_id || '')
-        const pIsOwn = pSenderId === currentUserId
+        const pIsOwn = isModerationView && participants
+          ? pSenderId === String(participants[0]?.id || '')
+          : pSenderId === currentUserId
         const pIsAccepted = proposal.type === 'accepted'
         const pIsRejected = proposal.type === 'rejected'
         const pIsModified = proposal.type === 'modified'
@@ -1029,11 +1059,11 @@ export default function ChatScreen() {
             {isLatest && pIsAccepted && (
               <View style={styles.proposalAvatarsRow}>
                 <View style={styles.proposalAvatarLeft}>
-                  <Avatar user={otherUser} size={28} showKudosBadge={false} borderStyle={styles.proposalAvatarBorder} />
+                  <Avatar user={isModerationView && participants ? participants[1] : otherUser} size={28} showKudosBadge={false} borderStyle={styles.proposalAvatarBorder} />
                   <Ionicons name="checkmark-circle" size={14} color={Colors.agree} style={styles.proposalAvatarCheck} />
                 </View>
                 <View style={styles.proposalAvatarRight}>
-                  <Avatar user={user} size={28} showKudosBadge={false} borderStyle={styles.proposalAvatarBorder} />
+                  <Avatar user={isModerationView && participants ? participants[0] : user} size={28} showKudosBadge={false} borderStyle={styles.proposalAvatarBorder} />
                   <Ionicons name="checkmark-circle" size={14} color={Colors.agree} style={styles.proposalAvatarCheck} />
                 </View>
               </View>
@@ -1108,7 +1138,9 @@ export default function ChatScreen() {
             const zIndex = idx + 1
 
             const pSenderId = String(proposal.sender_id || '')
-            const pIsOwn = pSenderId === currentUserId
+            const pIsOwn = isModerationView && participants
+              ? pSenderId === String(participants[0]?.id || '')
+              : pSenderId === currentUserId
             const pIsRejected = proposal.type === 'rejected'
             const pIsModified = proposal.type === 'modified'
             const pIsInactive = pIsRejected || pIsModified
@@ -1158,6 +1190,11 @@ export default function ChatScreen() {
       // Check if this is the last message the other user has read
       const isLastRead = item.id === otherUserLastRead
 
+      // In moderation view, check if this is the first message in a group from this sender
+      const prevMessage = index > 0 ? messages[index - 1] : null
+      const prevSenderId = prevMessage ? String(prevMessage.sender_id || prevMessage.sender || prevMessage.senderId || '') : null
+      const isFirstInGroup = !prevMessage || prevSenderId !== senderId
+
       return (
         <View style={styles.ownMessageRow}>
           <View style={styles.ownMessageContainer}>
@@ -1186,29 +1223,39 @@ export default function ChatScreen() {
     // Avatar shows only on the last consecutive message from the other user
     const nextMessage = messages[index + 1]
     const nextSenderId = nextMessage ? String(nextMessage.sender_id || nextMessage.sender || nextMessage.senderId || '') : null
-    const isLastInGroup = !nextMessage || nextSenderId === currentUserId
+    const isLastInGroup = !nextMessage || nextSenderId !== senderId
+
+    // In moderation view, check if first in group to show name label
+    const prevMessage = index > 0 ? messages[index - 1] : null
+    const prevSenderId = prevMessage ? String(prevMessage.sender_id || prevMessage.sender || prevMessage.senderId || '') : null
+    const isFirstInGroup = !prevMessage || prevSenderId !== senderId
+
+    // Use correct user for avatar: in moderation view, use the sender participant
+    const messageUser = isModerationView ? moderationSender : otherUser
 
     // Other user's message
     return (
       <View style={styles.otherMessageRow}>
         {isLastInGroup ? (
-          <Avatar user={otherUser} size={28} showKudosBadge={false} />
+          <Avatar user={messageUser} size={28} showKudosBadge={false} />
         ) : (
           <View style={styles.messageAvatarSpacer} />
         )}
-        <View style={[styles.messageBubble, styles.otherMessage]}>
-          <Text style={[styles.messageText, styles.otherMessageText]}>
-            {item.content}
-          </Text>
-          {messageTime && (
-            <Text style={[styles.messageTime, styles.otherMessageTime]}>
-              {messageTime}
+        <View>
+          <View style={[styles.messageBubble, styles.otherMessage]}>
+            <Text style={[styles.messageText, styles.otherMessageText]}>
+              {item.content}
             </Text>
-          )}
+            {messageTime && (
+              <Text style={[styles.messageTime, styles.otherMessageTime]}>
+                {messageTime}
+              </Text>
+            )}
+          </View>
         </View>
       </View>
     )
-  }, [user, otherUser, otherUserLastRead, messages, chatEnded, expandedProposalStack, proposalHeights, proposalCardWidth, proposalOffset, handleAcceptProposal, handleRejectProposal, handleStartModify])
+  }, [user, otherUser, otherUserLastRead, messages, chatEnded, expandedProposalStack, proposalHeights, proposalCardWidth, proposalOffset, handleAcceptProposal, handleRejectProposal, handleStartModify, isModerationView, participants])
 
   // Leave confirmation modal
   const renderLeaveConfirmModal = () => (
@@ -1307,7 +1354,7 @@ export default function ChatScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-        {from === 'chats' ? (
+        {from === 'chats' || from === 'moderation' ? (
           <Header onBack={handleBackPress} />
         ) : (
           <View style={styles.header}>
@@ -1320,7 +1367,7 @@ export default function ChatScreen() {
         )}
         <View style={styles.centerContent}>
           <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>{from === 'chats' ? 'Loading chat log...' : 'Joining chat...'}</Text>
+          <Text style={styles.loadingText}>{from === 'chats' || from === 'moderation' ? 'Loading chat log...' : 'Joining chat...'}</Text>
         </View>
         {renderLeaveConfirmModal()}
       </SafeAreaView>
@@ -1331,7 +1378,7 @@ export default function ChatScreen() {
   if (error) {
     return (
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-        {from === 'chats' ? (
+        {from === 'chats' || from === 'moderation' ? (
           <Header onBack={() => router.back()} />
         ) : (
           <View style={styles.header}>
@@ -1392,15 +1439,17 @@ export default function ChatScreen() {
 
       {/* Chat ended banner */}
       {chatEnded && (
-        <View style={[styles.endedBanner, (chatEndedWithClosure || isHistoricalView) && styles.endedBannerClosure]}>
+        <View style={[styles.endedBanner, isModerationView ? styles.endedBannerModeration : (chatEndedWithClosure || isHistoricalView) && styles.endedBannerClosure]}>
           <Ionicons
-            name={isHistoricalView ? 'time' : (chatEndedWithClosure ? 'checkmark-circle' : (otherUserLeft ? 'exit-outline' : 'information-circle'))}
+            name={isModerationView ? 'shield' : isHistoricalView ? 'time' : (chatEndedWithClosure ? 'checkmark-circle' : (otherUserLeft ? 'exit-outline' : 'information-circle'))}
             size={18}
             color="#fff"
             style={{ marginRight: 8 }}
           />
           <Text style={styles.endedText}>
-            {isHistoricalView
+            {isModerationView
+              ? 'Moderation review — chat log'
+              : isHistoricalView
               ? 'Viewing historical chat log'
               : chatEndedWithClosure
                 ? 'Chat ended with mutual agreement'
@@ -1408,7 +1457,7 @@ export default function ChatScreen() {
                   ? `${otherUser?.displayName || 'The other user'} has left the chat`
                   : 'This chat has ended'}
           </Text>
-          {(isHistoricalView || chatEnded) && (
+          {!isModerationView && (isHistoricalView || chatEnded) && (
             <TouchableOpacity
               onPress={() => setReportModalVisible(true)}
               style={styles.reportButton}
@@ -1416,6 +1465,29 @@ export default function ChatScreen() {
               <Ionicons name="flag-outline" size={18} color="#fff" />
             </TouchableOpacity>
           )}
+        </View>
+      )}
+
+      {/* Participants card for moderation view */}
+      {isModerationView && participants && (
+        <View style={styles.moderationParticipants}>
+          <View style={styles.moderationParticipantCard}>
+            <Avatar user={participants[1]} size="md" showKudosCount badgePosition="bottom-left" />
+            <View style={styles.moderationParticipantInfo}>
+              <Text style={styles.moderationParticipantName}>{participants[1]?.displayName}</Text>
+              <Text style={styles.moderationParticipantUsername}>@{participants[1]?.username}</Text>
+            </View>
+            <View style={[styles.moderationParticipantDot, { backgroundColor: Colors.agree }]} />
+          </View>
+          <Ionicons name="chatbubbles-outline" size={20} color={Colors.pass} />
+          <View style={styles.moderationParticipantCard}>
+            <View style={[styles.moderationParticipantDot, { backgroundColor: Colors.messageYou }]} />
+            <View style={styles.moderationParticipantInfo}>
+              <Text style={styles.moderationParticipantName}>{participants[0]?.displayName}</Text>
+              <Text style={styles.moderationParticipantUsername}>@{participants[0]?.username}</Text>
+            </View>
+            <Avatar user={participants[0]} size="md" showKudosCount badgePosition="bottom-left" />
+          </View>
         </View>
       )}
 
@@ -1990,6 +2062,9 @@ const styles = StyleSheet.create({
   endedBannerClosure: {
     backgroundColor: Colors.agree,
   },
+  endedBannerModeration: {
+    backgroundColor: Colors.warning,
+  },
   endedText: {
     flex: 1,
     color: Colors.white,
@@ -2315,5 +2390,54 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: Colors.white,
+  },
+  // Moderation view styles
+  moderationParticipants: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: Colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.cardBorder,
+  },
+  moderationParticipantCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  moderationParticipantInfo: {
+    flex: 1,
+  },
+  moderationParticipantName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.light.text,
+  },
+  moderationParticipantUsername: {
+    fontSize: 12,
+    color: Colors.pass,
+  },
+  moderationParticipantDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  moderationSenderLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.pass,
+    textAlign: 'right',
+    marginBottom: 2,
+  },
+  moderationSenderLabelOther: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.pass,
+    marginBottom: 2,
+    marginLeft: 2,
   },
 })

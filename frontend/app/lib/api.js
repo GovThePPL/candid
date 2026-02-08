@@ -808,6 +808,20 @@ export const moderationApiWrapper = {
       userId
     )
   },
+
+  async claimReport(reportId) {
+    return await promisify(
+      moderationApi.claimReport.bind(moderationApi),
+      reportId
+    )
+  },
+
+  async releaseReport(reportId) {
+    return await promisify(
+      moderationApi.releaseReport.bind(moderationApi),
+      reportId
+    )
+  },
 }
 
 export default {

@@ -439,11 +439,13 @@ class TestGetChatLog:
         assert "chatRequestId" in body
         assert "startTime" in body
 
-    def test_non_participant_can_view_archived(self, normal2_headers):
+    def test_non_participant_can_view_archived(self, normal_headers):
         """Non-participant can view archived chat log (no access restriction on archived chats)."""
+        # Use an archived chat (Normal2 <-> Admin1) and view as Normal1 (non-participant)
+        archived_chat_id = "1e665c62-0dc6-45ff-acde-e32d64e5b2ea"
         resp = requests.get(
-            chat_log_url(CHAT_LOG_1_ID),
-            headers=normal2_headers,
+            chat_log_url(archived_chat_id),
+            headers=normal_headers,
         )
         # Archived chats are viewable by any authenticated user
         assert resp.status_code == 200

@@ -39,6 +39,8 @@ EDUCATION_CAT_ID = "be3305f5-df1a-4cf5-855e-49a88ed3cbd3"
 POSITION1_ID = "772d04ed-b2ad-4f95-a630-c739811fa615"
 # Second healthcare position by moderator1
 POSITION2_ID = "4d0b2198-414e-4cf9-93a9-83033b81ce76"
+# Third healthcare position by normal1
+POSITION3_ID = "f7aeb957-a41a-4b1e-9482-6297f5f07743"
 
 # Location
 OREGON_LOCATION_ID = "ba5e3dcf-af51-47f4-941d-ee3448ee826a"

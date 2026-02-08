@@ -1,7 +1,8 @@
 import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, ScrollView, TextInput } from 'react-native'
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { Ionicons } from '@expo/vector-icons'
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { Colors } from '../../constants/Colors'
 import Header from '../../components/Header'
 import EmptyState from '../../components/EmptyState'
@@ -24,7 +25,7 @@ const CLASS_LABELS = {
   passive_adopter: 'Passive Adopters',
 }
 
-function ReportCard({ item, onHistoryPress }) {
+function ReportCard({ item, onHistoryPress, onChatPress }) {
   const { data } = item
   const target = data.targetContent
 
@@ -76,16 +77,30 @@ function ReportCard({ item, onHistoryPress }) {
 
       {/* Purple footer with reporter info */}
       <View style={styles.reportFooter}>
-        {onHistoryPress && target?.creator && (
+        {onChatPress && target?.type === 'chat_log' && (
           <TouchableOpacity
             style={styles.historyButton}
-            onPress={() => onHistoryPress(target.creator)}
+            onPress={() => onChatPress(data.targetId, data.submitter?.id)}
             activeOpacity={0.7}
           >
-            <Ionicons name="time-outline" size={16} color={Colors.white} />
-            <Text style={styles.historyButtonText}>User moderation history</Text>
+            <Ionicons name="chatbubbles-outline" size={16} color={Colors.white} />
+            <Text style={styles.historyButtonText}>View chat log</Text>
           </TouchableOpacity>
         )}
+        {onHistoryPress && (target?.creator || target?.participants) && (() => {
+          const historyUser = target.creator
+            || target.participants?.find(p => p?.id !== data.submitter?.id)
+          return historyUser ? (
+            <TouchableOpacity
+              style={styles.historyButton}
+              onPress={() => onHistoryPress(historyUser)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="time-outline" size={16} color={Colors.white} />
+              <Text style={styles.historyButtonText}>User moderation history</Text>
+            </TouchableOpacity>
+          ) : null
+        })()}
         <View style={styles.reporterRow}>
           <Text style={styles.reportFooterLabel}>Reported by</Text>
           <Avatar user={data.submitter} size="sm" showKudosCount badgePosition="bottom-left" />
@@ -104,7 +119,7 @@ function ReportCard({ item, onHistoryPress }) {
   )
 }
 
-function AppealCard({ item, onHistoryPress }) {
+function AppealCard({ item, onHistoryPress, onChatPress }) {
   const { data } = item
   const target = data.originalReport?.targetContent
   const rule = data.originalReport?.rule
@@ -160,6 +175,16 @@ function AppealCard({ item, onHistoryPress }) {
 
       {/* Purple footer with reporter, moderator action, and appeal as distinct shells */}
       <View style={styles.reportFooter}>
+        {onChatPress && target?.type === 'chat_log' && (
+          <TouchableOpacity
+            style={styles.historyButton}
+            onPress={() => onChatPress(data.originalReport?.targetId, data.originalReport?.submitter?.id)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="chatbubbles-outline" size={16} color={Colors.white} />
+            <Text style={styles.historyButtonText}>View chat log</Text>
+          </TouchableOpacity>
+        )}
         {onHistoryPress && data.user && (
           <TouchableOpacity
             style={styles.historyButton}
@@ -268,7 +293,7 @@ const STATE_COLORS = {
   modified: Colors.primary,
 }
 
-function AdminResponseNotificationCard({ item, onHistoryPress }) {
+function AdminResponseNotificationCard({ item, onHistoryPress, onChatPress }) {
   const { data } = item
   const target = data.originalReport?.targetContent
   const rule = data.originalReport?.rule
@@ -322,6 +347,16 @@ function AdminResponseNotificationCard({ item, onHistoryPress }) {
 
       {/* Purple footer — chronological order: mod action → reviews → admin decision */}
       <View style={styles.reportFooter}>
+        {onChatPress && target?.type === 'chat_log' && (
+          <TouchableOpacity
+            style={styles.historyButton}
+            onPress={() => onChatPress(data.originalReport?.targetId, data.originalReport?.submitter?.id)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="chatbubbles-outline" size={16} color={Colors.white} />
+            <Text style={styles.historyButtonText}>View chat log</Text>
+          </TouchableOpacity>
+        )}
         {onHistoryPress && data.appealUser && (
           <TouchableOpacity
             style={styles.historyButton}
@@ -436,6 +471,7 @@ function AdminResponseNotificationCard({ item, onHistoryPress }) {
 }
 
 export default function ModerationQueue() {
+  const router = useRouter()
   const [queue, setQueue] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -450,6 +486,12 @@ export default function ModerationQueue() {
   const [historyModalVisible, setHistoryModalVisible] = useState(false)
   const [historyUserId, setHistoryUserId] = useState(null)
   const [historyUser, setHistoryUser] = useState(null)
+
+  const handleChatPress = useCallback((chatId, reporterId) => {
+    if (chatId) {
+      router.push(`/chat/${chatId}?from=moderation${reporterId ? `&reporterId=${reporterId}` : ''}`)
+    }
+  }, [router])
 
   const handleHistoryPress = useCallback((user) => {
     setHistoryUserId(user.id)
@@ -478,6 +520,16 @@ export default function ModerationQueue() {
 
   const currentItem = queue[currentIndex]
 
+  // Auto-claim reports when they become the current item
+  const currentReportId = currentItem?.type === 'report' ? currentItem.data.id : null
+  useEffect(() => {
+    if (currentReportId) {
+      api.moderation.claimReport(currentReportId).catch(err => {
+        console.error('Failed to claim report:', err)
+      })
+    }
+  }, [currentReportId])
+
   const advanceQueue = useCallback(() => {
     if (currentIndex < queue.length - 1) {
       setCurrentIndex(prev => prev + 1)
@@ -488,9 +540,16 @@ export default function ModerationQueue() {
   }, [currentIndex, queue.length, fetchQueue])
 
   // Report actions
-  const handlePass = useCallback(() => {
+  const handlePass = useCallback(async () => {
+    if (currentItem?.type === 'report') {
+      try {
+        await api.moderation.releaseReport(currentItem.data.id)
+      } catch (err) {
+        console.error('Failed to release report:', err)
+      }
+    }
     advanceQueue()
-  }, [advanceQueue])
+  }, [currentItem, advanceQueue])
 
   const handleDismiss = useCallback(async () => {
     if (!currentItem || processing) return
@@ -636,11 +695,11 @@ export default function ModerationQueue() {
 
       <ScrollView style={styles.cardContainer} contentContainerStyle={styles.cardContainerContent}>
         {currentItem?.type === 'report' ? (
-          <ReportCard item={currentItem} onHistoryPress={handleHistoryPress} />
+          <ReportCard item={currentItem} onHistoryPress={handleHistoryPress} onChatPress={handleChatPress} />
         ) : currentItem?.type === 'appeal' ? (
-          <AppealCard item={currentItem} onHistoryPress={handleHistoryPress} />
+          <AppealCard item={currentItem} onHistoryPress={handleHistoryPress} onChatPress={handleChatPress} />
         ) : currentItem?.type === 'admin_response_notification' ? (
-          <AdminResponseNotificationCard item={currentItem} onHistoryPress={handleHistoryPress} />
+          <AdminResponseNotificationCard item={currentItem} onHistoryPress={handleHistoryPress} onChatPress={handleChatPress} />
         ) : null}
       </ScrollView>
 
@@ -663,7 +722,7 @@ export default function ModerationQueue() {
               style={[styles.actionButton, styles.actionButtonAction]}
               onPress={() => setActionModalVisible(true)}
             >
-              <Ionicons name="hammer-outline" size={20} color={Colors.white} />
+              <MaterialCommunityIcons name="gavel" size={20} color={Colors.white} />
               <Text style={styles.actionButtonTextWhite}>Action</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -789,6 +848,7 @@ export default function ModerationQueue() {
         onClose={() => setActionModalVisible(false)}
         onSubmit={handleTakeAction}
         reportType={currentItem?.data?.reportType}
+        rule={currentItem?.data?.rule}
       />
 
       {/* Modify Action Modal (for appeals) */}
@@ -797,6 +857,7 @@ export default function ModerationQueue() {
         onClose={() => setModifyModalVisible(false)}
         onSubmit={handleModifyAction}
         reportType={currentItem?.data?.originalReport?.reportType}
+        rule={currentItem?.data?.originalReport?.rule}
       />
 
       {/* Dismiss Modal */}
@@ -811,7 +872,7 @@ export default function ModerationQueue() {
             style={styles.responseInput}
             value={responseText}
             onChangeText={setResponseText}
-            placeholder="Reason for dismissal (optional)..."
+            placeholder="Moderator comment (optional)..."
             placeholderTextColor={Colors.pass}
             multiline
           />

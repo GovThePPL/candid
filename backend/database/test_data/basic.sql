@@ -10,8 +10,8 @@ Tables WITH test data:
   7 user_position - 75 entries (50 creators adopting their own positions + 25 cross-adoptions)
   8 user_activity - 32 activity sessions across all non-guest users
   9 response - 94 user responses to positions (agree/disagree/pass)
- 10 chat_request - 10 chat requests (5 accepted, 3 dismissed, 2 timeout)
- 11 chat_log - 5 chat logs for the accepted requests
+ 10 chat_request - 11 chat requests (6 accepted, 3 dismissed, 2 timeout)
+ 11 chat_log - 6 chat logs for the accepted requests
  12 kudos - 3 kudos entries (One mutual, one not)
  13 rule - 4 moderation rules
 
@@ -558,7 +558,11 @@ INSERT INTO chat_request (id, initiator_user_id, user_position_id, response, res
 ('74821334-f420-4ec0-978b-06a60c02b429', 'c922be05-e355-4052-8d3f-7774669ddd32', 'c5eb4bb6-adad-4823-bb78-242aad165c9d', 'timeout', NULL, '2025-01-15 14:52:00+00', '2025-01-15 14:52:30+00'),
 
 -- Request 10: Normal4 -> Normal5's position (accepted)
-('2f58e635-3c09-4bd7-a0d8-f52510ad30fa', '2333392a-7c07-4733-8b46-00d32833d9bc', '927a0293-5e92-4450-a584-bd42be3386be', 'accepted', '2025-07-15 14:05:00+00', '2025-07-15 14:02:00+00', '2025-07-15 14:02:20+00');
+('2f58e635-3c09-4bd7-a0d8-f52510ad30fa', '2333392a-7c07-4733-8b46-00d32833d9bc', '927a0293-5e92-4450-a584-bd42be3386be', 'accepted', '2025-07-15 14:05:00+00', '2025-07-15 14:02:00+00', '2025-07-15 14:02:20+00'),
+
+-- Request 11: Normal1 -> Normal3's minimum wage position (accepted) - for moderation tests
+-- Uses a different user_position (6b423ed7) than Request 1 (cd411a92) to avoid cleanup collisions
+('a1111111-1111-1111-1111-111111111111', '6c9344ed-0313-4b25-a616-5ac08967e84f', '6b423ed7-fa20-4705-aeb0-8fae448967c6', 'accepted', '2025-08-01 10:05:00+00', '2025-08-01 10:02:00+00', '2025-08-01 10:02:20+00');
 
 -- Test data for chat logs (for accepted chat requests)
 -- Note: log column is JSONB, using sample JSON structure with messages
@@ -614,7 +618,16 @@ INSERT INTO chat_log (id, chat_request_id, start_time, end_time, log, end_type, 
   {"id": "msg3", "senderId": "2333392a-7c07-4733-8b46-00d32833d9bc", "content": "I think we actually agree on the core principles.", "timestamp": "2025-07-15T14:10:00Z"},
   {"id": "msg4", "senderId": "c922be05-e355-4052-8d3f-7774669ddd32", "content": "Yes! We just differ on the implementation approach.", "timestamp": "2025-07-15T14:15:00Z"},
   {"id": "msg5", "senderId": "2333392a-7c07-4733-8b46-00d32833d9bc", "content": "Maybe we can propose a hybrid solution.", "timestamp": "2025-07-15T14:20:00Z"}
-], "agreedPositions": [], "agreedClosure": {"id": "closure-1d06bf99", "proposerId": "2333392a-7c07-4733-8b46-00d32833d9bc", "content": "Found common ground", "timestamp": "2025-07-15T14:22:00Z"}, "exportTime": "2025-07-15T14:25:00Z"}', 'agreed_closure', 'active');
+], "agreedPositions": [], "agreedClosure": {"id": "closure-1d06bf99", "proposerId": "2333392a-7c07-4733-8b46-00d32833d9bc", "content": "Found common ground", "timestamp": "2025-07-15T14:22:00Z"}, "exportTime": "2025-07-15T14:25:00Z"}', 'agreed_closure', 'active'),
+
+-- Chat 6: Normal1 -> Normal3's minimum wage position (user_exit, active) - for moderation tests (CHAT_LOG_1_ID)
+('b2222222-2222-2222-2222-222222222222', 'a1111111-1111-1111-1111-111111111111', '2025-08-01 10:02:20+00', '2025-08-01 10:20:00+00',
+'{"messages": [
+  {"id": "msg1", "senderId": "6c9344ed-0313-4b25-a616-5ac08967e84f", "content": "I wanted to talk about your position on minimum wage.", "timestamp": "2025-08-01T10:02:25Z"},
+  {"id": "msg2", "senderId": "735565c1-93d9-4813-b227-3d9c06b78c8f", "content": "Sure, I think it is an important topic.", "timestamp": "2025-08-01T10:05:00Z"},
+  {"id": "msg3", "senderId": "6c9344ed-0313-4b25-a616-5ac08967e84f", "content": "I agree on the fundamentals but have different views on implementation.", "timestamp": "2025-08-01T10:10:00Z"},
+  {"id": "msg4", "senderId": "735565c1-93d9-4813-b227-3d9c06b78c8f", "content": "That is a fair point. Let me think about that.", "timestamp": "2025-08-01T10:15:00Z"}
+], "agreedPositions": [], "agreedClosure": null, "endedByUserId": "6c9344ed-0313-4b25-a616-5ac08967e84f", "exportTime": "2025-08-01T10:20:00Z"}', 'user_exit', 'active');
 
 -- Test data for kudos entries
 INSERT INTO kudos (id, sender_user_id, receiver_user_id, chat_log_id, status, created_time) VALUES
@@ -625,16 +638,16 @@ INSERT INTO kudos (id, sender_user_id, receiver_user_id, chat_log_id, status, cr
 -- Kudos from Normal4 to Normal5 after their chat (Normal5 has NOT reciprocated, so should appear as kudos card for Normal5)
 ('a4c5d6e7-f8a9-b0c1-d2e3-f4a5b6c7d8e9', '2333392a-7c07-4733-8b46-00d32833d9bc', 'c922be05-e355-4052-8d3f-7774669ddd32', '1d06bf99-4d87-4700-8806-63de8c905eca', 'sent', '2025-07-15 14:30:00+00');
 
--- Test data for moderation rules
-INSERT INTO rule (id, creator_user_id, title, text, status, created_time, updated_time) VALUES
+-- Test data for moderation rules (with severity, default_actions, sentencing_guidelines)
+INSERT INTO rule (id, creator_user_id, title, text, status, severity, default_actions, sentencing_guidelines, created_time, updated_time) VALUES
 -- Rule 1: Violence/hate speech
-('b8a7c6d5-e4f3-4a2b-1c0d-9e8f7a6b5c4d', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'Violence or Hate Speech', 'This content calls for violence against people based on immutable/quasi-immutable characteristics or strong convictions', 'active', '2024-09-25 10:00:00+00', '2024-09-25 10:00:00+00'),
+('b8a7c6d5-e4f3-4a2b-1c0d-9e8f7a6b5c4d', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'Violence or Hate Speech', 'This content calls for violence against people based on immutable/quasi-immutable characteristics or strong convictions', 'active', 5, '[{"userClass": "submitter", "action": "temporary_ban", "duration": 7}]'::jsonb, 'Immediate ban for threats or incitement. Temporary ban (7-30 days) for hostile language.', '2024-09-25 10:00:00+00', '2024-09-25 10:00:00+00'),
 -- Rule 2: Sexual/obscene content
-('c9b8d7e6-f5a4-4b3c-2d1e-0f9a8b7c6d5e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'Sexual or Obscene Content', 'This content is sexual or obscene', 'active', '2024-09-25 10:05:00+00', '2024-09-25 10:05:00+00'),
+('c9b8d7e6-f5a4-4b3c-2d1e-0f9a8b7c6d5e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'Sexual or Obscene Content', 'This content is sexual or obscene', 'active', 4, '[{"userClass": "submitter", "action": "removed"}]'::jsonb, 'Remove content. Warning for first offense, temporary ban (3-7 days) for repeat.', '2024-09-25 10:05:00+00', '2024-09-25 10:05:00+00'),
 -- Rule 3: Spam/self-promotion
-('d0c9e8f7-a6b5-4c4d-3e2f-1a0b9c8d7e6f', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'Spam or Self-Promotion', 'This content contains spam or self-promotion', 'active', '2024-09-25 10:10:00+00', '2024-09-25 10:10:00+00'),
+('d0c9e8f7-a6b5-4c4d-3e2f-1a0b9c8d7e6f', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'Spam or Self-Promotion', 'This content contains spam or self-promotion', 'active', 2, '[{"userClass": "submitter", "action": "warning"}]'::jsonb, 'Remove content. Warning for first offense, temporary ban (1-3 days) for repeat.', '2024-09-25 10:10:00+00', '2024-09-25 10:10:00+00'),
 -- Rule 4: Not a normative political statement
-('e1d0f9a8-b7c6-4d5e-4f3a-2b1c0d9e8f7a', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'Not a Normative Political Statement', 'This content does not make a normative political statement', 'active', '2024-09-25 10:15:00+00', '2024-09-25 10:15:00+00');
+('e1d0f9a8-b7c6-4d5e-4f3a-2b1c0d9e8f7a', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'Not a Normative Political Statement', 'This content does not make a normative political statement', 'active', 1, '[{"userClass": "submitter", "action": "removed"}]'::jsonb, 'Remove content. No user action unless repeated violations.', '2024-09-25 10:15:00+00', '2024-09-25 10:15:00+00');
 
 -- Test data for user demographics (varying from empty to complete)
 INSERT INTO user_demographics (id, user_id, location_id, affiliation_id, lean, education, geo_locale, race, sex, age_range, income_range, created_time, updated_time) VALUES
