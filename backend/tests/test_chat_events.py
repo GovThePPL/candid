@@ -14,13 +14,13 @@ from unittest.mock import patch, MagicMock
 class TestPublishChatRequestResponse:
     """Unit tests for publish_chat_request_response function."""
 
-    @patch('candid.controllers.helpers.chat_events.redis.from_url')
-    def test_publish_accepted_with_chat_log_id(self, mock_redis_from_url):
+    @patch('candid.controllers.helpers.chat_events.get_redis')
+    def test_publish_accepted_with_chat_log_id(self, mock_get_redis):
         """Test publishing accepted response with chat_log_id."""
         from candid.controllers.helpers.chat_events import publish_chat_request_response
 
         mock_redis = MagicMock()
-        mock_redis_from_url.return_value = mock_redis
+        mock_get_redis.return_value = mock_redis
 
         result = publish_chat_request_response(
             request_id="req-123",
@@ -44,15 +44,13 @@ class TestPublishChatRequestResponse:
         assert event["initiatorUserId"] == "user-456"
         assert event["chatLogId"] == "chat-789"
 
-        mock_redis.close.assert_called_once()
-
-    @patch('candid.controllers.helpers.chat_events.redis.from_url')
-    def test_publish_dismissed_without_chat_log_id(self, mock_redis_from_url):
+    @patch('candid.controllers.helpers.chat_events.get_redis')
+    def test_publish_dismissed_without_chat_log_id(self, mock_get_redis):
         """Test publishing dismissed response without chat_log_id."""
         from candid.controllers.helpers.chat_events import publish_chat_request_response
 
         mock_redis = MagicMock()
-        mock_redis_from_url.return_value = mock_redis
+        mock_get_redis.return_value = mock_redis
 
         result = publish_chat_request_response(
             request_id="req-123",
@@ -71,12 +69,12 @@ class TestPublishChatRequestResponse:
         assert "chatLogId" not in event
         assert event["response"] == "dismissed"
 
-    @patch('candid.controllers.helpers.chat_events.redis.from_url')
-    def test_publish_handles_redis_error(self, mock_redis_from_url):
+    @patch('candid.controllers.helpers.chat_events.get_redis')
+    def test_publish_handles_redis_error(self, mock_get_redis):
         """Test that Redis errors are handled gracefully."""
         from candid.controllers.helpers.chat_events import publish_chat_request_response
 
-        mock_redis_from_url.side_effect = Exception("Redis connection failed")
+        mock_get_redis.side_effect = Exception("Redis connection failed")
 
         result = publish_chat_request_response(
             request_id="req-123",
@@ -87,14 +85,14 @@ class TestPublishChatRequestResponse:
 
         assert result is False
 
-    @patch('candid.controllers.helpers.chat_events.redis.from_url')
-    def test_publish_handles_publish_error(self, mock_redis_from_url):
+    @patch('candid.controllers.helpers.chat_events.get_redis')
+    def test_publish_handles_publish_error(self, mock_get_redis):
         """Test that publish errors are handled gracefully."""
         from candid.controllers.helpers.chat_events import publish_chat_request_response
 
         mock_redis = MagicMock()
         mock_redis.publish.side_effect = Exception("Publish failed")
-        mock_redis_from_url.return_value = mock_redis
+        mock_get_redis.return_value = mock_redis
 
         result = publish_chat_request_response(
             request_id="req-123",
@@ -105,8 +103,8 @@ class TestPublishChatRequestResponse:
 
         assert result is False
 
-    @patch('candid.controllers.helpers.chat_events.redis.from_url')
-    def test_publish_uses_correct_channel(self, mock_redis_from_url):
+    @patch('candid.controllers.helpers.chat_events.get_redis')
+    def test_publish_uses_correct_channel(self, mock_get_redis):
         """Test that events are published to the correct channel."""
         from candid.controllers.helpers.chat_events import (
             publish_chat_request_response,
@@ -114,7 +112,7 @@ class TestPublishChatRequestResponse:
         )
 
         mock_redis = MagicMock()
-        mock_redis_from_url.return_value = mock_redis
+        mock_get_redis.return_value = mock_redis
 
         publish_chat_request_response(
             request_id="req-123",
@@ -131,13 +129,13 @@ class TestPublishChatRequestResponse:
 class TestPublishChatAccepted:
     """Unit tests for publish_chat_accepted function."""
 
-    @patch('candid.controllers.helpers.chat_events.redis.from_url')
-    def test_publish_chat_accepted_success(self, mock_redis_from_url):
+    @patch('candid.controllers.helpers.chat_events.get_redis')
+    def test_publish_chat_accepted_success(self, mock_get_redis):
         """Test successful publishing of chat_accepted event."""
         from candid.controllers.helpers.chat_events import publish_chat_accepted
 
         mock_redis = MagicMock()
-        mock_redis_from_url.return_value = mock_redis
+        mock_get_redis.return_value = mock_redis
 
         result = publish_chat_accepted(
             chat_log_id="chat-123",
@@ -163,14 +161,12 @@ class TestPublishChatAccepted:
         assert event["responderUserId"] == "user-B"
         assert event["positionStatement"] == "Test position statement"
 
-        mock_redis.close.assert_called_once()
-
-    @patch('candid.controllers.helpers.chat_events.redis.from_url')
-    def test_publish_chat_accepted_handles_error(self, mock_redis_from_url):
+    @patch('candid.controllers.helpers.chat_events.get_redis')
+    def test_publish_chat_accepted_handles_error(self, mock_get_redis):
         """Test that errors are handled gracefully."""
         from candid.controllers.helpers.chat_events import publish_chat_accepted
 
-        mock_redis_from_url.side_effect = Exception("Connection failed")
+        mock_get_redis.side_effect = Exception("Connection failed")
 
         result = publish_chat_accepted(
             chat_log_id="chat-123",

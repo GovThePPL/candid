@@ -1,142 +1,143 @@
-import { Keyboard, StyleSheet, Text, Pressable, Platform, View } from 'react-native'
+import { StyleSheet, Text, Platform, View, KeyboardAvoidingView, ScrollView } from 'react-native'
 import { Link } from 'expo-router'
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { useUser } from '../../hooks/useUser'
 
 import ThemedView from '../../components/ThemedView'
 import ThemedText from '../../components/ThemedText'
+import ThemedTextInput from '../../components/ThemedTextInput'
 import Spacer from '../../components/Spacer'
 import ThemedButton from '../../components/ThemedButton'
-import ThemedTextInput from "../../components/ThemedTextInput"
 import { Colors } from '../../constants/Colors'
 
 const Register = () => {
-  const [username, setUsername] = useState("")
-  const [displayName, setDisplayName] = useState("")
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
+  const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
 
-  const displayNameRef = useRef(null)
-  const emailRef = useRef(null)
-  const passwordRef = useRef(null)
-
   const { register } = useUser()
 
-  const handleSubmit = async () => {
-    if (!username || !displayName || !password) {
-      setError('Please fill in all required fields')
+  const handleRegister = async () => {
+    setError(null)
+
+    const trimmedUsername = username.trim()
+    const trimmedEmail = email.trim()
+
+    if (!trimmedUsername) {
+      setError('Username is required')
+      return
+    }
+    if (trimmedUsername.length < 3) {
+      setError('Username must be at least 3 characters')
+      return
+    }
+    if (!trimmedEmail || !/^[^@]+@[^@]+\.[^@]+$/.test(trimmedEmail)) {
+      setError('A valid email is required')
+      return
+    }
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters')
       return
     }
 
-    setError(null)
     setLoading(true)
 
     try {
-      await register(username, displayName, password, email || null)
+      await register({ username: trimmedUsername, email: trimmedEmail, password })
     } catch (error) {
-      // Convert technical error messages to user-friendly ones
-      let message = error.message || 'Registration failed. Please try again.'
-      if (message.toUpperCase() === 'CONFLICT') {
-        message = 'Username is already taken'
-      } else if (message.toUpperCase() === 'BAD REQUEST') {
-        message = 'Please check your information and try again'
-      }
-      setError(message)
+      setError(error.message || 'Registration failed. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
-  const dismissKeyboard = () => {
-    if (Platform.OS !== 'web') {
-      Keyboard.dismiss()
-    }
-  }
-
   return (
-    <Pressable style={{ flex: 1 }} onPress={dismissKeyboard}>
-      <ThemedView style={styles.container}>
-        <View style={styles.logoContainer}>
-          <Text style={styles.logo}>Candid</Text>
-        </View>
+    <ThemedView style={styles.container}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardView}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.logoContainer}>
+            <Text style={styles.logo}>Candid</Text>
+          </View>
 
-        <Spacer height={40} />
-        <ThemedText title={true} style={styles.title}>
-          Create an Account
-        </ThemedText>
+          <Spacer height={30} />
+          <ThemedText title={true} style={styles.title}>
+            Create an Account
+          </ThemedText>
 
-        <Spacer height={20} />
-        <ThemedTextInput
-          style={styles.input}
-          placeholder="Username"
-          value={username}
-          onChangeText={setUsername}
-          autoCapitalize="none"
-          autoCorrect={false}
-          returnKeyType="next"
-          onSubmitEditing={() => displayNameRef.current?.focus()}
-        />
+          <ThemedText style={styles.subtitle}>
+            Join the conversation on issues that matter
+          </ThemedText>
 
-        <ThemedTextInput
-          ref={displayNameRef}
-          style={styles.input}
-          placeholder="Display Name"
-          value={displayName}
-          onChangeText={setDisplayName}
-          returnKeyType="next"
-          onSubmitEditing={() => emailRef.current?.focus()}
-        />
+          <Spacer height={24} />
+          <View style={styles.formContainer}>
+            <ThemedTextInput
+              style={styles.input}
+              placeholder="Username"
+              value={username}
+              onChangeText={setUsername}
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="username-new"
+              returnKeyType="next"
+            />
 
-        <ThemedTextInput
-          ref={emailRef}
-          style={styles.input}
-          placeholder="Email (optional)"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          autoCorrect={false}
-          returnKeyType="next"
-          onSubmitEditing={() => passwordRef.current?.focus()}
-        />
+            <ThemedTextInput
+              style={styles.input}
+              placeholder="Email"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="email"
+              keyboardType="email-address"
+              returnKeyType="next"
+            />
 
-        <ThemedTextInput
-          ref={passwordRef}
-          style={styles.input}
-          placeholder="Password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry={true}
-          autoCapitalize="none"
-          autoCorrect={false}
-          returnKeyType="done"
-          onSubmitEditing={handleSubmit}
-        />
+            <ThemedTextInput
+              style={styles.input}
+              placeholder="Password (min 8 characters)"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              autoCapitalize="none"
+              autoComplete="password-new"
+              returnKeyType="done"
+              onSubmitEditing={handleRegister}
+            />
 
-        <ThemedButton onPress={handleSubmit} disabled={loading} style={styles.button}>
-          <Text style={styles.buttonText}>
-            {loading ? 'Creating Account...' : 'Register'}
-          </Text>
-        </ThemedButton>
+            <Spacer height={8} />
+            <ThemedButton onPress={handleRegister} disabled={loading} style={styles.button}>
+              <Text style={styles.buttonText}>
+                {loading ? 'Creating Account...' : 'Create Account'}
+              </Text>
+            </ThemedButton>
+          </View>
 
-        {/* Error container - always present to prevent layout shift */}
-        <View style={styles.errorContainer}>
-          <Text style={[styles.error, !error && styles.errorHidden]}>
-            {error || 'Placeholder'}
-          </Text>
-        </View>
+          {/* Error container - always present to prevent layout shift */}
+          <View style={styles.errorContainer}>
+            <Text style={[styles.error, !error && styles.errorHidden]}>
+              {error || 'Placeholder'}
+            </Text>
+          </View>
 
-        <Spacer height={44} />
-        <Link href="/login" replace>
-          <Text style={styles.loginLink}>
-            Already have an account? <Text style={styles.loginLinkBold}>Login</Text>
-          </Text>
-        </Link>
-
-      </ThemedView>
-    </Pressable>
+          <Spacer height={24} />
+          <Link href="/login" replace>
+            <Text style={styles.loginLink}>
+              Already have an account? <Text style={styles.loginLinkBold}>Sign In</Text>
+            </Text>
+          </Link>
+          <Spacer height={40} />
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </ThemedView>
   )
 }
 
@@ -145,9 +146,15 @@ export default Register
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: Colors.light.background,
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: Colors.light.background,
     padding: 20,
   },
   logoContainer: {
@@ -174,19 +181,27 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     marginBottom: 10,
   },
-  input: {
-    marginBottom: 16,
+  subtitle: {
+    textAlign: "center",
+    fontSize: 14,
+    color: Colors.pass,
+    maxWidth: 280,
+  },
+  formContainer: {
     width: "100%",
     maxWidth: 320,
-    backgroundColor: Colors.white,
+    gap: 12,
+  },
+  input: {
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
-    borderRadius: 12,
+    fontSize: 16,
+    backgroundColor: Colors.white,
     color: Colors.darkText,
   },
   button: {
     width: "100%",
-    maxWidth: 320,
     paddingVertical: 16,
     borderRadius: 12,
   },

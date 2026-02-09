@@ -20,9 +20,9 @@ class Config:
     # Redis settings
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")
 
-    # JWT settings
-    JWT_SECRET: str = os.getenv("JWT_SECRET", "abc")
-    JWT_ALGORITHM: str = "HS256"
+    # Keycloak settings
+    KEYCLOAK_URL: str = os.getenv("KEYCLOAK_URL", "http://keycloak:8180")
+    KEYCLOAK_REALM: str = os.getenv("KEYCLOAK_REALM", "candid")
 
     # Redis key prefixes
     CHAT_MESSAGES_KEY = "chat:{chat_id}:messages"

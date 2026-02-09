@@ -62,6 +62,6 @@
 
 ## Infrastructure
 - Remove any hard-coded IPs/Ports
-- Move Polis out of docker-in-docker, set up normally (only need API and math workers)
+- ~~Move Polis out of docker-in-docker~~ (done — now runs as direct docker-compose services)
 - Will eventually need frontend web servers
 - Migrate to Kubernetes?

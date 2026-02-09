@@ -17,11 +17,20 @@ from itertools import combinations
 
 
 # Demographic field questions (options come from the database schema)
+# Keys are DB column names (snake_case)
 DEMOGRAPHIC_QUESTIONS = {
     'lean': 'What is your political lean?',
     'education': 'What is your highest level of education?',
     'geo_locale': 'How would you describe where you live?',
     'sex': 'What is your sex?',
+}
+
+# Map DB column names to camelCase API field names for card responses
+_DB_TO_API_FIELD = {
+    'lean': 'lean',
+    'education': 'education',
+    'geo_locale': 'geoLocale',
+    'sex': 'sex',
 }
 
 # Cached demographic options from database schema
@@ -1111,7 +1120,7 @@ def _demographic_to_card(field: str) -> dict:
     field_options = options.get(field, [])
 
     data = {
-        "field": field,
+        "field": _DB_TO_API_FIELD.get(field, field),
         "question": question,
         "options": field_options
     }

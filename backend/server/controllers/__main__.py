@@ -67,8 +67,8 @@ def create_app():
 
     # Enable CORS for all routes
     CORS(flask_app, resources={
-        r"/*": {
-            "origins": ["http://localhost:3001", "http://localhost:8081", "http://localhost:8082", "http://localhost:19006"],
+        r"/.*": {
+            "origins": config.CORS_ORIGINS,
             "methods": ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
             "allow_headers": ["Content-Type", "Authorization", "X-Requested-With", "User-Agent"],
             "supports_credentials": True

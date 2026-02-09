@@ -1,7 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import {
   ApiClient,
-  AuthenticationApi,
   UsersApi,
   CardsApi,
   PositionsApi,
@@ -11,15 +10,12 @@ import {
   ChattingListApi,
   StatsApi,
   ModerationApi,
-  LoginUserRequest,
-  RegisterUserRequest,
 } from 'candid_api'
 import { CacheManager } from './cache'
 
 // API configuration
-export const API_BASE_URL = __DEV__
-  ? 'http://localhost:8000/api/v1'  // Development
-  : 'https://api.candid.app/api/v1' // Production (placeholder)
+export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL
+  || (__DEV__ ? 'http://localhost:8000/api/v1' : 'https://api.candid.app/api/v1')
 
 const TOKEN_KEY = 'candid_auth_token'
 const USER_KEY = 'candid_user'
@@ -28,7 +24,6 @@ const USER_KEY = 'candid_user'
 const apiClient = new ApiClient(API_BASE_URL)
 
 // Create API instances
-const authenticationApi = new AuthenticationApi(apiClient)
 const usersApi = new UsersApi(apiClient)
 const cardsApi = new CardsApi(apiClient)
 const positionsApi = new PositionsApi(apiClient)
@@ -122,35 +117,8 @@ function promisifyWithResponse(apiMethod, ...args) {
   })
 }
 
-// Auth API
+// Auth API (Keycloak OIDC - login/register handled by UserContext via keycloak.js)
 export const authApi = {
-  async login(username, password) {
-    const request = new LoginUserRequest(username, password)
-    const data = await promisify(
-      authenticationApi.loginUser.bind(authenticationApi),
-      request
-    )
-
-    if (data.token) {
-      await setToken(data.token)
-      await setStoredUser(data.user)
-    }
-
-    return data
-  },
-
-  async register(username, displayName, password, email = null) {
-    const request = new RegisterUserRequest(username, displayName, password)
-    if (email) request.email = email
-
-    const data = await promisify(
-      authenticationApi.registerUser.bind(authenticationApi),
-      request
-    )
-
-    return data
-  },
-
   async logout() {
     await setToken(null)
     await setStoredUser(null)
@@ -160,6 +128,19 @@ export const authApi = {
 
   async getCurrentUser() {
     return await promisify(usersApi.getCurrentUser.bind(usersApi))
+  },
+
+  async registerAccount({ username, email, password }) {
+    const response = await fetch(`${API_BASE_URL}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, email, password }),
+    })
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.detail || 'Registration failed')
+    }
+    return data
   },
 }
 
@@ -182,7 +163,7 @@ export const usersApiWrapper = {
 
   async updateDemographics(data) {
     return await promisify(
-      usersApi.updateUserDemographics.bind(usersApi),
+      usersApi.updateUserDemographicsPartial.bind(usersApi),
       data
     )
   },
@@ -277,17 +258,9 @@ export const usersApiWrapper = {
     )
   },
 
-  async changePassword(currentPassword, newPassword) {
+  async deleteAccount() {
     return await promisify(
-      usersApi.changePassword.bind(usersApi),
-      { currentPassword, newPassword }
-    )
-  },
-
-  async deleteAccount(password) {
-    return await promisify(
-      usersApi.deleteCurrentUser.bind(usersApi),
-      { password }
+      usersApi.deleteCurrentUser.bind(usersApi)
     )
   },
 

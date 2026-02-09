@@ -134,6 +134,11 @@ export default function DashboardLayout() {
           name="position-closures"
           options={{ href: null }}
         />
+        {/* Profile setup - shown after registration */}
+        <Tabs.Screen
+          name="setup-profile"
+          options={{ href: null }}
+        />
       </Tabs>
       </ToastProvider>
     </UserOnly>

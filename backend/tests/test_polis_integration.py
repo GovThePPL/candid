@@ -1,7 +1,7 @@
 """Tests for Polis integration - syncing positions and votes to Polis conversations.
 
 These tests verify:
-1. OIDC authentication with Polis
+1. Keycloak OIDC authentication with Polis
 2. Conversation creation
 3. Participant initialization with XID
 4. Comment creation and retrieval
@@ -10,11 +10,12 @@ These tests verify:
 7. End-to-end position and vote syncing
 
 Note on Network Topology:
-- When tests run from the HOST, OIDC tokens have issuer https://localhost:3000/
-- When the API container calls OIDC, tokens have issuer https://polis:3000/
-- Polis server is configured to accept https://polis:3000/ as issuer
-- Therefore, direct Polis API tests (TestPolisConversationCreation, etc.) may fail
-  when running from host. End-to-end tests through Candid API work correctly.
+- Keycloak issuer is http://keycloak:8180/realms/candid/ from Docker network
+- From the host, Keycloak is at http://localhost:8180/realms/candid/
+- Polis server is configured with AUTH_ISSUER=http://keycloak:8180/realms/candid/
+- Therefore, tokens obtained from localhost:8180 will have a different issuer than
+  what Polis expects, causing direct API tests to fail from host.
+- End-to-end tests through Candid API work correctly (API container uses Docker network).
 """
 
 import pytest
@@ -36,7 +37,7 @@ from conftest import (
 
 # Polis API URL (from inside Docker network, but tests run on host)
 POLIS_API_URL = "http://localhost:5000/api/v3"
-POLIS_OIDC_URL = "https://localhost:3000/oauth/token"
+KEYCLOAK_TOKEN_URL = "http://localhost:8180/realms/candid/protocol/openid-connect/token"
 
 POSITIONS_URL = f"{BASE_URL}/positions"
 
@@ -46,20 +47,18 @@ POSITIONS_URL = f"{BASE_URL}/positions"
 # ---------------------------------------------------------------------------
 
 def get_polis_oidc_token():
-    """Get an OIDC token from the Polis OIDC simulator."""
+    """Get an OIDC token from Keycloak for Polis admin operations."""
     try:
         resp = requests.post(
-            POLIS_OIDC_URL,
-            json={
+            KEYCLOAK_TOKEN_URL,
+            data={
                 "grant_type": "password",
-                "client_id": "dev-client-id",
-                "client_secret": "dev_auth-client_secret",
-                "username": "admin@polis.test",
-                "password": "Te$tP@ssw0rd*",
-                "audience": "users",
+                "client_id": "polis-admin",
+                "client_secret": "polis-admin-secret",
+                "username": "polis-admin@candid.dev",
+                "password": "password",
                 "scope": "openid profile email"
             },
-            verify=False,
             timeout=10
         )
         if resp.status_code == 200:
@@ -137,14 +136,14 @@ def get_polis_comments_for_position(position_id):
 # ---------------------------------------------------------------------------
 
 class TestPolisOIDCAuthentication:
-    """Test OIDC authentication with Polis."""
+    """Test Keycloak OIDC authentication for Polis."""
 
     @pytest.mark.polis
     def test_oidc_token_retrieval(self):
-        """Test that we can get an OIDC token from the simulator."""
+        """Test that we can get an OIDC token from Keycloak."""
         token = get_polis_oidc_token()
         if token is None:
-            pytest.skip("OIDC simulator not reachable (Polis may not be running)")
+            pytest.skip("Keycloak not reachable")
         assert len(token) > 50, "Token appears too short"
         # JWT tokens have 3 parts separated by dots
         assert token.count(".") == 2, "Token doesn't appear to be a valid JWT"
@@ -157,7 +156,7 @@ class TestPolisOIDCAuthentication:
 
         token = get_polis_oidc_token()
         if token is None:
-            pytest.skip("OIDC simulator not reachable (Polis may not be running)")
+            pytest.skip("Keycloak not reachable")
 
         # Decode the JWT payload (middle part)
         parts = token.split(".")
@@ -168,30 +167,31 @@ class TestPolisOIDCAuthentication:
         claims = json.loads(decoded)
 
         # Verify expected claims
-        assert claims.get("aud") == "users", "Audience should be 'users'"
         assert "iss" in claims, "Token should have issuer claim"
+        assert "keycloak" in claims["iss"] or "realms/candid" in claims["iss"], \
+            "Issuer should be Keycloak"
         assert "sub" in claims, "Token should have subject claim"
         assert "exp" in claims, "Token should have expiration claim"
 
 
 class TestPolisConversationCreation:
-    """Test Polis conversation creation via OIDC-authenticated API.
+    """Test Polis conversation creation via Keycloak OIDC-authenticated API.
 
-    Note: These tests may skip when running from host due to OIDC issuer mismatch.
-    The OIDC token from localhost:3000 has issuer https://localhost:3000/,
-    but Polis expects https://polis:3000/ (Docker network hostname).
+    Note: These tests may skip when running from host due to issuer mismatch.
+    Tokens from localhost:8180 have issuer http://localhost:8180/realms/candid/,
+    but Polis expects http://keycloak:8180/realms/candid/ (Docker network hostname).
     """
 
     @pytest.mark.polis
     def test_create_conversation_with_oidc_token(self):
-        """Test creating a Polis conversation using OIDC authentication.
+        """Test creating a Polis conversation using Keycloak OIDC authentication.
 
-        This test may fail when running from host due to OIDC issuer mismatch.
+        This test may fail when running from host due to issuer mismatch.
         It works correctly when the Candid API calls Polis (via Docker network).
         """
         token = get_polis_oidc_token()
         if token is None:
-            pytest.skip("OIDC simulator not reachable (Polis may not be running)")
+            pytest.skip("Keycloak not reachable")
 
         # Create a conversation
         resp = requests.post(
@@ -208,11 +208,11 @@ class TestPolisConversationCreation:
             timeout=15
         )
 
-        # When running from host, this may fail due to OIDC issuer mismatch
-        # (localhost:3000 vs polis:3000). This is expected behavior.
+        # When running from host, this may fail due to Keycloak issuer mismatch
+        # (localhost:8180 vs keycloak:8180). This is expected behavior.
         if resp.status_code == 401 and "Token does not match" in resp.text:
             pytest.skip(
-                "OIDC issuer mismatch (running from host). "
+                "Keycloak issuer mismatch (running from host). "
                 "This test works when Candid API calls Polis via Docker network."
             )
 

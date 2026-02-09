@@ -3,7 +3,7 @@ Polis API Client
 
 Wrapper for Polis API operations with proper authentication:
 - XID-based JWT authentication for participants (comments, votes)
-- OIDC authentication for admin operations (creating conversations)
+- Keycloak OIDC authentication for admin operations (creating conversations)
 
 Authentication Flow:
 1. For participant operations (comments, votes):
@@ -12,21 +12,17 @@ Authentication Flow:
    - Use that token for subsequent requests
 
 2. For admin operations (creating conversations):
-   - Use OIDC Resource Owner Password Credentials flow
+   - Use Keycloak ROPC flow (polis-admin client)
    - Get admin access token
    - Use that token to create conversations
 """
 
 import requests
 import logging
-import urllib3
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
 from threading import Lock
 from candid.controllers import config, db
-
-# Suppress SSL warnings for self-signed certs in dev
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +78,6 @@ class PolisClient:
         """Make an HTTP request to Polis API."""
         url = f"{self.api_url}{endpoint}"
         kwargs.setdefault('timeout', self.timeout)
-        kwargs.setdefault('verify', False)  # Allow self-signed certs in dev
 
         # Add auth header if token provided
         if auth_token:
@@ -121,14 +116,14 @@ class PolisClient:
             logger.error(f"Polis request failed: {e}")
             raise PolisError(f"Polis request failed: {e}")
 
-    # ========== Admin Authentication (OIDC) ==========
+    # ========== Admin Authentication (Keycloak OIDC) ==========
 
     def _get_admin_token(self) -> str:
         """
-        Get an admin access token using OIDC.
+        Get an admin access token from Keycloak.
 
-        Uses Resource Owner Password Credentials (ROPC) flow.
-        Tokens are cached until they expire.
+        Uses Resource Owner Password Credentials (ROPC) flow via the
+        polis-admin client in Keycloak. Tokens are cached until they expire.
         """
         with self._admin_token_lock:
             if self._admin_token:
@@ -136,41 +131,33 @@ class PolisClient:
                 return self._admin_token
 
             try:
-                # Try ROPC flow with the OIDC simulator
-                token_url = config.POLIS_OIDC_TOKEN_URL
+                # Use Keycloak ROPC flow to get admin token
+                token_url = f"{config.KEYCLOAK_URL}/realms/{config.KEYCLOAK_REALM}/protocol/openid-connect/token"
 
                 data = {
                     'grant_type': 'password',
-                    'client_id': config.POLIS_OIDC_CLIENT_ID,
-                    'client_secret': config.POLIS_OIDC_CLIENT_SECRET,
+                    'client_id': 'polis-admin',
+                    'client_secret': config.POLIS_ADMIN_CLIENT_SECRET,
                     'username': config.POLIS_ADMIN_EMAIL,
                     'password': config.POLIS_ADMIN_PASSWORD,
                     'scope': 'openid email profile',
                 }
 
-                # Set Host header to localhost:3000 to ensure consistent issuer
-                # The OIDC simulator uses the Host header to determine the token issuer
-                # This ensures tokens have iss=https://localhost:3000/ regardless of
-                # whether the request comes from browser (localhost) or API container (polis)
-                headers = {'Host': 'localhost:3000'}
-
                 response = self.session.post(
                     token_url,
                     data=data,
-                    headers=headers,
                     timeout=self.timeout,
-                    verify=False  # Self-signed cert in dev
                 )
 
                 if response.status_code != 200:
-                    logger.warning(f"OIDC token request failed: {response.status_code} - {response.text}")
+                    logger.warning(f"Keycloak token request failed: {response.status_code} - {response.text}")
                     raise PolisAuthError(f"Failed to get admin token: {response.text}", response.status_code)
 
                 token_data = response.json()
-                self._admin_token = token_data.get('access_token') or token_data.get('id_token')
+                self._admin_token = token_data.get('access_token')
 
                 if not self._admin_token:
-                    raise PolisAuthError("No access token in OIDC response")
+                    raise PolisAuthError("No access token in Keycloak response")
 
                 logger.info("Successfully obtained Polis admin token")
                 return self._admin_token

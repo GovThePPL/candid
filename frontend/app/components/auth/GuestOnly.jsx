@@ -5,14 +5,18 @@ import { useEffect } from 'react'
 import ThemedLoader from '../ThemedLoader'
 
 const GuestOnly = ({ children }) => {
-  const { user, authChecked } = useUser()
+  const { user, authChecked, isNewUser } = useUser()
   const router = useRouter()
-  
+
   useEffect(() => {
     if (authChecked && user !== null) {
-      router.replace("/cards")
+      if (isNewUser) {
+        router.replace("/setup-profile")
+      } else {
+        router.replace("/cards")
+      }
     }
-  }, [user, authChecked])
+  }, [user, authChecked, isNewUser])
 
   if (!authChecked || user) {
     return (

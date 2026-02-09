@@ -10,7 +10,7 @@ backend/
 ├── chat-server/      # WebSocket chat service (aiohttp + Redis)
 ├── database/         # PostgreSQL schema and seed data
 ├── nlp-service/      # Sentence embeddings and NSFW detection
-├── polis-sysbox/     # Pol.is Docker-in-Docker integration
+├── polis-integration/ # Pol.is integration (server + math worker)
 ├── scripts/          # Dev/ops scripts (seeding, backfills)
 └── tests/            # Integration test suite
 ```
@@ -23,7 +23,8 @@ backend/
 | chat-server | Python aiohttp + Redis | 8002 | `chat` |
 | database | PostgreSQL 17 + pgvector | 5432 | `db` |
 | nlp-service | Python FastAPI + sentence-transformers | 5001 | `nlp` |
-| polis-sysbox | Docker-in-Docker (Sysbox) | 8080 | `polis` |
+| polis-integration | Pol.is (Node.js API + Clojure math) | 5000 | `polis-server`, `polis-math` |
+| keycloak | Keycloak OIDC provider | 8180 | `keycloak` |
 
 All services also depend on **Redis** (port 6379) for pub/sub messaging and presence tracking.
 

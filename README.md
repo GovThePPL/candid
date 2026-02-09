@@ -9,11 +9,11 @@ Candid is a chat platform for peaceful and productive discussion of issues of pu
 │   Frontend   │────▶│   Flask API  │────▶│  PostgreSQL  │
 │  Expo / RN   │     │   (Gunicorn) │     │   + pgvector │
 └─────────────┘     └──────┬──────┘     └─────────────┘
-       │                   │
-       │            ┌──────┴──────┐
-       │            │  NLP Service │
-       │            │ (embeddings) │
-       │            └─────────────┘
+       │                   │                     │
+       │            ┌──────┴──────┐       ┌──────┴──────┐
+       │            │  NLP Service │       │  Keycloak   │
+       │            │ (embeddings) │       │   (OIDC)    │
+       │            └─────────────┘       └─────────────┘
        │
        ├───────────▶┌─────────────┐     ┌─────────────┐
        │            │ Chat Server  │────▶│    Redis     │
@@ -22,50 +22,30 @@ Candid is a chat platform for peaceful and productive discussion of issues of pu
        │
        └───────────▶┌─────────────┐
                     │   Pol.is     │
-                    │  (Sysbox)    │
+                    │ (server+math)│
                     └─────────────┘
 ```
 
-Six Docker services orchestrated via `docker-compose.yaml`:
+Docker services orchestrated via `docker-compose.yaml`:
 
 | Service | Port | Description |
 |---------|------|-------------|
 | api     | 8000 | Flask REST API (OpenAPI-first, Gunicorn) |
 | chat    | 8002 | WebSocket chat server (aiohttp, Redis pub/sub) |
-| db      | 5432 | PostgreSQL 17 with pgvector |
+| db      | 5432 | PostgreSQL 17 with pgvector (Candid + Polis + Keycloak) |
 | redis   | 6379 | Message broker and presence tracking |
 | nlp     | 5001 | Sentence embeddings and NSFW detection |
-| polis   | 8080 | Pol.is opinion analytics (Docker-in-Docker via Sysbox) |
+| polis-server | 5000 | Pol.is API server |
+| polis-math   | -    | Pol.is math/clustering worker |
+| keycloak | 8180 | Keycloak OIDC provider |
 
 The project follows **OpenAPI-first development** -- the spec at `docs/api.yaml` is the source of truth for both the backend (Python Flask) and frontend (generated JS client).
 
 ## Prerequisites
 
 - **Docker** (latest)
-- **Sysbox runtime v0.6.7** for Pol.is Docker-in-Docker
 - **Node.js / npm** for frontend development
 - **openapi-generator-cli, pipreqs** for local backend builds (optional)
-
-### Installing Sysbox
-
-```bash
-wget https://downloads.nestybox.com/sysbox/releases/v0.6.7/sysbox-ce_0.6.7-0.linux_amd64.deb
-sudo apt-get install jq
-sudo apt-get install ./sysbox-ce_0.6.7-0.linux_amd64.deb
-```
-
-Add to `/etc/docker/daemon.json`:
-```json
-{
-  "runtimes": {
-    "sysbox-runc": {
-      "path": "/usr/bin/sysbox-runc"
-    }
-  }
-}
-```
-
-Then `sudo systemctl restart docker`.
 
 ## Getting Started
 
@@ -78,7 +58,7 @@ This single command starts all services, waits for health checks, and seeds the 
 Other modes:
 ```bash
 ./dev.sh --reset-db           # Reset DB volume, then start + reseed
-./dev.sh --reset-all          # Reset DB + Polis + Redis volumes
+./dev.sh --reset-all          # Reset DB + Redis volumes
 ./dev.sh --skip-seed          # Start without seeding
 ./dev.sh --seed-only          # Re-run seed (services must be up)
 ./dev.sh --snapshot           # Save volume state to snapshots/
@@ -90,12 +70,10 @@ Other modes:
 | URL | Description |
 |-----|-------------|
 | http://localhost:8000/api/v1/ui | Swagger UI |
-| http://localhost:8080 | Pol.is UI |
+| http://localhost:5000/api/v3/ | Polis API |
+| http://localhost:8180/admin | Keycloak Admin (admin/admin) |
 | ws://localhost:8002 | Chat WebSocket |
 | http://localhost:5001 | NLP Service |
-
-**Polis login:** `admin@polis.test` / `Te$tP@ssw0rd*`
-If Polis sign-in stalls, accept the self-signed cert at https://localhost:3000/.
 
 **Test users** (password: `password`): `admin1`, `moderator1`, `normal1`-`normal5`, `guest1`-`guest2`. After seeding, `normal4` is banned.
 
@@ -128,7 +106,7 @@ candid/
 │   ├── chat-server/      # WebSocket chat service (aiohttp + Redis)
 │   ├── database/         # PostgreSQL schema and seed data
 │   ├── nlp-service/      # Sentence embeddings + NSFW detection
-│   ├── polis-sysbox/     # Pol.is Docker-in-Docker integration
+│   ├── polis-integration/ # Pol.is integration (server + math worker)
 │   ├── scripts/          # Dev/ops scripts (seeding, backfills)
 │   └── tests/            # Integration test suite
 ├── docs/
@@ -146,8 +124,7 @@ candid/
 
 ```bash
 psql -h localhost -p 5432 -U user -d candid    # Connect (password: postgres)
-docker volume rm candid_postgres_data          # Reset database
-docker volume rm candid_polis_docker_data      # Reset Polis
+docker volume rm candid_postgres_data          # Reset database (includes Polis data)
 ```
 
 ## Rebuilding Generated Code

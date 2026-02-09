@@ -487,9 +487,7 @@ def get_pairwise_surveys(location_id=None, category_id=None, token_info=None):  
             # Show surveys for this category OR surveys with no category
             query += " AND (s.position_category_id = %s OR s.position_category_id IS NULL)"
             params.append(category_id)
-        else:
-            # When viewing "all", only show surveys without a category
-            query += " AND s.position_category_id IS NULL"
+        # When viewing "all", show all pairwise surveys (no category filter)
 
         # Order by end_time desc (active surveys with future end_time first)
         query += " ORDER BY s.end_time DESC NULLS LAST, s.created_time DESC"
@@ -511,8 +509,8 @@ def get_pairwise_surveys(location_id=None, category_id=None, token_info=None):  
         if category_id and category_id != 'all':
             query += " AND (s.position_category_id = %s OR s.position_category_id IS NULL)"
             params.append(category_id)
-        else:
-            query += " AND s.position_category_id IS NULL"
+        # When viewing "all", show all pairwise surveys (no category filter)
+
         query += " ORDER BY s.end_time DESC NULLS LAST, s.created_time DESC"
         surveys = db.execute_query(query, tuple(params) if params else None)
 

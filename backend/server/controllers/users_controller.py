@@ -1,3 +1,4 @@
+import logging
 import connexion
 from typing import Dict
 from typing import Tuple
@@ -18,11 +19,14 @@ from candid import util
 from candid.controllers import db
 from candid.controllers.helpers.config import Config
 from candid.controllers.helpers.auth import authorization, authorization_allow_banned, token_to_user
+from candid.controllers.helpers import keycloak
 from candid.controllers.helpers import nlp
 from candid.controllers.helpers import presence
 from candid.controllers.helpers.cache_headers import add_cache_headers
 from candid.controllers.cards_controller import invalidate_user_context_cache
 import uuid
+
+logger = logging.getLogger(__name__)
 
 
 def _row_to_current_user(row):
@@ -1019,97 +1023,45 @@ def upload_avatar(body, token_info=None):  # noqa: E501
     }
 
 
-def delete_current_user(body, token_info=None):  # noqa: E501
+def delete_current_user(body=None, token_info=None):  # noqa: E501
     """Soft delete current user account
 
      # noqa: E501
 
-    :param body: Request body with password
-    :type body: dict | bytes
-
     :rtype: Union[object, Tuple[object, int], Tuple[object, int, Dict[str, str]]
     """
-    from candid.controllers.helpers.auth import does_password_match
-
     authorized, auth_err = authorization("normal", token_info)
     if not authorized:
         return auth_err, auth_err.code
     user = token_to_user(token_info)
 
-    raw = connexion.request.get_json() if connexion.request.is_json else body
-    password = raw.get('password')
+    # Look up keycloak_id from DB (not on the User model)
+    row = db.execute_query(
+        "SELECT keycloak_id FROM users WHERE id = %s",
+        (user.id,), fetchone=True
+    )
+    keycloak_id = row.get("keycloak_id") if row else None
 
-    if not password:
-        return ErrorModel(400, "Password is required"), 400
+    # Delete from Keycloak first (so they can re-register with the same username)
+    if keycloak_id:
+        try:
+            keycloak.delete_user(keycloak_id)
+        except Exception as e:
+            logger.warning(f"Failed to delete Keycloak user {keycloak_id}: {e}")
 
-    # Get user's password hash
-    user_row = db.execute_query("""
-        SELECT password_hash FROM users WHERE id = %s
-    """, (user.id,), fetchone=True)
-
-    if user_row is None:
-        return ErrorModel(404, "User not found"), 404
-
-    # Verify password
-    if not does_password_match(password, user_row['password_hash']):
-        return ErrorModel(401, "Password incorrect"), 401
-
-    # Soft delete the user
+    # Soft delete the user in Candid DB — mangle username, clear email and keycloak_id
+    # so the username/email are freed for re-registration
     db.execute_query("""
-        UPDATE users SET status = 'deleted', updated_time = CURRENT_TIMESTAMP
+        UPDATE users
+        SET status = 'deleted',
+            username = 'deleted_' || id::text,
+            email = NULL,
+            keycloak_id = NULL,
+            updated_time = CURRENT_TIMESTAMP
         WHERE id = %s
     """, (user.id,))
 
     return {'message': 'Account deleted successfully'}
-
-
-def change_password(body, token_info=None):  # noqa: E501
-    """Change current user's password
-
-     # noqa: E501
-
-    :param body: Request body with currentPassword and newPassword
-    :type body: dict | bytes
-
-    :rtype: Union[object, Tuple[object, int], Tuple[object, int, Dict[str, str]]
-    """
-    from candid.controllers.helpers.auth import does_password_match, hash_password
-
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-    user = token_to_user(token_info)
-
-    raw = connexion.request.get_json() if connexion.request.is_json else body
-    current_password = raw.get('currentPassword')
-    new_password = raw.get('newPassword')
-
-    if not current_password or not new_password:
-        return ErrorModel(400, "Both currentPassword and newPassword are required"), 400
-
-    if len(new_password) < 8:
-        return ErrorModel(400, "New password must be at least 8 characters"), 400
-
-    # Get user's current password hash
-    user_row = db.execute_query("""
-        SELECT password_hash FROM users WHERE id = %s
-    """, (user.id,), fetchone=True)
-
-    if user_row is None:
-        return ErrorModel(404, "User not found"), 404
-
-    # Verify current password
-    if not does_password_match(current_password, user_row['password_hash']):
-        return ErrorModel(401, "Current password is incorrect"), 401
-
-    # Hash and set new password
-    new_password_hash = hash_password(new_password)
-    db.execute_query("""
-        UPDATE users SET password_hash = %s, updated_time = CURRENT_TIMESTAMP
-        WHERE id = %s
-    """, (new_password_hash, user.id))
-
-    return {'message': 'Password changed successfully'}
 
 
 def heartbeat(token_info=None):  # noqa: E501

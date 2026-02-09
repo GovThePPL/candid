@@ -1,94 +1,93 @@
-import { StyleSheet, Text, Keyboard, Pressable, Platform, View } from 'react-native'
+import { StyleSheet, Text, Platform, View, KeyboardAvoidingView } from 'react-native'
 import { Link } from 'expo-router'
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { useUser } from '../../hooks/useUser'
 
 import ThemedView from '../../components/ThemedView'
 import ThemedText from '../../components/ThemedText'
+import ThemedTextInput from '../../components/ThemedTextInput'
 import Spacer from '../../components/Spacer'
 import ThemedButton from '../../components/ThemedButton'
-import ThemedTextInput from "../../components/ThemedTextInput"
 import { Colors } from '../../constants/Colors'
 
 const Login = () => {
-  const [username, setUsername] = useState("")
-  const [password, setPassword] = useState("")
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState()
   const [loading, setLoading] = useState(false)
-  const passwordRef = useRef(null)
 
   const { login } = useUser()
 
-  const handleSubmit = async () => {
-    if (!username || !password) {
-      setError('Please enter username and password')
+  const handleLogin = async () => {
+    setError(null)
+
+    if (!username.trim() || !password) {
+      setError('Username and password are required')
       return
     }
 
-    setError(null)
     setLoading(true)
 
     try {
-      await login(username, password)
+      await login(username.trim(), password)
     } catch (error) {
-      // Convert technical error messages to user-friendly ones
-      const message = error.message?.toUpperCase() === 'UNAUTHORIZED'
-        ? 'Invalid username or password'
-        : error.message || 'Login failed. Please try again.'
-      setError(message)
+      setError(error.message || 'Login failed. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
-  const dismissKeyboard = () => {
-    if (Platform.OS !== 'web') {
-      Keyboard.dismiss()
-    }
-  }
-
   return (
-    <Pressable style={{ flex: 1 }} onPress={dismissKeyboard}>
-      <ThemedView style={styles.container}>
+    <ThemedView style={styles.container}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardView}
+      >
         <View style={styles.logoContainer}>
           <Text style={styles.logo}>Candid</Text>
         </View>
 
-        <Spacer height={40} />
+        <Spacer height={30} />
         <ThemedText title={true} style={styles.title}>
-          Login to Your Account
+          Welcome to Candid
         </ThemedText>
 
-        <Spacer height={20} />
-        <ThemedTextInput
-          style={styles.input}
-          placeholder="Username"
-          value={username}
-          onChangeText={setUsername}
-          autoCapitalize="none"
-          autoCorrect={false}
-          returnKeyType="next"
-          onSubmitEditing={() => passwordRef.current?.focus()}
-        />
+        <ThemedText style={styles.subtitle}>
+          Peaceful and productive discussion of issues that matter
+        </ThemedText>
 
-        <ThemedTextInput
-          ref={passwordRef}
-          style={styles.input}
-          placeholder="Password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry={true}
-          autoCapitalize="none"
-          autoCorrect={false}
-          returnKeyType="done"
-          onSubmitEditing={handleSubmit}
-        />
+        <Spacer height={24} />
+        <View style={styles.formContainer}>
+          <ThemedTextInput
+            style={styles.input}
+            placeholder="Username"
+            value={username}
+            onChangeText={setUsername}
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="username"
+            returnKeyType="next"
+          />
 
-        <ThemedButton onPress={handleSubmit} disabled={loading} style={styles.button}>
-          <Text style={styles.buttonText}>
-            {loading ? 'Logging in...' : 'Login'}
-          </Text>
-        </ThemedButton>
+          <ThemedTextInput
+            style={styles.input}
+            placeholder="Password"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            autoCapitalize="none"
+            autoComplete="password"
+            returnKeyType="done"
+            onSubmitEditing={handleLogin}
+          />
+
+          <Spacer height={8} />
+          <ThemedButton onPress={handleLogin} disabled={loading} style={styles.button}>
+            <Text style={styles.buttonText}>
+              {loading ? 'Signing in...' : 'Sign In'}
+            </Text>
+          </ThemedButton>
+        </View>
 
         {/* Error container - always present to prevent layout shift */}
         <View style={styles.errorContainer}>
@@ -97,15 +96,14 @@ const Login = () => {
           </Text>
         </View>
 
-        <Spacer height={44} />
+        <Spacer height={24} />
         <Link href="/register" replace>
           <Text style={styles.registerLink}>
-            Don't have an account? <Text style={styles.registerLinkBold}>Register</Text>
+            Don't have an account? <Text style={styles.registerLinkBold}>Create Account</Text>
           </Text>
         </Link>
-
-      </ThemedView>
-    </Pressable>
+      </KeyboardAvoidingView>
+    </ThemedView>
   )
 }
 
@@ -114,9 +112,12 @@ export default Login
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: Colors.light.background,
+  },
+  keyboardView: {
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: Colors.light.background,
     padding: 20,
   },
   logoContainer: {
@@ -143,19 +144,27 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     marginBottom: 10,
   },
-  input: {
-    marginBottom: 16,
+  subtitle: {
+    textAlign: "center",
+    fontSize: 14,
+    color: Colors.pass,
+    maxWidth: 280,
+  },
+  formContainer: {
     width: "100%",
     maxWidth: 320,
-    backgroundColor: Colors.white,
+    gap: 12,
+  },
+  input: {
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
-    borderRadius: 12,
+    fontSize: 16,
+    backgroundColor: Colors.white,
     color: Colors.darkText,
   },
   button: {
     width: "100%",
-    maxWidth: 320,
     paddingVertical: 16,
     borderRadius: 12,
   },

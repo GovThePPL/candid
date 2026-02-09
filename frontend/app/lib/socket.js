@@ -2,9 +2,8 @@ import { io } from 'socket.io-client'
 import { getToken } from './api'
 
 // Socket.IO configuration
-const CHAT_SERVER_URL = __DEV__
-  ? 'http://localhost:8002'  // Development
-  : 'https://chat.candid.app' // Production (placeholder)
+const CHAT_SERVER_URL = process.env.EXPO_PUBLIC_CHAT_URL
+  || (__DEV__ ? 'http://localhost:8002' : 'https://chat.candid.app')
 
 let socket = null
 let reconnectAttempts = 0

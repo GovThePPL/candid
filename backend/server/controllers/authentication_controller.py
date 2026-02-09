@@ -1,163 +1,82 @@
+import re
+import logging
 import connexion
-from typing import Dict
-from typing import Tuple
-from typing import Union
+import requests as http_requests
 
-from candid.models.current_user import CurrentUser  # noqa: E501
-from candid.models.error_model import ErrorModel  # noqa: E501
-from candid.models.login_user200_response import LoginUser200Response  # noqa: E501
-from candid.models.login_user_request import LoginUserRequest  # noqa: E501
-from candid.models.login_with_google_request import LoginWithGoogleRequest  # noqa: E501
-from candid.models.register_user_request import RegisterUserRequest  # noqa: E501
-from candid import util
+from candid.controllers.helpers import keycloak
+from candid.controllers import config  # initialized Config object
 
-from candid.controllers.helpers import auth
-from candid.controllers import db
+logger = logging.getLogger(__name__)
 
 
-def _get_kudos_count(user_id):
-    """Get the number of kudos received by a user."""
-    result = db.execute_query("""
-        SELECT COUNT(*) as count
-        FROM kudos
-        WHERE receiver_user_id = %s AND status = 'sent'
-    """, (user_id,), fetchone=True)
-    return result['count'] if result else 0
+def get_token():
+    """Proxy ROPC token request to Keycloak (avoids browser CORS issues)."""
+    body = connexion.request.get_json()
+    if not body:
+        return {"detail": "Request body is required"}, 400
+
+    username = body.get("username", "")
+    password = body.get("password", "")
+
+    if not username or not password:
+        return {"detail": "Username and password are required"}, 400
+
+    token_url = f"{config.KEYCLOAK_URL}/realms/{config.KEYCLOAK_REALM}/protocol/openid-connect/token"
+    resp = http_requests.post(token_url, data={
+        "grant_type": "password",
+        "client_id": "candid-app",
+        "username": username,
+        "password": password,
+        "scope": "openid profile email",
+    }, timeout=10)
+
+    if resp.status_code == 401 or resp.status_code == 400:
+        error_data = resp.json()
+        if error_data.get("error") == "invalid_grant":
+            return {"detail": "Invalid username or password"}, 401
+        return {"detail": error_data.get("error_description", "Authentication failed")}, 401
+
+    resp.raise_for_status()
+    data = resp.json()
+
+    return {
+        "access_token": data["access_token"],
+        "refresh_token": data.get("refresh_token"),
+    }, 200
 
 
-def login_user(body):  # noqa: E501
-    """Log in a user
+def register_user():
+    """Register a new user account via Keycloak Admin REST API."""
+    body = connexion.request.get_json()
+    if not body:
+        return {"detail": "Request body is required"}, 400
 
-     # noqa: E501
+    username = (body.get("username") or "").strip()
+    email = (body.get("email") or "").strip()
+    password = body.get("password") or ""
 
-    :param login_user_request: 
-    :type login_user_request: dict | bytes
+    # Validate required fields
+    errors = []
+    if not username or len(username) < 3:
+        errors.append("Username must be at least 3 characters")
+    if not email or not re.match(r"[^@]+@[^@]+\.[^@]+", email):
+        errors.append("A valid email is required")
+    if len(password) < 8:
+        errors.append("Password must be at least 8 characters")
 
-    :rtype: Union[LoginUser200Response, Tuple[LoginUser200Response, int], Tuple[LoginUser200Response, int, Dict[str, str]]
-    """
-    login_user_request = body
-    if connexion.request.is_json:
-        login_user_request = LoginUserRequest.from_dict(connexion.request.get_json())  # noqa: E501
+    if errors:
+        return {"detail": "; ".join(errors)}, 400
 
-    login_info = auth.get_login_info(login_user_request.username)
-    if not login_info:
-        # username not found
-        return ErrorModel(401, "Unauthorized"), 401
-    if not login_info["password_hash"]:
-        # account has no password (e.g. guest users)
-        return ErrorModel(401, "Unauthorized"), 401
-    correct_pw = auth.does_password_match(login_user_request.password, login_info["password_hash"])
-    if correct_pw:
-        token = auth.create_token(login_info["id"])
-        ret = LoginUser200Response.from_dict({"token": token})
-        kudos_count = _get_kudos_count(login_info["id"])
-        current_user = CurrentUser.from_dict({
-            "id": str(login_info["id"]),
-            "username": login_info["username"],
-            "displayName": login_info["display_name"],
-            "userType": login_info["user_type"],
-            "status": login_info["status"],
-            "kudosCount": kudos_count,
-            "trustScore": float(login_info["trust_score"]) if login_info.get("trust_score") is not None else None,
-            "avatarUrl": login_info.get("avatar_url"),
-            "avatarIconUrl": login_info.get("avatar_icon_url"),
-        })
-        ret.user = current_user
-        return ret
-    else:
-        return ErrorModel(401, "Unauthorized"), 401
-
-
-def login_with_facebook(body):  # noqa: E501
-    """Log in or register with Facebook
-
-     # noqa: E501
-
-    :param login_with_google_request: 
-    :type login_with_google_request: dict | bytes
-
-    :rtype: Union[LoginUser200Response, Tuple[LoginUser200Response, int], Tuple[LoginUser200Response, int, Dict[str, str]]
-    """
-    login_with_google_request = body
-    if connexion.request.is_json:
-        login_with_google_request = LoginWithGoogleRequest.from_dict(connexion.request.get_json())  # noqa: E501
-    return 'do some magic!'
-
-
-def login_with_google(body):  # noqa: E501
-    """Log in or register with Google
-
-     # noqa: E501
-
-    :param login_with_google_request: 
-    :type login_with_google_request: dict | bytes
-
-    :rtype: Union[LoginUser200Response, Tuple[LoginUser200Response, int], Tuple[LoginUser200Response, int, Dict[str, str]]
-    """
-    login_with_google_request = body
-    if connexion.request.is_json:
-        login_with_google_request = LoginWithGoogleRequest.from_dict(connexion.request.get_json())  # noqa: E501
-    return 'do some magic!'
-
-
-def register_user(body):  # noqa: E501
-    """Register a new user
-
-     # noqa: E501
-
-    :param register_user_request:
-    :type register_user_request: dict | bytes
-
-    :rtype: Union[CurrentUser, Tuple[CurrentUser, int], Tuple[CurrentUser, int, Dict[str, str]]
-    """
-    register_user_request = body
-    if connexion.request.is_json:
-        register_user_request = RegisterUserRequest.from_dict(connexion.request.get_json())  # noqa: E501
-
-    username = register_user_request.username
-    display_name = register_user_request.display_name
-    password = register_user_request.password
-    email = register_user_request.email  # optional
-
-    # Check username uniqueness
-    existing = db.execute_query(
-        "SELECT id FROM users WHERE username = %s",
-        (username,), fetchone=True
-    )
-    if existing:
-        return ErrorModel(400, "Username already exists"), 400
-
-    # Check email uniqueness if provided
-    if email:
-        existing_email = db.execute_query(
-            "SELECT id FROM users WHERE email = %s",
-            (email,), fetchone=True
+    try:
+        keycloak.create_user(
+            username=username,
+            email=email,
+            password=password,
+            raise_on_conflict=True,
         )
-        if existing_email:
-            return ErrorModel(400, "Email already exists"), 400
-
-    # Hash password
-    password_hash = auth.hash_password(password)
-
-    # Generate UUID and insert user
-    import uuid
-    user_id = str(uuid.uuid4())
-    db.execute_query("""
-        INSERT INTO users (id, username, email, password_hash, display_name)
-        VALUES (%s, %s, %s, %s, %s)
-    """, (user_id, username, email, password_hash, display_name))
-
-    # Fetch and return created user
-    user = db.execute_query("""
-        SELECT id, username, display_name, email, user_type, status, created_time
-        FROM users WHERE id = %s
-    """, (user_id,), fetchone=True)
-
-    return CurrentUser.from_dict({
-        'id': str(user['id']),
-        'username': user['username'],
-        'displayName': user['display_name'],
-        'email': user['email'],
-        'userType': user['user_type'],
-        'status': user['status'],
-    }), 201
+        return {"message": "User created"}, 201
+    except ValueError as e:
+        return {"detail": str(e)}, 409
+    except Exception as e:
+        logger.error(f"Registration failed: {e}")
+        return {"detail": "Registration failed"}, 500

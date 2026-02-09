@@ -4,7 +4,7 @@ RUN apt install -y postgresql-common
 RUN /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
 
 RUN apt -y install default-jre python3 python3-pip postgresql-client-17
-RUN pip3 install openapi-generator-cli pipreqs psycopg2-binary bcrypt PyJWT camel-converter redis python-dateutil requests flask-cors gunicorn --break-system-packages
+RUN pip3 install openapi-generator-cli pipreqs psycopg2-binary "PyJWT[crypto]" cryptography camel-converter redis python-dateutil requests flask-cors gunicorn --break-system-packages
 RUN mkdir -p /usr/src/docs
 
 COPY ./docs/api.yaml /usr/src/docs/

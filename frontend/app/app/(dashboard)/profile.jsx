@@ -139,18 +139,9 @@ export default function Profile() {
   const [avatarModalOpen, setAvatarModalOpen] = useState(false)
   const [pickerModalOpen, setPickerModalOpen] = useState(false)
   const [pickerModalConfig, setPickerModalConfig] = useState(null)
-  const [passwordModalOpen, setPasswordModalOpen] = useState(false)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
 
-  // Password change state
-  const [currentPassword, setCurrentPassword] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [passwordError, setPasswordError] = useState(null)
-  const [changingPassword, setChangingPassword] = useState(false)
-
   // Delete account state
-  const [deletePassword, setDeletePassword] = useState('')
   const [deleteError, setDeleteError] = useState(null)
   const [deletingAccount, setDeletingAccount] = useState(false)
 
@@ -482,53 +473,12 @@ export default function Profile() {
     }
   }
 
-  const handleChangePassword = async () => {
-    setPasswordError(null)
-
-    if (!currentPassword) {
-      setPasswordError('Current password is required')
-      return
-    }
-    if (!newPassword) {
-      setPasswordError('New password is required')
-      return
-    }
-    if (newPassword.length < 8) {
-      setPasswordError('New password must be at least 8 characters')
-      return
-    }
-    if (newPassword !== confirmPassword) {
-      setPasswordError('Passwords do not match')
-      return
-    }
-
-    try {
-      setChangingPassword(true)
-      await api.users.changePassword(currentPassword, newPassword)
-      setPasswordModalOpen(false)
-      setCurrentPassword('')
-      setNewPassword('')
-      setConfirmPassword('')
-      setSuccessMessage('Password changed successfully')
-      setTimeout(() => setSuccessMessage(null), 3000)
-    } catch (err) {
-      setPasswordError(err.message || 'Failed to change password')
-    } finally {
-      setChangingPassword(false)
-    }
-  }
-
   const handleDeleteAccount = async () => {
     setDeleteError(null)
 
-    if (!deletePassword) {
-      setDeleteError('Password is required')
-      return
-    }
-
     try {
       setDeletingAccount(true)
-      await api.users.deleteAccount(deletePassword)
+      await api.users.deleteAccount()
       setDeleteModalOpen(false)
       await logout()
       router.replace('/')
@@ -775,15 +725,6 @@ export default function Profile() {
           </View>
 
           <TouchableOpacity
-            style={styles.securityButton}
-            onPress={() => setPasswordModalOpen(true)}
-          >
-            <Ionicons name="key-outline" size={20} color={Colors.primary} />
-            <Text style={styles.securityButtonText}>Change Password</Text>
-            <Ionicons name="chevron-forward" size={20} color={Colors.pass} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
             style={styles.logoutButton}
             onPress={logout}
           >
@@ -942,88 +883,6 @@ export default function Profile() {
         </Pressable>
       </Modal>
 
-      {/* Change Password Modal */}
-      <Modal
-        visible={passwordModalOpen}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setPasswordModalOpen(false)}
-      >
-        <Pressable style={SharedStyles.modalOverlay} onPress={() => setPasswordModalOpen(false)}>
-          <View style={styles.formModalContent}>
-            <Text style={styles.modalTitle}>Change Password</Text>
-
-            {passwordError && (
-              <View style={styles.modalError}>
-                <Text style={styles.modalErrorText}>{passwordError}</Text>
-              </View>
-            )}
-
-            <View style={styles.modalInputGroup}>
-              <Text style={styles.modalInputLabel}>Current Password</Text>
-              <TextInput
-                style={styles.modalInput}
-                value={currentPassword}
-                onChangeText={setCurrentPassword}
-                secureTextEntry
-                placeholder="Enter current password"
-                placeholderTextColor={Colors.pass}
-              />
-            </View>
-
-            <View style={styles.modalInputGroup}>
-              <Text style={styles.modalInputLabel}>New Password</Text>
-              <TextInput
-                style={styles.modalInput}
-                value={newPassword}
-                onChangeText={setNewPassword}
-                secureTextEntry
-                placeholder="Enter new password (min 8 chars)"
-                placeholderTextColor={Colors.pass}
-              />
-            </View>
-
-            <View style={styles.modalInputGroup}>
-              <Text style={styles.modalInputLabel}>Confirm New Password</Text>
-              <TextInput
-                style={styles.modalInput}
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                secureTextEntry
-                placeholder="Confirm new password"
-                placeholderTextColor={Colors.pass}
-              />
-            </View>
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={styles.modalCancelButton}
-                onPress={() => {
-                  setPasswordModalOpen(false)
-                  setCurrentPassword('')
-                  setNewPassword('')
-                  setConfirmPassword('')
-                  setPasswordError(null)
-                }}
-              >
-                <Text style={styles.modalCancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalConfirmButton, changingPassword && styles.modalButtonDisabled]}
-                onPress={handleChangePassword}
-                disabled={changingPassword}
-              >
-                {changingPassword ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={styles.modalConfirmButtonText}>Change Password</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Pressable>
-      </Modal>
-
       {/* Delete Account Modal */}
       <Modal
         visible={deleteModalOpen}
@@ -1048,24 +907,11 @@ export default function Profile() {
               </View>
             )}
 
-            <View style={styles.modalInputGroup}>
-              <Text style={styles.modalInputLabel}>Enter your password to confirm</Text>
-              <TextInput
-                style={styles.modalInput}
-                value={deletePassword}
-                onChangeText={setDeletePassword}
-                secureTextEntry
-                placeholder="Password"
-                placeholderTextColor={Colors.pass}
-              />
-            </View>
-
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={styles.modalCancelButton}
                 onPress={() => {
                   setDeleteModalOpen(false)
-                  setDeletePassword('')
                   setDeleteError(null)
                 }}
               >

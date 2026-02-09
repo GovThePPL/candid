@@ -34,13 +34,14 @@ class Database:
 		try:
 			query_upper = query.strip().upper()
 			is_select = query_upper.startswith("SELECT") or query_upper.startswith("WITH")
+			has_returning = "RETURNING" in query_upper
 			with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
 				if executemany:
 					cur.executemany(query, params)
 				else:
 					cur.execute(query, params)
 				retval = None
-				if is_select:
+				if is_select or has_returning:
 					if fetchone:
 						retval = cur.fetchone()
 					else:

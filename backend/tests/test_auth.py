@@ -1,210 +1,197 @@
-"""Tests for authentication endpoints: POST /auth/login and POST /auth/register."""
+"""Tests for Keycloak-based authentication.
+
+Verifies that the API accepts valid Keycloak ROPC tokens, rejects
+invalid/expired tokens, and that the registration endpoint works.
+"""
 
 import pytest
 import requests
-import uuid
-from conftest import BASE_URL, DEFAULT_PASSWORD
-
-LOGIN_URL = f"{BASE_URL}/auth/login"
-REGISTER_URL = f"{BASE_URL}/auth/register"
+from conftest import BASE_URL, KEYCLOAK_URL, KEYCLOAK_REALM, DEFAULT_PASSWORD, login, auth_header
 
 
-class TestLoginValid:
-    """Successful login scenarios."""
+class TestKeycloakTokenAccepted:
+    """Valid Keycloak tokens are accepted by the API."""
 
     @pytest.mark.smoke
-    def test_login_admin(self):
-        resp = requests.post(LOGIN_URL, json={"username": "admin1", "password": DEFAULT_PASSWORD})
+    def test_admin_token_accepted(self):
+        token = login("admin1")
+        resp = requests.get(f"{BASE_URL}/users/me", headers=auth_header(token))
         assert resp.status_code == 200
         body = resp.json()
-        assert "token" in body
-        assert len(body["token"]) > 0
+        assert body["username"] == "admin1"
 
-    def test_login_normal(self):
-        resp = requests.post(LOGIN_URL, json={"username": "normal1", "password": DEFAULT_PASSWORD})
+    def test_normal_token_accepted(self):
+        token = login("normal1")
+        resp = requests.get(f"{BASE_URL}/users/me", headers=auth_header(token))
         assert resp.status_code == 200
-        assert "token" in resp.json()
+        assert resp.json()["username"] == "normal1"
 
-    def test_login_moderator(self):
-        resp = requests.post(LOGIN_URL, json={"username": "moderator1", "password": DEFAULT_PASSWORD})
+    def test_moderator_token_accepted(self):
+        token = login("moderator1")
+        resp = requests.get(f"{BASE_URL}/users/me", headers=auth_header(token))
         assert resp.status_code == 200
-        assert "token" in resp.json()
-
-    def test_login_returns_user_info(self):
-        resp = requests.post(LOGIN_URL, json={"username": "admin1", "password": DEFAULT_PASSWORD})
-        assert resp.status_code == 200
-        body = resp.json()
-        assert "token" in body
+        assert resp.json()["username"] == "moderator1"
 
 
-class TestLoginInvalid:
-    """Failed login scenarios."""
+class TestInvalidTokenRejected:
+    """Invalid tokens are rejected with 401."""
 
     @pytest.mark.smoke
-    def test_wrong_password(self):
-        resp = requests.post(LOGIN_URL, json={"username": "admin1", "password": "wrongpassword"})
+    def test_no_token_returns_401(self):
+        resp = requests.get(f"{BASE_URL}/users/me")
         assert resp.status_code == 401
 
-    def test_nonexistent_user(self):
-        resp = requests.post(LOGIN_URL, json={"username": "doesnotexist", "password": DEFAULT_PASSWORD})
+    def test_garbage_token_returns_401(self):
+        resp = requests.get(f"{BASE_URL}/users/me",
+                            headers=auth_header("not-a-valid-token"))
         assert resp.status_code == 401
 
-    def test_empty_password(self):
-        resp = requests.post(LOGIN_URL, json={"username": "admin1", "password": ""})
-        assert resp.status_code == 401
-
-    def test_missing_username_field(self):
-        resp = requests.post(LOGIN_URL, json={"password": DEFAULT_PASSWORD})
-        assert resp.status_code in (400, 422)
-
-    def test_missing_password_field(self):
-        resp = requests.post(LOGIN_URL, json={"username": "admin1"})
-        assert resp.status_code in (400, 422)
-
-    def test_empty_body(self):
-        resp = requests.post(LOGIN_URL, json={})
-        assert resp.status_code in (400, 422)
-
-    def test_guest_cannot_login(self):
-        """Guest users have empty password hashes and shouldn't be able to login."""
-        resp = requests.post(LOGIN_URL, json={"username": "guest1", "password": ""})
+    def test_expired_hs256_token_returns_401(self):
+        """Old HS256 tokens from the legacy auth system are rejected."""
+        # This is a structurally valid HS256 JWT but not signed by Keycloak
+        fake_hs256 = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"
+        resp = requests.get(f"{BASE_URL}/users/me",
+                            headers=auth_header(fake_hs256))
         assert resp.status_code == 401
 
 
-class TestRegisterUser:
-    """Tests for user registration endpoint."""
+class TestOldEndpointsRemoved:
+    """Legacy auth endpoints should return 404."""
 
-    def _unique_username(self):
-        """Generate a unique username for testing."""
-        return f"testuser_{uuid.uuid4().hex[:8]}"
+    def test_login_endpoint_removed(self):
+        resp = requests.post(f"{BASE_URL}/auth/login",
+                             json={"username": "admin1", "password": DEFAULT_PASSWORD})
+        assert resp.status_code == 404
 
-    @pytest.mark.smoke
-    def test_register_success(self):
-        """New user created with 201 status."""
-        username = self._unique_username()
-        resp = requests.post(REGISTER_URL, json={
-            "username": username,
-            "displayName": "Test User",
-            "password": "testpassword123"
-        })
-        assert resp.status_code == 201
+    def test_google_login_removed(self):
+        resp = requests.post(f"{BASE_URL}/auth/social/google",
+                             json={"token": "fake"})
+        assert resp.status_code == 404
 
-    def test_register_returns_user_info(self):
-        """Response contains expected user fields."""
-        username = self._unique_username()
-        resp = requests.post(REGISTER_URL, json={
-            "username": username,
-            "displayName": "Test User",
-            "password": "testpassword123"
-        })
-        assert resp.status_code == 201
-        body = resp.json()
-        assert body["username"] == username
-        assert body["displayName"] == "Test User"
-        assert body["userType"] == "normal"
-        assert body["status"] == "active"
-        assert "id" in body
+    def test_facebook_login_removed(self):
+        resp = requests.post(f"{BASE_URL}/auth/social/facebook",
+                             json={"token": "fake"})
+        assert resp.status_code == 404
 
-    def test_register_with_email(self):
-        """Registration with optional email field."""
-        username = self._unique_username()
-        email = f"{username}@test.com"
-        resp = requests.post(REGISTER_URL, json={
-            "username": username,
-            "displayName": "Test User",
-            "password": "testpassword123",
-            "email": email
-        })
-        assert resp.status_code == 201
-        body = resp.json()
-        assert body["email"] == email
+    def test_change_password_removed(self):
+        resp = requests.put(f"{BASE_URL}/users/me/password",
+                            json={"currentPassword": "x", "newPassword": "y"})
+        assert resp.status_code == 404
 
-    def test_duplicate_username_returns_400(self):
-        """Username uniqueness is enforced."""
-        username = self._unique_username()
-        # First registration
-        resp1 = requests.post(REGISTER_URL, json={
-            "username": username,
-            "displayName": "Test User 1",
-            "password": "testpassword123"
-        })
-        assert resp1.status_code == 201
-        # Second registration with same username
-        resp2 = requests.post(REGISTER_URL, json={
-            "username": username,
-            "displayName": "Test User 2",
-            "password": "testpassword456"
-        })
-        assert resp2.status_code == 400
 
-    def test_duplicate_email_returns_400(self):
-        """Email uniqueness is enforced."""
-        email = f"test_{uuid.uuid4().hex[:8]}@test.com"
-        # First registration
-        resp1 = requests.post(REGISTER_URL, json={
-            "username": self._unique_username(),
-            "displayName": "Test User 1",
-            "password": "testpassword123",
-            "email": email
-        })
-        assert resp1.status_code == 201
-        # Second registration with same email
-        resp2 = requests.post(REGISTER_URL, json={
-            "username": self._unique_username(),
-            "displayName": "Test User 2",
-            "password": "testpassword456",
-            "email": email
-        })
-        assert resp2.status_code == 400
+def _cleanup_keycloak_user(username):
+    """Delete a test user from Keycloak via Admin REST API."""
+    # Get admin token via service account
+    token_url = f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token"
+    resp = requests.post(token_url, data={
+        "grant_type": "client_credentials",
+        "client_id": "candid-backend",
+        "client_secret": "candid-backend-secret",
+    })
+    if resp.status_code != 200:
+        return
+    admin_token = resp.json()["access_token"]
+    headers = {"Authorization": f"Bearer {admin_token}"}
 
-    def test_missing_username_returns_400(self):
-        """Missing username field returns error."""
-        resp = requests.post(REGISTER_URL, json={
-            "displayName": "Test User",
-            "password": "testpassword123"
-        })
-        assert resp.status_code in (400, 422)
+    # Find user by username
+    base = f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}"
+    resp = requests.get(f"{base}/users", params={"username": username, "exact": "true"},
+                        headers=headers)
+    if resp.status_code != 200 or not resp.json():
+        return
 
-    def test_missing_password_returns_400(self):
-        """Missing password field returns error."""
-        resp = requests.post(REGISTER_URL, json={
-            "username": self._unique_username(),
-            "displayName": "Test User"
-        })
-        assert resp.status_code in (400, 422)
+    user_id = resp.json()[0]["id"]
+    requests.delete(f"{base}/users/{user_id}", headers=headers)
 
-    def test_missing_display_name_returns_400(self):
-        """Missing displayName field returns error."""
-        resp = requests.post(REGISTER_URL, json={
-            "username": self._unique_username(),
-            "password": "testpassword123"
-        })
-        assert resp.status_code in (400, 422)
 
-    def test_registered_user_can_login(self):
-        """Newly registered user can log in with their password."""
-        username = self._unique_username()
-        password = "testpassword123"
-        # Register
-        reg_resp = requests.post(REGISTER_URL, json={
-            "username": username,
-            "displayName": "Test User",
-            "password": password
-        })
-        assert reg_resp.status_code == 201
-        # Login
-        login_resp = requests.post(LOGIN_URL, json={
-            "username": username,
-            "password": password
-        })
-        assert login_resp.status_code == 200
-        assert "token" in login_resp.json()
+class TestTokenEndpoint:
+    """POST /auth/token proxies ROPC to Keycloak."""
 
-    def test_existing_seeded_username_returns_400(self):
-        """Cannot register with a username that already exists in seed data."""
-        resp = requests.post(REGISTER_URL, json={
+    def test_valid_credentials(self):
+        resp = requests.post(f"{BASE_URL}/auth/token", json={
             "username": "admin1",
-            "displayName": "Fake Admin",
-            "password": "testpassword123"
+            "password": DEFAULT_PASSWORD,
+        })
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "access_token" in body
+        assert "refresh_token" in body
+
+    def test_invalid_password(self):
+        resp = requests.post(f"{BASE_URL}/auth/token", json={
+            "username": "admin1",
+            "password": "wrongpassword",
+        })
+        assert resp.status_code == 401
+
+    def test_missing_fields(self):
+        resp = requests.post(f"{BASE_URL}/auth/token", json={
+            "username": "admin1",
         })
         assert resp.status_code == 400
+
+
+class TestRegistration:
+    """POST /auth/register creates users via Keycloak Admin API."""
+
+    TEST_USERNAME = "test_reg_user"
+    TEST_EMAIL = "test_reg@example.com"
+    TEST_PASSWORD = "testpassword123"
+
+    @pytest.fixture(autouse=True)
+    def cleanup(self):
+        """Remove test user before and after each test."""
+        _cleanup_keycloak_user(self.TEST_USERNAME)
+        yield
+        _cleanup_keycloak_user(self.TEST_USERNAME)
+
+    def test_register_success(self):
+        resp = requests.post(f"{BASE_URL}/auth/register", json={
+            "username": self.TEST_USERNAME,
+            "email": self.TEST_EMAIL,
+            "password": self.TEST_PASSWORD,
+        })
+        assert resp.status_code == 201
+        assert resp.json()["message"] == "User created"
+
+        # Verify the user can log in via ROPC
+        token = login(self.TEST_USERNAME, self.TEST_PASSWORD)
+        assert token
+
+    def test_register_missing_username(self):
+        resp = requests.post(f"{BASE_URL}/auth/register", json={
+            "email": self.TEST_EMAIL,
+            "password": self.TEST_PASSWORD,
+        })
+        assert resp.status_code == 400
+
+    def test_register_missing_email(self):
+        resp = requests.post(f"{BASE_URL}/auth/register", json={
+            "username": self.TEST_USERNAME,
+            "password": self.TEST_PASSWORD,
+        })
+        assert resp.status_code == 400
+
+    def test_register_short_password(self):
+        resp = requests.post(f"{BASE_URL}/auth/register", json={
+            "username": self.TEST_USERNAME,
+            "email": self.TEST_EMAIL,
+            "password": "short",
+        })
+        assert resp.status_code == 400
+        assert "too short" in resp.json()["detail"]
+
+    def test_register_duplicate_returns_409(self):
+        # Create the user first
+        requests.post(f"{BASE_URL}/auth/register", json={
+            "username": self.TEST_USERNAME,
+            "email": self.TEST_EMAIL,
+            "password": self.TEST_PASSWORD,
+        })
+        # Try to create the same user again
+        resp = requests.post(f"{BASE_URL}/auth/register", json={
+            "username": self.TEST_USERNAME,
+            "email": "different@example.com",
+            "password": self.TEST_PASSWORD,
+        })
+        assert resp.status_code == 409

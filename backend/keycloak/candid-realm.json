@@ -1,0 +1,303 @@
+{
+  "realm": "candid",
+  "enabled": true,
+  "loginTheme": "candid",
+  "registrationAllowed": true,
+  "registrationEmailAsUsername": false,
+  "resetPasswordAllowed": true,
+  "accessTokenLifespan": 3600,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "defaultSignatureAlgorithm": "RS256",
+  "roles": {
+    "realm": [
+      { "name": "guest", "description": "Guest user with limited access" },
+      { "name": "normal", "description": "Standard authenticated user" },
+      { "name": "moderator", "description": "Content moderator" },
+      { "name": "admin", "description": "System administrator" }
+    ]
+  },
+  "defaultRole": {
+    "name": "default-roles-candid",
+    "composites": {
+      "realm": ["normal"]
+    }
+  },
+  "clients": [
+    {
+      "clientId": "candid-app",
+      "name": "Candid Frontend App",
+      "enabled": true,
+      "publicClient": true,
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "redirectUris": [
+        "http://localhost:3001/*",
+        "http://localhost:8081/*",
+        "http://localhost:8082/*",
+        "http://localhost:19006/*",
+        "exp://localhost:8081/*",
+        "exp://localhost:3001/*",
+        "exp://*",
+        "candid://*"
+      ],
+      "webOrigins": [
+        "+"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocol": "openid-connect",
+      "protocolMappers": [
+        {
+          "name": "polis-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "users",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "candid-backend",
+      "name": "Candid Backend Service Account",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "candid-backend-secret",
+      "serviceAccountsEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "standardFlowEnabled": false,
+      "protocol": "openid-connect"
+    },
+    {
+      "clientId": "polis-admin",
+      "name": "Polis Admin Client",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "polis-admin-secret",
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "standardFlowEnabled": false,
+      "protocol": "openid-connect",
+      "protocolMappers": [
+        {
+          "name": "polis-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "users",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "clientScopeMappings": {
+    "realm-management": [
+      {
+        "client": "candid-backend",
+        "roles": ["realm-admin"]
+      }
+    ]
+  },
+  "users": [
+    {
+      "id": "kcadmn01-0001-0001-0001-000000000001",
+      "username": "admin1",
+      "email": "admin1@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Admin",
+      "lastName": "1",
+      "realmRoles": ["admin"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "id": "kcmod001-0001-0001-0001-000000000002",
+      "username": "moderator1",
+      "email": "moderator1@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Moderator",
+      "lastName": "1",
+      "realmRoles": ["moderator"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "id": "kcmod002-0001-0001-0001-000000000003",
+      "username": "moderator2",
+      "email": "moderator2@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Moderator",
+      "lastName": "2",
+      "realmRoles": ["moderator"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "id": "kcnorm01-0001-0001-0001-000000000004",
+      "username": "normal1",
+      "email": "normal1@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Normal",
+      "lastName": "1",
+      "realmRoles": ["normal"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "id": "kcnorm02-0001-0001-0001-000000000005",
+      "username": "normal2",
+      "email": "normal2@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Normal",
+      "lastName": "2",
+      "realmRoles": ["normal"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "id": "kcnorm03-0001-0001-0001-000000000006",
+      "username": "normal3",
+      "email": "normal3@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Normal",
+      "lastName": "3",
+      "realmRoles": ["normal"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "id": "kcnorm04-0001-0001-0001-000000000007",
+      "username": "normal4",
+      "email": "normal4@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Normal",
+      "lastName": "4",
+      "realmRoles": ["normal"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "id": "kcnorm05-0001-0001-0001-000000000008",
+      "username": "normal5",
+      "email": "normal5@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Normal",
+      "lastName": "5",
+      "realmRoles": ["normal"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "id": "kcguest1-0001-0001-0001-000000000009",
+      "username": "guest1",
+      "enabled": true,
+      "firstName": "Guest",
+      "lastName": "1",
+      "realmRoles": ["guest"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "id": "kcguest2-0001-0001-0001-00000000000a",
+      "username": "guest2",
+      "enabled": true,
+      "firstName": "Guest",
+      "lastName": "2",
+      "realmRoles": ["guest"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "id": "kcpolis0-0001-0001-0001-00000000000b",
+      "username": "polis-admin",
+      "email": "polis-admin@candid.dev",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Polis",
+      "lastName": "Admin",
+      "realmRoles": ["admin"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "service-account-candid-backend",
+      "enabled": true,
+      "serviceAccountClientId": "candid-backend",
+      "clientRoles": {
+        "realm-management": ["realm-admin"]
+      }
+    }
+  ]
+}

@@ -7,7 +7,7 @@ from typing import Any
 
 import socketio
 
-from ..auth import validate_token
+from ..auth import validate_token, resolve_keycloak_id
 from ..services import get_redis_store, get_room_manager, get_chat_exporter
 
 logger = logging.getLogger(__name__)
@@ -50,13 +50,24 @@ def register_connection_handlers(sio: socketio.AsyncServer) -> None:
             logger.warning(f"Authentication failed for {sid}: no token provided")
             return {"status": "error", "code": "NO_TOKEN", "message": "No token provided"}
 
-        user_id = validate_token(token)
-        if not user_id:
+        keycloak_id = validate_token(token)
+        if not keycloak_id:
             logger.warning(f"Authentication failed for {sid}: invalid token")
             return {
                 "status": "error",
                 "code": "INVALID_TOKEN",
                 "message": "Invalid or expired token",
+            }
+
+        # Resolve Keycloak subject to Candid user ID
+        chat_exporter = get_chat_exporter()
+        user_id = await resolve_keycloak_id(chat_exporter._pool, keycloak_id)
+        if not user_id:
+            logger.warning(f"Authentication failed for {sid}: keycloak_id {keycloak_id} not found in users table")
+            return {
+                "status": "error",
+                "code": "USER_NOT_FOUND",
+                "message": "User not found",
             }
 
         # Register session

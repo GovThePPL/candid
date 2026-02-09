@@ -1,11 +1,11 @@
-"""Tests for user account operations: password change, account delete, push token, avatar upload."""
+"""Tests for user account operations: account delete, push token, avatar upload."""
 
 import pytest
 import requests
 from conftest import (
     BASE_URL,
-    NORMAL5_ID,
-    DEFAULT_PASSWORD,
+    KEYCLOAK_URL,
+    KEYCLOAK_REALM,
     login,
     auth_header,
     db_execute,
@@ -13,145 +13,64 @@ from conftest import (
 )
 
 
-# The bcrypt hash for 'password' used in seed data
-SEED_PASSWORD_HASH = "$2b$14$if1z65maFt6mCfp9Vd5MNe1IgSwFQkoni3fSv/kun3mqFIyjcjvBS"
-
-
-class TestChangePassword:
-    """PUT /users/me/password"""
-
-    @pytest.fixture
-    def normal5_headers(self):
-        """Get headers for normal5."""
-        token = login("normal5")
-        return auth_header(token)
-
-    def _restore_password(self):
-        """Restore normal5's password to the seed default."""
-        db_execute(
-            "UPDATE users SET password_hash = %s WHERE id = %s",
-            (SEED_PASSWORD_HASH, NORMAL5_ID),
-        )
-
-    @pytest.mark.mutation
-    def test_change_password_success(self, normal5_headers):
-        """Can change password with correct current password."""
-        try:
-            resp = requests.put(
-                f"{BASE_URL}/users/me/password",
-                headers=normal5_headers,
-                json={
-                    "currentPassword": DEFAULT_PASSWORD,
-                    "newPassword": "newpassword123",
-                },
-            )
-            assert resp.status_code == 200
-        finally:
-            self._restore_password()
-
-    def test_wrong_current_password_401(self, normal5_headers):
-        """Wrong current password returns 401."""
-        resp = requests.put(
-            f"{BASE_URL}/users/me/password",
-            headers=normal5_headers,
-            json={
-                "currentPassword": "wrongpassword",
-                "newPassword": "newpassword123",
-            },
-        )
-        assert resp.status_code == 401
-
-    def test_too_short_new_password_400(self, normal5_headers):
-        """New password shorter than 8 chars returns 400."""
-        resp = requests.put(
-            f"{BASE_URL}/users/me/password",
-            headers=normal5_headers,
-            json={
-                "currentPassword": DEFAULT_PASSWORD,
-                "newPassword": "short",
-            },
-        )
-        assert resp.status_code == 400
-
-    def test_missing_fields_400(self, normal5_headers):
-        """Missing fields returns 400."""
-        resp = requests.put(
-            f"{BASE_URL}/users/me/password",
-            headers=normal5_headers,
-            json={},
-        )
-        assert resp.status_code == 400
-
-    def test_unauthenticated(self):
-        """Unauthenticated request returns 401."""
-        resp = requests.put(
-            f"{BASE_URL}/users/me/password",
-            json={
-                "currentPassword": DEFAULT_PASSWORD,
-                "newPassword": "newpassword123",
-            },
-        )
-        assert resp.status_code == 401
-
-
 class TestDeleteCurrentUser:
     """POST /users/me/delete"""
 
-    @pytest.fixture
-    def normal5_headers(self):
-        """Get headers for normal5."""
-        token = login("normal5")
-        return auth_header(token)
+    DISPOSABLE_USERNAME = "test_delete_user"
+    DISPOSABLE_EMAIL = "test_delete_user@example.com"
+    DISPOSABLE_PASSWORD = "password123"
 
-    def _restore_user(self):
-        """Restore normal5 to active status."""
-        db_execute(
-            "UPDATE users SET status = 'active' WHERE id = %s",
-            (NORMAL5_ID,),
-        )
+    def _register_disposable_user(self):
+        """Register a disposable user for the delete test."""
+        resp = requests.post(f"{BASE_URL}/auth/register", json={
+            "username": self.DISPOSABLE_USERNAME,
+            "email": self.DISPOSABLE_EMAIL,
+            "password": self.DISPOSABLE_PASSWORD,
+        })
+        assert resp.status_code == 201, f"Failed to register disposable user: {resp.text}"
+
+    def _login_disposable_user(self):
+        """Log in as the disposable user."""
+        token_url = f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token"
+        resp = requests.post(token_url, data={
+            "grant_type": "password",
+            "client_id": "candid-app",
+            "username": self.DISPOSABLE_USERNAME,
+            "password": self.DISPOSABLE_PASSWORD,
+        })
+        resp.raise_for_status()
+        return resp.json()["access_token"]
 
     @pytest.mark.mutation
-    def test_delete_success(self, normal5_headers):
-        """Can delete own account with correct password."""
-        try:
-            resp = requests.post(
-                f"{BASE_URL}/users/me/delete",
-                headers=normal5_headers,
-                json={"password": DEFAULT_PASSWORD},
-            )
-            assert resp.status_code == 200
-            # Verify user is marked as deleted
-            row = db_query_one(
-                "SELECT status FROM users WHERE id = %s", (NORMAL5_ID,)
-            )
-            assert row["status"] == "deleted"
-        finally:
-            self._restore_user()
+    def test_delete_success(self):
+        """Can delete own account (auth token only, no password needed)."""
+        # Create a disposable user so we don't destroy shared test users
+        self._register_disposable_user()
+        token = self._login_disposable_user()
+        headers = auth_header(token)
 
-    def test_wrong_password_401(self, normal5_headers):
-        """Wrong password returns 401."""
+        # Call /users/me first to trigger auto-registration in Candid DB
+        me_resp = requests.get(f"{BASE_URL}/users/me", headers=headers)
+        assert me_resp.status_code == 200
+        user_id = me_resp.json()["id"]
+
+        # Delete the account
         resp = requests.post(
             f"{BASE_URL}/users/me/delete",
-            headers=normal5_headers,
-            json={"password": "wrongpassword"},
+            headers=headers,
         )
-        assert resp.status_code == 401
+        assert resp.status_code == 200
 
-    def test_missing_password_400(self, normal5_headers):
-        """Missing password returns 400."""
-        resp = requests.post(
-            f"{BASE_URL}/users/me/delete",
-            headers=normal5_headers,
-            json={},
+        # Verify user is marked as deleted in DB
+        row = db_query_one(
+            "SELECT status, keycloak_id FROM users WHERE id = %s", (user_id,)
         )
-        assert resp.status_code == 400
+        assert row["status"] == "deleted"
+        assert row["keycloak_id"] is None  # Keycloak link should be cleared
 
     def test_unauthenticated(self):
         """Unauthenticated request returns 401."""
-        resp = requests.post(
-            f"{BASE_URL}/users/me/delete",
-            json={"password": DEFAULT_PASSWORD},
-        )
+        resp = requests.post(f"{BASE_URL}/users/me/delete")
         assert resp.status_code == 401
 
 

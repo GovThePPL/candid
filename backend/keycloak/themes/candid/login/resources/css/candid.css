@@ -1,0 +1,107 @@
+@import url('https://fonts.googleapis.com/css2?family=Pacifico&display=swap');
+
+/* Background */
+#kc-login {
+  background: #F5F5F5;
+}
+
+body {
+  background: #F5F5F5 !important;
+}
+
+/* Login card */
+#kc-form-wrapper,
+.card-pf {
+  background: #FFFFFF !important;
+  border-radius: 16px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+  border: none !important;
+}
+
+/* Logo / Header */
+#kc-header-wrapper {
+  font-family: 'Pacifico', cursive !important;
+  font-size: 56px !important;
+  color: #5C005C !important;
+  text-shadow: none !important;
+  padding-bottom: 10px;
+}
+
+/* Page title */
+#kc-page-title {
+  color: #5C005C !important;
+  font-weight: 600 !important;
+  font-size: 20px !important;
+}
+
+/* Buttons */
+#kc-login,
+input[type="submit"],
+button[type="submit"],
+.btn-primary {
+  background: #5C005C !important;
+  border-color: #5C005C !important;
+  border-radius: 6px !important;
+  padding: 18px !important;
+  font-weight: 600 !important;
+  font-size: 16px !important;
+  color: #FFFFFF !important;
+  text-transform: none !important;
+}
+
+#kc-login:hover,
+input[type="submit"]:hover,
+button[type="submit"]:hover,
+.btn-primary:hover {
+  background: #4A004A !important;
+  border-color: #4A004A !important;
+}
+
+/* Input fields */
+input[type="text"],
+input[type="password"],
+input[type="email"],
+.pf-c-form-control {
+  border: 1px solid #E0E0E0 !important;
+  border-radius: 12px !important;
+  padding: 20px !important;
+  font-size: 14px !important;
+  background: #FFFFFF !important;
+}
+
+input[type="text"]:focus,
+input[type="password"]:focus,
+input[type="email"]:focus,
+.pf-c-form-control:focus {
+  border-color: #5C005C !important;
+  box-shadow: 0 0 0 2px rgba(92, 0, 92, 0.15) !important;
+}
+
+/* Links */
+a,
+.login-pf-page a {
+  color: #5C005C !important;
+}
+
+a:hover {
+  color: #4A004A !important;
+}
+
+/* Error / Alert messages */
+.alert-error,
+.pf-c-alert--danger {
+  background: #ffe6e6 !important;
+  border: 1px solid #EF4C45 !important;
+  color: #EF4C45 !important;
+  border-radius: 8px !important;
+}
+
+/* Registration link */
+#kc-registration span {
+  color: #666 !important;
+}
+
+#kc-registration a {
+  color: #5C005C !important;
+  font-weight: 600 !important;
+}

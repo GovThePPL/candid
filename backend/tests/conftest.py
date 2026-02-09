@@ -15,6 +15,8 @@ CHAT_SERVER_URL = "http://127.0.0.1:8002"
 DEFAULT_PASSWORD = "password"
 DB_URL = "postgresql://user:postgres@localhost:5432/candid"
 REDIS_URL = "redis://localhost:6379"
+KEYCLOAK_URL = os.environ.get("KEYCLOAK_URL", "http://localhost:8180")
+KEYCLOAK_REALM = os.environ.get("KEYCLOAK_REALM", "candid")
 
 # Path to the snapshot file used for DB save/restore around test sessions
 _DB_SNAPSHOT_PATH = "/tmp/candid_pre_test.dump"
@@ -96,13 +98,16 @@ NONEXISTENT_UUID = "00000000-0000-0000-0000-000000000000"
 # ---------------------------------------------------------------------------
 
 def login(username, password=DEFAULT_PASSWORD):
-    """POST /auth/login and return the token string."""
-    resp = requests.post(
-        f"{BASE_URL}/auth/login",
-        json={"username": username, "password": password},
-    )
+    """Get a Keycloak ROPC token for the given test user."""
+    token_url = f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token"
+    resp = requests.post(token_url, data={
+        "grant_type": "password",
+        "client_id": "candid-app",
+        "username": username,
+        "password": password,
+    })
     resp.raise_for_status()
-    return resp.json()["token"]
+    return resp.json()["access_token"]
 
 
 def auth_header(token):

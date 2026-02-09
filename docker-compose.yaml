@@ -9,17 +9,20 @@ services:
             DATABASE_URL: postgresql://user:postgres@db:5432/candid
             FLASK_ENV: dev
             FLASK_APP: "app.app:create_app"
+            # Keycloak
+            KEYCLOAK_URL: http://keycloak:8180
+            KEYCLOAK_REALM: candid
+            KEYCLOAK_BACKEND_CLIENT_ID: candid-backend
+            KEYCLOAK_BACKEND_CLIENT_SECRET: candid-backend-secret
             # Polis integration
-            POLIS_API_URL: http://polis:5000/api/v3
-            POLIS_BASE_URL: http://polis:5000
+            POLIS_API_URL: http://polis-server:5000/api/v3
+            POLIS_BASE_URL: http://polis-server:5000
             POLIS_ENABLED: "true"
             POLIS_TIMEOUT: "10"
-            # Polis OIDC authentication (for admin operations)
-            POLIS_OIDC_TOKEN_URL: https://polis:3000/oauth/token
-            POLIS_OIDC_CLIENT_ID: dev-client-id
-            POLIS_OIDC_CLIENT_SECRET: dev_auth-client_secret
-            POLIS_ADMIN_EMAIL: admin@polis.test
-            POLIS_ADMIN_PASSWORD: "Te$$tP@ssw0rd*"
+            # Polis admin (Keycloak ROPC via polis-admin client)
+            POLIS_ADMIN_CLIENT_SECRET: polis-admin-secret
+            POLIS_ADMIN_EMAIL: polis-admin@candid.dev
+            POLIS_ADMIN_PASSWORD: "password"
             # Redis
             REDIS_URL: redis://redis:6379
             # Connection pooling
@@ -40,17 +43,19 @@ services:
                 condition: service_healthy
             redis:
                 condition: service_healthy
-            polis:
-                condition: service_started
+            keycloak:
+                condition: service_healthy
+            polis-server:
+                condition: service_healthy
             nlp:
                 condition: service_started
         volumes:
-            - .:/app # Mount current directory to /app in container for development
+            - ./backend/server/controllers:/usr/src/app/candid/controllers # Live-reload controllers in dev
 
     db:
         build:
-            context: backend/database/
-            dockerfile: ./Dockerfile
+            context: .
+            dockerfile: backend/database/Dockerfile
         ports:
             - "5432:5432"
         volumes:
@@ -61,27 +66,73 @@ services:
             timeout: 5s
             retries: 5
 
-    polis:
+    polis-server:
         build:
-            context: ./backend/polis-sysbox
+            context: ./backend/polis-integration/polis/server
             dockerfile: Dockerfile
-        runtime: sysbox-runc
-        privileged: true
+            target: dev
         ports:
-          - "5000:5000"    # Polis API server
-          - "5433:5432"    # Polis PostgreSQL (avoiding conflict with your db)
-          - "8081:8080"    # Polis file server
-          - "8005:8005"    # SES local email service
-          - "3000:3000"    # OIDC simulator
-          - "8001:8001"    # DynamoDB admin
-          - "8080:80"      # Polis UI
-          - "443:443"      # Polis UI
-        volumes:
-          - ./backend/polis-sysbox/polis:/workspace
-          - polis_docker_data:/var/lib/docker
-        working_dir: /workspace
+            - "5000:5000"
         environment:
-          - DOCKER_TLS_CERTDIR=
+            DATABASE_URL: postgres://user:postgres@db:5432/polis-dev
+            DEV_MODE: "true"
+            API_SERVER_PORT: 5000
+            MATH_ENV: dev
+            # Auth via Keycloak OIDC
+            AUTH_ISSUER: http://keycloak:8180/realms/candid
+            JWKS_URI: http://keycloak:8180/realms/candid/protocol/openid-connect/certs
+            AUTH_AUDIENCE: users
+            # Participant JWT keys (auto-generated if missing)
+            POLIS_JWT_AUDIENCE: participants
+            POLIS_JWT_ISSUER: https://pol.is/
+        healthcheck:
+            test: ["CMD-SHELL", "wget -qO- http://localhost:5000/api/v3/participationInit || exit 1"]
+            interval: 10s
+            timeout: 5s
+            start_period: 30s
+            retries: 3
+        depends_on:
+            db:
+                condition: service_healthy
+            keycloak:
+                condition: service_healthy
+
+    polis-math:
+        build:
+            context: ./backend/polis-integration/polis/math
+            dockerfile: Dockerfile
+        environment:
+            DATABASE_URL: postgres://user:postgres@db:5432/polis-dev
+            MATH_ENV: dev
+        depends_on:
+            db:
+                condition: service_healthy
+
+    keycloak:
+        image: quay.io/keycloak/keycloak:26.0
+        command: start-dev --import-realm
+        ports:
+            - "8180:8180"
+        environment:
+            KC_DB: postgres
+            KC_DB_URL: jdbc:postgresql://db:5432/keycloak
+            KC_DB_USERNAME: user
+            KC_DB_PASSWORD: postgres
+            KC_BOOTSTRAP_ADMIN_USERNAME: admin
+            KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+            KC_HTTP_PORT: 8180
+        volumes:
+            - ./backend/keycloak/candid-realm.json:/opt/keycloak/data/import/candid-realm.json
+            - ./backend/keycloak/themes/candid:/opt/keycloak/themes/candid
+        depends_on:
+            db:
+                condition: service_healthy
+        healthcheck:
+            test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8180 && echo -e 'GET /realms/candid HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '\"realm\"'"]
+            interval: 10s
+            timeout: 5s
+            start_period: 30s
+            retries: 5
 
     redis:
         image: redis:7-alpine
@@ -105,7 +156,8 @@ services:
         environment:
             DATABASE_URL: postgresql://user:postgres@db:5432/candid
             REDIS_URL: redis://redis:6379
-            JWT_SECRET: abc
+            KEYCLOAK_URL: http://keycloak:8180
+            KEYCLOAK_REALM: candid
             PORT: 8002
         healthcheck:
             test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
@@ -140,5 +192,4 @@ services:
 
 volumes:
     postgres_data:
-    polis_docker_data:
     redis_data:

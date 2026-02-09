@@ -1,6 +1,7 @@
 import { createContext, useEffect, useState, useCallback, useRef } from "react"
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import api, { getStoredUser, initializeAuth, getToken } from "../lib/api"
+import api, { getStoredUser, initializeAuth, getToken, setToken, setStoredUser } from "../lib/api"
+import * as keycloak from "../lib/keycloak"
 import socket, { connectSocket, disconnectSocket, onChatRequestResponse, onChatRequestReceived, onChatStarted } from "../lib/socket"
 import { setupNotificationHandler, addNotificationResponseListener } from "../lib/notifications"
 
@@ -12,6 +13,7 @@ export function UserProvider({ children }) {
   const [user, setUser] = useState(null)
   const [authChecked, setAuthChecked] = useState(false)
   const [positionsVersion, setPositionsVersion] = useState(0)
+  const [isNewUser, setIsNewUser] = useState(false)
 
   // Pending chat request state
   // Shape: { id, createdTime, expiresAt, positionStatement, status: 'pending'|'accepted'|'declined' }
@@ -193,31 +195,49 @@ export function UserProvider({ children }) {
 
   async function login(username, password) {
     try {
-      const response = await api.auth.login(username, password)
-      setUser(response.user)
+      const { accessToken } = await keycloak.loginWithCredentials(username, password)
+      await setToken(accessToken)
+      const currentUser = await api.auth.getCurrentUser()
+      await setStoredUser(currentUser)
+      setUser(currentUser)
       // Initialize socket after successful login
       initializeSocket()
       // Check for any active chats to rejoin
-      checkForActiveChat(response.user.id)
-      return response
+      checkForActiveChat(currentUser.id)
+      return currentUser
     } catch (error) {
       throw Error(error.message || 'Login failed')
     }
   }
 
-  async function register(username, displayName, password, email = null) {
+  async function register({ username, email, password }) {
     try {
-      const response = await api.auth.register(username, displayName, password, email)
-      // Registration doesn't auto-login, so we need to login after
-      await login(username, password)
-      return response
+      // Create account via backend API (Keycloak Admin REST API)
+      await api.auth.registerAccount({ username, email, password })
+      // Log in via ROPC to get tokens
+      const { accessToken } = await keycloak.loginWithCredentials(username, password)
+      await setToken(accessToken)
+      // Brief delay to allow backend JWKS cache to populate for new tokens
+      await new Promise(resolve => setTimeout(resolve, 300))
+      const currentUser = await api.auth.getCurrentUser()
+      await setStoredUser(currentUser)
+      setUser(currentUser)
+      setIsNewUser(true)
+      // Initialize socket after successful registration
+      initializeSocket()
+      return currentUser
     } catch (error) {
       throw Error(error.message || 'Registration failed')
     }
   }
 
+  function clearNewUser() {
+    setIsNewUser(false)
+  }
+
   async function logout() {
     cleanupSocket()
+    await keycloak.logout()
     await api.auth.logout()
     setUser(null)
   }
@@ -243,7 +263,7 @@ export function UserProvider({ children }) {
       const storedUser = await getStoredUser()
       if (storedUser) {
         setUser(storedUser)
-        // Optionally verify the token is still valid
+        // Verify the token is still valid
         try {
           const currentUser = await api.auth.getCurrentUser()
           setUser(currentUser)
@@ -264,9 +284,23 @@ export function UserProvider({ children }) {
             }
           } catch {}
         } catch {
-          // Token expired or invalid, clear the user
-          await api.auth.logout()
-          setUser(null)
+          // Token expired - try refresh via Keycloak
+          const tokens = await keycloak.refreshToken()
+          if (tokens) {
+            await setToken(tokens.accessToken)
+            try {
+              const currentUser = await api.auth.getCurrentUser()
+              setUser(currentUser)
+              initializeSocket()
+              checkForActiveChat(currentUser.id)
+            } catch {
+              await api.auth.logout()
+              setUser(null)
+            }
+          } else {
+            await api.auth.logout()
+            setUser(null)
+          }
         }
       }
     } catch (error) {
@@ -284,6 +318,7 @@ export function UserProvider({ children }) {
     <UserContext.Provider value={{
       user, login, logout, register, authChecked, refreshUser,
       isBanned: user?.status === 'banned',
+      isNewUser, clearNewUser,
       positionsVersion, invalidatePositions,
       pendingChatRequest, setPendingChatRequest, clearPendingChatRequest, updateChatRequestStatus,
       incomingChatRequest, clearIncomingChatRequest,

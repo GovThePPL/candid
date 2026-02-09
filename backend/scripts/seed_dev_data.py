@@ -44,6 +44,10 @@ print_lock = threading.Lock()
 
 API_URL = os.environ.get('API_URL', 'http://localhost:8000')
 DB_URL = os.environ.get('DATABASE_URL', 'postgresql://user:postgres@localhost:5432/candid')
+KEYCLOAK_URL = os.environ.get('KEYCLOAK_URL', 'http://localhost:8180')
+KEYCLOAK_REALM = os.environ.get('KEYCLOAK_REALM', 'candid')
+KEYCLOAK_BACKEND_CLIENT_ID = os.environ.get('KEYCLOAK_BACKEND_CLIENT_ID', 'candid-backend')
+KEYCLOAK_BACKEND_CLIENT_SECRET = os.environ.get('KEYCLOAK_BACKEND_CLIENT_SECRET', 'candid-backend-secret')
 
 # ---------------------------------------------------------------------------
 # Belief systems & position data
@@ -335,28 +339,85 @@ class CandidAPI:
         self.token = None
         self.user_id = None
 
-    def register(self, username, email, password, display_name):
-        resp = self.session.post(f"{self.base_url}/api/v1/auth/register",
-                                json={"username": username, "email": email,
-                                      "password": password, "displayName": display_name})
-        if resp.status_code in (200, 201):
-            data = resp.json()
-            self.token = data.get("token")
-            self.user_id = data.get("user", {}).get("id")
-            return data
-        elif resp.status_code == 409:
+    def register(self, username, email, password, display_name, roles=None):
+        """Create user via Keycloak Admin REST API, then login to get a token."""
+        admin_token = self._get_admin_token()
+        base = f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}"
+        headers = {"Authorization": f"Bearer {admin_token}", "Content-Type": "application/json"}
+
+        # Keycloak 26 User Profile requires both firstName and lastName
+        name_parts = display_name.rsplit(" ", 1)
+        first_name = name_parts[0] if len(name_parts) > 1 else display_name
+        last_name = name_parts[1] if len(name_parts) > 1 else "User"
+
+        user_data = {
+            "username": username,
+            "email": email,
+            "emailVerified": True,
+            "enabled": True,
+            "firstName": first_name,
+            "lastName": last_name,
+            "credentials": [{"type": "password", "value": password, "temporary": False}],
+            "requiredActions": [],
+        }
+        resp = self.session.post(f"{base}/users", json=user_data, headers=headers, timeout=10)
+        if resp.status_code == 409:
             return None  # exists
-        else:
+        elif resp.status_code not in (200, 201):
             print(f"  Register failed ({resp.status_code}): {resp.text[:120]}")
             return None
 
+        # Assign roles if specified
+        if roles:
+            location = resp.headers.get("Location", "")
+            kc_user_id = location.split("/")[-1]
+            self._assign_roles(kc_user_id, roles, admin_token, base, headers)
+
+        # Login via ROPC to get a token + resolve Candid user (auto-registration)
+        if self.login(username, password):
+            return {"user": {"id": self.user_id}}
+        return None
+
+    def _get_admin_token(self):
+        """Get admin token via candid-backend service account."""
+        token_url = f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token"
+        resp = self.session.post(token_url, data={
+            "grant_type": "client_credentials",
+            "client_id": KEYCLOAK_BACKEND_CLIENT_ID,
+            "client_secret": KEYCLOAK_BACKEND_CLIENT_SECRET,
+        }, timeout=10)
+        resp.raise_for_status()
+        return resp.json()["access_token"]
+
+    def _assign_roles(self, user_id, role_names, admin_token, base, headers):
+        """Assign realm roles to a Keycloak user."""
+        resp = self.session.get(f"{base}/roles", headers=headers, timeout=10)
+        resp.raise_for_status()
+        all_roles = resp.json()
+        roles_to_assign = [r for r in all_roles if r["name"] in role_names]
+        if roles_to_assign:
+            self.session.post(
+                f"{base}/users/{user_id}/role-mappings/realm",
+                json=roles_to_assign, headers=headers, timeout=10
+            )
+
     def login(self, username, password="password"):
-        resp = self.session.post(f"{self.base_url}/api/v1/auth/login",
-                                json={"username": username, "password": password})
-        if resp.status_code == 200:
-            data = resp.json()
-            self.token = data.get("token")
-            self.user_id = data.get("user", {}).get("id")
+        """Login via Keycloak ROPC grant, then fetch Candid user info."""
+        token_url = f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token"
+        resp = self.session.post(token_url, data={
+            "grant_type": "password",
+            "client_id": "candid-app",
+            "username": username,
+            "password": password,
+        }, timeout=10)
+        if resp.status_code != 200:
+            return False
+
+        self.token = resp.json().get("access_token")
+        # Fetch Candid user profile (triggers auto-registration if needed)
+        user_resp = self.session.get(f"{self.base_url}/api/v1/users/me", headers=self._headers())
+        if user_resp.status_code == 200:
+            self.user_id = user_resp.json().get("id")
             return True
         return False
 
@@ -737,6 +798,14 @@ def phase_3_positions(api, category_map, location_id, dry_run=False):
 # ---------------------------------------------------------------------------
 
 def phase_4_votes(api, all_users, positions, dry_run=False):
+    """Vote on seed-script positions only.
+
+    Note: positions from basic.sql are not included here because they lack
+    the coherent ``votes`` tuple used for belief-system-based voting.  This
+    means a handful of basic.sql positions will have zero (or very few) votes
+    in Polis.  This is acceptable — the seed data is illustrative, not
+    exhaustive.
+    """
     print("\n" + "=" * 60)
     print("PHASE 4: Votes")
     print("=" * 60)

@@ -12,7 +12,7 @@ Candid is a chat platform for peaceful and productive discussion of issues of pu
 ```bash
 ./dev.sh                      # Start all services, wait for readiness, seed if needed
 ./dev.sh --reset-db           # Reset DB volume, then start + reseed
-./dev.sh --reset-all          # Reset DB + Polis + Redis volumes, then start + reseed
+./dev.sh --reset-all          # Reset DB + Redis volumes, then start + reseed (Polis data is in the DB)
 ./dev.sh --skip-seed          # Start services without running seed script
 ./dev.sh --seed-only          # Only run seed (services must already be up)
 docker compose up -d --build  # Manual start (no auto-seed or health checks)
@@ -21,8 +21,7 @@ docker compose up -d --build  # Manual start (no auto-seed or health checks)
 ### Database
 ```bash
 psql -h localhost -p 5432 -U user -d candid   # Connect (password: postgres)
-docker volume rm candid_postgres_data          # Reset database
-docker volume rm candid_polis_docker_data      # Reset Polis
+docker volume rm candid_postgres_data          # Reset database (includes Polis data)
 ```
 
 ### Backend API
@@ -39,8 +38,8 @@ frontend/regenerate_api.sh    # Regenerate JS API client from OpenAPI spec only
 
 ### Key URLs (after docker compose up)
 - Swagger UI: http://127.0.0.1:8000/api/v1/ui
-- Polis UI: http://localhost:8080 (login: admin@polis.test / Te$tP@ssw0rd*)
-- If Polis sign-in stalls, accept the self-signed cert at https://localhost:3000/
+- Polis API: http://localhost:5000/api/v3/
+- Keycloak Admin: http://localhost:8180/admin (admin/admin)
 
 ## Architecture
 
@@ -57,7 +56,8 @@ Python Flask app using Connexion for OpenAPI routing. Controllers are organized 
 
 - `controllers/helpers/config.py` - Dev/prod configuration
 - `controllers/helpers/database.py` - PostgreSQL connection wrapper (psycopg2, RealDictCursor)
-- `controllers/helpers/auth.py` - JWT tokens (60-min expiry), bcrypt (14 rounds), role-based authorization
+- `controllers/helpers/keycloak.py` - Keycloak OIDC token validation (RS256 JWKS), auto-registration
+- `controllers/helpers/auth.py` - Role-based authorization
 - `controllers/__init__.py` - Flask app initialization, DB setup
 
 Auth hierarchy: guest < normal < moderator < admin. Authorization decorator returns 401 if unauthenticated, 403 if insufficient role.
@@ -68,9 +68,9 @@ Database access uses direct parameterized SQL queries (no ORM).
 
 React Native app with Expo (v54) and Expo Router (file-based routing). Authentication via JWT tokens from the backend API. State management via React Context (`contexts/`). All API calls use the generated JavaScript client (`frontend/api/`) via `promisify` wrappers in `lib/api.js`.
 
-### Polis Integration (backend/polis-sysbox/)
+### Polis Integration (backend/polis-integration/)
 
-Runs Pol.is as a Docker-in-Docker container using the Sysbox runtime. The `polis/` subdirectory is a git submodule from https://github.com/compdemocracy/polis.git. Requires Sysbox v0.6.7 installed on the host.
+Runs Pol.is as direct docker-compose services (`polis-server` and `polis-math`) with Keycloak OIDC for admin authentication. The `polis/` subdirectory is a git submodule from https://github.com/compdemocracy/polis.git. The Polis database (`polis-dev`) lives in the shared PostgreSQL container.
 
 ### Database (backend/database/)
 
@@ -81,17 +81,17 @@ PostgreSQL 17 with schema in `01-schema.sql` and test data in `02-basic-data.sql
 | Service | Port | Description |
 |---------|------|-------------|
 | api     | 8000 | Flask API server |
-| db      | 5432 | PostgreSQL |
-| polis   | 5000 | Polis API |
-| polis   | 8080 | Polis UI |
-| polis   | 3000 | OIDC simulator |
-| polis   | 443  | Polis HTTPS UI |
-| polis   | 8005 | SES local email |
+| db      | 5432 | PostgreSQL (Candid + Polis + Keycloak databases) |
+| polis-server | 5000 | Polis API server |
+| polis-math   | -    | Polis math/clustering worker |
+| keycloak | 8180 | Keycloak OIDC provider |
+| chat    | 8002 | WebSocket chat server |
+| nlp     | 5001 | NLP embeddings service |
+| redis   | 6379 | Redis pub/sub and presence |
 
 ## Prerequisites
 
 - Docker (latest)
-- Sysbox runtime v0.6.7 (for Polis docker-in-docker)
 - Node.js/npm (for frontend development)
 - openapi-generator-cli, pipreqs (for local backend builds)
 

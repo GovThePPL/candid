@@ -1,10 +1,11 @@
 from typing import List
 
-from candid.controllers.helpers import auth
+from candid.controllers.helpers import keycloak
+
 
 def info_from_BearerAuth(token):
     """
-    Check and retrieve authentication information from custom bearer token.
+    Check and retrieve authentication information from Keycloak bearer token.
     Returned value will be passed in 'token_info' parameter of your operation function, if there is one.
     'sub' or 'uid' will be set in 'user' parameter of your operation function, if there is one.
 
@@ -15,7 +16,7 @@ def info_from_BearerAuth(token):
     """
     ret = None
     try:
-        ret = auth.decode_token(token)
+        ret = keycloak.validate_token(token)
     except Exception as e:
         print("Token decode failed: " + str(e), flush=True)
     return ret
