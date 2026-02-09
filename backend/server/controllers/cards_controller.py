@@ -11,9 +11,16 @@ from candid.controllers.helpers import polis_sync
 from candid.controllers.helpers import presence
 from candid.controllers.helpers.chat_availability import get_batch_availability
 from candid.controllers.moderation_controller import _get_target_content
+from candid.controllers.helpers.pairwise_graph import (
+    build_preference_graph,
+    compute_transitive_closure,
+    find_cycles,
+    is_complete,
+    select_next_pair,
+    build_victory_matrix,
+)
 
 import random
-from itertools import combinations
 
 
 # Demographic field questions (options come from the database schema)
@@ -1183,7 +1190,14 @@ def _get_cached_pairwise_surveys():
 
 
 def _get_pending_pairwise(user_id: str, limit: int = 2) -> List[dict]:
-    """Get random pairwise comparisons for a user."""
+    """Get smart pairwise comparisons using transitivity and graph algorithms.
+
+    Uses preference graph to:
+    - Skip pairs that can be inferred transitively (A>B, B>C → A>C)
+    - Detect completion (stop sending cards when ordering is determined)
+    - Resolve cycles via tiebreaker comparisons
+    - Prioritize informative pairs (adjacency + optional group entropy)
+    """
     all_surveys = _get_cached_pairwise_surveys()
     if not all_surveys:
         return []
@@ -1194,56 +1208,62 @@ def _get_pending_pairwise(user_id: str, limit: int = 2) -> List[dict]:
         WHERE user_id = %s
     """, (user_id,))
 
-    compared_by_survey = {}
+    responses_by_survey = {}
     for r in (compared or []):
         sid = str(r["survey_id"])
-        if sid not in compared_by_survey:
-            compared_by_survey[sid] = set()
-        pair = tuple(sorted([str(r["winner_item_id"]), str(r["loser_item_id"])]))
-        compared_by_survey[sid].add(pair)
+        if sid not in responses_by_survey:
+            responses_by_survey[sid] = []
+        responses_by_survey[sid].append(r)
 
     cards = []
     for survey in all_surveys:
-        compared_set = compared_by_survey.get(survey["id"], set())
+        item_ids = [str(item["id"]) for item in survey["items"]]
+        item_lookup = {str(item["id"]): item for item in survey["items"]}
+        user_responses = responses_by_survey.get(survey["id"], [])
 
-        # Generate all possible pairs and filter out already compared
-        all_pairs = list(combinations(survey["items"], 2))
-        available = []
-        for item_a, item_b in all_pairs:
-            pair = tuple(sorted([str(item_a["id"]), str(item_b["id"])]))
-            if pair not in compared_set:
-                available.append((item_a, item_b))
+        # Build preference graph and compute transitive closure
+        graph = build_preference_graph(item_ids, user_responses)
+        closure = compute_transitive_closure(item_ids, graph)
+        cycles_list = find_cycles(item_ids, graph)
 
-        # Shuffle and pick up to `limit` pairs
-        random.shuffle(available)
-        for item_a, item_b in available[:limit - len(cards)]:
-            # Randomize which option appears as A vs B
-            if random.random() > 0.5:
-                item_a, item_b = item_b, item_a
+        # Skip survey if user's ordering is complete
+        if is_complete(item_ids, closure, cycles_list):
+            continue
 
-            card_data = {
-                "surveyId": survey["id"],
-                "surveyTitle": survey["survey_title"],
-                "question": survey["comparison_question"] or "Which do you prefer?",
-                "optionA": {"id": str(item_a["id"]), "text": item_a["item_text"]},
-                "optionB": {"id": str(item_b["id"]), "text": item_b["item_text"]},
+        # Select the most informative pair
+        next_pair = select_next_pair(item_ids, graph, closure, cycles_list)
+
+        if next_pair is None:
+            continue
+
+        item_a_id, item_b_id = next_pair
+        item_a = item_lookup[item_a_id]
+        item_b = item_lookup[item_b_id]
+
+        # Randomize which option appears as A vs B
+        if random.random() > 0.5:
+            item_a, item_b = item_b, item_a
+
+        card_data = {
+            "surveyId": survey["id"],
+            "surveyTitle": survey["survey_title"],
+            "question": survey["comparison_question"] or "Which do you prefer?",
+            "optionA": {"id": str(item_a["id"]), "text": item_a["item_text"]},
+            "optionB": {"id": str(item_b["id"]), "text": item_b["item_text"]},
+        }
+        if survey.get("location_code"):
+            card_data["location"] = {
+                "code": survey["location_code"],
+                "name": survey.get("location_name")
             }
-            if survey.get("location_code"):
-                card_data["location"] = {
-                    "code": survey["location_code"],
-                    "name": survey.get("location_name")
-                }
-            if survey.get("category_name"):
-                card_data["category"] = {
-                    "label": survey["category_name"]
-                }
-            cards.append({
-                "type": "pairwise",
-                "data": card_data
-            })
-
-            if len(cards) >= limit:
-                break
+        if survey.get("category_name"):
+            card_data["category"] = {
+                "label": survey["category_name"]
+            }
+        cards.append({
+            "type": "pairwise",
+            "data": card_data
+        })
 
         if len(cards) >= limit:
             break

@@ -90,12 +90,13 @@ BEGIN
     -- ============================================
     -- ALL CATEGORIES SURVEY (general political identity labels)
     -- ============================================
-    INSERT INTO survey (id, survey_title, survey_type, comparison_question, status, location_id, start_time, end_time, created_time)
+    INSERT INTO survey (id, survey_title, survey_type, comparison_question, is_group_labeling, status, location_id, start_time, end_time, created_time)
     VALUES (
         uuid_generate_v4(),
         'Oregon Community Labels',
         'pairwise',
         'Which label better describes your political views?',
+        true,
         'active',
         'ba5e3dcf-af51-47f4-941d-ee3448ee826a',
         NOW() - INTERVAL '7 days',
@@ -196,12 +197,13 @@ BEGIN
     -- ============================================
     -- HEALTHCARE SURVEY
     -- ============================================
-    INSERT INTO survey (id, survey_title, survey_type, comparison_question, status, location_id, position_category_id, start_time, end_time, created_time)
+    INSERT INTO survey (id, survey_title, survey_type, comparison_question, is_group_labeling, status, location_id, position_category_id, start_time, end_time, created_time)
     VALUES (
         uuid_generate_v4(),
         'Healthcare Policy Labels',
         'pairwise',
         'Which label better describes your healthcare views?',
+        true,
         'active',
         'ba5e3dcf-af51-47f4-941d-ee3448ee826a',
         '4d439108-2128-46ec-b4b2-80ec3dbf6aa3',
@@ -255,12 +257,13 @@ BEGIN
     -- ============================================
     -- ECONOMY SURVEY
     -- ============================================
-    INSERT INTO survey (id, survey_title, survey_type, comparison_question, status, location_id, position_category_id, start_time, end_time, created_time)
+    INSERT INTO survey (id, survey_title, survey_type, comparison_question, is_group_labeling, status, location_id, position_category_id, start_time, end_time, created_time)
     VALUES (
         uuid_generate_v4(),
         'Economy & Tax Policy Labels',
         'pairwise',
         'Which label better describes your economic views?',
+        true,
         'active',
         'ba5e3dcf-af51-47f4-941d-ee3448ee826a',
         '63e233e9-187e-441f-a7a9-f5f44dffadf0',
@@ -310,12 +313,13 @@ BEGIN
     -- ============================================
     -- EDUCATION SURVEY
     -- ============================================
-    INSERT INTO survey (id, survey_title, survey_type, comparison_question, status, location_id, position_category_id, start_time, end_time, created_time)
+    INSERT INTO survey (id, survey_title, survey_type, comparison_question, is_group_labeling, status, location_id, position_category_id, start_time, end_time, created_time)
     VALUES (
         uuid_generate_v4(),
         'Education Policy Labels',
         'pairwise',
         'Which label better describes your education views?',
+        true,
         'active',
         'ba5e3dcf-af51-47f4-941d-ee3448ee826a',
         'be3305f5-df1a-4cf5-855e-49a88ed3cbd3',
@@ -363,12 +367,13 @@ BEGIN
     -- ============================================
     -- ENVIRONMENT SURVEY
     -- ============================================
-    INSERT INTO survey (id, survey_title, survey_type, comparison_question, status, location_id, position_category_id, start_time, end_time, created_time)
+    INSERT INTO survey (id, survey_title, survey_type, comparison_question, is_group_labeling, status, location_id, position_category_id, start_time, end_time, created_time)
     VALUES (
         uuid_generate_v4(),
         'Environment & Climate Labels',
         'pairwise',
         'Which label better describes your environmental views?',
+        true,
         'active',
         'ba5e3dcf-af51-47f4-941d-ee3448ee826a',
         '66344e48-ecfe-4b7f-aa33-fe05e0d08873',
@@ -422,12 +427,13 @@ BEGIN
     -- ============================================
     -- IMMIGRATION SURVEY
     -- ============================================
-    INSERT INTO survey (id, survey_title, survey_type, comparison_question, status, location_id, position_category_id, start_time, end_time, created_time)
+    INSERT INTO survey (id, survey_title, survey_type, comparison_question, is_group_labeling, status, location_id, position_category_id, start_time, end_time, created_time)
     VALUES (
         uuid_generate_v4(),
         'Immigration Policy Labels',
         'pairwise',
         'Which label better describes your immigration views?',
+        true,
         'active',
         'ba5e3dcf-af51-47f4-941d-ee3448ee826a',
         'e2e608f7-169e-409b-9678-6dee57fab9c3',
@@ -492,12 +498,13 @@ BEGIN
         v_cr_balanced UUID;
         v_cr_civil_libertarian UUID;
     BEGIN
-        INSERT INTO survey (id, survey_title, survey_type, comparison_question, status, location_id, position_category_id, start_time, end_time, created_time)
+        INSERT INTO survey (id, survey_title, survey_type, comparison_question, is_group_labeling, status, location_id, position_category_id, start_time, end_time, created_time)
         VALUES (
             uuid_generate_v4(),
             'Civil Rights Policy Labels',
             'pairwise',
             'Which label better describes your civil rights views?',
+            true,
             'active',
             'ba5e3dcf-af51-47f4-941d-ee3448ee826a',
             '2d83d6eb-3000-47eb-b136-9d1c44f9b98d',
@@ -557,12 +564,13 @@ BEGIN
         v_cj_restorative UUID;
         v_cj_balanced UUID;
     BEGIN
-        INSERT INTO survey (id, survey_title, survey_type, comparison_question, status, location_id, position_category_id, start_time, end_time, created_time)
+        INSERT INTO survey (id, survey_title, survey_type, comparison_question, is_group_labeling, status, location_id, position_category_id, start_time, end_time, created_time)
         VALUES (
             uuid_generate_v4(),
             'Criminal Justice Policy Labels',
             'pairwise',
             'Which label better describes your criminal justice views?',
+            true,
             'active',
             'ba5e3dcf-af51-47f4-941d-ee3448ee826a',
             '04edc480-aded-4b93-94c4-d62cbb507dc4',
@@ -622,12 +630,13 @@ BEGIN
         v_fp_nonintervention UUID;
         v_fp_global_leadership UUID;
     BEGIN
-        INSERT INTO survey (id, survey_title, survey_type, comparison_question, status, location_id, position_category_id, start_time, end_time, created_time)
+        INSERT INTO survey (id, survey_title, survey_type, comparison_question, is_group_labeling, status, location_id, position_category_id, start_time, end_time, created_time)
         VALUES (
             uuid_generate_v4(),
             'Foreign Policy Labels',
             'pairwise',
             'Which label better describes your foreign policy views?',
+            true,
             'active',
             'ba5e3dcf-af51-47f4-941d-ee3448ee826a',
             '92d7131c-bf5c-40c1-89ef-e58b40e67bc8',
@@ -687,12 +696,13 @@ BEGIN
         v_gov_direct UUID;
         v_gov_constitutional UUID;
     BEGIN
-        INSERT INTO survey (id, survey_title, survey_type, comparison_question, status, location_id, position_category_id, start_time, end_time, created_time)
+        INSERT INTO survey (id, survey_title, survey_type, comparison_question, is_group_labeling, status, location_id, position_category_id, start_time, end_time, created_time)
         VALUES (
             uuid_generate_v4(),
             'Government & Democracy Labels',
             'pairwise',
             'Which label better describes your government views?',
+            true,
             'active',
             'ba5e3dcf-af51-47f4-941d-ee3448ee826a',
             'cdc48d27-d636-481b-90b2-d6f6a2e6780e',
@@ -756,12 +766,13 @@ BEGIN
         v_si_individual UUID;
         v_si_community UUID;
     BEGIN
-        INSERT INTO survey (id, survey_title, survey_type, comparison_question, status, location_id, position_category_id, start_time, end_time, created_time)
+        INSERT INTO survey (id, survey_title, survey_type, comparison_question, is_group_labeling, status, location_id, position_category_id, start_time, end_time, created_time)
         VALUES (
             uuid_generate_v4(),
             'Social Issues Labels',
             'pairwise',
             'Which label better describes your social views?',
+            true,
             'active',
             'ba5e3dcf-af51-47f4-941d-ee3448ee826a',
             '26c8146e-d080-419e-b98b-5089c3a81b5b',

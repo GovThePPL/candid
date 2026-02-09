@@ -136,7 +136,7 @@ class TestRespondToSurveyQuestion:
         assert resp.status_code == 400
 
     def test_respond_to_survey_question_duplicate_response(self):
-        """Duplicate response to same question returns 400"""
+        """Duplicate response to same question returns 200 (idempotent)"""
         # Clean up any existing response for idempotency
         delete_survey_response(NORMAL3_ID, SURVEY_QUESTION_1_ID)
 
@@ -151,14 +151,13 @@ class TestRespondToSurveyQuestion:
         )
         assert resp1.status_code == 201
 
-        # Duplicate response (even with different option)
+        # Duplicate response returns 200 with original response (card may still be in queue)
         resp2 = requests.post(
             f"{BASE_URL}/surveys/{SURVEY_ACTIVE_ID}/questions/{SURVEY_QUESTION_1_ID}/response",
             headers=headers,
             json={"optionId": SURVEY_OPTION_2_ID}
         )
-        assert resp2.status_code == 400
-        assert "already responded" in resp2.json().get('message', '').lower()
+        assert resp2.status_code == 200
 
     def test_respond_to_survey_question_unauthenticated(self):
         """Unauthenticated request returns 401"""

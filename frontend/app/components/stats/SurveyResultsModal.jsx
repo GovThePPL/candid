@@ -293,6 +293,9 @@ export default function SurveyResultsModal({
                         ]}
                       >
                         <View style={styles.rankingLeft}>
+                          {item.isCondorcetWinner && (
+                            <Ionicons name="trophy" size={14} color={Colors.primary} />
+                          )}
                           <Text style={styles.rankingRank}>{index + 1}.</Text>
                           <Text style={[
                             styles.rankingLabel,
@@ -301,9 +304,6 @@ export default function SurveyResultsModal({
                             {item.itemText}
                           </Text>
                         </View>
-                        <Text style={styles.rankingVotes}>
-                          {item.winCount} {item.winCount === 1 ? 'vote' : 'votes'}
-                        </Text>
                       </View>
                     ))}
                   </View>
@@ -390,6 +390,9 @@ export default function SurveyResultsModal({
                           ]}
                         >
                           <View style={styles.rankingLeft}>
+                            {item.isCondorcetWinner && (
+                              <Ionicons name="trophy" size={14} color={Colors.primary} />
+                            )}
                             <Text style={styles.rankingRank}>{index + 1}.</Text>
                             <Text style={[
                               styles.rankingLabel,
@@ -398,9 +401,6 @@ export default function SurveyResultsModal({
                               {item.itemText}
                             </Text>
                           </View>
-                          <Text style={styles.rankingVotes}>
-                            {item.winCount} {item.winCount === 1 ? 'vote' : 'votes'}
-                          </Text>
                         </View>
                       ))}
                     </View>

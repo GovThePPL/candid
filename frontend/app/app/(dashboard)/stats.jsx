@@ -222,14 +222,14 @@ export default function Stats() {
                     </View>
                     {topLabels.map((item, idx) => (
                       <View key={item.label} style={styles.labelRankingRow}>
+                        {item.isCondorcetWinner && (
+                          <Ionicons name="trophy" size={14} color={Colors.primary} style={{ marginRight: 4 }} />
+                        )}
                         <Text style={[
                           styles.labelRankingText,
                           idx === 0 && styles.labelRankingTextTop
                         ]}>
                           {idx + 1}. {item.label}
-                        </Text>
-                        <Text style={styles.labelWinsText}>
-                          ({item.wins} {item.wins === 1 ? 'vote' : 'votes'})
                         </Text>
                       </View>
                     ))}
@@ -359,7 +359,10 @@ export default function Stats() {
           Group members vote on pairs of labels, choosing which one better describes themselves.
         </InfoModal.Item>
         <InfoModal.Item icon="trophy-outline">
-          Labels are ranked by total votes received. The top-voted label becomes the group's identity.
+          Labels are ranked using Ranked Pairs — a method that considers head-to-head matchups to find the most preferred label overall, not just the one with the most individual wins.
+        </InfoModal.Item>
+        <InfoModal.Item icon="ribbon-outline">
+          A trophy icon marks the Condorcet winner — a label that beat every other label in direct comparison.
         </InfoModal.Item>
         <InfoModal.Item icon="people-outline">
           Only votes from members of this specific group count toward its label ranking.
@@ -466,6 +469,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: 4,
+  },
+  labelRankingLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
   },
   labelRankingText: {
     fontSize: 14,

@@ -23,6 +23,11 @@ from candid.controllers.helpers.polis_sync import (
 )
 from candid.controllers.helpers.polis_client import get_client, PolisError
 from candid.controllers.helpers.cache_headers import add_cache_headers
+from candid.controllers.helpers.pairwise_graph import (
+    build_victory_matrix,
+    find_condorcet_winner,
+    ranked_pairs_ordering,
+)
 
 # Simple in-memory cache for group labels with TTL
 _label_cache = {}
@@ -298,7 +303,20 @@ def _get_cached_group_labels(polis_conv_id: str, math_data: Dict) -> Dict[str, D
     pca_data = pca_wrapper.get("asPOJO", {}) if isinstance(pca_wrapper, dict) else {}
     group_clusters = pca_data.get("group-clusters", [])
 
-    # For each group, compute all labels ranked by wins
+    # Get all items for this survey (shared across groups)
+    all_items = db.execute_query("""
+        SELECT id, item_text FROM pairwise_item
+        WHERE survey_id = %s::uuid
+    """, (survey_id,))
+
+    if not all_items:
+        _label_cache[cache_key] = ({}, now)
+        return {}
+
+    item_ids = [str(it["id"]) for it in all_items]
+    item_text_map = {str(it["id"]): it["item_text"] for it in all_items}
+
+    # For each group, compute all labels ranked by Ranked Pairs
     for group_idx, cluster in enumerate(group_clusters):
         if not cluster:
             continue
@@ -320,23 +338,35 @@ def _get_cached_group_labels(polis_conv_id: str, math_data: Dict) -> Dict[str, D
         if not user_id_list:
             continue
 
-        # Get ALL items ranked by win count for these users
-        all_items = db.execute_query("""
-            SELECT pi.item_text, COUNT(pr.id) as wins
-            FROM pairwise_item pi
-            LEFT JOIN pairwise_response pr ON pr.winner_item_id = pi.id
-                AND pr.user_id = ANY(%s::uuid[])
-            WHERE pi.survey_id = %s::uuid
-            GROUP BY pi.id, pi.item_text
-            ORDER BY wins DESC
-        """, (user_id_list, survey_id))
+        # Get raw pairwise responses for this group's users
+        responses = db.execute_query("""
+            SELECT winner_item_id, loser_item_id
+            FROM pairwise_response
+            WHERE survey_id = %s::uuid
+              AND user_id = ANY(%s::uuid[])
+        """, (survey_id, user_id_list))
 
-        # Build rankings list (only items with votes)
-        rankings = [
-            {"label": item["item_text"], "wins": item["wins"]}
-            for item in (all_items or [])
-            if item["wins"] > 0
-        ]
+        responses = responses or []
+
+        # Build victory matrix and compute Ranked Pairs ordering
+        matrix = build_victory_matrix(item_ids, responses)
+        ordering = ranked_pairs_ordering(item_ids, matrix)
+        condorcet = find_condorcet_winner(item_ids, matrix)
+
+        # Compute per-item stats
+        rankings = []
+        for item_id in ordering:
+            wins = sum(matrix.get(item_id, {}).get(other, 0) for other in item_ids if other != item_id)
+            comparisons = sum(
+                matrix.get(item_id, {}).get(other, 0) + matrix.get(other, {}).get(item_id, 0)
+                for other in item_ids if other != item_id
+            )
+            rankings.append({
+                "label": item_text_map[item_id],
+                "wins": wins,
+                "comparisonCount": comparisons,
+                "isCondorcetWinner": item_id == condorcet,
+            })
 
         if rankings:
             labels[group_id] = {
@@ -912,6 +942,7 @@ def _extract_positions(
 
     repness = pca_data.get("repness", {})
     group_votes = pca_data.get("group-votes", {})
+    votes_base = pca_data.get("votes-base", {})
 
     # Get consensus data - positions where most users agree or disagree
     consensus = pca_data.get("consensus", {})
@@ -1071,10 +1102,9 @@ def _extract_positions(
     # Helper to compute vote distribution for a tid in a specific group
     # In Polis: A=Agree, D=Disagree, S=Saw (total who saw the comment)
     # Pass/Skip = S - A - D (saw but didn't vote agree/disagree)
-    # Unanswered = n_members - S (haven't seen it yet)
+    # Percentages are of those who voted (saw), not all members
     def get_vote_dist_for_group(tid, gid):
         gv_data = group_votes.get(gid, {})
-        n_members = gv_data.get("n-members", 0)
         vote_data = gv_data.get("votes", {}).get(str(tid), {})
 
         agree_count = vote_data.get("A", 0)
@@ -1082,36 +1112,39 @@ def _extract_positions(
         saw_count = vote_data.get("S", 0)
         pass_count = max(0, saw_count - agree_count - disagree_count)
 
-        if n_members > 0:
+        if saw_count > 0:
             return {
-                "agree": round(agree_count / n_members, 3),
-                "disagree": round(disagree_count / n_members, 3),
-                "pass": round(pass_count / n_members, 3)
-                # unanswered is implicit: 1 - (agree + disagree + pass)
+                "agree": round(agree_count / saw_count, 3),
+                "disagree": round(disagree_count / saw_count, 3),
+                "pass": round(pass_count / saw_count, 3)
             }
         return {"agree": 0, "disagree": 0, "pass": 0}
 
-    # Helper to compute overall vote distribution and total vote count across all groups
+    # Helper to compute overall vote distribution and total vote count across ALL participants
+    # Uses votes-base (all participants) rather than summing group-votes (only clustered users)
     def get_overall_vote_dist_and_count(tid):
-        total_a, total_d, total_pass, total_members = 0, 0, 0, 0
-        for gid, gv_data in group_votes.items():
-            votes = gv_data.get("votes", {}).get(str(tid), {})
-            a = votes.get("A", 0)
-            d = votes.get("D", 0)
-            s = votes.get("S", 0)
-            total_a += a
-            total_d += d
-            total_pass += max(0, s - a - d)
-            total_members += gv_data.get("n-members", 0)
+        vb = votes_base.get(str(tid))
+        if vb:
+            total_a = sum(vb.get("A", []))
+            total_d = sum(vb.get("D", []))
+            total_saw = sum(vb.get("S", []))
+        else:
+            # Fallback to summing group-votes if votes-base is unavailable
+            total_a, total_d, total_saw = 0, 0, 0
+            for gid, gv_data in group_votes.items():
+                votes = gv_data.get("votes", {}).get(str(tid), {})
+                total_a += votes.get("A", 0)
+                total_d += votes.get("D", 0)
+                total_saw += votes.get("S", 0)
 
+        total_pass = max(0, total_saw - total_a - total_d)
         total_votes = total_a + total_d + total_pass
 
-        if total_members > 0:
+        if total_saw > 0:
             return {
-                "agree": round(total_a / total_members, 3),
-                "disagree": round(total_d / total_members, 3),
-                "pass": round(total_pass / total_members, 3)
-                # unanswered is implicit: 1 - (agree + disagree + pass)
+                "agree": round(total_a / total_saw, 3),
+                "disagree": round(total_d / total_saw, 3),
+                "pass": round(total_pass / total_saw, 3)
             }, total_votes
         return {"agree": 0, "disagree": 0, "pass": 0}, total_votes
 

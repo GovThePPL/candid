@@ -333,7 +333,7 @@ export default function GroupDemographicsModal({
               {/* Group Identity Rankings */}
               {labelRankings && labelRankings.length > 0 && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Group Identity Votes</Text>
+                  <Text style={styles.sectionTitle}>Group Identity</Text>
                   <View style={styles.identityRankingList}>
                     {labelRankings.map((item, index) => (
                       <View
@@ -344,6 +344,9 @@ export default function GroupDemographicsModal({
                         ]}
                       >
                         <View style={styles.identityRankingLeft}>
+                          {item.isCondorcetWinner && (
+                            <Ionicons name="trophy" size={14} color={Colors.primary} style={{ marginRight: 4 }} />
+                          )}
                           <Text style={styles.identityRankingRank}>{index + 1}.</Text>
                           <Text style={[
                             styles.identityRankingLabel,
@@ -352,9 +355,6 @@ export default function GroupDemographicsModal({
                             {item.label}
                           </Text>
                         </View>
-                        <Text style={styles.identityRankingVotes}>
-                          {item.wins} {item.wins === 1 ? 'vote' : 'votes'}
-                        </Text>
                       </View>
                     ))}
                   </View>

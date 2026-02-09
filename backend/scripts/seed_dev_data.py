@@ -1617,17 +1617,24 @@ def phase_10_pairwise(api, dry_run=False):
                 ranked = [label for label in prefs if label in items_map]
                 if len(ranked) < 2:
                     continue
-                n_comparisons = min(3, len(ranked) - 1)
-                for j in range(n_comparisons):
-                    winner_label = ranked[j]
-                    loser_idx = len(ranked) - 1 - j
-                    if loser_idx <= j:
-                        break
+                # Generate adjacent pairs from ranked preference list
+                # (1v2, 2v3, 3v4, ...) for transitive chain coverage
+                adjacent_pairs = [(ranked[j], ranked[j + 1]) for j in range(len(ranked) - 1)]
+                # Sample 60-80% of adjacent pairs for per-user variation
+                n_adjacent = max(1, int(len(adjacent_pairs) * random.uniform(0.60, 0.80)))
+                selected_adjacent = random.sample(adjacent_pairs, n_adjacent)
+                # Add 1-2 random cross-rank pairs for matrix density
+                n_cross = min(2, max(1, len(ranked) // 4))
+                cross_pairs = []
+                for _ in range(n_cross):
+                    ci = random.randint(0, len(ranked) - 2)
+                    cj = random.randint(ci + 2, len(ranked) - 1) if ci + 2 < len(ranked) else ci + 1
+                    if cj < len(ranked) and (ranked[ci], ranked[cj]) not in selected_adjacent:
+                        cross_pairs.append((ranked[ci], ranked[cj]))
+                for winner_label, loser_label in selected_adjacent + cross_pairs:
                     if random.random() < config["vote_noise"]:
-                        possible_losers = [l for l in ranked if l != winner_label]
-                        loser_label = random.choice(possible_losers)
-                    else:
-                        loser_label = ranked[loser_idx]
+                        # Noise: swap winner and loser
+                        winner_label, loser_label = loser_label, winner_label
                     comparisons.append((survey_id, items_map[winner_label], items_map[loser_label]))
             if comparisons:
                 pairwise_tasks.append((username, comparisons))

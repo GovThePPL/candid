@@ -1253,6 +1253,11 @@ components:
         totalRespondents:
           type: integer
           description: Number of unique users who responded
+        condorcetWinnerId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Item ID of the Condorcet winner (beats all others by majority), or null if none exists
         rankings:
           type: array
           items:
@@ -1267,6 +1272,11 @@ components:
                 type: string
               memberCount:
                 type: integer
+              condorcetWinnerId:
+                type: string
+                format: uuid
+                nullable: true
+                description: Condorcet winner for this group, or null
               rankings:
                 type: array
                 items:
@@ -1286,6 +1296,10 @@ components:
           type: integer
         comparisonCount:
           type: integer
+          description: Total number of comparisons this item participated in
+        isCondorcetWinner:
+          type: boolean
+          description: Whether this item is the Condorcet winner
 
     PairwiseSurvey:
       type: object
@@ -1620,7 +1634,7 @@ components:
         labelRankings:
           type: array
           nullable: true
-          description: All labels ranked by votes for this group
+          description: All labels ranked by Ranked Pairs ordering for this group
           items:
             type: object
             properties:
@@ -1628,6 +1642,12 @@ components:
                 type: string
               wins:
                 type: integer
+              comparisonCount:
+                type: integer
+                description: Total pairwise comparisons this item participated in
+              isCondorcetWinner:
+                type: boolean
+                description: Whether this item beats every other item by strict majority
         memberCount:
           type: integer
         hull:

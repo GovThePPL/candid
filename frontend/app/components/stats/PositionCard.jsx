@@ -23,7 +23,6 @@ export default function PositionCard({ position, groups = [], activeGroup, userV
     isDefining,
     groupId: definingGroupId,
     consensusType,
-    consensusScore,
   } = position
 
   // Check if this position is defining for the currently selected group
@@ -43,22 +42,9 @@ export default function PositionCard({ position, groups = [], activeGroup, userV
 
   const activeVotes = getActiveGroupVotes()
 
-  // For majority view with consensus, use consensusScore; otherwise use vote distribution
-  let agreePercent, disagreePercent
-  if (activeGroup === 'majority' && consensusType != null && consensusScore != null) {
-    // Consensus score is the percentage who voted this way
-    const consensusPercent = Math.round(consensusScore * 100)
-    if (consensusType === 'agree') {
-      agreePercent = consensusPercent
-      disagreePercent = 0
-    } else {
-      agreePercent = 0
-      disagreePercent = consensusPercent
-    }
-  } else {
-    agreePercent = Math.round((activeVotes.agree || 0) * 100)
-    disagreePercent = Math.round((activeVotes.disagree || 0) * 100)
-  }
+  // Always use vote distribution (based on users who actually saw the statement)
+  const agreePercent = Math.round((activeVotes.agree || 0) * 100)
+  const disagreePercent = Math.round((activeVotes.disagree || 0) * 100)
 
   // Get label for the active group
   const getActiveGroupLabel = () => {
@@ -72,9 +58,7 @@ export default function PositionCard({ position, groups = [], activeGroup, userV
 
   // Determine which stat to show (agree or disagree)
   // For majority with consensus, use the consensus type
-  const showAgree = activeGroup === 'majority' && consensusType != null
-    ? consensusType === 'agree'
-    : agreePercent >= disagreePercent
+  const showAgree = agreePercent >= disagreePercent
 
   // Build list of bars to show: "All Users" + each group
   const bars = [
@@ -153,42 +137,44 @@ export default function PositionCard({ position, groups = [], activeGroup, userV
         </View>
       )}
 
-      {/* Vote distribution bars for each group */}
-      <View style={styles.barsContainer}>
-        {bars.map((bar) => {
-          const isActive = bar.id === activeGroup || (activeGroup === 'majority' && bar.id === 'all') || (activeGroup === 'my_positions' && bar.id === 'all')
-          const isAllUsers = bar.id === 'all'
-          const dist = bar.distribution || { agree: 0, disagree: 0, pass: 0 }
-
-          return (
-            <View key={bar.id} style={styles.barRow}>
-              {/* Group label with optional highlight background */}
-              <View style={[
-                styles.labelContainer,
-                isActive && !isAllUsers && styles.labelContainerActive
+      {/* Vote distribution bars — table layout: label column + bar column */}
+      <View style={styles.barsTable}>
+        {/* Labels column — auto-width determined by widest label */}
+        <View style={styles.labelsColumn}>
+          {bars.map((bar) => {
+            const isActive = bar.id === activeGroup || (activeGroup === 'majority' && bar.id === 'all') || (activeGroup === 'my_positions' && bar.id === 'all')
+            const isAllUsers = bar.id === 'all'
+            return (
+              <View key={bar.id} style={[
+                styles.labelCell,
+                isActive && !isAllUsers && styles.labelCellActive
               ]}>
-                <Text style={[
-                  styles.groupLabel,
-                  isAllUsers && styles.allUsersLabel,
-                  isActive && !isAllUsers && styles.groupLabelActive
-                ]}>
-                  {isAllUsers ? 'All' : bar.label}
-                </Text>
-                {bar.customLabel && (
-                  <Text
-                    style={[
+                <Text numberOfLines={1}>
+                  <Text style={[
+                    styles.groupLabel,
+                    isAllUsers && styles.allUsersLabel,
+                    isActive && !isAllUsers && styles.groupLabelActive
+                  ]}>
+                    {isAllUsers ? 'All' : bar.label}
+                  </Text>
+                  {bar.customLabel ? (
+                    <Text style={[
                       styles.customLabel,
                       isActive && !isAllUsers && styles.customLabelActive
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {bar.customLabel}
-                  </Text>
-                )}
+                    ]}> {bar.customLabel}</Text>
+                  ) : null}
+                </Text>
               </View>
+            )
+          })}
+        </View>
 
-              {/* Vote distribution bar */}
-              <View style={styles.barWrapper}>
+        {/* Bars column — fills remaining width, all bars equal length */}
+        <View style={styles.barsColumn}>
+          {bars.map((bar) => {
+            const dist = bar.distribution || { agree: 0, disagree: 0, pass: 0 }
+            return (
+              <View key={bar.id} style={styles.barCell}>
                 <VoteDistributionBar
                   distribution={dist}
                   height={20}
@@ -196,9 +182,9 @@ export default function PositionCard({ position, groups = [], activeGroup, userV
                   hideUnanswered={hideUnanswered}
                 />
               </View>
-            </View>
-          )
-        })}
+            )
+          })}
+        </View>
       </View>
 
       {/* Legend and vote count */}
@@ -315,25 +301,30 @@ const styles = StyleSheet.create({
   definingPercent: {
     fontWeight: '700',
   },
-  barsContainer: {
-    gap: 6,
-  },
-  barRow: {
+  barsTable: {
     flexDirection: 'row',
-    alignItems: 'center',
     gap: 8,
   },
-  labelContainer: {
-    width: 100,
-    flexDirection: 'row',
-    alignItems: 'center',
+  labelsColumn: {
     gap: 6,
-    paddingVertical: 2,
+    justifyContent: 'flex-start',
+  },
+  barsColumn: {
+    flex: 1,
+    gap: 6,
+  },
+  labelCell: {
+    height: 20,
+    justifyContent: 'center',
     paddingHorizontal: 6,
     borderRadius: 10,
   },
-  labelContainerActive: {
+  labelCellActive: {
     backgroundColor: Colors.white,
+  },
+  barCell: {
+    height: 20,
+    justifyContent: 'center',
   },
   groupLabel: {
     fontSize: 12,
@@ -344,20 +335,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.primary,
   },
-  customLabel: {
-    fontSize: 10,
-    color: 'rgba(255, 255, 255, 0.8)',
-    flex: 1,
-  },
-  customLabelActive: {
-    color: Colors.primary,
-  },
   allUsersLabel: {
     fontSize: 10,
     color: 'rgba(255, 255, 255, 0.7)',
   },
-  barWrapper: {
-    flex: 1,
+  customLabel: {
+    fontSize: 10,
+    fontWeight: '400',
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  customLabelActive: {
+    color: Colors.primary,
   },
   legendRow: {
     position: 'relative',

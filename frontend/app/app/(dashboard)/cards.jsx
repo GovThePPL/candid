@@ -119,6 +119,11 @@ export default function CardQueue() {
     if (card.data?.source === 'chatting_list') {
       return `chatting_list-${card.data?.chattingListId}`
     }
+    // Pairwise cards have no data.id — key by the option pair
+    if (card.type === 'pairwise') {
+      const ids = [card.data?.optionA?.id, card.data?.optionB?.id].sort()
+      return `pairwise-${ids[0]}-${ids[1]}`
+    }
     return `${card.type}-${card.data?.id}`
   }, [])
 
@@ -673,15 +678,16 @@ export default function CardQueue() {
   // Chat request handlers
   const handleAcceptChat = useCallback(async () => {
     if (currentCard?.type !== 'chat_request') return
+    let response
     try {
-      const response = await api.chat.respondToRequest(currentCard.data.id, 'accepted')
-      goToNextCard()
-      // Navigate to chat screen with the new chat log ID
-      if (response.chatLogId) {
-        router.push(`/chat/${response.chatLogId}`)
-      }
+      response = await api.chat.respondToRequest(currentCard.data.id, 'accepted')
     } catch (err) {
       console.error('Failed to accept chat:', err)
+    }
+    goToNextCard()
+    // Navigate to chat screen with the new chat log ID
+    if (response?.chatLogId) {
+      router.push(`/chat/${response.chatLogId}`)
     }
   }, [currentCard, goToNextCard, router])
 
@@ -689,20 +695,20 @@ export default function CardQueue() {
     if (currentCard?.type !== 'chat_request') return
     try {
       await api.chat.respondToRequest(currentCard.data.id, 'dismissed')
-      goToNextCard()
     } catch (err) {
       console.error('Failed to decline chat:', err)
     }
+    goToNextCard()
   }, [currentCard, goToNextCard])
 
   // Survey handlers
   const handleSurveyResponse = useCallback(async (surveyId, questionId, optionId) => {
     try {
       await api.surveys.respond(surveyId, questionId, optionId)
-      goToNextCard()
     } catch (err) {
       console.error('Failed to submit survey response:', err)
     }
+    goToNextCard()
   }, [goToNextCard])
 
   const handleSurveySkip = useCallback(() => {
@@ -715,10 +721,10 @@ export default function CardQueue() {
   const handleDemographicResponse = useCallback(async (field, value) => {
     try {
       await api.users.updateDemographics({ [field]: value })
-      goToNextCard()
     } catch (err) {
       console.error('Failed to update demographics:', err)
     }
+    goToNextCard()
   }, [goToNextCard])
 
   const handleDemographicSkip = useCallback(() => {
@@ -731,20 +737,20 @@ export default function CardQueue() {
     if (currentCard?.type !== 'kudos') return
     try {
       await api.chat.sendKudos(currentCard.data.id)
-      goToNextCard()
     } catch (err) {
       console.error('Failed to send kudos:', err)
     }
+    goToNextCard()
   }, [currentCard, goToNextCard])
 
   const handleDismissKudos = useCallback(async () => {
     if (currentCard?.type !== 'kudos') return
     try {
       await api.chat.dismissKudos(currentCard.data.id)
-      goToNextCard()
     } catch (err) {
       console.error('Failed to dismiss kudos:', err)
     }
+    goToNextCard()
   }, [currentCard, goToNextCard])
 
   // Acknowledge kudos (when user already sent kudos, just mark as seen)
@@ -752,22 +758,20 @@ export default function CardQueue() {
     if (currentCard?.type !== 'kudos') return
     try {
       await api.chat.acknowledgeKudos(currentCard.data.id)
-      goToNextCard()
     } catch (err) {
       console.error('Failed to acknowledge kudos:', err)
-      // Still move to next card even if API fails
-      goToNextCard()
     }
+    goToNextCard()
   }, [currentCard, goToNextCard])
 
   // Pairwise comparison handlers
   const handlePairwiseResponse = useCallback(async (surveyId, winnerItemId, loserItemId) => {
     try {
       await api.surveys.respondToPairwise(surveyId, winnerItemId, loserItemId)
-      goToNextCard()
     } catch (err) {
       console.error('Failed to submit pairwise response:', err)
     }
+    goToNextCard()
   }, [goToNextCard])
 
   const handlePairwiseSkip = useCallback(() => {
@@ -823,7 +827,11 @@ export default function CardQueue() {
   const renderCard = (card, isBackCard = false) => {
     if (!card) return null
 
-    const key = `${card.data?.id || card.data?.field}-${isBackCard ? 'back' : 'current'}`
+    let cardId = card.data?.id || card.data?.field
+    if (card.type === 'pairwise') {
+      cardId = `${card.data?.optionA?.id}-${card.data?.optionB?.id}`
+    }
+    const key = `${cardId}-${isBackCard ? 'back' : 'current'}`
 
     switch (card.type) {
       case 'position':

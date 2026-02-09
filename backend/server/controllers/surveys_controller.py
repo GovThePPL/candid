@@ -15,6 +15,11 @@ from candid import util
 
 from candid.controllers import db
 from candid.controllers.helpers.auth import authorization, authorization_allow_banned, token_to_user
+from candid.controllers.helpers.pairwise_graph import (
+    build_victory_matrix,
+    find_condorcet_winner,
+    ranked_pairs_ordering,
+)
 def _get_user_card(user_id):
     """Helper to fetch and return a User model for API responses."""
     user = db.execute_query("""
@@ -376,7 +381,17 @@ def respond_to_survey_question(survey_id, question_id, body, token_info=None):  
     """, (question_id, user.id), fetchone=True)
 
     if existing_response:
-        return ErrorModel(400, "You have already responded to this question"), 400
+        # Return success for duplicate responses (card may still be in queue)
+        existing_row = db.execute_query("""
+            SELECT id, survey_question_option_id, user_id, created_time
+            FROM survey_question_response WHERE id = %s
+        """, (existing_response['id'],), fetchone=True)
+        return SurveyQuestionResponse(
+            id=str(existing_row['id']),
+            survey_question_option_id=str(existing_row['survey_question_option_id']),
+            user_id=str(existing_row['user_id']),
+            response_time=existing_row['created_time'],
+        ), 200
 
     # Create the response
     response_id = str(uuid.uuid4())
@@ -479,6 +494,7 @@ def get_pairwise_surveys(location_id=None, category_id=None, token_info=None):  
             LEFT JOIN position_category pc ON s.position_category_id = pc.id
             WHERE s.survey_type = 'pairwise'
               AND s.status != 'deleted'
+              AND s.is_group_labeling = false
               AND s.location_id = ANY(%s::uuid[])
         """
         params = [location_ids]
@@ -504,6 +520,7 @@ def get_pairwise_surveys(location_id=None, category_id=None, token_info=None):  
             LEFT JOIN position_category pc ON s.position_category_id = pc.id
             WHERE s.survey_type = 'pairwise'
               AND s.status != 'deleted'
+              AND s.is_group_labeling = false
         """
         params = []
         if category_id and category_id != 'all':
@@ -637,16 +654,13 @@ def get_survey_rankings(survey_id, filter_location_id=None, group_id=None, polis
         """
         user_filter_params = [group_user_ids]
 
-    # Get overall rankings (win counts, filtered by location if specified)
-    overall_rankings = db.execute_query(f"""
-        SELECT pi.id as item_id, pi.item_text, COUNT(pr.id) as win_count
-        FROM pairwise_item pi
-        LEFT JOIN pairwise_response pr ON pr.winner_item_id = pi.id
+    # Get all raw pairwise responses for Ranked Pairs computation
+    raw_responses = db.execute_query(f"""
+        SELECT pr.winner_item_id, pr.loser_item_id
+        FROM pairwise_response pr
+        WHERE pr.survey_id = %s::uuid
             {user_filter_clause}
-        WHERE pi.survey_id = %s::uuid
-        GROUP BY pi.id, pi.item_text
-        ORDER BY win_count DESC
-    """, tuple(user_filter_params + [survey_id]))
+    """, tuple([survey_id] + user_filter_params))
 
     # Count total responses and unique respondents (filtered by location if specified)
     counts = db.execute_query(f"""
@@ -659,14 +673,28 @@ def get_survey_rankings(survey_id, filter_location_id=None, group_id=None, polis
     total_responses = counts["total_responses"] if counts else 0
     total_respondents = counts["total_respondents"] if counts else 0
 
-    # Build overall rankings list
+    # Build rankings using Ranked Pairs algorithm
+    item_ids = list(item_dict.keys())
+    responses_list = [dict(r) for r in (raw_responses or [])]
+    victory_matrix = build_victory_matrix(item_ids, responses_list)
+    condorcet_winner = find_condorcet_winner(item_ids, victory_matrix)
+    ranked_order = ranked_pairs_ordering(item_ids, victory_matrix)
+
+    # Build rankings list in Ranked Pairs order
     rankings_list = []
-    for i, r in enumerate(overall_rankings or []):
+    for i, item_id in enumerate(ranked_order):
+        win_count = sum(victory_matrix.get(item_id, {}).get(other, 0) for other in item_ids if other != item_id)
+        comparison_count = sum(
+            victory_matrix.get(item_id, {}).get(other, 0) + victory_matrix.get(other, {}).get(item_id, 0)
+            for other in item_ids if other != item_id
+        )
         rankings_list.append({
-            "itemId": str(r["item_id"]),
-            "itemText": r["item_text"],
+            "itemId": item_id,
+            "itemText": item_dict.get(item_id, ""),
             "rank": i + 1,
-            "winCount": r["win_count"]
+            "winCount": win_count,
+            "comparisonCount": comparison_count,
+            "isCondorcetWinner": item_id == condorcet_winner,
         })
 
     result = {
@@ -676,6 +704,7 @@ def get_survey_rankings(survey_id, filter_location_id=None, group_id=None, polis
         "surveyLocationName": survey["location_name"],
         "totalResponses": total_responses,
         "totalRespondents": total_respondents,
+        "condorcetWinnerId": condorcet_winner,
         "rankings": rankings_list,
         "groupRankings": {}
     }
@@ -716,29 +745,39 @@ def get_survey_rankings(survey_id, filter_location_id=None, group_id=None, polis
                     if not user_id_list:
                         continue
 
-                    # Get rankings for this group
-                    group_rankings = db.execute_query("""
-                        SELECT pi.id as item_id, pi.item_text, COUNT(pr.id) as win_count
-                        FROM pairwise_item pi
-                        LEFT JOIN pairwise_response pr ON pr.winner_item_id = pi.id
-                            AND pr.user_id = ANY(%s::uuid[])
-                        WHERE pi.survey_id = %s::uuid
-                        GROUP BY pi.id, pi.item_text
-                        ORDER BY win_count DESC
-                    """, (user_id_list, survey_id))
+                    # Get raw responses for this group's members
+                    group_raw = db.execute_query("""
+                        SELECT winner_item_id, loser_item_id
+                        FROM pairwise_response
+                        WHERE survey_id = %s::uuid
+                          AND user_id = ANY(%s::uuid[])
+                    """, (survey_id, user_id_list))
+
+                    group_responses = [dict(r) for r in (group_raw or [])]
+                    group_victory = build_victory_matrix(item_ids, group_responses)
+                    group_condorcet = find_condorcet_winner(item_ids, group_victory)
+                    group_order = ranked_pairs_ordering(item_ids, group_victory)
 
                     group_rankings_list = []
-                    for i, r in enumerate(group_rankings or []):
+                    for i, gid in enumerate(group_order):
+                        g_win_count = sum(group_victory.get(gid, {}).get(other, 0) for other in item_ids if other != gid)
+                        g_comparison_count = sum(
+                            group_victory.get(gid, {}).get(other, 0) + group_victory.get(other, {}).get(gid, 0)
+                            for other in item_ids if other != gid
+                        )
                         group_rankings_list.append({
-                            "itemId": str(r["item_id"]),
-                            "itemText": r["item_text"],
+                            "itemId": gid,
+                            "itemText": item_dict.get(gid, ""),
                             "rank": i + 1,
-                            "winCount": r["win_count"]
+                            "winCount": g_win_count,
+                            "comparisonCount": g_comparison_count,
+                            "isCondorcetWinner": gid == group_condorcet,
                         })
 
                     result["groupRankings"][group_id] = {
                         "groupLabel": group_label,
                         "memberCount": len(pids),
+                        "condorcetWinnerId": group_condorcet,
                         "rankings": group_rankings_list
                     }
 

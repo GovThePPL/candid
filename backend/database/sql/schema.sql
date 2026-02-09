@@ -213,6 +213,7 @@ CREATE TABLE survey (
     survey_type VARCHAR(50) NOT NULL DEFAULT 'standard' CHECK (survey_type IN ('standard', 'pairwise')),
     polis_conversation_id VARCHAR(255),
     comparison_question TEXT,
+    is_group_labeling BOOLEAN NOT NULL DEFAULT false,
     created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     start_time TIMESTAMPTZ,
@@ -223,6 +224,7 @@ CREATE TABLE survey (
 COMMENT ON COLUMN survey.survey_type IS 'Type of survey: standard (multiple choice) or pairwise (comparison)';
 COMMENT ON COLUMN survey.polis_conversation_id IS 'Link to Polis conversation for group-specific aggregation';
 COMMENT ON COLUMN survey.comparison_question IS 'Question template for pairwise comparisons (e.g., "Which better describes this group?")';
+COMMENT ON COLUMN survey.is_group_labeling IS 'True if this survey is used for group identity labeling (excluded from survey results modal)';
 
 -- Survey questions
 CREATE TABLE survey_question (
