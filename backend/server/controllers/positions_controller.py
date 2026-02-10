@@ -431,8 +431,9 @@ def search_similar_positions(body, token_info=None):  # noqa: E501
           AND p.embedding IS NOT NULL
           AND p.creator_user_id != %s
           AND up_active.id IS NULL
+          AND (1 - (p.embedding <=> %s::vector)) >= 0.5
     """]
-    params = [Config.TIMESTAMP_FORMAT, embedding, user.id, user.id, user.id]
+    params = [Config.TIMESTAMP_FORMAT, embedding, user.id, user.id, user.id, embedding]
 
     # Add optional category filter
     if category_id:

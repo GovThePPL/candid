@@ -11,15 +11,7 @@ from candid.controllers.helpers import polis_sync
 from candid.controllers.helpers import presence
 from candid.controllers.helpers.chat_availability import get_batch_availability
 from candid.controllers.moderation_controller import _get_target_content
-from candid.controllers.helpers.pairwise_graph import (
-    build_preference_graph,
-    compute_transitive_closure,
-    find_cycles,
-    is_complete,
-    select_next_pair,
-    build_victory_matrix,
-)
-
+import itertools
 import random
 
 
@@ -305,8 +297,8 @@ def get_card_queue(limit=None, token_info=None):  # noqa: E501
     # 2. Get positions first to determine if we need to fill with other content
     position_cards = []
 
-    # Get user's location and category priorities (cached)
-    location_id, priorities = _get_user_context(user.id)
+    # Get user's location, category priorities, and chatting list likelihood (cached)
+    location_id, priorities, chatting_list_likelihood = _get_user_context(user.id)
 
     # Fetch unvoted positions (using Polis if enabled, otherwise DB)
     remaining_slots = max(1, limit - len(priority_cards))
@@ -334,8 +326,12 @@ def get_card_queue(limit=None, token_info=None):  # noqa: E501
                 card["data"]["userPositionId"] = avail_info["userPositionId"]
 
     # 2b. Get chatting list cards (positions user wants to continue chatting about)
-    # Mix ~1 chatting list card per ~5 regular position cards
-    chatting_list_limit = max(1, len(position_cards) // 5 + 1)
+    # Scale by user's chatting_list_likelihood preference (0=off, 3=normal, 5=often)
+    if chatting_list_likelihood == 0:
+        chatting_list_limit = 0
+    else:
+        base = max(1, len(position_cards) // 5 + 1)
+        chatting_list_limit = max(1, round(base * chatting_list_likelihood / 3))
     chatting_list_positions = _get_chatting_list_cards(str(user.id), limit=chatting_list_limit)
     chatting_list_cards = [_chatting_list_position_to_card(pos) for pos in chatting_list_positions]
 
@@ -565,11 +561,14 @@ def invalidate_user_context_cache(user_id: str):
 
 
 def _get_user_context(user_id: str):
-    """Get user's location and category priorities (cached per-user)."""
+    """Get user's location, category priorities, and chatting list likelihood (cached per-user).
+
+    Returns (location_id, priorities, chatting_list_likelihood).
+    """
     uid = str(user_id)
     cached = _user_context_cache.get(uid)
     if cached and (time.time() - cached["time"]) < USER_CONTEXT_TTL:
-        return cached["location_id"], cached["priorities"]
+        return cached["location_id"], cached["priorities"], cached["chatting_list_likelihood"]
 
     # Fetch location
     location = db.execute_query("""
@@ -594,12 +593,19 @@ def _get_user_context(user_id: str):
         for c in (categories or []):
             priorities[str(c["id"])] = 3
 
+    # Fetch chatting list likelihood from users table
+    user_row = db.execute_query("""
+        SELECT chatting_list_likelihood FROM users WHERE id = %s
+    """, (user_id,), fetchone=True)
+    chatting_list_likelihood = user_row["chatting_list_likelihood"] if user_row and user_row.get("chatting_list_likelihood") is not None else 3
+
     _user_context_cache[uid] = {
         "location_id": location_id,
         "priorities": priorities,
+        "chatting_list_likelihood": chatting_list_likelihood,
         "time": time.time()
     }
-    return location_id, priorities
+    return location_id, priorities, chatting_list_likelihood
 
 
 def _get_unvoted_positions_fallback(user_id: str, location_id: str, limit: int = 10) -> List[dict]:
@@ -1221,22 +1227,23 @@ def _get_pending_pairwise(user_id: str, limit: int = 2) -> List[dict]:
         item_lookup = {str(item["id"]): item for item in survey["items"]}
         user_responses = responses_by_survey.get(survey["id"], [])
 
-        # Build preference graph and compute transitive closure
-        graph = build_preference_graph(item_ids, user_responses)
-        closure = compute_transitive_closure(item_ids, graph)
-        cycles_list = find_cycles(item_ids, graph)
+        # Build set of already-compared pairs (unordered)
+        compared_pairs = set()
+        for r in user_responses:
+            a, b = str(r["winner_item_id"]), str(r["loser_item_id"])
+            compared_pairs.add((min(a, b), max(a, b)))
 
-        # Skip survey if user's ordering is complete
-        if is_complete(item_ids, closure, cycles_list):
+        # All possible pairs minus already-compared
+        all_pairs = set(itertools.combinations(sorted(item_ids), 2))
+        uncompared = list(all_pairs - compared_pairs)
+
+        # Skip survey if all pairs have been compared
+        if not uncompared:
             continue
 
-        # Select the most informative pair
-        next_pair = select_next_pair(item_ids, graph, closure, cycles_list)
+        # Pick a random uncompared pair
+        item_a_id, item_b_id = random.choice(uncompared)
 
-        if next_pair is None:
-            continue
-
-        item_a_id, item_b_id = next_pair
         item_a = item_lookup[item_a_id]
         item_b = item_lookup[item_b_id]
 

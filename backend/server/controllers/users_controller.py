@@ -646,7 +646,7 @@ def get_user_settings(token_info=None):  # noqa: E501
     timezone = user_row.get('timezone', 'America/New_York') if user_row else 'America/New_York'
 
     return {
-        "categoryWeights": [cw.to_dict() if hasattr(cw, 'to_dict') else {"categoryId": cw.category_id, "weight": cw.weight} for cw in category_weights],
+        "categoryWeights": [{"categoryId": cw.category_id, "weight": cw.weight} for cw in category_weights],
         "chatRequestLikelihood": chat_request_likelihood,
         "chattingListLikelihood": chatting_list_likelihood,
         "notificationsEnabled": notifications_enabled,
@@ -909,10 +909,13 @@ def update_user_settings(body, token_info=None):  # noqa: E501
     # Also check raw JSON for notification fields (not part of UserSettings model yet)
     raw = connexion.request.get_json() if connexion.request.is_json else {}
 
+    chat_request_likelihood_changed = False
+    chat_request_likelihood_int = None
     if user_settings.chat_request_likelihood is not None:
-        likelihood_int = LIKELIHOOD_TO_INT.get(user_settings.chat_request_likelihood, 3)
+        chat_request_likelihood_int = LIKELIHOOD_TO_INT.get(user_settings.chat_request_likelihood, 3)
         set_clauses.append("chat_request_likelihood = %s")
-        params.append(likelihood_int)
+        params.append(chat_request_likelihood_int)
+        chat_request_likelihood_changed = True
 
     if user_settings.chatting_list_likelihood is not None:
         likelihood_int = LIKELIHOOD_TO_INT.get(user_settings.chatting_list_likelihood, 3)
@@ -949,7 +952,11 @@ def update_user_settings(body, token_info=None):  # noqa: E501
             f"UPDATE users SET {set_str} WHERE id = %s",
             tuple(params))
 
-    # Invalidate cached user context (category weights may have changed)
+    # Sync chat_request_likelihood to Redis for availability checks
+    if chat_request_likelihood_changed and chat_request_likelihood_int is not None:
+        presence.set_chat_likelihood(str(user.id), chat_request_likelihood_int)
+
+    # Invalidate cached user context (category weights or chatting_list_likelihood may have changed)
     invalidate_user_context_cache(user.id)
 
     return get_user_settings(token_info=token_info)

@@ -54,6 +54,7 @@ def get_batch_availability(position_ids, requesting_user_id, db):
     all_user_ids = list({str(a["user_id"]) for a in adopters})
     swiping_users = presence.get_swiping_users(all_user_ids)
     in_app_users = presence.get_in_app_users(all_user_ids)
+    chat_likelihoods = presence.get_chat_likelihoods(all_user_ids)
 
     # Step 3: Group by position and find online adopters
     by_position = {}
@@ -65,22 +66,31 @@ def get_batch_availability(position_ids, requesting_user_id, db):
 
     positions_needing_notification_check = []
 
+    # Probability thresholds for low-likelihood users (checked per queue load)
+    _LIKELIHOOD_PROB = {1: 0.20, 2: 0.50}
+
     for pid in position_ids:
         candidates = by_position.get(pid, [])
         if not candidates:
             continue
 
+        # Filter candidates by chat_request_likelihood
+        filtered = _filter_by_likelihood(candidates, chat_likelihoods, _LIKELIHOOD_PROB)
+        if not filtered:
+            positions_needing_notification_check.append(pid)
+            continue
+
         # Find swiping adopters first (best match)
-        swiping = [c for c in candidates if str(c["user_id"]) in swiping_users]
+        swiping = [c for c in filtered if str(c["user_id"]) in swiping_users]
         if swiping:
-            pick = random.choice(swiping)
+            pick = _pick_by_likelihood(swiping, chat_likelihoods)
             result[pid] = {"availability": "online", "userPositionId": str(pick["user_position_id"])}
             continue
 
         # Then in-app adopters
-        in_app = [c for c in candidates if str(c["user_id"]) in in_app_users]
+        in_app = [c for c in filtered if str(c["user_id"]) in in_app_users]
         if in_app:
-            pick = random.choice(in_app)
+            pick = _pick_by_likelihood(in_app, chat_likelihoods)
             result[pid] = {"availability": "online", "userPositionId": str(pick["user_position_id"])}
             continue
 
@@ -110,6 +120,10 @@ def get_batch_availability(position_ids, requesting_user_id, db):
         """, (positions_needing_notification_check, requesting_user_id))
 
         if notif_adopters:
+            # Get likelihoods for notification candidates too
+            notif_user_ids = list({str(a["user_id"]) for a in notif_adopters})
+            notif_likelihoods = presence.get_chat_likelihoods(notif_user_ids)
+
             notif_by_pos = {}
             for a in notif_adopters:
                 pid = str(a["position_id"])
@@ -119,9 +133,11 @@ def get_batch_availability(position_ids, requesting_user_id, db):
 
             for pid in positions_needing_notification_check:
                 candidates = notif_by_pos.get(pid, [])
-                notifiable = [c for c in candidates if _is_notifiable(c)]
+                # Filter by likelihood, then notifiability
+                filtered = _filter_by_likelihood(candidates, notif_likelihoods, _LIKELIHOOD_PROB)
+                notifiable = [c for c in filtered if _is_notifiable(c)]
                 if notifiable:
-                    pick = random.choice(notifiable)
+                    pick = _pick_by_likelihood(notifiable, notif_likelihoods)
                     result[pid] = {"availability": "notifiable", "userPositionId": str(pick["user_position_id"])}
 
     # Step 5: For positions still "none", check agree-voters as fallback
@@ -164,6 +180,45 @@ def get_batch_availability(position_ids, requesting_user_id, db):
                     result[pid]["availability"] = "online"
 
     return result
+
+
+def _filter_by_likelihood(candidates, likelihoods, prob_thresholds):
+    """Filter candidates by chat_request_likelihood.
+
+    - likelihood 0: always excluded
+    - likelihood 1-2: included with probability check
+    - likelihood 3+: always included
+    """
+    filtered = []
+    for c in candidates:
+        likelihood = likelihoods.get(str(c["user_id"]), 3)
+        if likelihood == 0:
+            continue
+        if likelihood in prob_thresholds:
+            if random.random() >= prob_thresholds[likelihood]:
+                continue
+        filtered.append(c)
+    return filtered
+
+
+def _pick_by_likelihood(candidates, likelihoods):
+    """Pick a candidate using likelihood as weight for weighted random selection."""
+    if not candidates:
+        return None
+    if len(candidates) == 1:
+        return candidates[0]
+
+    weights = [likelihoods.get(str(c["user_id"]), 3) for c in candidates]
+    # Ensure positive weights
+    weights = [max(w, 1) for w in weights]
+    total = sum(weights)
+    r = random.uniform(0, total)
+    cumulative = 0
+    for c, w in zip(candidates, weights):
+        cumulative += w
+        if r <= cumulative:
+            return c
+    return candidates[-1]
 
 
 def _weighted_random_select(candidates):

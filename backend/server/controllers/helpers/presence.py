@@ -90,3 +90,38 @@ def get_in_app_users(user_ids: list) -> set:
     except Exception as e:
         print(f"Error batch checking in_app presence: {e}")
         return set()
+
+
+# Chat request likelihood preference (persistent, no TTL)
+CHAT_LIKELIHOOD_PREFIX = "preference:chat_likelihood:"
+
+
+def set_chat_likelihood(user_id: str, value: int):
+    """Store a user's chat_request_likelihood preference in Redis (0-5)."""
+    try:
+        r = get_redis()
+        r.set(f"{CHAT_LIKELIHOOD_PREFIX}{user_id}", str(value))
+    except Exception as e:
+        print(f"Error setting chat likelihood: {e}")
+
+
+def get_chat_likelihoods(user_ids: list) -> dict:
+    """Batch read chat_request_likelihood for multiple users.
+
+    Returns {user_id: int}, defaulting to 3 (normal) for missing keys.
+    """
+    if not user_ids:
+        return {}
+    try:
+        r = get_redis()
+        pipe = r.pipeline()
+        for uid in user_ids:
+            pipe.get(f"{CHAT_LIKELIHOOD_PREFIX}{uid}")
+        results = pipe.execute()
+        return {
+            uid: int(val) if val is not None else 3
+            for uid, val in zip(user_ids, results)
+        }
+    except Exception as e:
+        print(f"Error batch reading chat likelihoods: {e}")
+        return {uid: 3 for uid in user_ids}

@@ -122,10 +122,6 @@ export default function DashboardLayout() {
         />
         {/* Hidden screens - accessed via user menu */}
         <Tabs.Screen
-          name="profile"
-          options={{ href: null }}
-        />
-        <Tabs.Screen
           name="settings"
           options={{ href: null }}
         />

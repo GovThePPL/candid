@@ -1,7 +1,8 @@
 # Candid TODO
 
 ## Authentication & Identity
-- OIDC/OAuth2 integration
+- Social login (Google, Apple, etc.)
+- Configure Keycloak SMTP (prerequisite for password reset and email verification)
 - Password reset
 - Make email required?
 - Require phone number for sign-up -- explore other user de-duplication options, consider cost of sending messages
@@ -17,10 +18,12 @@
 - Design and implement whole trust system
 - Take trust into account in chat matching
 
+## Positions & Categories
+- Location-aware categories — filter categories by location relevance
+
 ## Card Queue
 - Chat request card should be next in queue when on card queue page
 - Should jump to top when user is on other pages
-- Stop cards page from fetching card queue with every swipe
 - Donation cards
 
 ## Chat Fixes and Enhancements
@@ -35,6 +38,7 @@
 - Unban user
 - Create surveys including group label surveys
 - Modify rules
+- Promote users
 - Other admin-specific features
 
 ## Guest Access
@@ -53,15 +57,9 @@
 - Accessibility
 - Internationalization
 
-## NLP / Matching
-- NLP position matching should only return results over 50% match
-- Improve pairwise comparison algorithm for more meaningful matchups
-
 ## Unit Tests
 - Add unit tests for backend controllers and helpers (complement existing integration tests)
 
 ## Infrastructure
-- Remove any hard-coded IPs/Ports
-- ~~Move Polis out of docker-in-docker~~ (done — now runs as direct docker-compose services)
 - Will eventually need frontend web servers
 - Migrate to Kubernetes?

@@ -68,6 +68,13 @@ def create_chat_request(body, token_info=None):
     recipient_user_id = str(result["user_id"])
     position_id = str(result["position_id"])
 
+    # Safety check: reject if recipient has chat requests turned off
+    recipient_settings = db.execute_query("""
+        SELECT chat_request_likelihood FROM users WHERE id = %s
+    """, (recipient_user_id,), fetchone=True)
+    if recipient_settings and recipient_settings.get("chat_request_likelihood") == 0:
+        return ErrorModel(code=403, message="This user is not accepting chat requests"), 403
+
     # Can't request to chat with yourself
     if recipient_user_id == str(user.id):
         return ErrorModel(code=400, message="Cannot request to chat with yourself"), 400

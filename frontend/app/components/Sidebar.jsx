@@ -78,9 +78,6 @@ export default function Sidebar({ visible, onClose, user, onLogout }) {
 
         {/* Menu Items */}
         <View style={styles.menuSection}>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/profile')}>
-            <Text style={styles.menuText}>Profile</Text>
-          </TouchableOpacity>
           <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/settings')}>
             <Text style={styles.menuText}>Settings</Text>
           </TouchableOpacity>
