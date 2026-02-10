@@ -27,7 +27,6 @@ const styles = StyleSheet.create({
     ...Shadows.card,
   },
   statement: {
-    fontSize: 16,
     lineHeight: 24,
     fontWeight: '500',
   },

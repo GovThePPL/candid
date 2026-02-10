@@ -2,7 +2,6 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import {
   Modal,
   View,
-  Text,
   StyleSheet,
   TouchableOpacity,
   Image,
@@ -16,6 +15,7 @@ import Svg, { Defs, Mask, Rect, Circle } from 'react-native-svg'
 import * as ImageManipulator from 'expo-image-manipulator'
 
 import { useThemeColors } from '../hooks/useThemeColors'
+import ThemedText from './ThemedText'
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window')
 const CIRCLE_SIZE = 280
@@ -268,7 +268,7 @@ export default function ImageCropModal({ visible, imageUri, onCancel, onConfirm 
           <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
             <Ionicons name="close" size={28} color="#fff" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Crop Photo</Text>
+          <ThemedText variant="h2" color="inverse">Crop Photo</ThemedText>
           <View style={styles.headerSpacer} />
         </View>
 
@@ -353,7 +353,7 @@ export default function ImageCropModal({ visible, imageUri, onCancel, onConfirm 
             {isProcessing ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
-              <Text style={styles.acceptButtonText}>Accept</Text>
+              <ThemedText variant="h2" color="inverse">Accept</ThemedText>
             )}
           </TouchableOpacity>
         </View>
@@ -377,11 +377,6 @@ const createStyles = (colors) => StyleSheet.create({
   },
   cancelButton: {
     padding: 8,
-  },
-  headerTitle: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '600',
   },
   headerSpacer: {
     width: 44,
@@ -427,10 +422,5 @@ const createStyles = (colors) => StyleSheet.create({
   },
   acceptButtonDisabled: {
     opacity: 0.6,
-  },
-  acceptButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '600',
   },
 })

@@ -1,9 +1,10 @@
 import { useMemo } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
+import { View, StyleSheet, TouchableOpacity } from 'react-native'
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { SemanticColors, BrandColor } from '../../constants/Colors'
 import { useThemeColors } from '../../hooks/useThemeColors'
-import { Shadows } from '../../constants/Theme'
+import { Shadows, Typography } from '../../constants/Theme'
+import ThemedText from '../ThemedText'
 import UserMiniCard from './UserMiniCard'
 
 /**
@@ -47,7 +48,7 @@ export default function ClosureCard({ closure, onShowMap, onViewStatements }) {
           <View style={styles.badgesRow}>
             <View style={styles.crossGroupBadge}>
               <Ionicons name="git-compare-outline" size={12} color={colors.primary} />
-              <Text style={styles.badgeText}>Cross-Group</Text>
+              <ThemedText variant="badgeSm" color="primary" style={styles.badgeText}>Cross-Group</ThemedText>
             </View>
           </View>
         )}
@@ -70,10 +71,10 @@ export default function ClosureCard({ closure, onShowMap, onViewStatements }) {
 
         {/* Date and actions row */}
         <View style={styles.footerRow}>
-          <Text style={styles.dateText}>{formatDate(closedAt)}</Text>
+          <ThemedText variant="caption" color="secondary">{formatDate(closedAt)}</ThemedText>
           <TouchableOpacity style={styles.actionButton} onPress={onShowMap}>
             <Ionicons name="map-outline" size={14} color={colors.primary} />
-            <Text style={styles.actionButtonText}>Show Map</Text>
+            <ThemedText variant="caption" color="primary" style={styles.actionButtonText}>Show Map</ThemedText>
           </TouchableOpacity>
         </View>
       </View>
@@ -82,11 +83,11 @@ export default function ClosureCard({ closure, onShowMap, onViewStatements }) {
       <View style={styles.greenSection}>
         <View style={styles.closureRow}>
           <MaterialCommunityIcons name="handshake-outline" size={18} color="#FFFFFF" />
-          <Text style={styles.closureText}>{closureText?.content}</Text>
+          <ThemedText variant="bodySmall" color="inverse" style={styles.closureText}>{closureText?.content}</ThemedText>
         </View>
         <TouchableOpacity style={styles.statementsButton} onPress={onViewStatements}>
           <Ionicons name="list-outline" size={14} color="#FFFFFF" />
-          <Text style={styles.statementsButtonText}>Statements</Text>
+          <ThemedText variant="caption" color="inverse" style={styles.statementsButtonText}>Statements</ThemedText>
         </TouchableOpacity>
       </View>
     </View>
@@ -127,9 +128,7 @@ const createStyles = (colors) => StyleSheet.create({
     borderColor: BrandColor + '40',
   },
   badgeText: {
-    fontSize: 11,
     fontWeight: '600',
-    color: colors.primary,
     marginLeft: 2,
   },
   usersRow: {
@@ -149,8 +148,6 @@ const createStyles = (colors) => StyleSheet.create({
     borderTopColor: colors.cardBorder,
   },
   dateText: {
-    fontSize: 12,
-    color: colors.secondaryText,
   },
   actionButton: {
     flexDirection: 'row',
@@ -162,9 +159,7 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 4,
   },
   actionButtonText: {
-    fontSize: 12,
     fontWeight: '500',
-    color: colors.primary,
   },
   greenSection: {
     padding: 16,
@@ -178,9 +173,6 @@ const createStyles = (colors) => StyleSheet.create({
   },
   closureText: {
     flex: 1,
-    fontSize: 14,
-    color: '#FFFFFF',
-    lineHeight: 20,
   },
   statementsButton: {
     flexDirection: 'row',
@@ -194,8 +186,6 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 6,
   },
   statementsButtonText: {
-    fontSize: 12,
     fontWeight: '600',
-    color: '#FFFFFF',
   },
 })

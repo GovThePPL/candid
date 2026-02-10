@@ -2,12 +2,13 @@ import { forwardRef } from 'react'
 import { TextInput } from 'react-native'
 import { useThemeColors } from '../hooks/useThemeColors'
 
-const ThemedTextInput = forwardRef(function ThemedTextInput({ style, ...props }, ref) {
+const ThemedTextInput = forwardRef(function ThemedTextInput({ style, maxFontSizeMultiplier = 1.5, ...props }, ref) {
   const colors = useThemeColors()
 
   return (
     <TextInput
       ref={ref}
+      maxFontSizeMultiplier={maxFontSizeMultiplier}
       style={[
         {
           backgroundColor: colors.uiBackground,

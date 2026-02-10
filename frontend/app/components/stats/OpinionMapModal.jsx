@@ -1,10 +1,12 @@
 import { useState, useMemo } from 'react'
-import { View, Text, StyleSheet, Modal, TouchableOpacity, useWindowDimensions } from 'react-native'
+import { View, StyleSheet, Modal, TouchableOpacity, useWindowDimensions } from 'react-native'
 import Svg, { Polygon, Circle, Text as SvgText, G, ClipPath, Defs, Image as SvgImage, Line } from 'react-native-svg'
 import { Ionicons } from '@expo/vector-icons'
 import { GROUP_COLORS, SemanticColors, BrandColor } from '../../constants/Colors'
+import { Typography } from '../../constants/Theme'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { createSharedStyles } from '../../constants/SharedStyles'
+import ThemedText from '../ThemedText'
 import { getAvatarImageUrl, getInitials, getInitialsColor } from '../../lib/avatarUtils'
 
 /**
@@ -122,7 +124,7 @@ export default function OpinionMapModal({
           <SvgText
             x={cx}
             y={cy + radius + 10}
-            fontSize="10"
+            fontSize={Typography.badge.fontSize}
             fontWeight="bold"
             fill={color}
             textAnchor="middle"
@@ -147,7 +149,7 @@ export default function OpinionMapModal({
         <SvgText
           x={toSvgX(centroid.x)}
           y={toSvgY(centroid.y)}
-          fontSize="14"
+          fontSize={Typography.bodySmall.fontSize}
           fontWeight="bold"
           fill={color}
           textAnchor="middle"
@@ -224,7 +226,7 @@ export default function OpinionMapModal({
         <SvgText
           x={x}
           y={y + avatarRadius + 14}
-          fontSize="10"
+          fontSize={Typography.caption.fontSize}
           fontWeight="600"
           fill={borderColor}
           textAnchor="middle"
@@ -273,7 +275,7 @@ export default function OpinionMapModal({
       >
         <TouchableOpacity activeOpacity={1} style={styles.content}>
           <View style={styles.header}>
-            <Text style={styles.title}>Opinion Map</Text>
+            <ThemedText variant="h3" color="primary" style={styles.title}>Opinion Map</ThemedText>
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
               <Ionicons name="close" size={24} color={colors.text} />
             </TouchableOpacity>
@@ -286,17 +288,17 @@ export default function OpinionMapModal({
                 style={[styles.tab, !showAllCategories && styles.tabActive]}
                 onPress={() => setShowAllCategories(false)}
               >
-                <Text style={[styles.tabText, !showAllCategories && styles.tabTextActive]}>
+                <ThemedText variant="caption" style={[styles.tabText, !showAllCategories && styles.tabTextActive]}>
                   {categoryTabLabel}
-                </Text>
+                </ThemedText>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.tab, showAllCategories && styles.tabActive]}
                 onPress={() => setShowAllCategories(true)}
               >
-                <Text style={[styles.tabText, showAllCategories && styles.tabTextActive]}>
+                <ThemedText variant="caption" style={[styles.tabText, showAllCategories && styles.tabTextActive]}>
                   {allCategoriesTabLabel}
-                </Text>
+                </ThemedText>
               </TouchableOpacity>
             </View>
           )}
@@ -322,7 +324,7 @@ export default function OpinionMapModal({
                   return (
                     <View key={group.id} style={styles.legendItem}>
                       <View style={[styles.legendDot, { backgroundColor: GROUP_COLORS[index % GROUP_COLORS.length] }]} />
-                      <Text style={styles.legendText}>{displayLabel}</Text>
+                      <ThemedText variant="caption">{displayLabel}</ThemedText>
                     </View>
                   )
                 })}
@@ -331,17 +333,17 @@ export default function OpinionMapModal({
           ) : (
             <View style={styles.noDataContainer}>
               <Ionicons name="analytics-outline" size={48} color={colors.secondaryText} />
-              <Text style={styles.noDataText}>
+              <ThemedText variant="bodySmall" style={styles.noDataText}>
                 Position data not available for these users.
-              </Text>
-              <Text style={styles.noDataSubtext}>
+              </ThemedText>
+              <ThemedText variant="caption" color="secondary" style={styles.noDataSubtext}>
                 Users need to vote on more statements to appear on the map.
-              </Text>
+              </ThemedText>
             </View>
           )}
 
           <TouchableOpacity style={styles.doneButton} onPress={onClose}>
-            <Text style={styles.doneButtonText}>Done</Text>
+            <ThemedText variant="button" color="inverse">Done</ThemedText>
           </TouchableOpacity>
         </TouchableOpacity>
       </TouchableOpacity>
@@ -365,9 +367,7 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: 12,
   },
   title: {
-    fontSize: 16,
     fontWeight: '700',
-    color: colors.primary,
     flex: 1,
   },
   closeButton: {
@@ -396,7 +396,6 @@ const createStyles = (colors) => StyleSheet.create({
     elevation: 1,
   },
   tabText: {
-    fontSize: 12,
     fontWeight: '500',
     color: colors.secondaryText,
     textAlign: 'center',
@@ -429,8 +428,6 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 6,
   },
   legendText: {
-    fontSize: 12,
-    color: colors.text,
   },
   noDataContainer: {
     alignItems: 'center',
@@ -438,14 +435,10 @@ const createStyles = (colors) => StyleSheet.create({
     paddingHorizontal: 16,
   },
   noDataText: {
-    fontSize: 14,
-    color: colors.text,
     textAlign: 'center',
     marginTop: 12,
   },
   noDataSubtext: {
-    fontSize: 12,
-    color: colors.secondaryText,
     textAlign: 'center',
     marginTop: 4,
   },
@@ -454,10 +447,5 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 8,
     paddingVertical: 12,
     alignItems: 'center',
-  },
-  doneButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
   },
 })

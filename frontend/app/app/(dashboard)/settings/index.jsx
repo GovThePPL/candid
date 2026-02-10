@@ -1,4 +1,4 @@
-import { StyleSheet, View, Text, TouchableOpacity } from 'react-native'
+import { StyleSheet, View, TouchableOpacity } from 'react-native'
 import { useMemo } from 'react'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -37,7 +37,7 @@ export default function SettingsHub() {
       <Header onBack={handleBack} />
       <View style={styles.content}>
         <View style={styles.pageHeader}>
-          <ThemedText title={true} style={styles.pageTitle}>
+          <ThemedText variant="h1" title={true} style={styles.pageTitle}>
             Settings
           </ThemedText>
         </View>
@@ -50,8 +50,8 @@ export default function SettingsHub() {
         >
           <Avatar user={user} size={64} showKudosBadge={false} />
           <View style={styles.userInfo}>
-            <Text style={styles.displayName}>{user?.displayName || 'Guest'}</Text>
-            <Text style={styles.username}>@{user?.username || 'guest'}</Text>
+            <ThemedText variant="h2" color="dark">{user?.displayName || 'Guest'}</ThemedText>
+            <ThemedText variant="bodySmall" color="secondary" style={styles.username}>@{user?.username || 'guest'}</ThemedText>
           </View>
           <Ionicons name="chevron-forward" size={20} color={colors.secondaryText} />
         </TouchableOpacity>
@@ -76,12 +76,12 @@ export default function SettingsHub() {
                 size={18}
                 color={themePreference === option.value ? '#FFFFFF' : colors.secondaryText}
               />
-              <Text style={[
+              <ThemedText variant="label" color="secondary" style={[
                 styles.themeOptionLabel,
                 themePreference === option.value && styles.themeOptionLabelSelected,
               ]}>
                 {option.value.charAt(0).toUpperCase() + option.value.slice(1)}
-              </Text>
+              </ThemedText>
             </TouchableOpacity>
           ))}
         </View>
@@ -99,7 +99,7 @@ export default function SettingsHub() {
               activeOpacity={0.7}
             >
               <Ionicons name={item.icon} size={22} color={colors.primary} />
-              <Text style={styles.menuLabel}>{item.label}</Text>
+              <ThemedText variant="button" color="dark" style={styles.menuLabel}>{item.label}</ThemedText>
               <Ionicons name="chevron-forward" size={18} color={colors.secondaryText} />
             </TouchableOpacity>
           ))}
@@ -122,8 +122,6 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: 20,
   },
   pageTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
     color: colors.primary,
   },
   userSection: {
@@ -140,14 +138,7 @@ const createStyles = (colors) => StyleSheet.create({
     flex: 1,
     marginLeft: 14,
   },
-  displayName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.darkText,
-  },
   username: {
-    fontSize: 14,
-    color: colors.secondaryText,
     marginTop: 2,
   },
   menuSection: {
@@ -171,8 +162,6 @@ const createStyles = (colors) => StyleSheet.create({
   },
   menuLabel: {
     flex: 1,
-    fontSize: 16,
-    color: colors.darkText,
     fontWeight: '500',
   },
   themeSection: {
@@ -197,11 +186,10 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.primary,
   },
   themeOptionLabel: {
-    fontSize: 13,
-    color: colors.secondaryText,
     fontWeight: '500',
   },
   themeOptionLabelSelected: {
     color: '#FFFFFF',
+    fontWeight: '500',
   },
 })

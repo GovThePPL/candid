@@ -1,0 +1,17 @@
+[run]
+source =
+    backend/server/generated/candid/controllers/helpers
+omit =
+    backend/server/generated/candid/controllers/helpers/__pycache__/*
+    */test_*
+branch = True
+
+[report]
+show_missing = True
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.:
+    pass
+
+[html]
+directory = backend/coverage_html

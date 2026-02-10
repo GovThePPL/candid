@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   StyleSheet,
   View,
-  Text,
   ScrollView,
   RefreshControl,
   ActivityIndicator,
@@ -13,6 +12,7 @@ import { useLocalSearchParams, router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../../../hooks/useThemeColors'
 import { SemanticColors } from '../../../constants/Colors'
+import ThemedText from '../../../components/ThemedText'
 import Header from '../../../components/Header'
 import PositionSummaryCard from '../../../components/stats/PositionSummaryCard'
 import ClosureCard from '../../../components/stats/ClosureCard'
@@ -80,7 +80,7 @@ export default function PositionClosures() {
       return (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Loading closures...</Text>
+          <ThemedText variant="bodySmall" color="secondary" style={styles.loadingText}>Loading closures...</ThemedText>
         </View>
       )
     }
@@ -89,9 +89,9 @@ export default function PositionClosures() {
       return (
         <View style={styles.centerContainer}>
           <Ionicons name="alert-circle-outline" size={48} color={SemanticColors.disagree} />
-          <Text style={styles.errorText}>{error}</Text>
+          <ThemedText variant="bodySmall" color="disagree" style={styles.errorText}>{error}</ThemedText>
           <TouchableOpacity style={styles.retryButton} onPress={fetchClosures}>
-            <Text style={styles.retryButtonText}>Retry</Text>
+            <ThemedText variant="buttonSmall" color="inverse">Retry</ThemedText>
           </TouchableOpacity>
         </View>
       )
@@ -100,7 +100,7 @@ export default function PositionClosures() {
     if (!data) {
       return (
         <View style={styles.centerContainer}>
-          <Text style={styles.noDataText}>No data available</Text>
+          <ThemedText variant="bodySmall" color="secondary" style={styles.noDataText}>No data available</ThemedText>
         </View>
       )
     }
@@ -114,11 +114,11 @@ export default function PositionClosures() {
 
         {/* Closures count */}
         <View style={styles.countRow}>
-          <Text style={styles.countText}>
+          <ThemedText variant="buttonSmall" style={styles.countText}>
             {closures.length} Agreed {closures.length === 1 ? 'Closure' : 'Closures'}
-          </Text>
+          </ThemedText>
           {closures.length > 0 && (
-            <Text style={styles.sortText}>Sorted by value</Text>
+            <ThemedText variant="caption" color="secondary">Sorted by value</ThemedText>
           )}
         </View>
 
@@ -135,10 +135,10 @@ export default function PositionClosures() {
         ) : (
           <View style={styles.emptyContainer}>
             <Ionicons name="chatbubbles-outline" size={48} color={colors.secondaryText} />
-            <Text style={styles.emptyTitle}>No Agreed Closures Yet</Text>
-            <Text style={styles.emptyText}>
+            <ThemedText variant="h3" style={styles.emptyTitle}>No Agreed Closures Yet</ThemedText>
+            <ThemedText variant="bodySmall" color="secondary" style={styles.emptyText}>
               When chats about this position end with an agreed statement, they will appear here.
-            </Text>
+            </ThemedText>
           </View>
         )}
       </>
@@ -162,8 +162,8 @@ export default function PositionClosures() {
         }
       >
         <View style={styles.pageHeader}>
-          <Text style={styles.title}>Agreed Closures</Text>
-          <Text style={styles.subtitle}>Chats that reached agreement</Text>
+          <ThemedText variant="h1" color="primary">Agreed Closures</ThemedText>
+          <ThemedText variant="bodySmall" color="secondary" style={styles.subtitle}>Chats that reached agreement</ThemedText>
         </View>
 
         {renderContent()}
@@ -212,14 +212,7 @@ const createStyles = (colors) => StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 16,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.primary,
-  },
   subtitle: {
-    fontSize: 14,
-    color: colors.secondaryText,
     marginTop: 2,
   },
   countRow: {
@@ -230,13 +223,6 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: 12,
   },
   countText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  sortText: {
-    fontSize: 12,
-    color: colors.secondaryText,
   },
   centerContainer: {
     flex: 1,
@@ -246,19 +232,13 @@ const createStyles = (colors) => StyleSheet.create({
     padding: 24,
   },
   loadingText: {
-    fontSize: 14,
-    color: colors.secondaryText,
     marginTop: 12,
   },
   errorText: {
-    fontSize: 14,
-    color: SemanticColors.disagree,
     textAlign: 'center',
     marginTop: 12,
   },
   noDataText: {
-    fontSize: 14,
-    color: colors.secondaryText,
     textAlign: 'center',
   },
   retryButton: {
@@ -267,11 +247,6 @@ const createStyles = (colors) => StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
-  },
-  retryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
   },
   emptyContainer: {
     alignItems: 'center',
@@ -282,16 +257,10 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 12,
   },
   emptyTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
     marginTop: 16,
   },
   emptyText: {
-    fontSize: 14,
-    color: colors.secondaryText,
     textAlign: 'center',
     marginTop: 8,
-    lineHeight: 20,
   },
 })

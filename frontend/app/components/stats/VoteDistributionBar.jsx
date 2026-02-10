@@ -1,7 +1,9 @@
 import { useMemo } from 'react'
-import { View, Text, StyleSheet } from 'react-native'
+import { View, StyleSheet } from 'react-native'
 import { SemanticColors } from '../../constants/Colors'
+import { Typography } from '../../constants/Theme'
 import { useThemeColors } from '../../hooks/useThemeColors'
+import ThemedText from '../ThemedText'
 
 /**
  * Horizontal stacked bar showing vote distribution (agree/pass/disagree)
@@ -10,58 +12,42 @@ import { useThemeColors } from '../../hooks/useThemeColors'
  * @param {Object} props.distribution - { agree: 0-1, pass: 0-1, disagree: 0-1 }
  * @param {boolean} props.showLabels - Whether to show percentage labels
  * @param {number} props.height - Bar height in pixels
- * @param {boolean} props.hideUnanswered - If true, hide unanswered segment and scale votes to fill bar
  */
 export default function VoteDistributionBar({
   distribution = { agree: 0, pass: 0, disagree: 0 },
   showLabels = true,
   height = 24,
-  hideUnanswered = false,
 }) {
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
 
   const { agree = 0, pass = 0, disagree = 0 } = distribution
 
-  // Calculate total answered
+  // Calculate total answered and scale to fill bar
   const total = agree + pass + disagree
 
-  // When hiding unanswered, scale percentages to 100% of answered votes
-  // Otherwise use raw values (which may not add to 100%)
-  let displayAgree, displayDisagree, displayPass
-  if (hideUnanswered && total > 0) {
-    displayAgree = agree / total
-    displayDisagree = disagree / total
-    displayPass = pass / total
-  } else {
-    displayAgree = agree
-    displayDisagree = disagree
-    displayPass = pass
-  }
+  const displayAgree = total > 0 ? agree / total : 0
+  const displayDisagree = total > 0 ? disagree / total : 0
+  const displayPass = total > 0 ? pass / total : 0
 
   // Calculate percentages for labels
   const agreePercent = Math.round(displayAgree * 100)
   const passPercent = Math.round(displayPass * 100)
   const disagreePercent = Math.round(displayDisagree * 100)
 
-  // Calculate unanswered (when totals don't add to 100%)
-  const unanswered = hideUnanswered ? 0 : Math.max(0, 1 - total)
-  const unansweredPercent = Math.round(unanswered * 100)
-
   // Show label if segment is at least 12% wide (enough for "XX%")
   const showAgreeLabel = agreePercent >= 12
   const showPassLabel = passPercent >= 12
   const showDisagreeLabel = disagreePercent >= 12
-  const showUnansweredLabel = unansweredPercent >= 12
 
   // If no votes at all, show empty bar
   if (total === 0) {
     return (
       <View style={styles.container}>
         <View style={[styles.bar, { height }]}>
-          <View style={[styles.segment, styles.unansweredSegment, { flex: 1 }]}>
+          <View style={[styles.segment, styles.emptySegment, { flex: 1 }]}>
             {showLabels && (
-              <Text style={[styles.segmentLabel, styles.unansweredLabel]}>No votes</Text>
+              <ThemedText variant="badge" color="secondary" style={styles.segmentLabel}>No votes</ThemedText>
             )}
           </View>
         </View>
@@ -81,7 +67,7 @@ export default function VoteDistributionBar({
             ]}
           >
             {showLabels && showAgreeLabel && (
-              <Text style={styles.segmentLabel}>{agreePercent}%</Text>
+              <ThemedText variant="badge" color="inverse" style={styles.segmentLabel}>{agreePercent}%</ThemedText>
             )}
           </View>
         )}
@@ -94,7 +80,7 @@ export default function VoteDistributionBar({
             ]}
           >
             {showLabels && showDisagreeLabel && (
-              <Text style={styles.segmentLabel}>{disagreePercent}%</Text>
+              <ThemedText variant="badge" color="inverse" style={styles.segmentLabel}>{disagreePercent}%</ThemedText>
             )}
           </View>
         )}
@@ -107,22 +93,7 @@ export default function VoteDistributionBar({
             ]}
           >
             {showLabels && showPassLabel && (
-              <Text style={[styles.segmentLabel, styles.passLabel]}>{passPercent}%</Text>
-            )}
-          </View>
-        )}
-        {unansweredPercent > 0 && !hideUnanswered && (
-          <View
-            style={[
-              styles.segment,
-              styles.unansweredSegment,
-              { flex: unanswered },
-            ]}
-          >
-            {showLabels && showUnansweredLabel && (
-              <Text style={[styles.segmentLabel, styles.unansweredLabel]}>
-                {unansweredPercent}%
-              </Text>
+              <ThemedText variant="badge" color="secondary" style={styles.segmentLabel}>{passPercent}%</ThemedText>
             )}
           </View>
         )}
@@ -154,20 +125,12 @@ const createStyles = (colors) => StyleSheet.create({
   disagreeSegment: {
     backgroundColor: SemanticColors.disagree,
   },
-  unansweredSegment: {
+  emptySegment: {
     backgroundColor: colors.border,
     borderWidth: 1,
     borderColor: colors.cardBorder,
   },
   segmentLabel: {
-    fontSize: 10,
     fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  passLabel: {
-    color: colors.secondaryText,
-  },
-  unansweredLabel: {
-    color: colors.secondaryText,
   },
 })

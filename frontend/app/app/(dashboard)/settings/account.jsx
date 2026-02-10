@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, TextInput } from 'react-native'
+import { StyleSheet, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, TextInput } from 'react-native'
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -139,7 +139,7 @@ export default function AccountSettings() {
       <Header onBack={() => router.back()} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.pageHeader}>
-          <ThemedText title={true} style={styles.pageTitle}>
+          <ThemedText variant="h1" title={true} style={styles.pageTitle}>
             Account
           </ThemedText>
         </View>
@@ -147,7 +147,7 @@ export default function AccountSettings() {
         {error && (
           <View style={styles.errorContainer}>
             <Ionicons name="alert-circle" size={20} color={SemanticColors.warning} />
-            <Text style={styles.errorText}>{error}</Text>
+            <ThemedText variant="bodySmall" color="error" style={styles.errorText}>{error}</ThemedText>
           </View>
         )}
 
@@ -155,7 +155,7 @@ export default function AccountSettings() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="mail-outline" size={22} color={colors.primary} />
-            <Text style={styles.sectionTitle}>Email</Text>
+            <ThemedText variant="h2" color="dark">Email</ThemedText>
           </View>
 
           {editingEmail ? (
@@ -170,6 +170,7 @@ export default function AccountSettings() {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoFocus
+                  maxFontSizeMultiplier={1.5}
                 />
               </View>
 
@@ -182,7 +183,7 @@ export default function AccountSettings() {
                     setEditingEmail(false)
                   }}
                 >
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                  <ThemedText variant="button" color="secondary" style={styles.cancelButtonText}>Cancel</ThemedText>
                 </TouchableOpacity>
                 {hasEmailChanges && (
                   <TouchableOpacity
@@ -193,7 +194,7 @@ export default function AccountSettings() {
                     {savingEmail ? (
                       <ActivityIndicator size="small" color="#fff" />
                     ) : (
-                      <Text style={styles.saveButtonText}>Save</Text>
+                      <ThemedText variant="button" color="inverse">Save</ThemedText>
                     )}
                   </TouchableOpacity>
                 )}
@@ -201,7 +202,7 @@ export default function AccountSettings() {
             </>
           ) : (
             <View style={styles.emailReadOnly}>
-              <Text style={styles.emailText}>{email || 'Not set'}</Text>
+              <ThemedText variant="button" color="dark" style={styles.emailText}>{email || 'Not set'}</ThemedText>
               <TouchableOpacity
                 style={styles.editButton}
                 onPress={() => setEditingEmail(true)}
@@ -216,7 +217,7 @@ export default function AccountSettings() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="shield-outline" size={22} color={colors.primary} />
-            <Text style={styles.sectionTitle}>Account Security</Text>
+            <ThemedText variant="h2" color="dark">Account Security</ThemedText>
           </View>
 
           <TouchableOpacity
@@ -224,7 +225,7 @@ export default function AccountSettings() {
             onPress={logout}
           >
             <Ionicons name="log-out-outline" size={20} color={colors.primary} />
-            <Text style={styles.logoutButtonText}>Log Out</Text>
+            <ThemedText variant="button" color="primary" style={styles.logoutButtonText}>Log Out</ThemedText>
           </TouchableOpacity>
         </View>
 
@@ -232,7 +233,7 @@ export default function AccountSettings() {
         <View style={[styles.section, styles.dangerSection]}>
           <View style={styles.sectionHeader}>
             <Ionicons name="warning-outline" size={22} color={SemanticColors.warning} />
-            <Text style={[styles.sectionTitle, styles.dangerTitle]}>Danger Zone</Text>
+            <ThemedText variant="h2" color="error">Danger Zone</ThemedText>
           </View>
 
           <TouchableOpacity
@@ -240,7 +241,7 @@ export default function AccountSettings() {
             onPress={() => setDeleteModalOpen(true)}
           >
             <Ionicons name="trash-outline" size={20} color={SemanticColors.warning} />
-            <Text style={styles.deleteButtonText}>Delete Account</Text>
+            <ThemedText variant="button" color="error" style={styles.deleteButtonText}>Delete Account</ThemedText>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -254,18 +255,18 @@ export default function AccountSettings() {
       >
         <Pressable style={shared.modalOverlay} onPress={() => setDeleteModalOpen(false)}>
           <View style={styles.formModalContent}>
-            <Text style={[styles.modalTitle, styles.dangerTitle]}>Delete Account</Text>
+            <ThemedText variant="h2" color="error" style={styles.modalTitle}>Delete Account</ThemedText>
 
             <View style={styles.deleteWarning}>
               <Ionicons name="warning" size={24} color={SemanticColors.warning} />
-              <Text style={styles.deleteWarningText}>
+              <ThemedText variant="bodySmall" style={styles.deleteWarningText}>
                 This action cannot be undone. Your account will be permanently deleted.
-              </Text>
+              </ThemedText>
             </View>
 
             {deleteError && (
               <View style={styles.modalError}>
-                <Text style={styles.modalErrorText}>{deleteError}</Text>
+                <ThemedText variant="bodySmall" color="error" style={styles.modalErrorText}>{deleteError}</ThemedText>
               </View>
             )}
 
@@ -277,7 +278,7 @@ export default function AccountSettings() {
                   setDeleteError(null)
                 }}
               >
-                <Text style={styles.modalCancelButtonText}>Cancel</Text>
+                <ThemedText variant="button" color="secondary">Cancel</ThemedText>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalDeleteButton, deletingAccount && styles.modalButtonDisabled]}
@@ -287,7 +288,7 @@ export default function AccountSettings() {
                 {deletingAccount ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
-                  <Text style={styles.modalDeleteButtonText}>Delete Account</Text>
+                  <ThemedText variant="button" color="inverse">Delete Account</ThemedText>
                 )}
               </TouchableOpacity>
             </View>
@@ -312,14 +313,12 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: 20,
   },
   pageTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
     color: colors.primary,
   },
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffe6e6',
+    backgroundColor: colors.errorBannerBg,
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
@@ -327,8 +326,6 @@ const createStyles = (colors) => StyleSheet.create({
   },
   errorText: {
     flex: 1,
-    color: SemanticColors.warning,
-    fontSize: 14,
   },
   section: {
     backgroundColor: colors.cardBackground,
@@ -343,11 +340,6 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.darkText,
   },
   inputGroup: {
     marginBottom: 12,
@@ -368,8 +360,6 @@ const createStyles = (colors) => StyleSheet.create({
     justifyContent: 'space-between',
   },
   emailText: {
-    fontSize: 16,
-    color: colors.darkText,
     flex: 1,
   },
   editButton: {
@@ -392,8 +382,6 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
   },
   cancelButtonText: {
-    fontSize: 16,
-    color: colors.secondaryText,
   },
   saveButton: {
     flex: 1,
@@ -402,11 +390,7 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
   },
-  saveButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  // saveButtonText removed - handled by ThemedText variant="button" color="inverse"
   buttonDisabled: {
     opacity: 0.6,
   },
@@ -420,16 +404,12 @@ const createStyles = (colors) => StyleSheet.create({
   },
   logoutButtonText: {
     flex: 1,
-    fontSize: 16,
-    color: colors.primary,
     fontWeight: '500',
   },
   dangerSection: {
     borderColor: SemanticColors.warning + '40',
   },
-  dangerTitle: {
-    color: SemanticColors.warning,
-  },
+  // dangerTitle removed - handled by ThemedText color="error"
   deleteButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -437,8 +417,6 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 12,
   },
   deleteButtonText: {
-    fontSize: 16,
-    color: SemanticColors.warning,
     fontWeight: '500',
   },
   // Modal styles
@@ -450,16 +428,13 @@ const createStyles = (colors) => StyleSheet.create({
     padding: 20,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.darkText,
     textAlign: 'center',
     marginBottom: 16,
   },
   deleteWarning: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff3e6',
+    backgroundColor: colors.warningBannerBg,
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
@@ -467,19 +442,15 @@ const createStyles = (colors) => StyleSheet.create({
   },
   deleteWarningText: {
     flex: 1,
-    fontSize: 14,
-    color: '#b35900',
-    lineHeight: 20,
+    color: colors.warningBannerText,
   },
   modalError: {
-    backgroundColor: '#ffe6e6',
+    backgroundColor: colors.errorBannerBg,
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
   },
   modalErrorText: {
-    color: SemanticColors.warning,
-    fontSize: 14,
     textAlign: 'center',
   },
   modalButtons: {
@@ -495,10 +466,7 @@ const createStyles = (colors) => StyleSheet.create({
     borderColor: colors.cardBorder,
     alignItems: 'center',
   },
-  modalCancelButtonText: {
-    fontSize: 16,
-    color: colors.secondaryText,
-  },
+  // modalCancelButtonText removed - handled by ThemedText variant="button" color="secondary"
   modalDeleteButton: {
     flex: 1,
     paddingVertical: 12,
@@ -506,11 +474,7 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: SemanticColors.warning,
     alignItems: 'center',
   },
-  modalDeleteButtonText: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
+  // modalDeleteButtonText removed - handled by ThemedText variant="button" color="inverse"
   modalButtonDisabled: {
     opacity: 0.6,
   },

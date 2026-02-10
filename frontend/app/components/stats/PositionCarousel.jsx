@@ -1,7 +1,9 @@
 import { useState, useMemo } from 'react'
-import { View, Text, TextInput, StyleSheet, useWindowDimensions } from 'react-native'
+import { View, TextInput, StyleSheet, useWindowDimensions } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../../hooks/useThemeColors'
+import { Typography } from '../../constants/Theme'
+import ThemedText from '../ThemedText'
 import PositionCard from './PositionCard'
 
 // Breakpoints for responsive grid
@@ -120,6 +122,7 @@ export default function PositionCarousel({
               onChangeText={setSearchQuery}
               autoCapitalize="none"
               autoCorrect={false}
+              maxFontSizeMultiplier={1.5}
             />
             {searchQuery.length > 0 && (
               <Ionicons
@@ -133,7 +136,7 @@ export default function PositionCarousel({
           </View>
         )}
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>{emptyMessage}</Text>
+          <ThemedText variant="bodySmall" color="secondary">{emptyMessage}</ThemedText>
         </View>
       </View>
     )
@@ -152,6 +155,7 @@ export default function PositionCarousel({
             onChangeText={setSearchQuery}
             autoCapitalize="none"
             autoCorrect={false}
+            maxFontSizeMultiplier={1.5}
           />
           {searchQuery.length > 0 && (
             <Ionicons
@@ -203,7 +207,7 @@ const createStyles = (colors) => StyleSheet.create({
   searchInput: {
     flex: 1,
     paddingVertical: 12,
-    fontSize: 15,
+    ...Typography.body,
     color: colors.text,
   },
   clearIcon: {
@@ -225,7 +229,5 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
   },
   emptyText: {
-    fontSize: 14,
-    color: colors.secondaryText,
   },
 })

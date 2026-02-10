@@ -1,14 +1,15 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
   View,
-  Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { SemanticColors, BrandColor } from '../../constants/Colors'
+import { Typography } from '../../constants/Theme'
 import { useThemeColors } from '../../hooks/useThemeColors'
+import ThemedText from '../ThemedText'
 import { chatApiWrapper } from '../../lib/api'
 import BottomDrawerModal from '../BottomDrawerModal'
 import LoadingView from '../LoadingView'
@@ -66,9 +67,9 @@ export default function AgreedStatementsModal({ visible, onClose, chatLogId, clo
       return (
         <View style={styles.centerContainer}>
           <Ionicons name="alert-circle-outline" size={48} color={SemanticColors.disagree} />
-          <Text style={styles.errorText}>{error}</Text>
+          <ThemedText variant="bodySmall" style={styles.errorText}>{error}</ThemedText>
           <TouchableOpacity style={styles.retryButton} onPress={fetchChatLog}>
-            <Text style={styles.retryButtonText}>Retry</Text>
+            <ThemedText variant="buttonSmall" color="inverse">Retry</ThemedText>
           </TouchableOpacity>
         </View>
       )
@@ -82,11 +83,11 @@ export default function AgreedStatementsModal({ visible, onClose, chatLogId, clo
         {/* Agreed Positions - chronological order from the chat */}
         {agreedPositions.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Agreed Statements ({agreedPositions.length})</Text>
+            <ThemedText variant="buttonSmall" style={styles.sectionTitle}>Agreed Statements ({agreedPositions.length})</ThemedText>
             {agreedPositions.map((statement, index) => (
               <View key={index} style={styles.statementCard}>
                 <Ionicons name="checkmark-circle" size={18} color={SemanticColors.agree} />
-                <Text style={styles.statementText}>{statement.content || statement}</Text>
+                <ThemedText variant="bodySmall" style={styles.statementText}>{statement.content || statement}</ThemedText>
               </View>
             ))}
           </View>
@@ -95,10 +96,10 @@ export default function AgreedStatementsModal({ visible, onClose, chatLogId, clo
         {/* Final Agreed Closure - last item */}
         {resolvedClosureText && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Final Agreement</Text>
+            <ThemedText variant="buttonSmall" style={styles.sectionTitle}>Final Agreement</ThemedText>
             <View style={styles.closureCard}>
               <Ionicons name="ribbon-outline" size={20} color={colors.primary} />
-              <Text style={styles.closureText}>"{resolvedClosureText}"</Text>
+              <ThemedText variant="body" style={styles.closureText}>"{resolvedClosureText}"</ThemedText>
             </View>
           </View>
         )}
@@ -125,7 +126,7 @@ export default function AgreedStatementsModal({ visible, onClose, chatLogId, clo
         {renderContent()}
 
         <TouchableOpacity style={styles.doneButton} onPress={onClose}>
-          <Text style={styles.doneButtonText}>Done</Text>
+          <ThemedText variant="button" color="inverse">Done</ThemedText>
         </TouchableOpacity>
       </View>
     </BottomDrawerModal>
@@ -145,7 +146,6 @@ const createStyles = (colors) => StyleSheet.create({
     paddingHorizontal: 16,
   },
   errorText: {
-    fontSize: 14,
     color: SemanticColors.disagree,
     textAlign: 'center',
     marginTop: 12,
@@ -157,10 +157,6 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 8,
   },
-  retryButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
   scrollView: {
     flex: 1,
   },
@@ -168,9 +164,6 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: 20,
   },
   sectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
     marginBottom: 12,
   },
   statementCard: {
@@ -184,9 +177,6 @@ const createStyles = (colors) => StyleSheet.create({
   },
   statementText: {
     flex: 1,
-    fontSize: 14,
-    color: colors.text,
-    lineHeight: 20,
   },
   closureCard: {
     flexDirection: 'row',
@@ -200,10 +190,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   closureText: {
     flex: 1,
-    fontSize: 15,
     fontStyle: 'italic',
-    color: colors.text,
-    lineHeight: 22,
   },
   doneButton: {
     backgroundColor: colors.primary,
@@ -211,10 +198,5 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 14,
     alignItems: 'center',
     marginTop: 16,
-  },
-  doneButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
   },
 })

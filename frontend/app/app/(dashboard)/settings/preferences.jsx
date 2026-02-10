@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable } from 'react-native'
+import { StyleSheet, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable } from 'react-native'
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -245,7 +245,7 @@ export default function PreferencesSettings() {
       <Header onBack={() => router.back()} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.pageHeader}>
-          <ThemedText title={true} style={styles.pageTitle}>
+          <ThemedText variant="h1" title={true} style={styles.pageTitle}>
             Preferences
           </ThemedText>
         </View>
@@ -253,7 +253,7 @@ export default function PreferencesSettings() {
         {error && (
           <View style={styles.errorContainer}>
             <Ionicons name="alert-circle" size={20} color={SemanticColors.warning} />
-            <Text style={styles.errorText}>{error}</Text>
+            <ThemedText variant="bodySmall" color="error" style={styles.errorText}>{error}</ThemedText>
           </View>
         )}
 
@@ -261,11 +261,11 @@ export default function PreferencesSettings() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="grid-outline" size={22} color={colors.primary} />
-            <Text style={styles.sectionTitle}>Category Preferences</Text>
+            <ThemedText variant="h2" color="dark">Category Preferences</ThemedText>
           </View>
-          <Text style={styles.sectionDescription}>
+          <ThemedText variant="bodySmall" color="secondary" style={styles.sectionDescription}>
             Adjust how often you see positions from each category in your feed.
-          </Text>
+          </ThemedText>
 
           <View style={styles.categoryList}>
             {categories.map((category) => {
@@ -278,14 +278,14 @@ export default function PreferencesSettings() {
                   style={[styles.categoryItem, isNonDefault && styles.categoryItemModified]}
                   onPress={() => openWeightModal(category)}
                 >
-                  <Text style={styles.categoryName}>{category.label}</Text>
+                  <ThemedText variant="body" color="dark" style={styles.categoryName}>{category.label}</ThemedText>
                   <View style={styles.categoryWeightButton}>
-                    <Text style={[
+                    <ThemedText variant="bodySmall" color="secondary" style={[
                       styles.categoryWeightText,
                       isNonDefault && styles.categoryWeightTextModified
                     ]}>
                       {getWeightLabel(weight)}
-                    </Text>
+                    </ThemedText>
                     <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
                   </View>
                 </TouchableOpacity>
@@ -298,11 +298,11 @@ export default function PreferencesSettings() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="chatbubbles-outline" size={22} color={colors.primary} />
-            <Text style={styles.sectionTitle}>Chat Request Frequency</Text>
+            <ThemedText variant="h2" color="dark">Chat Request Frequency</ThemedText>
           </View>
-          <Text style={styles.sectionDescription}>
+          <ThemedText variant="bodySmall" color="secondary" style={styles.sectionDescription}>
             How often do you want to receive chat requests from others who want to discuss your positions?
-          </Text>
+          </ThemedText>
 
           <View style={styles.likelihoodSelector}>
             {LIKELIHOOD_OPTIONS.map((option) => (
@@ -314,29 +314,29 @@ export default function PreferencesSettings() {
                 ]}
                 onPress={() => handleChatRequestLikelihoodChange(option.value)}
               >
-                <Text style={[
+                <ThemedText variant="label" color="secondary" style={[
                   styles.likelihoodOptionLabel,
                   chatRequestLikelihood === option.value && styles.likelihoodOptionLabelSelected
                 ]}>
                   {option.label}
-                </Text>
+                </ThemedText>
               </TouchableOpacity>
             ))}
           </View>
-          <Text style={styles.likelihoodDescription}>
+          <ThemedText variant="caption" color="secondary" style={styles.likelihoodDescription}>
             {LIKELIHOOD_OPTIONS.find(o => o.value === chatRequestLikelihood)?.description}
-          </Text>
+          </ThemedText>
         </View>
 
         {/* Chatting List Frequency Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="list-outline" size={22} color={colors.primary} />
-            <Text style={styles.sectionTitle}>Chatting List Frequency</Text>
+            <ThemedText variant="h2" color="dark">Chatting List Frequency</ThemedText>
           </View>
-          <Text style={styles.sectionDescription}>
+          <ThemedText variant="bodySmall" color="secondary" style={styles.sectionDescription}>
             How often should items reappear in your card queue from your Chatting List? This includes positions you've previously chatted about and positions you've saved by tapping the chat button on a card.
-          </Text>
+          </ThemedText>
 
           <View style={styles.likelihoodSelector}>
             {LIKELIHOOD_OPTIONS.map((option) => (
@@ -348,25 +348,25 @@ export default function PreferencesSettings() {
                 ]}
                 onPress={() => handleChattingListLikelihoodChange(option.value)}
               >
-                <Text style={[
+                <ThemedText variant="label" color="secondary" style={[
                   styles.likelihoodOptionLabel,
                   chattingListLikelihood === option.value && styles.likelihoodOptionLabelSelected
                 ]}>
                   {option.label}
-                </Text>
+                </ThemedText>
               </TouchableOpacity>
             ))}
           </View>
-          <Text style={styles.likelihoodDescription}>
+          <ThemedText variant="caption" color="secondary" style={styles.likelihoodDescription}>
             {LIKELIHOOD_OPTIONS.find(o => o.value === chattingListLikelihood)?.description}
-          </Text>
+          </ThemedText>
         </View>
 
         {/* Saving indicator */}
         {saving && (
           <View style={styles.savingContainer}>
             <ActivityIndicator size="small" color={colors.primary} />
-            <Text style={styles.savingText}>Saving...</Text>
+            <ThemedText variant="bodySmall" color="primary" style={styles.savingText}>Saving...</ThemedText>
           </View>
         )}
       </ScrollView>
@@ -380,10 +380,10 @@ export default function PreferencesSettings() {
       >
         <Pressable style={shared.modalOverlay} onPress={() => setWeightModalOpen(false)}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
+            <ThemedText variant="h2" color="dark" style={styles.modalTitle}>
               {selectedCategoryForWeight?.label || selectedCategoryForWeight?.name}
-            </Text>
-            <Text style={styles.modalSubtitle}>How often should this category appear?</Text>
+            </ThemedText>
+            <ThemedText variant="bodySmall" color="secondary" style={styles.modalSubtitle}>How often should this category appear?</ThemedText>
             <ScrollView style={styles.modalScrollView}>
               {WEIGHT_OPTIONS.map((option, index) => {
                 const isSelected = getCategoryWeight(selectedCategoryForWeight?.id) === option.value
@@ -399,13 +399,13 @@ export default function PreferencesSettings() {
                     onPress={() => handleCategoryWeightChange(selectedCategoryForWeight?.id, option.value)}
                   >
                     <View style={styles.modalItemContent}>
-                      <Text style={[
+                      <ThemedText variant="button" color="dark" style={[
                         styles.modalItemLabel,
                         isSelected && styles.modalItemLabelSelected
                       ]}>
                         {option.label}
-                      </Text>
-                      <Text style={styles.modalItemDescription}>{option.description}</Text>
+                      </ThemedText>
+                      <ThemedText variant="caption" color="secondary" style={styles.modalItemDescription}>{option.description}</ThemedText>
                     </View>
                     {isSelected && (
                       <Ionicons name="checkmark" size={20} color={colors.primary} />
@@ -435,14 +435,12 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: 20,
   },
   pageTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
     color: colors.primary,
   },
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffe6e6',
+    backgroundColor: colors.errorBannerBg,
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
@@ -450,8 +448,6 @@ const createStyles = (colors) => StyleSheet.create({
   },
   errorText: {
     flex: 1,
-    color: SemanticColors.warning,
-    fontSize: 14,
   },
   section: {
     backgroundColor: colors.cardBackground,
@@ -467,15 +463,7 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 10,
     marginBottom: 8,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.darkText,
-  },
   sectionDescription: {
-    fontSize: 14,
-    color: colors.secondaryText,
-    lineHeight: 20,
     marginBottom: 16,
   },
   categoryList: {
@@ -496,8 +484,6 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.primaryLight + '30',
   },
   categoryName: {
-    fontSize: 15,
-    color: colors.darkText,
     flex: 1,
   },
   categoryWeightButton: {
@@ -512,12 +498,9 @@ const createStyles = (colors) => StyleSheet.create({
     borderColor: colors.cardBorder,
   },
   categoryWeightText: {
-    fontSize: 14,
-    color: colors.secondaryText,
   },
   categoryWeightTextModified: {
     color: colors.primary,
-    fontWeight: '500',
   },
   likelihoodSelector: {
     flexDirection: 'row',
@@ -536,16 +519,13 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.primary,
   },
   likelihoodOptionLabel: {
-    fontSize: 13,
-    color: colors.secondaryText,
     fontWeight: '500',
   },
   likelihoodOptionLabelSelected: {
     color: '#FFFFFF',
+    fontWeight: '500',
   },
   likelihoodDescription: {
-    fontSize: 13,
-    color: colors.secondaryText,
     textAlign: 'center',
     marginTop: 10,
     fontStyle: 'italic',
@@ -558,8 +538,6 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 12,
   },
   savingText: {
-    fontSize: 14,
-    color: colors.primary,
   },
   // Modal styles
   modalContent: {
@@ -571,16 +549,11 @@ const createStyles = (colors) => StyleSheet.create({
     overflow: 'hidden',
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.darkText,
     padding: 16,
     paddingBottom: 4,
     textAlign: 'center',
   },
   modalSubtitle: {
-    fontSize: 14,
-    color: colors.secondaryText,
     paddingHorizontal: 16,
     paddingBottom: 12,
     textAlign: 'center',
@@ -607,16 +580,13 @@ const createStyles = (colors) => StyleSheet.create({
     flex: 1,
   },
   modalItemLabel: {
-    fontSize: 16,
-    color: colors.darkText,
     fontWeight: '500',
   },
   modalItemLabelSelected: {
     color: colors.primary,
+    fontWeight: '500',
   },
   modalItemDescription: {
-    fontSize: 13,
-    color: colors.secondaryText,
     marginTop: 2,
   },
 })

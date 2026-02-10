@@ -1,7 +1,11 @@
 import { useEffect } from "react"
 import { Stack } from "expo-router"
-import { Platform } from "react-native"
+import { Platform, Text } from "react-native"
 import { StatusBar } from "expo-status-bar"
+
+// Global font scaling safety net — caps all Text at 2x even without a variant
+Text.defaultProps = Text.defaultProps || {}
+Text.defaultProps.maxFontSizeMultiplier = 2.0
 import { GestureHandlerRootView } from "react-native-gesture-handler"
 import { UserProvider } from "../contexts/UserContext"
 import { ThemeProvider, useTheme } from "../contexts/ThemeContext"

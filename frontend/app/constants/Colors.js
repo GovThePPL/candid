@@ -19,6 +19,7 @@ export const SemanticColors = {
   disagree: "#EF4C45",
   warning: "#EF4C45",
   success: "#008800",
+  escalate: "#B54800",
   overlay: "rgba(0, 0, 0, 0.5)",
 }
 
@@ -78,6 +79,23 @@ export const LightTheme = {
   badgeBg: "#5C005C18",
   badgeText: "#5C005C",
 
+  // Defining statement (stats consensus box)
+  definingAgreeBg: "#C8E6C9",
+  definingDisagreeBg: "#FFCDD2",
+  definingText: "#000000",
+
+  // Banners & alerts
+  errorBannerBg: "#FFEAEA",
+  warningBannerBg: "#FFF3E6",
+  warningBannerText: "#8B3A00",
+
+  // Severity indicators
+  severityLowBg: "#E8F5E9",
+  severityLowText: "#1B5E20",
+  severityMediumBg: "#FFF3E0",
+  severityMediumText: "#9E2B00",
+  severityHighBg: "#FFEBEE",
+
   // Chatting list button backgrounds
   chattingListBg: BrandColor + '20',
   chattingListSelectedBg: "#5C005C",
@@ -129,6 +147,23 @@ export const DarkTheme = {
   // Location/category badges and accent text — solid colors for dark backgrounds
   badgeBg: "#6E206E",
   badgeText: "#BBBBBB",
+
+  // Defining statement (stats consensus box)
+  definingAgreeBg: "#0D3D0D",
+  definingDisagreeBg: "#3D1515",
+  definingText: "#E8E8E8",
+
+  // Banners & alerts
+  errorBannerBg: "#2D0D0D",
+  warningBannerBg: "#2D1A00",
+  warningBannerText: "#FFB74D",
+
+  // Severity indicators
+  severityLowBg: "#0D2D0D",
+  severityLowText: "#81C784",
+  severityMediumBg: "#2D1A00",
+  severityMediumText: "#FFB74D",
+  severityHighBg: "#2D0D0D",
 
   // Chatting list button backgrounds
   chattingListBg: BrandColor + '45',

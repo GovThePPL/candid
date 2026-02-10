@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
   View,
-  Text,
   ScrollView,
   ActivityIndicator,
   TouchableOpacity,
@@ -10,6 +9,7 @@ import {
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { SemanticColors } from '../constants/Colors'
+import ThemedText from './ThemedText'
 import BottomDrawerModal from './BottomDrawerModal'
 import Avatar from './Avatar'
 import api from '../lib/api'
@@ -56,11 +56,11 @@ function UserLine({ label, user, styles }) {
   if (!user) return null
   return (
     <View style={styles.userLine}>
-      <Text style={styles.chainLabel}>{label}</Text>
-      <Text style={styles.userName}>
+      <ThemedText variant="caption" color="secondary" style={styles.chainLabel}>{label}</ThemedText>
+      <ThemedText variant="label" style={styles.userName}>
         {user.displayName || 'Unknown'}{' '}
-        <Text style={styles.userUsername}>@{user.username || 'unknown'}</Text>
-      </Text>
+        <ThemedText variant="label" color="secondary" style={styles.userUsername}>@{user.username || 'unknown'}</ThemedText>
+      </ThemedText>
     </View>
   )
 }
@@ -82,17 +82,17 @@ function HistoryItem({ event, colors, styles }) {
     <View style={styles.historyCard}>
       {/* Card header: action badge + date */}
       <View style={[styles.cardHeader, { backgroundColor: color }]}>
-        <Text style={styles.cardHeaderText}>
+        <ThemedText variant="label" color="inverse" style={styles.cardHeaderText}>
           {ACTION_LABELS[event.actionType] || event.actionType}{event.actionType === 'temporary_ban' && event.durationDays ? ` (${event.durationDays} days)` : ''}
-        </Text>
-        {date && <Text style={styles.cardHeaderDate}>{date}</Text>}
+        </ThemedText>
+        {date && <ThemedText variant="caption" style={styles.cardHeaderDate}>{date}</ThemedText>}
       </View>
 
       {/* Rule title */}
       {event.rule?.title && (
         <View style={styles.ruleRow}>
           <Ionicons name="document-text-outline" size={14} color={colors.text} />
-          <Text style={styles.ruleTitle}>{event.rule.title}</Text>
+          <ThemedText variant="label" style={styles.ruleTitle}>{event.rule.title}</ThemedText>
         </View>
       )}
 
@@ -103,9 +103,9 @@ function HistoryItem({ event, colors, styles }) {
           onPress={() => setExpanded(!expanded)}
           activeOpacity={0.7}
         >
-          <Text style={styles.targetContent} numberOfLines={expanded ? undefined : 2}>
+          <ThemedText variant="label" style={styles.targetContent} numberOfLines={expanded ? undefined : 2}>
             "{event.targetContent}"
-          </Text>
+          </ThemedText>
         </TouchableOpacity>
       )}
 
@@ -118,7 +118,7 @@ function HistoryItem({ event, colors, styles }) {
             <View style={styles.chainContent}>
               <UserLine label="Reported by" user={event.reporter} styles={styles} />
               {event.reportReason && (
-                <Text style={styles.chainComment}>"{event.reportReason}"</Text>
+                <ThemedText variant="caption" style={styles.chainComment}>"{event.reportReason}"</ThemedText>
               )}
             </View>
           </View>
@@ -130,12 +130,12 @@ function HistoryItem({ event, colors, styles }) {
           <View style={styles.chainContent}>
             <UserLine label="Moderator action by" user={event.moderator} styles={styles} />
             <View style={[styles.chainActionBadge, { backgroundColor: color }]}>
-              <Text style={styles.chainActionBadgeText}>
+              <ThemedText variant="caption" color="inverse" style={styles.chainActionBadgeText}>
                 {ACTION_LABELS[event.actionType] || event.actionType}{event.actionType === 'temporary_ban' && event.durationDays ? ` (${event.durationDays} days)` : ''}
-              </Text>
+              </ThemedText>
             </View>
             {event.moderatorComment && (
-              <Text style={styles.chainComment}>"{event.moderatorComment}"</Text>
+              <ThemedText variant="caption" style={styles.chainComment}>"{event.moderatorComment}"</ThemedText>
             )}
           </View>
         </View>
@@ -147,7 +147,7 @@ function HistoryItem({ event, colors, styles }) {
             <View style={styles.chainContent}>
               <UserLine label="Appeal by" user={event.appealUser} styles={styles} />
               {event.appealText && (
-                <Text style={styles.chainComment}>"{event.appealText}"</Text>
+                <ThemedText variant="caption" style={styles.chainComment}>"{event.appealText}"</ThemedText>
               )}
             </View>
           </View>
@@ -170,16 +170,16 @@ function HistoryItem({ event, colors, styles }) {
                 <UserLine label={outcomeLabel} user={resp.responder} styles={styles} />
                 {resp.outcome && (
                   <View style={[styles.chainActionBadge, { backgroundColor: outcomeColor }]}>
-                    <Text style={styles.chainActionBadgeText}>
+                    <ThemedText variant="caption" color="inverse" style={styles.chainActionBadgeText}>
                       {resp.outcome === 'overruled' ? 'Overruled'
                         : resp.outcome === 'escalated' ? 'Escalated'
                         : resp.outcome === 'admin_decision' ? (APPEAL_LABELS[event.appealState] || event.appealState)
                         : ''}
-                    </Text>
+                    </ThemedText>
                   </View>
                 )}
                 {resp.responseText && (
-                  <Text style={styles.chainComment}>"{resp.responseText}"</Text>
+                  <ThemedText variant="caption" style={styles.chainComment}>"{resp.responseText}"</ThemedText>
                 )}
               </View>
             </View>
@@ -231,9 +231,9 @@ export default function ModerationHistoryModal({ visible, onClose, userId, user 
         </View>
       ) : error ? (
         <View style={styles.centerContainer}>
-          <Text style={styles.errorText}>{error}</Text>
+          <ThemedText variant="bodySmall" style={styles.errorText}>{error}</ThemedText>
           <TouchableOpacity style={styles.retryButton} onPress={fetchHistory}>
-            <Text style={styles.retryButtonText}>Retry</Text>
+            <ThemedText variant="buttonSmall" color="inverse">Retry</ThemedText>
           </TouchableOpacity>
         </View>
       ) : (
@@ -247,11 +247,11 @@ export default function ModerationHistoryModal({ visible, onClose, userId, user 
             <View style={styles.userCard}>
               <Avatar user={user} size="md" showKudosCount badgePosition="bottom-left" />
               <View style={styles.userCardInfo}>
-                <Text style={styles.userCardName}>{user.displayName || 'Unknown'}</Text>
-                <Text style={styles.userCardUsername}>@{user.username || 'unknown'}</Text>
+                <ThemedText variant="h3" style={styles.userCardName}>{user.displayName || 'Unknown'}</ThemedText>
+                <ThemedText variant="label" color="secondary">@{user.username || 'unknown'}</ThemedText>
                 {user.status && user.status !== 'active' && (
                   <View style={[styles.statusBadge, user.status === 'banned' && styles.statusBadgeBanned]}>
-                    <Text style={styles.statusBadgeText}>{user.status}</Text>
+                    <ThemedText variant="caption" color="inverse" style={styles.statusBadgeText}>{user.status}</ThemedText>
                   </View>
                 )}
               </View>
@@ -261,7 +261,7 @@ export default function ModerationHistoryModal({ visible, onClose, userId, user 
           {history.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Ionicons name="checkmark-circle-outline" size={40} color={colors.secondaryText} />
-              <Text style={styles.emptyText}>No moderation history</Text>
+              <ThemedText variant="button" color="secondary" style={styles.emptyText}>No moderation history</ThemedText>
             </View>
           ) : (
             history.map((event) => (
@@ -289,7 +289,6 @@ const createStyles = (colors) => StyleSheet.create({
     paddingBottom: 32,
   },
   errorText: {
-    fontSize: 14,
     color: SemanticColors.warning,
     textAlign: 'center',
   },
@@ -299,19 +298,12 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 8,
   },
-  retryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
   emptyContainer: {
     alignItems: 'center',
     gap: 12,
     paddingVertical: 24,
   },
   emptyText: {
-    fontSize: 16,
-    color: colors.secondaryText,
     fontWeight: '500',
   },
 
@@ -331,13 +323,7 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 2,
   },
   userCardName: {
-    fontSize: 16,
     fontWeight: '700',
-    color: colors.text,
-  },
-  userCardUsername: {
-    fontSize: 13,
-    color: colors.secondaryText,
   },
   statusBadge: {
     alignSelf: 'flex-start',
@@ -351,8 +337,6 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: SemanticColors.warning,
   },
   statusBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 11,
     fontWeight: '700',
     textTransform: 'uppercase',
   },
@@ -373,13 +357,10 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 8,
   },
   cardHeaderText: {
-    color: '#FFFFFF',
-    fontSize: 13,
     fontWeight: '700',
   },
   cardHeaderDate: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 12,
+    color: 'rgba(255,255,255,0.9)',
   },
   ruleRow: {
     flexDirection: 'row',
@@ -389,9 +370,6 @@ const createStyles = (colors) => StyleSheet.create({
     paddingTop: 10,
   },
   ruleTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.text,
     flex: 1,
   },
   targetContentBox: {
@@ -402,8 +380,7 @@ const createStyles = (colors) => StyleSheet.create({
     padding: 8,
   },
   targetContent: {
-    fontSize: 13,
-    color: colors.text,
+    fontWeight: undefined,
     fontStyle: 'italic',
     lineHeight: 18,
   },
@@ -432,9 +409,7 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 3,
   },
   chainLabel: {
-    fontSize: 11,
     fontWeight: '600',
-    color: colors.secondaryText,
     textTransform: 'uppercase',
     letterSpacing: 0.3,
   },
@@ -442,13 +417,9 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 1,
   },
   userName: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.text,
   },
   userUsername: {
     fontWeight: '400',
-    color: colors.secondaryText,
   },
   chainActionBadge: {
     alignSelf: 'flex-start',
@@ -457,13 +428,9 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 10,
   },
   chainActionBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 11,
     fontWeight: '600',
   },
   chainComment: {
-    fontSize: 12,
-    color: colors.text,
     fontStyle: 'italic',
     lineHeight: 16,
   },

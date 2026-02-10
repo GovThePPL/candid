@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import {
   View,
-  Text,
   StyleSheet,
   Modal,
   TouchableOpacity,
@@ -11,6 +10,8 @@ import {
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { SemanticColors } from '../constants/Colors'
+import { Typography } from '../constants/Theme'
+import ThemedText from './ThemedText'
 
 const SCREEN_HEIGHT = Dimensions.get('window').height
 
@@ -85,7 +86,7 @@ export default function BottomDrawerModal({
     >
       <View style={styles.container}>
         <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]}>
-          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} accessibilityLabel="Close drawer" accessibilityRole="button" />
         </Animated.View>
 
         <Animated.View
@@ -98,11 +99,11 @@ export default function BottomDrawerModal({
           <View style={styles.header}>
             {headerLeft && <View style={styles.headerLeftSlot}>{headerLeft}</View>}
             <View style={styles.headerTitleContainer}>
-              {title && <Text style={styles.title}>{title}</Text>}
-              {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+              {title && <ThemedText variant="h2" color="primary" style={styles.title}>{title}</ThemedText>}
+              {subtitle && <ThemedText variant="bodySmall" color="secondary" style={styles.subtitle}>{subtitle}</ThemedText>}
             </View>
             {headerRight || (
-              <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+              <TouchableOpacity style={styles.closeButton} onPress={onClose} accessibilityLabel="Close" accessibilityRole="button">
                 <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             )}
@@ -148,13 +149,9 @@ const createStyles = (colors) => StyleSheet.create({
     flex: 1,
   },
   title: {
-    fontSize: 18,
     fontWeight: '700',
-    color: colors.primary,
   },
   subtitle: {
-    fontSize: 14,
-    color: colors.secondaryText,
     marginTop: 4,
   },
   closeButton: {

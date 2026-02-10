@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
   View,
-  Text,
   TextInput,
   TouchableOpacity,
   ScrollView,
@@ -11,6 +10,8 @@ import {
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { SemanticColors, BrandColor } from '../constants/Colors'
+import { Typography } from '../constants/Theme'
+import ThemedText from './ThemedText'
 import BottomDrawerModal from './BottomDrawerModal'
 
 const ACTION_OPTIONS = [
@@ -41,15 +42,15 @@ function ActionRow({ userClass, action, onActionChange, duration, onDurationChan
   return (
     <>
       <View style={styles.actionRow}>
-        <Text style={styles.rowLabel}>{userClass.label}</Text>
+        <ThemedText variant="body" style={styles.rowLabel}>{userClass.label}</ThemedText>
         <TouchableOpacity
           style={[styles.dropdown, hasAction && styles.dropdownActive]}
           onPress={() => setOpen(!open)}
           activeOpacity={0.7}
         >
-          <Text style={[styles.dropdownText, hasAction && styles.dropdownTextActive]}>
+          <ThemedText variant="label" style={[styles.dropdownText, hasAction && styles.dropdownTextActive]}>
             {selected.label}
-          </Text>
+          </ThemedText>
           <Ionicons
             name={open ? 'chevron-up' : 'chevron-down'}
             size={14}
@@ -67,9 +68,9 @@ function ActionRow({ userClass, action, onActionChange, duration, onDurationChan
               onPress={() => { onActionChange(opt.value); setOpen(false) }}
               activeOpacity={0.7}
             >
-              <Text style={[styles.dropdownItemText, action === opt.value && styles.dropdownItemTextSelected]}>
+              <ThemedText variant="label" style={[styles.dropdownItemText, action === opt.value && styles.dropdownItemTextSelected]}>
                 {opt.label}
-              </Text>
+              </ThemedText>
               {action === opt.value && (
                 <Ionicons name="checkmark" size={14} color={colors.primary} />
               )}
@@ -80,7 +81,7 @@ function ActionRow({ userClass, action, onActionChange, duration, onDurationChan
 
       {action === 'temporary_ban' && (
         <View style={styles.durationRow}>
-          <Text style={styles.durationLabel}>Duration (days):</Text>
+          <ThemedText variant="label">Duration (days):</ThemedText>
           <TextInput
             style={styles.durationInput}
             value={duration}
@@ -88,6 +89,7 @@ function ActionRow({ userClass, action, onActionChange, duration, onDurationChan
             keyboardType="number-pad"
             placeholder="7"
             placeholderTextColor={colors.placeholderText}
+            maxFontSizeMultiplier={1.2}
           />
         </View>
       )}
@@ -185,12 +187,12 @@ export default function ModerationActionModal({ visible, onClose, onSubmit, repo
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         {rule && (
           <View style={styles.ruleSection}>
-            <Text style={styles.ruleTitle}>{rule.title}</Text>
-            {rule.text && <Text style={styles.ruleText}>{rule.text}</Text>}
+            <ThemedText variant="h3" style={styles.ruleTitle}>{rule.title}</ThemedText>
+            {rule.text && <ThemedText variant="label" color="secondary" style={styles.ruleText}>{rule.text}</ThemedText>}
             {rule.sentencingGuidelines && (
               <View style={styles.guidelinesBox}>
                 <Ionicons name="book-outline" size={14} color={colors.primary} style={{ marginTop: 1 }} />
-                <Text style={styles.guidelinesText}>{rule.sentencingGuidelines}</Text>
+                <ThemedText variant="label" color="primary" style={styles.guidelinesText}>{rule.sentencingGuidelines}</ThemedText>
               </View>
             )}
           </View>
@@ -211,7 +213,7 @@ export default function ModerationActionModal({ visible, onClose, onSubmit, repo
           ))}
         </View>
 
-        <Text style={styles.notesLabel}>Moderator Notes</Text>
+        <ThemedText variant="buttonSmall" style={styles.notesLabel}>Moderator Notes</ThemedText>
         <TextInput
           style={styles.notesInput}
           value={modNotes}
@@ -220,6 +222,7 @@ export default function ModerationActionModal({ visible, onClose, onSubmit, repo
           placeholderTextColor={colors.placeholderText}
           multiline
           numberOfLines={3}
+          maxFontSizeMultiplier={1.5}
         />
       </ScrollView>
 
@@ -233,7 +236,7 @@ export default function ModerationActionModal({ visible, onClose, onSubmit, repo
           {submitting ? (
             <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
-            <Text style={styles.confirmButtonText}>Confirm Action</Text>
+            <ThemedText variant="button" color="inverse">Confirm Action</ThemedText>
           )}
         </TouchableOpacity>
       </View>
@@ -254,14 +257,10 @@ const createStyles = (colors) => StyleSheet.create({
     borderColor: colors.cardBorder,
   },
   ruleTitle: {
-    fontSize: 16,
     fontWeight: '700',
-    color: colors.text,
     marginBottom: 4,
   },
   ruleText: {
-    fontSize: 13,
-    color: colors.secondaryText,
     lineHeight: 18,
     marginBottom: 8,
   },
@@ -274,9 +273,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   guidelinesText: {
     flex: 1,
-    fontSize: 13,
     fontWeight: '500',
-    color: colors.primary,
     lineHeight: 18,
   },
   actionsGroup: {
@@ -289,9 +286,7 @@ const createStyles = (colors) => StyleSheet.create({
     justifyContent: 'space-between',
   },
   rowLabel: {
-    fontSize: 15,
     fontWeight: '600',
-    color: colors.text,
   },
   dropdown: {
     flexDirection: 'row',
@@ -311,12 +306,10 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: BrandColor + '15',
   },
   dropdownText: {
-    fontSize: 13,
     color: colors.secondaryText,
   },
   dropdownTextActive: {
     color: colors.primary,
-    fontWeight: '600',
   },
   dropdownList: {
     borderRadius: 8,
@@ -338,22 +331,15 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: BrandColor + '15',
   },
   dropdownItemText: {
-    fontSize: 13,
-    color: colors.text,
   },
   dropdownItemTextSelected: {
     color: colors.primary,
-    fontWeight: '600',
   },
   durationRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
     gap: 8,
-  },
-  durationLabel: {
-    fontSize: 13,
-    color: colors.text,
   },
   durationInput: {
     backgroundColor: colors.background,
@@ -368,19 +354,16 @@ const createStyles = (colors) => StyleSheet.create({
     color: colors.text,
   },
   notesLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
     marginBottom: 8,
   },
   notesInput: {
+    ...Typography.bodySmall,
     backgroundColor: colors.cardBackground,
     borderWidth: 1,
     borderColor: colors.cardBorder,
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    fontSize: 14,
     color: colors.text,
     maxHeight: 100,
     marginBottom: 8,
@@ -398,10 +381,5 @@ const createStyles = (colors) => StyleSheet.create({
   },
   confirmButtonDisabled: {
     opacity: 0.5,
-  },
-  confirmButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
   },
 })

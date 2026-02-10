@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, Alert as RNAlert, ActivityIndicator, Animated, LayoutAnimation, UIManager } from 'react-native'
+import { StyleSheet, View, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, Alert as RNAlert, ActivityIndicator, Animated, LayoutAnimation, UIManager } from 'react-native'
 import { useRouter, useFocusEffect } from 'expo-router'
 import { useState, useEffect, useCallback, useRef, useContext, useMemo } from 'react'
 
@@ -9,7 +9,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { SemanticColors } from '../../constants/Colors'
-import { Shadows } from '../../constants/Theme'
+import { Shadows, Typography } from '../../constants/Theme'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { UserContext } from '../../contexts/UserContext'
 import api from '../../lib/api'
@@ -537,12 +537,12 @@ export default function Create() {
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <View style={styles.sectionHeaderAreaCompact}>
             <View style={styles.headingRow}>
-              <ThemedText title={true} style={styles.headingCompact}>
+              <ThemedText variant="h1" color="primary">
                 Add a Position
               </ThemedText>
               <TouchableOpacity style={styles.rulesButton} onPress={handleOpenRules}>
                 <Ionicons name="book-outline" size={15} color={colors.primary} />
-                <Text style={styles.rulesButtonText}>Community Rules</Text>
+                <ThemedText variant="label" color="primary" style={styles.rulesButtonText}>Community Rules</ThemedText>
               </TouchableOpacity>
             </View>
           </View>
@@ -558,21 +558,21 @@ export default function Create() {
                 multiline={true}
                 maxLength={MAX_STATEMENT_LENGTH + 20}
               />
-              <Text style={[
+              <ThemedText variant="caption" color="secondary" style={[
                 styles.charCount,
                 isOverLimit && styles.charCountOver
               ]}>
                 {remainingChars} characters remaining
-              </Text>
+              </ThemedText>
 
               {/* Similar Positions Suggestions */}
               {(searchingSimilar || similarPositions.length > 0) && (
                 <Animated.View style={[styles.similarContainer, { opacity: similarFadeAnim }]}>
                   <View style={styles.similarHeader}>
                     <Ionicons name="bulb-outline" size={16} color={colors.primary} />
-                    <Text style={styles.similarTitle}>
+                    <ThemedText variant="label" color="primary" style={styles.similarTitle}>
                       {searchingSimilar ? 'Searching for similar positions...' : 'Similar positions you could adopt:'}
-                    </Text>
+                    </ThemedText>
                     {searchingSimilar && (
                       <ActivityIndicator size="small" color={colors.primary} style={{ marginLeft: 8 }} />
                     )}
@@ -584,16 +584,16 @@ export default function Create() {
                         {result.wasPreviouslyHeld && (
                           <View style={styles.previouslyHeldBadge}>
                             <Ionicons name="time-outline" size={12} color={colors.primary} />
-                            <Text style={styles.previouslyHeldText}>Previously held</Text>
+                            <ThemedText variant="caption" color="primary" style={styles.previouslyHeldText}>Previously held</ThemedText>
                           </View>
                         )}
-                        <Text style={styles.similarStatement} numberOfLines={2}>
+                        <ThemedText variant="bodySmall" color="dark" style={styles.similarStatement} numberOfLines={2}>
                           "{result.position.statement}"
-                        </Text>
-                        <Text style={styles.similarMeta}>
+                        </ThemedText>
+                        <ThemedText variant="caption" color="secondary" style={styles.similarMeta}>
                           {Math.round(result.similarity * 100)}% match
                           {result.position.category?.label && ` · ${result.position.category.label}`}
-                        </Text>
+                        </ThemedText>
                       </View>
                       <TouchableOpacity
                         style={styles.adoptButton}
@@ -605,9 +605,9 @@ export default function Create() {
                   ))}
 
                   {!searchingSimilar && similarPositions.length === 0 && statement.trim().length >= MIN_SEARCH_LENGTH && (
-                    <Text style={styles.noSimilarText}>
+                    <ThemedText variant="bodySmall" color="secondary" style={styles.noSimilarText}>
                       No similar positions found. Create your own!
-                    </Text>
+                    </ThemedText>
                   )}
                 </Animated.View>
               )}
@@ -629,7 +629,7 @@ export default function Create() {
 
             {error && (
               <View style={styles.errorContainerCompact}>
-                <Text style={styles.errorText}>{error}</Text>
+                <ThemedText variant="bodySmall" color="error">{error}</ThemedText>
               </View>
             )}
 
@@ -638,21 +638,21 @@ export default function Create() {
               disabled={loading || isOverLimit || !statement.trim() || !selectedCategory || !selectedLocation}
               style={{ paddingVertical: 12 }}
             >
-              <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '600' }}>
+              <ThemedText variant="body" color="inverse" style={{ fontWeight: '600' }}>
                 {loading ? "Creating..." : "Create Position"}
-              </Text>
+              </ThemedText>
             </ThemedButton>
           </View>
 
           {/* My Positions Section */}
           <View style={styles.myPositionsSection}>
             <View style={styles.sectionHeader}>
-              <ThemedText title={true} style={styles.sectionHeading}>
+              <ThemedText variant="h1" color="primary">
                 My Positions
               </ThemedText>
-              <Text style={styles.sectionSubtitle}>
+              <ThemedText variant="bodySmall" color="secondary" style={styles.sectionSubtitle}>
                 Positions you hold that others can chat with you about
-              </Text>
+              </ThemedText>
             </View>
             <PositionListManager
               ref={positionsListRef}
@@ -671,16 +671,16 @@ export default function Create() {
           <View style={styles.chattingListSection}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionHeadingRow}>
-                <ThemedText title={true} style={styles.sectionHeading}>
+                <ThemedText variant="h1" color="primary">
                   Chatting List
                 </ThemedText>
                 <TouchableOpacity onPress={() => setShowChattingExplanation(true)} hitSlop={8}>
                   <Ionicons name="help-circle-outline" size={20} color={colors.secondaryText} />
                 </TouchableOpacity>
               </View>
-              <Text style={styles.sectionSubtitle}>
+              <ThemedText variant="bodySmall" color="secondary" style={styles.sectionSubtitle}>
                 Positions you've chatted about or saved to discuss later
-              </Text>
+              </ThemedText>
             </View>
 
             <InfoModal
@@ -705,9 +705,9 @@ export default function Create() {
                 size={22}
                 color={colors.primary}
               />
-              <Text style={styles.addToListButtonText}>
+              <ThemedText variant="body" color="primary" style={styles.addToListButtonText}>
                 {showChattingSearch ? 'Close Search' : 'Add Position to List'}
-              </Text>
+              </ThemedText>
             </TouchableOpacity>
 
             {/* Search Interface */}
@@ -724,7 +724,7 @@ export default function Create() {
                 {searchingChatting && (
                   <View style={styles.chattingSearchLoading}>
                     <ActivityIndicator size="small" color={colors.primary} />
-                    <Text style={styles.chattingSearchLoadingText}>Searching...</Text>
+                    <ThemedText variant="bodySmall" color="secondary">Searching...</ThemedText>
                   </View>
                 )}
 
@@ -733,13 +733,13 @@ export default function Create() {
                     {chattingSearchResults.map(result => (
                       <View key={result.position.id} style={styles.chattingSearchResult}>
                         <View style={styles.chattingSearchResultContent}>
-                          <Text style={styles.chattingSearchResultStatement} numberOfLines={2}>
+                          <ThemedText variant="bodySmall" color="dark" style={styles.chattingSearchResultStatement} numberOfLines={2}>
                             "{result.position.statement}"
-                          </Text>
-                          <Text style={styles.chattingSearchResultMeta}>
+                          </ThemedText>
+                          <ThemedText variant="caption" color="secondary" style={styles.chattingSearchResultMeta}>
                             {Math.round(result.similarity * 100)}% match
                             {result.position.category?.label && ` · ${result.position.category.label}`}
-                          </Text>
+                          </ThemedText>
                         </View>
                         <TouchableOpacity
                           style={styles.addToListItemButton}
@@ -753,15 +753,15 @@ export default function Create() {
                 )}
 
                 {!searchingChatting && chattingSearchQuery.trim().length >= MIN_SEARCH_LENGTH && chattingSearchResults.length === 0 && (
-                  <Text style={styles.noSearchResultsText}>
+                  <ThemedText variant="bodySmall" color="secondary" style={styles.noSearchResultsText}>
                     No matching positions found, or all matches are already in your list.
-                  </Text>
+                  </ThemedText>
                 )}
 
                 {chattingSearchQuery.trim().length > 0 && chattingSearchQuery.trim().length < MIN_SEARCH_LENGTH && (
-                  <Text style={styles.searchHintText}>
+                  <ThemedText variant="bodySmall" color="secondary" style={styles.searchHintText}>
                     Type at least {MIN_SEARCH_LENGTH} characters to search
-                  </Text>
+                  </ThemedText>
                 )}
               </View>
             )}
@@ -785,22 +785,22 @@ export default function Create() {
       {/* Floating delete bar - positioned above tab bar */}
       {floatingBar.visible && (
         <View style={styles.floatingDeleteBar}>
-          <Text style={styles.floatingDeleteCount}>
+          <ThemedText variant="body" color="dark" style={styles.floatingDeleteCount}>
             {floatingBar.count} selected
-          </Text>
+          </ThemedText>
           <View style={styles.floatingDeleteActions}>
             <TouchableOpacity
               style={styles.floatingDeleteCancelButton}
               onPress={() => floatingBar.ref?.current?.cancelDelete()}
             >
-              <Text style={styles.floatingDeleteCancelText}>Cancel</Text>
+              <ThemedText variant="bodySmall" color="secondary" style={styles.floatingDeleteCancelText}>Cancel</ThemedText>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.floatingDeleteButton}
               onPress={() => floatingBar.ref?.current?.confirmDelete()}
             >
               <Ionicons name="trash" size={18} color="#FFFFFF" />
-              <Text style={styles.floatingDeleteButtonText}>Delete Selected</Text>
+              <ThemedText variant="buttonSmall" color="inverse">Delete Selected</ThemedText>
             </TouchableOpacity>
           </View>
         </View>
@@ -815,30 +815,30 @@ export default function Create() {
         {rulesLoading ? (
           <ActivityIndicator size="large" color={colors.primary} style={{ paddingVertical: 32 }} />
         ) : rules.length === 0 ? (
-          <Text style={styles.rulesEmptyText}>No rules have been defined yet.</Text>
+          <ThemedText variant="bodySmall" color="secondary" style={styles.rulesEmptyText}>No rules have been defined yet.</ThemedText>
         ) : (
           <ScrollView style={styles.rulesScrollView}>
             {rules.map((rule, index) => (
               <View key={rule.id} style={[styles.ruleItem, index === rules.length - 1 && { borderBottomWidth: 0 }]}>
                 <View style={styles.ruleHeader}>
-                  <Text style={styles.ruleTitle}>{rule.title}</Text>
+                  <ThemedText variant="body" color="dark" style={styles.ruleTitle}>{rule.title}</ThemedText>
                   {rule.severity && (
                     <View style={[
                       styles.severityBadge,
                       rule.severity === 'high' && styles.severityHigh,
                       rule.severity === 'medium' && styles.severityMedium,
                     ]}>
-                      <Text style={[
+                      <ThemedText variant="caption" style={[
                         styles.severityText,
                         rule.severity === 'high' && styles.severityTextHigh,
                         rule.severity === 'medium' && styles.severityTextMedium,
                       ]}>
                         Severity: {rule.severity}
-                      </Text>
+                      </ThemedText>
                     </View>
                   )}
                 </View>
-                <Text style={styles.ruleText}>{rule.text}</Text>
+                <ThemedText variant="bodySmall" color="secondary">{rule.text}</ThemedText>
               </View>
             ))}
           </ScrollView>
@@ -860,11 +860,6 @@ const createStyles = (colors) => StyleSheet.create({
   sectionHeaderAreaCompact: {
     marginBottom: 12,
   },
-  headingCompact: {
-    fontWeight: '700',
-    fontSize: 24,
-    color: colors.primary,
-  },
   form: {
     flex: 1,
   },
@@ -876,28 +871,21 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 10,
     minHeight: 70,
     textAlignVertical: 'top',
-    fontSize: 15,
-    lineHeight: 22,
+    ...Typography.body,
     backgroundColor: colors.cardBackground,
     borderWidth: 1,
     borderColor: colors.cardBorder,
     color: colors.darkText,
   },
   charCount: {
-    fontSize: 11,
-    color: colors.secondaryText,
     textAlign: 'right',
     marginTop: 4,
   },
   charCountOver: {
     color: SemanticColors.warning,
   },
-  errorText: {
-    color: SemanticColors.warning,
-    fontSize: 14,
-  },
   errorContainerCompact: {
-    backgroundColor: '#ffe6e6',
+    backgroundColor: colors.errorBannerBg,
     padding: 10,
     borderRadius: 8,
     borderWidth: 1,
@@ -914,14 +902,7 @@ const createStyles = (colors) => StyleSheet.create({
   sectionHeader: {
     marginBottom: 16,
   },
-  sectionHeading: {
-    fontWeight: '700',
-    fontSize: 24,
-    color: colors.primary,
-  },
   sectionSubtitle: {
-    fontSize: 14,
-    color: colors.secondaryText,
     marginTop: 2,
   },
   // Similar Positions Suggestions
@@ -940,9 +921,6 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: 8,
   },
   similarTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.primary,
     marginLeft: 6,
     flex: 1,
   },
@@ -966,19 +944,13 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: 4,
   },
   previouslyHeldText: {
-    fontSize: 11,
-    color: colors.primary,
     fontWeight: '500',
   },
   similarStatement: {
-    fontSize: 13,
-    color: colors.darkText,
     lineHeight: 18,
     fontStyle: 'italic',
   },
   similarMeta: {
-    fontSize: 11,
-    color: colors.secondaryText,
     marginTop: 2,
   },
   adoptButton: {
@@ -986,8 +958,6 @@ const createStyles = (colors) => StyleSheet.create({
     marginLeft: 8,
   },
   noSimilarText: {
-    fontSize: 13,
-    color: colors.secondaryText,
     textAlign: 'center',
     paddingVertical: 8,
   },
@@ -1016,9 +986,7 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 8,
   },
   addToListButtonText: {
-    fontSize: 15,
     fontWeight: '600',
-    color: colors.primary,
   },
   chattingSearchContainer: {
     marginBottom: 16,
@@ -1026,7 +994,8 @@ const createStyles = (colors) => StyleSheet.create({
   chattingSearchInput: {
     padding: 14,
     borderRadius: 12,
-    fontSize: 16,
+    ...Typography.button,
+    fontWeight: undefined,
     backgroundColor: colors.cardBackground,
     borderWidth: 1,
     borderColor: colors.cardBorder,
@@ -1038,10 +1007,6 @@ const createStyles = (colors) => StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 16,
     gap: 8,
-  },
-  chattingSearchLoadingText: {
-    fontSize: 14,
-    color: colors.secondaryText,
   },
   chattingSearchResults: {
     marginTop: 12,
@@ -1062,14 +1027,9 @@ const createStyles = (colors) => StyleSheet.create({
     flex: 1,
   },
   chattingSearchResultStatement: {
-    fontSize: 14,
-    color: colors.darkText,
-    lineHeight: 20,
     fontStyle: 'italic',
   },
   chattingSearchResultMeta: {
-    fontSize: 12,
-    color: colors.secondaryText,
     marginTop: 4,
   },
   addToListItemButton: {
@@ -1077,14 +1037,10 @@ const createStyles = (colors) => StyleSheet.create({
     marginLeft: 8,
   },
   noSearchResultsText: {
-    fontSize: 13,
-    color: colors.secondaryText,
     textAlign: 'center',
     paddingVertical: 16,
   },
   searchHintText: {
-    fontSize: 13,
-    color: colors.secondaryText,
     textAlign: 'center',
     paddingVertical: 12,
   },
@@ -1105,9 +1061,7 @@ const createStyles = (colors) => StyleSheet.create({
     ...Shadows.elevated,
   },
   floatingDeleteCount: {
-    fontSize: 15,
     fontWeight: '600',
-    color: colors.darkText,
   },
   floatingDeleteActions: {
     flexDirection: 'row',
@@ -1123,8 +1077,6 @@ const createStyles = (colors) => StyleSheet.create({
     borderColor: colors.cardBorder,
   },
   floatingDeleteCancelText: {
-    fontSize: 14,
-    color: colors.secondaryText,
     fontWeight: '500',
   },
   floatingDeleteButton: {
@@ -1135,11 +1087,6 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     gap: 6,
-  },
-  floatingDeleteButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
   },
   // Community Rules
   headingRow: {
@@ -1153,16 +1100,12 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 5,
   },
   rulesButtonText: {
-    fontSize: 13,
-    color: colors.primary,
     fontWeight: '500',
   },
   rulesScrollView: {
     paddingHorizontal: 16,
   },
   rulesEmptyText: {
-    fontSize: 14,
-    color: colors.secondaryText,
     textAlign: 'center',
     paddingVertical: 32,
   },
@@ -1178,38 +1121,30 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 8,
   },
   ruleTitle: {
-    fontSize: 15,
     fontWeight: '600',
-    color: colors.darkText,
     flex: 1,
-  },
-  ruleText: {
-    fontSize: 14,
-    color: colors.secondaryText,
-    lineHeight: 20,
   },
   severityBadge: {
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 10,
-    backgroundColor: '#e8f5e9',
+    backgroundColor: colors.severityLowBg,
   },
   severityHigh: {
-    backgroundColor: '#ffebee',
+    backgroundColor: colors.severityHighBg,
   },
   severityMedium: {
-    backgroundColor: '#fff3e0',
+    backgroundColor: colors.severityMediumBg,
   },
   severityText: {
-    fontSize: 11,
     fontWeight: '600',
-    color: '#388e3c',
+    color: colors.severityLowText,
     textTransform: 'capitalize',
   },
   severityTextHigh: {
     color: SemanticColors.warning,
   },
   severityTextMedium: {
-    color: '#e65100',
+    color: colors.severityMediumText,
   },
 })

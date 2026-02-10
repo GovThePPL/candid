@@ -1,8 +1,9 @@
-import { StyleSheet, View, Text, TouchableOpacity } from 'react-native'
+import { StyleSheet, View, TouchableOpacity } from 'react-native'
 import { useMemo } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { SemanticColors } from '../../constants/Colors'
+import ThemedText from '../ThemedText'
 import Avatar from '../Avatar'
 
 const ACTION_LABELS = {
@@ -46,27 +47,27 @@ export default function AdminResponseCard({ data, onDismiss }) {
         <Ionicons name="shield-checkmark" size={40} color={colors.primary} />
       </View>
 
-      <Text style={styles.title}>Administrator Response</Text>
+      <ThemedText variant="statement" color="primary" style={styles.title}>Administrator Response</ThemedText>
 
       <View style={[styles.outcomeBadge, { backgroundColor: STATE_COLORS[appealState] || colors.primary }]}>
-        <Text style={styles.outcomeBadgeText}>{STATE_LABELS[appealState] || appealState}</Text>
+        <ThemedText variant="buttonSmall" color="inverse">{STATE_LABELS[appealState] || appealState}</ThemedText>
       </View>
 
       {adminResponseText ? (
         <View style={styles.responseContainer}>
-          <Text style={styles.sectionLabel}>Admin's response</Text>
-          <Text style={styles.responseText}>"{adminResponseText}"</Text>
+          <ThemedText variant="badgeLg" color="secondary" style={styles.sectionLabel}>Admin's response</ThemedText>
+          <ThemedText variant="bodySmall" style={styles.responseText}>"{adminResponseText}"</ThemedText>
         </View>
       ) : null}
 
       {adminResponder && (
         <View style={styles.userRow}>
-          <Text style={styles.sectionLabel}>Decided by</Text>
+          <ThemedText variant="badgeLg" color="secondary" style={styles.sectionLabel}>Decided by</ThemedText>
           <View style={styles.userInfo}>
             <Avatar user={adminResponder} size="sm" />
             <View>
-              <Text style={styles.userName}>{adminResponder.displayName || 'Admin'}</Text>
-              <Text style={styles.userUsername}>@{adminResponder.username || 'unknown'}</Text>
+              <ThemedText variant="buttonSmall">{adminResponder.displayName || 'Admin'}</ThemedText>
+              <ThemedText variant="caption" color="secondary">@{adminResponder.username || 'unknown'}</ThemedText>
             </View>
           </View>
         </View>
@@ -74,20 +75,20 @@ export default function AdminResponseCard({ data, onDismiss }) {
 
       {originalAction && (
         <View style={styles.contextContainer}>
-          <Text style={styles.sectionLabel}>Original action</Text>
+          <ThemedText variant="badgeLg" color="secondary" style={styles.sectionLabel}>Original action</ThemedText>
           <View style={styles.userInfo}>
             <Avatar user={originalAction.responder} size="sm" />
             <View>
-              <Text style={styles.userName}>{originalAction.responder?.displayName || 'Moderator'}</Text>
-              <Text style={styles.userUsername}>@{originalAction.responder?.username || 'unknown'}</Text>
+              <ThemedText variant="buttonSmall">{originalAction.responder?.displayName || 'Moderator'}</ThemedText>
+              <ThemedText variant="caption" color="secondary">@{originalAction.responder?.username || 'unknown'}</ThemedText>
             </View>
           </View>
           {originalAction.actions?.length > 0 && (
             <View style={styles.actionDetails}>
               {originalAction.actions.map((a, i) => (
-                <Text key={i} style={styles.actionDetailText}>
+                <ThemedText key={i} variant="caption" style={styles.actionDetailText}>
                   {CLASS_LABELS[a.userClass] || a.userClass}: {ACTION_LABELS[a.action] || a.action}
-                </Text>
+                </ThemedText>
               ))}
             </View>
           )}
@@ -96,18 +97,18 @@ export default function AdminResponseCard({ data, onDismiss }) {
 
       {priorResponses?.length > 0 && (
         <View style={styles.contextContainer}>
-          <Text style={styles.sectionLabel}>Moderator reviews</Text>
+          <ThemedText variant="badgeLg" color="secondary" style={styles.sectionLabel}>Moderator reviews</ThemedText>
           {priorResponses.map((pr, i) => (
             <View key={i} style={styles.priorResponse}>
               <View style={styles.userInfo}>
                 <Avatar user={pr.responder} size="sm" />
                 <View>
-                  <Text style={styles.userName}>{pr.responder?.displayName || 'Moderator'}</Text>
-                  <Text style={styles.userUsername}>@{pr.responder?.username || 'unknown'}</Text>
+                  <ThemedText variant="buttonSmall">{pr.responder?.displayName || 'Moderator'}</ThemedText>
+                  <ThemedText variant="caption" color="secondary">@{pr.responder?.username || 'unknown'}</ThemedText>
                 </View>
               </View>
               {pr.responseText && (
-                <Text style={styles.priorResponseText}>"{pr.responseText}"</Text>
+                <ThemedText variant="label" color="secondary" style={styles.priorResponseText}>"{pr.responseText}"</ThemedText>
               )}
             </View>
           ))}
@@ -116,7 +117,7 @@ export default function AdminResponseCard({ data, onDismiss }) {
 
       {onDismiss && (
         <TouchableOpacity style={styles.dismissButton} onPress={onDismiss}>
-          <Text style={styles.dismissButtonText}>Dismiss</Text>
+          <ThemedText variant="button" color="inverse">Dismiss</ThemedText>
         </TouchableOpacity>
       )}
     </View>
@@ -137,9 +138,7 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: 12,
   },
   title: {
-    fontSize: 22,
     fontWeight: '700',
-    color: colors.primary,
     marginBottom: 12,
   },
   outcomeBadge: {
@@ -147,11 +146,6 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 20,
     marginBottom: 16,
-  },
-  outcomeBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
   },
   responseContainer: {
     width: '100%',
@@ -161,17 +155,11 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: 12,
   },
   sectionLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.secondaryText,
     textTransform: 'uppercase',
     marginBottom: 6,
   },
   responseText: {
-    fontSize: 14,
-    color: colors.text,
     fontStyle: 'italic',
-    lineHeight: 20,
   },
   userRow: {
     width: '100%',
@@ -182,15 +170,6 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginBottom: 6,
-  },
-  userName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  userUsername: {
-    fontSize: 12,
-    color: colors.secondaryText,
   },
   contextContainer: {
     width: '100%',
@@ -207,9 +186,7 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 6,
   },
   actionDetailText: {
-    fontSize: 12,
     fontWeight: '500',
-    color: colors.text,
     lineHeight: 18,
   },
   priorResponse: {
@@ -217,8 +194,7 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: 4,
   },
   priorResponseText: {
-    fontSize: 13,
-    color: colors.secondaryText,
+    fontWeight: '400',
     fontStyle: 'italic',
     marginLeft: 40,
   },
@@ -228,10 +204,5 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 25,
     marginTop: 8,
-  },
-  dismissButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
   },
 })

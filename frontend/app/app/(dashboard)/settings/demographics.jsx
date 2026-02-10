@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable } from 'react-native'
+import { StyleSheet, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable } from 'react-native'
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -281,7 +281,7 @@ export default function DemographicsSettings() {
       <Header onBack={() => router.back()} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.pageHeader}>
-          <ThemedText title={true} style={styles.pageTitle}>
+          <ThemedText variant="h1" title={true} style={styles.pageTitle}>
             Demographics
           </ThemedText>
         </View>
@@ -289,7 +289,7 @@ export default function DemographicsSettings() {
         {error && (
           <View style={styles.errorContainer}>
             <Ionicons name="alert-circle" size={20} color={SemanticColors.warning} />
-            <Text style={styles.errorText}>{error}</Text>
+            <ThemedText variant="bodySmall" color="error" style={styles.errorText}>{error}</ThemedText>
           </View>
         )}
 
@@ -297,19 +297,19 @@ export default function DemographicsSettings() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="stats-chart-outline" size={22} color={colors.badgeText} />
-            <Text style={styles.sectionTitle}>Demographics</Text>
+            <ThemedText variant="h2" color="dark">Demographics</ThemedText>
           </View>
-          <Text style={styles.sectionDescription}>
+          <ThemedText variant="bodySmall" color="secondary" style={styles.sectionDescription}>
             Optional information used for aggregate statistics. All data is anonymized.
-          </Text>
+          </ThemedText>
 
           <TouchableOpacity
             style={styles.pickerItem}
             onPress={() => openPickerModal('Age Range', AGE_RANGE_OPTIONS, ageRange, handleFieldChange(setAgeRange, 'ageRange'))}
           >
-            <Text style={styles.pickerLabel}>Age Range</Text>
+            <ThemedText variant="body" color="dark" style={styles.pickerLabel}>Age Range</ThemedText>
             <View style={styles.pickerValue}>
-              <Text style={styles.pickerValueText}>{getOptionLabel(AGE_RANGE_OPTIONS, ageRange)}</Text>
+              <ThemedText variant="body" color="secondary" style={styles.pickerValueText}>{getOptionLabel(AGE_RANGE_OPTIONS, ageRange)}</ThemedText>
               <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
             </View>
           </TouchableOpacity>
@@ -318,9 +318,9 @@ export default function DemographicsSettings() {
             style={styles.pickerItem}
             onPress={() => openPickerModal('Income Range', INCOME_RANGE_OPTIONS, incomeRange, handleFieldChange(setIncomeRange, 'incomeRange'))}
           >
-            <Text style={styles.pickerLabel}>Income Range</Text>
+            <ThemedText variant="body" color="dark" style={styles.pickerLabel}>Income Range</ThemedText>
             <View style={styles.pickerValue}>
-              <Text style={styles.pickerValueText}>{getOptionLabel(INCOME_RANGE_OPTIONS, incomeRange)}</Text>
+              <ThemedText variant="body" color="secondary" style={styles.pickerValueText}>{getOptionLabel(INCOME_RANGE_OPTIONS, incomeRange)}</ThemedText>
               <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
             </View>
           </TouchableOpacity>
@@ -329,9 +329,9 @@ export default function DemographicsSettings() {
             style={styles.pickerItem}
             onPress={() => openPickerModal('Political Lean', POLITICAL_LEAN_OPTIONS, lean, handleFieldChange(setLean, 'lean'))}
           >
-            <Text style={styles.pickerLabel}>Political Lean</Text>
+            <ThemedText variant="body" color="dark" style={styles.pickerLabel}>Political Lean</ThemedText>
             <View style={styles.pickerValue}>
-              <Text style={styles.pickerValueText}>{getOptionLabel(POLITICAL_LEAN_OPTIONS, lean)}</Text>
+              <ThemedText variant="body" color="secondary" style={styles.pickerValueText}>{getOptionLabel(POLITICAL_LEAN_OPTIONS, lean)}</ThemedText>
               <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
             </View>
           </TouchableOpacity>
@@ -340,9 +340,9 @@ export default function DemographicsSettings() {
             style={styles.pickerItem}
             onPress={() => openPickerModal('Education', EDUCATION_OPTIONS, education, handleFieldChange(setEducation, 'education'))}
           >
-            <Text style={styles.pickerLabel}>Education</Text>
+            <ThemedText variant="body" color="dark" style={styles.pickerLabel}>Education</ThemedText>
             <View style={styles.pickerValue}>
-              <Text style={styles.pickerValueText}>{getOptionLabel(EDUCATION_OPTIONS, education)}</Text>
+              <ThemedText variant="body" color="secondary" style={styles.pickerValueText}>{getOptionLabel(EDUCATION_OPTIONS, education)}</ThemedText>
               <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
             </View>
           </TouchableOpacity>
@@ -351,9 +351,9 @@ export default function DemographicsSettings() {
             style={styles.pickerItem}
             onPress={() => openPickerModal('Geographic Locale', GEO_LOCALE_OPTIONS, geoLocale, handleFieldChange(setGeoLocale, 'geoLocale'))}
           >
-            <Text style={styles.pickerLabel}>Geographic Locale</Text>
+            <ThemedText variant="body" color="dark" style={styles.pickerLabel}>Geographic Locale</ThemedText>
             <View style={styles.pickerValue}>
-              <Text style={styles.pickerValueText}>{getOptionLabel(GEO_LOCALE_OPTIONS, geoLocale)}</Text>
+              <ThemedText variant="body" color="secondary" style={styles.pickerValueText}>{getOptionLabel(GEO_LOCALE_OPTIONS, geoLocale)}</ThemedText>
               <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
             </View>
           </TouchableOpacity>
@@ -362,9 +362,9 @@ export default function DemographicsSettings() {
             style={styles.pickerItem}
             onPress={() => openPickerModal('Race/Ethnicity', RACE_OPTIONS, race, handleFieldChange(setRace, 'race'))}
           >
-            <Text style={styles.pickerLabel}>Race/Ethnicity</Text>
+            <ThemedText variant="body" color="dark" style={styles.pickerLabel}>Race/Ethnicity</ThemedText>
             <View style={styles.pickerValue}>
-              <Text style={styles.pickerValueText}>{getOptionLabel(RACE_OPTIONS, race)}</Text>
+              <ThemedText variant="body" color="secondary" style={styles.pickerValueText}>{getOptionLabel(RACE_OPTIONS, race)}</ThemedText>
               <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
             </View>
           </TouchableOpacity>
@@ -373,9 +373,9 @@ export default function DemographicsSettings() {
             style={[styles.pickerItem, styles.pickerItemLast]}
             onPress={() => openPickerModal('Sex', SEX_OPTIONS, sex, handleFieldChange(setSex, 'sex'))}
           >
-            <Text style={styles.pickerLabel}>Sex</Text>
+            <ThemedText variant="body" color="dark" style={styles.pickerLabel}>Sex</ThemedText>
             <View style={styles.pickerValue}>
-              <Text style={styles.pickerValueText}>{getOptionLabel(SEX_OPTIONS, sex)}</Text>
+              <ThemedText variant="body" color="secondary" style={styles.pickerValueText}>{getOptionLabel(SEX_OPTIONS, sex)}</ThemedText>
               <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
             </View>
           </TouchableOpacity>
@@ -385,18 +385,18 @@ export default function DemographicsSettings() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="location-outline" size={22} color={colors.badgeText} />
-            <Text style={styles.sectionTitle}>Location</Text>
+            <ThemedText variant="h2" color="dark">Location</ThemedText>
           </View>
           <TouchableOpacity
             style={styles.locationSelector}
             onPress={() => setLocationPickerOpen(true)}
           >
             {locations.length > 0 ? (
-              <Text style={styles.locationBreadcrumb} numberOfLines={2}>
+              <ThemedText variant="body" color="badge" style={styles.locationBreadcrumb} numberOfLines={2}>
                 {locations.map(loc => loc.name).join(' \u203A ')}
-              </Text>
+              </ThemedText>
             ) : (
-              <Text style={styles.locationPlaceholder}>Tap to set your location</Text>
+              <ThemedText variant="body" color="secondary" style={styles.locationPlaceholder}>Tap to set your location</ThemedText>
             )}
             <Ionicons name="chevron-forward" size={18} color={colors.secondaryText} />
           </TouchableOpacity>
@@ -406,7 +406,7 @@ export default function DemographicsSettings() {
         {saving && (
           <View style={styles.savingIndicator}>
             <ActivityIndicator size="small" color={colors.primary} />
-            <Text style={styles.savingText}>Saving...</Text>
+            <ThemedText variant="bodySmall" color="secondary" style={styles.savingText}>Saving...</ThemedText>
           </View>
         )}
       </ScrollView>
@@ -420,7 +420,7 @@ export default function DemographicsSettings() {
       >
         <Pressable style={shared.modalOverlay} onPress={() => setPickerModalOpen(false)}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>{pickerModalConfig?.title}</Text>
+            <ThemedText variant="h2" color="dark" style={styles.modalTitle}>{pickerModalConfig?.title}</ThemedText>
             <ScrollView style={styles.modalScrollView}>
               {pickerModalConfig?.options.map((option, index) => {
                 const isSelected = pickerModalConfig.currentValue === option.value
@@ -438,12 +438,12 @@ export default function DemographicsSettings() {
                       setPickerModalOpen(false)
                     }}
                   >
-                    <Text style={[
+                    <ThemedText variant="button" color="dark" style={[
                       styles.modalItemLabel,
                       isSelected && styles.modalItemLabelSelected
                     ]}>
                       {option.label}
-                    </Text>
+                    </ThemedText>
                     {isSelected && (
                       <Ionicons name="checkmark" size={20} color={colors.badgeText} />
                     )}
@@ -482,14 +482,12 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: 20,
   },
   pageTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
     color: colors.badgeText,
   },
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffe6e6',
+    backgroundColor: colors.errorBannerBg,
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
@@ -497,8 +495,6 @@ const createStyles = (colors) => StyleSheet.create({
   },
   errorText: {
     flex: 1,
-    color: SemanticColors.warning,
-    fontSize: 14,
   },
   section: {
     backgroundColor: colors.cardBackground,
@@ -514,15 +510,7 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 10,
     marginBottom: 12,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.darkText,
-  },
   sectionDescription: {
-    fontSize: 14,
-    color: colors.secondaryText,
-    lineHeight: 20,
     marginBottom: 16,
   },
   pickerItem: {
@@ -537,8 +525,6 @@ const createStyles = (colors) => StyleSheet.create({
     borderBottomWidth: 0,
   },
   pickerLabel: {
-    fontSize: 15,
-    color: colors.darkText,
   },
   pickerValue: {
     flexDirection: 'row',
@@ -546,8 +532,6 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 4,
   },
   pickerValueText: {
-    fontSize: 15,
-    color: colors.secondaryText,
   },
   locationSelector: {
     flexDirection: 'row',
@@ -558,13 +542,9 @@ const createStyles = (colors) => StyleSheet.create({
   },
   locationBreadcrumb: {
     flex: 1,
-    fontSize: 15,
-    color: colors.badgeText,
   },
   locationPlaceholder: {
     flex: 1,
-    fontSize: 15,
-    color: colors.secondaryText,
     fontStyle: 'italic',
   },
   savingIndicator: {
@@ -576,8 +556,6 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 8,
   },
   savingText: {
-    fontSize: 14,
-    color: colors.secondaryText,
   },
   // Modal styles
   modalContent: {
@@ -589,9 +567,6 @@ const createStyles = (colors) => StyleSheet.create({
     overflow: 'hidden',
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.darkText,
     padding: 16,
     textAlign: 'center',
   },
@@ -614,11 +589,8 @@ const createStyles = (colors) => StyleSheet.create({
     borderBottomWidth: 0,
   },
   modalItemLabel: {
-    fontSize: 16,
-    color: colors.darkText,
   },
   modalItemLabelSelected: {
     color: colors.badgeText,
-    fontWeight: '500',
   },
 })

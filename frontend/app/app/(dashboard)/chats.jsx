@@ -1,10 +1,11 @@
-import { StyleSheet, View, Text, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native'
+import { StyleSheet, View, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useCallback, useState, useEffect, useContext, useRef, useMemo } from 'react'
 import { useRouter } from 'expo-router'
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { SemanticColors } from '../../constants/Colors'
 import { useThemeColors } from '../../hooks/useThemeColors'
+import ThemedText from '../../components/ThemedText'
 import Header from '../../components/Header'
 import EmptyState from '../../components/EmptyState'
 import CardShell from '../../components/CardShell'
@@ -13,6 +14,7 @@ import { UserContext } from '../../contexts/UserContext'
 import api from '../../lib/api'
 import { CacheManager, CacheKeys, CacheDurations } from '../../lib/cache'
 import ReportModal from '../../components/ReportModal'
+import KudosMedallion from '../../components/KudosMedallion'
 
 const formatDate = (dateString) => {
   if (!dateString) return ''
@@ -56,46 +58,6 @@ const getEndTypeLabel = (endType, endedByUserId, currentUserId, colors) => {
   }
 }
 
-// Kudos medallion component
-function KudosMedallion({ active, size = 32 }) {
-  const goldColor = active ? '#FFD700' : '#9CA3AF'
-  const starColor = active ? '#B8860B' : '#6B7280'
-  const ringColor = active ? '#DAA520' : '#D1D5DB'
-
-  return (
-    <View style={[kudosMedallionStyles.container, { width: size, height: size }]}>
-      {/* Outer ring */}
-      <View style={[
-        kudosMedallionStyles.ring,
-        { borderColor: ringColor, width: size, height: size, borderRadius: size / 2 }
-      ]}>
-        {/* Inner medallion */}
-        <View style={[
-          kudosMedallionStyles.medallion,
-          { backgroundColor: goldColor, width: size - 6, height: size - 6, borderRadius: (size - 6) / 2 }
-        ]}>
-          <Ionicons name="star" size={size * 0.5} color={starColor} />
-        </View>
-      </View>
-    </View>
-  )
-}
-
-const kudosMedallionStyles = StyleSheet.create({
-  container: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ring: {
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  medallion: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-})
 
 function MetaBadgeIcon({ endTypeInfo }) {
   if (endTypeInfo.iconType === 'material-community') {
@@ -116,7 +78,7 @@ function ChatHistoryCard({ chat, onPress, onSendKudos, onReport, currentUserId, 
     <View>
       <View style={styles.closureRow}>
         <MaterialCommunityIcons name="handshake-outline" size={18} color="#FFFFFF" />
-        <Text style={styles.closureText} numberOfLines={2}>{agreedClosure?.content}</Text>
+        <ThemedText variant="bodySmall" color="inverse" style={styles.closureText} numberOfLines={2}>{agreedClosure?.content}</ThemedText>
       </View>
 
       {showKudosSection && (
@@ -125,7 +87,7 @@ function ChatHistoryCard({ chat, onPress, onSendKudos, onReport, currentUserId, 
             {kudosReceived ? (
               <View style={styles.kudosReceivedContainer}>
                 <KudosMedallion active={true} size={28} />
-                <Text style={styles.kudosReceivedText}>{otherUser?.displayName || 'Someone'} sent you kudos</Text>
+                <ThemedText variant="caption" style={styles.kudosReceivedText}>{otherUser?.displayName || 'Someone'} sent you kudos</ThemedText>
               </View>
             ) : (
               <View style={styles.kudosPlaceholder} />
@@ -144,9 +106,9 @@ function ChatHistoryCard({ chat, onPress, onSendKudos, onReport, currentUserId, 
             activeOpacity={kudosSent ? 1 : 0.7}
           >
             <KudosMedallion active={kudosSent} size={22} />
-            <Text style={[styles.kudosPillText, kudosSent && styles.kudosPillTextSent]}>
+            <ThemedText variant="badgeLg" style={[styles.kudosPillText, kudosSent && styles.kudosPillTextSent]}>
               {kudosSent ? 'Sent!' : 'Send Kudos'}
-            </Text>
+            </ThemedText>
           </TouchableOpacity>
         </View>
       )}
@@ -158,13 +120,13 @@ function ChatHistoryCard({ chat, onPress, onSendKudos, onReport, currentUserId, 
       {/* Metadata row */}
       <View style={styles.chatMetaRow}>
         <View style={styles.metaDateRow}>
-          <Text style={styles.metaDate}>{formatDate(endTime || startTime)}</Text>
+          <ThemedText variant="caption" color="secondary">{formatDate(endTime || startTime)}</ThemedText>
           {isActive && <View style={styles.activeDot} />}
         </View>
         <View style={styles.metaRightRow}>
           <View style={[styles.metaBadge, { backgroundColor: endTypeInfo.color + '20' }]}>
             <MetaBadgeIcon endTypeInfo={endTypeInfo} />
-            <Text style={[styles.metaBadgeText, { color: endTypeInfo.color }]}>{endTypeInfo.label}</Text>
+            <ThemedText variant="badgeLg" style={{ color: endTypeInfo.color }}>{endTypeInfo.label}</ThemedText>
           </View>
           {!isActive && onReport && (
             <TouchableOpacity
@@ -360,16 +322,16 @@ export default function Chats() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <Header />
       <View style={styles.sectionHeader}>
-        <Text style={styles.title}>Chat History</Text>
-        <Text style={styles.subtitle}>{chats.length} conversation{chats.length !== 1 ? 's' : ''}</Text>
+        <ThemedText variant="h1" color="primary">Chat History</ThemedText>
+        <ThemedText variant="bodySmall" color="secondary" style={styles.subtitle}>{chats.length} conversation{chats.length !== 1 ? 's' : ''}</ThemedText>
       </View>
 
       {error && (
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={24} color={SemanticColors.warning} />
-          <Text style={styles.errorText}>{error}</Text>
+          <ThemedText variant="bodySmall" style={styles.errorText}>{error}</ThemedText>
           <TouchableOpacity onPress={() => fetchChats()} style={styles.retryButton}>
-            <Text style={styles.retryText}>Retry</Text>
+            <ThemedText variant="badgeLg" color="inverse">Retry</ThemedText>
           </TouchableOpacity>
         </View>
       )}
@@ -416,14 +378,7 @@ const createStyles = (colors) => StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 8,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.primary,
-  },
   subtitle: {
-    fontSize: 14,
-    color: colors.secondaryText,
     marginTop: 4,
   },
   listContent: {
@@ -439,7 +394,7 @@ const createStyles = (colors) => StyleSheet.create({
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFEBEE',
+    backgroundColor: colors.errorBannerBg,
     marginHorizontal: 16,
     marginBottom: 8,
     padding: 12,
@@ -448,7 +403,6 @@ const createStyles = (colors) => StyleSheet.create({
   },
   errorText: {
     flex: 1,
-    fontSize: 14,
     color: SemanticColors.warning,
   },
   retryButton: {
@@ -456,11 +410,6 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 6,
     backgroundColor: SemanticColors.warning,
     borderRadius: 6,
-  },
-  retryText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
   },
   emptyContainer: {
     paddingBottom: 100,
@@ -482,10 +431,6 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  metaDate: {
-    fontSize: 12,
-    color: colors.secondaryText,
-  },
   metaBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -493,10 +438,6 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
     gap: 4,
-  },
-  metaBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
   },
   metaRightRow: {
     flexDirection: 'row',
@@ -524,9 +465,6 @@ const createStyles = (colors) => StyleSheet.create({
   },
   closureText: {
     flex: 1,
-    fontSize: 14,
-    color: '#FFFFFF',
-    lineHeight: 20,
   },
 
   // Kudos row styles (for agreed closures)
@@ -546,7 +484,6 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 6,
   },
   kudosReceivedText: {
-    fontSize: 12,
     color: '#FFFFFF',
     fontWeight: '500',
   },
@@ -569,11 +506,9 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: 'rgba(255, 215, 0, 0.3)',
   },
   kudosPillText: {
-    fontSize: 12,
     color: 'rgba(255, 255, 255, 0.9)',
-    fontWeight: '600',
   },
   kudosPillTextSent: {
-    color: '#FFD700',
+    color: '#FFFFFF',
   },
 })

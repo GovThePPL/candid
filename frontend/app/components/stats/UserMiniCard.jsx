@@ -1,8 +1,10 @@
 import { useMemo } from 'react'
-import { View, Text, StyleSheet, Image } from 'react-native'
+import { View, StyleSheet, Image } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { GROUP_COLORS, BadgeColors, SemanticColors, BrandColor } from '../../constants/Colors'
+import { Typography } from '../../constants/Theme'
 import { useThemeColors } from '../../hooks/useThemeColors'
+import ThemedText from '../ThemedText'
 import { getAvatarImageUrl, getInitials, getInitialsColor } from '../../lib/avatarUtils'
 
 /**
@@ -53,9 +55,9 @@ export default function UserMiniCard({ user, role, reverse = false, compact = fa
             },
           ]}
         >
-          <Text style={[styles.avatarText, compact && styles.avatarTextCompact]}>
+          <ThemedText variant={compact ? "label" : "h3"} color="inverse" style={styles.avatarText}>
             {getInitials(displayName)}
-          </Text>
+          </ThemedText>
         </View>
       )}
       {kudosCount > 0 && (
@@ -77,21 +79,21 @@ export default function UserMiniCard({ user, role, reverse = false, compact = fa
     ]}>
       {!reverse && renderAvatar()}
       <View style={[styles.infoContainer, { alignItems: reverse ? 'flex-end' : 'flex-start' }]}>
-        <Text style={[styles.displayName, compact && styles.displayNameCompact, { textAlign }]} numberOfLines={1}>
+        <ThemedText variant="label" style={[styles.displayName, compact && styles.displayNameCompact, { textAlign }]} numberOfLines={1}>
           {displayName || 'Anonymous'}
-        </Text>
-        <Text style={[styles.username, compact && styles.usernameCompact, { textAlign }]} numberOfLines={1}>
+        </ThemedText>
+        <ThemedText variant="caption" color="secondary" style={[styles.username, { textAlign }]} numberOfLines={1}>
           @{username}
-        </Text>
+        </ThemedText>
         <View style={[styles.badgeRow, { justifyContent: badgeJustify }]}>
           <View style={[styles.roleBadge, role === 'PROPOSER' ? styles.proposerBadge : styles.opposerBadge]}>
-            <Text style={styles.roleBadgeText}>{role}</Text>
+            <ThemedText variant="badgeSm" style={styles.roleBadgeText}>{role}</ThemedText>
           </View>
           {opinionGroup && (
             <View style={[styles.groupBadge, { backgroundColor: groupColor + '30' }]}>
-              <Text style={[styles.groupBadgeText, { color: groupColor }]}>
+              <ThemedText variant="badge" style={[styles.groupBadgeText, { color: groupColor }]}>
                 {opinionGroup.label}
-              </Text>
+              </ThemedText>
             </View>
           )}
         </View>
@@ -126,12 +128,7 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
   },
   avatarText: {
-    fontSize: 16,
     fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  avatarTextCompact: {
-    fontSize: 13,
   },
   kudosBadge: {
     position: 'absolute',
@@ -151,20 +148,12 @@ const createStyles = (colors) => StyleSheet.create({
     minWidth: 0,
   },
   displayName: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.text,
   },
   displayNameCompact: {
-    fontSize: 11,
+    ...Typography.caption,
   },
   username: {
-    fontSize: 11,
-    color: colors.secondaryText,
     marginTop: 1,
-  },
-  usernameCompact: {
-    fontSize: 9,
   },
   badgeRow: {
     flexDirection: 'row',
@@ -185,9 +174,6 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: BrandColor + '25',
   },
   roleBadgeText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: colors.text,
     letterSpacing: 0.3,
   },
   groupBadge: {
@@ -196,7 +182,5 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 10,
   },
   groupBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
   },
 })

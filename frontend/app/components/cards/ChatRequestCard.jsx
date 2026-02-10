@@ -1,8 +1,9 @@
-import { StyleSheet, View, Text } from 'react-native'
+import { StyleSheet, View } from 'react-native'
 import { forwardRef, useMemo } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { BrandColor } from '../../constants/Colors'
+import ThemedText from '../ThemedText'
 import SwipeableCard from './SwipeableCard'
 import Avatar from '../Avatar'
 
@@ -32,7 +33,7 @@ const ChatRequestCard = forwardRef(function ChatRequestCard({
       <View style={styles.card}>
         {/* Purple Header Section */}
         <View style={styles.headerSection}>
-          <Text style={styles.headerText}>Chat Request</Text>
+          <ThemedText variant="statement" color="inverse" style={styles.headerText}>Chat Request</ThemedText>
 
           {/* User Info Row with Chat Bubble */}
           <View style={styles.userRow}>
@@ -45,8 +46,8 @@ const ChatRequestCard = forwardRef(function ChatRequestCard({
             <View style={styles.userPill}>
               <Avatar user={requester} size="md" showKudosCount badgePosition="bottom-left" />
               <View style={styles.userTextContainer}>
-                <Text style={styles.displayName}>{requester?.displayName || 'Anonymous'}</Text>
-                <Text style={styles.username}>@{requester?.username || 'anonymous'}</Text>
+                <ThemedText variant="body" color="dark" style={styles.displayName}>{requester?.displayName || 'Anonymous'}</ThemedText>
+                <ThemedText variant="caption" color="secondary">@{requester?.username || 'anonymous'}</ThemedText>
               </View>
             </View>
           </View>
@@ -58,16 +59,16 @@ const ChatRequestCard = forwardRef(function ChatRequestCard({
             {/* Position Header */}
             <View style={styles.positionHeader}>
               {position?.location && (
-                <Text style={styles.locationCode}>{position.location.code}</Text>
+                <ThemedText variant="buttonSmall" color="primary">{position.location.code}</ThemedText>
               )}
-              <Text style={styles.categoryName}>
+              <ThemedText variant="bodySmall" color="primary">
                 {position?.category?.label || 'General'}
-              </Text>
+              </ThemedText>
             </View>
 
             {/* Statement */}
             <View style={styles.statementContainer}>
-              <Text style={styles.statement}>{position?.statement}</Text>
+              <ThemedText variant="statement" color="dark" style={styles.statement}>{position?.statement}</ThemedText>
             </View>
 
             {/* Position Author - Centered */}
@@ -75,8 +76,8 @@ const ChatRequestCard = forwardRef(function ChatRequestCard({
               <View style={styles.authorInfo}>
                 <Avatar user={position?.creator} size="md" showKudosCount badgePosition="bottom-left" />
                 <View style={styles.authorTextContainer}>
-                  <Text style={styles.authorDisplayName}>{position?.creator?.displayName || 'Anonymous'}</Text>
-                  <Text style={styles.authorUsername}>@{position?.creator?.username || 'you'}</Text>
+                  <ThemedText variant="buttonSmall" color="dark">{position?.creator?.displayName || 'Anonymous'}</ThemedText>
+                  <ThemedText variant="caption" color="secondary">@{position?.creator?.username || 'you'}</ThemedText>
                 </View>
               </View>
             </View>
@@ -101,8 +102,6 @@ const createStyles = (colors) => StyleSheet.create({
     paddingBottom: 20,
   },
   headerText: {
-    color: '#FFFFFF',
-    fontSize: 22,
     fontWeight: '600',
     fontStyle: 'italic',
     textAlign: 'center',
@@ -132,13 +131,7 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'column',
   },
   displayName: {
-    fontSize: 15,
     fontWeight: '600',
-    color: colors.darkText,
-  },
-  username: {
-    fontSize: 12,
-    color: colors.secondaryText,
   },
   topicCardWrapper: {
     flex: 1,
@@ -159,15 +152,6 @@ const createStyles = (colors) => StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 8,
   },
-  locationCode: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  categoryName: {
-    fontSize: 14,
-    color: colors.primary,
-  },
   statementContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -175,9 +159,6 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 24,
   },
   statement: {
-    fontSize: 22,
-    fontWeight: '500',
-    color: colors.darkText,
     lineHeight: 30,
   },
   positionFooter: {
@@ -194,14 +175,5 @@ const createStyles = (colors) => StyleSheet.create({
   },
   authorTextContainer: {
     flexDirection: 'column',
-  },
-  authorDisplayName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.darkText,
-  },
-  authorUsername: {
-    fontSize: 12,
-    color: colors.secondaryText,
   },
 })

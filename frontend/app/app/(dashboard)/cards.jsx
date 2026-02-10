@@ -1,4 +1,4 @@
-import { StyleSheet, View, Text, ActivityIndicator, TouchableOpacity, Platform, Animated, Dimensions } from 'react-native'
+import { StyleSheet, View, ActivityIndicator, TouchableOpacity, Platform, Animated, Dimensions } from 'react-native'
 import { useState, useEffect, useCallback, useRef, useContext, useMemo } from 'react'
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { SemanticColors } from '../../constants/Colors'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import api from '../../lib/api'
+import ThemedText from '../../components/ThemedText'
 import { UserContext } from '../../contexts/UserContext'
 import { CacheManager, CacheKeys, CacheDurations } from '../../lib/cache'
 import {
@@ -946,7 +947,7 @@ export default function CardQueue() {
       default:
         return (
           <View style={styles.unknownCard}>
-            <Text>Unknown card type: {card.type}</Text>
+            <ThemedText variant="body">Unknown card type: {card.type}</ThemedText>
           </View>
         )
     }
@@ -967,7 +968,7 @@ export default function CardQueue() {
         <Header />
         <View style={styles.centerContent}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Loading cards...</Text>
+          <ThemedText variant="button" color="secondary" style={styles.loadingText}>Loading cards...</ThemedText>
         </View>
       </SafeAreaView>
     )
@@ -978,9 +979,9 @@ export default function CardQueue() {
       <SafeAreaView style={styles.container} edges={['top']}>
         <Header />
         <View style={styles.centerContent}>
-          <Text style={styles.errorText}>{error}</Text>
+          <ThemedText variant="button" style={styles.errorText}>{error}</ThemedText>
           <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
-            <Text style={styles.retryButtonText}>Retry</Text>
+            <ThemedText variant="button" color="inverse">Retry</ThemedText>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -994,15 +995,15 @@ export default function CardQueue() {
       <SafeAreaView style={styles.container} edges={['top']}>
         <Header />
         <View style={styles.centerContent}>
-          <Text style={styles.emptyTitle}>No more cards</Text>
-          <Text style={styles.emptyText}>
+          <ThemedText variant="statement" color="primary" style={styles.emptyTitle}>No more cards</ThemedText>
+          <ThemedText variant="button" color="secondary" style={styles.emptyText}>
             Check back later for more positions, or create your own!
-          </Text>
+          </ThemedText>
           <TouchableOpacity
             style={styles.createButton}
             onPress={() => router.push('/create')}
           >
-            <Text style={styles.createButtonText}>Create Position</Text>
+            <ThemedText variant="button" color="inverse">Create Position</ThemedText>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -1213,11 +1214,10 @@ const createStyles = (colors) => StyleSheet.create({
   },
   loadingText: {
     marginTop: 16,
-    fontSize: 16,
-    color: colors.secondaryText,
+    fontWeight: undefined,
   },
   errorText: {
-    fontSize: 16,
+    fontWeight: undefined,
     color: SemanticColors.warning,
     textAlign: 'center',
     marginBottom: 16,
@@ -1228,20 +1228,12 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 8,
   },
-  retryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
   emptyTitle: {
-    fontSize: 22,
     fontWeight: '600',
-    color: colors.primary,
     marginBottom: 12,
   },
   emptyText: {
-    fontSize: 16,
-    color: colors.secondaryText,
+    fontWeight: undefined,
     textAlign: 'center',
     marginBottom: 24,
   },
@@ -1250,11 +1242,6 @@ const createStyles = (colors) => StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 14,
     borderRadius: 25,
-  },
-  createButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
   },
   unknownCard: {
     padding: 20,

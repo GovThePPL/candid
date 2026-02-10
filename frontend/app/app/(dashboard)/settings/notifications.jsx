@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, Switch } from 'react-native'
+import { StyleSheet, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, Switch } from 'react-native'
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -197,7 +197,7 @@ export default function NotificationSettings() {
       <Header onBack={() => router.back()} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.pageHeader}>
-          <ThemedText title={true} style={styles.pageTitle}>
+          <ThemedText variant="h1" title={true} style={styles.pageTitle}>
             Notifications
           </ThemedText>
         </View>
@@ -205,7 +205,7 @@ export default function NotificationSettings() {
         {error && (
           <View style={styles.errorContainer}>
             <Ionicons name="alert-circle" size={20} color={SemanticColors.warning} />
-            <Text style={styles.errorText}>{error}</Text>
+            <ThemedText variant="bodySmall" color="error" style={styles.errorText}>{error}</ThemedText>
           </View>
         )}
 
@@ -213,15 +213,15 @@ export default function NotificationSettings() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="notifications-outline" size={22} color={colors.primary} />
-            <Text style={styles.sectionTitle}>Notifications</Text>
+            <ThemedText variant="h2" color="dark">Notifications</ThemedText>
           </View>
-          <Text style={styles.sectionDescription}>
+          <ThemedText variant="bodySmall" color="secondary" style={styles.sectionDescription}>
             Get notified when someone wants to chat about a position you care about.
-          </Text>
+          </ThemedText>
 
           {/* Enable toggle */}
           <View style={styles.notifToggleRow}>
-            <Text style={styles.notifToggleLabel}>Enable push notifications</Text>
+            <ThemedText variant="body" color="dark" style={styles.notifToggleLabel}>Enable push notifications</ThemedText>
             <Switch
               value={notificationsEnabled}
               onValueChange={handleNotificationsEnabledChange}
@@ -233,7 +233,7 @@ export default function NotificationSettings() {
           {notificationsEnabled && (
             <>
               {/* Frequency selector */}
-              <Text style={styles.notifSubLabel}>Chat request notifications</Text>
+              <ThemedText variant="bodySmall" color="dark" style={styles.notifSubLabel}>Chat request notifications</ThemedText>
               <View style={styles.likelihoodSelector}>
                 {NOTIFICATION_FREQ_OPTIONS.map((option) => (
                   <TouchableOpacity
@@ -244,38 +244,38 @@ export default function NotificationSettings() {
                     ]}
                     onPress={() => handleNotificationFrequencyChange(option.value)}
                   >
-                    <Text style={[
+                    <ThemedText variant="label" color="secondary" style={[
                       styles.likelihoodOptionLabel,
                       notificationFrequency === option.value && styles.likelihoodOptionLabelSelected
                     ]}>
                       {option.label}
-                    </Text>
+                    </ThemedText>
                   </TouchableOpacity>
                 ))}
               </View>
-              <Text style={styles.likelihoodDescription}>
+              <ThemedText variant="caption" color="secondary" style={styles.likelihoodDescription}>
                 {NOTIFICATION_FREQ_OPTIONS.find(o => o.value === notificationFrequency)?.description}
-              </Text>
+              </ThemedText>
 
               {/* Quiet hours */}
-              <Text style={[styles.notifSubLabel, { marginTop: 16 }]}>Quiet hours</Text>
-              <Text style={styles.sectionDescription}>
+              <ThemedText variant="bodySmall" color="dark" style={[styles.notifSubLabel, { marginTop: 16 }]}>Quiet hours</ThemedText>
+              <ThemedText variant="bodySmall" color="secondary" style={styles.sectionDescription}>
                 Don't send notifications between these hours.
-              </Text>
+              </ThemedText>
               <View style={styles.quietHoursRow}>
                 <TouchableOpacity
                   style={styles.quietHoursButton}
                   onPress={() => { setQuietHoursModalField('start'); setQuietHoursModalOpen(true) }}
                 >
-                  <Text style={styles.quietHoursButtonText}>{HOUR_LABELS[quietHoursStart]}</Text>
+                  <ThemedText variant="body" color="dark" style={styles.quietHoursButtonText}>{HOUR_LABELS[quietHoursStart]}</ThemedText>
                   <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
                 </TouchableOpacity>
-                <Text style={styles.quietHoursSeparator}>to</Text>
+                <ThemedText variant="bodySmall" color="secondary" style={styles.quietHoursSeparator}>to</ThemedText>
                 <TouchableOpacity
                   style={styles.quietHoursButton}
                   onPress={() => { setQuietHoursModalField('end'); setQuietHoursModalOpen(true) }}
                 >
-                  <Text style={styles.quietHoursButtonText}>{HOUR_LABELS[quietHoursEnd]}</Text>
+                  <ThemedText variant="body" color="dark" style={styles.quietHoursButtonText}>{HOUR_LABELS[quietHoursEnd]}</ThemedText>
                   <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
                 </TouchableOpacity>
               </View>
@@ -287,7 +287,7 @@ export default function NotificationSettings() {
         {saving && (
           <View style={styles.savingContainer}>
             <ActivityIndicator size="small" color={colors.primary} />
-            <Text style={styles.savingText}>Saving...</Text>
+            <ThemedText variant="bodySmall" color="primary" style={styles.savingText}>Saving...</ThemedText>
           </View>
         )}
       </ScrollView>
@@ -301,9 +301,9 @@ export default function NotificationSettings() {
       >
         <Pressable style={shared.modalOverlay} onPress={() => setQuietHoursModalOpen(false)}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
+            <ThemedText variant="h2" color="dark" style={styles.modalTitle}>
               {quietHoursModalField === 'start' ? 'Quiet hours start' : 'Quiet hours end'}
-            </Text>
+            </ThemedText>
             <ScrollView style={styles.modalScrollView}>
               {HOUR_LABELS.map((label, hour) => {
                 const currentValue = quietHoursModalField === 'start' ? quietHoursStart : quietHoursEnd
@@ -319,12 +319,12 @@ export default function NotificationSettings() {
                     ]}
                     onPress={() => handleQuietHoursChange(quietHoursModalField, hour)}
                   >
-                    <Text style={[
+                    <ThemedText variant="button" color="dark" style={[
                       styles.modalItemLabel,
                       isSelected && styles.modalItemLabelSelected
                     ]}>
                       {label}
-                    </Text>
+                    </ThemedText>
                     {isSelected && (
                       <Ionicons name="checkmark" size={20} color={colors.primary} />
                     )}
@@ -353,14 +353,12 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: 20,
   },
   pageTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
     color: colors.primary,
   },
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffe6e6',
+    backgroundColor: colors.errorBannerBg,
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
@@ -368,8 +366,6 @@ const createStyles = (colors) => StyleSheet.create({
   },
   errorText: {
     flex: 1,
-    color: SemanticColors.warning,
-    fontSize: 14,
   },
   section: {
     backgroundColor: colors.cardBackground,
@@ -385,15 +381,7 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 10,
     marginBottom: 8,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.darkText,
-  },
   sectionDescription: {
-    fontSize: 14,
-    color: colors.secondaryText,
-    lineHeight: 20,
     marginBottom: 16,
   },
   notifToggleRow: {
@@ -404,14 +392,10 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: 8,
   },
   notifToggleLabel: {
-    fontSize: 15,
-    color: colors.darkText,
     fontWeight: '500',
   },
   notifSubLabel: {
-    fontSize: 14,
     fontWeight: '600',
-    color: colors.darkText,
     marginBottom: 8,
   },
   likelihoodSelector: {
@@ -431,16 +415,13 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.primary,
   },
   likelihoodOptionLabel: {
-    fontSize: 13,
-    color: colors.secondaryText,
     fontWeight: '500',
   },
   likelihoodOptionLabelSelected: {
     color: '#FFFFFF',
+    fontWeight: '500',
   },
   likelihoodDescription: {
-    fontSize: 13,
-    color: colors.secondaryText,
     textAlign: 'center',
     marginTop: 10,
     fontStyle: 'italic',
@@ -463,13 +444,9 @@ const createStyles = (colors) => StyleSheet.create({
     borderColor: colors.cardBorder,
   },
   quietHoursButtonText: {
-    fontSize: 15,
-    color: colors.darkText,
     fontWeight: '500',
   },
   quietHoursSeparator: {
-    fontSize: 14,
-    color: colors.secondaryText,
   },
   savingContainer: {
     flexDirection: 'row',
@@ -479,8 +456,6 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 12,
   },
   savingText: {
-    fontSize: 14,
-    color: colors.primary,
   },
   // Modal styles
   modalContent: {
@@ -492,9 +467,6 @@ const createStyles = (colors) => StyleSheet.create({
     overflow: 'hidden',
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.darkText,
     padding: 16,
     paddingBottom: 4,
     textAlign: 'center',
@@ -518,11 +490,10 @@ const createStyles = (colors) => StyleSheet.create({
     borderBottomWidth: 0,
   },
   modalItemLabel: {
-    fontSize: 16,
-    color: colors.darkText,
     fontWeight: '500',
   },
   modalItemLabelSelected: {
     color: colors.primary,
+    fontWeight: '500',
   },
 })

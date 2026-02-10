@@ -1,12 +1,13 @@
 import { useEffect, useContext, useMemo } from "react"
 import { Tabs, useRouter } from "expo-router"
-import { Platform, useWindowDimensions, View, Text, StyleSheet } from "react-native"
+import { Platform, useWindowDimensions, View, StyleSheet } from "react-native"
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons"
 
 import UserOnly from "../../components/auth/UserOnly"
 import { UserContext } from "../../contexts/UserContext"
 import { ToastProvider } from "../../components/Toast"
 import { useThemeColors } from "../../hooks/useThemeColors"
+import ThemedText from "../../components/ThemedText"
 
 // Screen width threshold for showing labels beside icons
 const WIDE_SCREEN_THRESHOLD = 768
@@ -47,7 +48,7 @@ export default function DashboardLayout() {
           color={color}
         />
         {isWideScreen && (
-          <Text style={[styles.tabLabel, { color }]}>{label}</Text>
+          <ThemedText variant="bodySmall" style={[styles.tabLabel, { color }]}>{label}</ThemedText>
         )}
       </View>
     )
@@ -153,7 +154,6 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 8,
   },
   tabLabel: {
-    fontSize: 14,
     fontWeight: '500',
   },
 })

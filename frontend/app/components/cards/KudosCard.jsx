@@ -1,10 +1,13 @@
-import { StyleSheet, View, Text } from 'react-native'
+import { StyleSheet, View } from 'react-native'
 import { forwardRef, useMemo } from 'react'
-import { Ionicons } from '@expo/vector-icons'
+import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { SemanticColors, BrandColor } from '../../constants/Colors'
+import ThemedText from '../ThemedText'
 import SwipeableCard from './SwipeableCard'
 import Avatar from '../Avatar'
+import PositionInfoCard from '../PositionInfoCard'
+import KudosMedallion from '../KudosMedallion'
 
 const KudosCard = forwardRef(function KudosCard({
   kudos,
@@ -36,77 +39,60 @@ const KudosCard = forwardRef(function KudosCard({
       backCardAnimatedValue={backCardAnimatedValue}
     >
       <View style={styles.card}>
-        {/* Purple Header Section */}
-        <View style={styles.headerSection}>
-          <Text style={styles.headerText}>
-            {userAlreadySentKudos ? 'Kudos Received!' : 'You Received Kudos!'}
-          </Text>
-          <Text style={styles.headerSubtext}>
-            {userAlreadySentKudos
-              ? 'Swipe to acknowledge'
-              : `${otherParticipant?.displayName || 'They'} sent you kudos. Send one back?`}
-          </Text>
-
-          {/* User Info Row with Star Icon */}
-          <View style={styles.userRow}>
-            {/* Star Icon */}
-            <View style={styles.starContainer}>
-              <Ionicons name="star" size={48} color="#FFD700" />
+        {/* Purple header — kudos medallion + sender info */}
+        <View style={styles.header}>
+          <View style={styles.headerRow}>
+            <View style={styles.headerTypeTag}>
+              <KudosMedallion active={true} size={36} />
+              <ThemedText variant="badgeLg" color="inverse" style={styles.headerTypeText}>Kudos</ThemedText>
             </View>
-
-            {/* User Info Pill */}
-            <View style={styles.userPill}>
-              <Avatar user={otherParticipant} size="md" showKudosCount badgePosition="bottom-left" />
-              <View style={styles.userTextContainer}>
-                <Text style={styles.displayName}>{otherParticipant?.displayName || 'Anonymous'}</Text>
-                <Text style={styles.username}>@{otherParticipant?.username || 'anonymous'}</Text>
-              </View>
+            <View style={styles.headerContent}>
+              <ThemedText variant="buttonSmall" color="inverse" style={styles.headerTitle}>
+                {userAlreadySentKudos ? 'Kudos Received!' : 'You Received Kudos!'}
+              </ThemedText>
+              <ThemedText variant="caption" style={styles.headerSubtext}>
+                {userAlreadySentKudos
+                  ? 'Swipe to acknowledge'
+                  : 'Swipe right to send kudos back'}
+              </ThemedText>
             </View>
           </View>
         </View>
 
-        {/* Topic Card - Full Width with Rounded Top Corners */}
-        <View style={styles.topicCardWrapper}>
-          <View style={styles.topicCard}>
-            {/* Position Header */}
-            <View style={styles.positionHeader}>
-              {position?.location?.code && (
-                <Text style={styles.locationCode}>{position.location.code}</Text>
-              )}
-              <Text style={styles.categoryName}>
-                {position?.category?.label || 'General'}
-              </Text>
-            </View>
-
-            {/* Original Statement */}
-            <View style={styles.statementContainer}>
-              <Text style={styles.statement}>{position?.statement}</Text>
-            </View>
-
-            {/* Agreed Closure - Green Section */}
-            {parsedClosingStatement && (
-              <View style={styles.closureSection}>
-                <View style={styles.closureHeader}>
-                  <Ionicons name="checkmark-circle" size={18} color={SemanticColors.agree} />
-                  <Text style={styles.closureLabel}>Agreed Closure</Text>
-                </View>
-                <Text style={styles.closureText}>{parsedClosingStatement}</Text>
-              </View>
-            )}
-
-            {/* Position Author - Centered */}
-            {position?.creator && (
-              <View style={styles.positionFooter}>
-                <View style={styles.authorInfo}>
-                  <Avatar user={position.creator} size="md" showKudosCount badgePosition="bottom-left" />
-                  <View style={styles.authorTextContainer}>
-                    <Text style={styles.authorDisplayName}>{position.creator.displayName || 'Anonymous'}</Text>
-                    <Text style={styles.authorUsername}>@{position.creator.username || 'anonymous'}</Text>
-                  </View>
-                </View>
-              </View>
-            )}
+        {/* White body — position card with rounded corners over colored sections */}
+        <View style={styles.bodyWrapper}>
+          <View style={styles.body}>
+            <PositionInfoCard
+              position={position}
+              authorSubtitle="username"
+            />
           </View>
+        </View>
+
+        {/* White bottom curve over green */}
+        <View style={styles.bodyBottomCurve} />
+
+        {/* Green footer — sender info + closure */}
+        <View style={styles.footer}>
+          {/* Sender info */}
+          <View style={styles.senderRow}>
+            <ThemedText variant="badgeLg" style={styles.footerLabel}>
+              {userAlreadySentKudos ? 'Kudos from' : 'Sent by'}
+            </ThemedText>
+            <Avatar user={otherParticipant} size="sm" showKudosCount badgePosition="bottom-left" />
+            <View style={styles.senderInfo}>
+              <ThemedText variant="buttonSmall" color="inverse">{otherParticipant?.displayName || 'Anonymous'}</ThemedText>
+              <ThemedText variant="caption" style={styles.senderUsername}>@{otherParticipant?.username || 'anonymous'}</ThemedText>
+            </View>
+          </View>
+
+          {/* Agreed closure */}
+          {parsedClosingStatement && (
+            <View style={styles.closureRow}>
+              <MaterialCommunityIcons name="handshake-outline" size={18} color="#FFFFFF" />
+              <ThemedText variant="bodySmall" color="inverse" style={styles.closureText}>{parsedClosingStatement}</ThemedText>
+            </View>
+          )}
         </View>
       </View>
     </SwipeableCard>
@@ -118,148 +104,94 @@ export default KudosCard
 const createStyles = (colors) => StyleSheet.create({
   card: {
     flex: 1,
+    backgroundColor: SemanticColors.agree,
+  },
+  // Purple header — matches moderation card pattern
+  header: {
     backgroundColor: BrandColor,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
   },
-  headerSection: {
-    backgroundColor: BrandColor,
-    paddingTop: 12,
-    paddingHorizontal: 16,
-    paddingBottom: 20,
-  },
-  headerText: {
-    color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: '600',
-    fontStyle: 'italic',
-    textAlign: 'center',
-    marginBottom: 6,
-  },
-  headerSubtext: {
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontSize: 14,
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  userRow: {
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  starContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  userPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.cardBackground,
-    borderRadius: 25,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    paddingRight: 18,
     gap: 10,
   },
-  userTextContainer: {
+  headerTypeTag: {
     flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    minWidth: 64,
   },
-  displayName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.darkText,
+  headerTypeText: {
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  username: {
-    fontSize: 12,
-    color: colors.secondaryText,
-  },
-  topicCardWrapper: {
+  headerContent: {
     flex: 1,
+  },
+  headerTitle: {
+  },
+  headerSubtext: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginTop: 1,
+  },
+  // White body — rounded corners over colored sections
+  bodyWrapper: {
     backgroundColor: BrandColor,
   },
-  topicCard: {
-    flex: 1,
+  body: {
     backgroundColor: colors.cardBackground,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     overflow: 'hidden',
   },
-  positionHeader: {
+  bodyBottomCurve: {
+    height: 16,
+    backgroundColor: colors.cardBackground,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+  },
+  // Green footer
+  footer: {
+    backgroundColor: SemanticColors.agree,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 12,
+    gap: 8,
+  },
+  senderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
   },
-  locationCode: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  categoryName: {
-    fontSize: 14,
-    color: colors.primary,
-  },
-  statementContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-  },
-  statement: {
-    fontSize: 18,
-    fontWeight: '500',
-    color: colors.darkText,
-    lineHeight: 26,
-  },
-  closureSection: {
-    marginHorizontal: 16,
-    marginBottom: 16,
-    padding: 14,
-    backgroundColor: 'rgba(76, 175, 80, 0.1)',
-    borderRadius: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: SemanticColors.agree,
-  },
-  closureHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 8,
-  },
-  closureLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: SemanticColors.agree,
+  footerLabel: {
+    color: 'rgba(255,255,255,0.85)',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  closureText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: colors.darkText,
-    lineHeight: 22,
-  },
-  positionFooter: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderTopWidth: 1,
-    borderTopColor: colors.cardBorder,
-    alignItems: 'center',
-  },
-  authorInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  authorTextContainer: {
+  senderInfo: {
     flexDirection: 'column',
   },
-  authorDisplayName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.darkText,
+  senderUsername: {
+    color: 'rgba(255,255,255,0.85)',
   },
-  authorUsername: {
-    fontSize: 12,
-    color: colors.secondaryText,
+  closureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  closureText: {
+    flex: 1,
   },
 })

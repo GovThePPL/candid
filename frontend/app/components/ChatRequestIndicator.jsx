@@ -1,10 +1,11 @@
-import { StyleSheet, View, Text, TouchableOpacity, Animated, Platform, Modal } from 'react-native'
+import { StyleSheet, View, TouchableOpacity, Animated, Platform, Modal } from 'react-native'
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import Svg, { Circle, G } from 'react-native-svg'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { SemanticColors } from '../constants/Colors'
 import { createSharedStyles } from '../constants/SharedStyles'
+import ThemedText from './ThemedText'
 import CardShell from './CardShell'
 import PositionInfoCard from './PositionInfoCard'
 
@@ -164,8 +165,8 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
           {/* Author name */}
           {author && (
             <View style={styles.nameContainer}>
-              <Text style={styles.displayName} numberOfLines={1}>{author.displayName}</Text>
-              <Text style={styles.username} numberOfLines={1}>@{author.username}</Text>
+              <ThemedText variant="caption" style={styles.displayName} numberOfLines={1}>{author.displayName}</ThemedText>
+              <ThemedText variant="badge" color="secondary" style={styles.username} numberOfLines={1}>@{author.username}</ThemedText>
             </View>
           )}
 
@@ -227,7 +228,7 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
               bottomSection={
                 <View style={styles.pendingRow}>
                   <Ionicons name="chatbubble" size={14} color="#FFFFFF" />
-                  <Text style={styles.pendingText}>Chat request pending</Text>
+                  <ThemedText variant="label" color="inverse">Chat request pending</ThemedText>
                 </View>
               }
               bottomStyle={styles.cardPurpleBottom}
@@ -243,14 +244,14 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
               />
             </CardShell>
 
-            <Text style={styles.modalQuestion}>Cancel this chat request?</Text>
+            <ThemedText variant="h3" style={styles.modalQuestion}>Cancel this chat request?</ThemedText>
 
             <View style={styles.modalButtons}>
               <TouchableOpacity style={styles.keepButton} onPress={() => setShowCancelModal(false)}>
-                <Text style={styles.keepButtonText}>Keep Waiting</Text>
+                <ThemedText variant="buttonSmall" color="inverse">Keep Waiting</ThemedText>
               </TouchableOpacity>
               <TouchableOpacity style={styles.cancelButton} onPress={handleConfirmCancel}>
-                <Text style={styles.cancelButtonText}>Cancel Request</Text>
+                <ThemedText variant="buttonSmall" color="disagree">Cancel Request</ThemedText>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
@@ -280,13 +281,10 @@ const createStyles = (colors) => StyleSheet.create({
     flexShrink: 1,
   },
   displayName: {
-    fontSize: 12,
     fontWeight: '600',
-    color: colors.text,
   },
   username: {
-    fontSize: 10,
-    color: colors.secondaryText,
+    fontWeight: '400',
   },
   bubble: {
     width: INDICATOR_SIZE,
@@ -319,15 +317,7 @@ const createStyles = (colors) => StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
   },
-  pendingText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
   modalQuestion: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
     textAlign: 'center',
     marginBottom: 16,
   },
@@ -342,11 +332,6 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 14,
     alignItems: 'center',
   },
-  keepButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
   cancelButton: {
     flex: 1,
     backgroundColor: SemanticColors.disagree + '15',
@@ -355,10 +340,5 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: SemanticColors.disagree + '40',
-  },
-  cancelButtonText: {
-    color: SemanticColors.disagree,
-    fontSize: 14,
-    fontWeight: '600',
   },
 })

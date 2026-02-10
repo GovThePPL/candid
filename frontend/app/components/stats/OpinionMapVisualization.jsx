@@ -1,9 +1,11 @@
 import { useState, useMemo } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, Image, useWindowDimensions } from 'react-native'
+import { View, StyleSheet, TouchableOpacity, Image, useWindowDimensions } from 'react-native'
 import Svg, { Polygon, Circle, Text as SvgText, G, ClipPath, Defs, Image as SvgImage } from 'react-native-svg'
 import { Ionicons } from '@expo/vector-icons'
 import { GROUP_COLORS, BrandColor } from '../../constants/Colors'
+import { Typography } from '../../constants/Theme'
 import { useThemeColors } from '../../hooks/useThemeColors'
+import ThemedText from '../ThemedText'
 import InfoModal from '../InfoModal'
 import { getAvatarImageUrl, getInitials, getInitialsColor } from '../../lib/avatarUtils'
 
@@ -110,7 +112,7 @@ export default function OpinionMapVisualization({
           <SvgText
             x={cx}
             y={cy + radius + 10}
-            fontSize={isSingleMember ? "8" : "10"}
+            fontSize={isSingleMember ? Typography.micro.fontSize : Typography.badge.fontSize}
             fontWeight="bold"
             fontFamily="sans-serif"
             fill={color}
@@ -138,7 +140,7 @@ export default function OpinionMapVisualization({
         <SvgText
           x={toSvgX(centroid.x)}
           y={toSvgY(centroid.y)}
-          fontSize="14"
+          fontSize={Typography.bodySmall.fontSize}
           fontWeight="bold"
           fontFamily="sans-serif"
           fill={color}
@@ -219,7 +221,7 @@ export default function OpinionMapVisualization({
         <SvgText
           x={x}
           y={y + avatarRadius + 12}
-          fontSize="10"
+          fontSize={Typography.caption.fontSize}
           fontWeight="600"
           fontFamily="sans-serif"
           fill={colors.primary}
@@ -235,19 +237,19 @@ export default function OpinionMapVisualization({
     return (
       <View style={styles.emptyContainer}>
         <Ionicons name="analytics-outline" size={48} color={colors.secondaryText} />
-        <Text style={styles.emptyText}>
+        <ThemedText variant="h3" style={styles.emptyText}>
           Not enough data to display opinion groups yet.
-        </Text>
-        <Text style={styles.emptySubtext}>
+        </ThemedText>
+        <ThemedText variant="bodySmall" color="secondary" style={styles.emptySubtext}>
           Vote on more positions to see where you stand.
-        </Text>
+        </ThemedText>
       </View>
     )
   }
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.helpButton} onPress={() => setShowHelp(true)}>
+      <TouchableOpacity style={styles.helpButton} onPress={() => setShowHelp(true)} accessibilityLabel="Show help" accessibilityRole="button">
         <Ionicons name="help-circle-outline" size={24} color={colors.secondaryText} />
       </TouchableOpacity>
 
@@ -279,18 +281,18 @@ export default function OpinionMapVisualization({
                   { backgroundColor: GROUP_COLORS[index % GROUP_COLORS.length] },
                 ]}
               />
-              <Text style={[
+              <ThemedText variant="caption" style={[
                 styles.legendLabel,
                 isSelected && styles.legendLabelSelected
               ]}>
                 {displayLabel}
-              </Text>
+              </ThemedText>
               <View style={styles.legendMemberCount}>
                 <Ionicons name="person" size={10} color={isSelected ? colors.badgeText : colors.secondaryText} />
-                <Text style={[
+                <ThemedText variant="caption" color="secondary" style={[
                   styles.legendMemberText,
                   isSelected && styles.legendMemberTextSelected
-                ]}>{group.memberCount}</Text>
+                ]}>{group.memberCount}</ThemedText>
               </View>
             </TouchableOpacity>
           )
@@ -341,14 +343,11 @@ const createStyles = (colors) => StyleSheet.create({
     minHeight: 200,
   },
   emptyText: {
-    fontSize: 16,
-    color: colors.text,
+    fontWeight: 'normal',
     textAlign: 'center',
     marginTop: 16,
   },
   emptySubtext: {
-    fontSize: 14,
-    color: colors.secondaryText,
     textAlign: 'center',
     marginTop: 8,
   },
@@ -376,8 +375,6 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 6,
   },
   legendLabel: {
-    fontSize: 12,
-    color: colors.text,
   },
   legendLabelSelected: {
     fontWeight: '600',
@@ -389,8 +386,6 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 2,
   },
   legendMemberText: {
-    fontSize: 10,
-    color: colors.secondaryText,
   },
   legendMemberTextSelected: {
     color: colors.badgeText,

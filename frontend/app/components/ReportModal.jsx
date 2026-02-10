@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
   View,
-  Text,
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
@@ -11,6 +10,8 @@ import {
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { SemanticColors, BrandColor } from '../constants/Colors'
+import { Typography } from '../constants/Theme'
+import ThemedText from './ThemedText'
 import BottomDrawerModal from './BottomDrawerModal'
 import api from '../lib/api'
 
@@ -73,7 +74,7 @@ export default function ReportModal({ visible, onClose, onSubmit }) {
       {success ? (
         <View style={styles.successContainer}>
           <Ionicons name="checkmark-circle" size={48} color={SemanticColors.success} />
-          <Text style={styles.successText}>Report submitted</Text>
+          <ThemedText variant="h2" style={styles.successText}>Report submitted</ThemedText>
         </View>
       ) : loading ? (
         <View style={styles.loadingContainer}>
@@ -95,10 +96,10 @@ export default function ReportModal({ visible, onClose, onSubmit }) {
                     {isSelected && <View style={styles.radioInner} />}
                   </View>
                   <View style={styles.ruleTextContainer}>
-                    <Text style={[styles.ruleTitle, isSelected && styles.ruleTitleSelected]}>
+                    <ThemedText variant="body" style={[styles.ruleTitle, isSelected && styles.ruleTitleSelected]}>
                       {rule.title}
-                    </Text>
-                    <Text style={styles.ruleDescription}>{rule.text}</Text>
+                    </ThemedText>
+                    <ThemedText variant="label" color="secondary" style={styles.ruleDescription}>{rule.text}</ThemedText>
                   </View>
                 </TouchableOpacity>
               )
@@ -115,6 +116,7 @@ export default function ReportModal({ visible, onClose, onSubmit }) {
               maxLength={255}
               multiline
               numberOfLines={2}
+              maxFontSizeMultiplier={1.5}
             />
             <TouchableOpacity
               style={[styles.submitButton, !selectedRuleId && styles.submitButtonDisabled]}
@@ -127,7 +129,7 @@ export default function ReportModal({ visible, onClose, onSubmit }) {
               ) : (
                 <>
                   <Ionicons name="flag" size={18} color="#FFFFFF" />
-                  <Text style={styles.submitButtonText}>Submit Report</Text>
+                  <ThemedText variant="button" color="inverse">Submit Report</ThemedText>
                 </>
               )}
             </TouchableOpacity>
@@ -153,8 +155,6 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 12,
   },
   successText: {
-    fontSize: 18,
-    fontWeight: '600',
     color: SemanticColors.success,
   },
   rulesList: {
@@ -193,17 +193,13 @@ const createStyles = (colors) => StyleSheet.create({
     flex: 1,
   },
   ruleTitle: {
-    fontSize: 15,
     fontWeight: '600',
-    color: colors.text,
     marginBottom: 2,
   },
   ruleTitleSelected: {
     color: colors.primary,
   },
   ruleDescription: {
-    fontSize: 13,
-    color: colors.secondaryText,
     lineHeight: 18,
   },
   footer: {
@@ -213,13 +209,13 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 12,
   },
   commentInput: {
+    ...Typography.bodySmall,
     backgroundColor: colors.cardBackground,
     borderWidth: 1,
     borderColor: colors.cardBorder,
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    fontSize: 14,
     color: colors.text,
     maxHeight: 80,
   },
@@ -234,10 +230,5 @@ const createStyles = (colors) => StyleSheet.create({
   },
   submitButtonDisabled: {
     opacity: 0.5,
-  },
-  submitButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
   },
 })

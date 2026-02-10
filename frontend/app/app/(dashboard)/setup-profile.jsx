@@ -1,10 +1,11 @@
-import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, Image, Alert, Platform, KeyboardAvoidingView, ScrollView } from 'react-native'
+import { StyleSheet, View, TouchableOpacity, ActivityIndicator, Image, Alert, Platform, KeyboardAvoidingView, ScrollView } from 'react-native'
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
 import { SemanticColors } from '../../constants/Colors'
+import { Typography } from '../../constants/Theme'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import api from '../../lib/api'
 import { useUser } from '../../hooks/useUser'
@@ -133,10 +134,10 @@ export default function SetupProfile() {
           keyboardShouldPersistTaps="handled"
         >
           <Spacer height={40} />
-          <ThemedText title={true} style={styles.title}>
+          <ThemedText variant="h1" title={true} style={styles.title}>
             Welcome to Candid!
           </ThemedText>
-          <ThemedText style={styles.subtitle}>
+          <ThemedText variant="body" style={styles.subtitle}>
             Set up your profile so others can recognize you
           </ThemedText>
 
@@ -163,13 +164,13 @@ export default function SetupProfile() {
               <Ionicons name="camera" size={18} color="#fff" />
             </View>
           </TouchableOpacity>
-          <Text style={styles.avatarHint}>Tap to add a photo</Text>
+          <ThemedText variant="bodySmall" color="secondary" style={styles.avatarHint}>Tap to add a photo</ThemedText>
 
           <Spacer height={28} />
 
           {/* Display name */}
           <View style={styles.formContainer}>
-            <Text style={styles.inputLabel}>Display Name</Text>
+            <ThemedText variant="bodySmall" color="secondary" style={styles.inputLabel}>Display Name</ThemedText>
             <ThemedTextInput
               style={styles.input}
               placeholder="How should others see you?"
@@ -184,17 +185,17 @@ export default function SetupProfile() {
 
           {/* Location */}
           <View style={styles.formContainer}>
-            <Text style={styles.inputLabel}>Location</Text>
+            <ThemedText variant="bodySmall" color="secondary" style={styles.inputLabel}>Location</ThemedText>
             <TouchableOpacity
               style={styles.locationSelector}
               onPress={() => setLocationPickerOpen(true)}
             >
               {userLocations.length > 0 ? (
-                <Text style={styles.locationText} numberOfLines={1}>
+                <ThemedText variant="button" color="primary" style={styles.locationText} numberOfLines={1}>
                   {userLocations.map(loc => loc.name).join(' \u203A ')}
-                </Text>
+                </ThemedText>
               ) : (
-                <Text style={styles.locationPlaceholder}>Tap to set your location</Text>
+                <ThemedText variant="button" color="placeholder" style={styles.locationPlaceholder}>Tap to set your location</ThemedText>
               )}
               <Ionicons name="chevron-forward" size={18} color={colors.secondaryText} />
             </TouchableOpacity>
@@ -202,7 +203,7 @@ export default function SetupProfile() {
 
           {error && (
             <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{error}</Text>
+              <ThemedText variant="bodySmall" style={styles.errorText}>{error}</ThemedText>
             </View>
           )}
 
@@ -210,13 +211,13 @@ export default function SetupProfile() {
 
           <View style={styles.buttonContainer}>
             <ThemedButton onPress={handleContinue} disabled={saving} style={styles.continueButton}>
-              <Text style={styles.continueButtonText}>
+              <ThemedText variant="button" color="inverse">
                 {saving ? 'Saving...' : 'Continue'}
-              </Text>
+              </ThemedText>
             </ThemedButton>
 
             <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
-              <Text style={styles.skipButtonText}>Skip for now</Text>
+              <ThemedText variant="bodySmall" color="secondary">Skip for now</ThemedText>
             </TouchableOpacity>
           </View>
 
@@ -257,14 +258,9 @@ const createStyles = (colors) => StyleSheet.create({
     padding: 20,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: colors.primary,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 15,
-    color: colors.secondaryText,
     textAlign: 'center',
     marginTop: 8,
     maxWidth: 280,
@@ -295,24 +291,21 @@ const createStyles = (colors) => StyleSheet.create({
   },
   avatarHint: {
     marginTop: 8,
-    fontSize: 14,
-    color: colors.secondaryText,
   },
   formContainer: {
     width: '100%',
     maxWidth: 320,
   },
   inputLabel: {
-    fontSize: 14,
     fontWeight: '500',
-    color: colors.secondaryText,
     marginBottom: 6,
   },
   input: {
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.cardBorder,
-    fontSize: 16,
+    ...Typography.button,
+    fontWeight: undefined,
     backgroundColor: colors.cardBackground,
     color: colors.darkText,
   },
@@ -328,13 +321,11 @@ const createStyles = (colors) => StyleSheet.create({
   },
   locationText: {
     flex: 1,
-    fontSize: 16,
-    color: colors.primary,
+    fontWeight: undefined,
   },
   locationPlaceholder: {
     flex: 1,
-    fontSize: 16,
-    color: colors.placeholderText,
+    fontWeight: undefined,
   },
   errorContainer: {
     marginTop: 12,
@@ -344,7 +335,7 @@ const createStyles = (colors) => StyleSheet.create({
   errorText: {
     color: SemanticColors.warning,
     padding: 12,
-    backgroundColor: '#ffe6e6',
+    backgroundColor: colors.errorBannerBg,
     borderColor: SemanticColors.warning,
     borderWidth: 1,
     borderRadius: 8,
@@ -360,17 +351,8 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 12,
   },
-  continueButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
   skipButton: {
     marginTop: 16,
     paddingVertical: 8,
-  },
-  skipButtonText: {
-    color: colors.secondaryText,
-    fontSize: 14,
   },
 })

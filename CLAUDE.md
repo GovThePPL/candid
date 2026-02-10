@@ -77,6 +77,7 @@ The app supports light mode (default), dark mode, and system preference via `con
 - **Use `BrandColor`** (`#5C005C`) for surfaces with white text (card headers/footers) — it's theme-invariant
 - **Use `badgeBg`/`badgeText`** for location badges and accent elements — these are solid in dark mode (translucent alpha backgrounds are invisible on dark surfaces)
 - **Use `buttonDefault`/`buttonSelected`** for interactive pill buttons — these invert between themes (darker on select in light, lighter on select in dark)
+- **Use `Theme` text styles** from `constants/Theme.js` — never hardcode font sizes (e.g., `fontSize: 14`) or colors directly in component styles. All text sizing and coloring should come from theme tokens.
 - **WCAG contrast**: Text must meet AA (4.5:1 normal, 3:1 large). Placeholder/disabled text is exempt. Non-text UI components need 3:1
 - **Test both themes** when modifying any component with colored elements
 
@@ -121,6 +122,7 @@ Before starting non-trivial multi-step tasks, write a plan to `.claude-plans/` (
 
 - **File naming**: `.claude-plans/YYYY-MM-DD_HH-MM_<short-title>.md` (e.g., `2026-02-09_14-30_dark-mode-migration.md`)
 - **Contents**: Task description, step-by-step plan with checkboxes, key files involved, and any decisions made
+- **Accessibility**: When planning UI features, include a step for screen-reader support (e.g., `accessibilityLabel`, `accessibilityRole`, `accessibilityHint` on interactive elements)
 - **Update as you go**: Mark steps complete (`[x]`) and add notes as work progresses
 - **Check on startup**: At the beginning of a session, check `.claude-plans/` for any in-progress plans to resume
 
@@ -130,13 +132,20 @@ Each directory contains a README.md describing its purpose and structure. Before
 
 ### Test-Driven Development
 
-When planning a feature, design and create tests for it first. Tests live in `backend/tests/` and follow existing patterns (see `conftest.py` for shared fixtures and helpers).
+When planning a feature, design and create tests for it first. There are two test suites:
+
+- **Unit tests** (`backend/tests/unit/`) — Fast, no Docker needed. All external calls (DB, Redis, HTTP) are mocked. One test file per helper module. Include unit tests for any new or modified helper logic.
+- **Integration tests** (`backend/tests/`) — Hit live Docker services. One test file per API domain.
+
+When modifying a backend helper in `controllers/helpers/`, always add or update the corresponding unit test file in `backend/tests/unit/`. Unit tests should cover pure logic, edge cases, and error handling paths. Integration tests cover end-to-end API behavior.
 
 Before committing or pushing, always run the test suite and ensure there are tests covering the changes since the last commit:
 
 ```bash
-python3 -m pytest tests/ -v                    # Run all tests
-python3 -m pytest tests/test_<module>.py -v     # Run specific test file
+python3 -m pytest backend/tests/unit/ -v                          # Unit tests (no Docker)
+python3 -m pytest backend/tests/unit/ --cov --cov-report=term-missing  # With coverage
+python3 -m pytest backend/tests/ -v --ignore=backend/tests/unit   # Integration tests (Docker required)
+python3 -m pytest backend/tests/unit/ --benchmark-only            # Performance benchmarks
 ```
 
 ## Known Issues

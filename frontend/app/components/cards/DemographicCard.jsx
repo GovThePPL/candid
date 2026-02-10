@@ -1,6 +1,7 @@
-import { StyleSheet, View, Text, TouchableOpacity, Animated } from 'react-native'
+import { StyleSheet, View, TouchableOpacity, Animated } from 'react-native'
 import { useState, useRef, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react'
 import { useThemeColors } from '../../hooks/useThemeColors'
+import ThemedText from '../ThemedText'
 import SwipeableCard from './SwipeableCard'
 
 const DemographicCard = forwardRef(function DemographicCard({
@@ -85,12 +86,12 @@ const DemographicCard = forwardRef(function DemographicCard({
       <View style={styles.card}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.categoryName}>About You</Text>
+          <ThemedText variant="buttonSmall" color="badge" style={styles.categoryName}>About You</ThemedText>
         </View>
 
         {/* Question */}
         <View style={styles.questionContainer}>
-          <Text style={styles.question}>{questionText}</Text>
+          <ThemedText variant="statement" color="dark" style={styles.question}>{questionText}</ThemedText>
         </View>
 
         {/* Options */}
@@ -110,30 +111,31 @@ const DemographicCard = forwardRef(function DemographicCard({
                     selectedOption !== option.value && { backgroundColor: flashBackgroundColor },
                   ]}
                 >
-                  <Text
+                  <ThemedText
+                    variant="button"
                     style={[
                       styles.optionText,
                       selectedOption === option.value && styles.optionTextSelected,
                     ]}
                   >
                     {option.label}
-                  </Text>
+                  </ThemedText>
                 </Animated.View>
               </TouchableOpacity>
             ))
           ) : (
-            <Text style={styles.noOptionsText}>No options available</Text>
+            <ThemedText variant="button" color="secondary" style={styles.noOptionsText}>No options available</ThemedText>
           )}
         </View>
 
         {/* Instructions */}
         <View style={styles.footer}>
           {selectedOption ? (
-            <Text style={styles.footerText}>Swipe right to submit</Text>
+            <ThemedText variant="button" color="badge" style={styles.footerText}>Swipe right to submit</ThemedText>
           ) : (
-            <Text style={styles.footerText}>Select an option</Text>
+            <ThemedText variant="button" color="badge" style={styles.footerText}>Select an option</ThemedText>
           )}
-          <Text style={styles.skipText}>Swipe down to skip</Text>
+          <ThemedText variant="bodySmall" color="secondary">Swipe down to skip</ThemedText>
         </View>
       </View>
     </SwipeableCard>
@@ -154,9 +156,6 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: 20,
   },
   categoryName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.badgeText,
     backgroundColor: colors.badgeBg,
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -168,9 +167,7 @@ const createStyles = (colors) => StyleSheet.create({
     paddingBottom: 24,
   },
   question: {
-    fontSize: 22,
     fontWeight: '600',
-    color: colors.darkText,
     lineHeight: 30,
     textAlign: 'center',
   },
@@ -188,7 +185,6 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.buttonSelected,
   },
   optionText: {
-    fontSize: 16,
     fontWeight: '500',
     color: colors.buttonDefaultText,
   },
@@ -196,8 +192,7 @@ const createStyles = (colors) => StyleSheet.create({
     color: colors.buttonSelectedText,
   },
   noOptionsText: {
-    fontSize: 16,
-    color: colors.secondaryText,
+    fontWeight: '400',
     textAlign: 'center',
     paddingVertical: 20,
   },
@@ -207,12 +202,6 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 4,
   },
   footerText: {
-    fontSize: 16,
     fontWeight: '500',
-    color: colors.badgeText,
-  },
-  skipText: {
-    fontSize: 14,
-    color: colors.secondaryText,
   },
 })

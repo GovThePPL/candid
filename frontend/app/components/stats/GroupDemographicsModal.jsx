@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
   View,
-  Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
@@ -9,7 +8,9 @@ import {
 import Svg, { Path, G } from 'react-native-svg'
 import { Ionicons } from '@expo/vector-icons'
 import { SemanticColors } from '../../constants/Colors'
+import { Typography } from '../../constants/Theme'
 import { useThemeColors } from '../../hooks/useThemeColors'
+import ThemedText from '../ThemedText'
 import BottomDrawerModal from '../BottomDrawerModal'
 import LoadingView from '../LoadingView'
 import EmptyState from '../EmptyState'
@@ -190,12 +191,12 @@ function PieChart({ data, size = 100 }) {
 /**
  * Legend item for pie chart
  */
-function LegendItem({ color, label, count, percentage, colors }) {
+function LegendItem({ color, label, count, percentage }) {
   return (
     <View style={legendStyles.legendItem}>
       <View style={[legendStyles.legendDot, { backgroundColor: color }]} />
-      <Text style={[legendStyles.legendLabel, { color: colors.text }]} numberOfLines={1}>{label}</Text>
-      <Text style={[legendStyles.legendValue, { color: colors.secondaryText }]}>{count} ({percentage}%)</Text>
+      <ThemedText variant="bodySmall" style={legendStyles.legendLabel} numberOfLines={1}>{label}</ThemedText>
+      <ThemedText variant="label" color="secondary" style={legendStyles.legendValue}>{count} ({percentage}%)</ThemedText>
     </View>
   )
 }
@@ -215,10 +216,9 @@ const legendStyles = StyleSheet.create({
   },
   legendLabel: {
     flex: 1,
-    fontSize: 14,
   },
   legendValue: {
-    fontSize: 13,
+    fontWeight: 'normal',
     marginLeft: 4,
   },
 })
@@ -231,13 +231,13 @@ const legendStyles = StyleSheet.create({
  * @param {number} total - Total count
  * @param {Array} sortOrder - Optional array of keys in desired order
  */
-function DemographicSection({ title, data, labels, total, sortOrder, colors }) {
+function DemographicSection({ title, data, labels, total, sortOrder }) {
   const entries = Object.entries(data || {})
   if (entries.length === 0) {
     return (
       <View style={{ marginBottom: 24 }}>
-        <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 12 }}>{title}</Text>
-        <Text style={{ fontSize: 14, color: colors.secondaryText, fontStyle: 'italic' }}>No data available</Text>
+        <ThemedText variant="h3" style={{ marginBottom: 12 }}>{title}</ThemedText>
+        <ThemedText variant="bodySmall" color="secondary" style={{ fontStyle: 'italic' }}>No data available</ThemedText>
       </View>
     )
   }
@@ -267,7 +267,7 @@ function DemographicSection({ title, data, labels, total, sortOrder, colors }) {
 
   return (
     <View style={{ marginBottom: 24 }}>
-      <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 12 }}>{title}</Text>
+      <ThemedText variant="h3" style={{ marginBottom: 12 }}>{title}</ThemedText>
       <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
         <View style={{ marginRight: 16 }}>
           <PieChart data={pieData} size={100} />
@@ -280,7 +280,6 @@ function DemographicSection({ title, data, labels, total, sortOrder, colors }) {
               label={labels[key] || key}
               count={count}
               percentage={sectionTotal > 0 ? Math.round((count / sectionTotal) * 100) : 0}
-              colors={colors}
             />
           ))}
         </View>
@@ -346,9 +345,9 @@ export default function GroupDemographicsModal({
           ) : error ? (
             <View style={styles.errorContainer}>
               <Ionicons name="alert-circle-outline" size={48} color={SemanticColors.disagree} />
-              <Text style={styles.errorText}>{error}</Text>
+              <ThemedText variant="bodySmall" style={styles.errorText}>{error}</ThemedText>
               <TouchableOpacity style={styles.retryButton} onPress={loadDemographics}>
-                <Text style={styles.retryText}>Retry</Text>
+                <ThemedText variant="buttonSmall" color="inverse">Retry</ThemedText>
               </TouchableOpacity>
             </View>
           ) : respondentCount === 0 ? (
@@ -361,7 +360,7 @@ export default function GroupDemographicsModal({
               {/* Group Identity Rankings */}
               {labelRankings && labelRankings.length > 0 && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Group Identity</Text>
+                  <ThemedText variant="h3" style={styles.sectionTitle}>Group Identity</ThemedText>
                   <View style={styles.identityRankingList}>
                     {labelRankings.map((item, index) => (
                       <View
@@ -375,13 +374,13 @@ export default function GroupDemographicsModal({
                           {item.isCondorcetWinner && (
                             <Ionicons name="trophy" size={14} color={colors.primary} style={{ marginRight: 4 }} />
                           )}
-                          <Text style={styles.identityRankingRank}>{index + 1}.</Text>
-                          <Text style={[
+                          <ThemedText variant="buttonSmall" color="secondary" style={styles.identityRankingRank}>{index + 1}.</ThemedText>
+                          <ThemedText variant="body" style={[
                             styles.identityRankingLabel,
                             index === 0 && styles.identityRankingLabelTop
                           ]}>
                             {item.label}
-                          </Text>
+                          </ThemedText>
                         </View>
                       </View>
                     ))}
@@ -393,7 +392,6 @@ export default function GroupDemographicsModal({
                 data={data?.lean}
                 labels={LEAN_LABELS}
                 total={respondentCount}
-                colors={colors}
               />
               <DemographicSection
                 title="Education"
@@ -401,21 +399,18 @@ export default function GroupDemographicsModal({
                 labels={EDUCATION_LABELS}
                 total={respondentCount}
                 sortOrder={EDUCATION_ORDER}
-                colors={colors}
               />
               <DemographicSection
                 title="Geographic Location"
                 data={data?.geoLocale}
                 labels={GEO_LOCALE_LABELS}
                 total={respondentCount}
-                colors={colors}
               />
               <DemographicSection
                 title="Sex"
                 data={data?.sex}
                 labels={SEX_LABELS}
                 total={respondentCount}
-                colors={colors}
               />
               <DemographicSection
                 title="Age"
@@ -423,14 +418,12 @@ export default function GroupDemographicsModal({
                 labels={AGE_RANGE_LABELS}
                 total={respondentCount}
                 sortOrder={AGE_RANGE_ORDER}
-                colors={colors}
               />
               <DemographicSection
                 title="Race/Ethnicity"
                 data={data?.race}
                 labels={RACE_LABELS}
                 total={respondentCount}
-                colors={colors}
               />
               <DemographicSection
                 title="Income"
@@ -438,7 +431,6 @@ export default function GroupDemographicsModal({
                 labels={INCOME_RANGE_LABELS}
                 total={respondentCount}
                 sortOrder={INCOME_RANGE_ORDER}
-                colors={colors}
               />
               <View style={styles.bottomPadding} />
             </ScrollView>
@@ -459,7 +451,6 @@ const createStyles = (colors) => StyleSheet.create({
     padding: 48,
   },
   errorText: {
-    fontSize: 14,
     color: SemanticColors.disagree,
     textAlign: 'center',
     marginTop: 12,
@@ -471,18 +462,10 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.primary,
     borderRadius: 8,
   },
-  retryText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
   section: {
     marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
     marginBottom: 12,
   },
   bottomPadding: {
@@ -512,23 +495,14 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 8,
   },
   identityRankingRank: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.secondaryText,
     width: 24,
   },
   identityRankingLabel: {
-    fontSize: 15,
     fontWeight: '500',
-    color: colors.text,
   },
   identityRankingLabelTop: {
-    fontSize: 16,
+    ...Typography.h3,
     fontWeight: '700',
     color: colors.primary,
-  },
-  identityRankingVotes: {
-    fontSize: 14,
-    color: colors.secondaryText,
   },
 })

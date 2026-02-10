@@ -1,8 +1,9 @@
-import { StyleSheet, View, Text, TouchableOpacity, Animated } from 'react-native'
+import { StyleSheet, View, TouchableOpacity, Animated } from 'react-native'
 import { useState, useRef, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { BrandColor } from '../../constants/Colors'
+import ThemedText from '../ThemedText'
 import SwipeableCard from './SwipeableCard'
 
 const PairwiseCard = forwardRef(function PairwiseCard({
@@ -111,8 +112,8 @@ const PairwiseCard = forwardRef(function PairwiseCard({
 
             {/* Title and Subtitle */}
             <View style={styles.titleContainer}>
-              <Text style={styles.headerTitle}>Survey</Text>
-              <Text style={styles.headerSubtitle} numberOfLines={1}>{surveyTitle}</Text>
+              <ThemedText variant="statement" color="inverse" style={styles.headerTitle}>Survey</ThemedText>
+              <ThemedText variant="button" style={styles.headerSubtitle} numberOfLines={1}>{surveyTitle}</ThemedText>
             </View>
           </View>
         </View>
@@ -124,17 +125,17 @@ const PairwiseCard = forwardRef(function PairwiseCard({
             <View style={styles.contentHeader}>
               {location?.code && (
                 <View style={styles.locationBadge}>
-                  <Text style={styles.locationCode}>{location.code}</Text>
+                  <ThemedText variant="buttonSmall" color="badge">{location.code}</ThemedText>
                 </View>
               )}
-              <Text style={styles.categoryName}>
+              <ThemedText variant="bodySmall" color="badge">
                 {category?.label || 'General'}
-              </Text>
+              </ThemedText>
             </View>
 
             {/* Question */}
             <View style={styles.questionContainer}>
-              <Text style={styles.question}>{question}</Text>
+              <ThemedText variant="statement" color="dark" style={styles.question}>{question}</ThemedText>
             </View>
 
             {/* Options */}
@@ -153,14 +154,15 @@ const PairwiseCard = forwardRef(function PairwiseCard({
                       selectedOption !== option.id && { backgroundColor: flashBackgroundColor },
                     ]}
                   >
-                    <Text
+                    <ThemedText
+                      variant="button"
                       style={[
                         styles.optionText,
                         selectedOption === option.id && styles.optionTextSelected,
                       ]}
                     >
                       {option.option}
-                    </Text>
+                    </ThemedText>
                   </Animated.View>
                 </TouchableOpacity>
               ))}
@@ -169,11 +171,11 @@ const PairwiseCard = forwardRef(function PairwiseCard({
             {/* Instructions */}
             <View style={styles.footer}>
               {selectedOption ? (
-                <Text style={styles.footerText}>Swipe right to submit</Text>
+                <ThemedText variant="button" color="primary" style={styles.footerText}>Swipe right to submit</ThemedText>
               ) : (
-                <Text style={styles.footerText}>Select an option</Text>
+                <ThemedText variant="button" color="primary" style={styles.footerText}>Select an option</ThemedText>
               )}
-              <Text style={styles.skipText}>Swipe down to skip</Text>
+              <ThemedText variant="bodySmall" color="secondary">Swipe down to skip</ThemedText>
             </View>
           </View>
         </View>
@@ -210,14 +212,12 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'column',
   },
   headerTitle: {
-    color: '#FFFFFF',
-    fontSize: 22,
     fontWeight: '600',
     fontStyle: 'italic',
   },
   headerSubtitle: {
+    fontWeight: '400',
     color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: 16,
   },
   contentCardWrapper: {
     flex: 1,
@@ -243,24 +243,13 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
   },
-  locationCode: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.badgeText,
-  },
-  categoryName: {
-    fontSize: 14,
-    color: colors.badgeText,
-  },
   questionContainer: {
     flex: 1,
     justifyContent: 'center',
     paddingBottom: 20,
   },
   question: {
-    fontSize: 22,
     fontWeight: '600',
-    color: colors.darkText,
     lineHeight: 30,
     textAlign: 'center',
   },
@@ -278,7 +267,6 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.buttonSelected,
   },
   optionText: {
-    fontSize: 16,
     fontWeight: '500',
     color: colors.buttonDefaultText,
   },
@@ -291,12 +279,6 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 4,
   },
   footerText: {
-    fontSize: 16,
     fontWeight: '500',
-    color: colors.primary,
-  },
-  skipText: {
-    fontSize: 14,
-    color: colors.secondaryText,
   },
 })

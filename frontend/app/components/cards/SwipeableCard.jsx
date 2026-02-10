@@ -1,8 +1,9 @@
-import { StyleSheet, Dimensions, View, Animated, PanResponder, Platform, Text } from 'react-native'
+import { StyleSheet, Dimensions, View, Animated, PanResponder, Platform } from 'react-native'
 import { useRef, useCallback, useImperativeHandle, forwardRef, useMemo } from 'react'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { SemanticColors } from '../../constants/Colors'
 import { Ionicons } from '@expo/vector-icons'
+import ThemedText from '../ThemedText'
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window')
 const SWIPE_THRESHOLD = 60
@@ -395,7 +396,7 @@ const SwipeableCard = forwardRef(function SwipeableCard({
         style={[styles.iconOverlay, { opacity: passTextOpacity, transform: [{ scale: passTextScale }] }]}
         pointerEvents="none"
       >
-        <Text style={styles.passText}>Pass</Text>
+        <ThemedText variant="overlay" color="inverse">Pass</ThemedText>
       </Animated.View>
       {/* Chat icon overlay for up swipe */}
       <Animated.View
@@ -416,7 +417,7 @@ const SwipeableCard = forwardRef(function SwipeableCard({
         style={[styles.iconOverlay, { opacity: submitTextOpacity, transform: [{ scale: submitTextScale }] }]}
         pointerEvents="none"
       >
-        <Text style={styles.submitText}>Submit</Text>
+        <ThemedText variant="overlay" color="inverse">Submit</ThemedText>
       </Animated.View>
       {/* Gold overlay for kudos */}
       <Animated.View
@@ -473,16 +474,6 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  passText: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  submitText: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
   },
   plusOverlay: {
     ...StyleSheet.absoluteFillObject,

@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 import {
   View,
-  Text,
   StyleSheet,
   Modal,
   TouchableOpacity,
@@ -9,6 +8,7 @@ import {
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { createSharedStyles } from '../constants/SharedStyles'
+import ThemedText from './ThemedText'
 
 /**
  * Reusable info/explanation modal triggered by help icons throughout the app.
@@ -66,21 +66,22 @@ export default function InfoModal({
             </View>
           )}
 
-          <Text style={[styles.title, !hasHeroIcon && styles.titleLeft]}>
+          <ThemedText variant="h4" color="primary" style={[styles.title, !hasHeroIcon && styles.titleLeft]}>
             {title}
-          </Text>
+          </ThemedText>
 
           {hasCustomContent ? (
             children
           ) : (
             <>
               {paragraphs?.map((text, i) => (
-                <Text
+                <ThemedText
                   key={i}
+                  variant="body"
                   style={[styles.paragraph, !hasHeroIcon && styles.paragraphLeft]}
                 >
                   {text}
-                </Text>
+                </ThemedText>
               ))}
               {items?.map((item, i) => (
                 <View key={i} style={styles.item}>
@@ -91,14 +92,14 @@ export default function InfoModal({
                       color={item.iconColor || colors.primary}
                     />
                   </View>
-                  <Text style={styles.itemText}>{item.text}</Text>
+                  <ThemedText variant="bodySmall" style={styles.itemText}>{item.text}</ThemedText>
                 </View>
               ))}
             </>
           )}
 
           <TouchableOpacity style={styles.button} onPress={onClose}>
-            <Text style={styles.buttonText}>{buttonText}</Text>
+            <ThemedText variant="button" color="inverse">{buttonText}</ThemedText>
           </TouchableOpacity>
         </TouchableOpacity>
       </TouchableOpacity>
@@ -108,7 +109,7 @@ export default function InfoModal({
 
 /** Convenience sub-component for custom paragraph text inside InfoModal children */
 InfoModal.Paragraph = function Paragraph({ style, children }) {
-  return <Text style={[staticStyles.paragraph, staticStyles.paragraphLeft, style]}>{children}</Text>
+  return <ThemedText variant="body" style={[staticStyles.paragraphLeft, style]}>{children}</ThemedText>
 }
 
 /** Convenience sub-component for icon+text item rows inside InfoModal children */
@@ -116,19 +117,13 @@ InfoModal.Item = function Item({ icon, iconColor, children }) {
   return (
     <View style={staticStyles.item}>
       <Ionicons name={icon} size={20} color={iconColor} />
-      <Text style={[staticStyles.itemText]}>{children}</Text>
+      <ThemedText variant="bodySmall" style={staticStyles.itemText}>{children}</ThemedText>
     </View>
   )
 }
 
 // Static styles for sub-components that can't use hooks (not React components with hooks)
 const staticStyles = StyleSheet.create({
-  paragraph: {
-    fontSize: 15,
-    lineHeight: 22,
-    textAlign: 'center',
-    marginBottom: 12,
-  },
   paragraphLeft: {
     textAlign: 'left',
     alignSelf: 'flex-start',
@@ -142,9 +137,7 @@ const staticStyles = StyleSheet.create({
     width: '100%',
   },
   itemText: {
-    fontSize: 14,
     flex: 1,
-    lineHeight: 20,
   },
 })
 
@@ -163,9 +156,6 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: 16,
   },
   title: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.primary,
     marginBottom: 16,
     textAlign: 'center',
   },
@@ -174,9 +164,6 @@ const createStyles = (colors) => StyleSheet.create({
     alignSelf: 'flex-start',
   },
   paragraph: {
-    fontSize: 15,
-    color: colors.text,
-    lineHeight: 22,
     textAlign: 'center',
     marginBottom: 12,
   },
@@ -197,10 +184,7 @@ const createStyles = (colors) => StyleSheet.create({
     padding: 6,
   },
   itemText: {
-    fontSize: 14,
-    color: colors.text,
     flex: 1,
-    lineHeight: 20,
   },
   button: {
     backgroundColor: colors.primary,
@@ -208,10 +192,5 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 25,
     marginTop: 20,
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
   },
 })

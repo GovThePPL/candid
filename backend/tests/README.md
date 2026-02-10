@@ -1,15 +1,25 @@
 # Tests
 
-Integration test suite that runs against the live API. All tests use HTTP requests to the running Flask API server.
+Two test suites: **integration tests** (require Docker services) and **unit tests** (run standalone with mocks).
 
 ## Running
 
 ```bash
+# Integration tests (require Docker services running)
 docker compose up -d                                    # Start services first
-python3 -m pytest backend/tests/ -v                     # All tests
+python3 -m pytest backend/tests/ -v --ignore=backend/tests/unit  # All integration tests
 python3 -m pytest backend/tests/test_auth.py -v         # Single file
 python3 -m pytest backend/tests/ -v -m smoke            # Smoke tests only
-python3 -m pytest backend/tests/ -v -m "not mutation"   # Read-only tests
+
+# Unit tests (no Docker needed)
+python3 -m pytest backend/tests/unit/ -v                # All unit tests
+python3 -m pytest backend/tests/unit/ -v -m unit        # Unit marker only
+
+# Coverage
+python3 -m pytest backend/tests/unit/ --cov --cov-report=term-missing --cov-report=html
+
+# Benchmarks
+python3 -m pytest backend/tests/unit/ --benchmark-only -v
 ```
 
 ## Test Files
@@ -37,14 +47,36 @@ python3 -m pytest backend/tests/ -v -m "not mutation"   # Read-only tests
 | `test_stats.py` | Statistics and analytics endpoints |
 | `test_polis_integration.py` | Pol.is API integration |
 
+## Unit Tests (`unit/`)
+
+| File | Module Under Test | Description |
+|------|-------------------|-------------|
+| `test_pairwise_graph.py` | `pairwise_graph.py` | Graph algorithms: preference graph, transitive closure, Tarjan's SCC, ranked pairs, entropy |
+| `test_cache_headers.py` | `cache_headers.py` | HTTP date parsing, ETag generation, conditional request handling |
+| `test_auth.py` | `auth.py` | Role hierarchy, authorization, ban checking with Redis cache |
+| `test_presence.py` | `presence.py` | Redis presence tracking: swiping, heartbeat, batch checks, likelihoods |
+| `test_chat_availability.py` | `chat_availability.py` | Likelihood filtering, weighted random selection, notification eligibility |
+| `test_config.py` | `config.py` | Config defaults, env var overrides, Dev/Prod subclasses |
+| `test_keycloak.py` | `keycloak.py` | Role extraction, token validation, user creation, conflict handling |
+| `test_nlp.py` | `nlp.py` | Embeddings, similarity, NSFW check, avatar processing, health check |
+| `test_polis_client.py` | `polis_client.py` | Admin token caching, HTTP error handling, XID tokens, token clearing |
+| `test_polis_sync.py` | `polis_sync.py` | XID generation, vote mapping, queue operations, time windows |
+| `test_polis_worker.py` | `polis_worker.py` | Exponential backoff, status transitions, batch processing, queue stats |
+| `test_push_notifications.py` | `push_notifications.py` | Statement truncation, Expo Push API formatting, daily counter |
+| `test_chat_events.py` | `chat_events.py` | Redis pub/sub event structure, optional fields, error handling |
+
 ## Key Files
 
-- `conftest.py` -- Shared fixtures and helpers: API URL configuration, auth helpers (`login_as`, `register_user`), test user credentials, cleanup utilities
-- `pytest.ini` (at repo root) -- Marker definitions (`smoke`, `mutation`)
+- `conftest.py` -- Shared fixtures and helpers for integration tests: API URL configuration, auth helpers, test user credentials, cleanup utilities
+- `unit/conftest.py` -- Shared fixtures for unit tests: MockDB, MockRedis, MockConfig, path setup (syncs controllers to generated, mocks DB connections)
+- `pytest.ini` (at repo root) -- Marker definitions (`smoke`, `mutation`, `unit`, `benchmark`)
 
 ## Conventions
 
-- Tests are organized by API domain, one file per controller area
+- Integration tests are organized by API domain, one file per controller area
+- Unit tests are organized by helper module, one file per module
 - Fixtures in `conftest.py` handle login and provide authenticated sessions
 - Tests that write to the database are marked with `@pytest.mark.mutation`
 - Quick validation tests are marked with `@pytest.mark.smoke`
+- Unit tests are marked with `@pytest.mark.unit`
+- Performance benchmarks use `pytest-benchmark` and are marked with `@pytest.mark.benchmark`

@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, Modal, FlatList } from 'react-native'
+import { View, StyleSheet, TouchableOpacity, Modal, FlatList } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { createSharedStyles } from '../constants/SharedStyles'
 import { usersApiWrapper, categoriesApiWrapper } from '../lib/api'
+import ThemedText from './ThemedText'
 
 /**
  * Dropdown selectors for location and category
@@ -104,7 +105,7 @@ export default function LocationCategorySelector({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <TouchableOpacity style={shared.modalOverlay} activeOpacity={1} onPress={onClose}>
         <View style={shared.modalContent}>
-          <Text style={shared.modalTitle}>{title}</Text>
+          <ThemedText variant="h2" color="primary" style={shared.modalTitle}>{title}</ThemedText>
           <FlatList
             data={items}
             keyExtractor={(item) => item.id}
@@ -119,14 +120,15 @@ export default function LocationCategorySelector({
                   onClose()
                 }}
               >
-                <Text
+                <ThemedText
+                  variant="button"
                   style={[
                     styles.pickerItemText,
                     item.id === selectedId && styles.pickerItemTextSelected,
                   ]}
                 >
                   {item[labelKey] || item.name}
-                </Text>
+                </ThemedText>
                 {item.id === selectedId && (
                   <Ionicons name="checkmark" size={20} color={colors.buttonDefaultText} />
                 )}
@@ -141,7 +143,7 @@ export default function LocationCategorySelector({
   if (loading) {
     return (
       <View style={[styles.container, style]}>
-        <Text style={styles.loadingText}>Loading...</Text>
+        <ThemedText variant="bodySmall" color="secondary" style={styles.loadingText}>Loading...</ThemedText>
       </View>
     )
   }
@@ -152,7 +154,7 @@ export default function LocationCategorySelector({
       <View style={styles.selectorWrapper}>
         {showLabels && (
           <View style={styles.labelRow}>
-            <Text style={styles.labelText}>Location</Text>
+            <ThemedText variant="label" color="dark">Location</ThemedText>
           </View>
         )}
         <TouchableOpacity
@@ -162,9 +164,9 @@ export default function LocationCategorySelector({
           {!showLabels && (
             <Ionicons name="location-outline" size={18} color={colors.primary} />
           )}
-          <Text style={styles.selectorText} numberOfLines={1}>
+          <ThemedText variant="bodySmall" style={styles.selectorText} numberOfLines={1}>
             {getSelectedLocationName()}
-          </Text>
+          </ThemedText>
           <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
         </TouchableOpacity>
       </View>
@@ -173,7 +175,7 @@ export default function LocationCategorySelector({
       <View style={styles.selectorWrapper}>
         {showLabels && (
           <View style={styles.labelRow}>
-            <Text style={styles.labelText}>Category</Text>
+            <ThemedText variant="label" color="dark">Category</ThemedText>
             {categoryAutoSelected && (
               <Ionicons name="sparkles" size={10} color={colors.primary} style={{ marginLeft: 4 }} />
             )}
@@ -189,9 +191,9 @@ export default function LocationCategorySelector({
           {!showLabels && (
             <Ionicons name="folder-outline" size={18} color={colors.primary} />
           )}
-          <Text style={styles.selectorText} numberOfLines={1}>
+          <ThemedText variant="bodySmall" style={styles.selectorText} numberOfLines={1}>
             {getSelectedCategoryName()}
-          </Text>
+          </ThemedText>
           <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
         </TouchableOpacity>
       </View>
@@ -235,11 +237,6 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: 4,
     height: 18,
   },
-  labelText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.darkText,
-  },
   selector: {
     flex: 1,
     flexDirection: 'row',
@@ -258,12 +255,8 @@ const createStyles = (colors) => StyleSheet.create({
   },
   selectorText: {
     flex: 1,
-    fontSize: 14,
-    color: colors.text,
   },
   loadingText: {
-    fontSize: 14,
-    color: colors.secondaryText,
     textAlign: 'center',
     paddingVertical: 16,
   },
@@ -279,7 +272,7 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.buttonDefault,
   },
   pickerItemText: {
-    fontSize: 16,
+    fontWeight: '400',
     color: colors.text,
   },
   pickerItemTextSelected: {

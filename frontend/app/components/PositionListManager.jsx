@@ -1,8 +1,10 @@
 import { useState, useMemo, useEffect, forwardRef, useImperativeHandle } from 'react'
-import { StyleSheet, Text, View, TouchableOpacity } from 'react-native'
+import { StyleSheet, View, TouchableOpacity } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { SemanticColors } from '../constants/Colors'
+import { Typography } from '../constants/Theme'
+import ThemedText from './ThemedText'
 import ThemedTextInput from './ThemedTextInput'
 import EmptyState from './EmptyState'
 import LoadingView from './LoadingView'
@@ -221,7 +223,13 @@ const PositionListManager = forwardRef(function PositionListManager({
   // Render delete checkbox (right side)
   function renderCheckbox(checked, onPress, header) {
     return (
-      <TouchableOpacity onPress={onPress} style={header ? styles.headerRightControl : styles.rightControl}>
+      <TouchableOpacity
+        onPress={onPress}
+        style={header ? styles.headerRightControl : styles.rightControl}
+        accessibilityLabel={checked ? "Deselect" : "Select"}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked }}
+      >
         <Ionicons
           name={checked ? 'checkbox' : 'checkbox-outline'}
           size={20}
@@ -239,6 +247,9 @@ const PositionListManager = forwardRef(function PositionListManager({
         onPress={() => handleChatToggle(item)}
         disabled={isToggling}
         style={[styles.rightControl, isToggling && { opacity: 0.4 }]}
+        accessibilityLabel={item.isActive ? "Disable chat" : "Enable chat"}
+        accessibilityRole="switch"
+        accessibilityState={{ checked: item.isActive }}
       >
         <Ionicons
           name={item.isActive ? 'chatbubble' : 'chatbubble-outline'}
@@ -258,6 +269,9 @@ const PositionListManager = forwardRef(function PositionListManager({
         onPress={() => handleGroupChatToggle(groupItems)}
         disabled={someToggling}
         style={[styles.headerRightControl, someToggling && { opacity: 0.4 }]}
+        accessibilityLabel={allActive ? "Disable all chats in group" : "Enable all chats in group"}
+        accessibilityRole="switch"
+        accessibilityState={{ checked: allActive }}
       >
         <Ionicons
           name={allActive ? 'chatbubble' : 'chatbubble-outline'}
@@ -284,20 +298,21 @@ const PositionListManager = forwardRef(function PositionListManager({
       >
         <View style={styles.itemContent}>
           {!showCollapsible && (
-            <Text style={styles.itemDetail}>
+            <ThemedText variant="caption" color="secondary" style={styles.itemDetail}>
               {item.locationCode || item.locationName} · {item.categoryName}
-            </Text>
+            </ThemedText>
           )}
-          <Text
+          <ThemedText
+            variant="bodySmall"
+            color="dark"
             style={[
-              styles.itemStatement,
               !item.isActive && styles.itemStatementInactive,
             ]}
           >
             {item.statement}
-          </Text>
+          </ThemedText>
           {item.meta && (
-            <Text style={styles.itemMeta}>{item.meta}</Text>
+            <ThemedText variant="caption" color="secondary" style={styles.itemMeta}>{item.meta}</ThemedText>
           )}
         </View>
         {deleteMode && renderCheckbox(isSelected, () => toggleSelect(item.id))}
@@ -335,36 +350,36 @@ const PositionListManager = forwardRef(function PositionListManager({
             onChangeText={setSearchQuery}
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.searchClear}>
+            <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.searchClear} accessibilityLabel="Clear search" accessibilityRole="button">
               <Ionicons name="close-circle" size={18} color={colors.secondaryText} />
             </TouchableOpacity>
           )}
         </View>
         {!deleteMode && !chatMode && (
           <>
-            <TouchableOpacity style={styles.modeButton} onPress={enterChatMode}>
+            <TouchableOpacity style={styles.modeButton} onPress={enterChatMode} accessibilityLabel="Chat mode" accessibilityRole="button">
               <Ionicons name="chatbubble-outline" size={16} color={colors.primary} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.modeButton} onPress={enterDeleteMode}>
+            <TouchableOpacity style={styles.modeButton} onPress={enterDeleteMode} accessibilityLabel="Delete mode" accessibilityRole="button">
               <Ionicons name="trash-outline" size={16} color={SemanticColors.warning} />
             </TouchableOpacity>
           </>
         )}
         {deleteMode && (
           <TouchableOpacity style={styles.doneButton} onPress={exitDeleteMode}>
-            <Text style={styles.doneButtonText}>Cancel</Text>
+            <ThemedText variant="label" color="secondary" style={styles.doneButtonText}>Cancel</ThemedText>
           </TouchableOpacity>
         )}
         {chatMode && (
           <TouchableOpacity style={styles.doneButton} onPress={exitChatMode}>
-            <Text style={styles.doneButtonText}>Done</Text>
+            <ThemedText variant="label" color="secondary" style={styles.doneButtonText}>Done</ThemedText>
           </TouchableOpacity>
         )}
       </View>
 
       {/* No results from filter */}
       {filteredItems.length === 0 && searchQuery.trim().length > 0 && (
-        <Text style={styles.noResultsText}>No positions match your search.</Text>
+        <ThemedText variant="bodySmall" color="secondary" style={styles.noResultsText}>No positions match your search.</ThemedText>
       )}
 
       {/* Flat list for under 25 items */}
@@ -394,8 +409,8 @@ const PositionListManager = forwardRef(function PositionListManager({
                   size={18}
                   color={colors.primary}
                 />
-                <Text style={styles.locationTitle}>{locationName}</Text>
-                <Text style={styles.locationCount}>{locIds.length}</Text>
+                <ThemedText variant="h3" color="primary" style={styles.locationTitle}>{locationName}</ThemedText>
+                <ThemedText variant="label" color="primary" style={styles.locationCount}>{locIds.length}</ThemedText>
               </TouchableOpacity>
               {deleteMode && renderCheckbox(locAllSelected, () => toggleSelectAll(locIds), true)}
               {chatMode && renderGroupChatToggle(locItems)}
@@ -422,8 +437,8 @@ const PositionListManager = forwardRef(function PositionListManager({
                             size={16}
                             color={colors.primary}
                           />
-                          <Text style={styles.categoryTitle}>{categoryName}</Text>
-                          <Text style={styles.categoryCount}>{catIds.length}</Text>
+                          <ThemedText variant="bodySmall" color="primary" style={styles.categoryTitle}>{categoryName}</ThemedText>
+                          <ThemedText variant="caption" color="primary" style={styles.categoryCount}>{catIds.length}</ThemedText>
                         </TouchableOpacity>
                         {deleteMode && renderCheckbox(catAllSelected, () => toggleSelectAll(catIds), true)}
                         {chatMode && renderGroupChatToggle(catItems)}
@@ -471,7 +486,7 @@ const createStyles = (colors) => StyleSheet.create({
   searchInput: {
     flex: 1,
     padding: 10,
-    fontSize: 14,
+    ...Typography.bodySmall,
     backgroundColor: 'transparent',
     borderRadius: 0,
   },
@@ -494,13 +509,9 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.cardBackground,
   },
   doneButtonText: {
-    fontSize: 13,
-    color: colors.secondaryText,
     fontWeight: '500',
   },
   noResultsText: {
-    fontSize: 14,
-    color: colors.secondaryText,
     textAlign: 'center',
     paddingVertical: 24,
   },
@@ -538,15 +549,10 @@ const createStyles = (colors) => StyleSheet.create({
   },
   locationTitle: {
     flex: 1,
-    fontSize: 16,
     fontWeight: '700',
-    color: colors.primary,
     marginLeft: 8,
   },
   locationCount: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.primary,
     opacity: 0.6,
   },
 
@@ -575,15 +581,11 @@ const createStyles = (colors) => StyleSheet.create({
   },
   categoryTitle: {
     flex: 1,
-    fontSize: 14,
     fontWeight: '700',
-    color: colors.primary,
     marginLeft: 6,
   },
   categoryCount: {
-    fontSize: 12,
     fontWeight: '600',
-    color: colors.primary,
     opacity: 0.6,
   },
 
@@ -608,22 +610,13 @@ const createStyles = (colors) => StyleSheet.create({
   itemContent: {
     flex: 1,
   },
-  itemStatement: {
-    fontSize: 14,
-    color: colors.darkText,
-    lineHeight: 20,
-  },
   itemStatementInactive: {
     color: colors.secondaryText,
   },
   itemDetail: {
-    fontSize: 12,
-    color: colors.secondaryText,
     marginBottom: 2,
   },
   itemMeta: {
-    fontSize: 12,
-    color: colors.secondaryText,
     marginTop: 4,
   },
 

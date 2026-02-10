@@ -1,8 +1,10 @@
 import { useMemo } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
+import { View, StyleSheet, TouchableOpacity } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { SemanticColors, BrandColor } from '../../constants/Colors'
+import { Typography } from '../../constants/Theme'
 import { useThemeColors } from '../../hooks/useThemeColors'
+import ThemedText from '../ThemedText'
 import VoteDistributionBar from './VoteDistributionBar'
 import CardShell from '../CardShell'
 import PositionInfoCard from '../PositionInfoCard'
@@ -76,34 +78,25 @@ export default function PositionCard({ position, groups = [], activeGroup, userV
     })),
   ]
 
-  // Check if any group has >30% answered (agree + disagree + pass > 0.3)
-  // If not, hide the unanswered section and show total vote count instead
-  const hasSignificantVotes = bars.some(bar => {
-    const dist = bar.distribution || { agree: 0, disagree: 0, pass: 0 }
-    const answered = (dist.agree || 0) + (dist.disagree || 0) + (dist.pass || 0)
-    return answered > 0.3
-  })
-  const hideUnanswered = !hasSignificantVotes && totalVotes > 0
-
   // Build vote badge for header right
   const voteBadge = userVote ? (
     <View>
       {userVote === 'agree' && (
         <View style={styles.agreedBadge}>
           <Ionicons name="checkmark" size={12} color="#FFFFFF" />
-          <Text style={styles.badgeText}>You Agreed</Text>
+          <ThemedText variant="badge" color="inverse" style={styles.badgeText}>You Agreed</ThemedText>
         </View>
       )}
       {userVote === 'disagree' && (
         <View style={styles.disagreedBadge}>
           <Ionicons name="close" size={12} color="#FFFFFF" />
-          <Text style={styles.badgeText}>You Disagreed</Text>
+          <ThemedText variant="badge" color="inverse" style={styles.badgeText}>You Disagreed</ThemedText>
         </View>
       )}
       {userVote === 'pass' && (
         <View style={styles.passedBadge}>
           <Ionicons name="remove" size={12} color={colors.secondaryText} />
-          <Text style={[styles.badgeText, { color: colors.secondaryText }]}>You Passed</Text>
+          <ThemedText variant="badge" color="secondary" style={styles.badgeText}>You Passed</ThemedText>
         </View>
       )}
     </View>
@@ -121,22 +114,22 @@ export default function PositionCard({ position, groups = [], activeGroup, userV
           {showAgree ? (
             <View style={styles.definingContent}>
               <Ionicons name="checkmark-circle" size={20} color={SemanticColors.agree} />
-              <Text style={styles.definingText}>
-                <Text style={[styles.definingPercent, { color: SemanticColors.agree }]}>{agreePercent}%</Text>
+              <ThemedText variant="label" style={styles.definingText}>
+                <ThemedText variant="label" color="agree" style={styles.definingPercent}>{agreePercent}%</ThemedText>
                 {activeGroup === 'majority'
                   ? ' of all users who voted on this statement agreed.'
                   : ` of those in Group ${activeGroupLabel} who voted on this statement agreed.`}
-              </Text>
+              </ThemedText>
             </View>
           ) : (
             <View style={styles.definingContent}>
               <Ionicons name="close-circle" size={20} color={SemanticColors.disagree} />
-              <Text style={styles.definingText}>
-                <Text style={[styles.definingPercent, { color: SemanticColors.disagree }]}>{disagreePercent}%</Text>
+              <ThemedText variant="label" style={styles.definingText}>
+                <ThemedText variant="label" color="disagree" style={styles.definingPercent}>{disagreePercent}%</ThemedText>
                 {activeGroup === 'majority'
                   ? ' of all users who voted on this statement disagreed.'
                   : ` of those in Group ${activeGroupLabel} who voted on this statement disagreed.`}
-              </Text>
+              </ThemedText>
             </View>
           )}
         </View>
@@ -154,24 +147,30 @@ export default function PositionCard({ position, groups = [], activeGroup, userV
                 styles.labelCell,
                 isActive && !isAllUsers && styles.labelCellActive
               ]}>
-                <Text numberOfLines={1}>
-                  <Text style={[
+                <ThemedText variant="badgeLg" numberOfLines={1}>
+                  <ThemedText variant="badgeLg" style={[
                     styles.groupLabel,
                     isAllUsers && styles.allUsersLabel,
                     isActive && !isAllUsers && styles.groupLabelActive
                   ]}>
                     {isAllUsers ? 'All' : bar.label}
-                  </Text>
+                  </ThemedText>
                   {bar.customLabel ? (
-                    <Text style={[
+                    <ThemedText variant="caption" style={[
                       styles.customLabel,
                       isActive && !isAllUsers && styles.customLabelActive
-                    ]}> {bar.customLabel}</Text>
+                    ]}> {bar.customLabel}</ThemedText>
                   ) : null}
-                </Text>
+                </ThemedText>
               </View>
             )
           })}
+          {/* Vote count centered under group names */}
+          {totalVotes > 0 && (
+            <View style={styles.voteCountCell}>
+              <ThemedText variant="caption" style={styles.voteCount}>{totalVotes} vote{totalVotes !== 1 ? 's' : ''}</ThemedText>
+            </View>
+          )}
         </View>
 
         {/* Bars column — fills remaining width, all bars equal length */}
@@ -184,39 +183,28 @@ export default function PositionCard({ position, groups = [], activeGroup, userV
                   distribution={dist}
                   height={20}
                   showLabels={true}
-                  hideUnanswered={hideUnanswered}
                 />
               </View>
             )
           })}
-        </View>
-      </View>
-
-      {/* Legend and vote count */}
-      <View style={styles.legendRow}>
-        <View style={styles.legend}>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: SemanticColors.agree }]} />
-            <Text style={styles.legendLabel}>Agree</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: SemanticColors.disagree }]} />
-            <Text style={styles.legendLabel}>Disagree</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: colors.pass }]} />
-            <Text style={styles.legendLabel}>Pass</Text>
-          </View>
-          {!hideUnanswered && (
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, styles.unansweredDot]} />
-              <Text style={styles.legendLabel}>Unanswered</Text>
+          {/* Legend centered under bars */}
+          <View style={styles.legendCell}>
+            <View style={styles.legend}>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: SemanticColors.agree }]} />
+                <ThemedText variant="caption" style={styles.legendLabel}>Agree</ThemedText>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: SemanticColors.disagree }]} />
+                <ThemedText variant="caption" style={styles.legendLabel}>Disagree</ThemedText>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: colors.pass }]} />
+                <ThemedText variant="caption" style={styles.legendLabel}>Pass</ThemedText>
+              </View>
             </View>
-          )}
+          </View>
         </View>
-        {(activeGroup === 'my_positions' || hideUnanswered) && totalVotes > 0 && (
-          <Text style={styles.voteCount}>{totalVotes} vote{totalVotes !== 1 ? 's' : ''}</Text>
-        )}
       </View>
 
       {/* View Closures button - only show when closures exist */}
@@ -226,7 +214,7 @@ export default function PositionCard({ position, groups = [], activeGroup, userV
           onPress={() => onViewClosures(position.id)}
         >
           <Ionicons name="chatbubbles-outline" size={14} color="#FFFFFF" />
-          <Text style={styles.viewClosuresText}>View Closures</Text>
+          <ThemedText variant="badgeLg" color="inverse" style={styles.viewClosuresText}>View Closures</ThemedText>
           <Ionicons name="chevron-forward" size={14} color="#FFFFFF" />
         </TouchableOpacity>
       )}
@@ -266,16 +254,14 @@ const createStyles = (colors) => StyleSheet.create({
   passedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F0F0F0',
+    backgroundColor: colors.background,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
     gap: 4,
   },
   badgeText: {
-    fontSize: 10,
     fontWeight: '600',
-    color: '#FFFFFF',
   },
   // Purple stats section
   definingStatement: {
@@ -285,11 +271,11 @@ const createStyles = (colors) => StyleSheet.create({
     borderWidth: 1,
   },
   definingAgree: {
-    backgroundColor: '#0D3D0D',
+    backgroundColor: colors.definingAgreeBg,
     borderColor: SemanticColors.agree,
   },
   definingDisagree: {
-    backgroundColor: '#3D1515',
+    backgroundColor: colors.definingDisagreeBg,
     borderColor: SemanticColors.disagree,
   },
   definingContent: {
@@ -299,9 +285,9 @@ const createStyles = (colors) => StyleSheet.create({
   },
   definingText: {
     flex: 1,
-    fontSize: 13,
+    fontWeight: '400',
     lineHeight: 18,
-    color: colors.text,
+    color: colors.definingText,
   },
   definingPercent: {
     fontWeight: '700',
@@ -325,15 +311,14 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 10,
   },
   labelCellActive: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.uiBackground,
   },
   barCell: {
     height: 20,
     justifyContent: 'center',
   },
   groupLabel: {
-    fontSize: 12,
-    fontWeight: '600',
+    ...Typography.badgeLg,
     color: '#FFFFFF',
   },
   groupLabelActive: {
@@ -341,32 +326,32 @@ const createStyles = (colors) => StyleSheet.create({
     color: BrandColor,
   },
   allUsersLabel: {
-    fontSize: 10,
+    ...Typography.caption,
     color: 'rgba(255, 255, 255, 0.7)',
   },
   customLabel: {
-    fontSize: 10,
+    ...Typography.caption,
     fontWeight: '400',
     color: 'rgba(255, 255, 255, 0.8)',
   },
   customLabelActive: {
     color: BrandColor,
   },
-  legendRow: {
-    position: 'relative',
-    marginTop: 12,
+  voteCountCell: {
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  voteCount: {
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  legendCell: {
+    marginTop: 8,
+    alignItems: 'center',
   },
   legend: {
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 12,
-  },
-  voteCount: {
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    fontSize: 10,
-    color: 'rgba(255, 255, 255, 0.8)',
   },
   legendItem: {
     flexDirection: 'row',
@@ -378,13 +363,7 @@ const createStyles = (colors) => StyleSheet.create({
     height: 8,
     borderRadius: 4,
   },
-  unansweredDot: {
-    backgroundColor: colors.border,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
   legendLabel: {
-    fontSize: 10,
     color: 'rgba(255, 255, 255, 0.8)',
   },
   viewClosuresButton: {
@@ -399,8 +378,5 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 6,
   },
   viewClosuresText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FFFFFF',
   },
 })

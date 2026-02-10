@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, Image, TextInput, Alert } from 'react-native'
+import { StyleSheet, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, Image, TextInput, Alert } from 'react-native'
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -232,7 +232,7 @@ export default function ProfileSettings() {
       <Header onBack={() => router.back()} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.pageHeader}>
-          <ThemedText title={true} style={styles.pageTitle}>
+          <ThemedText variant="h1" title={true} style={styles.pageTitle}>
             Profile
           </ThemedText>
         </View>
@@ -240,7 +240,7 @@ export default function ProfileSettings() {
         {error && (
           <View style={styles.errorContainer}>
             <Ionicons name="alert-circle" size={20} color={SemanticColors.warning} />
-            <Text style={styles.errorText}>{error}</Text>
+            <ThemedText variant="bodySmall" color="error" style={styles.errorText}>{error}</ThemedText>
           </View>
         )}
 
@@ -256,7 +256,7 @@ export default function ProfileSettings() {
                 <Ionicons name="camera" size={16} color="#fff" />
               </View>
             </TouchableOpacity>
-            <Text style={styles.avatarHint}>Tap to change avatar</Text>
+            <ThemedText variant="bodySmall" color="secondary" style={styles.avatarHint}>{`Tap to change avatar`}</ThemedText>
           </View>
         </View>
 
@@ -264,17 +264,18 @@ export default function ProfileSettings() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="person-outline" size={22} color={colors.primary} />
-            <Text style={styles.sectionTitle}>Basic Information</Text>
+            <ThemedText variant="h2" color="dark">Basic Information</ThemedText>
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Display Name</Text>
+            <ThemedText variant="bodySmall" color="secondary" style={styles.inputLabel}>Display Name</ThemedText>
             <TextInput
               style={styles.textInput}
               value={displayName}
               onChangeText={handleProfileFieldChange(setDisplayName)}
               placeholder="Your display name"
               placeholderTextColor={colors.placeholderText}
+              maxFontSizeMultiplier={1.5}
             />
           </View>
 
@@ -287,19 +288,19 @@ export default function ProfileSettings() {
               {savingProfile ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.saveProfileButtonText}>Save Changes</Text>
+                <ThemedText variant="button" color="inverse">Save Changes</ThemedText>
               )}
             </TouchableOpacity>
           )}
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Username</Text>
-            <Text style={styles.readOnlyValue}>@{profile?.username}</Text>
+            <ThemedText variant="bodySmall" color="secondary" style={styles.inputLabel}>Username</ThemedText>
+            <ThemedText variant="button" color="secondary" style={styles.readOnlyValue}>@{profile?.username}</ThemedText>
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Member Since</Text>
-            <Text style={styles.readOnlyValue}>{formatJoinDate(profile?.joinTime)}</Text>
+            <ThemedText variant="bodySmall" color="secondary" style={styles.inputLabel}>Member Since</ThemedText>
+            <ThemedText variant="button" color="secondary" style={styles.readOnlyValue}>{formatJoinDate(profile?.joinTime)}</ThemedText>
           </View>
         </View>
       </ScrollView>
@@ -321,7 +322,7 @@ export default function ProfileSettings() {
           <Pressable style={styles.avatarModalContent} onPress={(e) => e.stopPropagation()}>
             {croppedImagePreview ? (
               <>
-                <Text style={styles.modalTitle}>Preview Avatar</Text>
+                <ThemedText variant="h2" color="dark" style={styles.modalTitle}>Preview Avatar</ThemedText>
 
                 <View style={styles.previewContainer}>
                   <Image
@@ -336,7 +337,7 @@ export default function ProfileSettings() {
                     onPress={handleCancelPreview}
                     disabled={uploadingAvatar}
                   >
-                    <Text style={styles.previewCancelButtonText}>Cancel</Text>
+                    <ThemedText variant="button" color="secondary">Cancel</ThemedText>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.previewAcceptButton, uploadingAvatar && styles.buttonDisabled]}
@@ -346,14 +347,14 @@ export default function ProfileSettings() {
                     {uploadingAvatar ? (
                       <ActivityIndicator color="#fff" size="small" />
                     ) : (
-                      <Text style={styles.previewAcceptButtonText}>Accept</Text>
+                      <ThemedText variant="button" color="inverse">Accept</ThemedText>
                     )}
                   </TouchableOpacity>
                 </View>
               </>
             ) : (
               <>
-                <Text style={styles.modalTitle}>Choose Avatar</Text>
+                <ThemedText variant="h2" color="dark" style={styles.modalTitle}>Choose Avatar</ThemedText>
 
                 <TouchableOpacity
                   style={styles.uploadPhotoButton}
@@ -365,7 +366,7 @@ export default function ProfileSettings() {
                   ) : (
                     <>
                       <Ionicons name="camera-outline" size={20} color="#fff" />
-                      <Text style={styles.uploadPhotoButtonText}>Upload Photo</Text>
+                      <ThemedText variant="button" color="inverse">Upload Photo</ThemedText>
                     </>
                   )}
                 </TouchableOpacity>
@@ -377,13 +378,13 @@ export default function ProfileSettings() {
                     disabled={saving}
                   >
                     <Ionicons name="trash-outline" size={20} color={SemanticColors.warning} />
-                    <Text style={styles.removeAvatarButtonText}>Remove Photo</Text>
+                    <ThemedText variant="button" color="error" style={styles.removeAvatarButtonText}>Remove Photo</ThemedText>
                   </TouchableOpacity>
                 )}
 
-                <Text style={styles.avatarInfoText}>
+                <ThemedText variant="caption" color="secondary" style={styles.avatarInfoText}>
                   Upload a square photo (max 5MB). Images are resized to 256x256.
-                </Text>
+                </ThemedText>
               </>
             )}
           </Pressable>
@@ -415,14 +416,12 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: 20,
   },
   pageTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
     color: colors.primary,
   },
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffe6e6',
+    backgroundColor: colors.errorBannerBg,
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
@@ -430,8 +429,6 @@ const createStyles = (colors) => StyleSheet.create({
   },
   errorText: {
     flex: 1,
-    color: SemanticColors.warning,
-    fontSize: 14,
   },
   section: {
     backgroundColor: colors.cardBackground,
@@ -446,11 +443,6 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.darkText,
   },
   avatarSection: {
     alignItems: 'center',
@@ -474,16 +466,12 @@ const createStyles = (colors) => StyleSheet.create({
   },
   avatarHint: {
     marginTop: 8,
-    fontSize: 14,
-    color: colors.secondaryText,
   },
   inputGroup: {
     marginBottom: 16,
   },
   inputLabel: {
-    fontSize: 14,
     fontWeight: '500',
-    color: colors.secondaryText,
     marginBottom: 6,
   },
   textInput: {
@@ -497,8 +485,6 @@ const createStyles = (colors) => StyleSheet.create({
     borderColor: colors.cardBorder,
   },
   readOnlyValue: {
-    fontSize: 16,
-    color: colors.secondaryText,
     paddingVertical: 12,
   },
   saveProfileButton: {
@@ -508,11 +494,7 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  saveProfileButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  // saveProfileButtonText removed - handled by ThemedText variant="button" color="inverse"
   buttonDisabled: {
     opacity: 0.6,
   },
@@ -526,9 +508,6 @@ const createStyles = (colors) => StyleSheet.create({
     overflow: 'hidden',
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.darkText,
     padding: 16,
     textAlign: 'center',
   },
@@ -544,11 +523,7 @@ const createStyles = (colors) => StyleSheet.create({
     marginTop: 8,
     gap: 8,
   },
-  uploadPhotoButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  // uploadPhotoButtonText removed - handled by ThemedText variant="button" color="inverse"
   removeAvatarButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -564,14 +539,10 @@ const createStyles = (colors) => StyleSheet.create({
     borderColor: SemanticColors.warning,
   },
   removeAvatarButtonText: {
-    color: SemanticColors.warning,
-    fontSize: 16,
     fontWeight: '500',
   },
   avatarInfoText: {
     textAlign: 'center',
-    color: colors.secondaryText,
-    fontSize: 13,
     marginTop: 16,
     marginBottom: 8,
     marginHorizontal: 16,
@@ -601,10 +572,7 @@ const createStyles = (colors) => StyleSheet.create({
     borderColor: colors.cardBorder,
     alignItems: 'center',
   },
-  previewCancelButtonText: {
-    fontSize: 16,
-    color: colors.secondaryText,
-  },
+  // previewCancelButtonText removed - handled by ThemedText variant="button" color="secondary"
   previewAcceptButton: {
     flex: 1,
     paddingVertical: 12,
@@ -612,9 +580,5 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.primary,
     alignItems: 'center',
   },
-  previewAcceptButtonText: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
+  // previewAcceptButtonText removed - handled by ThemedText variant="button" color="inverse"
 })

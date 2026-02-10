@@ -1,8 +1,9 @@
-import { StyleSheet, View, Text, TouchableOpacity } from 'react-native'
+import { StyleSheet, View, TouchableOpacity } from 'react-native'
 import { useMemo } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { SemanticColors } from '../../constants/Colors'
+import ThemedText from '../ThemedText'
 
 export default function PositionRemovedCard({ data, onDismiss }) {
   const colors = useThemeColors()
@@ -15,23 +16,23 @@ export default function PositionRemovedCard({ data, onDismiss }) {
         <Ionicons name="remove-circle" size={40} color={SemanticColors.warning} />
       </View>
 
-      <Text style={styles.title}>Position Removed</Text>
-      <Text style={styles.subtitle}>
+      <ThemedText variant="h4" color="error" style={styles.title}>Position Removed</ThemedText>
+      <ThemedText variant="bodySmall" color="secondary" style={styles.subtitle}>
         This position was removed for violating community guidelines.
-      </Text>
+      </ThemedText>
 
       <View style={styles.positionContainer}>
         {(category || location) && (
           <View style={styles.metaRow}>
-            {location && <Text style={styles.locationCode}>{location}</Text>}
-            {category && <Text style={styles.categoryName}>{category}</Text>}
+            {location && <ThemedText variant="caption" color="primary" style={styles.locationCode}>{location}</ThemedText>}
+            {category && <ThemedText variant="badgeLg" color="secondary">{category}</ThemedText>}
           </View>
         )}
-        <Text style={styles.statement}>{statement}</Text>
+        <ThemedText variant="button" style={styles.statement}>{statement}</ThemedText>
       </View>
 
       <TouchableOpacity style={styles.dismissButton} onPress={onDismiss}>
-        <Text style={styles.dismissButtonText}>Dismiss</Text>
+        <ThemedText variant="button" color="inverse">Dismiss</ThemedText>
       </TouchableOpacity>
     </View>
   )
@@ -52,17 +53,11 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: 12,
   },
   title: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: SemanticColors.warning,
     marginBottom: 6,
   },
   subtitle: {
-    fontSize: 14,
-    color: colors.secondaryText,
     textAlign: 'center',
     marginBottom: 20,
-    lineHeight: 20,
   },
   positionContainer: {
     width: '100%',
@@ -78,24 +73,15 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: 8,
   },
   locationCode: {
-    fontSize: 12,
     fontWeight: '700',
-    color: colors.primary,
     backgroundColor: colors.primaryLight,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
     overflow: 'hidden',
   },
-  categoryName: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.secondaryText,
-  },
   statement: {
-    fontSize: 16,
     fontWeight: '500',
-    color: colors.text,
     lineHeight: 22,
   },
   dismissButton: {
@@ -103,10 +89,5 @@ const createStyles = (colors) => StyleSheet.create({
     paddingHorizontal: 32,
     paddingVertical: 12,
     borderRadius: 25,
-  },
-  dismissButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
   },
 })

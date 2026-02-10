@@ -1,4 +1,4 @@
-import { StyleSheet, Text, Platform, View, KeyboardAvoidingView, ScrollView } from 'react-native'
+import { StyleSheet, Platform, View, KeyboardAvoidingView, ScrollView } from 'react-native'
 import { Link } from 'expo-router'
 import { useState, useMemo } from 'react'
 import { useUser } from '../../hooks/useUser'
@@ -10,6 +10,7 @@ import Spacer from '../../components/Spacer'
 import ThemedButton from '../../components/ThemedButton'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { SemanticColors } from '../../constants/Colors'
+import { Typography } from '../../constants/Theme'
 
 const Register = () => {
   const [username, setUsername] = useState('')
@@ -67,15 +68,15 @@ const Register = () => {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.logoContainer}>
-            <Text style={styles.logo}>Candid</Text>
+            <ThemedText variant="brand" color="primary" style={styles.logo}>Candid</ThemedText>
           </View>
 
           <Spacer height={30} />
-          <ThemedText title={true} style={styles.title}>
+          <ThemedText variant="h1" title={true} style={styles.title}>
             Create an Account
           </ThemedText>
 
-          <ThemedText style={styles.subtitle}>
+          <ThemedText variant="body" style={styles.subtitle}>
             Join the conversation on issues that matter
           </ThemedText>
 
@@ -118,24 +119,24 @@ const Register = () => {
 
             <Spacer height={8} />
             <ThemedButton onPress={handleRegister} disabled={loading} style={styles.button}>
-              <Text style={styles.buttonText}>
+              <ThemedText variant="button" color="inverse">
                 {loading ? 'Creating Account...' : 'Create Account'}
-              </Text>
+              </ThemedText>
             </ThemedButton>
           </View>
 
           {/* Error container - always present to prevent layout shift */}
           <View style={styles.errorContainer}>
-            <Text style={[styles.error, !error && styles.errorHidden]}>
+            <ThemedText variant="bodySmall" style={[styles.error, !error && styles.errorHidden]}>
               {error || 'Placeholder'}
-            </Text>
+            </ThemedText>
           </View>
 
           <Spacer height={24} />
           <Link href="/login" replace>
-            <Text style={styles.loginLink}>
-              Already have an account? <Text style={styles.loginLinkBold}>Sign In</Text>
-            </Text>
+            <ThemedText variant="bodySmall" color="secondary">
+              Already have an account? <ThemedText variant="buttonSmall" color="primary">Sign In</ThemedText>
+            </ThemedText>
           </Link>
           <Spacer height={40} />
         </ScrollView>
@@ -164,8 +165,6 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: 20,
   },
   logo: {
-    fontSize: 56,
-    color: colors.primary,
     ...Platform.select({
       web: {
         fontFamily: 'Pacifico, cursive',
@@ -179,15 +178,10 @@ const createStyles = (colors) => StyleSheet.create({
   },
   title: {
     textAlign: "center",
-    fontSize: 20,
-    fontWeight: '600',
-    color: colors.primary,
     marginBottom: 10,
   },
   subtitle: {
     textAlign: "center",
-    fontSize: 14,
-    color: colors.secondaryText,
     maxWidth: 280,
   },
   formContainer: {
@@ -199,7 +193,8 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.cardBorder,
-    fontSize: 16,
+    ...Typography.button,
+    fontWeight: undefined,
     backgroundColor: colors.cardBackground,
     color: colors.darkText,
   },
@@ -207,11 +202,6 @@ const createStyles = (colors) => StyleSheet.create({
     width: "100%",
     paddingVertical: 16,
     borderRadius: 12,
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
   },
   errorContainer: {
     height: 60,
@@ -222,7 +212,7 @@ const createStyles = (colors) => StyleSheet.create({
   error: {
     color: SemanticColors.warning,
     padding: 12,
-    backgroundColor: '#ffe6e6',
+    backgroundColor: colors.errorBannerBg,
     borderColor: SemanticColors.warning,
     borderWidth: 1,
     borderRadius: 8,
@@ -230,13 +220,5 @@ const createStyles = (colors) => StyleSheet.create({
   },
   errorHidden: {
     opacity: 0,
-  },
-  loginLink: {
-    color: colors.secondaryText,
-    fontSize: 14,
-  },
-  loginLinkBold: {
-    color: colors.primary,
-    fontWeight: '600',
   },
 })

@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
   View,
-  Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
@@ -9,6 +8,7 @@ import {
 import { Ionicons } from '@expo/vector-icons'
 import { GROUP_COLORS, SemanticColors, BrandColor } from '../../constants/Colors'
 import { useThemeColors } from '../../hooks/useThemeColors'
+import ThemedText from '../ThemedText'
 import BottomDrawerModal from '../BottomDrawerModal'
 import LoadingView from '../LoadingView'
 import EmptyState from '../EmptyState'
@@ -196,28 +196,28 @@ export default function SurveyResultsModal({
     >
       <View style={styles.surveyItemContent}>
         <View style={styles.surveyTitleRow}>
-          <Text style={styles.surveyTitle}>{survey.surveyTitle}</Text>
+          <ThemedText variant="h3" style={styles.surveyTitle}>{survey.surveyTitle}</ThemedText>
         </View>
         {survey.comparisonQuestion && (
-          <Text style={styles.surveyQuestion}>{survey.comparisonQuestion}</Text>
+          <ThemedText variant="bodySmall" color="secondary" style={styles.surveyQuestion}>{survey.comparisonQuestion}</ThemedText>
         )}
         <View style={styles.surveyMeta}>
-          <Text style={styles.surveyType}>
+          <ThemedText variant="caption" color="secondary" style={styles.surveyType}>
             {survey.surveyType === 'pairwise' ? 'Pairwise' : 'Standard'}
             {survey.surveyType === 'pairwise'
               ? ` · ${survey.items?.length || 0} items`
               : ` · ${survey.questionCount || 0} questions`}
-          </Text>
+          </ThemedText>
           {survey.isActive ? (
-            <Text style={styles.surveyActive}>
+            <ThemedText variant="caption" color="agree" style={styles.surveyActive}>
               <Ionicons name="ellipse" size={8} color={SemanticColors.agree} /> Active
               {survey.daysRemaining !== null && ` · ${survey.daysRemaining} days left`}
-            </Text>
+            </ThemedText>
           ) : (
-            <Text style={styles.surveyInactive}>
+            <ThemedText variant="caption" color="secondary" style={styles.surveyInactive}>
               <Ionicons name="ellipse" size={8} color={colors.pass} /> Completed
               {survey.dateRange && ` · ${survey.dateRange.start} - ${survey.dateRange.end}`}
-            </Text>
+            </ThemedText>
           )}
         </View>
       </View>
@@ -235,9 +235,9 @@ export default function SurveyResultsModal({
         ) : error ? (
           <View style={styles.errorContainer}>
             <Ionicons name="alert-circle-outline" size={48} color={SemanticColors.disagree} />
-            <Text style={styles.errorText}>{error}</Text>
+            <ThemedText variant="bodySmall" style={styles.errorText}>{error}</ThemedText>
             <TouchableOpacity style={styles.retryButton} onPress={loadSurveys}>
-              <Text style={styles.retryText}>Retry</Text>
+              <ThemedText variant="buttonSmall" color="inverse">Retry</ThemedText>
             </TouchableOpacity>
           </View>
         ) : surveys.length === 0 ? (
@@ -251,9 +251,9 @@ export default function SurveyResultsModal({
               <View key={group.locationId} style={styles.locationSection}>
                 <View style={styles.locationHeader}>
                   <Ionicons name="location" size={16} color={colors.primary} />
-                  <Text style={styles.locationHeaderText}>
+                  <ThemedText variant="h3" color="primary" style={styles.locationHeaderText}>
                     {group.locationName || group.locationCode || 'Unknown Location'}
-                  </Text>
+                  </ThemedText>
                 </View>
                 {group.surveys.map(survey => renderSurveyItem(survey))}
               </View>
@@ -278,7 +278,7 @@ export default function SurveyResultsModal({
         ) : error ? (
           <View style={styles.errorContainer}>
             <Ionicons name="alert-circle-outline" size={48} color={SemanticColors.disagree} />
-            <Text style={styles.errorText}>{error}</Text>
+            <ThemedText variant="bodySmall" style={styles.errorText}>{error}</ThemedText>
           </View>
         ) : (
           <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -286,7 +286,7 @@ export default function SurveyResultsModal({
               <>
                 {/* Pairwise Rankings */}
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Overall Rankings</Text>
+                  <ThemedText variant="h3" style={styles.sectionTitle}>Overall Rankings</ThemedText>
                   <View style={styles.rankingList}>
                     {rankings.rankings?.map((item, index) => (
                       <View
@@ -300,13 +300,13 @@ export default function SurveyResultsModal({
                           {item.isCondorcetWinner && (
                             <Ionicons name="trophy" size={14} color={colors.primary} />
                           )}
-                          <Text style={styles.rankingRank}>{index + 1}.</Text>
-                          <Text style={[
+                          <ThemedText variant="buttonSmall" color="secondary" style={styles.rankingRank}>{index + 1}.</ThemedText>
+                          <ThemedText variant="body" style={[
                             styles.rankingLabel,
                             index === 0 && styles.rankingLabelTop
                           ]}>
                             {item.itemText}
-                          </Text>
+                          </ThemedText>
                         </View>
                       </View>
                     ))}
@@ -319,14 +319,14 @@ export default function SurveyResultsModal({
                 {rankings.questions?.map((question) => (
                   <View key={question.questionId} style={styles.section}>
                     <View style={styles.questionHeader}>
-                      <Text style={styles.sectionTitle}>{question.question}</Text>
+                      <ThemedText variant="h3" style={styles.sectionTitle}>{question.question}</ThemedText>
                       {fetchCrosstabs && (
                         <TouchableOpacity
                           style={styles.crosstabsButton}
                           onPress={() => handleViewCrosstabs(question)}
                         >
                           <Ionicons name="stats-chart" size={16} color={colors.primary} />
-                          <Text style={styles.crosstabsButtonText}>Demographics</Text>
+                          <ThemedText variant="caption" color="primary" style={styles.crosstabsButtonText}>Demographics</ThemedText>
                         </TouchableOpacity>
                       )}
                     </View>
@@ -344,16 +344,16 @@ export default function SurveyResultsModal({
                             ]}
                           >
                             <View style={styles.rankingLeft}>
-                              <Text style={[
+                              <ThemedText variant="body" style={[
                                 styles.rankingLabel,
                                 index === 0 && styles.rankingLabelTop
                               ]}>
                                 {option.optionText}
-                              </Text>
+                              </ThemedText>
                             </View>
-                            <Text style={styles.rankingVotes}>
+                            <ThemedText variant="bodySmall" color="secondary" style={styles.rankingVotes}>
                               {option.responseCount} ({percentage}%)
-                            </Text>
+                            </ThemedText>
                           </View>
                         )
                       })}
@@ -366,7 +366,7 @@ export default function SurveyResultsModal({
             {/* Per-Group Rankings (pairwise only) */}
             {hasGroupRankings && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Rankings by Group</Text>
+                <ThemedText variant="h3" style={styles.sectionTitle}>Rankings by Group</ThemedText>
                 {Object.entries(rankings.groupRankings).map(([groupId, groupData], groupIndex) => (
                   <View key={groupId} style={styles.groupRankingSection}>
                     <View style={styles.groupHeader}>
@@ -376,12 +376,12 @@ export default function SurveyResultsModal({
                           { backgroundColor: GROUP_COLORS[parseInt(groupId) % GROUP_COLORS.length] }
                         ]}
                       />
-                      <Text style={styles.groupLabel}>
+                      <ThemedText variant="buttonSmall" style={styles.groupLabel}>
                         Group {groupData.groupLabel}
-                      </Text>
+                      </ThemedText>
                       <View style={styles.groupMemberCount}>
                         <Ionicons name="person" size={12} color={colors.secondaryText} />
-                        <Text style={styles.groupMemberText}>{groupData.memberCount}</Text>
+                        <ThemedText variant="caption" color="secondary" style={styles.groupMemberText}>{groupData.memberCount}</ThemedText>
                       </View>
                     </View>
                     <View style={styles.rankingList}>
@@ -397,13 +397,13 @@ export default function SurveyResultsModal({
                             {item.isCondorcetWinner && (
                               <Ionicons name="trophy" size={14} color={colors.primary} />
                             )}
-                            <Text style={styles.rankingRank}>{index + 1}.</Text>
-                            <Text style={[
+                            <ThemedText variant="buttonSmall" color="secondary" style={styles.rankingRank}>{index + 1}.</ThemedText>
+                            <ThemedText variant="body" style={[
                               styles.rankingLabel,
                               index === 0 && styles.rankingLabelTop
                             ]}>
                               {item.itemText}
-                            </Text>
+                            </ThemedText>
                           </View>
                         </View>
                       ))}
@@ -489,7 +489,7 @@ export default function SurveyResultsModal({
         ) : error ? (
           <View style={styles.errorContainer}>
             <Ionicons name="alert-circle-outline" size={48} color={SemanticColors.disagree} />
-            <Text style={styles.errorText}>{error}</Text>
+            <ThemedText variant="bodySmall" style={styles.errorText}>{error}</ThemedText>
           </View>
         ) : (
           <ScrollView
@@ -515,23 +515,23 @@ export default function SurveyResultsModal({
 
               return (
                 <View key={demoKey} style={styles.section}>
-                  <Text style={styles.sectionTitle}>{demographicLabels[demoKey] || demoKey}</Text>
+                  <ThemedText variant="h3" style={styles.sectionTitle}>{demographicLabels[demoKey] || demoKey}</ThemedText>
                   <ScrollView horizontal showsHorizontalScrollIndicator={true}>
                     <View style={styles.crosstabsTable}>
                       {/* Header row with option names */}
                       <View style={styles.tableHeaderRow}>
                         <View style={styles.tableRowHeader}>
-                          <Text style={styles.tableHeaderText}></Text>
+                          <ThemedText variant="caption" color="primary" style={styles.tableHeaderText}></ThemedText>
                         </View>
                         {options.map((opt) => (
                           <View key={opt.optionId} style={styles.tableCell}>
-                            <Text style={styles.tableHeaderText} numberOfLines={2}>
+                            <ThemedText variant="caption" color="primary" style={styles.tableHeaderText} numberOfLines={2}>
                               {opt.optionText}
-                            </Text>
+                            </ThemedText>
                           </View>
                         ))}
                         <View style={styles.tableCellTotal}>
-                          <Text style={styles.tableHeaderText}>Total</Text>
+                          <ThemedText variant="caption" color="primary" style={styles.tableHeaderText}>Total</ThemedText>
                         </View>
                       </View>
 
@@ -545,18 +545,18 @@ export default function SurveyResultsModal({
                           ]}
                         >
                           <View style={styles.tableRowHeader}>
-                            <Text style={styles.tableRowHeaderText}>{row.categoryLabel}</Text>
+                            <ThemedText variant="label" style={styles.tableRowHeaderText}>{row.categoryLabel}</ThemedText>
                           </View>
                           {options.map((opt) => {
                             const optData = row.optionBreakdown?.find(o => o.optionId === opt.optionId)
                             return (
                               <View key={opt.optionId} style={styles.tableCell}>
-                                <Text style={styles.tableCellText}>{optData?.count || 0}</Text>
+                                <ThemedText variant="label" style={styles.tableCellText}>{optData?.count || 0}</ThemedText>
                               </View>
                             )
                           })}
                           <View style={styles.tableCellTotal}>
-                            <Text style={styles.tableCellTotalText}>{row.totalInCategory}</Text>
+                            <ThemedText variant="label" style={styles.tableCellTotalText}>{row.totalInCategory}</ThemedText>
                           </View>
                         </View>
                       ))}
@@ -564,15 +564,15 @@ export default function SurveyResultsModal({
                       {/* Column totals row */}
                       <View style={styles.tableTotalRow}>
                         <View style={styles.tableRowHeader}>
-                          <Text style={styles.tableTotalHeaderText}>Total</Text>
+                          <ThemedText variant="label" style={styles.tableTotalHeaderText}>Total</ThemedText>
                         </View>
                         {columnTotals.map((total, idx) => (
                           <View key={idx} style={styles.tableCell}>
-                            <Text style={styles.tableTotalCellText}>{total}</Text>
+                            <ThemedText variant="label" style={styles.tableTotalCellText}>{total}</ThemedText>
                           </View>
                         ))}
                         <View style={styles.tableCellTotal}>
-                          <Text style={styles.tableGrandTotalText}>{grandTotal}</Text>
+                          <ThemedText variant="buttonSmall" color="primary" style={styles.tableGrandTotalText}>{grandTotal}</ThemedText>
                         </View>
                       </View>
                     </View>
@@ -673,7 +673,6 @@ const createStyles = (colors) => StyleSheet.create({
     padding: 48,
   },
   errorText: {
-    fontSize: 14,
     color: SemanticColors.disagree,
     textAlign: 'center',
     marginTop: 12,
@@ -684,11 +683,6 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 10,
     backgroundColor: colors.primary,
     borderRadius: 8,
-  },
-  retryText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
   },
   surveyItem: {
     flexDirection: 'row',
@@ -713,9 +707,6 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 8,
   },
   surveyTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
     flex: 1,
   },
   locationBadge: {
@@ -725,13 +716,10 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 8,
   },
   locationCode: {
-    fontSize: 12,
     fontWeight: '600',
     color: colors.badgeText,
   },
   surveyQuestion: {
-    fontSize: 14,
-    color: colors.secondaryText,
     marginTop: 4,
   },
   surveyMeta: {
@@ -741,24 +729,15 @@ const createStyles = (colors) => StyleSheet.create({
     marginTop: 8,
   },
   surveyType: {
-    fontSize: 12,
-    color: colors.secondaryText,
   },
   surveyActive: {
-    fontSize: 12,
-    color: SemanticColors.agree,
   },
   surveyInactive: {
-    fontSize: 12,
-    color: colors.secondaryText,
   },
   section: {
     marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
     marginBottom: 12,
   },
   rankingList: {
@@ -786,25 +765,17 @@ const createStyles = (colors) => StyleSheet.create({
     flex: 1,
   },
   rankingRank: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.secondaryText,
     width: 24,
   },
   rankingLabel: {
-    fontSize: 15,
     fontWeight: '500',
-    color: colors.text,
     flex: 1,
   },
   rankingLabelTop: {
-    fontSize: 16,
     fontWeight: '700',
     color: colors.primary,
   },
   rankingVotes: {
-    fontSize: 14,
-    color: colors.secondaryText,
     marginLeft: 8,
   },
   groupRankingSection: {
@@ -822,9 +793,6 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 6,
   },
   groupLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
   },
   groupMemberCount: {
     flexDirection: 'row',
@@ -832,8 +800,6 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 4,
   },
   groupMemberText: {
-    fontSize: 12,
-    color: colors.secondaryText,
   },
   locationSection: {
     marginBottom: 20,
@@ -848,9 +814,6 @@ const createStyles = (colors) => StyleSheet.create({
     borderBottomColor: colors.cardBorder,
   },
   locationHeaderText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.primary,
     flex: 1,
   },
   questionHeader: {
@@ -870,9 +833,7 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 8,
   },
   crosstabsButtonText: {
-    fontSize: 12,
     fontWeight: '600',
-    color: colors.primary,
   },
   crosstabsTable: {
     backgroundColor: colors.cardBackground,
@@ -904,9 +865,7 @@ const createStyles = (colors) => StyleSheet.create({
     justifyContent: 'center',
   },
   tableRowHeaderText: {
-    fontSize: 13,
     fontWeight: '500',
-    color: colors.text,
   },
   tableCell: {
     width: 80,
@@ -918,9 +877,8 @@ const createStyles = (colors) => StyleSheet.create({
     borderRightColor: colors.cardBorder,
   },
   tableCellText: {
-    fontSize: 13,
-    color: colors.text,
     textAlign: 'center',
+    fontWeight: 'normal',
   },
   tableCellTotal: {
     width: 70,
@@ -931,9 +889,6 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: BrandColor + '10',
   },
   tableCellTotalText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.text,
   },
   tableTotalRow: {
     flexDirection: 'row',
@@ -942,24 +897,15 @@ const createStyles = (colors) => StyleSheet.create({
     borderTopColor: BrandColor + '40',
   },
   tableTotalHeaderText: {
-    fontSize: 13,
     fontWeight: '700',
-    color: colors.text,
   },
   tableTotalCellText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.text,
   },
   tableGrandTotalText: {
-    fontSize: 14,
     fontWeight: '700',
-    color: colors.primary,
   },
   tableHeaderText: {
-    fontSize: 12,
     fontWeight: '600',
-    color: colors.primary,
     textAlign: 'center',
   },
   bottomPadding: {

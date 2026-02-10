@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useContext, useMemo } from 'react'
 import {
   StyleSheet,
   View,
-  Text,
   ScrollView,
   RefreshControl,
   ActivityIndicator,
@@ -13,8 +12,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { SemanticColors } from '../../constants/Colors'
 import { useThemeColors } from '../../hooks/useThemeColors'
+import ThemedText from '../../components/ThemedText'
 import Header from '../../components/Header'
 import LocationCategorySelector from '../../components/LocationCategorySelector'
 import OpinionMapVisualization from '../../components/stats/OpinionMapVisualization'
@@ -140,10 +139,10 @@ export default function Stats() {
         The bars show the percentage who agreed (green), passed (gray), or disagreed (red).
       </InfoModal.Paragraph>
       <InfoModal.Paragraph>
-        <Text style={{ fontWeight: '600' }}>All:</Text> How everyone voted overall
+        <ThemedText variant="label">All:</ThemedText> How everyone voted overall
       </InfoModal.Paragraph>
       <InfoModal.Paragraph>
-        <Text style={{ fontWeight: '600' }}>A, B, C, D:</Text> How each opinion group voted
+        <ThemedText variant="label">A, B, C, D:</ThemedText> How each opinion group voted
       </InfoModal.Paragraph>
     </InfoModal>
   )
@@ -153,7 +152,7 @@ export default function Stats() {
       return (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Loading statistics...</Text>
+          <ThemedText variant="bodySmall" color="secondary" style={styles.loadingText}>Loading statistics...</ThemedText>
         </View>
       )
     }
@@ -161,7 +160,7 @@ export default function Stats() {
     if (error) {
       return (
         <View style={styles.centerContainer}>
-          <Text style={styles.errorText}>{error}</Text>
+          <ThemedText variant="bodySmall" color="disagree" style={styles.errorText}>{error}</ThemedText>
         </View>
       )
     }
@@ -169,9 +168,9 @@ export default function Stats() {
     if (!selectedLocation || !selectedCategory) {
       return (
         <View style={styles.centerContainer}>
-          <Text style={styles.placeholderText}>
+          <ThemedText variant="bodySmall" color="secondary" style={styles.placeholderText}>
             Select a location and category to view opinion groups
-          </Text>
+          </ThemedText>
         </View>
       )
     }
@@ -180,7 +179,7 @@ export default function Stats() {
       <>
         {/* Opinion Map Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Opinion Map</Text>
+          <ThemedText variant="h3" style={styles.sectionTitle}>Opinion Map</ThemedText>
           <OpinionMapVisualization
             groups={statsData?.groups || []}
             userPosition={statsData?.userPosition}
@@ -214,9 +213,9 @@ export default function Stats() {
                 return (
                   <View style={styles.selectedGroupLabel}>
                     <View style={styles.selectedGroupLabelHeader}>
-                      <Text style={styles.selectedGroupLabelTitle}>
+                      <ThemedText variant="badgeLg" color="secondary" style={styles.selectedGroupLabelTitle}>
                         Group {selectedGroup.label} Identity:
-                      </Text>
+                      </ThemedText>
                       <TouchableOpacity
                         style={styles.labelHelpButton}
                         onPress={() => setShowLabelHelpModal(true)}
@@ -229,12 +228,16 @@ export default function Stats() {
                         {item.isCondorcetWinner && (
                           <Ionicons name="trophy" size={14} color={colors.primary} style={{ marginRight: 4 }} />
                         )}
-                        <Text style={[
-                          styles.labelRankingText,
-                          idx === 0 && styles.labelRankingTextTop
-                        ]}>
+                        <ThemedText
+                          variant={idx === 0 ? 'h3' : 'bodySmall'}
+                          color={idx === 0 ? 'primary' : undefined}
+                          style={[
+                            styles.labelRankingText,
+                            idx === 0 && styles.labelRankingTextTop
+                          ]}
+                        >
                           {idx + 1}. {item.label}
-                        </Text>
+                        </ThemedText>
                       </View>
                     ))}
                   </View>
@@ -248,7 +251,7 @@ export default function Stats() {
                 onPress={() => setShowDemographicsModal(true)}
               >
                 <Ionicons name="people-outline" size={16} color={colors.primary} />
-                <Text style={styles.demographicsButtonText}>Demographics</Text>
+                <ThemedText variant="bodySmall" color="primary" style={styles.demographicsButtonText}>Demographics</ThemedText>
                 <Ionicons name="chevron-forward" size={16} color={colors.primary} />
               </TouchableOpacity>
               <TouchableOpacity
@@ -256,7 +259,7 @@ export default function Stats() {
                 onPress={() => setShowSurveyResultsModal(true)}
               >
                 <Ionicons name="bar-chart-outline" size={16} color={colors.primary} />
-                <Text style={styles.demographicsButtonText}>Survey Results</Text>
+                <ThemedText variant="bodySmall" color="primary" style={styles.demographicsButtonText}>Survey Results</ThemedText>
                 <Ionicons name="chevron-forward" size={16} color={colors.primary} />
               </TouchableOpacity>
             </View>
@@ -266,7 +269,7 @@ export default function Stats() {
                 onPress={handleOpenPolisReport}
               >
                 <Ionicons name="document-text-outline" size={16} color={colors.primary} />
-                <Text style={styles.demographicsButtonText}>Full Polis Report</Text>
+                <ThemedText variant="bodySmall" color="primary" style={styles.demographicsButtonText}>Full Polis Report</ThemedText>
                 <Ionicons name="open-outline" size={16} color={colors.primary} />
               </TouchableOpacity>
             )}
@@ -276,7 +279,7 @@ export default function Stats() {
         {/* Positions Section */}
         <View style={styles.section}>
           <View style={styles.sectionTitleRow}>
-            <Text style={styles.sectionTitleInline}>{sectionInfo.title}</Text>
+            <ThemedText variant="h3">{sectionInfo.title}</ThemedText>
             <TouchableOpacity
               style={styles.helpButton}
               onPress={() => setShowHelpModal(true)}
@@ -315,8 +318,8 @@ export default function Stats() {
       >
         {/* Page Header */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.title}>Stats</Text>
-          <Text style={styles.subtitle}>See how opinions cluster</Text>
+          <ThemedText variant="h1" color="primary" style={styles.title}>Stats</ThemedText>
+          <ThemedText variant="bodySmall" color="secondary" style={styles.subtitle}>See how opinions cluster</ThemedText>
         </View>
 
         {/* Location/Category Selector - scrolls with content */}
@@ -408,13 +411,8 @@ const createStyles = (colors) => StyleSheet.create({
     paddingBottom: 4,
   },
   title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.primary,
   },
   subtitle: {
-    fontSize: 14,
-    color: colors.secondaryText,
     marginTop: 2,
   },
   tabBarContainer: {
@@ -447,9 +445,6 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: 4,
   },
   selectedGroupLabelTitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.secondaryText,
   },
   labelHelpButton: {
     padding: 2,
@@ -458,15 +453,6 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-  },
-  selectedGroupLabelText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  labelWinsText: {
-    fontSize: 12,
-    color: colors.secondaryText,
   },
   labelRankingRow: {
     flexDirection: 'row',
@@ -480,14 +466,10 @@ const createStyles = (colors) => StyleSheet.create({
     flex: 1,
   },
   labelRankingText: {
-    fontSize: 14,
     fontWeight: '500',
-    color: colors.text,
   },
   labelRankingTextTop: {
-    fontSize: 16,
     fontWeight: '700',
-    color: colors.primary,
   },
   demographicsButton: {
     flex: 1,
@@ -503,9 +485,7 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 6,
   },
   demographicsButtonText: {
-    fontSize: 14,
     fontWeight: '500',
-    color: colors.primary,
   },
   fullReportButton: {
     flexDirection: 'row',
@@ -530,16 +510,8 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 8,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
     paddingHorizontal: 16,
     marginBottom: 8,
-  },
-  sectionTitleInline: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
   },
   helpButton: {
     padding: 4,
@@ -552,18 +524,12 @@ const createStyles = (colors) => StyleSheet.create({
     padding: 24,
   },
   loadingText: {
-    fontSize: 14,
-    color: colors.secondaryText,
     marginTop: 12,
   },
   errorText: {
-    fontSize: 14,
-    color: SemanticColors.disagree,
     textAlign: 'center',
   },
   placeholderText: {
-    fontSize: 14,
-    color: colors.secondaryText,
     textAlign: 'center',
   },
 })

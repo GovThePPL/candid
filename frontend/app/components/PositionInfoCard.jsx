@@ -1,7 +1,8 @@
-import { View, Text, StyleSheet } from 'react-native'
+import { View, StyleSheet } from 'react-native'
 import { useMemo } from 'react'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { BrandColor } from '../constants/Colors'
+import ThemedText from './ThemedText'
 import Avatar from './Avatar'
 
 /**
@@ -37,7 +38,7 @@ export default function PositionInfoCard({
     <View style={[styles.container, style]}>
       {/* Optional label */}
       {label && (
-        <Text style={styles.label}>{label}</Text>
+        <ThemedText variant="caption" color="secondary" style={styles.label}>{label}</ThemedText>
       )}
 
       {/* Header row: Category/Location on left, optional content on right */}
@@ -45,23 +46,24 @@ export default function PositionInfoCard({
         <View style={styles.headerLeft}>
           {location?.code && (
             <View style={styles.locationBadge}>
-              <Text style={styles.locationText}>{location.code}</Text>
+              <ThemedText variant="caption" color="badge" style={styles.locationText}>{location.code}</ThemedText>
             </View>
           )}
           {category?.label && (
-            <Text style={styles.categoryText}>{category.label}</Text>
+            <ThemedText variant="caption" color="badge">{category.label}</ThemedText>
           )}
         </View>
         {headerRight}
       </View>
 
       {/* Position statement */}
-      <Text
+      <ThemedText
+        variant="body"
         style={[styles.statement, statementStyle]}
         numberOfLines={numberOfLines}
       >
         {statement}
-      </Text>
+      </ThemedText>
 
       {/* Creator info */}
       {creator && (
@@ -73,12 +75,12 @@ export default function PositionInfoCard({
             badgePosition="bottom-left"
           />
           <View style={styles.creatorInfo}>
-            <Text style={styles.creatorName}>{creator.displayName || 'Anonymous'}</Text>
-            <Text style={styles.creatorSubtitle}>
+            <ThemedText variant="label">{creator.displayName || 'Anonymous'}</ThemedText>
+            <ThemedText variant="caption" color="secondary" style={styles.creatorSubtitle}>
               {authorSubtitle === 'username'
                 ? `@${creator.username || 'anonymous'}`
                 : creator.userType || 'user'}
-            </Text>
+            </ThemedText>
           </View>
         </View>
       )}
@@ -92,9 +94,6 @@ const createStyles = (colors) => StyleSheet.create({
     padding: 16,
   },
   label: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.secondaryText,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 8,
@@ -118,18 +117,9 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 12,
   },
   locationText: {
-    fontSize: 12,
-    color: colors.badgeText,
     fontWeight: '500',
   },
-  categoryText: {
-    fontSize: 12,
-    color: colors.badgeText,
-  },
   statement: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: colors.text,
     marginBottom: 12,
   },
   creatorRow: {
@@ -143,14 +133,7 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 10,
   },
   creatorInfo: {},
-  creatorName: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.text,
-  },
   creatorSubtitle: {
-    fontSize: 11,
-    color: colors.secondaryText,
     textTransform: 'capitalize',
   },
 })

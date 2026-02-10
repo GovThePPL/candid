@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useMemo, createContext, useContext, useCallback } from 'react'
-import { StyleSheet, Text, Animated, View } from 'react-native'
+import { StyleSheet, Animated, View } from 'react-native'
 import { useThemeColors } from '../hooks/useThemeColors'
+import ThemedText from './ThemedText'
 
 const ToastContext = createContext()
 
@@ -40,7 +41,7 @@ export function ToastProvider({ children }) {
       {message && (
         <Animated.View style={[styles.container, { opacity }]} pointerEvents="none">
           <View style={styles.toast}>
-            <Text style={styles.text}>{message}</Text>
+            <ThemedText variant="bodySmall" style={styles.text}>{message}</ThemedText>
           </View>
         </Animated.View>
       )}
@@ -67,9 +68,6 @@ const createStyles = (colors) => StyleSheet.create({
     borderColor: colors.cardBorder,
   },
   text: {
-    color: colors.text,
-    fontSize: 14,
     textAlign: 'center',
-    lineHeight: 20,
   },
 })

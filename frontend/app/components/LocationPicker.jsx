@@ -1,8 +1,9 @@
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Modal, Pressable, ActivityIndicator } from 'react-native'
+import { StyleSheet, View, ScrollView, TouchableOpacity, Modal, Pressable, ActivityIndicator } from 'react-native'
 import { useState, useMemo } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { createSharedStyles } from '../constants/SharedStyles'
+import ThemedText from './ThemedText'
 
 export default function LocationPicker({ visible, onClose, allLocations, currentLocationId, onSelect, saving }) {
   const [breadcrumb, setBreadcrumb] = useState([]) // stack of {id, name} for drill-down
@@ -84,18 +85,18 @@ export default function LocationPicker({ visible, onClose, allLocations, current
     >
       <Pressable style={shared.modalOverlay} onPress={onClose}>
         <Pressable style={styles.modalContent} onPress={e => e.stopPropagation()}>
-          <Text style={styles.modalTitle}>Select Location</Text>
+          <ThemedText variant="h2" color="dark" style={styles.modalTitle}>Select Location</ThemedText>
 
           {/* Breadcrumb / Back navigation */}
           {breadcrumb.length > 0 && (
             <View style={styles.breadcrumbRow}>
               <TouchableOpacity onPress={handleBack} style={styles.backButton}>
                 <Ionicons name="chevron-back" size={20} color={colors.primary} />
-                <Text style={styles.backText}>Back</Text>
+                <ThemedText variant="body" color="primary" style={styles.backText}>Back</ThemedText>
               </TouchableOpacity>
-              <Text style={styles.breadcrumbText} numberOfLines={1}>
+              <ThemedText variant="label" color="secondary" style={styles.breadcrumbText} numberOfLines={1}>
                 {breadcrumb.map(b => b.name).join(' > ')}
-              </Text>
+              </ThemedText>
             </View>
           )}
 
@@ -111,9 +112,9 @@ export default function LocationPicker({ visible, onClose, allLocations, current
               ) : (
                 <>
                   <Ionicons name="checkmark-circle-outline" size={18} color={colors.primary} />
-                  <Text style={styles.selectThisText}>
+                  <ThemedText variant="bodySmall" color="primary" style={styles.selectThisText}>
                     Select "{breadcrumb[breadcrumb.length - 1].name}"
-                  </Text>
+                  </ThemedText>
                 </>
               )}
             </TouchableOpacity>
@@ -133,11 +134,11 @@ export default function LocationPicker({ visible, onClose, allLocations, current
                   disabled={saving}
                 >
                   <View style={styles.itemLeft}>
-                    <Text style={[styles.itemName, isInPath && styles.itemNameHighlighted]}>
+                    <ThemedText variant="button" color="dark" style={[styles.itemName, isInPath && styles.itemNameHighlighted]}>
                       {loc.name}
-                    </Text>
+                    </ThemedText>
                     {loc.code && (
-                      <Text style={styles.itemCode}>{loc.code}</Text>
+                      <ThemedText variant="label" color="secondary" style={styles.itemCode}>{loc.code}</ThemedText>
                     )}
                   </View>
                   <View style={styles.itemRight}>
@@ -152,7 +153,7 @@ export default function LocationPicker({ visible, onClose, allLocations, current
               )
             })}
             {items.length === 0 && (
-              <Text style={styles.emptyText}>No locations available</Text>
+              <ThemedText variant="body" color="secondary" style={styles.emptyText}>No locations available</ThemedText>
             )}
           </ScrollView>
         </Pressable>
@@ -171,9 +172,6 @@ const createStyles = (colors) => StyleSheet.create({
     overflow: 'hidden',
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.darkText,
     padding: 16,
     textAlign: 'center',
   },
@@ -190,14 +188,11 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 2,
   },
   backText: {
-    fontSize: 15,
-    color: colors.primary,
     fontWeight: '500',
   },
   breadcrumbText: {
     flex: 1,
-    fontSize: 13,
-    color: colors.secondaryText,
+    fontWeight: '400',
   },
   selectThisButton: {
     flexDirection: 'row',
@@ -212,8 +207,6 @@ const createStyles = (colors) => StyleSheet.create({
     borderColor: colors.primary,
   },
   selectThisText: {
-    fontSize: 14,
-    color: colors.primary,
     fontWeight: '500',
   },
   scrollView: {
@@ -238,16 +231,14 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 8,
   },
   itemName: {
-    fontSize: 16,
-    color: colors.darkText,
+    fontWeight: '400',
   },
   itemNameHighlighted: {
     color: colors.primary,
     fontWeight: '500',
   },
   itemCode: {
-    fontSize: 13,
-    color: colors.secondaryText,
+    fontWeight: '400',
   },
   itemRight: {
     flexDirection: 'row',
@@ -256,8 +247,6 @@ const createStyles = (colors) => StyleSheet.create({
   },
   emptyText: {
     textAlign: 'center',
-    color: colors.secondaryText,
-    fontSize: 15,
     padding: 20,
   },
 })

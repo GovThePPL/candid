@@ -1,4 +1,4 @@
-import { StyleSheet, View, Text, TouchableOpacity, Platform } from 'react-native'
+import { StyleSheet, View, TouchableOpacity, Platform } from 'react-native'
 import { useContext, useState, useCallback, useRef, useMemo } from 'react'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -8,6 +8,7 @@ import { UserContext } from '../contexts/UserContext'
 import Sidebar from './Sidebar'
 import ChatRequestIndicator from './ChatRequestIndicator'
 import Avatar from './Avatar'
+import ThemedText from './ThemedText'
 import api from '../lib/api'
 import { getTrustBadgeColor } from '../lib/avatarUtils'
 
@@ -65,17 +66,19 @@ export default function Header({ onBack }) {
         {/* Left section */}
         <View style={[styles.headerLeft, pendingChatRequest && !showLogo && styles.headerLeftExpanded]}>
           {onBack && (
-            <TouchableOpacity onPress={onBack} style={styles.backButton}>
+            <TouchableOpacity onPress={onBack} style={styles.backButton} accessibilityLabel="Go back" accessibilityRole="button">
               <Ionicons name="arrow-back" size={22} color={colors.primary} />
             </TouchableOpacity>
           )}
           {showLogo && (
-            <Text
+            <ThemedText
+              variant="brandCompact"
+              color="primary"
               style={styles.logo}
               onLayout={e => { logoWidthRef.current = e.nativeEvent.layout.width }}
             >
               Candid
-            </Text>
+            </ThemedText>
           )}
           {/* Narrow: indicator replaces logo, left-aligned */}
           {pendingChatRequest && !showLogo && (
@@ -102,9 +105,9 @@ export default function Header({ onBack }) {
         <View style={styles.headerRight} onLayout={e => setRightWidth(e.nativeEvent.layout.width)}>
           <View style={[styles.kudosBadge, { backgroundColor: getTrustBadgeColor(user?.trustScore) }]}>
             <Ionicons name="star" size={16} color={colors.primary} />
-            <Text style={styles.kudosCount}>{user?.kudosCount || 0}</Text>
+            <ThemedText variant="label" color="primary">{user?.kudosCount || 0}</ThemedText>
           </View>
-          <TouchableOpacity onPress={() => setSidebarVisible(true)}>
+          <TouchableOpacity onPress={() => setSidebarVisible(true)} accessibilityLabel="Open menu" accessibilityRole="button">
             <Avatar user={user} size={32} showKudosBadge={false} />
           </TouchableOpacity>
         </View>
@@ -154,14 +157,11 @@ const createStyles = (colors) => StyleSheet.create({
     marginRight: -2,
   },
   logo: {
-    fontSize: 32,
-    color: colors.primary,
     ...Platform.select({
       web: {
         fontFamily: 'Pacifico, cursive',
       },
       default: {
-        // Fallback for native
         fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
         fontWeight: '600',
       },
@@ -187,10 +187,5 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 12,
     gap: 3,
-  },
-  kudosCount: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.primary,
   },
 })

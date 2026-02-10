@@ -1,8 +1,9 @@
-import { StyleSheet, View, Text, TouchableOpacity } from 'react-native'
+import { StyleSheet, View, TouchableOpacity } from 'react-native'
 import { forwardRef, useMemo } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { SemanticColors } from '../../constants/Colors'
+import ThemedText from '../ThemedText'
 import SwipeableCard from './SwipeableCard'
 import Avatar from '../Avatar'
 
@@ -41,11 +42,11 @@ const PositionCard = forwardRef(function PositionCard({
           <View style={styles.categoryRow}>
             {location?.code && (
               <View style={styles.locationBadge}>
-                <Text style={styles.locationCode}>{location.code}</Text>
+                <ThemedText variant="buttonSmall" color="badge">{location.code}</ThemedText>
               </View>
             )}
             {category?.label && (
-              <Text style={styles.categoryName}>{category.label}</Text>
+              <ThemedText variant="bodySmall" color="badge">{category.label}</ThemedText>
             )}
           </View>
           <View style={styles.headerRight}>
@@ -60,6 +61,8 @@ const PositionCard = forwardRef(function PositionCard({
                 styles.chattingListButton,
                 isFromChattingList ? styles.chattingListButtonSelected : styles.chattingListButtonUnselected
               ]}
+              accessibilityLabel={isFromChattingList ? "Remove from chatting list" : "Add to chatting list"}
+              accessibilityRole="button"
             >
               <Ionicons
                 name={isFromChattingList ? "chatbubbles" : "chatbubbles-outline"}
@@ -73,29 +76,29 @@ const PositionCard = forwardRef(function PositionCard({
 
         {/* Statement */}
         <View style={styles.statementContainer}>
-          <Text style={styles.statement}>{statement}</Text>
+          <ThemedText variant="statement" color="dark">{statement}</ThemedText>
         </View>
 
         {/* Availability indicator */}
         {position.availability === 'none' && (
-          <Text style={styles.availabilityNone}>No users available to chat right now</Text>
+          <ThemedText variant="label" color="secondary" style={styles.availabilityNone}>No users available to chat right now</ThemedText>
         )}
 
         {/* Footer */}
         <View style={styles.footer}>
-          <TouchableOpacity onPress={onReport} style={[styles.iconButton, styles.flagButton]}>
+          <TouchableOpacity onPress={onReport} style={[styles.iconButton, styles.flagButton]} accessibilityLabel="Report position" accessibilityRole="button">
             <Ionicons name="flag-outline" size={22} color="#E57373" />
           </TouchableOpacity>
 
           <View style={styles.authorInfo}>
             <Avatar user={author} size="md" showKudosCount badgePosition="bottom-left" />
             <View style={styles.authorText}>
-              <Text style={styles.displayName}>{author?.displayName || 'Anonymous'}</Text>
-              <Text style={styles.username}>@{author?.username || 'anonymous'}</Text>
+              <ThemedText variant="buttonSmall" color="dark">{author?.displayName || 'Anonymous'}</ThemedText>
+              <ThemedText variant="caption" color="secondary">@{author?.username || 'anonymous'}</ThemedText>
             </View>
           </View>
 
-          <TouchableOpacity onPress={onAddPosition} style={[styles.iconButton, styles.addButton]}>
+          <TouchableOpacity onPress={onAddPosition} style={[styles.iconButton, styles.addButton]} accessibilityLabel="Add position" accessibilityRole="button">
             <Ionicons name="add-circle-outline" size={26} color="#81C784" />
           </TouchableOpacity>
         </View>
@@ -133,15 +136,6 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
   },
-  locationCode: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.badgeText,
-  },
-  categoryName: {
-    fontSize: 14,
-    color: colors.badgeText,
-  },
   chattingListButton: {
     width: 42,
     height: 42,
@@ -177,16 +171,9 @@ const createStyles = (colors) => StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 40,
   },
-  statement: {
-    fontSize: 22,
-    fontWeight: '500',
-    color: colors.darkText,
-    lineHeight: 32,
-  },
   availabilityNone: {
-    fontSize: 13,
+    fontWeight: '400',
     fontStyle: 'italic',
-    color: colors.secondaryText,
     textAlign: 'center',
     marginBottom: 8,
   },
@@ -221,14 +208,5 @@ const createStyles = (colors) => StyleSheet.create({
   },
   authorText: {
     flexDirection: 'column',
-  },
-  displayName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.darkText,
-  },
-  username: {
-    fontSize: 12,
-    color: colors.secondaryText,
   },
 })

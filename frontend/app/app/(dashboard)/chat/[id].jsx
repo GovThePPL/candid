@@ -1,7 +1,6 @@
 import {
   StyleSheet,
   View,
-  Text,
   TextInput,
   TouchableOpacity,
   Pressable,
@@ -48,6 +47,7 @@ import {
 import { playTypingSound, playMessageSound } from '../../../lib/sounds'
 import { getTrustBadgeColor } from '../../../lib/avatarUtils'
 import Avatar from '../../../components/Avatar'
+import ThemedText from '../../../components/ThemedText'
 import PositionInfoCard from '../../../components/PositionInfoCard'
 import ReportModal from '../../../components/ReportModal'
 
@@ -996,7 +996,7 @@ export default function ChatScreen() {
                   size={12}
                   color="#fff"
                 />
-                <Text style={styles.proposalTypeBadgeText}>{pProposalLabel}</Text>
+                <ThemedText variant="badge" style={styles.proposalTypeBadgeText}>{pProposalLabel}</ThemedText>
               </View>
               {pIsAccepted && (
                 <View style={styles.proposalStatusInline}>
@@ -1016,18 +1016,18 @@ export default function ChatScreen() {
             </View>
 
             {/* Content */}
-            <Text style={[
+            <ThemedText variant="body" color="inverse" style={[
               styles.proposalCardContent,
               pIsInactive && styles.proposalCardContentInactive,
             ]}>
               {proposal.content}
-            </Text>
+            </ThemedText>
 
             {/* Closure warning - only on latest pending */}
             {isLatest && proposal.isClosure && pIsPending && (
-              <Text style={styles.closureWarningText}>
+              <ThemedText variant="caption" color="inverse" style={styles.closureWarningText}>
                 Accepting will end this chat
-              </Text>
+              </ThemedText>
             )}
 
             {/* Action buttons for pending proposals from other user - only on latest */}
@@ -1054,9 +1054,9 @@ export default function ChatScreen() {
               </View>
             )}
             {isLatest && pIsPending && pIsOwn && (
-              <Text style={styles.proposalCardWaiting}>
+              <ThemedText variant="caption" style={styles.proposalCardWaiting}>
                 {proposal.isClosure ? 'Waiting for response to end chat...' : 'Waiting...'}
-              </Text>
+              </ThemedText>
             )}
 
             {/* Both user avatars for accepted proposals - only on latest */}
@@ -1163,7 +1163,7 @@ export default function ChatScreen() {
                     {hasMultipleCards && (
                       <View style={styles.stackExpandIndicator}>
                         <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={16} color="rgba(255,255,255,0.7)" />
-                        <Text style={styles.stackExpandText}>{isExpanded ? 'collapse' : `${numPreviousCards} more`}</Text>
+                        <ThemedText variant="caption" style={styles.stackExpandText}>{isExpanded ? 'collapse' : `${numPreviousCards} more`}</ThemedText>
                       </View>
                     )}
                   </View>
@@ -1203,13 +1203,13 @@ export default function ChatScreen() {
         <View style={styles.ownMessageRow}>
           <View style={styles.ownMessageContainer}>
             <View style={[styles.messageBubble, styles.ownMessage]}>
-              <Text style={[styles.messageText, styles.ownMessageText]}>
+              <ThemedText variant="body" color="inverse" style={styles.messageText}>
                 {item.content}
-              </Text>
+              </ThemedText>
               {messageTime && (
-                <Text style={[styles.messageTime, styles.ownMessageTime]}>
+                <ThemedText variant="badge" style={[styles.messageTime, styles.ownMessageTime]}>
                   {messageTime}
-                </Text>
+                </ThemedText>
               )}
             </View>
             {/* Read indicator - small avatar bubble */}
@@ -1247,13 +1247,13 @@ export default function ChatScreen() {
         )}
         <View>
           <View style={[styles.messageBubble, styles.otherMessage]}>
-            <Text style={[styles.messageText, styles.otherMessageText]}>
+            <ThemedText variant="body" color="inverse" style={styles.messageText}>
               {item.content}
-            </Text>
+            </ThemedText>
             {messageTime && (
-              <Text style={[styles.messageTime, styles.otherMessageTime]}>
+              <ThemedText variant="badge" style={[styles.messageTime, styles.otherMessageTime]}>
                 {messageTime}
-              </Text>
+              </ThemedText>
             )}
           </View>
         </View>
@@ -1275,22 +1275,22 @@ export default function ChatScreen() {
         onPress={handleCancelLeave}
       >
         <TouchableOpacity activeOpacity={1} style={styles.modalCard}>
-          <Text style={styles.modalTitle}>Leave Chat?</Text>
-          <Text style={styles.modalMessage}>
+          <ThemedText variant="h4" color="primary" style={styles.modalTitle}>Leave Chat?</ThemedText>
+          <ThemedText variant="body" style={styles.modalMessage}>
             Are you sure you want to leave this conversation? You can return to it later from your chat history.
-          </Text>
+          </ThemedText>
           <View style={styles.modalButtons}>
             <TouchableOpacity
               style={styles.modalCancelButton}
               onPress={handleCancelLeave}
             >
-              <Text style={styles.modalCancelText}>Stay</Text>
+              <ThemedText variant="button" color="primary" style={styles.modalCancelText}>Stay</ThemedText>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.modalConfirmButton}
               onPress={handleConfirmLeave}
             >
-              <Text style={styles.modalConfirmText}>Leave</Text>
+              <ThemedText variant="button" color="inverse">Leave</ThemedText>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -1319,11 +1319,11 @@ export default function ChatScreen() {
                 size={12}
                 color="#fff"
               />
-              <Text style={styles.proposalTypeBadgeText}>
+              <ThemedText variant="badge" style={styles.proposalTypeBadgeText}>
                 {modifyingProposal?.isClosure ? 'Closure' : 'Statement'}
-              </Text>
+              </ThemedText>
             </View>
-            <Text style={styles.modifyModalTitle}>Modify Proposal</Text>
+            <ThemedText variant="h2" color="primary" style={styles.modifyModalTitle}>Modify Proposal</ThemedText>
           </View>
           <TextInput
             style={styles.modifyInput}
@@ -1333,20 +1333,21 @@ export default function ChatScreen() {
             placeholderTextColor={colors.placeholderText}
             multiline
             autoFocus
+            maxFontSizeMultiplier={1.5}
           />
           <View style={styles.modalButtons}>
             <TouchableOpacity
               style={styles.modalCancelButton}
               onPress={handleCancelModify}
             >
-              <Text style={styles.modalCancelText}>Cancel</Text>
+              <ThemedText variant="button" color="primary" style={styles.modalCancelText}>Cancel</ThemedText>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.modifySubmitButton, !modifyText.trim() && styles.modifySubmitButtonDisabled]}
               onPress={handleSubmitModify}
               disabled={!modifyText.trim()}
             >
-              <Text style={styles.modifySubmitText}>Send</Text>
+              <ThemedText variant="button" color="inverse">Send</ThemedText>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -1365,13 +1366,13 @@ export default function ChatScreen() {
             <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
               <Ionicons name="arrow-back" size={24} color={colors.primary} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Chat</Text>
+            <ThemedText variant="h2" color="primary" style={styles.headerTitle}>Chat</ThemedText>
             <View style={styles.headerRight} />
           </View>
         )}
         <View style={styles.centerContent}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>{from === 'chats' || from === 'moderation' ? 'Loading chat log...' : 'Joining chat...'}</Text>
+          <ThemedText variant="button" style={styles.loadingText}>{from === 'chats' || from === 'moderation' ? 'Loading chat log...' : 'Joining chat...'}</ThemedText>
         </View>
         {renderLeaveConfirmModal()}
       </SafeAreaView>
@@ -1389,19 +1390,19 @@ export default function ChatScreen() {
             <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
               <Ionicons name="arrow-back" size={24} color={colors.primary} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Chat</Text>
+            <ThemedText variant="h2" color="primary" style={styles.headerTitle}>Chat</ThemedText>
             <View style={styles.headerRight} />
           </View>
         )}
         <View style={styles.centerContent}>
-          <Text style={styles.errorText}>{error}</Text>
+          <ThemedText variant="button" color="error" style={styles.errorText}>{error}</ThemedText>
           <Pressable
             style={styles.retryButton}
             onPress={() => router.back()}
             onPressIn={Platform.OS === 'web' ? () => router.back() : undefined}
             role="button"
           >
-            <Text style={styles.retryButtonText}>Go Back</Text>
+            <ThemedText variant="button" color="inverse">Go Back</ThemedText>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -1423,18 +1424,18 @@ export default function ChatScreen() {
               <View style={styles.headerUserInfo}>
                 <Avatar user={otherUser} size="md" showKudosCount badgePosition="bottom-left" />
                 <View style={styles.headerUserText}>
-                  <Text style={styles.headerDisplayName} numberOfLines={1}>{otherUser.displayName}</Text>
-                  <Text style={styles.headerUsername} numberOfLines={1}>@{otherUser.username}</Text>
+                  <ThemedText variant="h3" color="primary" numberOfLines={1}>{otherUser.displayName}</ThemedText>
+                  <ThemedText variant="caption" style={styles.headerUsername} numberOfLines={1}>@{otherUser.username}</ThemedText>
                 </View>
               </View>
             ) : (
-              <Text style={styles.headerTitle} numberOfLines={1}>Chat</Text>
+              <ThemedText variant="h2" color="primary" numberOfLines={1}>Chat</ThemedText>
             )}
           </View>
           <View style={styles.headerRight}>
             <View style={[styles.headerKudosBadge, { backgroundColor: getTrustBadgeColor(user?.trustScore) }]}>
               <Ionicons name="star" size={14} color={colors.primary} />
-              <Text style={styles.headerKudosCount}>{user?.kudosCount || 0}</Text>
+              <ThemedText variant="badgeLg" color="primary">{user?.kudosCount || 0}</ThemedText>
             </View>
             <Avatar user={user} size={32} showKudosBadge={false} />
           </View>
@@ -1450,7 +1451,7 @@ export default function ChatScreen() {
             color="#fff"
             style={{ marginRight: 8 }}
           />
-          <Text style={styles.endedText}>
+          <ThemedText variant="bodySmall" color="inverse" style={styles.endedText}>
             {isModerationView
               ? 'Moderation review — chat log'
               : isHistoricalView
@@ -1460,7 +1461,7 @@ export default function ChatScreen() {
                 : otherUserLeft
                   ? `${otherUser?.displayName || 'The other user'} has left the chat`
                   : 'This chat has ended'}
-          </Text>
+          </ThemedText>
           {!isModerationView && (isHistoricalView || chatEnded) && (
             <TouchableOpacity
               onPress={() => setReportModalVisible(true)}
@@ -1478,8 +1479,8 @@ export default function ChatScreen() {
           <View style={styles.moderationParticipantCard}>
             <Avatar user={participants[1]} size="md" showKudosCount badgePosition="bottom-left" />
             <View style={styles.moderationParticipantInfo}>
-              <Text style={styles.moderationParticipantName}>{participants[1]?.displayName}</Text>
-              <Text style={styles.moderationParticipantUsername}>@{participants[1]?.username}</Text>
+              <ThemedText variant="buttonSmall" style={styles.moderationParticipantName}>{participants[1]?.displayName}</ThemedText>
+              <ThemedText variant="caption" style={styles.moderationParticipantUsername}>@{participants[1]?.username}</ThemedText>
             </View>
             <View style={[styles.moderationParticipantDot, { backgroundColor: SemanticColors.agree }]} />
           </View>
@@ -1487,8 +1488,8 @@ export default function ChatScreen() {
           <View style={styles.moderationParticipantCard}>
             <View style={[styles.moderationParticipantDot, { backgroundColor: colors.messageYou }]} />
             <View style={styles.moderationParticipantInfo}>
-              <Text style={styles.moderationParticipantName}>{participants[0]?.displayName}</Text>
-              <Text style={styles.moderationParticipantUsername}>@{participants[0]?.username}</Text>
+              <ThemedText variant="buttonSmall" style={styles.moderationParticipantName}>{participants[0]?.displayName}</ThemedText>
+              <ThemedText variant="caption" style={styles.moderationParticipantUsername}>@{participants[0]?.username}</ThemedText>
             </View>
             <Avatar user={participants[0]} size="md" showKudosCount badgePosition="bottom-left" />
           </View>
@@ -1498,22 +1499,22 @@ export default function ChatScreen() {
       {/* Kudos prompt - only show after mutual agreement, not for historical views */}
       {chatEndedWithClosure && !isHistoricalView && kudosStatus === null && (
         <View style={styles.kudosPrompt}>
-          <Text style={styles.kudosPromptText}>
+          <ThemedText variant="body" style={styles.kudosPromptText}>
             Would you like to send kudos to {otherUser?.displayName || 'the other user'}?
-          </Text>
+          </ThemedText>
           <View style={styles.kudosButtonsRow}>
             <TouchableOpacity
               style={styles.kudosDismissButton}
               onPress={handleDismissKudos}
             >
-              <Text style={styles.kudosDismissText}>No thanks</Text>
+              <ThemedText variant="buttonSmall" style={styles.kudosDismissText}>No thanks</ThemedText>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.kudosSendButton}
               onPress={handleSendKudos}
             >
               <Ionicons name="star" size={16} color="#fff" style={{ marginRight: 6 }} />
-              <Text style={styles.kudosSendText}>Send Kudos</Text>
+              <ThemedText variant="buttonSmall" style={styles.kudosSendText}>Send Kudos</ThemedText>
             </TouchableOpacity>
           </View>
         </View>
@@ -1523,7 +1524,7 @@ export default function ChatScreen() {
       {chatEndedWithClosure && !isHistoricalView && kudosStatus === 'sent' && (
         <View style={styles.kudosSentBanner}>
           <Ionicons name="star" size={18} color="#FFD700" style={{ marginRight: 8 }} />
-          <Text style={styles.kudosSentText}>Kudos sent to {otherUser?.displayName || 'the other user'}!</Text>
+          <ThemedText variant="bodySmall" style={styles.kudosSentText}>Kudos sent to {otherUser?.displayName || 'the other user'}!</ThemedText>
         </View>
       )}
 
@@ -1560,9 +1561,9 @@ export default function ChatScreen() {
           ListEmptyComponent={
             <View style={styles.emptyChat}>
               <Ionicons name="chatbubbles-outline" size={48} color={colors.secondaryText} />
-              <Text style={styles.emptyChatText}>
+              <ThemedText variant="button" style={styles.emptyChatText}>
                 Start the conversation!
-              </Text>
+              </ThemedText>
             </View>
           }
           ListFooterComponent={
@@ -1577,11 +1578,11 @@ export default function ChatScreen() {
               </View>
             ) : isHistoricalView && chatInfo?.endType === 'user_exit' ? (
               <View style={styles.chatEndedRow}>
-                <Text style={styles.chatEndedText}>
+                <ThemedText variant="bodySmall" style={styles.chatEndedText}>
                   {chatInfo?.endedByUserId === user?.id
                     ? 'You left the chat'
                     : `${otherUser?.displayName || 'The other user'} left the chat`}
-                </Text>
+                </ThemedText>
               </View>
             ) : null
           }
@@ -1618,8 +1619,8 @@ export default function ChatScreen() {
                       <Ionicons name="chatbubble" size={20} color="#fff" />
                     </View>
                     <View style={styles.specialMenuItemText}>
-                      <Text style={styles.specialMenuItemTitle}>Chat</Text>
-                      <Text style={styles.specialMenuItemDesc}>Send a normal message</Text>
+                      <ThemedText variant="body" style={styles.specialMenuItemTitle}>Chat</ThemedText>
+                      <ThemedText variant="caption" style={styles.specialMenuItemDesc}>Send a normal message</ThemedText>
                     </View>
                     {messageType === 'text' && (
                       <Ionicons name="checkmark-circle" size={24} color={colors.primary} />
@@ -1633,8 +1634,8 @@ export default function ChatScreen() {
                       <Ionicons name="document-text" size={20} color="#fff" />
                     </View>
                     <View style={styles.specialMenuItemText}>
-                      <Text style={styles.specialMenuItemTitle}>Propose Statement</Text>
-                      <Text style={styles.specialMenuItemDesc}>Suggest a statement you both agree on</Text>
+                      <ThemedText variant="body" style={styles.specialMenuItemTitle}>Propose Statement</ThemedText>
+                      <ThemedText variant="caption" style={styles.specialMenuItemDesc}>Suggest a statement you both agree on</ThemedText>
                     </View>
                     {messageType === 'position_proposal' && (
                       <Ionicons name="checkmark-circle" size={24} color={SemanticColors.agree} />
@@ -1648,8 +1649,8 @@ export default function ChatScreen() {
                       <Ionicons name="checkmark-done" size={20} color="#fff" />
                     </View>
                     <View style={styles.specialMenuItemText}>
-                      <Text style={styles.specialMenuItemTitle}>Propose Closure</Text>
-                      <Text style={styles.specialMenuItemDesc}>Propose ending this chat amicably</Text>
+                      <ThemedText variant="body" style={styles.specialMenuItemTitle}>Propose Closure</ThemedText>
+                      <ThemedText variant="caption" style={styles.specialMenuItemDesc}>Propose ending this chat amicably</ThemedText>
                     </View>
                     {messageType === 'closure_proposal' && (
                       <Ionicons name="checkmark-circle" size={24} color={colors.chat} />
@@ -1672,6 +1673,7 @@ export default function ChatScreen() {
               placeholderTextColor={colors.placeholderText}
               multiline
               maxLength={1000}
+              maxFontSizeMultiplier={1.5}
               returnKeyType="send"
               blurOnSubmit={false}
               scrollEnabled={inputHeight >= maxInputHeight}
@@ -1730,7 +1732,7 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.navBackground,
     ...Shadows.card,
     zIndex: 10,
     ...(Platform.OS === 'web' && {
@@ -1745,13 +1747,8 @@ const createStyles = (colors) => StyleSheet.create({
   headerUserText: {
     flex: 1,
   },
-  headerDisplayName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.primary,
-  },
+  headerDisplayName: {},
   headerUsername: {
-    fontSize: 12,
     color: colors.pass,
   },
   headerRight: {
@@ -1767,11 +1764,7 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 10,
     gap: 2,
   },
-  headerKudosCount: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.primary,
-  },
+  headerKudosCount: {},
   backButton: {
     padding: 4,
   },
@@ -1779,11 +1772,7 @@ const createStyles = (colors) => StyleSheet.create({
     flex: 1,
     marginHorizontal: 12,
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.primary,
-  },
+  headerTitle: {},
   headerSubtitle: {
     fontSize: 12,
     color: colors.pass,
@@ -1841,7 +1830,6 @@ const createStyles = (colors) => StyleSheet.create({
     borderBottomLeftRadius: 4,
   },
   messageText: {
-    fontSize: 15,
     lineHeight: 20,
   },
   ownMessageText: {
@@ -1851,15 +1839,14 @@ const createStyles = (colors) => StyleSheet.create({
     color: '#FFFFFF',
   },
   messageTime: {
-    fontSize: 10,
     marginTop: 4,
   },
   ownMessageTime: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: 'rgba(255, 255, 255, 0.85)',
     textAlign: 'right',
   },
   otherMessageTime: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: 'rgba(255, 255, 255, 0.85)',
   },
   typingRow: {
     flexDirection: 'row',
@@ -1889,7 +1876,6 @@ const createStyles = (colors) => StyleSheet.create({
     paddingHorizontal: 20,
   },
   chatEndedText: {
-    fontSize: 14,
     fontStyle: 'italic',
     color: colors.pass,
     textAlign: 'center',
@@ -1899,7 +1885,7 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'flex-end',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.navBackground,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
@@ -1973,7 +1959,7 @@ const createStyles = (colors) => StyleSheet.create({
     position: 'absolute',
     bottom: 56,
     left: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     zIndex: 2,
     padding: 8,
@@ -2004,12 +1990,10 @@ const createStyles = (colors) => StyleSheet.create({
     flex: 1,
   },
   specialMenuItemTitle: {
-    fontSize: 15,
     fontWeight: '600',
     color: colors.darkText,
   },
   specialMenuItemDesc: {
-    fontSize: 12,
     color: colors.pass,
     marginTop: 2,
   },
@@ -2021,12 +2005,9 @@ const createStyles = (colors) => StyleSheet.create({
   },
   loadingText: {
     marginTop: 16,
-    fontSize: 16,
     color: colors.pass,
   },
   errorText: {
-    fontSize: 16,
-    color: SemanticColors.warning,
     textAlign: 'center',
     marginBottom: 16,
   },
@@ -2052,7 +2033,6 @@ const createStyles = (colors) => StyleSheet.create({
   },
   emptyChatText: {
     marginTop: 12,
-    fontSize: 16,
     color: colors.pass,
   },
   endedBanner: {
@@ -2071,8 +2051,6 @@ const createStyles = (colors) => StyleSheet.create({
   },
   endedText: {
     flex: 1,
-    color: '#FFFFFF',
-    fontSize: 14,
     fontWeight: '500',
   },
   reportButton: {
@@ -2080,7 +2058,7 @@ const createStyles = (colors) => StyleSheet.create({
     marginLeft: 8,
   },
   kudosPrompt: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.cardBackground,
     paddingVertical: 16,
     paddingHorizontal: 20,
     alignItems: 'center',
@@ -2088,8 +2066,6 @@ const createStyles = (colors) => StyleSheet.create({
     borderBottomColor: colors.cardBorder,
   },
   kudosPromptText: {
-    fontSize: 15,
-    color: colors.text,
     marginBottom: 12,
     textAlign: 'center',
   },
@@ -2101,10 +2077,9 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 20,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: colors.background,
   },
   kudosDismissText: {
-    fontSize: 14,
     color: colors.pass,
     fontWeight: '500',
   },
@@ -2117,23 +2092,19 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: '#FFD700',
   },
   kudosSendText: {
-    fontSize: 14,
     color: colors.darkText,
-    fontWeight: '600',
   },
   kudosSentBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.cardBackground,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: colors.cardBorder,
   },
   kudosSentText: {
-    fontSize: 14,
-    color: colors.text,
     fontWeight: '500',
   },
   modalOverlay: {
@@ -2144,7 +2115,7 @@ const createStyles = (colors) => StyleSheet.create({
     padding: 24,
   },
   modalCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.cardBackground,
     borderRadius: 16,
     padding: 24,
     width: '100%',
@@ -2153,16 +2124,11 @@ const createStyles = (colors) => StyleSheet.create({
     ...Shadows.elevated,
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: colors.primary,
     marginBottom: 12,
   },
   modalMessage: {
-    fontSize: 15,
     color: colors.pass,
     textAlign: 'center',
-    lineHeight: 22,
     marginBottom: 24,
   },
   modalButtons: {
@@ -2176,11 +2142,7 @@ const createStyles = (colors) => StyleSheet.create({
     borderColor: colors.primary,
     alignItems: 'center',
   },
-  modalCancelText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.primary,
-  },
+  modalCancelText: {},
   modalConfirmButton: {
     paddingVertical: 14,
     borderRadius: 25,
@@ -2228,7 +2190,6 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 4,
   },
   stackExpandText: {
-    fontSize: 12,
     color: 'rgba(255,255,255,0.7)',
   },
   proposalCardContainer: {
@@ -2278,7 +2239,6 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 4,
   },
   proposalTypeBadgeText: {
-    fontSize: 10,
     fontWeight: '600',
     color: '#FFFFFF',
   },
@@ -2286,9 +2246,6 @@ const createStyles = (colors) => StyleSheet.create({
     marginLeft: 'auto',
   },
   proposalCardContent: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: '#FFFFFF',
     textAlign: 'center',
   },
   proposalCardContentInactive: {
@@ -2313,15 +2270,12 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   closureWarningText: {
-    fontSize: 12,
     fontStyle: 'italic',
-    color: '#FFFFFF',
     textAlign: 'center',
     marginTop: 10,
     opacity: 0.85,
   },
   proposalCardWaiting: {
-    fontSize: 12,
     color: 'rgba(255,255,255,0.7)',
     marginTop: 10,
     fontStyle: 'italic',
@@ -2353,7 +2307,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   // Modify modal styles
   modifyModalCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.cardBackground,
     borderRadius: 16,
     padding: 20,
     width: '100%',
@@ -2366,11 +2320,7 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 10,
     marginBottom: 16,
   },
-  modifyModalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.primary,
-  },
+  modifyModalTitle: {},
   modifyInput: {
     backgroundColor: colors.background,
     borderRadius: 12,
@@ -2403,7 +2353,7 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 12,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.cardBackground,
     borderBottomWidth: 1,
     borderBottomColor: colors.cardBorder,
   },
@@ -2416,13 +2366,8 @@ const createStyles = (colors) => StyleSheet.create({
   moderationParticipantInfo: {
     flex: 1,
   },
-  moderationParticipantName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-  },
+  moderationParticipantName: {},
   moderationParticipantUsername: {
-    fontSize: 12,
     color: colors.pass,
   },
   moderationParticipantDot: {

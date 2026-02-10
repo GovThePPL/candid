@@ -1,6 +1,8 @@
 import { useMemo } from 'react'
-import { ScrollView, TouchableOpacity, Text, StyleSheet, View, useWindowDimensions } from 'react-native'
+import { ScrollView, TouchableOpacity, StyleSheet, View, useWindowDimensions } from 'react-native'
 import { useThemeColors } from '../../hooks/useThemeColors'
+import { Typography } from '../../constants/Theme'
+import ThemedText from '../ThemedText'
 
 /**
  * Horizontal button bar for navigating between opinion groups
@@ -75,9 +77,9 @@ export default function GroupTabBar({
               onPress={() => onTabChange(tab.id)}
               activeOpacity={0.7}
             >
-              <Text style={[styles.buttonLabel, isActive && styles.activeButtonLabel]}>
+              <ThemedText variant="buttonSmall" style={[styles.buttonLabel, isActive && styles.activeButtonLabel]}>
                 {tab.label}
-              </Text>
+              </ThemedText>
             </TouchableOpacity>
           )
         })}
@@ -107,9 +109,7 @@ const createStyles = (colors) => StyleSheet.create({
     borderColor: colors.buttonSelected,
   },
   buttonLabel: {
-    fontSize: 14,
     fontWeight: '500',
-    color: colors.text,
   },
   activeButtonLabel: {
     color: colors.buttonSelectedText,

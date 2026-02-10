@@ -1,8 +1,10 @@
-import { StyleSheet, View, Text, TouchableOpacity, TextInput, ActivityIndicator, ScrollView } from 'react-native'
+import { StyleSheet, View, TouchableOpacity, TextInput, ActivityIndicator, ScrollView } from 'react-native'
 import { useState, useMemo } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { SemanticColors, BrandColor } from '../../constants/Colors'
+import { Typography } from '../../constants/Theme'
+import ThemedText from '../ThemedText'
 import BottomDrawerModal from '../BottomDrawerModal'
 import PositionInfoCard from '../PositionInfoCard'
 import api from '../../lib/api'
@@ -84,18 +86,18 @@ export default function BanNotificationCard({ banData }) {
       <Ionicons name="warning" size={40} color={SemanticColors.warning} style={styles.warningIcon} />
 
       {/* Compact header */}
-      <Text style={styles.title}>Account Suspended</Text>
-      <Text style={styles.banType}>
+      <ThemedText variant="h4" color="error" style={styles.title}>Account Suspended</ThemedText>
+      <ThemedText variant="buttonSmall" style={styles.banType}>
         {isPermanent ? 'Permanent' : `Temporary${actionChain?.durationDays ? ` (${actionChain.durationDays} days)` : ''}`}
-      </Text>
+      </ThemedText>
       {!isPermanent && formattedExpiry && (
-        <Text style={styles.expiryText}>Expires {formattedExpiry}</Text>
+        <ThemedText variant="caption" color="secondary" style={styles.expiryText}>Expires {formattedExpiry}</ThemedText>
       )}
 
       {/* Target content - the position/chat that caused the ban */}
       {targetContent && (
         <View style={styles.targetContentContainer}>
-          <Text style={styles.targetContentLabel}>Content that led to this action:</Text>
+          <ThemedText variant="caption" color="secondary" style={styles.targetContentLabel}>Content that led to this action:</ThemedText>
           {targetContent.type === 'position' ? (
             <PositionInfoCard
               position={targetContent}
@@ -123,14 +125,14 @@ export default function BanNotificationCard({ banData }) {
         <View style={styles.detailsContainer}>
           {ruleTitle && (
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Rule:</Text>
-              <Text style={styles.detailValue}>{ruleTitle}</Text>
+              <ThemedText variant="caption" color="secondary" style={styles.detailLabel}>Rule:</ThemedText>
+              <ThemedText variant="label" style={styles.detailValue}>{ruleTitle}</ThemedText>
             </View>
           )}
           {reason && (
             <View style={ruleTitle ? styles.detailRowBorder : styles.detailRow}>
-              <Text style={styles.detailLabel}>Notes:</Text>
-              <Text style={styles.detailValue} numberOfLines={3}>{reason}</Text>
+              <ThemedText variant="caption" color="secondary" style={styles.detailLabel}>Notes:</ThemedText>
+              <ThemedText variant="label" style={styles.detailValue} numberOfLines={3}>{reason}</ThemedText>
             </View>
           )}
         </View>
@@ -144,14 +146,14 @@ export default function BanNotificationCard({ banData }) {
             onPress={() => setAppealModalVisible(true)}
           >
             <Ionicons name="megaphone-outline" size={15} color='#FFFFFF' />
-            <Text style={styles.appealButtonText}>Appeal</Text>
+            <ThemedText variant="buttonSmall" color="inverse">Appeal</ThemedText>
           </TouchableOpacity>
         )}
 
         {appealSubmitted && (
           <View style={styles.appealSubmittedBadge}>
             <Ionicons name="checkmark-circle" size={15} color={SemanticColors.success} />
-            <Text style={styles.appealSubmittedText}>Appeal Submitted</Text>
+            <ThemedText variant="label" color="agree">Appeal Submitted</ThemedText>
           </View>
         )}
 
@@ -161,14 +163,14 @@ export default function BanNotificationCard({ banData }) {
             onPress={() => setHistoryModalVisible(true)}
           >
             <Ionicons name="time-outline" size={15} color={colors.primary} />
-            <Text style={styles.detailsButtonText}>Action Details</Text>
+            <ThemedText variant="label" color="primary">Action Details</ThemedText>
           </TouchableOpacity>
         )}
       </View>
 
-      <Text style={styles.infoText}>
+      <ThemedText variant="caption" color="secondary" style={styles.infoText}>
         You cannot create positions, vote, or chat while suspended.
-      </Text>
+      </ThemedText>
 
       {/* Appeal Modal */}
       <BottomDrawerModal
@@ -187,11 +189,12 @@ export default function BanNotificationCard({ banData }) {
             multiline
             maxLength={1000}
             textAlignVertical="top"
+            maxFontSizeMultiplier={1.5}
           />
-          <Text style={styles.charCount}>{appealText.length}/1000</Text>
+          <ThemedText variant="caption" color="secondary" style={styles.charCount}>{appealText.length}/1000</ThemedText>
 
           {appealError && (
-            <Text style={styles.errorText}>{appealError}</Text>
+            <ThemedText variant="label" color="error" style={styles.errorText}>{appealError}</ThemedText>
           )}
 
           <TouchableOpacity
@@ -202,7 +205,7 @@ export default function BanNotificationCard({ banData }) {
             {appealSubmitting ? (
               <ActivityIndicator size="small" color='#FFFFFF' />
             ) : (
-              <Text style={styles.submitAppealButtonText}>Submit Appeal</Text>
+              <ThemedText variant="button" color="inverse">Submit Appeal</ThemedText>
             )}
           </TouchableOpacity>
         </View>
@@ -241,18 +244,18 @@ function ActionChainCard({ chain, colors, styles, actionColors, appealColors }) 
     <View style={styles.historyCard}>
       {/* Action header badge */}
       <View style={[styles.cardHeader, { backgroundColor: color }]}>
-        <Text style={styles.cardHeaderText}>
+        <ThemedText variant="label" color="inverse" style={styles.cardHeaderText}>
           {ACTION_LABELS[chain.actionType] || chain.actionType}
           {chain.actionType === 'temporary_ban' && chain.durationDays ? ` (${chain.durationDays} days)` : ''}
-        </Text>
-        {date && <Text style={styles.cardHeaderDate}>{date}</Text>}
+        </ThemedText>
+        {date && <ThemedText variant="caption" style={styles.cardHeaderDate}>{date}</ThemedText>}
       </View>
 
       {/* Rule title */}
       {chain.ruleTitle && (
         <View style={styles.chainRuleRow}>
           <Ionicons name="document-text-outline" size={14} color={colors.text} />
-          <Text style={styles.chainRuleTitle}>{chain.ruleTitle}</Text>
+          <ThemedText variant="label" style={styles.chainRuleTitle}>{chain.ruleTitle}</ThemedText>
         </View>
       )}
 
@@ -262,15 +265,15 @@ function ActionChainCard({ chain, colors, styles, actionColors, appealColors }) 
         <View style={styles.chainItem}>
           <View style={[styles.chainDot, { backgroundColor: color }]} />
           <View style={styles.chainContent}>
-            <Text style={styles.chainLabel}>Moderator Decision</Text>
+            <ThemedText variant="caption" color="secondary" style={styles.chainLabel}>Moderator Decision</ThemedText>
             <View style={[styles.chainActionBadge, { backgroundColor: color }]}>
-              <Text style={styles.chainActionBadgeText}>
+              <ThemedText variant="caption" color="inverse" style={styles.chainActionBadgeText}>
                 {ACTION_LABELS[chain.actionType] || chain.actionType}
                 {chain.actionType === 'temporary_ban' && chain.durationDays ? ` (${chain.durationDays} days)` : ''}
-              </Text>
+              </ThemedText>
             </View>
             {chain.moderatorComment && (
-              <Text style={styles.chainComment}>"{chain.moderatorComment}"</Text>
+              <ThemedText variant="caption" style={styles.chainComment}>"{chain.moderatorComment}"</ThemedText>
             )}
           </View>
         </View>
@@ -280,14 +283,14 @@ function ActionChainCard({ chain, colors, styles, actionColors, appealColors }) 
           <View style={styles.chainItem}>
             <View style={[styles.chainDot, { backgroundColor: '#F39C12' }]} />
             <View style={styles.chainContent}>
-              <Text style={styles.chainLabel}>Your Appeal</Text>
+              <ThemedText variant="caption" color="secondary" style={styles.chainLabel}>Your Appeal</ThemedText>
               {chain.appealText && (
-                <Text style={styles.chainComment}>"{chain.appealText}"</Text>
+                <ThemedText variant="caption" style={styles.chainComment}>"{chain.appealText}"</ThemedText>
               )}
               <View style={[styles.appealStateBadge, { backgroundColor: appealColors[chain.appealState] || colors.pass }]}>
-                <Text style={styles.appealStateBadgeText}>
+                <ThemedText variant="caption" color="inverse" style={styles.appealStateBadgeText}>
                   {APPEAL_LABELS[chain.appealState] || chain.appealState}
-                </Text>
+                </ThemedText>
               </View>
             </View>
           </View>
@@ -307,14 +310,14 @@ function ActionChainCard({ chain, colors, styles, actionColors, appealColors }) 
             <View key={i} style={styles.chainItem}>
               <View style={[styles.chainDot, { backgroundColor: outcomeColor }]} />
               <View style={styles.chainContent}>
-                <Text style={styles.chainLabel}>{resp.role || 'Moderator'}</Text>
+                <ThemedText variant="caption" color="secondary" style={styles.chainLabel}>{resp.role || 'Moderator'}</ThemedText>
                 {outcomeLabel && (
                   <View style={[styles.chainActionBadge, { backgroundColor: outcomeColor }]}>
-                    <Text style={styles.chainActionBadgeText}>{outcomeLabel}</Text>
+                    <ThemedText variant="caption" color="inverse" style={styles.chainActionBadgeText}>{outcomeLabel}</ThemedText>
                   </View>
                 )}
                 {resp.responseText && (
-                  <Text style={styles.chainComment}>"{resp.responseText}"</Text>
+                  <ThemedText variant="caption" style={styles.chainComment}>"{resp.responseText}"</ThemedText>
                 )}
               </View>
             </View>
@@ -339,21 +342,13 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: 8,
   },
   title: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: SemanticColors.warning,
     textAlign: 'center',
   },
   banType: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
     textAlign: 'center',
     marginTop: 2,
   },
   expiryText: {
-    fontSize: 12,
-    color: colors.secondaryText,
     textAlign: 'center',
     marginTop: 2,
   },
@@ -364,9 +359,7 @@ const createStyles = (colors) => StyleSheet.create({
     marginTop: 8,
   },
   targetContentLabel: {
-    fontSize: 11,
     fontWeight: '600',
-    color: colors.secondaryText,
     textTransform: 'uppercase',
     marginBottom: 4,
   },
@@ -381,7 +374,7 @@ const createStyles = (colors) => StyleSheet.create({
   // Combined details block
   detailsContainer: {
     width: '100%',
-    backgroundColor: '#FFF5F5',
+    backgroundColor: colors.errorBannerBg,
     borderRadius: 8,
     padding: 10,
     marginTop: 8,
@@ -399,15 +392,12 @@ const createStyles = (colors) => StyleSheet.create({
     borderTopColor: 'rgba(0,0,0,0.06)',
   },
   detailLabel: {
-    fontSize: 12,
     fontWeight: '700',
-    color: colors.secondaryText,
     minWidth: 40,
   },
   detailValue: {
+    fontWeight: '400',
     flex: 1,
-    fontSize: 13,
-    color: colors.text,
     lineHeight: 18,
   },
 
@@ -428,11 +418,6 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
   },
-  appealButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
   appealSubmittedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -443,11 +428,6 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     borderColor: SemanticColors.success + '40',
-  },
-  appealSubmittedText: {
-    color: SemanticColors.success,
-    fontSize: 13,
-    fontWeight: '600',
   },
   detailsButton: {
     flexDirection: 'row',
@@ -460,14 +440,7 @@ const createStyles = (colors) => StyleSheet.create({
     borderWidth: 1,
     borderColor: BrandColor + '40',
   },
-  detailsButtonText: {
-    color: colors.primary,
-    fontSize: 13,
-    fontWeight: '600',
-  },
   infoText: {
-    fontSize: 12,
-    color: colors.secondaryText,
     textAlign: 'center',
     marginTop: 10,
     lineHeight: 16,
@@ -476,10 +449,10 @@ const createStyles = (colors) => StyleSheet.create({
     padding: 16,
   },
   appealInput: {
+    ...Typography.body,
     backgroundColor: colors.background,
     borderRadius: 10,
     padding: 14,
-    fontSize: 15,
     color: colors.text,
     minHeight: 120,
     borderWidth: 1,
@@ -487,13 +460,10 @@ const createStyles = (colors) => StyleSheet.create({
   },
   charCount: {
     textAlign: 'right',
-    fontSize: 12,
-    color: colors.secondaryText,
     marginTop: 4,
   },
   errorText: {
-    color: SemanticColors.warning,
-    fontSize: 13,
+    fontWeight: '400',
     marginTop: 8,
   },
   submitAppealButton: {
@@ -505,11 +475,6 @@ const createStyles = (colors) => StyleSheet.create({
   },
   submitAppealButtonDisabled: {
     opacity: 0.5,
-  },
-  submitAppealButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
   },
 
   // History drawer
@@ -535,13 +500,10 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 8,
   },
   cardHeaderText: {
-    color: '#FFFFFF',
-    fontSize: 13,
     fontWeight: '700',
   },
   cardHeaderDate: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 12,
+    color: 'rgba(255,255,255,0.9)',
   },
   chainRuleRow: {
     flexDirection: 'row',
@@ -551,9 +513,6 @@ const createStyles = (colors) => StyleSheet.create({
     paddingTop: 10,
   },
   chainRuleTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.text,
     flex: 1,
   },
   commentChain: {
@@ -579,9 +538,7 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 3,
   },
   chainLabel: {
-    fontSize: 11,
     fontWeight: '600',
-    color: colors.secondaryText,
     textTransform: 'uppercase',
     letterSpacing: 0.3,
   },
@@ -592,13 +549,9 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 10,
   },
   chainActionBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 11,
     fontWeight: '600',
   },
   chainComment: {
-    fontSize: 12,
-    color: colors.text,
     fontStyle: 'italic',
     lineHeight: 16,
   },
@@ -610,8 +563,6 @@ const createStyles = (colors) => StyleSheet.create({
     marginTop: 2,
   },
   appealStateBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 11,
     fontWeight: '600',
   },
 })

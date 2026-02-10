@@ -1,8 +1,9 @@
-import { View, Text, Image, StyleSheet } from 'react-native'
+import { View, Image, StyleSheet } from 'react-native'
 import { useMemo } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { getInitials, getInitialsColor, getTrustBadgeColor, getAvatarImageUrl } from '../lib/avatarUtils'
+import ThemedText from './ThemedText'
 
 const SIZE_PRESETS = { sm: 28, md: 40, lg: 80 }
 
@@ -63,9 +64,9 @@ export default function Avatar({
             borderStyle,
           ]}
         >
-          <Text style={{ fontSize, fontWeight: '700', color: '#FFFFFF' }}>
+          <ThemedText color="inverse" maxFontSizeMultiplier={1.0} style={{ fontSize, fontWeight: '700' }}>
             {getInitials(displayName)}
-          </Text>
+          </ThemedText>
         </View>
       )}
       {hasKudos && (
@@ -84,7 +85,7 @@ export default function Avatar({
         >
           <Ionicons name="star" size={starSize} color={colors.primary} />
           {showKudosCount && user.kudosCount > 0 && (
-            <Text style={styles.kudosCount}>{user.kudosCount}</Text>
+            <ThemedText variant="micro" color="primary">{user.kudosCount}</ThemedText>
           )}
         </View>
       )}
@@ -113,10 +114,5 @@ const createStyles = (colors) => StyleSheet.create({
   kudosBadgePill: {
     paddingHorizontal: 5,
     paddingVertical: 2,
-  },
-  kudosCount: {
-    fontSize: 8,
-    fontWeight: '700',
-    color: colors.primary,
   },
 })

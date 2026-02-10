@@ -1,9 +1,10 @@
-import { StyleSheet, View, Text, TouchableOpacity, Animated, Dimensions, Pressable } from 'react-native'
+import { StyleSheet, View, TouchableOpacity, Animated, Dimensions, Pressable } from 'react-native'
 import { useEffect, useRef, useMemo } from 'react'
 import { useRouter, usePathname } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { SemanticColors, BadgeColors } from '../constants/Colors'
+import ThemedText from './ThemedText'
 import Avatar from './Avatar'
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window')
@@ -62,7 +63,7 @@ export default function Sidebar({ visible, onClose, user, onLogout }) {
   return (
     <View style={styles.container}>
       {/* Overlay */}
-      <Pressable style={styles.overlayPressable} onPress={onClose}>
+      <Pressable style={styles.overlayPressable} onPress={onClose} accessibilityLabel="Close menu" accessibilityRole="button">
         <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]} />
       </Pressable>
 
@@ -73,22 +74,23 @@ export default function Sidebar({ visible, onClose, user, onLogout }) {
           <Avatar user={user} size="lg" showKudosBadge={false} />
           <View style={styles.kudosBadge}>
             <Ionicons name="star" size={14} color={colors.primary} />
-            <Text style={styles.kudosCount}>{user?.kudosCount || 0}</Text>
+            <ThemedText variant="buttonSmall" color="primary">{user?.kudosCount || 0}</ThemedText>
           </View>
-          <Text style={styles.displayName}>{user?.displayName || 'Guest'}</Text>
-          <Text style={styles.username}>@{user?.username || 'guest'}</Text>
+          <ThemedText variant="h2" color="dark">{user?.displayName || 'Guest'}</ThemedText>
+          <ThemedText variant="bodySmall" color="secondary">@{user?.username || 'guest'}</ThemedText>
         </View>
 
         {/* Menu Items */}
         <View style={styles.menuSection}>
           <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/settings')}>
-            <Text style={styles.menuText}>Settings</Text>
+            <ThemedText variant="button" color="inverse" style={styles.menuText}>Settings</ThemedText>
           </TouchableOpacity>
           <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/support')}>
-            <Text style={styles.menuText}>Support Us</Text>
+            <ThemedText variant="button" color="inverse" style={styles.menuText}>Support Us</ThemedText>
           </TouchableOpacity>
           <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/reports')}>
-            <Text style={styles.menuText}>Community Reports</Text>
+            <ThemedText variant="button" color="inverse" style={styles.menuText}>Community Reports</ThemedText>
+
           </TouchableOpacity>
         </View>
 
@@ -96,7 +98,7 @@ export default function Sidebar({ visible, onClose, user, onLogout }) {
         <View style={styles.logoutSection}>
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
             <Ionicons name="log-out-outline" size={20} color={SemanticColors.warning} />
-            <Text style={styles.logoutText}>Log Out</Text>
+            <ThemedText variant="button" color="error" style={styles.logoutText}>Log Out</ThemedText>
           </TouchableOpacity>
         </View>
       </Animated.View>
@@ -136,11 +138,6 @@ const createStyles = (colors) => StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.cardBorder,
   },
-  avatarInitial: {
-    color: '#FFFFFF',
-    fontSize: 32,
-    fontWeight: '600',
-  },
   kudosBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -150,20 +147,6 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 12,
     gap: 4,
     marginBottom: 8,
-  },
-  kudosCount: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  displayName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.darkText,
-  },
-  username: {
-    fontSize: 14,
-    color: colors.secondaryText,
   },
   menuSection: {
     paddingTop: 8,
@@ -177,8 +160,6 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 8,
   },
   menuText: {
-    color: '#FFFFFF',
-    fontSize: 16,
     fontWeight: '500',
   },
   logoutSection: {
@@ -198,8 +179,6 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 8,
   },
   logoutText: {
-    color: SemanticColors.warning,
-    fontSize: 16,
     fontWeight: '500',
   },
 })
