@@ -1,8 +1,11 @@
-import { StyleSheet, View, TouchableOpacity, Animated, Platform } from 'react-native'
+import { StyleSheet, View, TouchableOpacity, Animated } from 'react-native'
 import { useState, useRef, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react'
+import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../../hooks/useThemeColors'
+import { BrandColor, OnBrandColors } from '../../constants/Colors'
 import ThemedText from '../ThemedText'
 import SwipeableCard from './SwipeableCard'
+import CardShell from '../CardShell'
 
 const SurveyCard = forwardRef(function SurveyCard({
   survey,
@@ -54,7 +57,7 @@ const SurveyCard = forwardRef(function SurveyCard({
   // Expose swipe methods via ref
   useImperativeHandle(ref, () => ({
     swipeRight: () => swipeableRef.current?.swipeRight?.(),
-    swipeLeft: () => {}, // No-op for survey (only right and down swipes)
+    swipeLeft: () => swipeableRef.current?.swipeLeft?.(),
     swipeDown: () => swipeableRef.current?.swipeDown?.(),
     swipeUp: () => {}, // No-op for survey
   }), [])
@@ -75,25 +78,42 @@ const SurveyCard = forwardRef(function SurveyCard({
     outputRange: [colors.buttonDefault, colors.buttonSelected],
   })
 
+  const headerContent = (
+    <View style={styles.headerRow}>
+      {/* Survey Icon */}
+      <View style={styles.iconContainer}>
+        <Ionicons name="clipboard" size={48} color={OnBrandColors.text} />
+      </View>
+
+      {/* Title and Category */}
+      <View style={styles.titleContainer}>
+        <ThemedText variant="statement" color="inverse" style={styles.headerTitle}>Survey</ThemedText>
+        <ThemedText variant="button" style={styles.headerSubtitle} numberOfLines={1}>{category}</ThemedText>
+        {surveyTitle && surveyTitle !== 'Survey' && (
+          <ThemedText variant="bodySmall" style={styles.headerSurveyTitle} numberOfLines={1}>{surveyTitle}</ThemedText>
+        )}
+      </View>
+    </View>
+  )
+
   return (
     <SwipeableCard
       ref={swipeableRef}
       onSwipeRight={handleSwipeRight}
+      onSwipeLeft={handleSkip}
       onSwipeDown={handleSkip}
       enableVerticalSwipe={true}
       rightSwipeAsSubmit={true}
+      leftSwipeAsPass={true}
       isBackCard={isBackCard}
       backCardAnimatedValue={backCardAnimatedValue}
     >
-      <View style={styles.card}>
-        {/* Header */}
-        <View style={styles.header}>
-          <ThemedText variant="buttonSmall" color="badge" style={styles.categoryName}>{category}</ThemedText>
-          {surveyTitle && surveyTitle !== 'Survey' && (
-            <ThemedText variant="bodySmall" color="secondary" style={styles.surveyTitle} numberOfLines={1}>{surveyTitle}</ThemedText>
-          )}
-        </View>
-
+      <CardShell
+        size="full"
+        headerColor={BrandColor}
+        header={headerContent}
+        bodyStyle={styles.bodyContent}
+      >
         {/* Question */}
         <View style={styles.questionContainer}>
           <ThemedText variant="statement" color="dark" style={styles.question}>{questionText}</ThemedText>
@@ -136,13 +156,13 @@ const SurveyCard = forwardRef(function SurveyCard({
         {/* Instructions */}
         <View style={styles.footer}>
           {selectedOption ? (
-            <ThemedText variant="button" color="primary" style={styles.footerText}>Swipe right to submit</ThemedText>
+            <ThemedText variant="button" color="primary">Swipe right to submit</ThemedText>
           ) : (
-            <ThemedText variant="button" color="primary" style={styles.footerText}>Select an option</ThemedText>
+            <ThemedText variant="button" color="primary">Select an option</ThemedText>
           )}
           <ThemedText variant="bodySmall" color="secondary">Swipe down to skip</ThemedText>
         </View>
-      </View>
+      </CardShell>
     </SwipeableCard>
   )
 })
@@ -150,24 +170,36 @@ const SurveyCard = forwardRef(function SurveyCard({
 export default SurveyCard
 
 const createStyles = (colors) => StyleSheet.create({
-  card: {
-    flex: 1,
-    padding: 20,
-  },
-  header: {
+  // Header
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 20,
+    justifyContent: 'center',
+    gap: 12,
+    paddingTop: 14,
+    paddingBottom: 18,
+    paddingHorizontal: 4,
   },
-  categoryName: {
-    backgroundColor: colors.badgeBg,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+  iconContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  surveyTitle: {
-    flex: 1,
+  titleContainer: {
+    flexDirection: 'column',
+  },
+  headerTitle: {
+    fontStyle: 'italic',
+  },
+  headerSubtitle: {
+    color: OnBrandColors.textSecondary,
+  },
+  headerSurveyTitle: {
+    color: OnBrandColors.textTertiary,
+    marginTop: 2,
+  },
+  // Body
+  bodyContent: {
+    padding: 20,
   },
   questionContainer: {
     flex: 1,
@@ -175,8 +207,6 @@ const createStyles = (colors) => StyleSheet.create({
     paddingBottom: 24,
   },
   question: {
-    fontWeight: '600',
-    lineHeight: 30,
     textAlign: 'center',
   },
   optionsContainer: {
@@ -193,14 +223,12 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.buttonSelected,
   },
   optionText: {
-    fontWeight: '500',
     color: colors.buttonDefaultText,
   },
   optionTextSelected: {
     color: colors.buttonSelectedText,
   },
   noOptionsText: {
-    fontWeight: '400',
     textAlign: 'center',
     paddingVertical: 20,
   },
@@ -208,8 +236,5 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
     paddingTop: 24,
     gap: 4,
-  },
-  footerText: {
-    fontWeight: '500',
   },
 })

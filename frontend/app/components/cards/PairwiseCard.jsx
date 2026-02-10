@@ -2,9 +2,10 @@ import { StyleSheet, View, TouchableOpacity, Animated } from 'react-native'
 import { useState, useRef, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../../hooks/useThemeColors'
-import { BrandColor } from '../../constants/Colors'
+import { BrandColor, OnBrandColors } from '../../constants/Colors'
 import ThemedText from '../ThemedText'
 import SwipeableCard from './SwipeableCard'
+import CardShell from '../CardShell'
 
 const PairwiseCard = forwardRef(function PairwiseCard({
   pairwise,
@@ -62,7 +63,7 @@ const PairwiseCard = forwardRef(function PairwiseCard({
   // Expose swipe methods via ref
   useImperativeHandle(ref, () => ({
     swipeRight: () => swipeableRef.current?.swipeRight?.(),
-    swipeLeft: () => {}, // No-op for pairwise (only right and down swipes)
+    swipeLeft: () => swipeableRef.current?.swipeLeft?.(),
     swipeDown: () => swipeableRef.current?.swipeDown?.(),
     swipeUp: () => {}, // No-op for pairwise
   }), [])
@@ -91,95 +92,96 @@ const PairwiseCard = forwardRef(function PairwiseCard({
     outputRange: [colors.buttonDefault, colors.buttonSelected],
   })
 
+  const headerContent = (
+    <View style={styles.headerRow}>
+      {/* Survey Icon */}
+      <View style={styles.iconContainer}>
+        <Ionicons name="clipboard" size={48} color={OnBrandColors.text} />
+      </View>
+
+      {/* Title and Subtitle */}
+      <View style={styles.titleContainer}>
+        <ThemedText variant="statement" color="inverse" style={styles.headerTitle}>Survey</ThemedText>
+        <ThemedText variant="button" style={styles.headerSubtitle} numberOfLines={1}>{surveyTitle}</ThemedText>
+      </View>
+    </View>
+  )
+
   return (
     <SwipeableCard
       ref={swipeableRef}
       onSwipeRight={handleSwipeRight}
+      onSwipeLeft={handleSkip}
       onSwipeDown={handleSkip}
       enableVerticalSwipe={true}
       rightSwipeAsSubmit={true}
+      leftSwipeAsPass={true}
       isBackCard={isBackCard}
       backCardAnimatedValue={backCardAnimatedValue}
     >
-      <View style={styles.card}>
-        {/* Purple Header Section */}
-        <View style={styles.headerSection}>
-          <View style={styles.headerRow}>
-            {/* Survey Icon */}
-            <View style={styles.iconContainer}>
-              <Ionicons name="clipboard" size={48} color="#fff" />
+      <CardShell
+        size="full"
+        headerColor={BrandColor}
+        header={headerContent}
+        bodyStyle={styles.bodyContent}
+      >
+        {/* Location & Category Header */}
+        <View style={styles.contentHeader}>
+          {location?.code && (
+            <View style={styles.locationBadge}>
+              <ThemedText variant="buttonSmall" color="badge">{location.code}</ThemedText>
             </View>
-
-            {/* Title and Subtitle */}
-            <View style={styles.titleContainer}>
-              <ThemedText variant="statement" color="inverse" style={styles.headerTitle}>Survey</ThemedText>
-              <ThemedText variant="button" style={styles.headerSubtitle} numberOfLines={1}>{surveyTitle}</ThemedText>
-            </View>
-          </View>
+          )}
+          <ThemedText variant="bodySmall" color="badge">
+            {category?.label || 'General'}
+          </ThemedText>
         </View>
 
-        {/* Survey Content Card - White with Rounded Top Corners */}
-        <View style={styles.contentCardWrapper}>
-          <View style={styles.contentCard}>
-            {/* Location & Category Header */}
-            <View style={styles.contentHeader}>
-              {location?.code && (
-                <View style={styles.locationBadge}>
-                  <ThemedText variant="buttonSmall" color="badge">{location.code}</ThemedText>
-                </View>
-              )}
-              <ThemedText variant="bodySmall" color="badge">
-                {category?.label || 'General'}
-              </ThemedText>
-            </View>
+        {/* Question */}
+        <View style={styles.questionContainer}>
+          <ThemedText variant="statement" color="dark" style={styles.question}>{question}</ThemedText>
+        </View>
 
-            {/* Question */}
-            <View style={styles.questionContainer}>
-              <ThemedText variant="statement" color="dark" style={styles.question}>{question}</ThemedText>
-            </View>
-
-            {/* Options */}
-            <View style={styles.optionsContainer}>
-              {options.map((option) => (
-                <TouchableOpacity
-                  key={option.id}
-                  activeOpacity={0.7}
-                  onPress={() => handleOptionPress(option.id)}
-                  disabled={isBackCard}
+        {/* Options */}
+        <View style={styles.optionsContainer}>
+          {options.map((option) => (
+            <TouchableOpacity
+              key={option.id}
+              activeOpacity={0.7}
+              onPress={() => handleOptionPress(option.id)}
+              disabled={isBackCard}
+            >
+              <Animated.View
+                style={[
+                  styles.option,
+                  selectedOption === option.id && styles.optionSelected,
+                  selectedOption !== option.id && { backgroundColor: flashBackgroundColor },
+                ]}
+              >
+                <ThemedText
+                  variant="button"
+                  style={[
+                    styles.optionText,
+                    selectedOption === option.id && styles.optionTextSelected,
+                  ]}
                 >
-                  <Animated.View
-                    style={[
-                      styles.option,
-                      selectedOption === option.id && styles.optionSelected,
-                      selectedOption !== option.id && { backgroundColor: flashBackgroundColor },
-                    ]}
-                  >
-                    <ThemedText
-                      variant="button"
-                      style={[
-                        styles.optionText,
-                        selectedOption === option.id && styles.optionTextSelected,
-                      ]}
-                    >
-                      {option.option}
-                    </ThemedText>
-                  </Animated.View>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Instructions */}
-            <View style={styles.footer}>
-              {selectedOption ? (
-                <ThemedText variant="button" color="primary" style={styles.footerText}>Swipe right to submit</ThemedText>
-              ) : (
-                <ThemedText variant="button" color="primary" style={styles.footerText}>Select an option</ThemedText>
-              )}
-              <ThemedText variant="bodySmall" color="secondary">Swipe down to skip</ThemedText>
-            </View>
-          </View>
+                  {option.option}
+                </ThemedText>
+              </Animated.View>
+            </TouchableOpacity>
+          ))}
         </View>
-      </View>
+
+        {/* Instructions */}
+        <View style={styles.footer}>
+          {selectedOption ? (
+            <ThemedText variant="button" color="primary">Swipe right to submit</ThemedText>
+          ) : (
+            <ThemedText variant="button" color="primary">Select an option</ThemedText>
+          )}
+          <ThemedText variant="bodySmall" color="secondary">Swipe down to skip</ThemedText>
+        </View>
+      </CardShell>
     </SwipeableCard>
   )
 })
@@ -187,22 +189,15 @@ const PairwiseCard = forwardRef(function PairwiseCard({
 export default PairwiseCard
 
 const createStyles = (colors) => StyleSheet.create({
-  card: {
-    flex: 1,
-    backgroundColor: BrandColor,
-  },
-  headerSection: {
-    backgroundColor: BrandColor,
-    paddingTop: 24,
-    paddingHorizontal: 16,
-    paddingBottom: 28,
-    flexShrink: 1,
-  },
+  // Header
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
+    paddingTop: 14,
+    paddingBottom: 18,
+    paddingHorizontal: 4,
   },
   iconContainer: {
     justifyContent: 'center',
@@ -212,23 +207,13 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'column',
   },
   headerTitle: {
-    fontWeight: '600',
     fontStyle: 'italic',
   },
   headerSubtitle: {
-    fontWeight: '400',
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: OnBrandColors.textSecondary,
   },
-  contentCardWrapper: {
-    flex: 1,
-    backgroundColor: BrandColor,
-  },
-  contentCard: {
-    flex: 1,
-    backgroundColor: colors.cardBackground,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    overflow: 'hidden',
+  // Body
+  bodyContent: {
     padding: 16,
   },
   contentHeader: {
@@ -249,8 +234,6 @@ const createStyles = (colors) => StyleSheet.create({
     paddingBottom: 20,
   },
   question: {
-    fontWeight: '600',
-    lineHeight: 30,
     textAlign: 'center',
   },
   optionsContainer: {
@@ -267,7 +250,6 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.buttonSelected,
   },
   optionText: {
-    fontWeight: '500',
     color: colors.buttonDefaultText,
   },
   optionTextSelected: {
@@ -277,8 +259,5 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
     paddingTop: 20,
     gap: 4,
-  },
-  footerText: {
-    fontWeight: '500',
   },
 })

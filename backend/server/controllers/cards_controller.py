@@ -390,6 +390,14 @@ def get_card_queue(limit=None, token_info=None):  # noqa: E501
     shuffled_cards.extend(position_cards)
     shuffled_cards.extend(chatting_list_cards)
 
+    # 3b. Inject diagnostics consent card (10% chance, only if never asked)
+    if has_positions and random.random() < 0.10:
+        consent_row = db.execute_query("""
+            SELECT diagnostics_consent FROM users WHERE id = %s
+        """, (user.id,), fetchone=True)
+        if consent_row and consent_row['diagnostics_consent'] is None:
+            shuffled_cards.append({'type': 'diagnostics_consent', 'data': {}})
+
     # 3. Shuffle the shuffled pool
     random.shuffle(shuffled_cards)
 

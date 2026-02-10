@@ -46,6 +46,7 @@ python3 -m pytest backend/tests/unit/ --benchmark-only -v
 | `test_moderation.py` | Report queue, mod actions, appeals |
 | `test_stats.py` | Statistics and analytics endpoints |
 | `test_polis_integration.py` | Pol.is API integration |
+| `test_bug_reports.py` | Bug report submission and diagnostics consent |
 
 ## Unit Tests (`unit/`)
 
@@ -64,6 +65,7 @@ python3 -m pytest backend/tests/unit/ --benchmark-only -v
 | `test_polis_worker.py` | `polis_worker.py` | Exponential backoff, status transitions, batch processing, queue stats |
 | `test_push_notifications.py` | `push_notifications.py` | Statement truncation, Expo Push API formatting, daily counter |
 | `test_chat_events.py` | `chat_events.py` | Redis pub/sub event structure, optional fields, error handling |
+| `test_bug_reports.py` | `bug_reports_controller.py` | Bug report creation, diagnostics consent, input validation |
 
 ## Key Files
 

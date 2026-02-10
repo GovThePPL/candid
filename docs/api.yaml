@@ -60,6 +60,10 @@ components:
         kudosCount:
           type: integer
           description: Number of kudos received by the user
+        diagnosticsConsent:
+          type: boolean
+          nullable: true
+          description: "Diagnostics consent: null = never asked, true = opted in, false = opted out"
     User:
       type: object
       required:
@@ -95,6 +99,10 @@ components:
         kudosCount:
           type: integer
           description: Number of kudos received by the user
+        diagnosticsConsent:
+          type: boolean
+          nullable: true
+          description: "Diagnostics consent: null = never asked, true = opted in, false = opted out"
 
     Location:
       type: object
@@ -1170,6 +1178,70 @@ components:
                   responseText:
                     type: string
                     nullable: true
+
+    DiagnosticsConsentCardItem:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum: [diagnostics_consent]
+
+    BugReportCreate:
+      type: object
+      properties:
+        description:
+          type: string
+          description: User-provided description (required for manual reports)
+        errorMetrics:
+          type: object
+          description: Collected error metrics array
+        clientContext:
+          type: object
+          description: Device and platform info
+        source:
+          type: string
+          enum: [user, auto, crash]
+          default: user
+
+    BugReport:
+      type: object
+      required:
+        - id
+        - userId
+        - source
+        - createdTime
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        description:
+          type: string
+          nullable: true
+        errorMetrics:
+          type: object
+          nullable: true
+        clientContext:
+          type: object
+          nullable: true
+        source:
+          type: string
+          enum: [user, auto, crash]
+        createdTime:
+          type: string
+          format: date-time
+
+    DiagnosticsConsentUpdate:
+      type: object
+      required:
+        - consent
+      properties:
+        consent:
+          type: boolean
 
     PairwiseComparison:
       type: object
@@ -2522,6 +2594,7 @@ paths:
                     - $ref: '#/components/schemas/PairwiseCardItem'
                     - $ref: '#/components/schemas/BanNotificationCardItem'
                     - $ref: '#/components/schemas/PositionRemovedCardItem'
+                    - $ref: '#/components/schemas/DiagnosticsConsentCardItem'
                   discriminator:
                     propertyName: type
                     mapping:
@@ -2533,6 +2606,7 @@ paths:
                       pairwise: '#/components/schemas/PairwiseCardItem'
                       ban_notification: '#/components/schemas/BanNotificationCardItem'
                       position_removed_notification: '#/components/schemas/PositionRemovedCardItem'
+                      diagnostics_consent: '#/components/schemas/DiagnosticsConsentCardItem'
 
   /cards/notifications/{positionId}/dismiss:
     post:
@@ -5269,6 +5343,70 @@ paths:
                 $ref: '#/components/schemas/ErrorModel'
         '502':
           description: Failed to fetch asset from Polis
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /bug-reports:
+    post:
+      operationId: createBugReport
+      summary: Submit a bug report or diagnostics data
+      description: |
+        Creates a bug report. Manual reports (source=user) require a description.
+        Auto-reports (source=auto/crash) require errorMetrics. Banned users can submit reports.
+      tags:
+        - BugReports
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BugReportCreate'
+      responses:
+        '201':
+          description: Bug report created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BugReport'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /users/me/diagnostics-consent:
+    put:
+      operationId: updateDiagnosticsConsent
+      summary: Update diagnostics consent preference
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiagnosticsConsentUpdate'
+      responses:
+        '200':
+          description: Consent updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  diagnosticsConsent:
+                    type: boolean
+        '401':
+          description: Not authenticated
           content:
             application/json:
               schema:

@@ -38,7 +38,9 @@ CREATE TABLE users (
     -- Context-specific response rates
     response_rate_swiping DECIMAL(3,2) DEFAULT 1.00,
     response_rate_in_app DECIMAL(3,2) DEFAULT 1.00,
-    response_rate_notification DECIMAL(3,2) DEFAULT 1.00
+    response_rate_notification DECIMAL(3,2) DEFAULT 1.00,
+    -- Diagnostics consent: NULL = never asked, true = opted in, false = opted out
+    diagnostics_consent BOOLEAN DEFAULT NULL
 );
 
 COMMENT ON COLUMN users.chat_request_likelihood IS '1=rarely, 2=less, 3=normal, 4=more, 5=often';
@@ -431,6 +433,17 @@ CREATE TABLE polis_sync_queue (
 
 COMMENT ON TABLE polis_sync_queue IS 'Async queue for syncing positions and votes to Polis';
 
+-- Bug reports and diagnostics
+CREATE TABLE bug_report (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    description TEXT,
+    error_metrics JSONB,
+    client_context JSONB,
+    source VARCHAR(10) NOT NULL DEFAULT 'user' CHECK (source IN ('user', 'auto', 'crash')),
+    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Create indexes for performance
 CREATE INDEX idx_users_username ON users(username);
 CREATE INDEX idx_users_email ON users(email);
@@ -475,3 +488,5 @@ CREATE INDEX idx_polis_participant_xid ON polis_participant(polis_xid);
 CREATE INDEX idx_polis_participant_token_expiry ON polis_participant(token_expires_at) WHERE polis_jwt_token IS NOT NULL;
 CREATE INDEX idx_polis_sync_queue_status ON polis_sync_queue(status, next_retry_time) WHERE status IN ('pending', 'partial');
 CREATE INDEX idx_polis_sync_queue_created ON polis_sync_queue(created_time);
+CREATE INDEX idx_bug_report_user_id ON bug_report(user_id);
+CREATE INDEX idx_bug_report_created_time ON bug_report(created_time DESC);

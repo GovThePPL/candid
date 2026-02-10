@@ -6,6 +6,7 @@ import { SemanticColors } from '../../constants/Colors'
 import ThemedText from '../ThemedText'
 import SwipeableCard from './SwipeableCard'
 import Avatar from '../Avatar'
+import CardShell from '../CardShell'
 
 const PositionCard = forwardRef(function PositionCard({
   position,
@@ -36,7 +37,7 @@ const PositionCard = forwardRef(function PositionCard({
       isBackCard={isBackCard}
       backCardAnimatedValue={backCardAnimatedValue}
     >
-      <View style={styles.card}>
+      <CardShell size="full" bodyStyle={styles.card}>
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.categoryRow}>
@@ -102,7 +103,7 @@ const PositionCard = forwardRef(function PositionCard({
             <Ionicons name="add-circle-outline" size={26} color="#81C784" />
           </TouchableOpacity>
         </View>
-      </View>
+      </CardShell>
     </SwipeableCard>
   )
 })
@@ -111,7 +112,6 @@ export default PositionCard
 
 const createStyles = (colors) => StyleSheet.create({
   card: {
-    flex: 1,
     padding: 20,
   },
   header: {
@@ -197,9 +197,6 @@ const createStyles = (colors) => StyleSheet.create({
   },
   addButton: {
     backgroundColor: SemanticColors.agree + '20',
-  },
-  removeButton: {
-    backgroundColor: colors.pass + '20',
   },
   authorInfo: {
     flexDirection: 'row',

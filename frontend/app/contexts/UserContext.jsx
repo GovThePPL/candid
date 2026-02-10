@@ -1,11 +1,13 @@
 import { createContext, useEffect, useState, useCallback, useRef } from "react"
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import api, { getStoredUser, initializeAuth, getToken, setToken, setStoredUser } from "../lib/api"
+import api, { getStoredUser, initializeAuth, getToken, setToken, setStoredUser, bugReportsApiWrapper } from "../lib/api"
 import * as keycloak from "../lib/keycloak"
 import socket, { connectSocket, disconnectSocket, onChatRequestResponse, onChatRequestReceived, onChatStarted } from "../lib/socket"
 import { setupNotificationHandler, addNotificationResponseListener } from "../lib/notifications"
+import { install as installErrorCollector, drain as drainErrors } from "../lib/errorCollector"
 
 const PENDING_CHAT_REQUEST_KEY = 'candid_pending_chat_request'
+const DIAGNOSTICS_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 
 export const UserContext = createContext()
 
@@ -20,6 +22,7 @@ export function UserProvider({ children }) {
   const [pendingChatRequest, setPendingChatRequestState] = useState(null)
   const socketCleanupRef = useRef(null)
   const notifCleanupRef = useRef(null)
+  const diagnosticsTimerRef = useRef(null)
 
   // Incoming chat request card delivered via socket (real-time push)
   // Shape: { type: 'chat_request', data: { id, requester, position, ... } }
@@ -193,6 +196,34 @@ export function UserProvider({ children }) {
     clearPendingChatRequest()
   }, [clearPendingChatRequest])
 
+  // Auto-send collected error diagnostics if user has opted in
+  const startDiagnosticsTimer = useCallback(() => {
+    if (diagnosticsTimerRef.current) return // Already running
+    diagnosticsTimerRef.current = setInterval(async () => {
+      try {
+        // Re-read user from state (closure captures current ref)
+        const currentUser = await getStoredUser()
+        if (!__DEV__ && !currentUser?.diagnosticsConsent) return
+        const errorMetrics = drainErrors()
+        if (!errorMetrics) return
+        await bugReportsApiWrapper.createReport({
+          source: 'auto',
+          errorMetrics,
+          clientContext: { appVersion: '1.0.0' },
+        })
+      } catch {
+        // Silently fail — diagnostics are best-effort
+      }
+    }, DIAGNOSTICS_INTERVAL_MS)
+  }, [])
+
+  const stopDiagnosticsTimer = useCallback(() => {
+    if (diagnosticsTimerRef.current) {
+      clearInterval(diagnosticsTimerRef.current)
+      diagnosticsTimerRef.current = null
+    }
+  }, [])
+
   async function login(username, password) {
     try {
       const { accessToken } = await keycloak.loginWithCredentials(username, password)
@@ -202,6 +233,7 @@ export function UserProvider({ children }) {
       setUser(currentUser)
       // Initialize socket after successful login
       initializeSocket()
+      startDiagnosticsTimer()
       // Check for any active chats to rejoin
       checkForActiveChat(currentUser.id)
       return currentUser
@@ -225,6 +257,7 @@ export function UserProvider({ children }) {
       setIsNewUser(true)
       // Initialize socket after successful registration
       initializeSocket()
+      startDiagnosticsTimer()
       return currentUser
     } catch (error) {
       throw Error(error.message || 'Registration failed')
@@ -236,6 +269,7 @@ export function UserProvider({ children }) {
   }
 
   async function logout() {
+    stopDiagnosticsTimer()
     cleanupSocket()
     await keycloak.logout()
     await api.auth.logout()
@@ -269,6 +303,7 @@ export function UserProvider({ children }) {
           setUser(currentUser)
           // Initialize socket for authenticated user
           initializeSocket()
+          startDiagnosticsTimer()
           // Check for any active chats to rejoin
           checkForActiveChat(currentUser.id)
           // Restore pending chat request if not expired
@@ -292,6 +327,7 @@ export function UserProvider({ children }) {
               const currentUser = await api.auth.getCurrentUser()
               setUser(currentUser)
               initializeSocket()
+              startDiagnosticsTimer()
               checkForActiveChat(currentUser.id)
             } catch {
               await api.auth.logout()
@@ -311,7 +347,9 @@ export function UserProvider({ children }) {
   }
 
   useEffect(() => {
+    installErrorCollector()
     getInitialUserValue()
+    return () => stopDiagnosticsTimer()
   }, [])
 
   return (

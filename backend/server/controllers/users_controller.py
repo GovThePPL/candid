@@ -43,6 +43,7 @@ def _row_to_current_user(row):
         join_time=str(row['join_time']) if row.get('join_time') else None,
         trust_score=float(row['trust_score']) if row.get('trust_score') is not None else None,
         kudos_count=row.get('kudos_count', 0),
+        diagnostics_consent=row.get('diagnostics_consent'),
     )
 
 
@@ -325,6 +326,7 @@ def get_current_user(token_info=None):  # noqa: E501
             u.username,
             u.avatar_url,
             u.avatar_icon_url,
+            u.diagnostics_consent,
             COALESCE((
                 SELECT COUNT(*) FROM kudos k
                 WHERE k.receiver_user_id = u.id AND k.status = 'sent'
@@ -852,6 +854,8 @@ def update_user_profile(body, token_info=None):  # noqa: E501
             u.created_time as join_time,
             u.username,
             u.avatar_url,
+            u.avatar_icon_url,
+            u.diagnostics_consent,
             COALESCE((
                 SELECT COUNT(*) FROM kudos k
                 WHERE k.receiver_user_id = u.id AND k.status = 'sent'
@@ -1117,3 +1121,30 @@ def register_push_token(body, token_info=None):  # noqa: E501
     """, (token, platform, user.id))
 
     return {"status": "ok"}
+
+
+def update_diagnostics_consent(body, token_info=None):  # noqa: E501
+    """Update diagnostics consent preference
+
+    :param body: Request body with consent boolean
+    :type body: dict
+    :param token_info: JWT token info
+    :type token_info: dict
+
+    :rtype: Union[dict, Tuple[dict, int]]
+    """
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+    user = token_to_user(token_info)
+
+    consent = body.get('consent')
+    if consent is None:
+        return ErrorModel(400, "consent is required"), 400
+
+    db.execute_query("""
+        UPDATE users SET diagnostics_consent = %s, updated_time = CURRENT_TIMESTAMP
+        WHERE id = %s
+    """, (bool(consent), user.id))
+
+    return {"diagnosticsConsent": bool(consent)}

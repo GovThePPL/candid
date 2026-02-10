@@ -1,4 +1,4 @@
-import { StyleSheet, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, TextInput } from 'react-native'
+import { StyleSheet, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, TextInput, Switch } from 'react-native'
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -36,6 +36,9 @@ export default function AccountSettings() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [deleteError, setDeleteError] = useState(null)
   const [deletingAccount, setDeletingAccount] = useState(false)
+
+  // Diagnostics consent state (null = never asked, true/false = opted in/out)
+  const [diagnosticsConsent, setDiagnosticsConsent] = useState(user?.diagnosticsConsent ?? null)
 
   const fetchData = useCallback(async () => {
     try {
@@ -122,6 +125,18 @@ export default function AccountSettings() {
       setDeleteError(err.message || 'Failed to delete account')
     } finally {
       setDeletingAccount(false)
+    }
+  }
+
+  const handleDiagnosticsToggle = async (value) => {
+    setDiagnosticsConsent(value)
+    try {
+      await api.users.updateDiagnosticsConsent(value)
+      await refreshUser()
+    } catch (err) {
+      // Revert on failure
+      setDiagnosticsConsent(diagnosticsConsent)
+      console.error('Failed to update diagnostics consent:', err)
     }
   }
 
@@ -227,6 +242,31 @@ export default function AccountSettings() {
             <Ionicons name="log-out-outline" size={20} color={colors.primary} />
             <ThemedText variant="button" color="primary" style={styles.logoutButtonText}>Log Out</ThemedText>
           </TouchableOpacity>
+        </View>
+
+        {/* Diagnostics Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="analytics-outline" size={22} color={colors.primary} />
+            <ThemedText variant="h2" color="dark">Diagnostics</ThemedText>
+          </View>
+
+          <View style={styles.diagnosticsRow}>
+            <View style={styles.diagnosticsText}>
+              <ThemedText variant="body" color="dark">Send error reports</ThemedText>
+              <ThemedText variant="label" color="secondary">
+                Help us improve Candid by automatically sending anonymous error data
+              </ThemedText>
+            </View>
+            <Switch
+              value={diagnosticsConsent === true}
+              onValueChange={handleDiagnosticsToggle}
+              trackColor={{ false: colors.cardBorder, true: colors.primaryMuted }}
+              thumbColor={diagnosticsConsent === true ? colors.primary : colors.pass}
+              accessibilityLabel="Send diagnostics data"
+              accessibilityRole="switch"
+            />
+          </View>
         </View>
 
         {/* Danger Zone */}
@@ -405,6 +445,16 @@ const createStyles = (colors) => StyleSheet.create({
   logoutButtonText: {
     flex: 1,
     fontWeight: '500',
+  },
+  diagnosticsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  diagnosticsText: {
+    flex: 1,
+    gap: 2,
   },
   dangerSection: {
     borderColor: SemanticColors.warning + '40',

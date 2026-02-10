@@ -18,6 +18,7 @@ import {
   PairwiseCard,
   BanNotificationCard,
   PositionRemovedCard,
+  DiagnosticsConsentCard,
 } from '../../components/cards'
 import Header from '../../components/Header'
 import ChattingListExplanationModal from '../../components/ChattingListExplanationModal'
@@ -784,6 +785,25 @@ export default function CardQueue() {
     goToNextCard()
   }, [goToNextCard])
 
+  // Diagnostics consent handlers
+  const handleDiagnosticsAccept = useCallback(async () => {
+    try {
+      await api.users.updateDiagnosticsConsent(true)
+    } catch (err) {
+      console.error('Failed to update diagnostics consent:', err)
+    }
+    goToNextCard()
+  }, [goToNextCard])
+
+  const handleDiagnosticsDecline = useCallback(async () => {
+    try {
+      await api.users.updateDiagnosticsConsent(false)
+    } catch (err) {
+      console.error('Failed to update diagnostics consent:', err)
+    }
+    goToNextCard()
+  }, [goToNextCard])
+
   // Keyboard support for PC
   useEffect(() => {
     if (Platform.OS !== 'web') return
@@ -812,7 +832,7 @@ export default function CardQueue() {
           break
         case 'ArrowDown':
           event.preventDefault()
-          if (cardRef?.swipeDown && currentCard?.type === 'position') {
+          if (cardRef?.swipeDown) {
             cardRef.swipeDown()
           }
           break
@@ -941,6 +961,18 @@ export default function CardQueue() {
             key={key}
             data={card.data}
             onDismiss={isBackCard ? undefined : handleDismissRemoval}
+          />
+        )
+
+      case 'diagnostics_consent':
+        return (
+          <DiagnosticsConsentCard
+            ref={isBackCard ? undefined : currentCardRef}
+            key={key}
+            onAccept={isBackCard ? undefined : handleDiagnosticsAccept}
+            onDecline={isBackCard ? undefined : handleDiagnosticsDecline}
+            isBackCard={isBackCard}
+            backCardAnimatedValue={backCardProgress}
           />
         )
 

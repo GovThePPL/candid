@@ -30,6 +30,12 @@ const SwipeableCard = forwardRef(function SwipeableCard({
   rightSwipeAsSubmit = false,
   // When true, right swipe shows star icon with gold styling (for kudos)
   rightSwipeAsKudos = false,
+  // When true, left swipe shows Pass overlay (gray) instead of Disagree (red/X)
+  leftSwipeAsPass = false,
+  // Custom label for right swipe text overlay (only used when rightSwipeAsSubmit is true)
+  rightSwipeLabel,
+  // Custom label for left/down pass text overlay (only used when leftSwipeAsPass is true)
+  leftSwipeLabel,
 }, ref) {
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
@@ -42,6 +48,8 @@ const SwipeableCard = forwardRef(function SwipeableCard({
   rightSwipeAsSubmitRef.current = rightSwipeAsSubmit
   const rightSwipeAsKudosRef = useRef(rightSwipeAsKudos)
   rightSwipeAsKudosRef.current = rightSwipeAsKudos
+  const leftSwipeAsPassRef = useRef(leftSwipeAsPass)
+  leftSwipeAsPassRef.current = leftSwipeAsPass
   const onSwipeUpRef = useRef(onSwipeUp)
   onSwipeUpRef.current = onSwipeUp
 
@@ -159,13 +167,23 @@ const SwipeableCard = forwardRef(function SwipeableCard({
       }
     },
     swipeLeft: () => {
-      Animated.parallel([
-        Animated.timing(redOverlay, { toValue: 0.4, duration: 150, useNativeDriver: false }),
-        Animated.timing(xIconOpacity, { toValue: 1, duration: 150, useNativeDriver: false }),
-        Animated.spring(xIconScale, { toValue: 1, friction: 6, tension: 100, useNativeDriver: false }),
-      ]).start(() => {
-        swipeOffScreen('left')
-      })
+      if (leftSwipeAsPass) {
+        Animated.parallel([
+          Animated.timing(grayOverlay, { toValue: 0.4, duration: 150, useNativeDriver: false }),
+          Animated.timing(passTextOpacity, { toValue: 1, duration: 150, useNativeDriver: false }),
+          Animated.spring(passTextScale, { toValue: 1, friction: 6, tension: 100, useNativeDriver: false }),
+        ]).start(() => {
+          swipeOffScreen('left')
+        })
+      } else {
+        Animated.parallel([
+          Animated.timing(redOverlay, { toValue: 0.4, duration: 150, useNativeDriver: false }),
+          Animated.timing(xIconOpacity, { toValue: 1, duration: 150, useNativeDriver: false }),
+          Animated.spring(xIconScale, { toValue: 1, friction: 6, tension: 100, useNativeDriver: false }),
+        ]).start(() => {
+          swipeOffScreen('left')
+        })
+      }
     },
     swipeUp: () => {
       Animated.parallel([
@@ -195,7 +213,7 @@ const SwipeableCard = forwardRef(function SwipeableCard({
         swipeOffScreen('right')
       })
     },
-  }), [swipeOffScreen, greenOverlay, redOverlay, yellowOverlay, grayOverlay, goldOverlay, checkIconOpacity, checkIconScale, xIconOpacity, xIconScale, passTextOpacity, passTextScale, chatIconOpacity, chatIconScale, plusIconOpacity, plusIconScale, submitTextOpacity, submitTextScale, starIconOpacity, starIconScale, rightSwipeAsChatAccept, rightSwipeAsSubmit, rightSwipeAsKudos])
+  }), [swipeOffScreen, greenOverlay, redOverlay, yellowOverlay, grayOverlay, goldOverlay, checkIconOpacity, checkIconScale, xIconOpacity, xIconScale, passTextOpacity, passTextScale, chatIconOpacity, chatIconScale, plusIconOpacity, plusIconScale, submitTextOpacity, submitTextScale, starIconOpacity, starIconScale, rightSwipeAsChatAccept, rightSwipeAsSubmit, rightSwipeAsKudos, leftSwipeAsPass])
 
   const panResponder = useRef(
     PanResponder.create({
@@ -279,10 +297,17 @@ const SwipeableCard = forwardRef(function SwipeableCard({
               checkIconScale.setValue(0.5 + horizontalProgress * 0.5)
             }
           } else if (onSwipeLeft) {
-            // Only show red overlay if left swipe is enabled
-            redOverlay.setValue(horizontalProgress * 0.4)
-            xIconOpacity.setValue(horizontalProgress)
-            xIconScale.setValue(0.5 + horizontalProgress * 0.5)
+            if (leftSwipeAsPassRef.current) {
+              // Pass styling for left swipe on non-position cards
+              grayOverlay.setValue(horizontalProgress * 0.4)
+              passTextOpacity.setValue(horizontalProgress)
+              passTextScale.setValue(0.5 + horizontalProgress * 0.5)
+            } else {
+              // Disagree styling (red/X) for position cards
+              redOverlay.setValue(horizontalProgress * 0.4)
+              xIconOpacity.setValue(horizontalProgress)
+              xIconScale.setValue(0.5 + horizontalProgress * 0.5)
+            }
           }
         } else if (canSwipeVertically) {
           if (gesture.dy > 0 && canSwipeDown) {
@@ -396,7 +421,7 @@ const SwipeableCard = forwardRef(function SwipeableCard({
         style={[styles.iconOverlay, { opacity: passTextOpacity, transform: [{ scale: passTextScale }] }]}
         pointerEvents="none"
       >
-        <ThemedText variant="overlay" color="inverse">Pass</ThemedText>
+        <ThemedText variant="overlay" color="inverse">{leftSwipeLabel || 'Pass'}</ThemedText>
       </Animated.View>
       {/* Chat icon overlay for up swipe */}
       <Animated.View
@@ -417,7 +442,7 @@ const SwipeableCard = forwardRef(function SwipeableCard({
         style={[styles.iconOverlay, { opacity: submitTextOpacity, transform: [{ scale: submitTextScale }] }]}
         pointerEvents="none"
       >
-        <ThemedText variant="overlay" color="inverse">Submit</ThemedText>
+        <ThemedText variant="overlay" color="inverse">{rightSwipeLabel || 'Submit'}</ThemedText>
       </Animated.View>
       {/* Gold overlay for kudos */}
       <Animated.View

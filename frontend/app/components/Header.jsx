@@ -9,6 +9,7 @@ import Sidebar from './Sidebar'
 import ChatRequestIndicator from './ChatRequestIndicator'
 import Avatar from './Avatar'
 import ThemedText from './ThemedText'
+import BugReportModal from './BugReportModal'
 import api from '../lib/api'
 import { getTrustBadgeColor } from '../lib/avatarUtils'
 
@@ -18,6 +19,7 @@ export default function Header({ onBack }) {
   const styles = useMemo(() => createStyles(colors), [colors])
   const { user, logout, pendingChatRequest, clearPendingChatRequest } = useContext(UserContext)
   const [sidebarVisible, setSidebarVisible] = useState(false)
+  const [bugReportVisible, setBugReportVisible] = useState(false)
   const [headerWidth, setHeaderWidth] = useState(0)
   const [rightWidth, setRightWidth] = useState(0)
   const logoWidthRef = useRef(0)
@@ -117,6 +119,11 @@ export default function Header({ onBack }) {
         onClose={() => setSidebarVisible(false)}
         user={user}
         onLogout={handleLogout}
+        onBugReport={() => setBugReportVisible(true)}
+      />
+      <BugReportModal
+        visible={bugReportVisible}
+        onClose={() => setBugReportVisible(false)}
       />
     </>
   )

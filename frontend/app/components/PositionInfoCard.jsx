@@ -1,7 +1,6 @@
 import { View, StyleSheet } from 'react-native'
 import { useMemo } from 'react'
 import { useThemeColors } from '../hooks/useThemeColors'
-import { BrandColor } from '../constants/Colors'
 import ThemedText from './ThemedText'
 import Avatar from './Avatar'
 
@@ -16,6 +15,7 @@ import Avatar from './Avatar'
  * @param {string} [props.label] - Optional label above the header (e.g. "Topic of Discussion")
  * @param {Object} [props.statementStyle] - Style override for the statement text
  * @param {number} [props.numberOfLines] - Optional line limit for statement
+ * @param {'compact'|'full'} [props.size='compact'] - compact: body variant, auto-height; full: statement variant, flex-centered
  * @param {Object} [props.style] - Container style override
  */
 export default function PositionInfoCard({
@@ -25,10 +25,12 @@ export default function PositionInfoCard({
   label,
   statementStyle,
   numberOfLines,
+  size = 'compact',
   style,
 }) {
   const colors = useThemeColors()
-  const styles = useMemo(() => createStyles(colors), [colors])
+  const isFull = size === 'full'
+  const styles = useMemo(() => createStyles(colors, isFull), [colors, isFull])
 
   if (!position) return null
 
@@ -46,36 +48,48 @@ export default function PositionInfoCard({
         <View style={styles.headerLeft}>
           {location?.code && (
             <View style={styles.locationBadge}>
-              <ThemedText variant="caption" color="badge" style={styles.locationText}>{location.code}</ThemedText>
+              <ThemedText variant={isFull ? 'buttonSmall' : 'caption'} color="badge" style={styles.locationText}>{location.code}</ThemedText>
             </View>
           )}
           {category?.label && (
-            <ThemedText variant="caption" color="badge">{category.label}</ThemedText>
+            <ThemedText variant={isFull ? 'bodySmall' : 'caption'} color="badge">{category.label}</ThemedText>
           )}
         </View>
         {headerRight}
       </View>
 
       {/* Position statement */}
-      <ThemedText
-        variant="body"
-        style={[styles.statement, statementStyle]}
-        numberOfLines={numberOfLines}
-      >
-        {statement}
-      </ThemedText>
+      {isFull ? (
+        <View style={styles.statementContainer}>
+          <ThemedText
+            variant="statement"
+            style={statementStyle}
+            numberOfLines={numberOfLines}
+          >
+            {statement}
+          </ThemedText>
+        </View>
+      ) : (
+        <ThemedText
+          variant="body"
+          style={[styles.statement, statementStyle]}
+          numberOfLines={numberOfLines}
+        >
+          {statement}
+        </ThemedText>
+      )}
 
       {/* Creator info */}
       {creator && (
         <View style={styles.creatorRow}>
           <Avatar
             user={creator}
-            size={32}
+            size={isFull ? 'md' : 32}
             showKudosCount
             badgePosition="bottom-left"
           />
           <View style={styles.creatorInfo}>
-            <ThemedText variant="label">{creator.displayName || 'Anonymous'}</ThemedText>
+            <ThemedText variant={isFull ? 'buttonSmall' : 'label'}>{creator.displayName || 'Anonymous'}</ThemedText>
             <ThemedText variant="caption" color="secondary" style={styles.creatorSubtitle}>
               {authorSubtitle === 'username'
                 ? `@${creator.username || 'anonymous'}`
@@ -88,10 +102,11 @@ export default function PositionInfoCard({
   )
 }
 
-const createStyles = (colors) => StyleSheet.create({
+const createStyles = (colors, isFull) => StyleSheet.create({
   container: {
     backgroundColor: colors.cardBackground,
-    padding: 16,
+    padding: isFull ? 20 : 16,
+    ...(isFull ? { flex: 1 } : {}),
   },
   label: {
     textTransform: 'uppercase',
@@ -118,6 +133,11 @@ const createStyles = (colors) => StyleSheet.create({
   },
   locationText: {
     fontWeight: '500',
+  },
+  statementContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingVertical: 40,
   },
   statement: {
     marginBottom: 12,

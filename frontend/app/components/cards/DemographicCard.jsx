@@ -1,8 +1,11 @@
 import { StyleSheet, View, TouchableOpacity, Animated } from 'react-native'
 import { useState, useRef, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react'
+import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../../hooks/useThemeColors'
+import { BrandColor, OnBrandColors } from '../../constants/Colors'
 import ThemedText from '../ThemedText'
 import SwipeableCard from './SwipeableCard'
+import CardShell from '../CardShell'
 
 const DemographicCard = forwardRef(function DemographicCard({
   demographic,
@@ -54,7 +57,7 @@ const DemographicCard = forwardRef(function DemographicCard({
   // Expose swipe methods via ref
   useImperativeHandle(ref, () => ({
     swipeRight: () => swipeableRef.current?.swipeRight?.(),
-    swipeLeft: () => {}, // No-op for demographic (only right and down swipes)
+    swipeLeft: () => swipeableRef.current?.swipeLeft?.(),
     swipeDown: () => swipeableRef.current?.swipeDown?.(),
     swipeUp: () => {}, // No-op for demographic
   }), [])
@@ -73,22 +76,38 @@ const DemographicCard = forwardRef(function DemographicCard({
     outputRange: [colors.buttonDefault, colors.buttonSelected],
   })
 
+  const headerContent = (
+    <View style={styles.headerRow}>
+      {/* Person Icon */}
+      <View style={styles.iconContainer}>
+        <Ionicons name="person-outline" size={48} color={OnBrandColors.text} />
+      </View>
+
+      {/* Title */}
+      <View style={styles.titleContainer}>
+        <ThemedText variant="statement" color="inverse" style={styles.headerTitle}>About You</ThemedText>
+      </View>
+    </View>
+  )
+
   return (
     <SwipeableCard
       ref={swipeableRef}
       onSwipeRight={handleSwipeRight}
+      onSwipeLeft={handleSkip}
       onSwipeDown={handleSkip}
       enableVerticalSwipe={true}
       rightSwipeAsSubmit={true}
+      leftSwipeAsPass={true}
       isBackCard={isBackCard}
       backCardAnimatedValue={backCardAnimatedValue}
     >
-      <View style={styles.card}>
-        {/* Header */}
-        <View style={styles.header}>
-          <ThemedText variant="buttonSmall" color="badge" style={styles.categoryName}>About You</ThemedText>
-        </View>
-
+      <CardShell
+        size="full"
+        headerColor={BrandColor}
+        header={headerContent}
+        bodyStyle={styles.bodyContent}
+      >
         {/* Question */}
         <View style={styles.questionContainer}>
           <ThemedText variant="statement" color="dark" style={styles.question}>{questionText}</ThemedText>
@@ -131,13 +150,13 @@ const DemographicCard = forwardRef(function DemographicCard({
         {/* Instructions */}
         <View style={styles.footer}>
           {selectedOption ? (
-            <ThemedText variant="button" color="badge" style={styles.footerText}>Swipe right to submit</ThemedText>
+            <ThemedText variant="button" color="primary">Swipe right to submit</ThemedText>
           ) : (
-            <ThemedText variant="button" color="badge" style={styles.footerText}>Select an option</ThemedText>
+            <ThemedText variant="button" color="primary">Select an option</ThemedText>
           )}
           <ThemedText variant="bodySmall" color="secondary">Swipe down to skip</ThemedText>
         </View>
-      </View>
+      </CardShell>
     </SwipeableCard>
   )
 })
@@ -145,21 +164,29 @@ const DemographicCard = forwardRef(function DemographicCard({
 export default DemographicCard
 
 const createStyles = (colors) => StyleSheet.create({
-  card: {
-    flex: 1,
-    padding: 20,
-  },
-  header: {
+  // Header
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 20,
+    justifyContent: 'center',
+    gap: 12,
+    paddingTop: 14,
+    paddingBottom: 18,
+    paddingHorizontal: 4,
   },
-  categoryName: {
-    backgroundColor: colors.badgeBg,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+  iconContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  titleContainer: {
+    flexDirection: 'column',
+  },
+  headerTitle: {
+    fontStyle: 'italic',
+  },
+  // Body
+  bodyContent: {
+    padding: 20,
   },
   questionContainer: {
     flex: 1,
@@ -167,8 +194,6 @@ const createStyles = (colors) => StyleSheet.create({
     paddingBottom: 24,
   },
   question: {
-    fontWeight: '600',
-    lineHeight: 30,
     textAlign: 'center',
   },
   optionsContainer: {
@@ -185,14 +210,12 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.buttonSelected,
   },
   optionText: {
-    fontWeight: '500',
     color: colors.buttonDefaultText,
   },
   optionTextSelected: {
     color: colors.buttonSelectedText,
   },
   noOptionsText: {
-    fontWeight: '400',
     textAlign: 'center',
     paddingVertical: 20,
   },
@@ -200,8 +223,5 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
     paddingTop: 24,
     gap: 4,
-  },
-  footerText: {
-    fontWeight: '500',
   },
 })

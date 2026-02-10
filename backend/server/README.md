@@ -18,7 +18,7 @@ When the spec changes, update the function signatures in `controllers/` to match
 server/
 ├── controllers/          # Custom controller implementations (source of truth)
 │   ├── helpers/          # Shared utilities (auth, DB, Redis, Polis, etc.)
-│   ├── *_controller.py   # Domain controllers (auth, users, positions, etc.)
+│   ├── *_controller.py   # Domain controllers (auth, users, positions, bug_reports, etc.)
 │   ├── __init__.py       # Flask app initialization, DB setup
 │   └── __main__.py       # WSGI entry point (copied to generated/)
 ├── generated/            # OpenAPI-generated Flask app (gitignored)

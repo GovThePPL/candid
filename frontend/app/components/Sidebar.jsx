@@ -10,7 +10,7 @@ import Avatar from './Avatar'
 const { width: SCREEN_WIDTH } = Dimensions.get('window')
 const SIDEBAR_WIDTH = SCREEN_WIDTH * 0.65
 
-export default function Sidebar({ visible, onClose, user, onLogout }) {
+export default function Sidebar({ visible, onClose, user, onLogout, onBugReport }) {
   const router = useRouter()
   const pathname = usePathname()
   const colors = useThemeColors()
@@ -90,7 +90,14 @@ export default function Sidebar({ visible, onClose, user, onLogout }) {
           </TouchableOpacity>
           <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/reports')}>
             <ThemedText variant="button" color="inverse" style={styles.menuText}>Community Reports</ThemedText>
-
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => { onClose(); onBugReport?.(); }}
+            accessibilityRole="button"
+            accessibilityLabel="Report a bug"
+          >
+            <ThemedText variant="button" color="inverse" style={styles.menuText}>Report Bug</ThemedText>
           </TouchableOpacity>
         </View>
 

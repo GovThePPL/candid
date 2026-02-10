@@ -6,7 +6,7 @@ PostgreSQL 17 with pgvector extension for semantic similarity search.
 
 The schema supports the full Candid domain: users, positions, voting, chat, surveys, moderation, demographics, and Polis integration. Key tables include:
 
-- **users** -- User accounts with role hierarchy (guest/normal/moderator/admin)
+- **users** -- User accounts with role hierarchy (guest/normal/moderator/admin), diagnostics consent flag
 - **position / user_position** -- Position statements and per-user adoption
 - **response** -- Agree/disagree/pass/chat votes on positions
 - **chat_request / chat_log** -- Chat lifecycle and message storage (JSONB)
@@ -14,6 +14,7 @@ The schema supports the full Candid domain: users, positions, voting, chat, surv
 - **report / mod_action** -- Content moderation pipeline with appeals
 - **user_demographics** -- Demographics for group analytics
 - **position_category / location** -- Hierarchical categorization and geography
+- **bug_report** -- User-submitted bug reports with optional device diagnostics
 
 ## Dockerfile Init Flow
 

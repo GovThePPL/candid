@@ -23,6 +23,14 @@ export const SemanticColors = {
   overlay: "rgba(0, 0, 0, 0.5)",
 }
 
+// Text/icon colors for content placed on BrandColor surfaces (card headers/footers)
+export const OnBrandColors = {
+  text: '#FFFFFF',
+  textSecondary: 'rgba(255, 255, 255, 0.8)',
+  textTertiary: 'rgba(255, 255, 255, 0.6)',
+  overlay: 'rgba(255, 255, 255, 0.15)',
+}
+
 // Badge colors (same in both themes)
 export const BadgeColors = {
   trustBadgeGray: "#CCCCCC",
@@ -67,7 +75,7 @@ export const LightTheme = {
   agreedPosition: "#F0A3FD",
 
   // Pass button (not for text — only for pass/skip UI elements)
-  pass: "#CCCCCC",
+  pass: "#999999",
 
   // Interactive buttons (option pills on cards, tab selectors)
   buttonDefault: "#FFB8FF",

@@ -342,13 +342,20 @@ def _clear_redis_ban_cache():
 
 
 @pytest.fixture(scope="session", autouse=True)
-def _db_snapshot_restore():
+def _db_snapshot_restore(request):
     """Snapshot the current DB (seeded dev data), swap in minimal test data,
     and restore the original state after all tests complete.
 
     This keeps seeded/Polis data safe from test pollution and prevents test
     data from being synced to Polis.
+    Skips automatically when only unit tests are collected (no Docker needed).
     """
+    # Skip DB snapshot/restore when running only unit tests
+    items = request.session.items
+    if all(item.get_closest_marker("unit") for item in items):
+        yield
+        return
+
     # --- Setup: save current state, load minimal test data ---
     _snapshot_db()
     _load_test_data()
@@ -366,10 +373,15 @@ def _db_snapshot_restore():
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(scope="session", autouse=True)
-def _ensure_seed_users_active(_db_snapshot_restore):
+def _ensure_seed_users_active(_db_snapshot_restore, request):
     """Ensure admin1 and normal4 are active at the start of each test session.
     Moderation tests may ban these users, breaking later tests.
-    Depends on _db_snapshot_restore so it runs after the DB is loaded."""
+    Depends on _db_snapshot_restore so it runs after the DB is loaded.
+    Skips when only unit tests are collected."""
+    items = request.session.items
+    if all(item.get_closest_marker("unit") for item in items):
+        yield
+        return
     db_execute("UPDATE users SET status = 'active' WHERE username IN ('admin1', 'normal4')")
     _clear_redis_ban_cache()
     yield

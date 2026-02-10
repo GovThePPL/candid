@@ -10,8 +10,10 @@ import {
   ChattingListApi,
   StatsApi,
   ModerationApi,
+  BugReportsApi,
 } from 'candid_api'
 import { CacheManager } from './cache'
+import { recordApiError } from './errorCollector'
 
 // API configuration
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL
@@ -33,6 +35,7 @@ const categoriesApi = new CategoriesApi(apiClient)
 const chattingListApi = new ChattingListApi(apiClient)
 const statsApi = new StatsApi(apiClient)
 const moderationApi = new ModerationApi(apiClient)
+const bugReportsApi = new BugReportsApi(apiClient)
 
 // Token management
 export async function getToken() {
@@ -92,6 +95,9 @@ function promisify(apiMethod, ...args) {
   return new Promise((resolve, reject) => {
     apiMethod(...args, (error, data, response) => {
       if (error) {
+        const status = response?.status || error?.status || 0
+        const path = response?.req?.path || ''
+        recordApiError(path, status, error?.message || String(error))
         reject(error)
       } else {
         resolve(data)
@@ -272,6 +278,13 @@ export const usersApiWrapper = {
     return await promisify(
       usersApi.uploadAvatar.bind(usersApi),
       { imageBase64 }
+    )
+  },
+
+  async updateDiagnosticsConsent(consent) {
+    return await promisify(
+      usersApi.updateDiagnosticsConsent.bind(usersApi),
+      { consent }
     )
   },
 }
@@ -797,6 +810,16 @@ export const moderationApiWrapper = {
   },
 }
 
+// Bug Reports API
+export const bugReportsApiWrapper = {
+  async createReport(body) {
+    return await promisify(
+      bugReportsApi.createBugReport.bind(bugReportsApi),
+      body
+    )
+  },
+}
+
 export default {
   auth: authApi,
   users: usersApiWrapper,
@@ -808,5 +831,6 @@ export default {
   stats: statsApiWrapper,
   chattingList: chattingListApiWrapper,
   moderation: moderationApiWrapper,
+  bugReports: bugReportsApiWrapper,
   initializeAuth,
 }
