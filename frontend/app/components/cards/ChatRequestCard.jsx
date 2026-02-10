@@ -1,6 +1,7 @@
 import { StyleSheet, View } from 'react-native'
 import { forwardRef, useMemo } from 'react'
 import { Ionicons } from '@expo/vector-icons'
+import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { BrandColor, OnBrandColors } from '../../constants/Colors'
 import ThemedText from '../ThemedText'
@@ -16,13 +17,14 @@ const ChatRequestCard = forwardRef(function ChatRequestCard({
   isBackCard,
   backCardAnimatedValue,
 }, ref) {
+  const { t } = useTranslation('cards')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const { requester, position } = chatRequest
 
   const headerContent = (
     <View style={styles.headerInner}>
-      <ThemedText variant="statement" color="inverse" style={styles.headerTitle}>Chat Request</ThemedText>
+      <ThemedText variant="statement" color="inverse" style={styles.headerTitle}>{t('chatRequestTitle')}</ThemedText>
 
       {/* User Info Row with Chat Bubble */}
       <View style={styles.userRow}>
@@ -35,8 +37,8 @@ const ChatRequestCard = forwardRef(function ChatRequestCard({
         <View style={styles.userPill}>
           <Avatar user={requester} size="md" showKudosCount badgePosition="bottom-left" />
           <View style={styles.userTextContainer}>
-            <ThemedText variant="label" color="dark">{requester?.displayName || 'Anonymous'}</ThemedText>
-            <ThemedText variant="caption" color="secondary">@{requester?.username || 'anonymous'}</ThemedText>
+            <ThemedText variant="label" color="dark">{requester?.displayName || t('anonymous')}</ThemedText>
+            <ThemedText variant="caption" color="secondary">@{requester?.username || t('anonymousUsername')}</ThemedText>
           </View>
         </View>
       </View>
@@ -55,8 +57,8 @@ const ChatRequestCard = forwardRef(function ChatRequestCard({
       leftSwipeAsPass={true}
       isBackCard={isBackCard}
       backCardAnimatedValue={backCardAnimatedValue}
-      accessibilityLabel={`Chat request from ${requester?.displayName || 'Anonymous'} about: ${position?.statement || ''}`}
-      accessibilityHint="Swipe right to accept, left to decline"
+      accessibilityLabel={t('chatRequestA11yLabel', { name: requester?.displayName || t('anonymous'), statement: position?.statement || '' })}
+      accessibilityHint={t('chatRequestA11yHint')}
     >
       <CardShell
         size="full"

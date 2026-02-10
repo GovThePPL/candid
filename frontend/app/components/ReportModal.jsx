@@ -7,6 +7,7 @@ import {
   ScrollView,
   StyleSheet,
 } from 'react-native'
+import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { SemanticColors, BrandColor } from '../constants/Colors'
@@ -16,6 +17,7 @@ import BottomDrawerModal from './BottomDrawerModal'
 import api from '../lib/api'
 
 export default function ReportModal({ visible, onClose, onSubmit }) {
+  const { t } = useTranslation()
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
 
@@ -67,14 +69,14 @@ export default function ReportModal({ visible, onClose, onSubmit }) {
     <BottomDrawerModal
       visible={visible}
       onClose={onClose}
-      title="Report Content"
-      subtitle="Select the rule that was violated"
+      title={t('reportContent')}
+      subtitle={t('selectRuleViolation')}
       maxHeight="75%"
     >
       {success ? (
         <View style={styles.successContainer}>
           <Ionicons name="checkmark-circle" size={48} color={SemanticColors.success} />
-          <ThemedText variant="h2" style={styles.successText}>Report submitted</ThemedText>
+          <ThemedText variant="h2" style={styles.successText}>{t('reportSubmitted')}</ThemedText>
         </View>
       ) : loading ? (
         <View style={styles.loadingContainer}>
@@ -112,7 +114,7 @@ export default function ReportModal({ visible, onClose, onSubmit }) {
           <View style={styles.footer}>
             <TextInput
               style={styles.commentInput}
-              placeholder="Add details (optional)..."
+              placeholder={t('addDetails')}
               placeholderTextColor={colors.placeholderText}
               value={comment}
               onChangeText={setComment}
@@ -120,7 +122,7 @@ export default function ReportModal({ visible, onClose, onSubmit }) {
               multiline
               numberOfLines={2}
               maxFontSizeMultiplier={1.5}
-              accessibilityLabel="Additional details"
+              accessibilityLabel={t('additionalDetails')}
             />
             <TouchableOpacity
               style={[styles.submitButton, !selectedRuleId && styles.submitButtonDisabled]}
@@ -128,7 +130,7 @@ export default function ReportModal({ visible, onClose, onSubmit }) {
               disabled={!selectedRuleId || submitting}
               activeOpacity={0.7}
               accessibilityRole="button"
-              accessibilityLabel="Submit Report"
+              accessibilityLabel={t('submitReport')}
               accessibilityState={{ disabled: !selectedRuleId || submitting }}
             >
               {submitting ? (
@@ -136,7 +138,7 @@ export default function ReportModal({ visible, onClose, onSubmit }) {
               ) : (
                 <>
                   <Ionicons name="flag" size={18} color="#FFFFFF" />
-                  <ThemedText variant="button" color="inverse">Submit Report</ThemedText>
+                  <ThemedText variant="button" color="inverse">{t('submitReport')}</ThemedText>
                 </>
               )}
             </TouchableOpacity>

@@ -1,6 +1,7 @@
 import { StyleSheet, View, TouchableOpacity, Platform } from 'react-native'
 import { useContext, useState, useCallback, useRef, useMemo } from 'react'
 import { useRouter } from 'expo-router'
+import { useTranslation } from 'react-i18next'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
@@ -15,6 +16,7 @@ import api from '../lib/api'
 import { getTrustBadgeColor } from '../lib/avatarUtils'
 
 export default function Header({ onBack }) {
+  const { t } = useTranslation()
   const router = useRouter()
   const colors = useThemeColors()
   const insets = useSafeAreaInsets()
@@ -70,7 +72,7 @@ export default function Header({ onBack }) {
         {/* Left section */}
         <View style={[styles.headerLeft, pendingChatRequest && !showLogo && styles.headerLeftExpanded]}>
           {onBack && (
-            <TouchableOpacity onPress={onBack} style={styles.backButton} accessibilityLabel="Go back" accessibilityRole="button">
+            <TouchableOpacity onPress={onBack} style={styles.backButton} accessibilityLabel={t('goBack')} accessibilityRole="button">
               <Ionicons name="arrow-back" size={22} color={colors.primary} />
             </TouchableOpacity>
           )}
@@ -107,11 +109,11 @@ export default function Header({ onBack }) {
 
         {/* Right section */}
         <View style={styles.headerRight} onLayout={e => setRightWidth(e.nativeEvent.layout.width)}>
-          <View style={[styles.kudosBadge, { backgroundColor: getTrustBadgeColor(user?.trustScore) }]} accessibilityLabel={`${user?.kudosCount || 0} kudos`}>
+          <View style={[styles.kudosBadge, { backgroundColor: getTrustBadgeColor(user?.trustScore) }]} accessibilityLabel={t('kudosCount', { count: user?.kudosCount || 0 })}>
             <Ionicons name="star" size={16} color={colors.primary} />
             <ThemedText variant="label" color="primary">{user?.kudosCount || 0}</ThemedText>
           </View>
-          <TouchableOpacity onPress={() => setSidebarVisible(true)} accessibilityLabel="Open menu" accessibilityRole="button">
+          <TouchableOpacity onPress={() => setSidebarVisible(true)} accessibilityLabel={t('openMenu')} accessibilityRole="button">
             <Avatar user={user} size={32} showKudosBadge={false} />
           </TouchableOpacity>
         </View>

@@ -1,6 +1,7 @@
 import { StyleSheet, View, TouchableOpacity, Animated } from 'react-native'
 import { useState, useRef, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react'
 import { Ionicons } from '@expo/vector-icons'
+import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { BrandColor, OnBrandColors } from '../../constants/Colors'
 import ThemedText from '../ThemedText'
@@ -14,6 +15,7 @@ const DemographicCard = forwardRef(function DemographicCard({
   isBackCard = false,
   backCardAnimatedValue,
 }, ref) {
+  const { t } = useTranslation('cards')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const [selectedOption, setSelectedOption] = useState(null)
@@ -85,7 +87,7 @@ const DemographicCard = forwardRef(function DemographicCard({
 
       {/* Title */}
       <View style={styles.titleContainer}>
-        <ThemedText variant="statement" color="inverse" style={styles.headerTitle}>About You</ThemedText>
+        <ThemedText variant="statement" color="inverse" style={styles.headerTitle}>{t('demographicTitle')}</ThemedText>
       </View>
     </View>
   )
@@ -101,8 +103,8 @@ const DemographicCard = forwardRef(function DemographicCard({
       leftSwipeAsPass={true}
       isBackCard={isBackCard}
       backCardAnimatedValue={backCardAnimatedValue}
-      accessibilityLabel={`About you: ${questionText}`}
-      accessibilityHint="Select an option, then swipe right to submit"
+      accessibilityLabel={t('demographicA11yLabel', { question: questionText })}
+      accessibilityHint={t('demographicA11yHint')}
     >
       <CardShell
         size="full"
@@ -148,18 +150,18 @@ const DemographicCard = forwardRef(function DemographicCard({
               </TouchableOpacity>
             ))
           ) : (
-            <ThemedText variant="button" color="secondary" style={styles.noOptionsText}>No options available</ThemedText>
+            <ThemedText variant="button" color="secondary" style={styles.noOptionsText}>{t('demographicNoOptions')}</ThemedText>
           )}
         </View>
 
         {/* Instructions */}
         <View style={styles.footer}>
           {selectedOption ? (
-            <ThemedText variant="button" color="primary">Swipe right to submit</ThemedText>
+            <ThemedText variant="button" color="primary">{t('demographicSubmitInstruction')}</ThemedText>
           ) : (
-            <ThemedText variant="button" color="primary">Select an option</ThemedText>
+            <ThemedText variant="button" color="primary">{t('demographicSelectOption')}</ThemedText>
           )}
-          <ThemedText variant="bodySmall" color="secondary">Swipe down to skip</ThemedText>
+          <ThemedText variant="bodySmall" color="secondary">{t('demographicSkipInstruction')}</ThemedText>
         </View>
       </CardShell>
     </SwipeableCard>

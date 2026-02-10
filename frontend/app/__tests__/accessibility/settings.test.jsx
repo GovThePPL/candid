@@ -64,6 +64,7 @@ jest.mock('../../lib/api', () => ({
     users: { updateUser: jest.fn(() => Promise.resolve()), deleteAccount: jest.fn(() => Promise.resolve()) },
     moderation: { getRules: jest.fn() },
   },
+  translateError: (msg) => msg,
 }))
 jest.mock('../../lib/cache', () => ({
   __esModule: true,
@@ -101,25 +102,25 @@ import SettingsHub from '../../app/(dashboard)/settings/index'
 describe('Settings Hub accessibility', () => {
   test('profile button has label with user name', () => {
     render(<SettingsHub />)
-    expect(screen.getByRole('button', { name: /edit profile/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /editProfileA11y/i })).toBeTruthy()
   })
 
   test('theme options have radio role', () => {
     render(<SettingsHub />)
     const radios = screen.getAllByRole('radio')
-    expect(radios.length).toBe(3) // light, dark, system
+    expect(radios.length).toBe(6) // 3 theme (light, dark, system) + 3 language (en, es, system)
   })
 
   test('light theme radio is checked when active', () => {
     render(<SettingsHub />)
-    expect(screen.getByRole('radio', { name: /light/i })).toBeChecked()
+    expect(screen.getByRole('radio', { name: /themeA11y themeLight/i })).toBeChecked()
   })
 
   test('menu items have button role and label', () => {
     render(<SettingsHub />)
-    expect(screen.getByRole('button', { name: 'Demographics' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Preferences' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Notifications' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Account' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /menuDemographics/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /menuPreferences/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /menuNotifications/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /menuAccount/i })).toBeTruthy()
   })
 })

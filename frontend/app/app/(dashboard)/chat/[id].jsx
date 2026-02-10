@@ -28,7 +28,7 @@ import { Shadows } from '../../../constants/Theme'
 import { useThemeColors } from '../../../hooks/useThemeColors'
 import { UserContext } from '../../../contexts/UserContext'
 import Header from '../../../components/Header'
-import api from '../../../lib/api'
+import api, { translateError } from '../../../lib/api'
 import {
   joinChat,
   sendMessage,
@@ -50,6 +50,7 @@ import Avatar from '../../../components/Avatar'
 import ThemedText from '../../../components/ThemedText'
 import PositionInfoCard from '../../../components/PositionInfoCard'
 import ReportModal from '../../../components/ReportModal'
+import { useTranslation } from 'react-i18next'
 
 export default function ChatScreen() {
   const colors = useThemeColors()
@@ -60,6 +61,7 @@ export default function ChatScreen() {
   const navigation = useNavigation()
   const { user } = useContext(UserContext)
   const { width: screenWidth, height: screenHeight } = useWindowDimensions()
+  const { t } = useTranslation('chat')
 
   // Proposal card dimensions relative to screen width
   const proposalCardWidth = Math.min(Math.max(screenWidth * 0.7, 200), 400)
@@ -339,7 +341,7 @@ export default function ChatScreen() {
             return
           } catch (err) {
             console.error('Failed to load chat history:', err)
-            setError(err.message || 'Failed to load chat history')
+            setError(translateError(err.message, t) || t('failedLoadChat'))
             setLoading(false)
             return
           }
@@ -348,7 +350,7 @@ export default function ChatScreen() {
         // For active chats, use WebSocket
         // Check socket connection
         if (!isConnected()) {
-          setError('Not connected to chat server. Please try again.')
+          setError(t('notConnected'))
           setLoading(false)
           return
         }
@@ -682,7 +684,7 @@ export default function ChatScreen() {
         setLoading(false)
       } catch (err) {
         console.error('Failed to join chat:', err)
-        setError(err.message || 'Failed to join chat')
+        setError(translateError(err.message, t) || t('failedJoinChat'))
         setLoading(false)
       }
     }
@@ -950,7 +952,7 @@ export default function ChatScreen() {
       const isAccepted = item.type === 'accepted'
       const isRejected = item.type === 'rejected'
       const isPending = item.type === 'proposed'
-      const proposalLabel = item.isClosure ? 'Closure' : 'Statement'
+      const proposalLabel = item.isClosure ? t('proposeClosure') : t('proposeStatement')
       const proposalColor = item.isClosure ? colors.chat : SemanticColors.agree
 
       // Color for the main (latest) proposal
@@ -970,7 +972,7 @@ export default function ChatScreen() {
         const pIsModified = proposal.type === 'modified'
         const pIsPending = proposal.type === 'proposed'
         const pIsInactive = pIsRejected || pIsModified
-        const pProposalLabel = proposal.isClosure ? 'Closure' : 'Statement'
+        const pProposalLabel = proposal.isClosure ? t('proposeClosure') : t('proposeStatement')
         const pProposalColor = proposal.isClosure ? colors.chat : SemanticColors.agree
         const pBubbleColor = pIsAccepted
           ? colors.messageYou
@@ -1026,7 +1028,7 @@ export default function ChatScreen() {
             {/* Closure warning - only on latest pending */}
             {isLatest && proposal.isClosure && pIsPending && (
               <ThemedText variant="caption" color="inverse" style={styles.closureWarningText}>
-                Accepting will end this chat
+                {t('acceptEndsChatWarning')}
               </ThemedText>
             )}
 
@@ -1036,18 +1038,24 @@ export default function ChatScreen() {
                 <TouchableOpacity
                   style={styles.proposalCardButton}
                   onPress={() => handleRejectProposal(proposal.proposalId)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('rejectProposalA11y')}
                 >
                   <Ionicons name="close" size={16} color="#fff" />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.proposalCardButton}
                   onPress={() => handleStartModify(proposal)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('modifyProposalA11y')}
                 >
                   <Ionicons name="create-outline" size={16} color="#fff" />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.proposalCardButton, styles.proposalCardButtonAccept]}
                   onPress={() => handleAcceptProposal(proposal.proposalId)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('acceptProposalA11y')}
                 >
                   <Ionicons name="checkmark" size={16} color={SemanticColors.agree} />
                 </TouchableOpacity>
@@ -1055,7 +1063,7 @@ export default function ChatScreen() {
             )}
             {isLatest && pIsPending && pIsOwn && (
               <ThemedText variant="caption" style={styles.proposalCardWaiting}>
-                {proposal.isClosure ? 'Waiting for response to end chat...' : 'Waiting...'}
+                {proposal.isClosure ? t('waitingForResponseClosure') : t('waitingForResponse')}
               </ThemedText>
             )}
 
@@ -1163,7 +1171,7 @@ export default function ChatScreen() {
                     {hasMultipleCards && (
                       <View style={styles.stackExpandIndicator}>
                         <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={16} color="rgba(255,255,255,0.7)" />
-                        <ThemedText variant="caption" style={styles.stackExpandText}>{isExpanded ? 'collapse' : `${numPreviousCards} more`}</ThemedText>
+                        <ThemedText variant="caption" style={styles.stackExpandText}>{isExpanded ? t('collapseProposals') : t('moreProposals', { count: numPreviousCards })}</ThemedText>
                       </View>
                     )}
                   </View>
@@ -1273,24 +1281,30 @@ export default function ChatScreen() {
         style={styles.modalOverlay}
         activeOpacity={1}
         onPress={handleCancelLeave}
+        accessibilityRole="button"
+        accessibilityLabel={t('leaveChatTitle')}
       >
         <TouchableOpacity activeOpacity={1} style={styles.modalCard}>
-          <ThemedText variant="h4" color="primary" style={styles.modalTitle}>Leave Chat?</ThemedText>
+          <ThemedText variant="h4" color="primary" style={styles.modalTitle}>{t('leaveChatTitle')}</ThemedText>
           <ThemedText variant="body" style={styles.modalMessage}>
-            Are you sure you want to leave this conversation? You can return to it later from your chat history.
+            {t('leaveChatMessage')}
           </ThemedText>
           <View style={styles.modalButtons}>
             <TouchableOpacity
               style={styles.modalCancelButton}
               onPress={handleCancelLeave}
+              accessibilityRole="button"
+              accessibilityLabel={t('stay')}
             >
-              <ThemedText variant="button" color="primary" style={styles.modalCancelText}>Stay</ThemedText>
+              <ThemedText variant="button" color="primary" style={styles.modalCancelText}>{t('stay')}</ThemedText>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.modalConfirmButton}
               onPress={handleConfirmLeave}
+              accessibilityRole="button"
+              accessibilityLabel={t('leave')}
             >
-              <ThemedText variant="button" color="inverse">Leave</ThemedText>
+              <ThemedText variant="button" color="inverse">{t('leave')}</ThemedText>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -1310,6 +1324,8 @@ export default function ChatScreen() {
         style={styles.modalOverlay}
         activeOpacity={1}
         onPress={handleCancelModify}
+        accessibilityRole="button"
+        accessibilityLabel={t('modifyProposal')}
       >
         <TouchableOpacity activeOpacity={1} style={styles.modifyModalCard}>
           <View style={styles.modifyModalHeader}>
@@ -1320,16 +1336,16 @@ export default function ChatScreen() {
                 color="#fff"
               />
               <ThemedText variant="badge" style={styles.proposalTypeBadgeText}>
-                {modifyingProposal?.isClosure ? 'Closure' : 'Statement'}
+                {modifyingProposal?.isClosure ? t('proposeClosure') : t('proposeStatement')}
               </ThemedText>
             </View>
-            <ThemedText variant="h2" color="primary" style={styles.modifyModalTitle}>Modify Proposal</ThemedText>
+            <ThemedText variant="h2" color="primary" style={styles.modifyModalTitle}>{t('modifyProposal')}</ThemedText>
           </View>
           <TextInput
             style={styles.modifyInput}
             value={modifyText}
             onChangeText={setModifyText}
-            placeholder="Edit the proposal..."
+            placeholder={t('placeholderModify')}
             placeholderTextColor={colors.placeholderText}
             multiline
             autoFocus
@@ -1339,15 +1355,19 @@ export default function ChatScreen() {
             <TouchableOpacity
               style={styles.modalCancelButton}
               onPress={handleCancelModify}
+              accessibilityRole="button"
+              accessibilityLabel={t('cancel')}
             >
-              <ThemedText variant="button" color="primary" style={styles.modalCancelText}>Cancel</ThemedText>
+              <ThemedText variant="button" color="primary" style={styles.modalCancelText}>{t('cancel')}</ThemedText>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.modifySubmitButton, !modifyText.trim() && styles.modifySubmitButtonDisabled]}
               onPress={handleSubmitModify}
               disabled={!modifyText.trim()}
+              accessibilityRole="button"
+              accessibilityLabel={t('send')}
             >
-              <ThemedText variant="button" color="inverse">Send</ThemedText>
+              <ThemedText variant="button" color="inverse">{t('send')}</ThemedText>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -1363,16 +1383,16 @@ export default function ChatScreen() {
           <Header onBack={handleBackPress} />
         ) : (
           <View style={styles.header}>
-            <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
+            <TouchableOpacity onPress={handleBackPress} style={styles.backButton} accessibilityRole="button" accessibilityLabel={t('backA11y')}>
               <Ionicons name="arrow-back" size={24} color={colors.primary} />
             </TouchableOpacity>
-            <ThemedText variant="h2" color="primary" style={styles.headerTitle}>Chat</ThemedText>
+            <ThemedText variant="h2" color="primary" style={styles.headerTitle}>{t('chat')}</ThemedText>
             <View style={styles.headerRight} />
           </View>
         )}
         <View style={styles.centerContent}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <ThemedText variant="button" style={styles.loadingText}>{from === 'chats' || from === 'moderation' ? 'Loading chat log...' : 'Joining chat...'}</ThemedText>
+          <ThemedText variant="button" style={styles.loadingText}>{from === 'chats' || from === 'moderation' ? t('loadingChat') : t('joiningChat')}</ThemedText>
         </View>
         {renderLeaveConfirmModal()}
       </SafeAreaView>
@@ -1387,10 +1407,10 @@ export default function ChatScreen() {
           <Header onBack={() => router.back()} />
         ) : (
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton} accessibilityRole="button" accessibilityLabel={t('backA11y')}>
               <Ionicons name="arrow-back" size={24} color={colors.primary} />
             </TouchableOpacity>
-            <ThemedText variant="h2" color="primary" style={styles.headerTitle}>Chat</ThemedText>
+            <ThemedText variant="h2" color="primary" style={styles.headerTitle}>{t('chat')}</ThemedText>
             <View style={styles.headerRight} />
           </View>
         )}
@@ -1402,7 +1422,7 @@ export default function ChatScreen() {
             onPressIn={Platform.OS === 'web' ? () => router.back() : undefined}
             role="button"
           >
-            <ThemedText variant="button" color="inverse">Go Back</ThemedText>
+            <ThemedText variant="button" color="inverse">{t('goBack')}</ThemedText>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -1416,7 +1436,7 @@ export default function ChatScreen() {
         <Header onBack={handleBackPress} />
       ) : (
         <View style={styles.header}>
-          <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
+          <TouchableOpacity onPress={handleBackPress} style={styles.backButton} accessibilityRole="button" accessibilityLabel={t('backA11y')}>
             <Ionicons name="arrow-back" size={24} color={colors.primary} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
@@ -1429,7 +1449,7 @@ export default function ChatScreen() {
                 </View>
               </View>
             ) : (
-              <ThemedText variant="h2" color="primary" numberOfLines={1}>Chat</ThemedText>
+              <ThemedText variant="h2" color="primary" numberOfLines={1}>{t('chat')}</ThemedText>
             )}
           </View>
           <View style={styles.headerRight}>
@@ -1453,19 +1473,21 @@ export default function ChatScreen() {
           />
           <ThemedText variant="bodySmall" color="inverse" style={styles.endedText}>
             {isModerationView
-              ? 'Moderation review — chat log'
+              ? t('moderationReview')
               : isHistoricalView
-              ? 'Viewing historical chat log'
+              ? t('viewingHistorical')
               : chatEndedWithClosure
-                ? 'Chat ended with mutual agreement'
+                ? t('endedMutualAgreement')
                 : otherUserLeft
-                  ? `${otherUser?.displayName || 'The other user'} has left the chat`
-                  : 'This chat has ended'}
+                  ? t('otherUserLeft', { name: otherUser?.displayName || t('theOtherUser') })
+                  : t('chatEnded')}
           </ThemedText>
           {!isModerationView && (isHistoricalView || chatEnded) && (
             <TouchableOpacity
               onPress={() => setReportModalVisible(true)}
               style={styles.reportButton}
+              accessibilityRole="button"
+              accessibilityLabel={t('reportChatA11y')}
             >
               <Ionicons name="flag-outline" size={18} color="#fff" />
             </TouchableOpacity>
@@ -1500,21 +1522,25 @@ export default function ChatScreen() {
       {chatEndedWithClosure && !isHistoricalView && kudosStatus === null && (
         <View style={styles.kudosPrompt}>
           <ThemedText variant="body" style={styles.kudosPromptText}>
-            Would you like to send kudos to {otherUser?.displayName || 'the other user'}?
+            {t('kudosPrompt', { name: otherUser?.displayName || t('theOtherUserLower') })}
           </ThemedText>
           <View style={styles.kudosButtonsRow}>
             <TouchableOpacity
               style={styles.kudosDismissButton}
               onPress={handleDismissKudos}
+              accessibilityRole="button"
+              accessibilityLabel={t('dismissKudosA11y')}
             >
-              <ThemedText variant="buttonSmall" style={styles.kudosDismissText}>No thanks</ThemedText>
+              <ThemedText variant="buttonSmall" style={styles.kudosDismissText}>{t('noThanks')}</ThemedText>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.kudosSendButton}
               onPress={handleSendKudos}
+              accessibilityRole="button"
+              accessibilityLabel={t('sendKudosA11y')}
             >
               <Ionicons name="star" size={16} color="#fff" style={{ marginRight: 6 }} />
-              <ThemedText variant="buttonSmall" style={styles.kudosSendText}>Send Kudos</ThemedText>
+              <ThemedText variant="buttonSmall" style={styles.kudosSendText}>{t('sendKudos')}</ThemedText>
             </TouchableOpacity>
           </View>
         </View>
@@ -1524,7 +1550,7 @@ export default function ChatScreen() {
       {chatEndedWithClosure && !isHistoricalView && kudosStatus === 'sent' && (
         <View style={styles.kudosSentBanner}>
           <Ionicons name="star" size={18} color="#FFD700" style={{ marginRight: 8 }} />
-          <ThemedText variant="bodySmall" style={styles.kudosSentText}>Kudos sent to {otherUser?.displayName || 'the other user'}!</ThemedText>
+          <ThemedText variant="bodySmall" style={styles.kudosSentText}>{t('kudosSentTo', { name: otherUser?.displayName || t('theOtherUserLower') })}</ThemedText>
         </View>
       )}
 
@@ -1551,7 +1577,7 @@ export default function ChatScreen() {
             chatInfo?.position ? (
               <PositionInfoCard
                 position={chatInfo.position}
-                label="Topic of Discussion"
+                label={t('topicOfDiscussion')}
                 authorSubtitle="username"
                 style={styles.topicCard}
                 statementStyle={styles.topicStatement}
@@ -1562,7 +1588,7 @@ export default function ChatScreen() {
             <View style={styles.emptyChat}>
               <Ionicons name="chatbubbles-outline" size={48} color={colors.secondaryText} />
               <ThemedText variant="button" style={styles.emptyChatText}>
-                Start the conversation!
+                {t('startConversation')}
               </ThemedText>
             </View>
           }
@@ -1580,8 +1606,8 @@ export default function ChatScreen() {
               <View style={styles.chatEndedRow}>
                 <ThemedText variant="bodySmall" style={styles.chatEndedText}>
                   {chatInfo?.endedByUserId === user?.id
-                    ? 'You left the chat'
-                    : `${otherUser?.displayName || 'The other user'} left the chat`}
+                    ? t('youLeftChat')
+                    : t('otherLeftChat', { name: otherUser?.displayName || t('theOtherUser') })}
                 </ThemedText>
               </View>
             ) : null
@@ -1595,6 +1621,8 @@ export default function ChatScreen() {
             <TouchableOpacity
               style={[styles.specialMenuButton, showSpecialMenu && styles.specialMenuButtonActive]}
               onPress={handleToggleSpecialMenu}
+              accessibilityRole="button"
+              accessibilityLabel={t('messageMenuA11y')}
             >
               <Ionicons
                 name={showSpecialMenu ? 'close' : 'add'}
@@ -1614,13 +1642,16 @@ export default function ChatScreen() {
                   <TouchableOpacity
                     style={[styles.specialMenuItem, messageType === 'text' && styles.specialMenuItemSelected]}
                     onPress={handleSelectChat}
+                    accessibilityRole="menuitem"
+                    accessibilityLabel={t('menuChat')}
+                    accessibilityState={{ selected: messageType === 'text' }}
                   >
                     <View style={[styles.specialMenuIcon, { backgroundColor: colors.primary }]}>
                       <Ionicons name="chatbubble" size={20} color="#fff" />
                     </View>
                     <View style={styles.specialMenuItemText}>
-                      <ThemedText variant="body" style={styles.specialMenuItemTitle}>Chat</ThemedText>
-                      <ThemedText variant="caption" style={styles.specialMenuItemDesc}>Send a normal message</ThemedText>
+                      <ThemedText variant="body" style={styles.specialMenuItemTitle}>{t('menuChat')}</ThemedText>
+                      <ThemedText variant="caption" style={styles.specialMenuItemDesc}>{t('menuChatDesc')}</ThemedText>
                     </View>
                     {messageType === 'text' && (
                       <Ionicons name="checkmark-circle" size={24} color={colors.primary} />
@@ -1629,13 +1660,16 @@ export default function ChatScreen() {
                   <TouchableOpacity
                     style={[styles.specialMenuItem, messageType === 'position_proposal' && styles.specialMenuItemSelected]}
                     onPress={handleSelectProposeStatement}
+                    accessibilityRole="menuitem"
+                    accessibilityLabel={t('menuProposeStatement')}
+                    accessibilityState={{ selected: messageType === 'position_proposal' }}
                   >
                     <View style={[styles.specialMenuIcon, { backgroundColor: SemanticColors.agree }]}>
                       <Ionicons name="document-text" size={20} color="#fff" />
                     </View>
                     <View style={styles.specialMenuItemText}>
-                      <ThemedText variant="body" style={styles.specialMenuItemTitle}>Propose Statement</ThemedText>
-                      <ThemedText variant="caption" style={styles.specialMenuItemDesc}>Suggest a statement you both agree on</ThemedText>
+                      <ThemedText variant="body" style={styles.specialMenuItemTitle}>{t('menuProposeStatement')}</ThemedText>
+                      <ThemedText variant="caption" style={styles.specialMenuItemDesc}>{t('menuProposeStatementDesc')}</ThemedText>
                     </View>
                     {messageType === 'position_proposal' && (
                       <Ionicons name="checkmark-circle" size={24} color={SemanticColors.agree} />
@@ -1644,13 +1678,16 @@ export default function ChatScreen() {
                   <TouchableOpacity
                     style={[styles.specialMenuItem, messageType === 'closure_proposal' && styles.specialMenuItemSelected]}
                     onPress={handleSelectProposeClosure}
+                    accessibilityRole="menuitem"
+                    accessibilityLabel={t('menuProposeClosure')}
+                    accessibilityState={{ selected: messageType === 'closure_proposal' }}
                   >
                     <View style={[styles.specialMenuIcon, { backgroundColor: colors.chat }]}>
                       <Ionicons name="checkmark-done" size={20} color="#fff" />
                     </View>
                     <View style={styles.specialMenuItemText}>
-                      <ThemedText variant="body" style={styles.specialMenuItemTitle}>Propose Closure</ThemedText>
-                      <ThemedText variant="caption" style={styles.specialMenuItemDesc}>Propose ending this chat amicably</ThemedText>
+                      <ThemedText variant="body" style={styles.specialMenuItemTitle}>{t('menuProposeClosure')}</ThemedText>
+                      <ThemedText variant="caption" style={styles.specialMenuItemDesc}>{t('menuProposeClosureDesc')}</ThemedText>
                     </View>
                     {messageType === 'closure_proposal' && (
                       <Ionicons name="checkmark-circle" size={24} color={colors.chat} />
@@ -1666,9 +1703,9 @@ export default function ChatScreen() {
               onChangeText={handleTextChange}
               onContentSizeChange={handleContentSizeChange}
               placeholder={
-                messageType === 'position_proposal' ? 'Type a statement to propose...' :
-                messageType === 'closure_proposal' ? 'Type a closing message...' :
-                'Type a message...'
+                messageType === 'position_proposal' ? t('placeholderProposal') :
+                messageType === 'closure_proposal' ? t('placeholderClosure') :
+                t('placeholderMessage')
               }
               placeholderTextColor={colors.placeholderText}
               multiline
@@ -1695,6 +1732,8 @@ export default function ChatScreen() {
               ]}
               onPress={handleSend}
               disabled={!inputText.trim()}
+              accessibilityRole="button"
+              accessibilityLabel={t('sendMessageA11y')}
             >
               <Ionicons
                 name={

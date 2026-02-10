@@ -3,10 +3,11 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
+import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../../hooks/useThemeColors'
 import { SemanticColors } from '../../../constants/Colors'
 import { createSharedStyles } from '../../../constants/SharedStyles'
-import api from '../../../lib/api'
+import api, { translateError } from '../../../lib/api'
 import { useUser } from '../../../hooks/useUser'
 import { CacheManager, CacheKeys, CacheDurations } from '../../../lib/cache'
 
@@ -14,28 +15,30 @@ import ThemedText from '../../../components/ThemedText'
 import Header from '../../../components/Header'
 import LoadingView from '../../../components/LoadingView'
 
-const NOTIFICATION_FREQ_OPTIONS = [
-  { value: 'off', label: 'Off', description: 'No notifications' },
-  { value: 'rarely', label: 'Rarely', description: 'Up to 2/day' },
-  { value: 'less', label: 'Less', description: 'Up to 5/day' },
-  { value: 'normal', label: 'Normal', description: 'Up to 10/day' },
-  { value: 'more', label: 'More', description: 'Up to 20/day' },
-  { value: 'often', label: 'Often', description: 'Unlimited' },
+const getNotificationFreqOptions = (t) => [
+  { value: 'off', label: t('freqOff'), description: t('freqOffDesc') },
+  { value: 'rarely', label: t('freqRarely'), description: t('freqRarelyDesc') },
+  { value: 'less', label: t('freqLess'), description: t('freqLessDesc') },
+  { value: 'normal', label: t('freqNormal'), description: t('freqNormalDesc') },
+  { value: 'more', label: t('freqMore'), description: t('freqMoreDesc') },
+  { value: 'often', label: t('freqOften'), description: t('freqOftenDesc') },
 ]
 
-const HOUR_LABELS = [
-  '12 AM', '1 AM', '2 AM', '3 AM', '4 AM', '5 AM',
-  '6 AM', '7 AM', '8 AM', '9 AM', '10 AM', '11 AM',
-  '12 PM', '1 PM', '2 PM', '3 PM', '4 PM', '5 PM',
-  '6 PM', '7 PM', '8 PM', '9 PM', '10 PM', '11 PM',
-]
+const getHourLabels = (t) => Array.from({ length: 24 }, (_, i) => {
+  const hour12 = i % 12 || 12
+  const period = i < 12 ? t('am') : t('pm')
+  return `${hour12} ${period}`
+})
 
 export default function NotificationSettings() {
   const { user } = useUser()
   const router = useRouter()
   const colors = useThemeColors()
+  const { t } = useTranslation('settings')
   const styles = useMemo(() => createStyles(colors), [colors])
   const shared = useMemo(() => createSharedStyles(colors), [colors])
+  const NOTIFICATION_FREQ_OPTIONS = useMemo(() => getNotificationFreqOptions(t), [t])
+  const HOUR_LABELS = useMemo(() => getHourLabels(t), [t])
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -97,7 +100,7 @@ export default function NotificationSettings() {
       }, 100)
     } catch (err) {
       console.error('Failed to fetch notification settings:', err)
-      setError(err.message || 'Failed to load notification settings')
+      setError(translateError(err.message, t) || t('failedLoadNotifications'))
     } finally {
       setLoading(false)
     }
@@ -151,7 +154,7 @@ export default function NotificationSettings() {
         }
       } catch (err) {
         console.error('Failed to save notification settings:', err)
-        setError(err.message || 'Failed to save notification settings')
+        setError(translateError(err.message, t) || t('failedSaveNotifications'))
       } finally {
         setSaving(false)
       }
@@ -187,7 +190,7 @@ export default function NotificationSettings() {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <Header onBack={() => router.back()} />
-        <LoadingView message="Loading notifications..." />
+        <LoadingView message={t('loadingNotifications')} />
       </SafeAreaView>
     )
   }
@@ -198,7 +201,7 @@ export default function NotificationSettings() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.pageHeader}>
           <ThemedText variant="h1" title={true} style={styles.pageTitle}>
-            Notifications
+            {t('notifications')}
           </ThemedText>
         </View>
 
@@ -213,28 +216,28 @@ export default function NotificationSettings() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="notifications-outline" size={22} color={colors.primary} />
-            <ThemedText variant="h2" color="dark">Notifications</ThemedText>
+            <ThemedText variant="h2" color="dark">{t('notifications')}</ThemedText>
           </View>
           <ThemedText variant="bodySmall" color="secondary" style={styles.sectionDescription}>
-            Get notified when someone wants to chat about a position you care about.
+            {t('notificationsDesc')}
           </ThemedText>
 
           {/* Enable toggle */}
           <View style={styles.notifToggleRow}>
-            <ThemedText variant="body" color="dark" style={styles.notifToggleLabel}>Enable push notifications</ThemedText>
+            <ThemedText variant="body" color="dark" style={styles.notifToggleLabel}>{t('enablePushNotifications')}</ThemedText>
             <Switch
               value={notificationsEnabled}
               onValueChange={handleNotificationsEnabledChange}
               trackColor={{ false: colors.cardBorder, true: colors.primaryMuted }}
               thumbColor={notificationsEnabled ? colors.primary : colors.pass}
-              accessibilityLabel="Enable push notifications"
+              accessibilityLabel={t('enablePushNotifications')}
             />
           </View>
 
           {notificationsEnabled && (
             <>
               {/* Frequency selector */}
-              <ThemedText variant="bodySmall" color="dark" style={styles.notifSubLabel}>Chat request notifications</ThemedText>
+              <ThemedText variant="bodySmall" color="dark" style={styles.notifSubLabel}>{t('chatRequestNotifications')}</ThemedText>
               <View style={styles.likelihoodSelector}>
                 {NOTIFICATION_FREQ_OPTIONS.map((option) => {
                   const isSelected = notificationFrequency === option.value
@@ -268,26 +271,26 @@ export default function NotificationSettings() {
               </View>
 
               {/* Quiet hours */}
-              <ThemedText variant="bodySmall" color="dark" style={[styles.notifSubLabel, { marginTop: 16 }]}>Quiet hours</ThemedText>
+              <ThemedText variant="bodySmall" color="dark" style={[styles.notifSubLabel, { marginTop: 16 }]}>{t('quietHours')}</ThemedText>
               <ThemedText variant="bodySmall" color="secondary" style={styles.sectionDescription}>
-                Don't send notifications between these hours.
+                {t('quietHoursDesc')}
               </ThemedText>
               <View style={styles.quietHoursRow}>
                 <TouchableOpacity
                   style={styles.quietHoursButton}
                   onPress={() => { setQuietHoursModalField('start'); setQuietHoursModalOpen(true) }}
                   accessibilityRole="button"
-                  accessibilityLabel={`Quiet hours start: ${HOUR_LABELS[quietHoursStart]}`}
+                  accessibilityLabel={t('quietHoursStartA11y', { time: HOUR_LABELS[quietHoursStart] })}
                 >
                   <ThemedText variant="body" color="dark" style={styles.quietHoursButtonText}>{HOUR_LABELS[quietHoursStart]}</ThemedText>
                   <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
                 </TouchableOpacity>
-                <ThemedText variant="bodySmall" color="secondary" style={styles.quietHoursSeparator}>to</ThemedText>
+                <ThemedText variant="bodySmall" color="secondary" style={styles.quietHoursSeparator}>{t('quietHoursTo')}</ThemedText>
                 <TouchableOpacity
                   style={styles.quietHoursButton}
                   onPress={() => { setQuietHoursModalField('end'); setQuietHoursModalOpen(true) }}
                   accessibilityRole="button"
-                  accessibilityLabel={`Quiet hours end: ${HOUR_LABELS[quietHoursEnd]}`}
+                  accessibilityLabel={t('quietHoursEndA11y', { time: HOUR_LABELS[quietHoursEnd] })}
                 >
                   <ThemedText variant="body" color="dark" style={styles.quietHoursButtonText}>{HOUR_LABELS[quietHoursEnd]}</ThemedText>
                   <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
@@ -301,7 +304,7 @@ export default function NotificationSettings() {
         {saving && (
           <View style={styles.savingContainer}>
             <ActivityIndicator size="small" color={colors.primary} />
-            <ThemedText variant="bodySmall" color="primary" style={styles.savingText}>Saving...</ThemedText>
+            <ThemedText variant="bodySmall" color="primary" style={styles.savingText}>{t('saving')}</ThemedText>
           </View>
         )}
       </ScrollView>
@@ -316,7 +319,7 @@ export default function NotificationSettings() {
         <Pressable style={shared.modalOverlay} onPress={() => setQuietHoursModalOpen(false)}>
           <View style={styles.modalContent}>
             <ThemedText variant="h2" color="dark" style={styles.modalTitle}>
-              {quietHoursModalField === 'start' ? 'Quiet hours start' : 'Quiet hours end'}
+              {quietHoursModalField === 'start' ? t('quietHoursStartTitle') : t('quietHoursEndTitle')}
             </ThemedText>
             <ScrollView style={styles.modalScrollView}>
               {HOUR_LABELS.map((label, hour) => {

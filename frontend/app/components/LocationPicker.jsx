@@ -1,5 +1,6 @@
 import { StyleSheet, View, ScrollView, TouchableOpacity, Modal, Pressable, ActivityIndicator } from 'react-native'
 import { useState, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { createSharedStyles } from '../constants/SharedStyles'
@@ -7,6 +8,7 @@ import ThemedText from './ThemedText'
 
 export default function LocationPicker({ visible, onClose, allLocations, currentLocationId, onSelect, saving }) {
   const [breadcrumb, setBreadcrumb] = useState([]) // stack of {id, name} for drill-down
+  const { t } = useTranslation()
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const shared = useMemo(() => createSharedStyles(colors), [colors])
@@ -83,16 +85,16 @@ export default function LocationPicker({ visible, onClose, allLocations, current
       onRequestClose={onClose}
       onShow={handleOpen}
     >
-      <Pressable style={shared.modalOverlay} onPress={onClose}>
+      <Pressable style={shared.modalOverlay} onPress={onClose} accessibilityRole="button" accessibilityLabel={t('dismissModal')}>
         <Pressable style={styles.modalContent} onPress={e => e.stopPropagation()}>
-          <ThemedText variant="h2" color="dark" style={styles.modalTitle}>Select Location</ThemedText>
+          <ThemedText variant="h2" color="dark" style={styles.modalTitle}>{t('selectLocation')}</ThemedText>
 
           {/* Breadcrumb / Back navigation */}
           {breadcrumb.length > 0 && (
             <View style={styles.breadcrumbRow}>
-              <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+              <TouchableOpacity onPress={handleBack} style={styles.backButton} accessibilityRole="button" accessibilityLabel={t('back')}>
                 <Ionicons name="chevron-back" size={20} color={colors.primary} />
-                <ThemedText variant="body" color="primary" style={styles.backText}>Back</ThemedText>
+                <ThemedText variant="body" color="primary" style={styles.backText}>{t('back')}</ThemedText>
               </TouchableOpacity>
               <ThemedText variant="label" color="secondary" style={styles.breadcrumbText} numberOfLines={1}>
                 {breadcrumb.map(b => b.name).join(' > ')}
@@ -106,6 +108,8 @@ export default function LocationPicker({ visible, onClose, allLocations, current
               style={styles.selectThisButton}
               onPress={handleSelectCurrent}
               disabled={saving}
+              accessibilityRole="button"
+              accessibilityLabel={t('selectName', { name: breadcrumb[breadcrumb.length - 1].name })}
             >
               {saving ? (
                 <ActivityIndicator size="small" color={colors.primary} />
@@ -113,7 +117,7 @@ export default function LocationPicker({ visible, onClose, allLocations, current
                 <>
                   <Ionicons name="checkmark-circle-outline" size={18} color={colors.primary} />
                   <ThemedText variant="bodySmall" color="primary" style={styles.selectThisText}>
-                    Select "{breadcrumb[breadcrumb.length - 1].name}"
+                    {t('selectName', { name: breadcrumb[breadcrumb.length - 1].name })}
                   </ThemedText>
                 </>
               )}
@@ -132,6 +136,9 @@ export default function LocationPicker({ visible, onClose, allLocations, current
                   style={[styles.item, isInPath && styles.itemHighlighted]}
                   onPress={() => handleDrillDown(loc)}
                   disabled={saving}
+                  accessibilityRole="button"
+                  accessibilityLabel={loc.name}
+                  accessibilityState={{ selected: isCurrentSelection }}
                 >
                   <View style={styles.itemLeft}>
                     <ThemedText variant="button" color="dark" style={[styles.itemName, isInPath && styles.itemNameHighlighted]}>
@@ -153,7 +160,7 @@ export default function LocationPicker({ visible, onClose, allLocations, current
               )
             })}
             {items.length === 0 && (
-              <ThemedText variant="body" color="secondary" style={styles.emptyText}>No locations available</ThemedText>
+              <ThemedText variant="body" color="secondary" style={styles.emptyText}>{t('noLocationsAvailable')}</ThemedText>
             )}
           </ScrollView>
         </Pressable>

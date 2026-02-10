@@ -72,6 +72,7 @@ jest.mock('../../lib/api', () => ({
     ])) },
     chattingList: { getList: jest.fn(() => Promise.resolve([])), addPosition: jest.fn(), toggleActive: jest.fn(), bulkRemove: jest.fn() },
   },
+  translateError: (msg) => msg,
 }))
 jest.mock('../../lib/cache', () => ({
   __esModule: true,
@@ -157,19 +158,19 @@ describe('ChatRequestIndicator accessibility', () => {
 
   test('main touchable has label with user name', () => {
     render(<ChatRequestIndicator pendingRequest={pendingRequest} onTimeout={jest.fn()} onCancel={jest.fn()} />)
-    expect(screen.getByRole('button', { name: /chat request.*pending.*alice/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /chatRequestPendingLabel.*Alice/i })).toBeTruthy()
   })
 
   test('main touchable has hint about cancellation', () => {
     render(<ChatRequestIndicator pendingRequest={pendingRequest} onTimeout={jest.fn()} onCancel={jest.fn()} />)
-    const btn = screen.getByRole('button', { name: /alice/i })
-    expect(btn.props.accessibilityHint).toMatch(/cancel/i)
+    const btn = screen.getByRole('button', { name: /Alice/i })
+    expect(btn.props.accessibilityHint).toMatch(/cancelChatHint/i)
   })
 
   test('declined request label reflects declined state', () => {
     const declined = { ...pendingRequest, status: 'declined' }
     render(<ChatRequestIndicator pendingRequest={declined} onTimeout={jest.fn()} onCancel={jest.fn()} />)
-    expect(screen.getByRole('button', { name: /declined/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /chatRequestDeclinedLabel/i })).toBeTruthy()
   })
 })
 
@@ -194,7 +195,7 @@ describe('ReportModal accessibility', () => {
     const { findByRole } = render(
       <ReportModal visible={true} onClose={jest.fn()} onSubmit={jest.fn()} />
     )
-    const btn = await findByRole('button', { name: 'Submit Report' })
+    const btn = await findByRole('button', { name: /submitReport/i })
     expect(btn).toBeTruthy()
     expect(btn).toBeDisabled()
   })
@@ -203,7 +204,7 @@ describe('ReportModal accessibility', () => {
     const { findByLabelText } = render(
       <ReportModal visible={true} onClose={jest.fn()} onSubmit={jest.fn()} />
     )
-    expect(await findByLabelText('Additional details')).toBeTruthy()
+    expect(await findByLabelText(/additionalDetails/i)).toBeTruthy()
   })
 })
 
@@ -228,9 +229,9 @@ describe('ModerationActionModal accessibility', () => {
       />
     )
     // 3 position user classes: Creator, Active Adopters, Passive Adopters
-    expect(screen.getByRole('button', { name: /Creator: None/i })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /Active Adopters: None/i })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /Passive Adopters: None/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /classCreator: none/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /classActiveAdopters: none/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /classPassiveAdopters: none/i })).toBeTruthy()
   })
 
   test('confirm button has label and disabled state', () => {
@@ -243,7 +244,7 @@ describe('ModerationActionModal accessibility', () => {
         rule={rule}
       />
     )
-    const btn = screen.getByRole('button', { name: 'Confirm Action' })
+    const btn = screen.getByRole('button', { name: /confirmAction/i })
     expect(btn).toBeTruthy()
     expect(btn).toBeDisabled()
   })
@@ -258,6 +259,6 @@ describe('ModerationActionModal accessibility', () => {
         rule={rule}
       />
     )
-    expect(screen.getByLabelText('Moderator notes')).toBeTruthy()
+    expect(screen.getByLabelText('moderatorNotes')).toBeTruthy()
   })
 })

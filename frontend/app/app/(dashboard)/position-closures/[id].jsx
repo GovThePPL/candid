@@ -9,6 +9,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, router } from 'expo-router'
+import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../../../hooks/useThemeColors'
 import { SemanticColors } from '../../../constants/Colors'
@@ -22,6 +23,7 @@ import { positionsApiWrapper } from '../../../lib/api'
 
 export default function PositionClosures() {
   const { id: positionId } = useLocalSearchParams()
+  const { t } = useTranslation('stats')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
 
@@ -48,7 +50,7 @@ export default function PositionClosures() {
       setData(result)
     } catch (err) {
       console.error('Error fetching closures:', err)
-      setError(err.message || 'Failed to load closures')
+      setError(err.message || t('failedLoadClosures'))
     } finally {
       setLoading(false)
     }
@@ -80,7 +82,7 @@ export default function PositionClosures() {
       return (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <ThemedText variant="bodySmall" color="secondary" style={styles.loadingText}>Loading closures...</ThemedText>
+          <ThemedText variant="bodySmall" color="secondary" style={styles.loadingText}>{t('loadingClosures')}</ThemedText>
         </View>
       )
     }
@@ -90,8 +92,8 @@ export default function PositionClosures() {
         <View style={styles.centerContainer}>
           <Ionicons name="alert-circle-outline" size={48} color={SemanticColors.disagree} />
           <ThemedText variant="bodySmall" color="disagree" style={styles.errorText}>{error}</ThemedText>
-          <TouchableOpacity style={styles.retryButton} onPress={fetchClosures}>
-            <ThemedText variant="buttonSmall" color="inverse">Retry</ThemedText>
+          <TouchableOpacity style={styles.retryButton} onPress={fetchClosures} accessibilityRole="button" accessibilityLabel={t('common:retry')}>
+            <ThemedText variant="buttonSmall" color="inverse">{t('common:retry')}</ThemedText>
           </TouchableOpacity>
         </View>
       )
@@ -100,7 +102,7 @@ export default function PositionClosures() {
     if (!data) {
       return (
         <View style={styles.centerContainer}>
-          <ThemedText variant="bodySmall" color="secondary" style={styles.noDataText}>No data available</ThemedText>
+          <ThemedText variant="bodySmall" color="secondary" style={styles.noDataText}>{t('noDataAvailable2')}</ThemedText>
         </View>
       )
     }
@@ -115,10 +117,10 @@ export default function PositionClosures() {
         {/* Closures count */}
         <View style={styles.countRow}>
           <ThemedText variant="buttonSmall" style={styles.countText}>
-            {closures.length} Agreed {closures.length === 1 ? 'Closure' : 'Closures'}
+            {t('agreedClosureCount', { count: closures.length })}
           </ThemedText>
           {closures.length > 0 && (
-            <ThemedText variant="caption" color="secondary">Sorted by value</ThemedText>
+            <ThemedText variant="caption" color="secondary">{t('sortedByValue')}</ThemedText>
           )}
         </View>
 
@@ -135,9 +137,9 @@ export default function PositionClosures() {
         ) : (
           <View style={styles.emptyContainer}>
             <Ionicons name="chatbubbles-outline" size={48} color={colors.secondaryText} />
-            <ThemedText variant="h3" style={styles.emptyTitle}>No Agreed Closures Yet</ThemedText>
+            <ThemedText variant="h3" style={styles.emptyTitle}>{t('noAgreedClosuresYet')}</ThemedText>
             <ThemedText variant="bodySmall" color="secondary" style={styles.emptyText}>
-              When chats about this position end with an agreed statement, they will appear here.
+              {t('noAgreedClosuresDesc')}
             </ThemedText>
           </View>
         )}
@@ -162,8 +164,8 @@ export default function PositionClosures() {
         }
       >
         <View style={styles.pageHeader}>
-          <ThemedText variant="h1" color="primary">Agreed Closures</ThemedText>
-          <ThemedText variant="bodySmall" color="secondary" style={styles.subtitle}>Chats that reached agreement</ThemedText>
+          <ThemedText variant="h1" color="primary">{t('agreedClosuresTitle')}</ThemedText>
+          <ThemedText variant="bodySmall" color="secondary" style={styles.subtitle}>{t('agreedClosuresSubtitle')}</ThemedText>
         </View>
 
         {renderContent()}

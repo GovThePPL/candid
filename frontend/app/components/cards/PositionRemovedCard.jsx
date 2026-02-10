@@ -1,11 +1,13 @@
 import { StyleSheet, View, TouchableOpacity } from 'react-native'
 import { useMemo } from 'react'
 import { Ionicons } from '@expo/vector-icons'
+import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { SemanticColors } from '../../constants/Colors'
 import ThemedText from '../ThemedText'
 
 export default function PositionRemovedCard({ data, onDismiss }) {
+  const { t } = useTranslation('cards')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const { statement, category, location } = data || {}
@@ -16,9 +18,9 @@ export default function PositionRemovedCard({ data, onDismiss }) {
         <Ionicons name="remove-circle" size={40} color={SemanticColors.warning} />
       </View>
 
-      <ThemedText variant="h4" color="error" style={styles.title}>Position Removed</ThemedText>
+      <ThemedText variant="h4" color="error" style={styles.title}>{t('positionRemovedTitle')}</ThemedText>
       <ThemedText variant="bodySmall" color="secondary" style={styles.subtitle}>
-        This position was removed for violating community guidelines.
+        {t('positionRemovedSubtitle')}
       </ThemedText>
 
       <View style={styles.positionContainer}>
@@ -31,8 +33,8 @@ export default function PositionRemovedCard({ data, onDismiss }) {
         <ThemedText variant="button" style={styles.statement}>{statement}</ThemedText>
       </View>
 
-      <TouchableOpacity style={styles.dismissButton} onPress={onDismiss} accessibilityRole="button" accessibilityLabel="Dismiss">
-        <ThemedText variant="button" color="inverse">Dismiss</ThemedText>
+      <TouchableOpacity style={styles.dismissButton} onPress={onDismiss} accessibilityRole="button" accessibilityLabel={t('positionRemovedDismiss')}>
+        <ThemedText variant="button" color="inverse">{t('positionRemovedDismiss')}</ThemedText>
       </TouchableOpacity>
     </View>
   )

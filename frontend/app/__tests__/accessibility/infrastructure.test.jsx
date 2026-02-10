@@ -134,7 +134,7 @@ describe('LoadingView accessibility', () => {
 
   test('default message is accessible', () => {
     render(<LoadingView />)
-    expect(screen.getByLabelText('Loading...')).toBeTruthy()
+    expect(screen.getByLabelText('loading')).toBeTruthy()
   })
 })
 

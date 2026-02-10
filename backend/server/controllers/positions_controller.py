@@ -508,6 +508,186 @@ def search_similar_positions(body, token_info=None):  # noqa: E501
     return results, 200
 
 
+def search_stats_positions(body, token_info=None):  # noqa: E501
+    """Search positions for the stats page
+
+    Tries semantic (meaning) search for queries >= 3 words, falls back to
+    text (ILIKE) search for shorter queries or when NLP is unavailable.
+    Returns GroupPosition-shaped results compatible with the stats PositionCard.
+
+    :param body: Search parameters
+    :type body: dict
+
+    :rtype: Union[dict, Tuple[dict, int]]
+    """
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    query = body.get('query', '').strip()
+    location_id = body.get('locationId')
+    offset = max(body.get('offset', 0), 0)
+    limit = min(max(body.get('limit', 20), 1), 50)
+
+    if len(query) < 2:
+        return ErrorModel(400, "Query must be at least 2 characters"), 400
+
+    if not location_id:
+        return ErrorModel(400, "locationId is required"), 400
+
+    # Location hierarchy filter (include parent locations)
+    location_filter = """
+        p.location_id IN (
+            WITH RECURSIVE location_hierarchy AS (
+                SELECT id, parent_location_id FROM location WHERE id = %s
+                UNION ALL
+                SELECT l.id, l.parent_location_id
+                FROM location l
+                JOIN location_hierarchy lh ON l.id = lh.parent_location_id
+            )
+            SELECT id FROM location_hierarchy
+        )
+    """
+
+    # Try semantic search first for queries with enough substance (>= 3 words),
+    # fall back to text search if NLP is unavailable or query is too short
+    use_meaning = len(query.split()) >= 3
+    embedding = None
+    if use_meaning:
+        embedding = nlp.get_embedding(query)
+        if embedding is None:
+            use_meaning = False  # NLP unavailable, fall back to text
+
+    if use_meaning:
+        sql = f"""
+            SELECT
+                p.id,
+                p.statement,
+                p.category_id,
+                p.location_id,
+                p.agree_count,
+                p.disagree_count,
+                p.pass_count,
+                p.creator_user_id,
+                c.label AS category_label,
+                l.name AS location_name,
+                l.code AS location_code,
+                1 - (p.embedding <=> %s::vector) AS similarity
+            FROM position p
+            LEFT JOIN position_category c ON p.category_id = c.id
+            LEFT JOIN location l ON p.location_id = l.id
+            WHERE p.status = 'active'
+              AND p.embedding IS NOT NULL
+              AND (1 - (p.embedding <=> %s::vector)) >= 0.5
+              AND {location_filter}
+            ORDER BY p.embedding <=> %s::vector
+            LIMIT %s OFFSET %s
+        """
+        params = (embedding, embedding, location_id, embedding, limit, offset)
+    else:
+        # Text fallback: ILIKE search
+        like_pattern = f"%{query}%"
+        sql = f"""
+            SELECT
+                p.id,
+                p.statement,
+                p.category_id,
+                p.location_id,
+                p.agree_count,
+                p.disagree_count,
+                p.pass_count,
+                p.creator_user_id,
+                c.label AS category_label,
+                l.name AS location_name,
+                l.code AS location_code,
+                NULL AS similarity
+            FROM position p
+            LEFT JOIN position_category c ON p.category_id = c.id
+            LEFT JOIN location l ON p.location_id = l.id
+            WHERE p.status = 'active'
+              AND p.statement ILIKE %s
+              AND {location_filter}
+            ORDER BY p.agree_count DESC
+            LIMIT %s OFFSET %s
+        """
+        params = (like_pattern, location_id, limit, offset)
+
+    positions = db.execute_query(sql, params)
+    if positions is None:
+        return ErrorModel(500, "Database error"), 500
+
+    # Get closure counts for all results
+    position_ids = [str(p["id"]) for p in positions]
+    closure_counts = {}
+    if position_ids:
+        placeholders = ",".join(["%s"] * len(position_ids))
+        counts = db.execute_query(f"""
+            SELECT up.position_id, COUNT(cl.id) as closure_count
+            FROM chat_log cl
+            JOIN chat_request cr ON cl.chat_request_id = cr.id
+            JOIN user_position up ON cr.user_position_id = up.id
+            WHERE up.position_id IN ({placeholders})
+              AND cl.end_type = 'agreed_closure'
+              AND cl.status != 'deleted'
+            GROUP BY up.position_id
+        """, tuple(position_ids))
+        for row in (counts or []):
+            closure_counts[str(row["position_id"])] = row["closure_count"]
+
+    # Build GroupPosition-shaped results
+    results = []
+    for p in positions:
+        total = p["agree_count"] + p["disagree_count"] + p["pass_count"]
+        if total > 0:
+            vote_dist = {
+                "agree": round(p["agree_count"] / total, 3),
+                "disagree": round(p["disagree_count"] / total, 3),
+                "pass": round(p["pass_count"] / total, 3)
+            }
+        else:
+            vote_dist = {"agree": 0, "disagree": 0, "pass": 0}
+
+        creator = None
+        if p.get("creator_user_id"):
+            creator_user = _get_user_card(p["creator_user_id"])
+            if creator_user:
+                creator = creator_user.to_dict()
+
+        result = {
+            "id": str(p["id"]),
+            "statement": p["statement"],
+            "category": {
+                "id": str(p["category_id"]) if p.get("category_id") else None,
+                "label": p.get("category_label", "Uncategorized")
+            } if p.get("category_label") else None,
+            "location": {
+                "id": str(p["location_id"]) if p.get("location_id") else None,
+                "name": p.get("location_name", "Unknown"),
+                "code": p.get("location_code", "")
+            } if p.get("location_name") else None,
+            "creator": creator,
+            "groupId": None,
+            "voteDistribution": vote_dist,
+            "totalVotes": total,
+            "groupVotes": {},
+            "isDefining": False,
+            "representativeness": 0,
+            "consensusType": None,
+            "consensusScore": None,
+            "closureCount": closure_counts.get(str(p["id"]), 0),
+        }
+
+        if use_meaning and p.get("similarity") is not None:
+            result["similarity"] = round(float(p["similarity"]), 4)
+
+        results.append(result)
+
+    return {
+        "results": results,
+        "hasMore": len(results) == limit,
+    }, 200
+
+
 def get_position_agreed_closures(position_id, token_info=None):  # noqa: E501
     """Get all agreed closures for chats about a position.
 

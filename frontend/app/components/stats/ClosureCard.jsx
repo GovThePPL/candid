@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { View, StyleSheet, TouchableOpacity } from 'react-native'
+import { useTranslation } from 'react-i18next'
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { SemanticColors, BrandColor } from '../../constants/Colors'
 import { useThemeColors } from '../../hooks/useThemeColors'
@@ -17,6 +18,7 @@ import UserMiniCard from './UserMiniCard'
  * @param {Function} props.onViewStatements - Callback when "View Statements" is pressed
  */
 export default function ClosureCard({ closure, onShowMap, onViewStatements }) {
+  const { t, i18n } = useTranslation('stats')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
 
@@ -32,7 +34,7 @@ export default function ClosureCard({ closure, onShowMap, onViewStatements }) {
   const formatDate = (dateString) => {
     if (!dateString) return ''
     const date = new Date(dateString)
-    return date.toLocaleDateString('en-US', {
+    return date.toLocaleDateString(i18n.language, {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
@@ -48,7 +50,7 @@ export default function ClosureCard({ closure, onShowMap, onViewStatements }) {
           <View style={styles.badgesRow}>
             <View style={styles.crossGroupBadge}>
               <Ionicons name="git-compare-outline" size={12} color={colors.primary} />
-              <ThemedText variant="badgeSm" color="primary" style={styles.badgeText}>Cross-Group</ThemedText>
+              <ThemedText variant="badgeSm" color="primary" style={styles.badgeText}>{t('crossGroup')}</ThemedText>
             </View>
           </View>
         )}
@@ -72,9 +74,9 @@ export default function ClosureCard({ closure, onShowMap, onViewStatements }) {
         {/* Date and actions row */}
         <View style={styles.footerRow}>
           <ThemedText variant="caption" color="secondary">{formatDate(closedAt)}</ThemedText>
-          <TouchableOpacity style={styles.actionButton} onPress={onShowMap}>
+          <TouchableOpacity style={styles.actionButton} onPress={onShowMap} accessibilityRole="button" accessibilityLabel={t('showMapA11y')}>
             <Ionicons name="map-outline" size={14} color={colors.primary} />
-            <ThemedText variant="caption" color="primary" style={styles.actionButtonText}>Show Map</ThemedText>
+            <ThemedText variant="caption" color="primary" style={styles.actionButtonText}>{t('showMap')}</ThemedText>
           </TouchableOpacity>
         </View>
       </View>
@@ -85,9 +87,9 @@ export default function ClosureCard({ closure, onShowMap, onViewStatements }) {
           <MaterialCommunityIcons name="handshake-outline" size={18} color="#FFFFFF" />
           <ThemedText variant="bodySmall" color="inverse" style={styles.closureText}>{closureText?.content}</ThemedText>
         </View>
-        <TouchableOpacity style={styles.statementsButton} onPress={onViewStatements}>
+        <TouchableOpacity style={styles.statementsButton} onPress={onViewStatements} accessibilityRole="button" accessibilityLabel={t('viewStatementsA11y')}>
           <Ionicons name="list-outline" size={14} color="#FFFFFF" />
-          <ThemedText variant="caption" color="inverse" style={styles.statementsButtonText}>Statements</ThemedText>
+          <ThemedText variant="caption" color="inverse" style={styles.statementsButtonText}>{t('statements')}</ThemedText>
         </TouchableOpacity>
       </View>
     </View>

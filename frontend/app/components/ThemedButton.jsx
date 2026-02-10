@@ -27,7 +27,7 @@ function ThemedButton({ style, disabled, children, onPress, accessibilityRole = 
     >
       <View style={styles.content}>
         {typeof children === 'string' ? (
-          <ThemedText variant="button" color={disabled ? 'placeholder' : 'inverse'}>{children}</ThemedText>
+          <ThemedText variant="button" color="inverse">{children}</ThemedText>
         ) : (
           children
         )}
@@ -39,9 +39,9 @@ function ThemedButton({ style, disabled, children, onPress, accessibilityRole = 
 const createStyles = (colors) => StyleSheet.create({
   btn: {
     backgroundColor: colors.primary,
-    padding: 18,
-    borderRadius: 6,
-    marginVertical: 10,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },

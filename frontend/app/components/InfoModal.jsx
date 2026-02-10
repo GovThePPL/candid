@@ -5,6 +5,7 @@ import {
   Modal,
   TouchableOpacity,
 } from 'react-native'
+import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { createSharedStyles } from '../constants/SharedStyles'
@@ -33,8 +34,9 @@ export default function InfoModal({
   paragraphs,
   items,
   children,
-  buttonText = 'Got it!',
+  buttonText,
 }) {
+  const { t } = useTranslation()
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const shared = useMemo(() => createSharedStyles(colors), [colors])
@@ -54,11 +56,15 @@ export default function InfoModal({
         style={shared.modalOverlay}
         activeOpacity={1}
         onPress={onClose}
+        accessibilityRole="button"
+        accessibilityLabel={t('dismissModal')}
       >
         <TouchableOpacity
           style={styles.container}
           activeOpacity={1}
           onPress={(e) => e.stopPropagation()}
+          accessible={false}
+          importantForAccessibility="no"
         >
           {hasHeroIcon && (
             <View style={[styles.iconContainer, { backgroundColor: resolvedIconColor + '20' }]}>
@@ -98,8 +104,8 @@ export default function InfoModal({
             </>
           )}
 
-          <TouchableOpacity style={styles.button} onPress={onClose}>
-            <ThemedText variant="button" color="inverse">{buttonText}</ThemedText>
+          <TouchableOpacity style={styles.button} onPress={onClose} accessibilityRole="button" accessibilityLabel={buttonText || t('gotIt')}>
+            <ThemedText variant="button" color="inverse">{buttonText || t('gotIt')}</ThemedText>
           </TouchableOpacity>
         </TouchableOpacity>
       </TouchableOpacity>

@@ -1,6 +1,7 @@
 import { StyleSheet, View } from 'react-native'
 import { useRef, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react'
 import { Ionicons } from '@expo/vector-icons'
+import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { BrandColor, OnBrandColors } from '../../constants/Colors'
 import ThemedText from '../ThemedText'
@@ -13,6 +14,7 @@ const DiagnosticsConsentCard = forwardRef(function DiagnosticsConsentCard({
   isBackCard = false,
   backCardAnimatedValue,
 }, ref) {
+  const { t } = useTranslation('cards')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const swipeableRef = useRef(null)
@@ -38,8 +40,8 @@ const DiagnosticsConsentCard = forwardRef(function DiagnosticsConsentCard({
         <Ionicons name="analytics" size={48} color={OnBrandColors.text} />
       </View>
       <View style={styles.titleContainer}>
-        <ThemedText variant="statement" color="inverse" style={styles.headerTitle}>Diagnostics</ThemedText>
-        <ThemedText variant="button" style={styles.headerSubtitle}>Help improve Candid</ThemedText>
+        <ThemedText variant="statement" color="inverse" style={styles.headerTitle}>{t('diagnosticsTitle')}</ThemedText>
+        <ThemedText variant="button" style={styles.headerSubtitle}>{t('diagnosticsSubtitle')}</ThemedText>
       </View>
     </View>
   )
@@ -52,13 +54,13 @@ const DiagnosticsConsentCard = forwardRef(function DiagnosticsConsentCard({
       onSwipeDown={handleSwipeLeft}
       enableVerticalSwipe={true}
       rightSwipeAsSubmit={true}
-      rightSwipeLabel="Enable"
+      rightSwipeLabel={t('diagnosticsEnable')}
       leftSwipeAsPass={true}
-      leftSwipeLabel="No Thanks"
+      leftSwipeLabel={t('diagnosticsNoThanks')}
       isBackCard={isBackCard}
       backCardAnimatedValue={backCardAnimatedValue}
-      accessibilityLabel="Send anonymous error reports?"
-      accessibilityHint="Swipe right to enable, left for no thanks"
+      accessibilityLabel={t('diagnosticsA11yLabel')}
+      accessibilityHint={t('diagnosticsA11yHint')}
     >
       <CardShell
         size="full"
@@ -68,16 +70,16 @@ const DiagnosticsConsentCard = forwardRef(function DiagnosticsConsentCard({
       >
         <View style={styles.questionContainer}>
           <ThemedText variant="statement" color="dark" style={styles.question}>
-            Send anonymous error reports to help us fix bugs?
+            {t('diagnosticsQuestion')}
           </ThemedText>
           <ThemedText variant="bodySmall" color="secondary" style={styles.detail}>
-            No personal data included. Change anytime in Settings.
+            {t('diagnosticsDetail')}
           </ThemedText>
         </View>
 
         <View style={styles.footer}>
-          <ThemedText variant="button" color="primary">Swipe right to enable</ThemedText>
-          <ThemedText variant="bodySmall" color="secondary">Swipe left for no thanks</ThemedText>
+          <ThemedText variant="button" color="primary">{t('diagnosticsEnableInstruction')}</ThemedText>
+          <ThemedText variant="bodySmall" color="secondary">{t('diagnosticsNoThanksInstruction')}</ThemedText>
         </View>
       </CardShell>
     </SwipeableCard>

@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from 'react-native'
+import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { SemanticColors, BrandColor } from '../constants/Colors'
@@ -14,29 +15,29 @@ import { Typography } from '../constants/Theme'
 import ThemedText from './ThemedText'
 import BottomDrawerModal from './BottomDrawerModal'
 
-const ACTION_OPTIONS = [
-  { value: 'none', label: 'None' },
-  { value: 'removed', label: 'Remove Content' },
-  { value: 'warning', label: 'Warning' },
-  { value: 'temporary_ban', label: 'Temporary Ban' },
-  { value: 'permanent_ban', label: 'Permanent Ban' },
+const getActionOptions = (t) => [
+  { value: 'none', label: t('none') },
+  { value: 'removed', label: t('actionRemoveContent') },
+  { value: 'warning', label: t('actionWarning') },
+  { value: 'temporary_ban', label: t('actionTemporaryBan') },
+  { value: 'permanent_ban', label: t('actionPermanentBan') },
 ]
 
-const POSITION_USER_CLASSES = [
-  { value: 'submitter', label: 'Creator' },
-  { value: 'active_adopter', label: 'Active Adopters' },
-  { value: 'passive_adopter', label: 'Passive Adopters' },
+const getPositionUserClasses = (t) => [
+  { value: 'submitter', label: t('classCreator') },
+  { value: 'active_adopter', label: t('classActiveAdopters') },
+  { value: 'passive_adopter', label: t('classPassiveAdopters') },
 ]
 
-const CHAT_USER_CLASSES = [
-  { value: 'reported', label: 'Reported User' },
-  { value: 'reporter', label: 'Reporting User' },
+const getChatUserClasses = (t) => [
+  { value: 'reported', label: t('reportedUser') },
+  { value: 'reporter', label: t('reportingUser') },
 ]
 
-function ActionRow({ userClass, action, onActionChange, duration, onDurationChange, colors, styles }) {
+function ActionRow({ userClass, action, onActionChange, duration, onDurationChange, colors, styles, actionOptions, t }) {
 
   const [open, setOpen] = useState(false)
-  const selected = ACTION_OPTIONS.find(o => o.value === action) || ACTION_OPTIONS[0]
+  const selected = actionOptions.find(o => o.value === action) || actionOptions[0]
   const hasAction = action !== 'none'
 
   return (
@@ -64,7 +65,7 @@ function ActionRow({ userClass, action, onActionChange, duration, onDurationChan
 
       {open && (
         <View style={styles.dropdownList}>
-          {ACTION_OPTIONS.map((opt) => (
+          {actionOptions.map((opt) => (
             <TouchableOpacity
               key={opt.value}
               style={[styles.dropdownItem, action === opt.value && styles.dropdownItemSelected]}
@@ -87,7 +88,7 @@ function ActionRow({ userClass, action, onActionChange, duration, onDurationChan
 
       {action === 'temporary_ban' && (
         <View style={styles.durationRow}>
-          <ThemedText variant="label">Duration (days):</ThemedText>
+          <ThemedText variant="label">{t('durationDaysLabel')}</ThemedText>
           <TextInput
             style={styles.durationInput}
             value={duration}
@@ -96,7 +97,7 @@ function ActionRow({ userClass, action, onActionChange, duration, onDurationChan
             placeholder="7"
             placeholderTextColor={colors.placeholderText}
             maxFontSizeMultiplier={1.2}
-            accessibilityLabel={`Ban duration in days for ${userClass.label}`}
+            accessibilityLabel={t('banDurationA11y', { userClass: userClass.label })}
           />
         </View>
       )}
@@ -104,8 +105,8 @@ function ActionRow({ userClass, action, onActionChange, duration, onDurationChan
   )
 }
 
-function buildDefaultActions(rule, isChatReport) {
-  const classes = isChatReport ? CHAT_USER_CLASSES : POSITION_USER_CLASSES
+function buildDefaultActions(rule, isChatReport, userClasses) {
+  const classes = userClasses
   const defaults = {}
   for (const uc of classes) {
     defaults[uc.value] = { action: 'none', duration: '' }
@@ -127,22 +128,27 @@ function buildDefaultActions(rule, isChatReport) {
 }
 
 export default function ModerationActionModal({ visible, onClose, onSubmit, reportType, rule }) {
+  const { t } = useTranslation('moderation')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
 
   const isChatReport = reportType === 'chat_log'
-  const userClasses = isChatReport ? CHAT_USER_CLASSES : POSITION_USER_CLASSES
-  const [actions, setActions] = useState(() => buildDefaultActions(rule, isChatReport))
+  const actionOptions = useMemo(() => getActionOptions(t), [t])
+  const userClasses = useMemo(
+    () => isChatReport ? getChatUserClasses(t) : getPositionUserClasses(t),
+    [t, isChatReport]
+  )
+  const [actions, setActions] = useState(() => buildDefaultActions(rule, isChatReport, userClasses))
   const [modNotes, setModNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
   // Reset actions from rule defaults when the modal opens or rule changes
   useEffect(() => {
     if (visible) {
-      setActions(buildDefaultActions(rule, isChatReport))
+      setActions(buildDefaultActions(rule, isChatReport, userClasses))
       setModNotes('')
     }
-  }, [visible, rule, isChatReport])
+  }, [visible, rule, isChatReport, userClasses])
 
   const setAction = (userClass, action) => {
     setActions(prev => ({
@@ -188,7 +194,7 @@ export default function ModerationActionModal({ visible, onClose, onSubmit, repo
     <BottomDrawerModal
       visible={visible}
       onClose={onClose}
-      title="Take Moderator Action"
+      title={t('takeModeratorAction')}
       maxHeight="85%"
     >
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -216,21 +222,23 @@ export default function ModerationActionModal({ visible, onClose, onSubmit, repo
               onDurationChange={(v) => setDuration(uc.value, v)}
               colors={colors}
               styles={styles}
+              actionOptions={actionOptions}
+              t={t}
             />
           ))}
         </View>
 
-        <ThemedText variant="buttonSmall" style={styles.notesLabel}>Moderator Notes</ThemedText>
+        <ThemedText variant="buttonSmall" style={styles.notesLabel}>{t('moderatorNotes')}</ThemedText>
         <TextInput
           style={styles.notesInput}
           value={modNotes}
           onChangeText={setModNotes}
-          placeholder="Add notes about this action..."
+          placeholder={t('addNotesPlaceholder')}
           placeholderTextColor={colors.placeholderText}
           multiline
           numberOfLines={3}
           maxFontSizeMultiplier={1.5}
-          accessibilityLabel="Moderator notes"
+          accessibilityLabel={t('moderatorNotes')}
         />
       </ScrollView>
 
@@ -241,13 +249,13 @@ export default function ModerationActionModal({ visible, onClose, onSubmit, repo
           disabled={!hasSelectedActions || submitting}
           activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel="Confirm Action"
+          accessibilityLabel={t('confirmAction')}
           accessibilityState={{ disabled: !hasSelectedActions || submitting }}
         >
           {submitting ? (
             <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
-            <ThemedText variant="button" color="inverse">Confirm Action</ThemedText>
+            <ThemedText variant="button" color="inverse">{t('confirmAction')}</ThemedText>
           )}
         </TouchableOpacity>
       </View>

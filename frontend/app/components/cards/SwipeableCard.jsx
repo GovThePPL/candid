@@ -10,6 +10,7 @@ import Animated, {
   runOnJS,
   cancelAnimation,
 } from 'react-native-reanimated'
+import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { SemanticColors } from '../../constants/Colors'
 import { Ionicons } from '@expo/vector-icons'
@@ -50,6 +51,7 @@ const SwipeableCard = forwardRef(function SwipeableCard({
   accessibilityLabel,
   accessibilityHint,
 }, ref) {
+  const { t } = useTranslation('cards')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
 
@@ -435,7 +437,7 @@ const SwipeableCard = forwardRef(function SwipeableCard({
           </Animated.View>
           {/* Pass text overlay for down swipe */}
           <Animated.View style={[styles.iconOverlay, passAnimStyle]}>
-            <ThemedText variant="overlay" color="inverse">{leftSwipeLabel || 'Pass'}</ThemedText>
+            <ThemedText variant="overlay" color="inverse">{leftSwipeLabel || t('swipePass')}</ThemedText>
           </Animated.View>
           {/* Chat icon overlay for up swipe */}
           <Animated.View style={[styles.iconOverlay, chatAnimStyle]}>
@@ -447,7 +449,7 @@ const SwipeableCard = forwardRef(function SwipeableCard({
           </Animated.View>
           {/* Submit text overlay for surveys/demographics */}
           <Animated.View style={[styles.iconOverlay, submitAnimStyle]}>
-            <ThemedText variant="overlay" color="inverse">{rightSwipeLabel || 'Submit'}</ThemedText>
+            <ThemedText variant="overlay" color="inverse">{rightSwipeLabel || t('swipeSubmit')}</ThemedText>
           </Animated.View>
           {/* Gold overlay for kudos */}
           <Animated.View

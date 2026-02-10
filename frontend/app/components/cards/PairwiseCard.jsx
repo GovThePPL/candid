@@ -1,6 +1,7 @@
 import { StyleSheet, View, TouchableOpacity, Animated } from 'react-native'
 import { useState, useRef, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react'
 import { Ionicons } from '@expo/vector-icons'
+import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { BrandColor, OnBrandColors } from '../../constants/Colors'
 import ThemedText from '../ThemedText'
@@ -14,6 +15,7 @@ const PairwiseCard = forwardRef(function PairwiseCard({
   isBackCard = false,
   backCardAnimatedValue,
 }, ref) {
+  const { t } = useTranslation('cards')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const [selectedOption, setSelectedOption] = useState(null)
@@ -73,10 +75,10 @@ const PairwiseCard = forwardRef(function PairwiseCard({
   }
 
   const data = pairwise?.data || {}
-  const surveyTitle = data.surveyTitle || 'Survey'
-  const question = data.question || 'Which better describes your views?'
-  const optionA = data.optionA || { id: 'a', text: 'Option A' }
-  const optionB = data.optionB || { id: 'b', text: 'Option B' }
+  const surveyTitle = data.surveyTitle || t('pairwiseTitle')
+  const question = data.question || t('pairwiseDefaultQuestion')
+  const optionA = data.optionA || { id: 'a', text: t('pairwiseOptionA') }
+  const optionB = data.optionB || { id: 'b', text: t('pairwiseOptionB') }
   const location = data.location
   const category = data.category
 
@@ -101,7 +103,7 @@ const PairwiseCard = forwardRef(function PairwiseCard({
 
       {/* Title and Subtitle */}
       <View style={styles.titleContainer}>
-        <ThemedText variant="statement" color="inverse" style={styles.headerTitle}>Survey</ThemedText>
+        <ThemedText variant="statement" color="inverse" style={styles.headerTitle}>{t('pairwiseTitle')}</ThemedText>
         <ThemedText variant="button" style={styles.headerSubtitle} numberOfLines={1}>{surveyTitle}</ThemedText>
       </View>
     </View>
@@ -118,8 +120,8 @@ const PairwiseCard = forwardRef(function PairwiseCard({
       leftSwipeAsPass={true}
       isBackCard={isBackCard}
       backCardAnimatedValue={backCardAnimatedValue}
-      accessibilityLabel={`Survey: ${question}`}
-      accessibilityHint="Select an option, then swipe right to submit"
+      accessibilityLabel={t('pairwiseA11yLabel', { question })}
+      accessibilityHint={t('pairwiseA11yHint')}
     >
       <CardShell
         size="full"
@@ -135,7 +137,7 @@ const PairwiseCard = forwardRef(function PairwiseCard({
             </View>
           )}
           <ThemedText variant="bodySmall" color="badge">
-            {category?.label || 'General'}
+            {category?.label || t('pairwiseDefaultCategory')}
           </ThemedText>
         </View>
 
@@ -180,11 +182,11 @@ const PairwiseCard = forwardRef(function PairwiseCard({
         {/* Instructions */}
         <View style={styles.footer}>
           {selectedOption ? (
-            <ThemedText variant="button" color="primary">Swipe right to submit</ThemedText>
+            <ThemedText variant="button" color="primary">{t('pairwiseSubmitInstruction')}</ThemedText>
           ) : (
-            <ThemedText variant="button" color="primary">Select an option</ThemedText>
+            <ThemedText variant="button" color="primary">{t('pairwiseSelectOption')}</ThemedText>
           )}
-          <ThemedText variant="bodySmall" color="secondary">Swipe down to skip</ThemedText>
+          <ThemedText variant="bodySmall" color="secondary">{t('pairwiseSkipInstruction')}</ThemedText>
         </View>
       </CardShell>
     </SwipeableCard>

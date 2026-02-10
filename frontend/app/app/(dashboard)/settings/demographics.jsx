@@ -3,10 +3,11 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
+import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../../hooks/useThemeColors'
 import { SemanticColors } from '../../../constants/Colors'
 import { createSharedStyles } from '../../../constants/SharedStyles'
-import api from '../../../lib/api'
+import api, { translateError } from '../../../lib/api'
 import { useUser } from '../../../hooks/useUser'
 import { CacheManager, CacheKeys, CacheDurations } from '../../../lib/cache'
 
@@ -15,8 +16,8 @@ import Header from '../../../components/Header'
 import LoadingView from '../../../components/LoadingView'
 import LocationPicker from '../../../components/LocationPicker'
 
-const AGE_RANGE_OPTIONS = [
-  { value: null, label: 'Prefer not to say' },
+const getAgeRangeOptions = (t) => [
+  { value: null, label: t('preferNotToSay') },
   { value: '18-24', label: '18-24' },
   { value: '25-34', label: '25-34' },
   { value: '35-44', label: '35-44' },
@@ -25,70 +26,79 @@ const AGE_RANGE_OPTIONS = [
   { value: '65+', label: '65+' },
 ]
 
-const INCOME_RANGE_OPTIONS = [
-  { value: null, label: 'Prefer not to say' },
-  { value: 'under_25k', label: 'Under $25,000' },
-  { value: '25k-50k', label: '$25,000 - $50,000' },
-  { value: '50k-75k', label: '$50,000 - $75,000' },
-  { value: '75k-100k', label: '$75,000 - $100,000' },
-  { value: '100k-150k', label: '$100,000 - $150,000' },
-  { value: '150k-200k', label: '$150,000 - $200,000' },
-  { value: 'over_200k', label: 'Over $200,000' },
+const getIncomeRangeOptions = (t) => [
+  { value: null, label: t('preferNotToSay') },
+  { value: 'under_25k', label: t('incomeUnder25k') },
+  { value: '25k-50k', label: t('income25k50k') },
+  { value: '50k-75k', label: t('income50k75k') },
+  { value: '75k-100k', label: t('income75k100k') },
+  { value: '100k-150k', label: t('income100k150k') },
+  { value: '150k-200k', label: t('income150k200k') },
+  { value: 'over_200k', label: t('incomeOver200k') },
 ]
 
-const POLITICAL_LEAN_OPTIONS = [
-  { value: null, label: 'Prefer not to say' },
-  { value: 'very_liberal', label: 'Very Liberal' },
-  { value: 'liberal', label: 'Liberal' },
-  { value: 'moderate', label: 'Moderate' },
-  { value: 'conservative', label: 'Conservative' },
-  { value: 'very_conservative', label: 'Very Conservative' },
+const getPoliticalLeanOptions = (t) => [
+  { value: null, label: t('preferNotToSay') },
+  { value: 'very_liberal', label: t('leanVeryLiberal') },
+  { value: 'liberal', label: t('leanLiberal') },
+  { value: 'moderate', label: t('leanModerate') },
+  { value: 'conservative', label: t('leanConservative') },
+  { value: 'very_conservative', label: t('leanVeryConservative') },
 ]
 
-const EDUCATION_OPTIONS = [
-  { value: null, label: 'Prefer not to say' },
-  { value: 'less_than_high_school', label: 'Less than High School' },
-  { value: 'high_school', label: 'High School' },
-  { value: 'some_college', label: 'Some College' },
-  { value: 'associates', label: 'Associate\'s Degree' },
-  { value: 'bachelors', label: 'Bachelor\'s Degree' },
-  { value: 'masters', label: 'Master\'s Degree' },
-  { value: 'doctorate', label: 'Doctorate' },
-  { value: 'professional', label: 'Professional Degree' },
+const getEducationOptions = (t) => [
+  { value: null, label: t('preferNotToSay') },
+  { value: 'less_than_high_school', label: t('eduLessHighSchool') },
+  { value: 'high_school', label: t('eduHighSchool') },
+  { value: 'some_college', label: t('eduSomeCollege') },
+  { value: 'associates', label: t('eduAssociates') },
+  { value: 'bachelors', label: t('eduBachelors') },
+  { value: 'masters', label: t('eduMasters') },
+  { value: 'doctorate', label: t('eduDoctorate') },
+  { value: 'professional', label: t('eduProfessional') },
 ]
 
-const GEO_LOCALE_OPTIONS = [
-  { value: null, label: 'Prefer not to say' },
-  { value: 'urban', label: 'Urban' },
-  { value: 'suburban', label: 'Suburban' },
-  { value: 'rural', label: 'Rural' },
+const getGeoLocaleOptions = (t) => [
+  { value: null, label: t('preferNotToSay') },
+  { value: 'urban', label: t('localeUrban') },
+  { value: 'suburban', label: t('localeSuburban') },
+  { value: 'rural', label: t('localeRural') },
 ]
 
-const RACE_OPTIONS = [
-  { value: null, label: 'Prefer not to say' },
-  { value: 'white', label: 'White' },
-  { value: 'black', label: 'Black or African American' },
-  { value: 'hispanic', label: 'Hispanic or Latino' },
-  { value: 'asian', label: 'Asian' },
-  { value: 'native_american', label: 'Native American' },
-  { value: 'pacific_islander', label: 'Pacific Islander' },
-  { value: 'multiracial', label: 'Multiracial' },
-  { value: 'other', label: 'Other' },
+const getRaceOptions = (t) => [
+  { value: null, label: t('preferNotToSay') },
+  { value: 'white', label: t('raceWhite') },
+  { value: 'black', label: t('raceBlack') },
+  { value: 'hispanic', label: t('raceHispanic') },
+  { value: 'asian', label: t('raceAsian') },
+  { value: 'native_american', label: t('raceNativeAmerican') },
+  { value: 'pacific_islander', label: t('racePacificIslander') },
+  { value: 'multiracial', label: t('raceMultiracial') },
+  { value: 'other', label: t('raceOther') },
 ]
 
-const SEX_OPTIONS = [
-  { value: null, label: 'Prefer not to say' },
-  { value: 'male', label: 'Male' },
-  { value: 'female', label: 'Female' },
-  { value: 'other', label: 'Other' },
+const getSexOptions = (t) => [
+  { value: null, label: t('preferNotToSay') },
+  { value: 'male', label: t('sexMale') },
+  { value: 'female', label: t('sexFemale') },
+  { value: 'other', label: t('sexOther') },
 ]
 
 export default function DemographicsSettings() {
   const { user, refreshUser } = useUser()
   const router = useRouter()
   const colors = useThemeColors()
+  const { t } = useTranslation('settings')
   const styles = useMemo(() => createStyles(colors), [colors])
   const shared = useMemo(() => createSharedStyles(colors), [colors])
+
+  const AGE_RANGE_OPTIONS = useMemo(() => getAgeRangeOptions(t), [t])
+  const INCOME_RANGE_OPTIONS = useMemo(() => getIncomeRangeOptions(t), [t])
+  const POLITICAL_LEAN_OPTIONS = useMemo(() => getPoliticalLeanOptions(t), [t])
+  const EDUCATION_OPTIONS = useMemo(() => getEducationOptions(t), [t])
+  const GEO_LOCALE_OPTIONS = useMemo(() => getGeoLocaleOptions(t), [t])
+  const RACE_OPTIONS = useMemo(() => getRaceOptions(t), [t])
+  const SEX_OPTIONS = useMemo(() => getSexOptions(t), [t])
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -166,11 +176,11 @@ export default function DemographicsSettings() {
       }, 100)
     } catch (err) {
       console.error('Failed to fetch demographics:', err)
-      setError(err.message || 'Failed to load demographics')
+      setError(translateError(err.message, t) || t('failedLoadDemographics'))
     } finally {
       setLoading(false)
     }
-  }, [user?.id, applyDemographicsData])
+  }, [user?.id, applyDemographicsData, t])
 
   useEffect(() => {
     fetchData()
@@ -208,12 +218,12 @@ export default function DemographicsSettings() {
       await refreshUser()
     } catch (err) {
       console.error('Failed to auto-save demographics:', err)
-      setError(err.message || 'Failed to save changes')
+      setError(translateError(err.message, t) || t('failedSaveChanges'))
       setTimeout(() => setError(null), 3000)
     } finally {
       setSaving(false)
     }
-  }, [ageRange, incomeRange, lean, education, geoLocale, race, sex, refreshUser])
+  }, [ageRange, incomeRange, lean, education, geoLocale, race, sex, refreshUser, t])
 
   // Handle location selection
   const handleSetLocation = async (locationId) => {
@@ -226,7 +236,7 @@ export default function DemographicsSettings() {
       if (user?.id) await CacheManager.invalidate(CacheKeys.profile(user.id))
     } catch (err) {
       console.error('Failed to set location:', err)
-      setError(err.message || 'Failed to update location')
+      setError(translateError(err.message, t) || t('failedUpdateLocation'))
       setTimeout(() => setError(null), 3000)
     } finally {
       setSavingLocation(false)
@@ -264,14 +274,14 @@ export default function DemographicsSettings() {
 
   const getOptionLabel = (options, value) => {
     const option = options.find(o => o.value === value)
-    return option ? option.label : 'Not set'
+    return option ? option.label : t('notSet')
   }
 
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <Header onBack={() => router.back()} />
-        <LoadingView message="Loading demographics..." />
+        <LoadingView message={t('loadingDemographics')} />
       </SafeAreaView>
     )
   }
@@ -282,7 +292,7 @@ export default function DemographicsSettings() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.pageHeader}>
           <ThemedText variant="h1" title={true} style={styles.pageTitle}>
-            Demographics
+            {t('demographics')}
           </ThemedText>
         </View>
 
@@ -297,19 +307,19 @@ export default function DemographicsSettings() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="stats-chart-outline" size={22} color={colors.badgeText} />
-            <ThemedText variant="h2" color="dark">Demographics</ThemedText>
+            <ThemedText variant="h2" color="dark">{t('demographics')}</ThemedText>
           </View>
           <ThemedText variant="bodySmall" color="secondary" style={styles.sectionDescription}>
-            Optional information used for aggregate statistics. All data is anonymized.
+            {t('demographicsDesc')}
           </ThemedText>
 
           <TouchableOpacity
             style={styles.pickerItem}
-            onPress={() => openPickerModal('Age Range', AGE_RANGE_OPTIONS, ageRange, handleFieldChange(setAgeRange, 'ageRange'))}
+            onPress={() => openPickerModal(t('ageRange'), AGE_RANGE_OPTIONS, ageRange, handleFieldChange(setAgeRange, 'ageRange'))}
             accessibilityRole="button"
-            accessibilityLabel={`Age Range: ${getOptionLabel(AGE_RANGE_OPTIONS, ageRange)}`}
+            accessibilityLabel={`${t('ageRange')}: ${getOptionLabel(AGE_RANGE_OPTIONS, ageRange)}`}
           >
-            <ThemedText variant="body" color="dark" style={styles.pickerLabel}>Age Range</ThemedText>
+            <ThemedText variant="body" color="dark" style={styles.pickerLabel}>{t('ageRange')}</ThemedText>
             <View style={styles.pickerValue}>
               <ThemedText variant="body" color="secondary" style={styles.pickerValueText}>{getOptionLabel(AGE_RANGE_OPTIONS, ageRange)}</ThemedText>
               <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
@@ -318,11 +328,11 @@ export default function DemographicsSettings() {
 
           <TouchableOpacity
             style={styles.pickerItem}
-            onPress={() => openPickerModal('Income Range', INCOME_RANGE_OPTIONS, incomeRange, handleFieldChange(setIncomeRange, 'incomeRange'))}
+            onPress={() => openPickerModal(t('incomeRange'), INCOME_RANGE_OPTIONS, incomeRange, handleFieldChange(setIncomeRange, 'incomeRange'))}
             accessibilityRole="button"
-            accessibilityLabel={`Income Range: ${getOptionLabel(INCOME_RANGE_OPTIONS, incomeRange)}`}
+            accessibilityLabel={`${t('incomeRange')}: ${getOptionLabel(INCOME_RANGE_OPTIONS, incomeRange)}`}
           >
-            <ThemedText variant="body" color="dark" style={styles.pickerLabel}>Income Range</ThemedText>
+            <ThemedText variant="body" color="dark" style={styles.pickerLabel}>{t('incomeRange')}</ThemedText>
             <View style={styles.pickerValue}>
               <ThemedText variant="body" color="secondary" style={styles.pickerValueText}>{getOptionLabel(INCOME_RANGE_OPTIONS, incomeRange)}</ThemedText>
               <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
@@ -331,11 +341,11 @@ export default function DemographicsSettings() {
 
           <TouchableOpacity
             style={styles.pickerItem}
-            onPress={() => openPickerModal('Political Lean', POLITICAL_LEAN_OPTIONS, lean, handleFieldChange(setLean, 'lean'))}
+            onPress={() => openPickerModal(t('politicalLean'), POLITICAL_LEAN_OPTIONS, lean, handleFieldChange(setLean, 'lean'))}
             accessibilityRole="button"
-            accessibilityLabel={`Political Lean: ${getOptionLabel(POLITICAL_LEAN_OPTIONS, lean)}`}
+            accessibilityLabel={`${t('politicalLean')}: ${getOptionLabel(POLITICAL_LEAN_OPTIONS, lean)}`}
           >
-            <ThemedText variant="body" color="dark" style={styles.pickerLabel}>Political Lean</ThemedText>
+            <ThemedText variant="body" color="dark" style={styles.pickerLabel}>{t('politicalLean')}</ThemedText>
             <View style={styles.pickerValue}>
               <ThemedText variant="body" color="secondary" style={styles.pickerValueText}>{getOptionLabel(POLITICAL_LEAN_OPTIONS, lean)}</ThemedText>
               <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
@@ -344,11 +354,11 @@ export default function DemographicsSettings() {
 
           <TouchableOpacity
             style={styles.pickerItem}
-            onPress={() => openPickerModal('Education', EDUCATION_OPTIONS, education, handleFieldChange(setEducation, 'education'))}
+            onPress={() => openPickerModal(t('education'), EDUCATION_OPTIONS, education, handleFieldChange(setEducation, 'education'))}
             accessibilityRole="button"
-            accessibilityLabel={`Education: ${getOptionLabel(EDUCATION_OPTIONS, education)}`}
+            accessibilityLabel={`${t('education')}: ${getOptionLabel(EDUCATION_OPTIONS, education)}`}
           >
-            <ThemedText variant="body" color="dark" style={styles.pickerLabel}>Education</ThemedText>
+            <ThemedText variant="body" color="dark" style={styles.pickerLabel}>{t('education')}</ThemedText>
             <View style={styles.pickerValue}>
               <ThemedText variant="body" color="secondary" style={styles.pickerValueText}>{getOptionLabel(EDUCATION_OPTIONS, education)}</ThemedText>
               <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
@@ -357,11 +367,11 @@ export default function DemographicsSettings() {
 
           <TouchableOpacity
             style={styles.pickerItem}
-            onPress={() => openPickerModal('Geographic Locale', GEO_LOCALE_OPTIONS, geoLocale, handleFieldChange(setGeoLocale, 'geoLocale'))}
+            onPress={() => openPickerModal(t('geoLocale'), GEO_LOCALE_OPTIONS, geoLocale, handleFieldChange(setGeoLocale, 'geoLocale'))}
             accessibilityRole="button"
-            accessibilityLabel={`Geographic Locale: ${getOptionLabel(GEO_LOCALE_OPTIONS, geoLocale)}`}
+            accessibilityLabel={`${t('geoLocale')}: ${getOptionLabel(GEO_LOCALE_OPTIONS, geoLocale)}`}
           >
-            <ThemedText variant="body" color="dark" style={styles.pickerLabel}>Geographic Locale</ThemedText>
+            <ThemedText variant="body" color="dark" style={styles.pickerLabel}>{t('geoLocale')}</ThemedText>
             <View style={styles.pickerValue}>
               <ThemedText variant="body" color="secondary" style={styles.pickerValueText}>{getOptionLabel(GEO_LOCALE_OPTIONS, geoLocale)}</ThemedText>
               <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
@@ -370,11 +380,11 @@ export default function DemographicsSettings() {
 
           <TouchableOpacity
             style={styles.pickerItem}
-            onPress={() => openPickerModal('Race/Ethnicity', RACE_OPTIONS, race, handleFieldChange(setRace, 'race'))}
+            onPress={() => openPickerModal(t('raceEthnicity'), RACE_OPTIONS, race, handleFieldChange(setRace, 'race'))}
             accessibilityRole="button"
-            accessibilityLabel={`Race/Ethnicity: ${getOptionLabel(RACE_OPTIONS, race)}`}
+            accessibilityLabel={`${t('raceEthnicity')}: ${getOptionLabel(RACE_OPTIONS, race)}`}
           >
-            <ThemedText variant="body" color="dark" style={styles.pickerLabel}>Race/Ethnicity</ThemedText>
+            <ThemedText variant="body" color="dark" style={styles.pickerLabel}>{t('raceEthnicity')}</ThemedText>
             <View style={styles.pickerValue}>
               <ThemedText variant="body" color="secondary" style={styles.pickerValueText}>{getOptionLabel(RACE_OPTIONS, race)}</ThemedText>
               <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
@@ -383,11 +393,11 @@ export default function DemographicsSettings() {
 
           <TouchableOpacity
             style={[styles.pickerItem, styles.pickerItemLast]}
-            onPress={() => openPickerModal('Sex', SEX_OPTIONS, sex, handleFieldChange(setSex, 'sex'))}
+            onPress={() => openPickerModal(t('sex'), SEX_OPTIONS, sex, handleFieldChange(setSex, 'sex'))}
             accessibilityRole="button"
-            accessibilityLabel={`Sex: ${getOptionLabel(SEX_OPTIONS, sex)}`}
+            accessibilityLabel={`${t('sex')}: ${getOptionLabel(SEX_OPTIONS, sex)}`}
           >
-            <ThemedText variant="body" color="dark" style={styles.pickerLabel}>Sex</ThemedText>
+            <ThemedText variant="body" color="dark" style={styles.pickerLabel}>{t('sex')}</ThemedText>
             <View style={styles.pickerValue}>
               <ThemedText variant="body" color="secondary" style={styles.pickerValueText}>{getOptionLabel(SEX_OPTIONS, sex)}</ThemedText>
               <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
@@ -399,20 +409,20 @@ export default function DemographicsSettings() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="location-outline" size={22} color={colors.badgeText} />
-            <ThemedText variant="h2" color="dark">Location</ThemedText>
+            <ThemedText variant="h2" color="dark">{t('location')}</ThemedText>
           </View>
           <TouchableOpacity
             style={styles.locationSelector}
             onPress={() => setLocationPickerOpen(true)}
             accessibilityRole="button"
-            accessibilityLabel={`Location: ${locations.length > 0 ? locations.map(loc => loc.name).join(', ') : 'Not set'}`}
+            accessibilityLabel={t('locationA11y', { location: locations.length > 0 ? locations.map(loc => loc.name).join(', ') : t('notSet') })}
           >
             {locations.length > 0 ? (
               <ThemedText variant="body" color="badge" style={styles.locationBreadcrumb} numberOfLines={2}>
                 {locations.map(loc => loc.name).join(' \u203A ')}
               </ThemedText>
             ) : (
-              <ThemedText variant="body" color="secondary" style={styles.locationPlaceholder}>Tap to set your location</ThemedText>
+              <ThemedText variant="body" color="secondary" style={styles.locationPlaceholder}>{t('tapSetLocation')}</ThemedText>
             )}
             <Ionicons name="chevron-forward" size={18} color={colors.secondaryText} />
           </TouchableOpacity>
@@ -422,7 +432,7 @@ export default function DemographicsSettings() {
         {saving && (
           <View style={styles.savingIndicator}>
             <ActivityIndicator size="small" color={colors.primary} />
-            <ThemedText variant="bodySmall" color="secondary" style={styles.savingText}>Saving...</ThemedText>
+            <ThemedText variant="bodySmall" color="secondary" style={styles.savingText}>{t('saving')}</ThemedText>
           </View>
         )}
       </ScrollView>

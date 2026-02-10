@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { View, StyleSheet, Image } from 'react-native'
+import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
 import { GROUP_COLORS, BadgeColors, SemanticColors, BrandColor } from '../../constants/Colors'
 import { Typography } from '../../constants/Theme'
@@ -17,7 +18,10 @@ import { getAvatarImageUrl, getInitials, getInitialsColor } from '../../lib/avat
  * @param {boolean} props.reverse - If true, avatar on right and text right-aligned
  * @param {boolean} props.compact - Use smaller layout
  */
+const ROLE_KEYS = { PROPOSER: 'proposer', OPPOSER: 'opposer' }
+
 export default function UserMiniCard({ user, role, reverse = false, compact = false }) {
+  const { t } = useTranslation('stats')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
 
@@ -80,14 +84,14 @@ export default function UserMiniCard({ user, role, reverse = false, compact = fa
       {!reverse && renderAvatar()}
       <View style={[styles.infoContainer, { alignItems: reverse ? 'flex-end' : 'flex-start' }]}>
         <ThemedText variant="label" style={[styles.displayName, compact && styles.displayNameCompact, { textAlign }]} numberOfLines={1}>
-          {displayName || 'Anonymous'}
+          {displayName || t('common:anonymous')}
         </ThemedText>
         <ThemedText variant="caption" color="secondary" style={[styles.username, { textAlign }]} numberOfLines={1}>
           @{username}
         </ThemedText>
         <View style={[styles.badgeRow, { justifyContent: badgeJustify }]}>
           <View style={[styles.roleBadge, role === 'PROPOSER' ? styles.proposerBadge : styles.opposerBadge]}>
-            <ThemedText variant="badgeSm" style={styles.roleBadgeText}>{role}</ThemedText>
+            <ThemedText variant="badgeSm" style={styles.roleBadgeText}>{t(ROLE_KEYS[role] || role)}</ThemedText>
           </View>
           {opinionGroup && (
             <View style={[styles.groupBadge, { backgroundColor: groupColor + '30' }]}>

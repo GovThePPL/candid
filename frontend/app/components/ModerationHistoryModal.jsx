@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
 } from 'react-native'
+import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { SemanticColors } from '../constants/Colors'
@@ -24,13 +25,13 @@ function getActionColors(colors) {
   }
 }
 
-const ACTION_LABELS = {
-  permanent_ban: 'Permanent Ban',
-  temporary_ban: 'Temporary Ban',
-  warning: 'Warning',
-  removed: 'Content Removed',
-  dismiss: 'Dismissed',
-}
+const getActionLabels = (t) => ({
+  permanent_ban: t('historyPermanentBan'),
+  temporary_ban: t('historyTemporaryBan'),
+  warning: t('historyWarning'),
+  removed: t('historyContentRemoved'),
+  dismiss: t('historyDismissed'),
+})
 
 function getAppealColors(colors) {
   return {
@@ -43,35 +44,35 @@ function getAppealColors(colors) {
   }
 }
 
-const APPEAL_LABELS = {
-  pending: 'Pending',
-  approved: 'Approved',
-  denied: 'Denied',
-  escalated: 'Escalated',
-  modified: 'Modified',
-  overruled: 'Overruled',
-}
+const getAppealLabels = (t) => ({
+  pending: t('historyPending'),
+  approved: t('historyApproved'),
+  denied: t('historyDenied'),
+  escalated: t('historyEscalated'),
+  modified: t('historyModified'),
+  overruled: t('historyOverruled'),
+})
 
-function UserLine({ label, user, styles }) {
+function UserLine({ label, user, styles, t }) {
   if (!user) return null
   return (
     <View style={styles.userLine}>
       <ThemedText variant="caption" color="secondary" style={styles.chainLabel}>{label}</ThemedText>
       <ThemedText variant="label" style={styles.userName}>
-        {user.displayName || 'Unknown'}{' '}
-        <ThemedText variant="label" color="secondary" style={styles.userUsername}>@{user.username || 'unknown'}</ThemedText>
+        {user.displayName || t('common:anonymous')}{' '}
+        <ThemedText variant="label" color="secondary" style={styles.userUsername}>@{user.username || t('unknown')}</ThemedText>
       </ThemedText>
     </View>
   )
 }
 
-function HistoryItem({ event, colors, styles }) {
+function HistoryItem({ event, colors, styles, t, actionLabels, appealLabels }) {
   const [expanded, setExpanded] = useState(false)
   const actionColors = getActionColors(colors)
   const appealColors = getAppealColors(colors)
   const color = actionColors[event.actionType] || colors.secondaryText
   const date = event.actionDate
-    ? new Date(event.actionDate).toLocaleDateString('en-US', {
+    ? new Date(event.actionDate).toLocaleDateString(undefined, {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
@@ -83,7 +84,7 @@ function HistoryItem({ event, colors, styles }) {
       {/* Card header: action badge + date */}
       <View style={[styles.cardHeader, { backgroundColor: color }]}>
         <ThemedText variant="label" color="inverse" style={styles.cardHeaderText}>
-          {ACTION_LABELS[event.actionType] || event.actionType}{event.actionType === 'temporary_ban' && event.durationDays ? ` (${event.durationDays} days)` : ''}
+          {actionLabels[event.actionType] || event.actionType}{event.actionType === 'temporary_ban' && event.durationDays ? ' ' + t('durationDays', { days: event.durationDays }) : ''}
         </ThemedText>
         {date && <ThemedText variant="caption" style={styles.cardHeaderDate}>{date}</ThemedText>}
       </View>
@@ -102,6 +103,9 @@ function HistoryItem({ event, colors, styles }) {
           style={styles.targetContentBox}
           onPress={() => setExpanded(!expanded)}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={t('expandContentA11y')}
+          accessibilityState={{ expanded }}
         >
           <ThemedText variant="label" style={styles.targetContent} numberOfLines={expanded ? undefined : 2}>
             "{event.targetContent}"
@@ -116,7 +120,7 @@ function HistoryItem({ event, colors, styles }) {
           <View style={styles.chainItem}>
             <View style={styles.chainDot} />
             <View style={styles.chainContent}>
-              <UserLine label="Reported by" user={event.reporter} styles={styles} />
+              <UserLine label={t('reportedBy')} user={event.reporter} styles={styles} t={t} />
               {event.reportReason && (
                 <ThemedText variant="caption" style={styles.chainComment}>"{event.reportReason}"</ThemedText>
               )}
@@ -128,10 +132,10 @@ function HistoryItem({ event, colors, styles }) {
         <View style={styles.chainItem}>
           <View style={[styles.chainDot, { backgroundColor: color }]} />
           <View style={styles.chainContent}>
-            <UserLine label="Moderator action by" user={event.moderator} styles={styles} />
+            <UserLine label={t('moderatorActionBy')} user={event.moderator} styles={styles} t={t} />
             <View style={[styles.chainActionBadge, { backgroundColor: color }]}>
               <ThemedText variant="caption" color="inverse" style={styles.chainActionBadgeText}>
-                {ACTION_LABELS[event.actionType] || event.actionType}{event.actionType === 'temporary_ban' && event.durationDays ? ` (${event.durationDays} days)` : ''}
+                {actionLabels[event.actionType] || event.actionType}{event.actionType === 'temporary_ban' && event.durationDays ? ' ' + t('durationDays', { days: event.durationDays }) : ''}
               </ThemedText>
             </View>
             {event.moderatorComment && (
@@ -145,7 +149,7 @@ function HistoryItem({ event, colors, styles }) {
           <View style={styles.chainItem}>
             <View style={[styles.chainDot, { backgroundColor: '#F39C12' }]} />
             <View style={styles.chainContent}>
-              <UserLine label="Appeal by" user={event.appealUser} styles={styles} />
+              <UserLine label={t('appealByHistory')} user={event.appealUser} styles={styles} t={t} />
               {event.appealText && (
                 <ThemedText variant="caption" style={styles.chainComment}>"{event.appealText}"</ThemedText>
               )}
@@ -159,21 +163,21 @@ function HistoryItem({ event, colors, styles }) {
             : resp.outcome === 'escalated' ? '#E67E22'
             : resp.outcome === 'admin_decision' ? appealColors[event.appealState] || colors.primary
             : colors.primary
-          const outcomeLabel = resp.outcome === 'overruled' ? 'Overruled by'
-            : resp.outcome === 'escalated' ? 'Escalated by'
-            : resp.outcome === 'admin_decision' ? 'Admin response by'
-            : 'Response by'
+          const outcomeLabel = resp.outcome === 'overruled' ? t('overruledByHistory')
+            : resp.outcome === 'escalated' ? t('escalatedByHistory')
+            : resp.outcome === 'admin_decision' ? t('adminResponseBy')
+            : t('responseBy')
           return (
             <View key={i} style={styles.chainItem}>
               <View style={[styles.chainDot, { backgroundColor: outcomeColor }]} />
               <View style={styles.chainContent}>
-                <UserLine label={outcomeLabel} user={resp.responder} styles={styles} />
+                <UserLine label={outcomeLabel} user={resp.responder} styles={styles} t={t} />
                 {resp.outcome && (
                   <View style={[styles.chainActionBadge, { backgroundColor: outcomeColor }]}>
                     <ThemedText variant="caption" color="inverse" style={styles.chainActionBadgeText}>
-                      {resp.outcome === 'overruled' ? 'Overruled'
-                        : resp.outcome === 'escalated' ? 'Escalated'
-                        : resp.outcome === 'admin_decision' ? (APPEAL_LABELS[event.appealState] || event.appealState)
+                      {resp.outcome === 'overruled' ? t('historyOverruled')
+                        : resp.outcome === 'escalated' ? t('historyEscalated')
+                        : resp.outcome === 'admin_decision' ? (appealLabels[event.appealState] || event.appealState)
                         : ''}
                     </ThemedText>
                   </View>
@@ -191,8 +195,11 @@ function HistoryItem({ event, colors, styles }) {
 }
 
 export default function ModerationHistoryModal({ visible, onClose, userId, user }) {
+  const { t } = useTranslation('moderation')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
+  const actionLabels = useMemo(() => getActionLabels(t), [t])
+  const appealLabels = useMemo(() => getAppealLabels(t), [t])
 
   const [history, setHistory] = useState([])
   const [loading, setLoading] = useState(false)
@@ -212,7 +219,7 @@ export default function ModerationHistoryModal({ visible, onClose, userId, user 
       setHistory(data || [])
     } catch (err) {
       console.error('Failed to fetch moderation history:', err)
-      setError('Failed to load history')
+      setError(t('failedLoadHistory'))
     } finally {
       setLoading(false)
     }
@@ -222,7 +229,7 @@ export default function ModerationHistoryModal({ visible, onClose, userId, user 
     <BottomDrawerModal
       visible={visible}
       onClose={onClose}
-      title="Moderation History"
+      title={t('moderationHistory')}
       maxHeight="85%"
     >
       {loading ? (
@@ -232,8 +239,8 @@ export default function ModerationHistoryModal({ visible, onClose, userId, user 
       ) : error ? (
         <View style={styles.centerContainer}>
           <ThemedText variant="bodySmall" style={styles.errorText}>{error}</ThemedText>
-          <TouchableOpacity style={styles.retryButton} onPress={fetchHistory}>
-            <ThemedText variant="buttonSmall" color="inverse">Retry</ThemedText>
+          <TouchableOpacity style={styles.retryButton} onPress={fetchHistory} accessibilityRole="button" accessibilityLabel={t('common:retry')}>
+            <ThemedText variant="buttonSmall" color="inverse">{t('common:retry')}</ThemedText>
           </TouchableOpacity>
         </View>
       ) : (
@@ -247,8 +254,8 @@ export default function ModerationHistoryModal({ visible, onClose, userId, user 
             <View style={styles.userCard}>
               <Avatar user={user} size="md" showKudosCount badgePosition="bottom-left" />
               <View style={styles.userCardInfo}>
-                <ThemedText variant="h3" style={styles.userCardName}>{user.displayName || 'Unknown'}</ThemedText>
-                <ThemedText variant="label" color="secondary">@{user.username || 'unknown'}</ThemedText>
+                <ThemedText variant="h3" style={styles.userCardName}>{user.displayName || t('common:anonymous')}</ThemedText>
+                <ThemedText variant="label" color="secondary">@{user.username || t('unknown')}</ThemedText>
                 {user.status && user.status !== 'active' && (
                   <View style={[styles.statusBadge, user.status === 'banned' && styles.statusBadgeBanned]}>
                     <ThemedText variant="caption" color="inverse" style={styles.statusBadgeText}>{user.status}</ThemedText>
@@ -261,11 +268,11 @@ export default function ModerationHistoryModal({ visible, onClose, userId, user 
           {history.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Ionicons name="checkmark-circle-outline" size={40} color={colors.secondaryText} />
-              <ThemedText variant="button" color="secondary" style={styles.emptyText}>No moderation history</ThemedText>
+              <ThemedText variant="button" color="secondary" style={styles.emptyText}>{t('noModerationHistory')}</ThemedText>
             </View>
           ) : (
             history.map((event) => (
-              <HistoryItem key={event.id} event={event} colors={colors} styles={styles} />
+              <HistoryItem key={event.id} event={event} colors={colors} styles={styles} t={t} actionLabels={actionLabels} appealLabels={appealLabels} />
             ))
           )}
         </ScrollView>

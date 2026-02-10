@@ -128,7 +128,17 @@ Before starting non-trivial multi-step tasks, write a plan to `.claude-plans/` (
 
 ### README Maintenance
 
-Each directory contains a README.md describing its purpose and structure. Before committing, update any README.md files affected by your changes -- if you added, removed, or renamed files, or changed the design/structure of a directory, update its README.md to reflect the current state.
+Each directory contains a README.md describing its purpose and structure. If you added, removed, or renamed files, or changed the design/structure of a directory, update its README.md to reflect the current state.
+
+### Internationalization (i18n)
+
+All user-facing strings in frontend components must use `t()` from `react-i18next` instead of hardcoded English. This includes:
+
+- Visible text (button labels, placeholders, headings, empty states)
+- `accessibilityLabel` and `accessibilityHint` values
+- Alert/modal titles and messages
+
+All translation keys must be added to both `en/` and `es/` locale files in `frontend/app/i18n/locales/`. Use the appropriate namespace (`common.json` for shared UI, or component-specific namespaces like `stats.json`, `settings.json`, `create.json`). Accessibility-only keys follow the `keyNameA11y` naming convention.
 
 ### Test-Driven Development
 
@@ -139,14 +149,22 @@ When planning a feature, design and create tests for it first. There are two tes
 
 When modifying a backend helper in `controllers/helpers/`, always add or update the corresponding unit test file in `backend/tests/unit/`. Unit tests should cover pure logic, edge cases, and error handling paths. Integration tests cover end-to-end API behavior.
 
-Before committing or pushing, always run the test suite and ensure there are tests covering the changes since the last commit:
+### Pre-Commit Checklist
 
-```bash
-python3 -m pytest backend/tests/unit/ -v                          # Unit tests (no Docker)
-python3 -m pytest backend/tests/unit/ --cov --cov-report=term-missing  # With coverage
-python3 -m pytest backend/tests/ -v --ignore=backend/tests/unit   # Integration tests (Docker required)
-python3 -m pytest backend/tests/unit/ --benchmark-only            # Performance benchmarks
-```
+Run through all of these before committing or pushing:
+
+1. **Test coverage** — Ensure any new or changed logic has appropriate tests. New backend helpers need unit tests in `backend/tests/unit/`. New or modified endpoints need integration tests in `backend/tests/`. New frontend components or behaviors need Jest tests in `frontend/app/__tests__/`.
+2. **Internationalization** — Verify no hardcoded English strings were added to frontend components. All user-visible text and accessibility labels must use `t()` with keys in both `en/` and `es/` locale files.
+3. **Accessibility** — Every new interactive element (`TouchableOpacity`, `Pressable`, `TextInput`, `Slider`, etc.) must have `accessibilityRole` and `accessibilityLabel` (using `t()` for i18n). Stateful controls need `accessibilityState`.
+4. **Theme compliance** — Any new colored elements use theme tokens from `useThemeColors()`, not hardcoded color values. Test in both light and dark mode.
+5. **README updates** — If you added, removed, or renamed files, update the directory's README.md.
+6. **API spec sync** — If you added or changed backend endpoints, ensure `docs/api.yaml` matches, then regenerate clients (`backend/server/build.sh` and `frontend/regenerate_api.sh`).
+7. **Run tests** — Run all test suites and confirm they pass:
+   ```bash
+   cd frontend/app && npx jest                                        # Frontend tests
+   python3 -m pytest backend/tests/unit/ -v                           # Backend unit tests (no Docker)
+   python3 -m pytest backend/tests/ -v --ignore=backend/tests/unit    # Backend integration tests (Docker required)
+   ```
 
 ## Known Issues
 

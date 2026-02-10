@@ -6,6 +6,7 @@ import {
   ScrollView,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { useTranslation } from 'react-i18next'
 import { GROUP_COLORS, SemanticColors, BrandColor } from '../../constants/Colors'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import ThemedText from '../ThemedText'
@@ -29,6 +30,7 @@ export default function SurveyResultsModal({
   fetchStandardResults,
   fetchCrosstabs,
 }) {
+  const { t } = useTranslation('stats')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
 
@@ -88,7 +90,7 @@ export default function SurveyResultsModal({
       setSurveys(result || [])
     } catch (err) {
       console.error('Error fetching surveys:', err)
-      setError(err.message || 'Failed to load surveys')
+      setError(err.message || t('failedLoadSurveys'))
     } finally {
       setLoading(false)
     }
@@ -111,7 +113,7 @@ export default function SurveyResultsModal({
       }
     } catch (err) {
       console.error('Error fetching results:', err)
-      setError(err.message || 'Failed to load results')
+      setError(err.message || t('failedLoadResults'))
     } finally {
       setLoadingRankings(false)
     }
@@ -148,7 +150,7 @@ export default function SurveyResultsModal({
       setCrosstabsData(result)
     } catch (err) {
       console.error('Error fetching crosstabs:', err)
-      setError(err.message || 'Failed to load demographic breakdown')
+      setError(err.message || t('failedLoadCrosstabs'))
     } finally {
       setLoadingCrosstabs(false)
     }
@@ -193,6 +195,8 @@ export default function SurveyResultsModal({
       key={survey.id}
       style={[styles.surveyItem, !survey.isActive && styles.surveyItemInactive]}
       onPress={() => handleSelectSurvey(survey)}
+      accessibilityRole="button"
+      accessibilityLabel={t('selectSurveyA11y', { name: survey.surveyTitle })}
     >
       <View style={styles.surveyItemContent}>
         <View style={styles.surveyTitleRow}>
@@ -203,19 +207,19 @@ export default function SurveyResultsModal({
         )}
         <View style={styles.surveyMeta}>
           <ThemedText variant="caption" color="secondary" style={styles.surveyType}>
-            {survey.surveyType === 'pairwise' ? 'Pairwise' : 'Standard'}
+            {survey.surveyType === 'pairwise' ? t('pairwise') : t('standard')}
             {survey.surveyType === 'pairwise'
-              ? ` · ${survey.items?.length || 0} items`
-              : ` · ${survey.questionCount || 0} questions`}
+              ? ` · ${t('itemCount', { count: survey.items?.length || 0 })}`
+              : ` · ${t('questionCount', { count: survey.questionCount || 0 })}`}
           </ThemedText>
           {survey.isActive ? (
             <ThemedText variant="caption" color="agree" style={styles.surveyActive}>
-              <Ionicons name="ellipse" size={8} color={SemanticColors.agree} /> Active
-              {survey.daysRemaining !== null && ` · ${survey.daysRemaining} days left`}
+              <Ionicons name="ellipse" size={8} color={SemanticColors.agree} /> {t('active')}
+              {survey.daysRemaining !== null && ` · ${t('daysLeft', { days: survey.daysRemaining })}`}
             </ThemedText>
           ) : (
             <ThemedText variant="caption" color="secondary" style={styles.surveyInactive}>
-              <Ionicons name="ellipse" size={8} color={colors.pass} /> Completed
+              <Ionicons name="ellipse" size={8} color={colors.pass} /> {t('completed')}
               {survey.dateRange && ` · ${survey.dateRange.start} - ${survey.dateRange.end}`}
             </ThemedText>
           )}
@@ -231,19 +235,19 @@ export default function SurveyResultsModal({
     return (
       <>
         {loading ? (
-          <LoadingView message="Loading surveys..." />
+          <LoadingView message={t('loadingSurveys')} />
         ) : error ? (
           <View style={styles.errorContainer}>
             <Ionicons name="alert-circle-outline" size={48} color={SemanticColors.disagree} />
             <ThemedText variant="bodySmall" style={styles.errorText}>{error}</ThemedText>
-            <TouchableOpacity style={styles.retryButton} onPress={loadSurveys}>
-              <ThemedText variant="buttonSmall" color="inverse">Retry</ThemedText>
+            <TouchableOpacity style={styles.retryButton} onPress={loadSurveys} accessibilityRole="button" accessibilityLabel={t('common:retry')}>
+              <ThemedText variant="buttonSmall" color="inverse">{t('common:retry')}</ThemedText>
             </TouchableOpacity>
           </View>
         ) : surveys.length === 0 ? (
           <EmptyState
             icon="clipboard-outline"
-            title="No surveys available for this location/category."
+            title={t('noSurveys')}
           />
         ) : (
           <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -252,7 +256,7 @@ export default function SurveyResultsModal({
                 <View style={styles.locationHeader}>
                   <Ionicons name="location" size={16} color={colors.primary} />
                   <ThemedText variant="h3" color="primary" style={styles.locationHeaderText}>
-                    {group.locationName || group.locationCode || 'Unknown Location'}
+                    {group.locationName || group.locationCode || t('unknownLocation')}
                   </ThemedText>
                 </View>
                 {group.surveys.map(survey => renderSurveyItem(survey))}
@@ -274,7 +278,7 @@ export default function SurveyResultsModal({
     return (
       <>
         {loadingRankings ? (
-          <LoadingView message="Loading results..." />
+          <LoadingView message={t('loadingResults')} />
         ) : error ? (
           <View style={styles.errorContainer}>
             <Ionicons name="alert-circle-outline" size={48} color={SemanticColors.disagree} />
@@ -286,7 +290,7 @@ export default function SurveyResultsModal({
               <>
                 {/* Pairwise Rankings */}
                 <View style={styles.section}>
-                  <ThemedText variant="h3" style={styles.sectionTitle}>Overall Rankings</ThemedText>
+                  <ThemedText variant="h3" style={styles.sectionTitle}>{t('overallRankings')}</ThemedText>
                   <View style={styles.rankingList}>
                     {rankings.rankings?.map((item, index) => (
                       <View
@@ -324,9 +328,11 @@ export default function SurveyResultsModal({
                         <TouchableOpacity
                           style={styles.crosstabsButton}
                           onPress={() => handleViewCrosstabs(question)}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('viewDemographicsA11y')}
                         >
                           <Ionicons name="stats-chart" size={16} color={colors.primary} />
-                          <ThemedText variant="caption" color="primary" style={styles.crosstabsButtonText}>Demographics</ThemedText>
+                          <ThemedText variant="caption" color="primary" style={styles.crosstabsButtonText}>{t('demographicsTab')}</ThemedText>
                         </TouchableOpacity>
                       )}
                     </View>
@@ -366,7 +372,7 @@ export default function SurveyResultsModal({
             {/* Per-Group Rankings (pairwise only) */}
             {hasGroupRankings && (
               <View style={styles.section}>
-                <ThemedText variant="h3" style={styles.sectionTitle}>Rankings by Group</ThemedText>
+                <ThemedText variant="h3" style={styles.sectionTitle}>{t('rankingsByGroup')}</ThemedText>
                 {Object.entries(rankings.groupRankings).map(([groupId, groupData], groupIndex) => (
                   <View key={groupId} style={styles.groupRankingSection}>
                     <View style={styles.groupHeader}>
@@ -377,7 +383,7 @@ export default function SurveyResultsModal({
                         ]}
                       />
                       <ThemedText variant="buttonSmall" style={styles.groupLabel}>
-                        Group {groupData.groupLabel}
+                        {t('group', { label: groupData.groupLabel })}
                       </ThemedText>
                       <View style={styles.groupMemberCount}>
                         <Ionicons name="person" size={12} color={colors.secondaryText} />
@@ -425,14 +431,14 @@ export default function SurveyResultsModal({
 
     // Demographic category display names
     const demographicLabels = {
-      politicalLean: 'Political Leaning',
-      education: 'Education',
-      geoLocale: 'Location Type',
-      sex: 'Sex',
-      ageRange: 'Age',
-      race: 'Race/Ethnicity',
-      incomeRange: 'Income',
-      affiliation: 'Party Affiliation',
+      politicalLean: t('politicalLeaning'),
+      education: t('education'),
+      geoLocale: t('locationType'),
+      sex: t('sex'),
+      ageRange: t('age'),
+      race: t('raceEthnicity'),
+      incomeRange: t('income'),
+      affiliation: t('partyAffiliation'),
     }
 
     // Sort orders for ordinal demographics
@@ -485,7 +491,7 @@ export default function SurveyResultsModal({
     return (
       <>
         {loadingCrosstabs ? (
-          <LoadingView message="Loading demographics..." />
+          <LoadingView message={t('loadingDemographics')} />
         ) : error ? (
           <View style={styles.errorContainer}>
             <Ionicons name="alert-circle-outline" size={48} color={SemanticColors.disagree} />
@@ -531,7 +537,7 @@ export default function SurveyResultsModal({
                           </View>
                         ))}
                         <View style={styles.tableCellTotal}>
-                          <ThemedText variant="caption" color="primary" style={styles.tableHeaderText}>Total</ThemedText>
+                          <ThemedText variant="caption" color="primary" style={styles.tableHeaderText}>{t('total')}</ThemedText>
                         </View>
                       </View>
 
@@ -564,7 +570,7 @@ export default function SurveyResultsModal({
                       {/* Column totals row */}
                       <View style={styles.tableTotalRow}>
                         <View style={styles.tableRowHeader}>
-                          <ThemedText variant="label" style={styles.tableTotalHeaderText}>Total</ThemedText>
+                          <ThemedText variant="label" style={styles.tableTotalHeaderText}>{t('total')}</ThemedText>
                         </View>
                         {columnTotals.map((total, idx) => (
                           <View key={idx} style={styles.tableCell}>
@@ -603,43 +609,45 @@ export default function SurveyResultsModal({
   const getHeaderProps = () => {
     if (crosstabsData) {
       return {
-        title: 'Demographics',
+        title: t('demographicsTab'),
         subtitle: crosstabsData.questionText,
         headerLeft: (
-          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
+          <TouchableOpacity style={styles.backButton} onPress={handleBack} accessibilityRole="button" accessibilityLabel={t('backA11y')}>
             <Ionicons name="arrow-back" size={24} color={colors.primary} />
           </TouchableOpacity>
         ),
       }
     }
     if (selectedSurvey && rankings) {
-      const locationName = rankings.surveyLocationName || rankings.surveyLocationCode || 'Unknown'
+      const locationName = rankings.surveyLocationName || rankings.surveyLocationCode || t('unknownLocation')
       let groupAndRespondentInfo = ''
       if (groupInfo) {
-        groupAndRespondentInfo = `Group ${groupInfo.letter}`
+        groupAndRespondentInfo = t('group', { label: groupInfo.letter })
         if (groupInfo.label) groupAndRespondentInfo += ` "${groupInfo.label}"`
-        groupAndRespondentInfo += ` · ${rankings.totalRespondents} ${rankings.totalRespondents === 1 ? 'respondent' : 'respondents'}`
+        groupAndRespondentInfo += ` · ${t('respondent', { count: rankings.totalRespondents })}`
       } else {
-        groupAndRespondentInfo = `All respondents · ${rankings.totalRespondents} ${rankings.totalRespondents === 1 ? 'respondent' : 'respondents'}`
+        groupAndRespondentInfo = `${t('allRespondents')} · ${t('respondent', { count: rankings.totalRespondents })}`
       }
       if (selectedSurvey.surveyType === 'pairwise') {
-        groupAndRespondentInfo += `, ${rankings.totalResponses} votes`
+        groupAndRespondentInfo += `, ${t('votesCount', { count: rankings.totalResponses })}`
       }
       return {
         title: rankings.surveyTitle,
         subtitle: `${locationName} · ${groupAndRespondentInfo}`,
         headerLeft: (
-          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
+          <TouchableOpacity style={styles.backButton} onPress={handleBack} accessibilityRole="button" accessibilityLabel={t('backA11y')}>
             <Ionicons name="arrow-back" size={24} color={colors.primary} />
           </TouchableOpacity>
         ),
       }
     }
     return {
-      title: `Survey Results${groupInfo ? ` · Group ${groupInfo.letter}` : ''}`,
+      title: groupInfo
+        ? t('surveyResultsGroup', { letter: groupInfo.letter })
+        : t('surveyResultsTitle'),
       subtitle: groupInfo?.label
-        ? `"${groupInfo.label}" · Select a survey`
-        : 'All respondents · Select a survey',
+        ? t('groupLabelSelectSurvey', { label: groupInfo.label })
+        : t('allRespondentsSelectSurvey'),
     }
   }
 

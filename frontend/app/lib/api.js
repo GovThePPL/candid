@@ -14,6 +14,26 @@ import {
 } from 'candid_api'
 import { CacheManager } from './cache'
 import { recordApiError } from './errorCollector'
+import enErrors from '../i18n/locales/en/errors.json'
+
+// Build reverse lookup: English error string → i18n key
+const errorStringToKey = Object.fromEntries(
+  Object.entries(enErrors).map(([key, value]) => [value, key])
+)
+
+/**
+ * Translate a backend error message using the errors namespace.
+ * Falls back to the original message if no translation exists.
+ * @param {string} message - Raw error message from the backend
+ * @param {function} t - i18next t function
+ * @returns {string} Translated message or original
+ */
+export function translateError(message, t) {
+  if (!message || !t) return message
+  const key = errorStringToKey[message]
+  if (key) return t(`errors:${key}`)
+  return message
+}
 
 // API configuration
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL
@@ -361,6 +381,14 @@ export const positionsApiWrapper = {
 
     return await promisify(
       positionsApi.searchSimilarPositions.bind(positionsApi),
+      body
+    )
+  },
+
+  async searchStats(query, locationId, { offset = 0, limit = 20 } = {}) {
+    const body = { query, locationId, offset, limit }
+    return await promisify(
+      positionsApi.searchStatsPositions.bind(positionsApi),
       body
     )
   },

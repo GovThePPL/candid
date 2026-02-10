@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { View, StyleSheet, TouchableOpacity, Modal, FlatList } from 'react-native'
+import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { createSharedStyles } from '../constants/SharedStyles'
@@ -30,6 +31,7 @@ export default function LocationCategorySelector({
   categoryAutoSelected = false,
   style,
 }) {
+  const { t } = useTranslation()
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const shared = useMemo(() => createSharedStyles(colors), [colors])
@@ -39,7 +41,7 @@ export default function LocationCategorySelector({
   const [showCategoryPicker, setShowCategoryPicker] = useState(false)
   const [loading, setLoading] = useState(true)
 
-  const ALL_CATEGORIES_OPTION = { id: 'all', label: 'All Categories' }
+  const ALL_CATEGORIES_OPTION = { id: 'all', label: t('allCategories') }
 
   useEffect(() => {
     loadData()
@@ -82,15 +84,15 @@ export default function LocationCategorySelector({
 
   const getSelectedLocationName = () => {
     const loc = locations.find((l) => l.id === selectedLocation)
-    return loc?.name || 'Select Location'
+    return loc?.name || t('selectLocation')
   }
 
   const getSelectedCategoryName = () => {
     if (selectedCategory === 'all') {
-      return 'All Categories'
+      return t('allCategories')
     }
     const cat = categories.find((c) => c.id === selectedCategory)
-    return cat?.label || cat?.name || 'Select Category'
+    return cat?.label || cat?.name || t('selectCategory')
   }
 
   const renderPickerModal = (
@@ -103,7 +105,7 @@ export default function LocationCategorySelector({
     labelKey = 'name'
   ) => (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <TouchableOpacity style={shared.modalOverlay} activeOpacity={1} onPress={onClose}>
+      <TouchableOpacity style={shared.modalOverlay} activeOpacity={1} onPress={onClose} accessibilityRole="button" accessibilityLabel={t('dismissModal')}>
         <View style={shared.modalContent}>
           <ThemedText variant="h2" color="primary" style={shared.modalTitle}>{title}</ThemedText>
           <FlatList
@@ -119,6 +121,9 @@ export default function LocationCategorySelector({
                   onSelect(item.id)
                   onClose()
                 }}
+                accessibilityRole="button"
+                accessibilityLabel={item[labelKey] || item.name}
+                accessibilityState={{ selected: item.id === selectedId }}
               >
                 <ThemedText
                   variant="button"
@@ -143,7 +148,7 @@ export default function LocationCategorySelector({
   if (loading) {
     return (
       <View style={[styles.container, style]}>
-        <ThemedText variant="bodySmall" color="secondary" style={styles.loadingText}>Loading...</ThemedText>
+        <ThemedText variant="bodySmall" color="secondary" style={styles.loadingText}>{t('loading')}</ThemedText>
       </View>
     )
   }
@@ -154,12 +159,14 @@ export default function LocationCategorySelector({
       <View style={styles.selectorWrapper}>
         {showLabels && (
           <View style={styles.labelRow}>
-            <ThemedText variant="label" color="dark">Location</ThemedText>
+            <ThemedText variant="label" color="dark">{t('locationLabel')}</ThemedText>
           </View>
         )}
         <TouchableOpacity
           style={styles.selector}
           onPress={() => setShowLocationPicker(true)}
+          accessibilityRole="button"
+          accessibilityLabel={t('locationSelectorA11y', { name: getSelectedLocationName() })}
         >
           {!showLabels && (
             <Ionicons name="location-outline" size={18} color={colors.primary} />
@@ -175,7 +182,7 @@ export default function LocationCategorySelector({
       <View style={styles.selectorWrapper}>
         {showLabels && (
           <View style={styles.labelRow}>
-            <ThemedText variant="label" color="dark">Category</ThemedText>
+            <ThemedText variant="label" color="dark">{t('categoryLabel')}</ThemedText>
             {categoryAutoSelected && (
               <Ionicons name="sparkles" size={10} color={colors.primary} style={{ marginLeft: 4 }} />
             )}
@@ -187,6 +194,8 @@ export default function LocationCategorySelector({
             categoryAutoSelected && styles.selectorAutoSelected,
           ]}
           onPress={() => setShowCategoryPicker(true)}
+          accessibilityRole="button"
+          accessibilityLabel={t('categorySelectorA11y', { name: getSelectedCategoryName() })}
         >
           {!showLabels && (
             <Ionicons name="folder-outline" size={18} color={colors.primary} />
@@ -204,7 +213,7 @@ export default function LocationCategorySelector({
         locations,
         selectedLocation,
         onLocationChange,
-        'Select Location',
+        t('selectLocation'),
         'name'
       )}
 
@@ -214,7 +223,7 @@ export default function LocationCategorySelector({
         categories,
         selectedCategory,
         onCategoryChange,
-        'Select Category',
+        t('selectCategory'),
         'label'
       )}
     </View>

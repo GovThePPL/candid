@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { View, StyleSheet, TouchableOpacity, Image, useWindowDimensions } from 'react-native'
 import Svg, { Polygon, Circle, Text as SvgText, G, ClipPath, Defs, Image as SvgImage } from 'react-native-svg'
 import { Ionicons } from '@expo/vector-icons'
+import { useTranslation } from 'react-i18next'
 import { GROUP_COLORS, BrandColor } from '../../constants/Colors'
 import { Typography } from '../../constants/Theme'
 import { useThemeColors } from '../../hooks/useThemeColors'
@@ -26,6 +27,7 @@ export default function OpinionMapVisualization({
   selectedGroup,
   onGroupSelect,
 }) {
+  const { t } = useTranslation('stats')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const [showHelp, setShowHelp] = useState(false)
@@ -227,7 +229,7 @@ export default function OpinionMapVisualization({
           fill={colors.primary}
           textAnchor="middle"
         >
-          You
+          {t('you')}
         </SvgText>
       </G>
     )
@@ -238,10 +240,10 @@ export default function OpinionMapVisualization({
       <View style={styles.emptyContainer}>
         <Ionicons name="analytics-outline" size={48} color={colors.secondaryText} />
         <ThemedText variant="h3" style={styles.emptyText}>
-          Not enough data to display opinion groups yet.
+          {t('notEnoughData')}
         </ThemedText>
         <ThemedText variant="bodySmall" color="secondary" style={styles.emptySubtext}>
-          Vote on more positions to see where you stand.
+          {t('voteMore')}
         </ThemedText>
       </View>
     )
@@ -249,7 +251,7 @@ export default function OpinionMapVisualization({
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.helpButton} onPress={() => setShowHelp(true)} accessibilityLabel="Show help" accessibilityRole="button">
+      <TouchableOpacity style={styles.helpButton} onPress={() => setShowHelp(true)} accessibilityLabel={t('showHelp')} accessibilityRole="button">
         <Ionicons name="help-circle-outline" size={24} color={colors.secondaryText} />
       </TouchableOpacity>
 
@@ -302,16 +304,16 @@ export default function OpinionMapVisualization({
       <InfoModal
         visible={showHelp}
         onClose={() => setShowHelp(false)}
-        title="Understanding the Opinion Map"
+        title={t('opinionMapHelpTitle')}
       >
         <InfoModal.Item icon="shapes-outline">
-          Each colored shape represents a group of people with similar voting patterns.
+          {t('opinionMapHelp1')}
         </InfoModal.Item>
         <InfoModal.Item icon="resize-outline">
-          Distance between groups shows how different their opinions are.
+          {t('opinionMapHelp2')}
         </InfoModal.Item>
         <InfoModal.Item icon="person-circle-outline">
-          The "You" marker shows where you fall based on your votes.
+          {t('opinionMapHelp3')}
         </InfoModal.Item>
       </InfoModal>
     </View>

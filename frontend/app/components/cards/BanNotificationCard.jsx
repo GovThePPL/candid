@@ -1,6 +1,7 @@
 import { StyleSheet, View, TouchableOpacity, TextInput, ActivityIndicator, ScrollView } from 'react-native'
 import { useState, useMemo } from 'react'
 import { Ionicons } from '@expo/vector-icons'
+import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { SemanticColors, BrandColor } from '../../constants/Colors'
 import { Typography } from '../../constants/Theme'
@@ -15,25 +16,28 @@ const ACTION_COLORS = {
   warning: '#F39C12',
 }
 
-const ACTION_LABELS = {
-  permanent_ban: 'Permanent Ban',
-  temporary_ban: 'Temporary Ban',
-  warning: 'Warning',
-  removed: 'Content Removed',
-}
+const getActionLabels = (t) => ({
+  permanent_ban: t('banPermanentBan'),
+  temporary_ban: t('banTemporaryBan'),
+  warning: t('banWarning'),
+  removed: t('banContentRemoved'),
+})
 
-const APPEAL_LABELS = {
-  pending: 'Pending',
-  approved: 'Approved',
-  denied: 'Denied',
-  escalated: 'Escalated',
-  modified: 'Modified',
-  overruled: 'Overruled',
-}
+const getAppealLabels = (t) => ({
+  pending: t('banAppealPending'),
+  approved: t('banAppealApproved'),
+  denied: t('banAppealDenied'),
+  escalated: t('banAppealEscalated'),
+  modified: t('banAppealModified'),
+  overruled: t('banAppealOverruled'),
+})
 
 export default function BanNotificationCard({ banData }) {
+  const { t } = useTranslation('cards')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
+  const ACTION_LABELS = useMemo(() => getActionLabels(t), [t])
+  const APPEAL_LABELS = useMemo(() => getAppealLabels(t), [t])
 
   const ACTION_COLORS_DYNAMIC = useMemo(() => ({
     ...ACTION_COLORS,
@@ -75,7 +79,7 @@ export default function BanNotificationCard({ banData }) {
       setAppealSubmitted(true)
       setTimeout(() => setAppealModalVisible(false), 1500)
     } catch (err) {
-      setAppealError(err.body?.detail || err.message || 'Failed to submit appeal')
+      setAppealError(err.body?.detail || err.message || t('banAppealError'))
     } finally {
       setAppealSubmitting(false)
     }
@@ -86,18 +90,18 @@ export default function BanNotificationCard({ banData }) {
       <Ionicons name="warning" size={40} color={SemanticColors.warning} style={styles.warningIcon} accessible={false} importantForAccessibility="no-hide-descendants" />
 
       {/* Compact header */}
-      <ThemedText variant="h4" color="error" style={styles.title}>Account Suspended</ThemedText>
+      <ThemedText variant="h4" color="error" style={styles.title}>{t('banAccountSuspended')}</ThemedText>
       <ThemedText variant="buttonSmall" style={styles.banType}>
-        {isPermanent ? 'Permanent' : `Temporary${actionChain?.durationDays ? ` (${actionChain.durationDays} days)` : ''}`}
+        {isPermanent ? t('banPermanent') : actionChain?.durationDays ? t('banTemporaryDuration', { days: actionChain.durationDays }) : t('banTemporary')}
       </ThemedText>
       {!isPermanent && formattedExpiry && (
-        <ThemedText variant="caption" color="secondary" style={styles.expiryText}>Expires {formattedExpiry}</ThemedText>
+        <ThemedText variant="caption" color="secondary" style={styles.expiryText}>{t('banExpires')} {formattedExpiry}</ThemedText>
       )}
 
       {/* Target content - the position/chat that caused the ban */}
       {targetContent && (
         <View style={styles.targetContentContainer}>
-          <ThemedText variant="caption" color="secondary" style={styles.targetContentLabel}>Content that led to this action:</ThemedText>
+          <ThemedText variant="caption" color="secondary" style={styles.targetContentLabel}>{t('banContentLabel')}</ThemedText>
           {targetContent.type === 'position' ? (
             <PositionInfoCard
               position={targetContent}
@@ -112,7 +116,7 @@ export default function BanNotificationCard({ banData }) {
                 creator: targetContent.participants?.[0],
               }}
               authorSubtitle="username"
-              label={`Chat: ${targetContent.participants?.map(p => p?.displayName).filter(Boolean).join(' & ')}`}
+              label={t('banChatLabel', { participants: targetContent.participants?.map(p => p?.displayName).filter(Boolean).join(' & ') })}
               style={styles.positionInfoCard}
               numberOfLines={2}
             />
@@ -125,13 +129,13 @@ export default function BanNotificationCard({ banData }) {
         <View style={styles.detailsContainer}>
           {ruleTitle && (
             <View style={styles.detailRow}>
-              <ThemedText variant="caption" color="secondary" style={styles.detailLabel}>Rule:</ThemedText>
+              <ThemedText variant="caption" color="secondary" style={styles.detailLabel}>{t('banRuleLabel')}</ThemedText>
               <ThemedText variant="label" style={styles.detailValue}>{ruleTitle}</ThemedText>
             </View>
           )}
           {reason && (
             <View style={ruleTitle ? styles.detailRowBorder : styles.detailRow}>
-              <ThemedText variant="caption" color="secondary" style={styles.detailLabel}>Notes:</ThemedText>
+              <ThemedText variant="caption" color="secondary" style={styles.detailLabel}>{t('banNotesLabel')}</ThemedText>
               <ThemedText variant="label" style={styles.detailValue} numberOfLines={3}>{reason}</ThemedText>
             </View>
           )}
@@ -145,17 +149,17 @@ export default function BanNotificationCard({ banData }) {
             style={styles.appealButton}
             onPress={() => setAppealModalVisible(true)}
             accessibilityRole="button"
-            accessibilityLabel="Appeal"
+            accessibilityLabel={t('banAppealButton')}
           >
             <Ionicons name="megaphone-outline" size={15} color='#FFFFFF' />
-            <ThemedText variant="buttonSmall" color="inverse">Appeal</ThemedText>
+            <ThemedText variant="buttonSmall" color="inverse">{t('banAppealButton')}</ThemedText>
           </TouchableOpacity>
         )}
 
         {appealSubmitted && (
           <View style={styles.appealSubmittedBadge}>
             <Ionicons name="checkmark-circle" size={15} color={SemanticColors.success} />
-            <ThemedText variant="label" color="agree">Appeal Submitted</ThemedText>
+            <ThemedText variant="label" color="agree">{t('banAppealSubmitted')}</ThemedText>
           </View>
         )}
 
@@ -164,29 +168,29 @@ export default function BanNotificationCard({ banData }) {
             style={styles.detailsButton}
             onPress={() => setHistoryModalVisible(true)}
             accessibilityRole="button"
-            accessibilityLabel="Action Details"
+            accessibilityLabel={t('banActionDetails')}
           >
             <Ionicons name="time-outline" size={15} color={colors.primary} />
-            <ThemedText variant="label" color="primary">Action Details</ThemedText>
+            <ThemedText variant="label" color="primary">{t('banActionDetails')}</ThemedText>
           </TouchableOpacity>
         )}
       </View>
 
       <ThemedText variant="caption" color="secondary" style={styles.infoText}>
-        You cannot create positions, vote, or chat while suspended.
+        {t('banRestrictions')}
       </ThemedText>
 
       {/* Appeal Modal */}
       <BottomDrawerModal
         visible={appealModalVisible}
         onClose={() => setAppealModalVisible(false)}
-        title="Submit Appeal"
-        subtitle="Explain why you believe this action was incorrect"
+        title={t('banSubmitAppealTitle')}
+        subtitle={t('banSubmitAppealSubtitle')}
       >
         <View style={styles.appealModalContent}>
           <TextInput
             style={styles.appealInput}
-            placeholder="Describe why this decision should be reconsidered..."
+            placeholder={t('banAppealPlaceholder')}
             placeholderTextColor={colors.placeholderText}
             value={appealText}
             onChangeText={setAppealText}
@@ -194,7 +198,7 @@ export default function BanNotificationCard({ banData }) {
             maxLength={1000}
             textAlignVertical="top"
             maxFontSizeMultiplier={1.5}
-            accessibilityLabel="Appeal reason"
+            accessibilityLabel={t('banAppealInputLabel')}
           />
           <ThemedText variant="caption" color="secondary" style={styles.charCount}>{appealText.length}/1000</ThemedText>
 
@@ -207,13 +211,13 @@ export default function BanNotificationCard({ banData }) {
             onPress={handleSubmitAppeal}
             disabled={!appealText.trim() || appealSubmitting}
             accessibilityRole="button"
-            accessibilityLabel="Submit Appeal"
+            accessibilityLabel={t('banSubmitAppealButton')}
             accessibilityState={{ disabled: !appealText.trim() || appealSubmitting }}
           >
             {appealSubmitting ? (
               <ActivityIndicator size="small" color='#FFFFFF' />
             ) : (
-              <ThemedText variant="button" color="inverse">Submit Appeal</ThemedText>
+              <ThemedText variant="button" color="inverse">{t('banSubmitAppealButton')}</ThemedText>
             )}
           </TouchableOpacity>
         </View>
@@ -223,7 +227,7 @@ export default function BanNotificationCard({ banData }) {
       <BottomDrawerModal
         visible={historyModalVisible}
         onClose={() => setHistoryModalVisible(false)}
-        title="Action Details"
+        title={t('banActionDetails')}
         maxHeight="85%"
       >
         {actionChain && (
@@ -232,7 +236,7 @@ export default function BanNotificationCard({ banData }) {
             contentContainerStyle={styles.historyScrollContent}
             showsVerticalScrollIndicator={false}
           >
-            <ActionChainCard chain={actionChain} colors={colors} styles={styles} actionColors={ACTION_COLORS_DYNAMIC} appealColors={APPEAL_COLORS} />
+            <ActionChainCard chain={actionChain} colors={colors} styles={styles} actionColors={ACTION_COLORS_DYNAMIC} appealColors={APPEAL_COLORS} actionLabels={ACTION_LABELS} appealLabels={APPEAL_LABELS} t={t} />
           </ScrollView>
         )}
       </BottomDrawerModal>
@@ -240,10 +244,12 @@ export default function BanNotificationCard({ banData }) {
   )
 }
 
-function ActionChainCard({ chain, colors, styles, actionColors, appealColors }) {
+function ActionChainCard({ chain, colors, styles, actionColors, appealColors, actionLabels, appealLabels, t }) {
+  const ACTION_LABELS = actionLabels
+  const APPEAL_LABELS = appealLabels
   const color = actionColors[chain.actionType] || colors.pass
   const date = chain.actionDate
-    ? new Date(chain.actionDate).toLocaleDateString('en-US', {
+    ? new Date(chain.actionDate).toLocaleDateString(undefined, {
         month: 'short', day: 'numeric', year: 'numeric',
       })
     : null
@@ -254,7 +260,7 @@ function ActionChainCard({ chain, colors, styles, actionColors, appealColors }) 
       <View style={[styles.cardHeader, { backgroundColor: color }]}>
         <ThemedText variant="label" color="inverse" style={styles.cardHeaderText}>
           {ACTION_LABELS[chain.actionType] || chain.actionType}
-          {chain.actionType === 'temporary_ban' && chain.durationDays ? ` (${chain.durationDays} days)` : ''}
+          {chain.actionType === 'temporary_ban' && chain.durationDays ? ' ' + t('moderation:durationDays', { days: chain.durationDays }) : ''}
         </ThemedText>
         {date && <ThemedText variant="caption" style={styles.cardHeaderDate}>{date}</ThemedText>}
       </View>
@@ -273,11 +279,11 @@ function ActionChainCard({ chain, colors, styles, actionColors, appealColors }) 
         <View style={styles.chainItem}>
           <View style={[styles.chainDot, { backgroundColor: color }]} />
           <View style={styles.chainContent}>
-            <ThemedText variant="caption" color="secondary" style={styles.chainLabel}>Moderator Decision</ThemedText>
+            <ThemedText variant="caption" color="secondary" style={styles.chainLabel}>{t('banModeratorDecision')}</ThemedText>
             <View style={[styles.chainActionBadge, { backgroundColor: color }]}>
               <ThemedText variant="caption" color="inverse" style={styles.chainActionBadgeText}>
                 {ACTION_LABELS[chain.actionType] || chain.actionType}
-                {chain.actionType === 'temporary_ban' && chain.durationDays ? ` (${chain.durationDays} days)` : ''}
+                {chain.actionType === 'temporary_ban' && chain.durationDays ? ' ' + t('moderation:durationDays', { days: chain.durationDays }) : ''}
               </ThemedText>
             </View>
             {chain.moderatorComment && (
@@ -291,7 +297,7 @@ function ActionChainCard({ chain, colors, styles, actionColors, appealColors }) 
           <View style={styles.chainItem}>
             <View style={[styles.chainDot, { backgroundColor: '#F39C12' }]} />
             <View style={styles.chainContent}>
-              <ThemedText variant="caption" color="secondary" style={styles.chainLabel}>Your Appeal</ThemedText>
+              <ThemedText variant="caption" color="secondary" style={styles.chainLabel}>{t('banYourAppeal')}</ThemedText>
               {chain.appealText && (
                 <ThemedText variant="caption" style={styles.chainComment}>"{chain.appealText}"</ThemedText>
               )}
@@ -310,15 +316,15 @@ function ActionChainCard({ chain, colors, styles, actionColors, appealColors }) 
             : resp.outcome === 'escalated' ? '#E67E22'
             : resp.outcome === 'admin_decision' ? (appealColors[chain.appealState] || colors.primary)
             : colors.primary
-          const outcomeLabel = resp.outcome === 'overruled' ? 'Overruled'
-            : resp.outcome === 'escalated' ? 'Escalated to Admin'
-            : resp.outcome === 'admin_decision' ? (APPEAL_LABELS[chain.appealState] || 'Decision')
+          const outcomeLabel = resp.outcome === 'overruled' ? t('banOutcomeOverruled')
+            : resp.outcome === 'escalated' ? t('banOutcomeEscalated')
+            : resp.outcome === 'admin_decision' ? (APPEAL_LABELS[chain.appealState] || chain.appealState)
             : null
           return (
             <View key={i} style={styles.chainItem}>
               <View style={[styles.chainDot, { backgroundColor: outcomeColor }]} />
               <View style={styles.chainContent}>
-                <ThemedText variant="caption" color="secondary" style={styles.chainLabel}>{resp.role || 'Moderator'}</ThemedText>
+                <ThemedText variant="caption" color="secondary" style={styles.chainLabel}>{resp.role || t('moderator')}</ThemedText>
                 {outcomeLabel && (
                   <View style={[styles.chainActionBadge, { backgroundColor: outcomeColor }]}>
                     <ThemedText variant="caption" color="inverse" style={styles.chainActionBadgeText}>{outcomeLabel}</ThemedText>

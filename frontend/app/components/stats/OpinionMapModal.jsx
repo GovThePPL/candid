@@ -4,6 +4,7 @@ import Svg, { Polygon, Circle, Text as SvgText, G, ClipPath, Defs, Image as SvgI
 import { Ionicons } from '@expo/vector-icons'
 import { GROUP_COLORS, SemanticColors, BrandColor } from '../../constants/Colors'
 import { Typography } from '../../constants/Theme'
+import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { createSharedStyles } from '../../constants/SharedStyles'
 import ThemedText from '../ThemedText'
@@ -35,6 +36,7 @@ export default function OpinionMapModal({
   categoryLabel,
 }) {
   const colors = useThemeColors()
+  const { t } = useTranslation()
   const styles = useMemo(() => createStyles(colors), [colors])
   const shared = useMemo(() => createSharedStyles(colors), [colors])
   const { width: screenWidth } = useWindowDimensions()
@@ -264,7 +266,7 @@ export default function OpinionMapModal({
 
   // Build tab labels with location code
   const categoryTabLabel = [locationCode, categoryLabel].filter(Boolean).join(' - ') || 'Category'
-  const allCategoriesTabLabel = [locationCode, 'All Categories'].filter(Boolean).join(' - ')
+  const allCategoriesTabLabel = [locationCode, t('common:allCategories')].filter(Boolean).join(' - ')
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} onDismiss={onDismiss}>
@@ -272,11 +274,13 @@ export default function OpinionMapModal({
         style={shared.modalOverlay}
         activeOpacity={1}
         onPress={onClose}
+        accessibilityRole="button"
+        accessibilityLabel={t('stats:closeA11y')}
       >
         <TouchableOpacity activeOpacity={1} style={styles.content}>
           <View style={styles.header}>
-            <ThemedText variant="h3" color="primary" style={styles.title}>Opinion Map</ThemedText>
-            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+            <ThemedText variant="h3" color="primary" style={styles.title}>{t('stats:opinionMapTitle')}</ThemedText>
+            <TouchableOpacity style={styles.closeButton} onPress={onClose} accessibilityRole="button" accessibilityLabel={t('stats:closeA11y')}>
               <Ionicons name="close" size={24} color={colors.text} />
             </TouchableOpacity>
           </View>
@@ -287,6 +291,9 @@ export default function OpinionMapModal({
               <TouchableOpacity
                 style={[styles.tab, !showAllCategories && styles.tabActive]}
                 onPress={() => setShowAllCategories(false)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: !showAllCategories }}
+                accessibilityLabel={categoryTabLabel}
               >
                 <ThemedText variant="caption" style={[styles.tabText, !showAllCategories && styles.tabTextActive]}>
                   {categoryTabLabel}
@@ -295,6 +302,9 @@ export default function OpinionMapModal({
               <TouchableOpacity
                 style={[styles.tab, showAllCategories && styles.tabActive]}
                 onPress={() => setShowAllCategories(true)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: showAllCategories }}
+                accessibilityLabel={allCategoriesTabLabel}
               >
                 <ThemedText variant="caption" style={[styles.tabText, showAllCategories && styles.tabTextActive]}>
                   {allCategoriesTabLabel}
@@ -334,16 +344,16 @@ export default function OpinionMapModal({
             <View style={styles.noDataContainer}>
               <Ionicons name="analytics-outline" size={48} color={colors.secondaryText} />
               <ThemedText variant="bodySmall" style={styles.noDataText}>
-                Position data not available for these users.
+                {t('stats:noMapData')}
               </ThemedText>
               <ThemedText variant="caption" color="secondary" style={styles.noDataSubtext}>
-                Users need to vote on more statements to appear on the map.
+                {t('stats:noMapDataHint')}
               </ThemedText>
             </View>
           )}
 
-          <TouchableOpacity style={styles.doneButton} onPress={onClose}>
-            <ThemedText variant="button" color="inverse">Done</ThemedText>
+          <TouchableOpacity style={styles.doneButton} onPress={onClose} accessibilityRole="button" accessibilityLabel={t('done')}>
+            <ThemedText variant="button" color="inverse">{t('done')}</ThemedText>
           </TouchableOpacity>
         </TouchableOpacity>
       </TouchableOpacity>

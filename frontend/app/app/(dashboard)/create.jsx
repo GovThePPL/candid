@@ -1,4 +1,4 @@
-import { StyleSheet, View, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, Alert as RNAlert, ActivityIndicator, Animated, LayoutAnimation, UIManager } from 'react-native'
+import { StyleSheet, View, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, Alert as RNAlert, ActivityIndicator, Animated, LayoutAnimation, UIManager, useWindowDimensions } from 'react-native'
 import { useRouter, useFocusEffect } from 'expo-router'
 import { useState, useEffect, useCallback, useRef, useContext, useMemo } from 'react'
 
@@ -8,11 +8,12 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 }
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
+import { useTranslation } from 'react-i18next'
 import { SemanticColors } from '../../constants/Colors'
 import { Shadows, Typography } from '../../constants/Theme'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { UserContext } from '../../contexts/UserContext'
-import api from '../../lib/api'
+import api, { translateError } from '../../lib/api'
 import { CacheManager, CacheKeys, CacheDurations } from '../../lib/cache'
 
 import ThemedText from "../../components/ThemedText"
@@ -53,6 +54,7 @@ const Alert = {
 }
 
 export default function Create() {
+  const { t } = useTranslation('create')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
 
@@ -85,6 +87,11 @@ export default function Create() {
   const [floatingBar, setFloatingBar] = useState({ visible: false, count: 0, mode: null, ref: null })
   const positionsListRef = useRef(null)
   const chattingListRef = useRef(null)
+  const scrollViewRef = useRef(null)
+  const myPositionsSectionY = useRef(0)
+  const chattingListSectionY = useRef(0)
+  const [filterFocused, setFilterFocused] = useState(false)
+  const { height: screenHeight } = useWindowDimensions()
 
   const router = useRouter()
   const searchTimeoutRef = useRef(null)
@@ -299,21 +306,21 @@ export default function Create() {
       setSuggestedCategory(null)
       await fetchMyPositions()
     } catch (err) {
-      Alert.alert('Error', err.message || 'Failed to adopt position')
+      Alert.alert(t('errorTitle'), translateError(err.message, t) || t('failedAdopt'))
     }
   }
 
   async function handleSubmit() {
     if (!statement.trim()) {
-      setError('Please enter a statement')
+      setError(t('errorEnterStatement'))
       return
     }
     if (!selectedCategory) {
-      setError('Please select a category')
+      setError(t('errorSelectCategory'))
       return
     }
     if (!selectedLocation) {
-      setError('Please select a location')
+      setError(t('errorSelectLocation'))
       return
     }
 
@@ -335,11 +342,29 @@ export default function Create() {
       // Refresh the positions list to show the new position
       await fetchMyPositions()
     } catch (err) {
-      setError(err.message || 'Failed to create position')
+      setError(translateError(err.message, t) || t('failedCreate'))
     } finally {
       setLoading(false)
     }
   }
+
+  // Scroll to section when search input is focused
+  const scrollToMyPositions = useCallback(() => {
+    setFilterFocused(true)
+    // Offset past the section header (~60px for title + subtitle + margin)
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({ y: myPositionsSectionY.current + 60, animated: true })
+    }, 50)
+  }, [])
+  const scrollToChattingList = useCallback(() => {
+    setFilterFocused(true)
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({ y: chattingListSectionY.current + 60, animated: true })
+    }, 50)
+  }, [])
+  const handleFilterBlur = useCallback(() => {
+    setFilterFocused(false)
+  }, [])
 
   // --- PositionListManager callbacks for My Positions ---
 
@@ -352,7 +377,7 @@ export default function Create() {
         p.id === id ? { ...p, status: newStatus } : p
       ))
     } catch (err) {
-      Alert.alert('Error', err.message || 'Failed to update position')
+      Alert.alert(t('errorTitle'), translateError(err.message, t) || t('failedUpdate'))
     }
   }
 
@@ -364,7 +389,7 @@ export default function Create() {
       if (user?.id) await CacheManager.invalidate(CacheKeys.userPositions(user.id))
       setMyPositions(prev => prev.filter(p => !ids.includes(p.id)))
     } catch (err) {
-      Alert.alert('Error', err.message || 'Failed to delete positions')
+      Alert.alert(t('errorTitle'), translateError(err.message, t) || t('failedDelete'))
       // Refresh to get accurate state
       await fetchMyPositions()
     }
@@ -381,7 +406,7 @@ export default function Create() {
         ids.includes(p.id) ? { ...p, status: newStatus } : p
       ))
     } catch (err) {
-      Alert.alert('Error', err.message || 'Failed to update positions')
+      Alert.alert(t('errorTitle'), translateError(err.message, t) || t('failedUpdateItems'))
       await fetchMyPositions()
     }
   }
@@ -396,7 +421,7 @@ export default function Create() {
         i.id === id ? { ...i, isActive: newActive } : i
       ))
     } catch (err) {
-      Alert.alert('Error', err.message || 'Failed to update item')
+      Alert.alert(t('errorTitle'), translateError(err.message, t) || t('failedUpdateItem'))
     }
   }
 
@@ -407,7 +432,7 @@ export default function Create() {
       const idSet = new Set(ids)
       setChattingList(prev => prev.filter(i => !idSet.has(i.id)))
     } catch (err) {
-      Alert.alert('Error', err.message || 'Failed to remove items')
+      Alert.alert(t('errorTitle'), translateError(err.message, t) || t('failedRemoveItems'))
       await fetchChattingList()
     }
   }
@@ -422,7 +447,7 @@ export default function Create() {
         ids.includes(i.id) ? { ...i, isActive: newActive } : i
       ))
     } catch (err) {
-      Alert.alert('Error', err.message || 'Failed to update items')
+      Alert.alert(t('errorTitle'), translateError(err.message, t) || t('failedUpdateItems'))
       await fetchChattingList()
     }
   }
@@ -434,9 +459,9 @@ export default function Create() {
       id: p.id,
       statement: p.statement,
       isActive: p.status === 'active',
-      locationName: p.locationName || 'Unknown Location',
+      locationName: p.locationName || t('unknownLocation'),
       locationCode: p.locationCode || '',
-      categoryName: p.categoryName || 'Uncategorized',
+      categoryName: p.categoryName || t('uncategorized'),
       categoryId: p.categoryId,
     })),
     [myPositions]
@@ -447,11 +472,11 @@ export default function Create() {
       id: item.id,
       statement: item.position?.statement,
       isActive: item.isActive,
-      locationName: item.position?.location?.name || 'Unknown Location',
+      locationName: item.position?.location?.name || t('unknownLocation'),
       locationCode: item.position?.location?.code || '',
-      categoryName: item.position?.category?.label || 'Uncategorized',
+      categoryName: item.position?.category?.label || t('uncategorized'),
       categoryId: item.position?.categoryId,
-      meta: item.pendingRequestCount > 0 ? `${item.pendingRequestCount} pending` : undefined,
+      meta: item.pendingRequestCount > 0 ? t('pendingCount', { count: item.pendingRequestCount }) : undefined,
     })),
     [chattingList]
   )
@@ -507,7 +532,7 @@ export default function Create() {
       // Remove from search results
       setChattingSearchResults(prev => prev.filter(r => r.position.id !== positionId))
     } catch (err) {
-      Alert.alert('Error', err.message || 'Failed to add to chatting list')
+      Alert.alert(t('errorTitle'), translateError(err.message, t) || t('failedAddToList'))
     }
   }
 
@@ -520,8 +545,8 @@ export default function Create() {
         <Header />
         <EmptyState
           icon="ban-outline"
-          title="Account Suspended"
-          subtitle="You cannot create positions while your account is suspended. Check the card queue for more details."
+          title={t('bannedTitle')}
+          subtitle={t('bannedSubtitle')}
         />
       </SafeAreaView>
     )
@@ -534,20 +559,20 @@ export default function Create() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <ScrollView ref={scrollViewRef} contentContainerStyle={[styles.scrollContent, filterFocused && { paddingBottom: screenHeight }]} keyboardShouldPersistTaps="handled">
           <View style={styles.sectionHeaderAreaCompact}>
             <View style={styles.headingRow}>
               <ThemedText variant="h1" color="primary">
-                Add a Position
+                {t('addPosition')}
               </ThemedText>
               <TouchableOpacity
                 style={styles.rulesButton}
                 onPress={handleOpenRules}
                 accessibilityRole="button"
-                accessibilityLabel="Community Rules"
+                accessibilityLabel={t('communityRules')}
               >
                 <Ionicons name="book-outline" size={15} color={colors.primary} />
-                <ThemedText variant="label" color="primary" style={styles.rulesButtonText}>Community Rules</ThemedText>
+                <ThemedText variant="label" color="primary" style={styles.rulesButtonText}>{t('communityRules')}</ThemedText>
               </TouchableOpacity>
             </View>
           </View>
@@ -556,7 +581,7 @@ export default function Create() {
             <View style={styles.inputGroupCompact}>
               <ThemedTextInput
                 style={styles.statementInput}
-                placeholder="What's your position?"
+                placeholder={t('positionPlaceholder')}
                 placeholderTextColor={colors.placeholderText}
                 value={statement}
                 onChangeText={setStatement}
@@ -567,7 +592,7 @@ export default function Create() {
                 styles.charCount,
                 isOverLimit && styles.charCountOver
               ]}>
-                {remainingChars} characters remaining
+                {t('charsRemaining', { count: remainingChars })}
               </ThemedText>
 
               {/* Similar Positions Suggestions */}
@@ -576,7 +601,7 @@ export default function Create() {
                   <View style={styles.similarHeader}>
                     <Ionicons name="bulb-outline" size={16} color={colors.primary} />
                     <ThemedText variant="label" color="primary" style={styles.similarTitle}>
-                      {searchingSimilar ? 'Searching for similar positions...' : 'Similar positions you could adopt:'}
+                      {searchingSimilar ? t('searchingSimilar') : t('similarAdopt')}
                     </ThemedText>
                     {searchingSimilar && (
                       <ActivityIndicator size="small" color={colors.primary} style={{ marginLeft: 8 }} />
@@ -589,14 +614,14 @@ export default function Create() {
                         {result.wasPreviouslyHeld && (
                           <View style={styles.previouslyHeldBadge}>
                             <Ionicons name="time-outline" size={12} color={colors.primary} />
-                            <ThemedText variant="caption" color="primary" style={styles.previouslyHeldText}>Previously held</ThemedText>
+                            <ThemedText variant="caption" color="primary" style={styles.previouslyHeldText}>{t('previouslyHeld')}</ThemedText>
                           </View>
                         )}
                         <ThemedText variant="bodySmall" color="dark" style={styles.similarStatement} numberOfLines={2}>
                           "{result.position.statement}"
                         </ThemedText>
                         <ThemedText variant="caption" color="secondary" style={styles.similarMeta}>
-                          {Math.round(result.similarity * 100)}% match
+                          {t('matchPercent', { percent: Math.round(result.similarity * 100) })}
                           {result.position.category?.label && ` · ${result.position.category.label}`}
                         </ThemedText>
                       </View>
@@ -604,7 +629,7 @@ export default function Create() {
                         style={styles.adoptButton}
                         onPress={() => handleAdoptPosition(result.position.id)}
                         accessibilityRole="button"
-                        accessibilityLabel={`Adopt position: ${result.position.statement}`}
+                        accessibilityLabel={t('adoptA11y', { statement: result.position.statement })}
                       >
                         <Ionicons name="add-circle" size={28} color={SemanticColors.agree} />
                       </TouchableOpacity>
@@ -613,7 +638,7 @@ export default function Create() {
 
                   {!searchingSimilar && similarPositions.length === 0 && statement.trim().length >= MIN_SEARCH_LENGTH && (
                     <ThemedText variant="bodySmall" color="secondary" style={styles.noSimilarText}>
-                      No similar positions found. Create your own!
+                      {t('noSimilarFound')}
                     </ThemedText>
                   )}
                 </Animated.View>
@@ -643,22 +668,19 @@ export default function Create() {
             <ThemedButton
               onPress={handleSubmit}
               disabled={loading || isOverLimit || !statement.trim() || !selectedCategory || !selectedLocation}
-              style={{ paddingVertical: 12 }}
             >
-              <ThemedText variant="body" color="inverse" style={{ fontWeight: '600' }}>
-                {loading ? "Creating..." : "Create Position"}
-              </ThemedText>
+              {loading ? t('creating') : t('createPosition')}
             </ThemedButton>
           </View>
 
           {/* My Positions Section */}
-          <View style={styles.myPositionsSection}>
+          <View style={styles.myPositionsSection} onLayout={(e) => { myPositionsSectionY.current = e.nativeEvent.layout.y }}>
             <View style={styles.sectionHeader}>
               <ThemedText variant="h1" color="primary">
-                My Positions
+                {t('myPositions')}
               </ThemedText>
               <ThemedText variant="bodySmall" color="secondary" style={styles.sectionSubtitle}>
-                Positions you hold that others can chat with you about
+                {t('myPositionsSubtitle')}
               </ThemedText>
             </View>
             <PositionListManager
@@ -668,30 +690,32 @@ export default function Create() {
               onDeleteItems={handleDeletePositions}
               onBulkToggle={handleBulkTogglePositions}
               onFloatingBarChange={(state) => setFloatingBar({ ...state, ref: positionsListRef })}
+              onSearchFocus={scrollToMyPositions}
+              onSearchBlur={handleFilterBlur}
               emptyIcon="megaphone-outline"
-              emptyTitle="No positions yet"
-              emptySubtitle="Create your first position above"
+              emptyTitle={t('noPositionsTitle')}
+              emptySubtitle={t('noPositionsSubtitle')}
             />
           </View>
 
           {/* Chatting List Section */}
-          <View style={styles.chattingListSection}>
+          <View style={styles.chattingListSection} onLayout={(e) => { chattingListSectionY.current = e.nativeEvent.layout.y }}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionHeadingRow}>
                 <ThemedText variant="h1" color="primary">
-                  Chatting List
+                  {t('chattingList')}
                 </ThemedText>
                 <TouchableOpacity
                   onPress={() => setShowChattingExplanation(true)}
                   hitSlop={8}
                   accessibilityRole="button"
-                  accessibilityLabel="What is the Chatting List?"
+                  accessibilityLabel={t('chattingListHelp')}
                 >
                   <Ionicons name="help-circle-outline" size={20} color={colors.secondaryText} />
                 </TouchableOpacity>
               </View>
               <ThemedText variant="bodySmall" color="secondary" style={styles.sectionSubtitle}>
-                Positions you've chatted about or saved to discuss later
+                {t('chattingListSubtitle')}
               </ThemedText>
             </View>
 
@@ -700,10 +724,10 @@ export default function Create() {
               onClose={() => setShowChattingExplanation(false)}
               icon="chatbubbles"
               iconColor={colors.chat}
-              title="What is the Chatting List?"
+              title={t('chattingListHelp')}
               paragraphs={[
-                "This list contains other people's positions that you've previously chatted about, as well as positions you've saved by tapping the chat button on a card.",
-                'These will periodically reappear in your card queue. Toggle items on/off to control which ones are active, or remove them entirely.',
+                t('chattingListInfoP1'),
+                t('chattingListInfoP2'),
               ]}
             />
 
@@ -712,7 +736,7 @@ export default function Create() {
               style={styles.addToListButton}
               onPress={() => setShowChattingSearch(!showChattingSearch)}
               accessibilityRole="button"
-              accessibilityLabel={showChattingSearch ? 'Close Search' : 'Add Position to List'}
+              accessibilityLabel={showChattingSearch ? t('closeSearch') : t('addToList')}
             >
               <Ionicons
                 name={showChattingSearch ? 'close-circle' : 'add-circle'}
@@ -720,7 +744,7 @@ export default function Create() {
                 color={colors.primary}
               />
               <ThemedText variant="body" color="primary" style={styles.addToListButtonText}>
-                {showChattingSearch ? 'Close Search' : 'Add Position to List'}
+                {showChattingSearch ? t('closeSearch') : t('addToList')}
               </ThemedText>
             </TouchableOpacity>
 
@@ -729,7 +753,7 @@ export default function Create() {
               <View style={styles.chattingSearchContainer}>
                 <ThemedTextInput
                   style={styles.chattingSearchInput}
-                  placeholder="Search for positions to add..."
+                  placeholder={t('searchPositions')}
                   placeholderTextColor={colors.placeholderText}
                   value={chattingSearchQuery}
                   onChangeText={setChattingSearchQuery}
@@ -738,7 +762,7 @@ export default function Create() {
                 {searchingChatting && (
                   <View style={styles.chattingSearchLoading}>
                     <ActivityIndicator size="small" color={colors.primary} />
-                    <ThemedText variant="bodySmall" color="secondary">Searching...</ThemedText>
+                    <ThemedText variant="bodySmall" color="secondary">{t('searching')}</ThemedText>
                   </View>
                 )}
 
@@ -751,7 +775,7 @@ export default function Create() {
                             "{result.position.statement}"
                           </ThemedText>
                           <ThemedText variant="caption" color="secondary" style={styles.chattingSearchResultMeta}>
-                            {Math.round(result.similarity * 100)}% match
+                            {t('matchPercent', { percent: Math.round(result.similarity * 100) })}
                             {result.position.category?.label && ` · ${result.position.category.label}`}
                           </ThemedText>
                         </View>
@@ -759,7 +783,7 @@ export default function Create() {
                           style={styles.addToListItemButton}
                           onPress={() => handleAddToChattingList(result.position.id)}
                           accessibilityRole="button"
-                          accessibilityLabel={`Add to chatting list: ${result.position.statement}`}
+                          accessibilityLabel={t('addToChattingA11y', { statement: result.position.statement })}
                         >
                           <Ionicons name="add-circle" size={28} color={SemanticColors.agree} />
                         </TouchableOpacity>
@@ -770,13 +794,13 @@ export default function Create() {
 
                 {!searchingChatting && chattingSearchQuery.trim().length >= MIN_SEARCH_LENGTH && chattingSearchResults.length === 0 && (
                   <ThemedText variant="bodySmall" color="secondary" style={styles.noSearchResultsText}>
-                    No matching positions found, or all matches are already in your list.
+                    {t('noMatchingPositions')}
                   </ThemedText>
                 )}
 
                 {chattingSearchQuery.trim().length > 0 && chattingSearchQuery.trim().length < MIN_SEARCH_LENGTH && (
                   <ThemedText variant="bodySmall" color="secondary" style={styles.searchHintText}>
-                    Type at least {MIN_SEARCH_LENGTH} characters to search
+                    {t('searchMinChars', { min: MIN_SEARCH_LENGTH })}
                   </ThemedText>
                 )}
               </View>
@@ -789,10 +813,12 @@ export default function Create() {
               onDeleteItems={handleDeleteChattingItems}
               onBulkToggle={handleBulkToggleChattingItems}
               onFloatingBarChange={(state) => setFloatingBar({ ...state, ref: chattingListRef })}
+              onSearchFocus={scrollToChattingList}
+              onSearchBlur={handleFilterBlur}
               loading={chattingListLoading}
               emptyIcon="chatbubbles-outline"
-              emptyTitle="Your chatting list is empty"
-              emptySubtitle="Swipe up on position cards to add them here. You'll be able to request chats with the people who hold these positions."
+              emptyTitle={t('emptyChattingTitle')}
+              emptySubtitle={t('emptyChattingSubtitle')}
             />
           </View>
         </ScrollView>
@@ -802,25 +828,25 @@ export default function Create() {
       {floatingBar.visible && (
         <View style={styles.floatingDeleteBar}>
           <ThemedText variant="body" color="dark" style={styles.floatingDeleteCount}>
-            {floatingBar.count} selected
+            {t('countSelected', { count: floatingBar.count })}
           </ThemedText>
           <View style={styles.floatingDeleteActions}>
             <TouchableOpacity
               style={styles.floatingDeleteCancelButton}
               onPress={() => floatingBar.ref?.current?.cancelDelete()}
               accessibilityRole="button"
-              accessibilityLabel="Cancel"
+              accessibilityLabel={t('cancel')}
             >
-              <ThemedText variant="bodySmall" color="secondary" style={styles.floatingDeleteCancelText}>Cancel</ThemedText>
+              <ThemedText variant="bodySmall" color="secondary" style={styles.floatingDeleteCancelText}>{t('cancel')}</ThemedText>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.floatingDeleteButton}
               onPress={() => floatingBar.ref?.current?.confirmDelete()}
               accessibilityRole="button"
-              accessibilityLabel="Delete Selected"
+              accessibilityLabel={t('deleteSelected')}
             >
               <Ionicons name="trash" size={18} color="#FFFFFF" />
-              <ThemedText variant="buttonSmall" color="inverse">Delete Selected</ThemedText>
+              <ThemedText variant="buttonSmall" color="inverse">{t('deleteSelected')}</ThemedText>
             </TouchableOpacity>
           </View>
         </View>
@@ -829,13 +855,13 @@ export default function Create() {
       <BottomDrawerModal
         visible={showRules}
         onClose={() => setShowRules(false)}
-        title="Community Rules"
+        title={t('communityRules')}
         maxHeight="70%"
       >
         {rulesLoading ? (
           <ActivityIndicator size="large" color={colors.primary} style={{ paddingVertical: 32 }} />
         ) : rules.length === 0 ? (
-          <ThemedText variant="bodySmall" color="secondary" style={styles.rulesEmptyText}>No rules have been defined yet.</ThemedText>
+          <ThemedText variant="bodySmall" color="secondary" style={styles.rulesEmptyText}>{t('noRulesDefined')}</ThemedText>
         ) : (
           <ScrollView style={styles.rulesScrollView}>
             {rules.map((rule, index) => (
@@ -853,7 +879,7 @@ export default function Create() {
                         rule.severity === 'high' && styles.severityTextHigh,
                         rule.severity === 'medium' && styles.severityTextMedium,
                       ]}>
-                        Severity: {rule.severity}
+                        {t('severity', { level: rule.severity })}
                       </ThemedText>
                     </View>
                   )}

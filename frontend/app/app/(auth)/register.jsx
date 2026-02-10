@@ -2,15 +2,18 @@ import { StyleSheet, Platform, View, KeyboardAvoidingView, ScrollView } from 're
 import { Link } from 'expo-router'
 import { useState, useMemo } from 'react'
 import { useUser } from '../../hooks/useUser'
+import { translateError } from '../../lib/api'
 
 import ThemedView from '../../components/ThemedView'
 import ThemedText from '../../components/ThemedText'
 import ThemedTextInput from '../../components/ThemedTextInput'
 import Spacer from '../../components/Spacer'
 import ThemedButton from '../../components/ThemedButton'
+import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { SemanticColors } from '../../constants/Colors'
 import { Typography } from '../../constants/Theme'
+import LanguagePicker from '../../components/LanguagePicker'
 
 const Register = () => {
   const [username, setUsername] = useState('')
@@ -18,10 +21,16 @@ const Register = () => {
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
+  const { t } = useTranslation('auth')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
 
   const { register } = useUser()
+
+  // On mobile web, scroll the focused input into view above the keyboard
+  const handleInputFocus = Platform.OS === 'web'
+    ? (e) => { setTimeout(() => e.target?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }), 300) }
+    : undefined
 
   const handleRegister = async () => {
     setError(null)
@@ -30,19 +39,19 @@ const Register = () => {
     const trimmedEmail = email.trim()
 
     if (!trimmedUsername) {
-      setError('Username is required')
+      setError(t('usernameRequired'))
       return
     }
     if (trimmedUsername.length < 3) {
-      setError('Username must be at least 3 characters')
+      setError(t('usernameMinLength'))
       return
     }
     if (!trimmedEmail || !/^[^@]+@[^@]+\.[^@]+$/.test(trimmedEmail)) {
-      setError('A valid email is required')
+      setError(t('emailRequired'))
       return
     }
     if (password.length < 8) {
-      setError('Password must be at least 8 characters')
+      setError(t('passwordMinLength'))
       return
     }
 
@@ -51,7 +60,7 @@ const Register = () => {
     try {
       await register({ username: trimmedUsername, email: trimmedEmail, password })
     } catch (error) {
-      setError(error.message || 'Registration failed. Please try again.')
+      setError(translateError(error.message, t) || t('registrationFailed'))
     } finally {
       setLoading(false)
     }
@@ -59,6 +68,9 @@ const Register = () => {
 
   return (
     <ThemedView style={styles.container}>
+      <View style={styles.languageDropdown}>
+        <LanguagePicker variant="dropdown" />
+      </View>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
@@ -73,29 +85,30 @@ const Register = () => {
 
           <Spacer height={30} />
           <ThemedText variant="h1" title={true} style={styles.title}>
-            Create an Account
+            {t('createAccountTitle')}
           </ThemedText>
 
           <ThemedText variant="body" style={styles.subtitle}>
-            Join the conversation on issues that matter
+            {t('createAccountSubtitle')}
           </ThemedText>
 
           <Spacer height={24} />
           <View style={styles.formContainer}>
             <ThemedTextInput
               style={styles.input}
-              placeholder="Username"
+              placeholder={t('usernamePlaceholder')}
               value={username}
               onChangeText={setUsername}
               autoCapitalize="none"
               autoCorrect={false}
               autoComplete="username-new"
               returnKeyType="next"
+              onFocus={handleInputFocus}
             />
 
             <ThemedTextInput
               style={styles.input}
-              placeholder="Email"
+              placeholder={t('emailPlaceholder')}
               value={email}
               onChangeText={setEmail}
               autoCapitalize="none"
@@ -103,11 +116,12 @@ const Register = () => {
               autoComplete="email"
               keyboardType="email-address"
               returnKeyType="next"
+              onFocus={handleInputFocus}
             />
 
             <ThemedTextInput
               style={styles.input}
-              placeholder="Password (min 8 characters)"
+              placeholder={t('passwordMinPlaceholder')}
               value={password}
               onChangeText={setPassword}
               secureTextEntry
@@ -115,12 +129,13 @@ const Register = () => {
               autoComplete="password-new"
               returnKeyType="done"
               onSubmitEditing={handleRegister}
+              onFocus={handleInputFocus}
             />
 
             <Spacer height={8} />
             <ThemedButton onPress={handleRegister} disabled={loading} style={styles.button}>
               <ThemedText variant="button" color="inverse">
-                {loading ? 'Creating Account...' : 'Create Account'}
+                {loading ? t('creatingAccount') : t('createAccount')}
               </ThemedText>
             </ThemedButton>
           </View>
@@ -135,9 +150,10 @@ const Register = () => {
           <Spacer height={24} />
           <Link href="/login" replace>
             <ThemedText variant="bodySmall" color="secondary">
-              Already have an account? <ThemedText variant="buttonSmall" color="primary">Sign In</ThemedText>
+              {t('hasAccount')} <ThemedText variant="buttonSmall" color="primary">{t('signInLink')}</ThemedText>
             </ThemedText>
           </Link>
+
           <Spacer height={40} />
         </ScrollView>
       </KeyboardAvoidingView>
@@ -151,6 +167,12 @@ const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  languageDropdown: {
+    position: 'absolute',
+    top: 12,
+    right: 16,
+    zIndex: 10,
   },
   keyboardView: {
     flex: 1,
@@ -200,8 +222,6 @@ const createStyles = (colors) => StyleSheet.create({
   },
   button: {
     width: "100%",
-    paddingVertical: 16,
-    borderRadius: 12,
   },
   errorContainer: {
     height: 60,

@@ -4,10 +4,11 @@ import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
+import { useTranslation } from 'react-i18next'
 import { SemanticColors } from '../../constants/Colors'
 import { Typography } from '../../constants/Theme'
 import { useThemeColors } from '../../hooks/useThemeColors'
-import api from '../../lib/api'
+import api, { translateError } from '../../lib/api'
 import { useUser } from '../../hooks/useUser'
 
 import ThemedText from '../../components/ThemedText'
@@ -17,11 +18,13 @@ import Spacer from '../../components/Spacer'
 import Avatar from '../../components/Avatar'
 import ImageCropModal from '../../components/ImageCropModal'
 import LocationPicker from '../../components/LocationPicker'
+import LanguagePicker from '../../components/LanguagePicker'
 
 export default function SetupProfile() {
   const { user, refreshUser, clearNewUser } = useUser()
   const router = useRouter()
 
+  const { t } = useTranslation('auth')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
 
@@ -49,7 +52,7 @@ export default function SetupProfile() {
   const handlePickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
     if (status !== 'granted') {
-      Alert.alert('Permission Required', 'We need access to your photo library to upload an avatar.')
+      Alert.alert(t('permissionRequired'), t('photoLibraryPermission'))
       return
     }
 
@@ -74,7 +77,7 @@ export default function SetupProfile() {
       const response = await api.users.uploadAvatar(croppedBase64)
       setAvatarUrl(response.avatarUrl)
     } catch (err) {
-      Alert.alert('Upload Failed', err.message || 'Failed to upload avatar.')
+      Alert.alert(t('uploadFailed'), translateError(err.message, t) || t('uploadFailedMessage'))
     } finally {
       setUploadingAvatar(false)
     }
@@ -92,7 +95,7 @@ export default function SetupProfile() {
       setUserLocations(updatedLocations || [])
       setLocationPickerOpen(false)
     } catch (err) {
-      setError(err.message || 'Failed to set location')
+      setError(translateError(err.message, t) || t('locationFailed'))
     } finally {
       setSavingLocation(false)
     }
@@ -112,7 +115,7 @@ export default function SetupProfile() {
       clearNewUser()
       router.replace('/cards')
     } catch (err) {
-      setError(err.message || 'Failed to save profile')
+      setError(translateError(err.message, t) || t('profileSaveFailed'))
     } finally {
       setSaving(false)
     }
@@ -135,10 +138,10 @@ export default function SetupProfile() {
         >
           <Spacer height={40} />
           <ThemedText variant="h1" title={true} style={styles.title}>
-            Welcome to Candid!
+            {t('setupTitle')}
           </ThemedText>
           <ThemedText variant="body" style={styles.subtitle}>
-            Set up your profile so others can recognize you
+            {t('setupSubtitle')}
           </ThemedText>
 
           <Spacer height={32} />
@@ -148,6 +151,8 @@ export default function SetupProfile() {
             style={styles.avatarContainer}
             onPress={handlePickImage}
             disabled={uploadingAvatar}
+            accessibilityRole="button"
+            accessibilityLabel={t('changeAvatarA11y')}
           >
             {uploadingAvatar ? (
               <View style={styles.avatarPlaceholder}>
@@ -164,16 +169,16 @@ export default function SetupProfile() {
               <Ionicons name="camera" size={18} color="#fff" />
             </View>
           </TouchableOpacity>
-          <ThemedText variant="bodySmall" color="secondary" style={styles.avatarHint}>Tap to add a photo</ThemedText>
+          <ThemedText variant="bodySmall" color="secondary" style={styles.avatarHint}>{t('tapAddPhoto')}</ThemedText>
 
           <Spacer height={28} />
 
           {/* Display name */}
           <View style={styles.formContainer}>
-            <ThemedText variant="bodySmall" color="secondary" style={styles.inputLabel}>Display Name</ThemedText>
+            <ThemedText variant="bodySmall" color="secondary" style={styles.inputLabel}>{t('displayNameLabel')}</ThemedText>
             <ThemedTextInput
               style={styles.input}
-              placeholder="How should others see you?"
+              placeholder={t('displayNamePlaceholder')}
               value={displayName}
               onChangeText={setDisplayName}
               autoCapitalize="words"
@@ -185,20 +190,27 @@ export default function SetupProfile() {
 
           {/* Location */}
           <View style={styles.formContainer}>
-            <ThemedText variant="bodySmall" color="secondary" style={styles.inputLabel}>Location</ThemedText>
+            <ThemedText variant="bodySmall" color="secondary" style={styles.inputLabel}>{t('locationLabel')}</ThemedText>
             <TouchableOpacity
               style={styles.locationSelector}
               onPress={() => setLocationPickerOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel={t('selectLocationA11y')}
             >
               {userLocations.length > 0 ? (
                 <ThemedText variant="button" color="primary" style={styles.locationText} numberOfLines={1}>
                   {userLocations.map(loc => loc.name).join(' \u203A ')}
                 </ThemedText>
               ) : (
-                <ThemedText variant="button" color="placeholder" style={styles.locationPlaceholder}>Tap to set your location</ThemedText>
+                <ThemedText variant="button" color="placeholder" style={styles.locationPlaceholder}>{t('locationPlaceholder')}</ThemedText>
               )}
               <Ionicons name="chevron-forward" size={18} color={colors.secondaryText} />
             </TouchableOpacity>
+          </View>
+
+          <Spacer height={20} />
+          <View style={styles.formContainer}>
+            <LanguagePicker />
           </View>
 
           {error && (
@@ -212,12 +224,12 @@ export default function SetupProfile() {
           <View style={styles.buttonContainer}>
             <ThemedButton onPress={handleContinue} disabled={saving} style={styles.continueButton}>
               <ThemedText variant="button" color="inverse">
-                {saving ? 'Saving...' : 'Continue'}
+                {saving ? t('saving') : t('continue')}
               </ThemedText>
             </ThemedButton>
 
-            <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
-              <ThemedText variant="bodySmall" color="secondary">Skip for now</ThemedText>
+            <TouchableOpacity onPress={handleSkip} style={styles.skipButton} accessibilityRole="button" accessibilityLabel={t('skipSetupA11y')}>
+              <ThemedText variant="bodySmall" color="secondary">{t('skipForNow')}</ThemedText>
             </TouchableOpacity>
           </View>
 
@@ -348,8 +360,6 @@ const createStyles = (colors) => StyleSheet.create({
   },
   continueButton: {
     width: '100%',
-    paddingVertical: 16,
-    borderRadius: 12,
   },
   skipButton: {
     marginTop: 16,

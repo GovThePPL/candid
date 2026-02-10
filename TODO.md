@@ -50,9 +50,7 @@
 - Card-based tutorial that walks user through each swipe action
 
 ## Frontend Improvements
-- Search for position on stats page
-- Accessibility
-- Internationalization
+- UGC Translation — runtime translation of user-generated content (positions, chat messages, surveys). See [plan](.claude-plans/2026-02-10_ugc-translation.md)
 
 ## Infrastructure
 - Will eventually need frontend web servers

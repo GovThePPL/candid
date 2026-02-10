@@ -7,6 +7,7 @@ import {
 } from 'react-native'
 import Svg, { Path, G } from 'react-native-svg'
 import { Ionicons } from '@expo/vector-icons'
+import { useTranslation } from 'react-i18next'
 import { SemanticColors } from '../../constants/Colors'
 import { Typography } from '../../constants/Theme'
 import { useThemeColors } from '../../hooks/useThemeColors'
@@ -15,67 +16,67 @@ import BottomDrawerModal from '../BottomDrawerModal'
 import LoadingView from '../LoadingView'
 import EmptyState from '../EmptyState'
 
-// Labels for demographic categories
-const LEAN_LABELS = {
-  very_liberal: 'Very Liberal',
-  liberal: 'Liberal',
-  moderate: 'Moderate',
-  conservative: 'Conservative',
-  very_conservative: 'Very Conservative',
-}
+// Factory functions for demographic labels (require t for i18n)
+const createLeanLabels = (t) => ({
+  very_liberal: t('veryLiberal'),
+  liberal: t('liberal'),
+  moderate: t('moderate'),
+  conservative: t('conservative'),
+  very_conservative: t('veryConservative'),
+})
 
-const EDUCATION_LABELS = {
-  less_than_high_school: 'Less than HS',
-  high_school: 'High School',
-  some_college: 'Some College',
-  associates: 'Associate\'s',
-  bachelors: 'Bachelor\'s',
-  masters: 'Master\'s',
-  doctorate: 'Doctorate',
-  professional: 'Professional',
-}
+const createEducationLabels = (t) => ({
+  less_than_high_school: t('lessHs'),
+  high_school: t('highSchool'),
+  some_college: t('someCollege'),
+  associates: t('associates'),
+  bachelors: t('bachelors'),
+  masters: t('masters'),
+  doctorate: t('doctorate'),
+  professional: t('professional'),
+})
 
-const GEO_LOCALE_LABELS = {
-  urban: 'Urban',
-  suburban: 'Suburban',
-  rural: 'Rural',
-}
+const createGeoLocaleLabels = (t) => ({
+  urban: t('urban'),
+  suburban: t('suburban'),
+  rural: t('rural'),
+})
 
-const SEX_LABELS = {
-  male: 'Male',
-  female: 'Female',
-  other: 'Other',
-}
+const createSexLabels = (t) => ({
+  male: t('male'),
+  female: t('female'),
+  other: t('other'),
+})
 
-const AGE_RANGE_LABELS = {
-  '18-24': '18-24',
-  '25-34': '25-34',
-  '35-44': '35-44',
-  '45-54': '45-54',
-  '55-64': '55-64',
-  '65+': '65+',
-}
+const createAgeRangeLabels = (t) => ({
+  '18-24': t('age1824'),
+  '25-34': t('age2534'),
+  '35-44': t('age3544'),
+  '45-54': t('age4554'),
+  '55-64': t('age5564'),
+  '65+': t('age65plus'),
+})
 
-const RACE_LABELS = {
-  white: 'White',
-  black: 'Black',
-  hispanic: 'Hispanic/Latino',
-  asian: 'Asian',
-  native_american: 'Native American',
-  pacific_islander: 'Pacific Islander',
-  multiracial: 'Multiracial',
-  other: 'Other',
-}
+const createRaceLabels = (t) => ({
+  white: t('white'),
+  black: t('black'),
+  hispanic: t('hispanicLatino'),
+  asian: t('asian'),
+  native_american: t('nativeAmerican'),
+  pacific_islander: t('pacificIslander'),
+  multiracial: t('multiracial'),
+  other: t('other'),
+})
 
-const INCOME_RANGE_LABELS = {
-  under_25k: 'Under $25K',
-  '25k-50k': '$25K-$50K',
-  '50k-75k': '$50K-$75K',
-  '75k-100k': '$75K-$100K',
-  '100k-150k': '$100K-$150K',
-  '150k-200k': '$150K-$200K',
-  over_200k: 'Over $200K',
-}
+const createIncomeRangeLabels = (t) => ({
+  under_25k: t('incomeUnder25k'),
+  '25k-50k': t('income25k50k'),
+  '50k-75k': t('income50k75k'),
+  '75k-100k': t('income75k100k'),
+  '100k-150k': t('income100k150k'),
+  '150k-200k': t('income150k200k'),
+  over_200k: t('incomeOver200k'),
+})
 
 // Sort orders for ordinal demographics
 const EDUCATION_ORDER = [
@@ -231,13 +232,13 @@ const legendStyles = StyleSheet.create({
  * @param {number} total - Total count
  * @param {Array} sortOrder - Optional array of keys in desired order
  */
-function DemographicSection({ title, data, labels, total, sortOrder }) {
+function DemographicSection({ title, data, labels, total, sortOrder, noDataText }) {
   const entries = Object.entries(data || {})
   if (entries.length === 0) {
     return (
       <View style={{ marginBottom: 24 }}>
         <ThemedText variant="h3" style={{ marginBottom: 12 }}>{title}</ThemedText>
-        <ThemedText variant="bodySmall" color="secondary" style={{ fontStyle: 'italic' }}>No data available</ThemedText>
+        <ThemedText variant="bodySmall" color="secondary" style={{ fontStyle: 'italic' }}>{noDataText}</ThemedText>
       </View>
     )
   }
@@ -301,8 +302,17 @@ export default function GroupDemographicsModal({
   labelRankings,
   fetchDemographics,
 }) {
+  const { t } = useTranslation('stats')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
+
+  const LEAN_LABELS = useMemo(() => createLeanLabels(t), [t])
+  const EDUCATION_LABELS = useMemo(() => createEducationLabels(t), [t])
+  const GEO_LOCALE_LABELS = useMemo(() => createGeoLocaleLabels(t), [t])
+  const SEX_LABELS = useMemo(() => createSexLabels(t), [t])
+  const AGE_RANGE_LABELS = useMemo(() => createAgeRangeLabels(t), [t])
+  const RACE_LABELS = useMemo(() => createRaceLabels(t), [t])
+  const INCOME_RANGE_LABELS = useMemo(() => createIncomeRangeLabels(t), [t])
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -322,7 +332,7 @@ export default function GroupDemographicsModal({
       setData(result)
     } catch (err) {
       console.error('Error fetching demographics:', err)
-      setError(err.message || 'Failed to load demographics')
+      setError(err.message || t('failedLoadDemographics'))
     } finally {
       setLoading(false)
     }
@@ -336,31 +346,31 @@ export default function GroupDemographicsModal({
     <BottomDrawerModal
       visible={visible}
       onClose={onClose}
-      title={`${groupId === 'all' ? 'All Groups' : `Group ${displayLabel}`} Demographics`}
-      subtitle={`${respondentCount} of ${memberCount} members have demographic data`}
+      title={groupId === 'all' ? t('allGroupsDemographics') : t('groupDemographics', { label: displayLabel })}
+      subtitle={t('respondentCount', { respondents: respondentCount, members: memberCount })}
     >
           {/* Content */}
           {loading ? (
-            <LoadingView message="Loading demographics..." />
+            <LoadingView message={t('loadingDemographics')} />
           ) : error ? (
             <View style={styles.errorContainer}>
               <Ionicons name="alert-circle-outline" size={48} color={SemanticColors.disagree} />
               <ThemedText variant="bodySmall" style={styles.errorText}>{error}</ThemedText>
-              <TouchableOpacity style={styles.retryButton} onPress={loadDemographics}>
-                <ThemedText variant="buttonSmall" color="inverse">Retry</ThemedText>
+              <TouchableOpacity style={styles.retryButton} onPress={loadDemographics} accessibilityRole="button" accessibilityLabel={t('common:retry')}>
+                <ThemedText variant="buttonSmall" color="inverse">{t('common:retry')}</ThemedText>
               </TouchableOpacity>
             </View>
           ) : respondentCount === 0 ? (
             <EmptyState
               icon="people-outline"
-              title="No demographic data available for this group yet."
+              title={t('noDemographicData')}
             />
           ) : (
             <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
               {/* Group Identity Rankings */}
               {labelRankings && labelRankings.length > 0 && (
                 <View style={styles.section}>
-                  <ThemedText variant="h3" style={styles.sectionTitle}>Group Identity</ThemedText>
+                  <ThemedText variant="h3" style={styles.sectionTitle}>{t('groupIdentitySection')}</ThemedText>
                   <View style={styles.identityRankingList}>
                     {labelRankings.map((item, index) => (
                       <View
@@ -388,49 +398,56 @@ export default function GroupDemographicsModal({
                 </View>
               )}
               <DemographicSection
-                title="Political Lean"
+                title={t('politicalLean')}
                 data={data?.lean}
                 labels={LEAN_LABELS}
                 total={respondentCount}
+                noDataText={t('noDataAvailable')}
               />
               <DemographicSection
-                title="Education"
+                title={t('education')}
                 data={data?.education}
                 labels={EDUCATION_LABELS}
                 total={respondentCount}
                 sortOrder={EDUCATION_ORDER}
+                noDataText={t('noDataAvailable')}
               />
               <DemographicSection
-                title="Geographic Location"
+                title={t('geographicLocation')}
                 data={data?.geoLocale}
                 labels={GEO_LOCALE_LABELS}
                 total={respondentCount}
+                noDataText={t('noDataAvailable')}
               />
               <DemographicSection
-                title="Sex"
+                title={t('sex')}
                 data={data?.sex}
                 labels={SEX_LABELS}
                 total={respondentCount}
+                noDataText={t('noDataAvailable')}
               />
               <DemographicSection
-                title="Age"
+                title={t('age')}
                 data={data?.ageRange}
                 labels={AGE_RANGE_LABELS}
                 total={respondentCount}
                 sortOrder={AGE_RANGE_ORDER}
+                noDataText={t('noDataAvailable')}
               />
               <DemographicSection
-                title="Race/Ethnicity"
+                title={t('raceEthnicity')}
                 data={data?.race}
                 labels={RACE_LABELS}
                 total={respondentCount}
+                noDataText={t('noDataAvailable')}
               />
               <DemographicSection
-                title="Income"
+                title={t('income')}
                 data={data?.incomeRange}
                 labels={INCOME_RANGE_LABELS}
                 total={respondentCount}
                 sortOrder={INCOME_RANGE_ORDER}
+                noDataText={t('noDataAvailable')}
               />
               <View style={styles.bottomPadding} />
             </ScrollView>

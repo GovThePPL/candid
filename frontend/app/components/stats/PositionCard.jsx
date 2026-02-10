@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { View, StyleSheet, TouchableOpacity } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { useTranslation } from 'react-i18next'
 import { SemanticColors, BrandColor } from '../../constants/Colors'
 import { Typography } from '../../constants/Theme'
 import { useThemeColors } from '../../hooks/useThemeColors'
@@ -20,6 +21,7 @@ import PositionInfoCard from '../PositionInfoCard'
  * @param {Function} props.onViewClosures - Optional callback when View Closures is pressed
  */
 export default function PositionCard({ position, groups = [], activeGroup, userVote, onViewClosures }) {
+  const { t } = useTranslation('stats')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
 
@@ -69,7 +71,7 @@ export default function PositionCard({ position, groups = [], activeGroup, userV
 
   // Build list of bars to show: "All Users" + each group
   const bars = [
-    { id: 'all', label: 'All', customLabel: null, distribution: voteDistribution },
+    { id: 'all', label: t('all'), customLabel: null, distribution: voteDistribution },
     ...groups.map(g => ({
       id: g.id,
       label: g.label,
@@ -84,19 +86,19 @@ export default function PositionCard({ position, groups = [], activeGroup, userV
       {userVote === 'agree' && (
         <View style={styles.agreedBadge}>
           <Ionicons name="checkmark" size={12} color="#FFFFFF" />
-          <ThemedText variant="badge" color="inverse" style={styles.badgeText}>You Agreed</ThemedText>
+          <ThemedText variant="badge" color="inverse" style={styles.badgeText}>{t('youAgreed')}</ThemedText>
         </View>
       )}
       {userVote === 'disagree' && (
         <View style={styles.disagreedBadge}>
           <Ionicons name="close" size={12} color="#FFFFFF" />
-          <ThemedText variant="badge" color="inverse" style={styles.badgeText}>You Disagreed</ThemedText>
+          <ThemedText variant="badge" color="inverse" style={styles.badgeText}>{t('youDisagreed')}</ThemedText>
         </View>
       )}
       {userVote === 'pass' && (
         <View style={styles.passedBadge}>
           <Ionicons name="remove" size={12} color={colors.secondaryText} />
-          <ThemedText variant="badge" color="secondary" style={styles.badgeText}>You Passed</ThemedText>
+          <ThemedText variant="badge" color="secondary" style={styles.badgeText}>{t('youPassed')}</ThemedText>
         </View>
       )}
     </View>
@@ -116,9 +118,9 @@ export default function PositionCard({ position, groups = [], activeGroup, userV
               <Ionicons name="checkmark-circle" size={20} color={SemanticColors.agree} />
               <ThemedText variant="label" style={styles.definingText}>
                 <ThemedText variant="label" color="agree" style={styles.definingPercent}>{agreePercent}%</ThemedText>
-                {activeGroup === 'majority'
-                  ? ' of all users who voted on this statement agreed.'
-                  : ` of those in Group ${activeGroupLabel} who voted on this statement agreed.`}
+                {' '}{activeGroup === 'majority'
+                  ? t('agreeExplainAll')
+                  : t('agreeExplainGroup', { label: activeGroupLabel })}
               </ThemedText>
             </View>
           ) : (
@@ -126,9 +128,9 @@ export default function PositionCard({ position, groups = [], activeGroup, userV
               <Ionicons name="close-circle" size={20} color={SemanticColors.disagree} />
               <ThemedText variant="label" style={styles.definingText}>
                 <ThemedText variant="label" color="disagree" style={styles.definingPercent}>{disagreePercent}%</ThemedText>
-                {activeGroup === 'majority'
-                  ? ' of all users who voted on this statement disagreed.'
-                  : ` of those in Group ${activeGroupLabel} who voted on this statement disagreed.`}
+                {' '}{activeGroup === 'majority'
+                  ? t('disagreeExplainAll')
+                  : t('disagreeExplainGroup', { label: activeGroupLabel })}
               </ThemedText>
             </View>
           )}
@@ -153,7 +155,7 @@ export default function PositionCard({ position, groups = [], activeGroup, userV
                     isAllUsers && styles.allUsersLabel,
                     isActive && !isAllUsers && styles.groupLabelActive
                   ]}>
-                    {isAllUsers ? 'All' : bar.label}
+                    {isAllUsers ? t('all') : bar.label}
                   </ThemedText>
                   {bar.customLabel ? (
                     <ThemedText variant="caption" style={[
@@ -192,15 +194,15 @@ export default function PositionCard({ position, groups = [], activeGroup, userV
             <View style={styles.legend}>
               <View style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: SemanticColors.agree }]} />
-                <ThemedText variant="caption" style={styles.legendLabel}>Agree</ThemedText>
+                <ThemedText variant="caption" style={styles.legendLabel}>{t('agree')}</ThemedText>
               </View>
               <View style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: SemanticColors.disagree }]} />
-                <ThemedText variant="caption" style={styles.legendLabel}>Disagree</ThemedText>
+                <ThemedText variant="caption" style={styles.legendLabel}>{t('disagree')}</ThemedText>
               </View>
               <View style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: colors.pass }]} />
-                <ThemedText variant="caption" style={styles.legendLabel}>Pass</ThemedText>
+                <ThemedText variant="caption" style={styles.legendLabel}>{t('pass')}</ThemedText>
               </View>
             </View>
           </View>
@@ -214,7 +216,7 @@ export default function PositionCard({ position, groups = [], activeGroup, userV
           onPress={() => onViewClosures(position.id)}
         >
           <Ionicons name="chatbubbles-outline" size={14} color="#FFFFFF" />
-          <ThemedText variant="badgeLg" color="inverse" style={styles.viewClosuresText}>View Closures</ThemedText>
+          <ThemedText variant="badgeLg" color="inverse" style={styles.viewClosuresText}>{t('viewClosures')}</ThemedText>
           <Ionicons name="chevron-forward" size={14} color="#FFFFFF" />
         </TouchableOpacity>
       )}

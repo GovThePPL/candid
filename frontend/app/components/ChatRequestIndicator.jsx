@@ -1,5 +1,6 @@
 import { StyleSheet, View, TouchableOpacity, Animated, Platform, Modal } from 'react-native'
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
 import Svg, { Circle, G } from 'react-native-svg'
 import { useThemeColors } from '../hooks/useThemeColors'
@@ -30,6 +31,7 @@ import Avatar from './Avatar'
  * @param {Function} onCancel - Called when user confirms cancellation
  */
 export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCancel }) {
+  const { t } = useTranslation()
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const shared = useMemo(() => createSharedStyles(colors), [colors])
@@ -162,8 +164,10 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
         activeOpacity={0.8}
         style={styles.touchable}
         accessibilityRole="button"
-        accessibilityLabel={`Chat request ${isDeclined ? 'declined' : 'pending'} with ${author?.displayName || 'user'}${!isDeclined ? `, ${remainingSeconds} seconds remaining` : ''}`}
-        accessibilityHint={isDeclined ? undefined : 'Tap to cancel this chat request'}
+        accessibilityLabel={isDeclined
+          ? t('chatRequestDeclinedLabel', { name: author?.displayName || 'user' })
+          : t('chatRequestPendingLabel', { name: author?.displayName || 'user', seconds: remainingSeconds })}
+        accessibilityHint={isDeclined ? undefined : t('cancelChatHint')}
       >
         <Animated.View style={[styles.wrapper, { transform: [{ scale: scaleAnim }] }]}>
           {/* Author avatar */}
@@ -227,7 +231,7 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
 
       {/* Cancel confirmation modal */}
       <Modal visible={showCancelModal} transparent animationType="fade" onRequestClose={() => setShowCancelModal(false)}>
-        <TouchableOpacity style={shared.modalOverlay} activeOpacity={1} onPress={() => setShowCancelModal(false)}>
+        <TouchableOpacity style={shared.modalOverlay} activeOpacity={1} onPress={() => setShowCancelModal(false)} accessibilityRole="button" accessibilityLabel={t('dismissModal')}>
           <TouchableOpacity activeOpacity={1} style={shared.modalContent}>
             {/* Card in stats page style: white on purple */}
             <CardShell
@@ -235,7 +239,7 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
               bottomSection={
                 <View style={styles.pendingRow}>
                   <Ionicons name="chatbubble" size={14} color="#FFFFFF" />
-                  <ThemedText variant="label" color="inverse">Chat request pending</ThemedText>
+                  <ThemedText variant="label" color="inverse">{t('chatRequestPending')}</ThemedText>
                 </View>
               }
               bottomStyle={styles.cardPurpleBottom}
@@ -251,24 +255,24 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
               />
             </CardShell>
 
-            <ThemedText variant="h3" style={styles.modalQuestion}>Cancel this chat request?</ThemedText>
+            <ThemedText variant="h3" style={styles.modalQuestion}>{t('cancelChatRequestPrompt')}</ThemedText>
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={styles.keepButton}
                 onPress={() => setShowCancelModal(false)}
                 accessibilityRole="button"
-                accessibilityLabel="Keep Waiting"
+                accessibilityLabel={t('keepWaiting')}
               >
-                <ThemedText variant="buttonSmall" color="inverse">Keep Waiting</ThemedText>
+                <ThemedText variant="buttonSmall" color="inverse">{t('keepWaiting')}</ThemedText>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.cancelButton}
                 onPress={handleConfirmCancel}
                 accessibilityRole="button"
-                accessibilityLabel="Cancel Request"
+                accessibilityLabel={t('cancelRequest')}
               >
-                <ThemedText variant="buttonSmall" color="disagree">Cancel Request</ThemedText>
+                <ThemedText variant="buttonSmall" color="disagree">{t('cancelRequest')}</ThemedText>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>

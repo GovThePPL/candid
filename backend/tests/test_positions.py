@@ -1,5 +1,6 @@
 """Tests for GET /positions/{positionId}, POST /positions, POST /positions/response,
-POST /positions/{positionId}/adopt, POST /positions/search, GET /positions/{positionId}/agreed-closures."""
+POST /positions/{positionId}/adopt, POST /positions/search,
+GET /positions/{positionId}/agreed-closures, POST /positions/search-stats."""
 
 import pytest
 import requests
@@ -249,5 +250,107 @@ class TestGetPositionAgreedClosures:
         """Unauthenticated request returns 401."""
         resp = requests.get(
             f"{POSITIONS_URL}/{POSITION1_ID}/agreed-closures",
+        )
+        assert resp.status_code == 401
+
+
+class TestSearchStatsPositions:
+    """POST /positions/search-stats"""
+
+    SEARCH_URL = f"{POSITIONS_URL}/search-stats"
+
+    def test_short_query_uses_text_search(self, normal_headers):
+        """Short query (< 3 words) uses text search, matches by substring."""
+        resp = requests.post(
+            self.SEARCH_URL,
+            headers=normal_headers,
+            json={"query": "healthcare", "locationId": OREGON_LOCATION_ID},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "results" in body
+        assert "hasMore" in body
+        assert isinstance(body["results"], list)
+        assert len(body["results"]) >= 1
+        for pos in body["results"]:
+            assert "healthcare" in pos["statement"].lower()
+
+    def test_result_shape(self, normal_headers):
+        """Results have GroupPosition-compatible fields."""
+        resp = requests.post(
+            self.SEARCH_URL,
+            headers=normal_headers,
+            json={"query": "healthcare", "locationId": OREGON_LOCATION_ID},
+        )
+        assert resp.status_code == 200
+        pos = resp.json()["results"][0]
+        for field in ("id", "statement", "voteDistribution", "totalVotes",
+                      "groupVotes", "closureCount"):
+            assert field in pos, f"Missing field: {field}"
+        dist = pos["voteDistribution"]
+        assert "agree" in dist
+        assert "disagree" in dist
+        assert "pass" in dist
+
+    def test_no_matches_returns_empty(self, normal_headers):
+        """Query with no matches returns empty results."""
+        resp = requests.post(
+            self.SEARCH_URL,
+            headers=normal_headers,
+            json={"query": "xyznonexistent", "locationId": OREGON_LOCATION_ID},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["results"] == []
+        assert body["hasMore"] is False
+
+    def test_long_query_uses_semantic_search(self, normal_headers):
+        """Long query (>= 3 words) tries semantic search (or falls back to text)."""
+        resp = requests.post(
+            self.SEARCH_URL,
+            headers=normal_headers,
+            json={"query": "government run healthcare systems",
+                   "locationId": OREGON_LOCATION_ID},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "results" in body
+        assert isinstance(body["results"], list)
+
+    def test_query_too_short_400(self, normal_headers):
+        """Query shorter than 2 chars returns 400."""
+        resp = requests.post(
+            self.SEARCH_URL,
+            headers=normal_headers,
+            json={"query": "x", "locationId": OREGON_LOCATION_ID},
+        )
+        assert resp.status_code == 400
+
+    def test_missing_location_400(self, normal_headers):
+        """Missing locationId returns 400."""
+        resp = requests.post(
+            self.SEARCH_URL,
+            headers=normal_headers,
+            json={"query": "healthcare"},
+        )
+        assert resp.status_code == 400
+
+    def test_pagination(self, normal_headers):
+        """Limit and offset parameters work."""
+        resp = requests.post(
+            self.SEARCH_URL,
+            headers=normal_headers,
+            json={"query": "should", "locationId": OREGON_LOCATION_ID,
+                   "limit": 2, "offset": 0},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert len(body["results"]) <= 2
+
+    def test_unauthenticated_returns_401(self):
+        """Unauthenticated request returns 401."""
+        resp = requests.post(
+            self.SEARCH_URL,
+            json={"query": "healthcare", "locationId": OREGON_LOCATION_ID},
         )
         assert resp.status_code == 401

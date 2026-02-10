@@ -1,6 +1,7 @@
 import { StyleSheet, View } from 'react-native'
 import { forwardRef, useMemo } from 'react'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
+import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { BrandColor, OnBrandColors, SemanticColors } from '../../constants/Colors'
 import ThemedText from '../ThemedText'
@@ -18,6 +19,7 @@ const KudosCard = forwardRef(function KudosCard({
   isBackCard,
   backCardAnimatedValue,
 }, ref) {
+  const { t } = useTranslation('cards')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const { otherParticipant, position, closingStatement, userAlreadySentKudos } = kudos
@@ -38,12 +40,12 @@ const KudosCard = forwardRef(function KudosCard({
       {/* Title and Subtitle */}
       <View style={styles.titleContainer}>
         <ThemedText variant="statement" color="inverse" style={styles.headerTitle}>
-          {userAlreadySentKudos ? 'Kudos Received!' : 'You Received Kudos!'}
+          {userAlreadySentKudos ? t('kudosReceived') : t('kudosYouReceived')}
         </ThemedText>
         <ThemedText variant="button" style={styles.headerSubtext}>
           {userAlreadySentKudos
-            ? 'Swipe to acknowledge'
-            : 'Swipe right to send kudos back'}
+            ? t('kudosAcknowledge')
+            : t('kudosSendBack')}
         </ThemedText>
       </View>
     </View>
@@ -54,12 +56,12 @@ const KudosCard = forwardRef(function KudosCard({
       {/* Sender info */}
       <View style={styles.senderRow}>
         <ThemedText variant="badgeLg" style={styles.footerLabel}>
-          {userAlreadySentKudos ? 'Kudos from' : 'Sent by'}
+          {userAlreadySentKudos ? t('kudosFrom') : t('kudosSentBy')}
         </ThemedText>
         <Avatar user={otherParticipant} size="sm" showKudosCount badgePosition="bottom-left" />
         <View style={styles.senderInfo}>
-          <ThemedText variant="buttonSmall" color="inverse">{otherParticipant?.displayName || 'Anonymous'}</ThemedText>
-          <ThemedText variant="caption" style={styles.senderUsername}>@{otherParticipant?.username || 'anonymous'}</ThemedText>
+          <ThemedText variant="buttonSmall" color="inverse">{otherParticipant?.displayName || t('anonymous')}</ThemedText>
+          <ThemedText variant="caption" style={styles.senderUsername}>@{otherParticipant?.username || t('anonymousUsername')}</ThemedText>
         </View>
       </View>
 
@@ -84,8 +86,8 @@ const KudosCard = forwardRef(function KudosCard({
       leftSwipeAsPass={true}
       isBackCard={isBackCard}
       backCardAnimatedValue={backCardAnimatedValue}
-      accessibilityLabel={`Kudos from ${otherParticipant?.displayName || 'Anonymous'}`}
-      accessibilityHint={userAlreadySentKudos ? 'Swipe to acknowledge' : 'Swipe right to send kudos back, left to dismiss'}
+      accessibilityLabel={t('kudosA11yLabel', { name: otherParticipant?.displayName || t('anonymous') })}
+      accessibilityHint={userAlreadySentKudos ? t('kudosA11yHintAcknowledge') : t('kudosA11yHintSendBack')}
     >
       <CardShell
         size="full"

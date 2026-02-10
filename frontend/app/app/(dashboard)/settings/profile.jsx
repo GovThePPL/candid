@@ -4,10 +4,11 @@ import { useFocusEffect, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
+import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../../hooks/useThemeColors'
 import { SemanticColors } from '../../../constants/Colors'
 import { createSharedStyles } from '../../../constants/SharedStyles'
-import api from '../../../lib/api'
+import api, { translateError } from '../../../lib/api'
 import { useUser } from '../../../hooks/useUser'
 import { CacheManager, CacheKeys, CacheDurations } from '../../../lib/cache'
 
@@ -18,6 +19,7 @@ import Avatar from '../../../components/Avatar'
 import LoadingView from '../../../components/LoadingView'
 
 export default function ProfileSettings() {
+  const { t } = useTranslation('settings')
   const { user, refreshUser } = useUser()
   const router = useRouter()
   const colors = useThemeColors()
@@ -84,7 +86,7 @@ export default function ProfileSettings() {
       }, 100)
     } catch (err) {
       console.error('Failed to fetch profile:', err)
-      setError(err.message || 'Failed to load profile')
+      setError(translateError(err.message, t) || t('failedLoadProfile'))
     } finally {
       setLoading(false)
     }
@@ -127,7 +129,7 @@ export default function ProfileSettings() {
       setHasProfileChanges(false)
     } catch (err) {
       console.error('Failed to save profile:', err)
-      setError(err.message || 'Failed to save profile')
+      setError(translateError(err.message, t) || t('failedSaveProfile'))
       setTimeout(() => setError(null), 3000)
     } finally {
       setSavingProfile(false)
@@ -139,7 +141,7 @@ export default function ProfileSettings() {
 
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
     if (status !== 'granted') {
-      Alert.alert('Permission Required', 'We need access to your photo library to upload an avatar.')
+      Alert.alert(t('permissionRequired'), t('photoLibraryPermission'))
       return
     }
 
@@ -184,8 +186,8 @@ export default function ProfileSettings() {
       await refreshUser()
     } catch (err) {
       console.error('Failed to upload avatar:', err)
-      setUploadError(err.message || 'Failed to upload avatar')
-      Alert.alert('Upload Failed', err.message || 'Failed to upload avatar. Please try again.')
+      setUploadError(translateError(err.message, t) || t('failedUploadAvatar'))
+      Alert.alert(t('uploadFailed'), translateError(err.message, t) || t('uploadFailedMessage'))
     } finally {
       setUploadingAvatar(false)
     }
@@ -205,7 +207,7 @@ export default function ProfileSettings() {
       await refreshUser()
     } catch (err) {
       console.error('Failed to remove avatar:', err)
-      setError(err.message || 'Failed to remove avatar')
+      setError(translateError(err.message, t) || t('failedRemoveAvatar'))
       setTimeout(() => setError(null), 3000)
     } finally {
       setSaving(false)
@@ -213,7 +215,7 @@ export default function ProfileSettings() {
   }
 
   const formatJoinDate = (dateStr) => {
-    if (!dateStr) return 'Unknown'
+    if (!dateStr) return t('unknownDate')
     const date = new Date(dateStr)
     return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
   }
@@ -222,7 +224,7 @@ export default function ProfileSettings() {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <Header onBack={() => router.back()} />
-        <LoadingView message="Loading profile..." />
+        <LoadingView message={t('loadingProfile')} />
       </SafeAreaView>
     )
   }
@@ -233,7 +235,7 @@ export default function ProfileSettings() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.pageHeader}>
           <ThemedText variant="h1" title={true} style={styles.pageTitle}>
-            Profile
+            {t('profile')}
           </ThemedText>
         </View>
 
@@ -250,13 +252,15 @@ export default function ProfileSettings() {
             <TouchableOpacity
               style={styles.avatarContainer}
               onPress={() => setAvatarModalOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel={t('changeAvatarA11y')}
             >
               <Avatar user={{ ...profile, displayName, avatarUrl }} size={100} showKudosBadge={false} />
               <View style={styles.avatarEditBadge}>
                 <Ionicons name="camera" size={16} color="#fff" />
               </View>
             </TouchableOpacity>
-            <ThemedText variant="bodySmall" color="secondary" style={styles.avatarHint}>{`Tap to change avatar`}</ThemedText>
+            <ThemedText variant="bodySmall" color="secondary" style={styles.avatarHint}>{t('tapChangeAvatar')}</ThemedText>
           </View>
         </View>
 
@@ -264,18 +268,19 @@ export default function ProfileSettings() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="person-outline" size={22} color={colors.primary} />
-            <ThemedText variant="h2" color="dark">Basic Information</ThemedText>
+            <ThemedText variant="h2" color="dark">{t('basicInformation')}</ThemedText>
           </View>
 
           <View style={styles.inputGroup}>
-            <ThemedText variant="bodySmall" color="secondary" style={styles.inputLabel}>Display Name</ThemedText>
+            <ThemedText variant="bodySmall" color="secondary" style={styles.inputLabel}>{t('displayNameLabel')}</ThemedText>
             <TextInput
               style={styles.textInput}
               value={displayName}
               onChangeText={handleProfileFieldChange(setDisplayName)}
-              placeholder="Your display name"
+              placeholder={t('displayNamePlaceholder')}
               placeholderTextColor={colors.placeholderText}
               maxFontSizeMultiplier={1.5}
+              accessibilityLabel={t('displayNameA11y')}
             />
           </View>
 
@@ -284,22 +289,25 @@ export default function ProfileSettings() {
               style={[styles.saveProfileButton, savingProfile && styles.buttonDisabled]}
               onPress={handleSaveProfile}
               disabled={savingProfile}
+              accessibilityRole="button"
+              accessibilityLabel={t('saveProfileA11y')}
+              accessibilityState={{ disabled: savingProfile }}
             >
               {savingProfile ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <ThemedText variant="button" color="inverse">Save Changes</ThemedText>
+                <ThemedText variant="button" color="inverse">{t('saveChanges')}</ThemedText>
               )}
             </TouchableOpacity>
           )}
 
           <View style={styles.inputGroup}>
-            <ThemedText variant="bodySmall" color="secondary" style={styles.inputLabel}>Username</ThemedText>
+            <ThemedText variant="bodySmall" color="secondary" style={styles.inputLabel}>{t('usernameLabel')}</ThemedText>
             <ThemedText variant="button" color="secondary" style={styles.readOnlyValue}>@{profile?.username}</ThemedText>
           </View>
 
           <View style={styles.inputGroup}>
-            <ThemedText variant="bodySmall" color="secondary" style={styles.inputLabel}>Member Since</ThemedText>
+            <ThemedText variant="bodySmall" color="secondary" style={styles.inputLabel}>{t('memberSinceLabel')}</ThemedText>
             <ThemedText variant="button" color="secondary" style={styles.readOnlyValue}>{formatJoinDate(profile?.joinTime)}</ThemedText>
           </View>
         </View>
@@ -318,11 +326,11 @@ export default function ProfileSettings() {
         <Pressable style={shared.modalOverlay} onPress={() => {
           setCroppedImagePreview(null)
           setAvatarModalOpen(false)
-        }}>
+        }} accessibilityRole="button" accessibilityLabel={t('common:dismissModal')}>
           <Pressable style={styles.avatarModalContent} onPress={(e) => e.stopPropagation()}>
             {croppedImagePreview ? (
               <>
-                <ThemedText variant="h2" color="dark" style={styles.modalTitle}>Preview Avatar</ThemedText>
+                <ThemedText variant="h2" color="dark" style={styles.modalTitle}>{t('previewAvatar')}</ThemedText>
 
                 <View style={styles.previewContainer}>
                   <Image
@@ -336,37 +344,43 @@ export default function ProfileSettings() {
                     style={styles.previewCancelButton}
                     onPress={handleCancelPreview}
                     disabled={uploadingAvatar}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('cancelPreviewA11y')}
                   >
-                    <ThemedText variant="button" color="secondary">Cancel</ThemedText>
+                    <ThemedText variant="button" color="secondary">{t('cancel')}</ThemedText>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.previewAcceptButton, uploadingAvatar && styles.buttonDisabled]}
                     onPress={handleAcceptAvatar}
                     disabled={uploadingAvatar}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('acceptAvatarA11y')}
                   >
                     {uploadingAvatar ? (
                       <ActivityIndicator color="#fff" size="small" />
                     ) : (
-                      <ThemedText variant="button" color="inverse">Accept</ThemedText>
+                      <ThemedText variant="button" color="inverse">{t('accept')}</ThemedText>
                     )}
                   </TouchableOpacity>
                 </View>
               </>
             ) : (
               <>
-                <ThemedText variant="h2" color="dark" style={styles.modalTitle}>Choose Avatar</ThemedText>
+                <ThemedText variant="h2" color="dark" style={styles.modalTitle}>{t('chooseAvatar')}</ThemedText>
 
                 <TouchableOpacity
                   style={styles.uploadPhotoButton}
                   onPress={handlePickImage}
                   disabled={uploadingAvatar}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('uploadPhotoA11y')}
                 >
                   {uploadingAvatar ? (
                     <ActivityIndicator color="#fff" size="small" />
                   ) : (
                     <>
                       <Ionicons name="camera-outline" size={20} color="#fff" />
-                      <ThemedText variant="button" color="inverse">Upload Photo</ThemedText>
+                      <ThemedText variant="button" color="inverse">{t('uploadPhoto')}</ThemedText>
                     </>
                   )}
                 </TouchableOpacity>
@@ -376,14 +390,16 @@ export default function ProfileSettings() {
                     style={styles.removeAvatarButton}
                     onPress={handleRemoveAvatar}
                     disabled={saving}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('removePhotoA11y')}
                   >
                     <Ionicons name="trash-outline" size={20} color={SemanticColors.warning} />
-                    <ThemedText variant="button" color="error" style={styles.removeAvatarButtonText}>Remove Photo</ThemedText>
+                    <ThemedText variant="button" color="error" style={styles.removeAvatarButtonText}>{t('removePhoto')}</ThemedText>
                   </TouchableOpacity>
                 )}
 
                 <ThemedText variant="caption" color="secondary" style={styles.avatarInfoText}>
-                  Upload a square photo (max 5MB). Images are resized to 256x256.
+                  {t('avatarInfoText')}
                 </ThemedText>
               </>
             )}

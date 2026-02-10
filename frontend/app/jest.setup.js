@@ -58,10 +58,13 @@ jest.mock('react-native-reanimated', () => {
       View,
       ScrollView: View,
     },
-    useSharedValue: jest.fn(() => ({ value: 0 })),
+    useSharedValue: jest.fn((initial) => ({ value: initial })),
     useAnimatedStyle: jest.fn(() => ({})),
     withTiming: jest.fn((v) => v),
     withSpring: jest.fn((v) => v),
+    interpolate: jest.fn((v) => v),
+    runOnJS: jest.fn((fn) => fn),
+    cancelAnimation: jest.fn(),
     FadeIn: { duration: jest.fn(() => ({})) },
     FadeOut: { duration: jest.fn(() => ({})) },
     SlideInRight: {},
@@ -72,16 +75,74 @@ jest.mock('react-native-reanimated', () => {
 // Mock react-native-gesture-handler
 jest.mock('react-native-gesture-handler', () => {
   const { View, TouchableOpacity, ScrollView } = require('react-native')
+  // Chainable gesture builder mock — each method returns `this`
+  const createGestureBuilder = () => {
+    const builder = {}
+    const chainable = [
+      'minDistance', 'onStart', 'onUpdate', 'onEnd', 'onFinalize',
+      'activeOffsetX', 'activeOffsetY', 'failOffsetX', 'failOffsetY',
+      'enabled', 'shouldCancelWhenOutside', 'simultaneousWithExternalGesture',
+      'onBegin', 'onTouchesDown', 'onTouchesMove', 'onTouchesUp', 'onTouchesCancelled',
+    ]
+    chainable.forEach((m) => { builder[m] = jest.fn(() => builder) })
+    return builder
+  }
   return {
     GestureHandlerRootView: View,
+    GestureDetector: ({ children }) => children,
     PanGestureHandler: View,
     TapGestureHandler: View,
     TouchableOpacity,
     ScrollView,
     State: {},
     Directions: {},
+    Gesture: {
+      Pan: jest.fn(createGestureBuilder),
+      Tap: jest.fn(createGestureBuilder),
+      Pinch: jest.fn(createGestureBuilder),
+      Rotation: jest.fn(createGestureBuilder),
+      Fling: jest.fn(createGestureBuilder),
+      LongPress: jest.fn(createGestureBuilder),
+      Race: jest.fn((...gestures) => gestures[0] || createGestureBuilder()),
+      Simultaneous: jest.fn((...gestures) => gestures[0] || createGestureBuilder()),
+      Exclusive: jest.fn((...gestures) => gestures[0] || createGestureBuilder()),
+    },
   }
 })
+
+// Mock expo-localization
+jest.mock('expo-localization', () => ({
+  getLocales: () => [{ languageCode: 'en', languageTag: 'en-US' }],
+  getCalendars: () => [{ calendar: 'gregory', timeZone: 'America/Los_Angeles' }],
+}))
+
+// Mock i18next / react-i18next — t must be a stable reference to avoid
+// infinite re-renders in components that use useMemo(..., [t])
+const mockT = (key, params) => {
+  if (params && typeof params === 'object') {
+    // Include interpolation values so tests can verify dynamic content
+    const values = Object.values(params).filter(v => v != null && v !== '').map(String)
+    return values.length ? key + ' ' + values.join(' ') : key
+  }
+  return key
+}
+const mockI18n = { language: 'en', changeLanguage: jest.fn() }
+jest.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: mockT, i18n: mockI18n }),
+  initReactI18next: { type: '3rdParty', init: jest.fn() },
+  Trans: ({ children }) => children,
+}))
+
+// Mock I18nContext so components using useI18n work outside I18nProvider
+jest.mock('./contexts/I18nContext', () => ({
+  I18nProvider: ({ children }) => children,
+  useI18n: () => ({
+    language: 'en',
+    languagePreference: 'system',
+    setLanguagePreference: jest.fn(),
+  }),
+  SUPPORTED_LANGUAGES: ['en', 'es'],
+}))
 
 // Mock @react-native-async-storage/async-storage
 jest.mock('@react-native-async-storage/async-storage', () => ({

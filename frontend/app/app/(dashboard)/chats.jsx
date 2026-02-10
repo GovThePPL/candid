@@ -2,6 +2,7 @@ import { StyleSheet, View, FlatList, TouchableOpacity, RefreshControl, ActivityI
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useCallback, useState, useEffect, useContext, useRef, useMemo } from 'react'
 import { useRouter } from 'expo-router'
+import { useTranslation } from 'react-i18next'
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { SemanticColors } from '../../constants/Colors'
 import { useThemeColors } from '../../hooks/useThemeColors'
@@ -11,12 +12,12 @@ import EmptyState from '../../components/EmptyState'
 import CardShell from '../../components/CardShell'
 import PositionInfoCard from '../../components/PositionInfoCard'
 import { UserContext } from '../../contexts/UserContext'
-import api from '../../lib/api'
+import api, { translateError } from '../../lib/api'
 import { CacheManager, CacheKeys, CacheDurations } from '../../lib/cache'
 import ReportModal from '../../components/ReportModal'
 import KudosMedallion from '../../components/KudosMedallion'
 
-const formatDate = (dateString) => {
+const formatDate = (dateString, t) => {
   if (!dateString) return ''
   const date = new Date(dateString)
   const now = new Date()
@@ -26,7 +27,7 @@ const formatDate = (dateString) => {
   if (diffDays === 0) {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   } else if (diffDays === 1) {
-    return 'Yesterday'
+    return t('yesterday')
   } else if (diffDays < 7) {
     return date.toLocaleDateString([], { weekday: 'long' })
   } else {
@@ -34,27 +35,27 @@ const formatDate = (dateString) => {
   }
 }
 
-const getEndTypeLabel = (endType, endedByUserId, currentUserId, colors) => {
+const getEndTypeLabel = (endType, endedByUserId, currentUserId, colors, t) => {
   switch (endType) {
     case 'mutual_agreement':
     case 'agreed_closure':
-      return { label: 'Agreed', color: SemanticColors.agree, icon: 'handshake-outline', iconType: 'material-community' }
+      return { label: t('endAgreed'), color: SemanticColors.agree, icon: 'handshake-outline', iconType: 'material-community' }
     case 'disagreement':
-      return { label: 'Disagreed', color: SemanticColors.disagree, icon: 'close-circle' }
+      return { label: t('endDisagreed'), color: SemanticColors.disagree, icon: 'close-circle' }
     case 'timeout':
-      return { label: 'Timed Out', color: colors.pass, icon: 'time' }
+      return { label: t('endTimedOut'), color: colors.pass, icon: 'time' }
     case 'abandoned':
     case 'user_exit':
       if (endedByUserId && currentUserId) {
         if (endedByUserId === currentUserId) {
-          return { label: 'You left', color: colors.pass, icon: 'exit-outline' }
+          return { label: t('endYouLeft'), color: colors.pass, icon: 'exit-outline' }
         } else {
-          return { label: 'They left', color: colors.pass, icon: 'exit-outline' }
+          return { label: t('endTheyLeft'), color: colors.pass, icon: 'exit-outline' }
         }
       }
-      return { label: 'Ended', color: colors.pass, icon: 'exit' }
+      return { label: t('endEnded'), color: colors.pass, icon: 'exit' }
     default:
-      return { label: 'Active', color: colors.primary, icon: 'chatbubbles' }
+      return { label: t('endActive'), color: colors.primary, icon: 'chatbubbles' }
   }
 }
 
@@ -67,8 +68,9 @@ function MetaBadgeIcon({ endTypeInfo }) {
 }
 
 function ChatHistoryCard({ chat, onPress, onSendKudos, onReport, currentUserId, colors, styles }) {
+  const { t } = useTranslation('chat')
   const { position, otherUser, agreedClosure, startTime, endTime, endType, status, endedByUserId, kudosSent, kudosReceived } = chat
-  const endTypeInfo = getEndTypeLabel(endType, endedByUserId, currentUserId, colors)
+  const endTypeInfo = getEndTypeLabel(endType, endedByUserId, currentUserId, colors, t)
   const isActive = status === 'active' && !endTime
   const showKudosSection = agreedClosure != null
 
@@ -87,7 +89,7 @@ function ChatHistoryCard({ chat, onPress, onSendKudos, onReport, currentUserId, 
             {kudosReceived ? (
               <View style={styles.kudosReceivedContainer}>
                 <KudosMedallion active={true} size={28} />
-                <ThemedText variant="caption" style={styles.kudosReceivedText}>{otherUser?.displayName || 'Someone'} sent you kudos</ThemedText>
+                <ThemedText variant="caption" style={styles.kudosReceivedText}>{t('sentYouKudos', { name: otherUser?.displayName || t('someone') })}</ThemedText>
               </View>
             ) : (
               <View style={styles.kudosPlaceholder} />
@@ -104,10 +106,12 @@ function ChatHistoryCard({ chat, onPress, onSendKudos, onReport, currentUserId, 
             }}
             disabled={kudosSent}
             activeOpacity={kudosSent ? 1 : 0.7}
+            accessibilityRole="button"
+            accessibilityLabel={kudosSent ? t('kudosSent') : t('sendKudos')}
           >
             <KudosMedallion active={kudosSent} size={22} />
             <ThemedText variant="badgeLg" style={[styles.kudosPillText, kudosSent && styles.kudosPillTextSent]}>
-              {kudosSent ? 'Sent!' : 'Send Kudos'}
+              {kudosSent ? t('kudosSent') : t('sendKudos')}
             </ThemedText>
           </TouchableOpacity>
         </View>
@@ -120,7 +124,7 @@ function ChatHistoryCard({ chat, onPress, onSendKudos, onReport, currentUserId, 
       {/* Metadata row */}
       <View style={styles.chatMetaRow}>
         <View style={styles.metaDateRow}>
-          <ThemedText variant="caption" color="secondary">{formatDate(endTime || startTime)}</ThemedText>
+          <ThemedText variant="caption" color="secondary">{formatDate(endTime || startTime, t)}</ThemedText>
           {isActive && <View style={styles.activeDot} />}
         </View>
         <View style={styles.metaRightRow}>
@@ -133,6 +137,8 @@ function ChatHistoryCard({ chat, onPress, onSendKudos, onReport, currentUserId, 
               onPress={() => onReport(chat.id)}
               style={styles.reportIconButton}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel={t('reportChatA11y')}
             >
               <Ionicons name="flag-outline" size={16} color={colors.secondaryText} />
             </TouchableOpacity>
@@ -140,7 +146,7 @@ function ChatHistoryCard({ chat, onPress, onSendKudos, onReport, currentUserId, 
         </View>
       </View>
 
-      <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+      <TouchableOpacity onPress={onPress} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t('viewChatA11y')}>
         <CardShell
           accentColor={agreedClosure ? SemanticColors.agree : colors.cardBackground}
           bottomSection={closureBottomSection}
@@ -162,6 +168,7 @@ export default function Chats() {
   const router = useRouter()
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
+  const { t } = useTranslation('chat')
 
   const [chats, setChats] = useState([])
   const [loading, setLoading] = useState(true)
@@ -245,7 +252,7 @@ export default function Chats() {
         setChats(cached.data)
         setFromCache(true)
       }
-      setError(err.message || 'Failed to load chat history')
+      setError(translateError(err.message, t) || t('failedLoadChats'))
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -311,8 +318,8 @@ export default function Chats() {
     return (
       <EmptyState
         icon="chatbubbles-outline"
-        title="No chats yet"
-        subtitle="Start a conversation by swiping up on a position card"
+        title={t('noChatsTitle')}
+        subtitle={t('noChatsSubtitle')}
         style={styles.emptyContainer}
       />
     )
@@ -322,16 +329,16 @@ export default function Chats() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <Header />
       <View style={styles.sectionHeader}>
-        <ThemedText variant="h1" color="primary">Chat History</ThemedText>
-        <ThemedText variant="bodySmall" color="secondary" style={styles.subtitle}>{chats.length} conversation{chats.length !== 1 ? 's' : ''}</ThemedText>
+        <ThemedText variant="h1" color="primary">{t('chatHistory')}</ThemedText>
+        <ThemedText variant="bodySmall" color="secondary" style={styles.subtitle}>{chats.length === 1 ? t('conversationCountOne', { count: chats.length }) : t('conversationCount', { count: chats.length })}</ThemedText>
       </View>
 
       {error && (
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={24} color={SemanticColors.warning} />
           <ThemedText variant="bodySmall" style={styles.errorText}>{error}</ThemedText>
-          <TouchableOpacity onPress={() => fetchChats()} style={styles.retryButton}>
-            <ThemedText variant="badgeLg" color="inverse">Retry</ThemedText>
+          <TouchableOpacity onPress={() => fetchChats()} style={styles.retryButton} accessibilityRole="button" accessibilityLabel={t('retry')}>
+            <ThemedText variant="badgeLg" color="inverse">{t('retry')}</ThemedText>
           </TouchableOpacity>
         </View>
       )}

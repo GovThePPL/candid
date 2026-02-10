@@ -1,6 +1,7 @@
 import { StyleSheet, View, TouchableOpacity, Dimensions, Pressable } from 'react-native'
 import { useEffect, useMemo } from 'react'
 import { useRouter, usePathname } from 'expo-router'
+import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated'
 import { useThemeColors } from '../hooks/useThemeColors'
@@ -12,6 +13,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window')
 const SIDEBAR_WIDTH = SCREEN_WIDTH * 0.65
 
 export default function Sidebar({ visible, onClose, user, onLogout, onBugReport }) {
+  const { t } = useTranslation()
   const router = useRouter()
   const pathname = usePathname()
   const colors = useThemeColors()
@@ -52,7 +54,7 @@ export default function Sidebar({ visible, onClose, user, onLogout, onBugReport 
   return (
     <View style={styles.container}>
       {/* Overlay */}
-      <Pressable style={styles.overlayPressable} onPress={onClose} accessibilityLabel="Close menu" accessibilityRole="button">
+      <Pressable style={styles.overlayPressable} onPress={onClose} accessibilityLabel={t('closeMenu')} accessibilityRole="button">
         <Animated.View style={[styles.overlay, overlayStyle]} />
       </Pressable>
 
@@ -65,36 +67,36 @@ export default function Sidebar({ visible, onClose, user, onLogout, onBugReport 
             <Ionicons name="star" size={14} color={colors.primary} />
             <ThemedText variant="buttonSmall" color="primary">{user?.kudosCount || 0}</ThemedText>
           </View>
-          <ThemedText variant="h2" color="dark">{user?.displayName || 'Guest'}</ThemedText>
+          <ThemedText variant="h2" color="dark">{user?.displayName || t('guest')}</ThemedText>
           <ThemedText variant="bodySmall" color="secondary">@{user?.username || 'guest'}</ThemedText>
         </View>
 
         {/* Menu Items */}
         <View style={styles.menuSection}>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/settings')} accessibilityRole="button" accessibilityLabel="Settings">
-            <ThemedText variant="button" color="inverse" style={styles.menuText}>Settings</ThemedText>
+          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/settings')} accessibilityRole="button" accessibilityLabel={t('settings')}>
+            <ThemedText variant="button" color="inverse" style={styles.menuText}>{t('settings')}</ThemedText>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/support')} accessibilityRole="button" accessibilityLabel="Support Us">
-            <ThemedText variant="button" color="inverse" style={styles.menuText}>Support Us</ThemedText>
+          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/support')} accessibilityRole="button" accessibilityLabel={t('supportUs')}>
+            <ThemedText variant="button" color="inverse" style={styles.menuText}>{t('supportUs')}</ThemedText>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/reports')} accessibilityRole="button" accessibilityLabel="Community Reports">
-            <ThemedText variant="button" color="inverse" style={styles.menuText}>Community Reports</ThemedText>
+          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/reports')} accessibilityRole="button" accessibilityLabel={t('communityReports')}>
+            <ThemedText variant="button" color="inverse" style={styles.menuText}>{t('communityReports')}</ThemedText>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.menuItem}
             onPress={() => { onClose(); onBugReport?.(); }}
             accessibilityRole="button"
-            accessibilityLabel="Report a bug"
+            accessibilityLabel={t('reportBug')}
           >
-            <ThemedText variant="button" color="inverse" style={styles.menuText}>Report Bug</ThemedText>
+            <ThemedText variant="button" color="inverse" style={styles.menuText}>{t('reportBug')}</ThemedText>
           </TouchableOpacity>
         </View>
 
         {/* Logout */}
         <View style={styles.logoutSection}>
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} accessibilityRole="button" accessibilityLabel="Log Out">
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} accessibilityRole="button" accessibilityLabel={t('logOut')}>
             <Ionicons name="log-out-outline" size={20} color={SemanticColors.warning} />
-            <ThemedText variant="button" color="error" style={styles.logoutText}>Log Out</ThemedText>
+            <ThemedText variant="button" color="error" style={styles.logoutText}>{t('logOut')}</ThemedText>
           </TouchableOpacity>
         </View>
       </Animated.View>

@@ -3,10 +3,11 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
+import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../../hooks/useThemeColors'
 import { SemanticColors } from '../../../constants/Colors'
 import { createSharedStyles } from '../../../constants/SharedStyles'
-import api from '../../../lib/api'
+import api, { translateError } from '../../../lib/api'
 import { useUser } from '../../../hooks/useUser'
 import { CacheManager, CacheKeys, CacheDurations } from '../../../lib/cache'
 
@@ -14,30 +15,33 @@ import ThemedText from '../../../components/ThemedText'
 import Header from '../../../components/Header'
 import LoadingView from '../../../components/LoadingView'
 
-const WEIGHT_OPTIONS = [
-  { value: 'most', label: 'Most', description: 'See much more often' },
-  { value: 'more', label: 'More', description: 'See more often' },
-  { value: 'default', label: 'Default', description: 'Normal frequency' },
-  { value: 'less', label: 'Less', description: 'See less often' },
-  { value: 'least', label: 'Least', description: 'See rarely' },
-  { value: 'none', label: 'None', description: 'Never show' },
+const getWeightOptions = (t) => [
+  { value: 'most', label: t('weightMost'), description: t('weightMostDesc') },
+  { value: 'more', label: t('weightMore'), description: t('weightMoreDesc') },
+  { value: 'default', label: t('weightDefault'), description: t('weightDefaultDesc') },
+  { value: 'less', label: t('weightLess'), description: t('weightLessDesc') },
+  { value: 'least', label: t('weightLeast'), description: t('weightLeastDesc') },
+  { value: 'none', label: t('weightNone'), description: t('weightNoneDesc') },
 ]
 
-const LIKELIHOOD_OPTIONS = [
-  { value: 'off', label: 'Off', description: 'Disabled' },
-  { value: 'rarely', label: 'Rarely', description: 'Much less frequent' },
-  { value: 'less', label: 'Less', description: 'Somewhat less frequent' },
-  { value: 'normal', label: 'Normal', description: 'Standard frequency' },
-  { value: 'more', label: 'More', description: 'Somewhat more frequent' },
-  { value: 'often', label: 'Often', description: 'Much more frequent' },
+const getLikelihoodOptions = (t) => [
+  { value: 'off', label: t('likelihoodOff'), description: t('likelihoodOffDesc') },
+  { value: 'rarely', label: t('likelihoodRarely'), description: t('likelihoodRarelyDesc') },
+  { value: 'less', label: t('likelihoodLess'), description: t('likelihoodLessDesc') },
+  { value: 'normal', label: t('likelihoodNormal'), description: t('likelihoodNormalDesc') },
+  { value: 'more', label: t('likelihoodMore'), description: t('likelihoodMoreDesc') },
+  { value: 'often', label: t('likelihoodOften'), description: t('likelihoodOftenDesc') },
 ]
 
 export default function PreferencesSettings() {
+  const { t } = useTranslation('settings')
   const { user } = useUser()
   const router = useRouter()
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const shared = useMemo(() => createSharedStyles(colors), [colors])
+  const WEIGHT_OPTIONS = useMemo(() => getWeightOptions(t), [t])
+  const LIKELIHOOD_OPTIONS = useMemo(() => getLikelihoodOptions(t), [t])
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -126,7 +130,7 @@ export default function PreferencesSettings() {
       }, 100)
     } catch (err) {
       console.error('Failed to fetch preferences:', err)
-      setError(err.message || 'Failed to load preferences')
+      setError(translateError(err.message, t) || t('failedLoadPreferences'))
     } finally {
       setLoading(false)
     }
@@ -187,7 +191,7 @@ export default function PreferencesSettings() {
         }
       } catch (err) {
         console.error('Failed to save preferences:', err)
-        setError(err.message || 'Failed to save preferences')
+        setError(translateError(err.message, t) || t('failedSavePreferences'))
       } finally {
         setSaving(false)
       }
@@ -228,14 +232,14 @@ export default function PreferencesSettings() {
 
   const getWeightLabel = (weight) => {
     const option = WEIGHT_OPTIONS.find(o => o.value === weight)
-    return option ? option.label : 'Default'
+    return option ? option.label : t('weightDefault')
   }
 
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <Header onBack={() => router.back()} />
-        <LoadingView message="Loading preferences..." />
+        <LoadingView message={t('loadingPreferences')} />
       </SafeAreaView>
     )
   }
@@ -246,7 +250,7 @@ export default function PreferencesSettings() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.pageHeader}>
           <ThemedText variant="h1" title={true} style={styles.pageTitle}>
-            Preferences
+            {t('preferences')}
           </ThemedText>
         </View>
 
@@ -261,10 +265,10 @@ export default function PreferencesSettings() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="grid-outline" size={22} color={colors.primary} />
-            <ThemedText variant="h2" color="dark">Category Preferences</ThemedText>
+            <ThemedText variant="h2" color="dark">{t('categoryPreferences')}</ThemedText>
           </View>
           <ThemedText variant="bodySmall" color="secondary" style={styles.sectionDescription}>
-            Adjust how often you see positions from each category in your feed.
+            {t('categoryPreferencesDesc')}
           </ThemedText>
 
           <View style={styles.categoryList}>
@@ -278,7 +282,7 @@ export default function PreferencesSettings() {
                   style={[styles.categoryItem, isNonDefault && styles.categoryItemModified]}
                   onPress={() => openWeightModal(category)}
                   accessibilityRole="button"
-                  accessibilityLabel={`${category.label}, weight: ${getWeightLabel(weight)}`}
+                  accessibilityLabel={t('categoryWeightA11y', { category: category.label, weight: getWeightLabel(weight) })}
                 >
                   <ThemedText variant="body" color="dark" style={styles.categoryName}>{category.label}</ThemedText>
                   <View style={styles.categoryWeightButton}>
@@ -300,10 +304,10 @@ export default function PreferencesSettings() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="chatbubbles-outline" size={22} color={colors.primary} />
-            <ThemedText variant="h2" color="dark">Chat Request Frequency</ThemedText>
+            <ThemedText variant="h2" color="dark">{t('chatRequestFrequency')}</ThemedText>
           </View>
           <ThemedText variant="bodySmall" color="secondary" style={styles.sectionDescription}>
-            How often do you want to receive chat requests from others who want to discuss your positions?
+            {t('chatRequestFrequencyDesc')}
           </ThemedText>
 
           <View style={styles.likelihoodSelector}>
@@ -343,10 +347,10 @@ export default function PreferencesSettings() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="list-outline" size={22} color={colors.primary} />
-            <ThemedText variant="h2" color="dark">Chatting List Frequency</ThemedText>
+            <ThemedText variant="h2" color="dark">{t('chattingListFrequency')}</ThemedText>
           </View>
           <ThemedText variant="bodySmall" color="secondary" style={styles.sectionDescription}>
-            How often should items reappear in your card queue from your Chatting List? This includes positions you've previously chatted about and positions you've saved by tapping the chat button on a card.
+            {t('chattingListFrequencyDesc')}
           </ThemedText>
 
           <View style={styles.likelihoodSelector}>
@@ -386,7 +390,7 @@ export default function PreferencesSettings() {
         {saving && (
           <View style={styles.savingContainer}>
             <ActivityIndicator size="small" color={colors.primary} />
-            <ThemedText variant="bodySmall" color="primary" style={styles.savingText}>Saving...</ThemedText>
+            <ThemedText variant="bodySmall" color="primary" style={styles.savingText}>{t('saving')}</ThemedText>
           </View>
         )}
       </ScrollView>
@@ -403,7 +407,7 @@ export default function PreferencesSettings() {
             <ThemedText variant="h2" color="dark" style={styles.modalTitle}>
               {selectedCategoryForWeight?.label || selectedCategoryForWeight?.name}
             </ThemedText>
-            <ThemedText variant="bodySmall" color="secondary" style={styles.modalSubtitle}>How often should this category appear?</ThemedText>
+            <ThemedText variant="bodySmall" color="secondary" style={styles.modalSubtitle}>{t('categoryModalSubtitle')}</ThemedText>
             <ScrollView style={styles.modalScrollView}>
               {WEIGHT_OPTIONS.map((option, index) => {
                 const isSelected = getCategoryWeight(selectedCategoryForWeight?.id) === option.value

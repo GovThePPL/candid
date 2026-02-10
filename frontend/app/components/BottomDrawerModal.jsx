@@ -7,6 +7,7 @@ import {
   Dimensions,
 } from 'react-native'
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS } from 'react-native-reanimated'
+import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { SemanticColors } from '../constants/Colors'
@@ -38,6 +39,7 @@ export default function BottomDrawerModal({
   children,
   maxHeight = '85%',
 }) {
+  const { t } = useTranslation()
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const [modalVisible, setModalVisible] = useState(false)
@@ -83,7 +85,7 @@ export default function BottomDrawerModal({
     >
       <View style={styles.container}>
         <Animated.View style={[styles.overlay, overlayStyle]}>
-          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} accessibilityLabel="Close drawer" accessibilityRole="button" />
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} accessibilityLabel={t('closeDrawer')} accessibilityRole="button" />
         </Animated.View>
 
         <Animated.View
@@ -101,7 +103,7 @@ export default function BottomDrawerModal({
               {subtitle && <ThemedText variant="bodySmall" color="secondary" style={styles.subtitle}>{subtitle}</ThemedText>}
             </View>
             {headerRight || (
-              <TouchableOpacity style={styles.closeButton} onPress={onClose} accessibilityLabel="Close" accessibilityRole="button">
+              <TouchableOpacity style={styles.closeButton} onPress={onClose} accessibilityLabel={t('close')} accessibilityRole="button">
                 <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             )}

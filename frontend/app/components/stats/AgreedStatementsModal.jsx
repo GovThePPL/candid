@@ -8,6 +8,7 @@ import {
 import { Ionicons } from '@expo/vector-icons'
 import { SemanticColors, BrandColor } from '../../constants/Colors'
 import { Typography } from '../../constants/Theme'
+import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import ThemedText from '../ThemedText'
 import { chatApiWrapper } from '../../lib/api'
@@ -25,6 +26,7 @@ import EmptyState from '../EmptyState'
  * @param {string|Object} props.closureText - Agreed closure text from the closure card
  */
 export default function AgreedStatementsModal({ visible, onClose, chatLogId, closureText: closureTextProp }) {
+  const { t } = useTranslation('stats')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
 
@@ -46,7 +48,7 @@ export default function AgreedStatementsModal({ visible, onClose, chatLogId, clo
       setChatData(data)
     } catch (err) {
       console.error('Error fetching chat log:', err)
-      setError(err.message || 'Failed to load chat log')
+      setError(err.message || t('failedLoadChatLog'))
     } finally {
       setLoading(false)
     }
@@ -60,7 +62,7 @@ export default function AgreedStatementsModal({ visible, onClose, chatLogId, clo
 
   const renderContent = () => {
     if (loading) {
-      return <LoadingView message="Loading agreed statements..." />
+      return <LoadingView message={t('loadingAgreedStatements')} />
     }
 
     if (error) {
@@ -68,8 +70,8 @@ export default function AgreedStatementsModal({ visible, onClose, chatLogId, clo
         <View style={styles.centerContainer}>
           <Ionicons name="alert-circle-outline" size={48} color={SemanticColors.disagree} />
           <ThemedText variant="bodySmall" style={styles.errorText}>{error}</ThemedText>
-          <TouchableOpacity style={styles.retryButton} onPress={fetchChatLog}>
-            <ThemedText variant="buttonSmall" color="inverse">Retry</ThemedText>
+          <TouchableOpacity style={styles.retryButton} onPress={fetchChatLog} accessibilityRole="button" accessibilityLabel={t('common:retry')}>
+            <ThemedText variant="buttonSmall" color="inverse">{t('common:retry')}</ThemedText>
           </TouchableOpacity>
         </View>
       )
@@ -83,7 +85,7 @@ export default function AgreedStatementsModal({ visible, onClose, chatLogId, clo
         {/* Agreed Positions - chronological order from the chat */}
         {agreedPositions.length > 0 && (
           <View style={styles.section}>
-            <ThemedText variant="buttonSmall" style={styles.sectionTitle}>Agreed Statements ({agreedPositions.length})</ThemedText>
+            <ThemedText variant="buttonSmall" style={styles.sectionTitle}>{t('agreedStatementsCount', { count: agreedPositions.length })}</ThemedText>
             {agreedPositions.map((statement, index) => (
               <View key={index} style={styles.statementCard}>
                 <Ionicons name="checkmark-circle" size={18} color={SemanticColors.agree} />
@@ -96,7 +98,7 @@ export default function AgreedStatementsModal({ visible, onClose, chatLogId, clo
         {/* Final Agreed Closure - last item */}
         {resolvedClosureText && (
           <View style={styles.section}>
-            <ThemedText variant="buttonSmall" style={styles.sectionTitle}>Final Agreement</ThemedText>
+            <ThemedText variant="buttonSmall" style={styles.sectionTitle}>{t('finalAgreement')}</ThemedText>
             <View style={styles.closureCard}>
               <Ionicons name="ribbon-outline" size={20} color={colors.primary} />
               <ThemedText variant="body" style={styles.closureText}>"{resolvedClosureText}"</ThemedText>
@@ -108,7 +110,7 @@ export default function AgreedStatementsModal({ visible, onClose, chatLogId, clo
         {!resolvedClosureText && agreedPositions.length === 0 && !loading && (
           <EmptyState
             icon="document-text-outline"
-            title="No agreed statements in this chat."
+            title={t('noAgreedStatements')}
           />
         )}
       </ScrollView>
@@ -119,14 +121,14 @@ export default function AgreedStatementsModal({ visible, onClose, chatLogId, clo
     <BottomDrawerModal
       visible={visible}
       onClose={onClose}
-      title="Agreed Statements"
+      title={t('agreedStatements')}
       maxHeight="80%"
     >
       <View style={styles.contentWrapper}>
         {renderContent()}
 
-        <TouchableOpacity style={styles.doneButton} onPress={onClose}>
-          <ThemedText variant="button" color="inverse">Done</ThemedText>
+        <TouchableOpacity style={styles.doneButton} onPress={onClose} accessibilityRole="button" accessibilityLabel={t('common:done')}>
+          <ThemedText variant="button" color="inverse">{t('common:done')}</ThemedText>
         </TouchableOpacity>
       </View>
     </BottomDrawerModal>

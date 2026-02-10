@@ -44,6 +44,7 @@ The regeneration script also applies sed patches to fix the oneOf discriminator 
 
 - **Expo Router** for file-based routing with (auth) and (dashboard) route groups
 - **React Context** (`UserContext`) for global auth state and user data
+- **i18n** via i18next + react-i18next with English and Spanish locales (9 namespaces). Language picker on login, register, and settings screens. `I18nContext` persists preference to AsyncStorage.
 - **Generated API client** via `promisify` wrappers in `lib/api.js`
 - **Socket.IO** for real-time chat via `lib/socket.js`
 - **Hybrid caching** (in-memory + AsyncStorage) via `lib/cache.js`

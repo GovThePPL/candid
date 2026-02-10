@@ -1,11 +1,11 @@
 import { useState, useMemo, useEffect, forwardRef, useImperativeHandle } from 'react'
-import { StyleSheet, View, TouchableOpacity } from 'react-native'
+import { StyleSheet, View, TouchableOpacity, TextInput, Platform } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { SemanticColors } from '../constants/Colors'
 import { Typography } from '../constants/Theme'
 import ThemedText from './ThemedText'
-import ThemedTextInput from './ThemedTextInput'
 import EmptyState from './EmptyState'
 import LoadingView from './LoadingView'
 
@@ -35,11 +35,14 @@ const PositionListManager = forwardRef(function PositionListManager({
   onDeleteItems,
   onBulkToggle,
   onFloatingBarChange,
+  onSearchFocus,
+  onSearchBlur,
   loading,
   emptyIcon,
   emptyTitle,
   emptySubtitle,
 }, ref) {
+  const { t } = useTranslation()
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
 
@@ -51,6 +54,14 @@ const PositionListManager = forwardRef(function PositionListManager({
   const [expandedCategories, setExpandedCategories] = useState({})
   const [togglingIds, setTogglingIds] = useState(new Set())
   const [deletingIds, setDeletingIds] = useState(new Set())
+
+  // Scroll the focused search input into view
+  const handleInputFocus = Platform.OS === 'web'
+    ? (e) => {
+        onSearchFocus?.()
+        setTimeout(() => e.target?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }), 300)
+      }
+    : onSearchFocus || undefined
 
   // Expose actions to parent for the floating bar (delete mode only)
   useImperativeHandle(ref, () => ({
@@ -94,8 +105,8 @@ const PositionListManager = forwardRef(function PositionListManager({
     if (!showCollapsible) return null
     const groups = {}
     filteredItems.forEach(item => {
-      const loc = item.locationName || 'Unknown Location'
-      const cat = item.categoryName || 'Uncategorized'
+      const loc = item.locationName || t('stats:unknownLocation')
+      const cat = item.categoryName || t('uncategorized')
       if (!groups[loc]) groups[loc] = {}
       if (!groups[loc][cat]) groups[loc][cat] = []
       groups[loc][cat].push(item)
@@ -226,7 +237,7 @@ const PositionListManager = forwardRef(function PositionListManager({
       <TouchableOpacity
         onPress={onPress}
         style={header ? styles.headerRightControl : styles.rightControl}
-        accessibilityLabel={checked ? "Deselect" : "Select"}
+        accessibilityLabel={checked ? t('deselectA11y') : t('selectA11y')}
         accessibilityRole="checkbox"
         accessibilityState={{ checked }}
       >
@@ -247,7 +258,7 @@ const PositionListManager = forwardRef(function PositionListManager({
         onPress={() => handleChatToggle(item)}
         disabled={isToggling}
         style={[styles.rightControl, isToggling && { opacity: 0.4 }]}
-        accessibilityLabel={item.isActive ? "Disable chat" : "Enable chat"}
+        accessibilityLabel={item.isActive ? t('disableChat') : t('enableChat')}
         accessibilityRole="switch"
         accessibilityState={{ checked: item.isActive }}
       >
@@ -269,7 +280,7 @@ const PositionListManager = forwardRef(function PositionListManager({
         onPress={() => handleGroupChatToggle(groupItems)}
         disabled={someToggling}
         style={[styles.headerRightControl, someToggling && { opacity: 0.4 }]}
-        accessibilityLabel={allActive ? "Disable all chats in group" : "Enable all chats in group"}
+        accessibilityLabel={allActive ? t('disableAllGroupChats') : t('enableAllGroupChats')}
         accessibilityRole="switch"
         accessibilityState={{ checked: allActive }}
       >
@@ -286,16 +297,10 @@ const PositionListManager = forwardRef(function PositionListManager({
   function renderItem(item) {
     const isSelected = selectedIds.has(item.id)
     const isDeleting = deletingIds.has(item.id)
+    const isInteractive = deleteMode || chatMode
 
-    return (
-      <View
-        key={item.id}
-        style={[
-          styles.itemRow,
-          !item.isActive && styles.itemRowInactive,
-          isDeleting && styles.itemRowDeleting,
-        ]}
-      >
+    const rowContent = (
+      <>
         <View style={styles.itemContent}>
           {!showCollapsible && (
             <ThemedText variant="caption" color="secondary" style={styles.itemDetail}>
@@ -317,6 +322,34 @@ const PositionListManager = forwardRef(function PositionListManager({
         </View>
         {deleteMode && renderCheckbox(isSelected, () => toggleSelect(item.id))}
         {chatMode && renderChatToggle(item)}
+      </>
+    )
+
+    const rowStyle = [
+      styles.itemRow,
+      !item.isActive && styles.itemRowInactive,
+      isDeleting && styles.itemRowDeleting,
+    ]
+
+    if (isInteractive) {
+      return (
+        <TouchableOpacity
+          key={item.id}
+          style={rowStyle}
+          onPress={() => deleteMode ? toggleSelect(item.id) : handleChatToggle(item)}
+          activeOpacity={0.6}
+          accessibilityRole={deleteMode ? "checkbox" : "switch"}
+          accessibilityState={{ checked: deleteMode ? isSelected : item.isActive }}
+          accessibilityLabel={item.statement}
+        >
+          {rowContent}
+        </TouchableOpacity>
+      )
+    }
+
+    return (
+      <View key={item.id} style={rowStyle}>
+        {rowContent}
       </View>
     )
   }
@@ -342,44 +375,50 @@ const PositionListManager = forwardRef(function PositionListManager({
       <View style={styles.toolbar}>
         <View style={styles.searchContainer}>
           <Ionicons name="search" size={16} color={colors.secondaryText} style={styles.searchIcon} />
-          <ThemedTextInput
+          <TextInput
             style={styles.searchInput}
-            placeholder="Filter positions..."
+            placeholder={t('filterPositions')}
             placeholderTextColor={colors.placeholderText}
             value={searchQuery}
             onChangeText={setSearchQuery}
+            onFocus={handleInputFocus}
+            onBlur={onSearchBlur}
+            autoCapitalize="none"
+            autoCorrect={false}
+            maxFontSizeMultiplier={1.5}
+            accessibilityLabel={t('filterPositions')}
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.searchClear} accessibilityLabel="Clear search" accessibilityRole="button">
+            <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.searchClear} accessibilityLabel={t('clearSearch')} accessibilityRole="button">
               <Ionicons name="close-circle" size={18} color={colors.secondaryText} />
             </TouchableOpacity>
           )}
         </View>
         {!deleteMode && !chatMode && (
           <>
-            <TouchableOpacity style={styles.modeButton} onPress={enterChatMode} accessibilityLabel="Chat mode" accessibilityRole="button">
+            <TouchableOpacity style={styles.modeButton} onPress={enterChatMode} accessibilityLabel={t('chatMode')} accessibilityRole="button">
               <Ionicons name="chatbubble-outline" size={16} color={colors.primary} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.modeButton} onPress={enterDeleteMode} accessibilityLabel="Delete mode" accessibilityRole="button">
+            <TouchableOpacity style={styles.modeButton} onPress={enterDeleteMode} accessibilityLabel={t('deleteMode')} accessibilityRole="button">
               <Ionicons name="trash-outline" size={16} color={SemanticColors.warning} />
             </TouchableOpacity>
           </>
         )}
         {deleteMode && (
-          <TouchableOpacity style={styles.doneButton} onPress={exitDeleteMode}>
-            <ThemedText variant="label" color="secondary" style={styles.doneButtonText}>Cancel</ThemedText>
+          <TouchableOpacity style={styles.doneButton} onPress={exitDeleteMode} accessibilityRole="button" accessibilityLabel={t('cancel')}>
+            <ThemedText variant="label" color="secondary" style={styles.doneButtonText}>{t('cancel')}</ThemedText>
           </TouchableOpacity>
         )}
         {chatMode && (
-          <TouchableOpacity style={styles.doneButton} onPress={exitChatMode}>
-            <ThemedText variant="label" color="secondary" style={styles.doneButtonText}>Done</ThemedText>
+          <TouchableOpacity style={styles.doneButton} onPress={exitChatMode} accessibilityRole="button" accessibilityLabel={t('done')}>
+            <ThemedText variant="label" color="secondary" style={styles.doneButtonText}>{t('done')}</ThemedText>
           </TouchableOpacity>
         )}
       </View>
 
       {/* No results from filter */}
       {filteredItems.length === 0 && searchQuery.trim().length > 0 && (
-        <ThemedText variant="bodySmall" color="secondary" style={styles.noResultsText}>No positions match your search.</ThemedText>
+        <ThemedText variant="bodySmall" color="secondary" style={styles.noResultsText}>{t('noFilterResults')}</ThemedText>
       )}
 
       {/* Flat list for under 25 items */}
@@ -404,7 +443,7 @@ const PositionListManager = forwardRef(function PositionListManager({
                 style={styles.locationHeader}
                 onPress={() => toggleLocationExpanded(locationName)}
                 accessibilityRole="button"
-                accessibilityLabel={`${locationName}, ${locIds.length} positions`}
+                accessibilityLabel={t('locationGroupA11y', { location: locationName, count: locIds.length })}
                 accessibilityState={{ expanded: locExpanded }}
               >
                 <Ionicons
@@ -435,7 +474,7 @@ const PositionListManager = forwardRef(function PositionListManager({
                           style={styles.categoryHeader}
                           onPress={() => toggleCategoryExpanded(locationName, categoryName)}
                           accessibilityRole="button"
-                          accessibilityLabel={`${categoryName}, ${catIds.length} positions`}
+                          accessibilityLabel={t('categoryGroupA11y', { category: categoryName, count: catIds.length })}
                           accessibilityState={{ expanded: catExpanded }}
                         >
                           <Ionicons
@@ -482,37 +521,45 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.cardBackground,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.cardBorder,
+    paddingHorizontal: 12,
   },
   searchIcon: {
-    paddingLeft: 10,
+    marginRight: 8,
   },
   searchInput: {
     flex: 1,
-    padding: 10,
-    ...Typography.bodySmall,
+    padding: 0,
+    paddingVertical: 10,
+    ...Typography.body,
+    color: colors.text,
     backgroundColor: 'transparent',
     borderRadius: 0,
+    borderWidth: 0,
+    outlineStyle: 'none',
+    scrollMarginTop: 80,
   },
   searchClear: {
-    paddingRight: 10,
+    marginLeft: 8,
+    padding: 4,
   },
   modeButton: {
     padding: 10,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.cardBorder,
     backgroundColor: colors.cardBackground,
   },
   doneButton: {
-    paddingHorizontal: 14,
+    width: 84, // matches two modeButtons (38px each) + 8px gap
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.cardBorder,
     backgroundColor: colors.cardBackground,
+    alignItems: 'center',
   },
   doneButtonText: {
     fontWeight: '500',
@@ -601,14 +648,14 @@ const createStyles = (colors) => StyleSheet.create({
   },
   itemRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     padding: 12,
     paddingLeft: 16,
     borderTopWidth: 1,
     borderTopColor: colors.cardBorder,
   },
   itemRowInactive: {
-    backgroundColor: colors.uiBackground,
+    opacity: 0.4,
   },
   itemRowDeleting: {
     opacity: 0.5,
@@ -629,8 +676,6 @@ const createStyles = (colors) => StyleSheet.create({
   // Right-side controls (checkbox in delete mode, chat bubble in chat mode)
   rightControl: {
     paddingLeft: 8,
-    alignSelf: 'flex-start',
-    marginTop: 0,
   },
 
   // Right-side control on group headers

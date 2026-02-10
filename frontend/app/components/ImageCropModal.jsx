@@ -14,6 +14,7 @@ import Slider from '@react-native-community/slider'
 import Svg, { Defs, Mask, Rect, Circle } from 'react-native-svg'
 import * as ImageManipulator from 'expo-image-manipulator'
 
+import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../hooks/useThemeColors'
 import ThemedText from './ThemedText'
 
@@ -31,6 +32,7 @@ const CENTER_Y = HEADER_HEIGHT + AVAILABLE_HEIGHT / 2
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max)
 
 export default function ImageCropModal({ visible, imageUri, onCancel, onConfirm }) {
+  const { t } = useTranslation('settings')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
 
@@ -265,10 +267,10 @@ export default function ImageCropModal({ visible, imageUri, onCancel, onConfirm 
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
+          <TouchableOpacity style={styles.cancelButton} onPress={onCancel} accessibilityRole="button" accessibilityLabel={t('cancelCropA11y')}>
             <Ionicons name="close" size={28} color="#fff" />
           </TouchableOpacity>
-          <ThemedText variant="h2" color="inverse">Crop Photo</ThemedText>
+          <ThemedText variant="h2" color="inverse">{t('cropPhoto')}</ThemedText>
           <View style={styles.headerSpacer} />
         </View>
 
@@ -340,6 +342,7 @@ export default function ImageCropModal({ visible, imageUri, onCancel, onConfirm 
               minimumTrackTintColor={colors.primary}
               maximumTrackTintColor="#666"
               thumbTintColor={colors.primary}
+              accessibilityLabel={t('zoomA11y')}
             />
             <Ionicons name="add" size={24} color="#fff" />
           </View>
@@ -349,11 +352,14 @@ export default function ImageCropModal({ visible, imageUri, onCancel, onConfirm 
             style={[styles.acceptButton, isProcessing && styles.acceptButtonDisabled]}
             onPress={handleAccept}
             disabled={isProcessing || imageLoading}
+            accessibilityRole="button"
+            accessibilityLabel={t('acceptCrop')}
+            accessibilityState={{ disabled: isProcessing || imageLoading }}
           >
             {isProcessing ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
-              <ThemedText variant="h2" color="inverse">Accept</ThemedText>
+              <ThemedText variant="h2" color="inverse">{t('acceptCrop')}</ThemedText>
             )}
           </TouchableOpacity>
         </View>

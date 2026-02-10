@@ -13,21 +13,25 @@ import ModerationActionModal from '../../components/ModerationActionModal'
 import ModerationHistoryModal from '../../components/ModerationHistoryModal'
 import BottomDrawerModal from '../../components/BottomDrawerModal'
 import Avatar from '../../components/Avatar'
-import api from '../../lib/api'
+import { useTranslation } from 'react-i18next'
+import api, { translateError } from '../../lib/api'
 
-const ACTION_LABELS = {
-  removed: 'Remove Content',
-  warning: 'Warning',
-  temporary_ban: 'Temporary Ban',
-  permanent_ban: 'Permanent Ban',
-}
-const CLASS_LABELS = {
-  submitter: 'Creator',
-  active_adopter: 'Active Adopters',
-  passive_adopter: 'Passive Adopters',
-}
+const getActionLabels = (t) => ({
+  removed: t('actionRemoveContent'),
+  warning: t('actionWarning'),
+  temporary_ban: t('actionTemporaryBan'),
+  permanent_ban: t('actionPermanentBan'),
+})
+const getClassLabels = (t) => ({
+  submitter: t('classCreator'),
+  active_adopter: t('classActiveAdopters'),
+  passive_adopter: t('classPassiveAdopters'),
+})
 
 function ReportCard({ item, onHistoryPress, onChatPress, colors, styles }) {
+  const { t } = useTranslation('moderation')
+  const ACTION_LABELS = useMemo(() => getActionLabels(t), [t])
+  const CLASS_LABELS = useMemo(() => getClassLabels(t), [t])
   const { data } = item
   const target = data.targetContent
 
@@ -38,10 +42,10 @@ function ReportCard({ item, onHistoryPress, onChatPress, colors, styles }) {
         <View style={styles.headerRow}>
           <View style={styles.headerTypeTag}>
             <Ionicons name="shield" size={28} color="#FFFFFF" />
-            <ThemedText variant="badgeLg" color="inverse" style={styles.headerTypeText}>Report</ThemedText>
+            <ThemedText variant="badgeLg" color="inverse" style={styles.headerTypeText}>{t('report')}</ThemedText>
           </View>
           <View style={styles.headerRuleContent}>
-            <ThemedText variant="buttonSmall" color="inverse" style={styles.reportRuleTitle}>{data.rule?.title || 'Rule violation'}</ThemedText>
+            <ThemedText variant="buttonSmall" color="inverse" style={styles.reportRuleTitle}>{data.rule?.title || t('ruleViolation')}</ThemedText>
             {data.rule?.text && (
               <ThemedText variant="caption" color="inverse" style={styles.reportRuleText}>{data.rule.text}</ThemedText>
             )}
@@ -64,11 +68,11 @@ function ReportCard({ item, onHistoryPress, onChatPress, colors, styles }) {
                 creator: target.participants?.[0],
               }}
               authorSubtitle="username"
-              label={`Chat: ${target.participants?.map(p => p?.displayName).filter(Boolean).join(' & ')}`}
+              label={t('chatLabel', { names: target.participants?.map(p => p?.displayName).filter(Boolean).join(' & ') })}
             />
           ) : (
             <View style={{ padding: 16 }}>
-              <ThemedText variant="bodySmall" color="secondary" style={{ fontStyle: 'italic' }}>Content unavailable</ThemedText>
+              <ThemedText variant="bodySmall" color="secondary" style={{ fontStyle: 'italic' }}>{t('contentUnavailable')}</ThemedText>
             </View>
           )}
         </View>
@@ -84,9 +88,11 @@ function ReportCard({ item, onHistoryPress, onChatPress, colors, styles }) {
             style={styles.historyButton}
             onPress={() => onChatPress(data.targetId, data.submitter?.id)}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={t('viewChatLogA11y')}
           >
             <Ionicons name="chatbubbles-outline" size={16} color="#FFFFFF" />
-            <ThemedText variant="label" color="inverse">View chat log</ThemedText>
+            <ThemedText variant="label" color="inverse">{t('viewChatLog')}</ThemedText>
           </TouchableOpacity>
         )}
         {onHistoryPress && (target?.creator || target?.participants) && (() => {
@@ -97,18 +103,20 @@ function ReportCard({ item, onHistoryPress, onChatPress, colors, styles }) {
               style={styles.historyButton}
               onPress={() => onHistoryPress(historyUser)}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={t('viewHistoryA11y')}
             >
               <Ionicons name="time-outline" size={16} color="#FFFFFF" />
-              <ThemedText variant="label" color="inverse">User moderation history</ThemedText>
+              <ThemedText variant="label" color="inverse">{t('userModerationHistory')}</ThemedText>
             </TouchableOpacity>
           ) : null
         })()}
         <View style={styles.reporterRow}>
-          <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>Reported by</ThemedText>
+          <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>{t('reportedBy')}</ThemedText>
           <Avatar user={data.submitter} size="sm" showKudosCount badgePosition="bottom-left" />
           <View style={styles.userInfoColumn}>
-            <ThemedText variant="buttonSmall" color="inverse">{data.submitter?.displayName || 'Anonymous'}</ThemedText>
-            <ThemedText variant="caption" style={styles.reporterUsername}>@{data.submitter?.username || 'unknown'}</ThemedText>
+            <ThemedText variant="buttonSmall" color="inverse">{data.submitter?.displayName || t('common:anonymous')}</ThemedText>
+            <ThemedText variant="caption" style={styles.reporterUsername}>@{data.submitter?.username || t('unknown')}</ThemedText>
           </View>
         </View>
         {data.submitterComment && (
@@ -122,6 +130,9 @@ function ReportCard({ item, onHistoryPress, onChatPress, colors, styles }) {
 }
 
 function AppealCard({ item, onHistoryPress, onChatPress, colors, styles }) {
+  const { t } = useTranslation('moderation')
+  const ACTION_LABELS = useMemo(() => getActionLabels(t), [t])
+  const CLASS_LABELS = useMemo(() => getClassLabels(t), [t])
   const { data } = item
   const target = data.originalReport?.targetContent
   const rule = data.originalReport?.rule
@@ -136,10 +147,10 @@ function AppealCard({ item, onHistoryPress, onChatPress, colors, styles }) {
         <View style={styles.headerRow}>
           <View style={styles.headerTypeTag}>
             <Ionicons name={isEscalated ? 'arrow-up-circle' : isOverruled ? 'swap-horizontal' : 'megaphone'} size={28} color="#FFFFFF" />
-            <ThemedText variant="badgeLg" color="inverse" style={styles.headerTypeText}>{isEscalated ? 'Escalated' : isOverruled ? 'Overruled' : 'Appeal'}</ThemedText>
+            <ThemedText variant="badgeLg" color="inverse" style={styles.headerTypeText}>{isEscalated ? t('escalatedLabel') : isOverruled ? t('overruledLabel') : t('appeal')}</ThemedText>
           </View>
           <View style={styles.headerRuleContent}>
-            <ThemedText variant="buttonSmall" color="inverse" style={styles.reportRuleTitle}>{rule?.title || 'Rule violation'}</ThemedText>
+            <ThemedText variant="buttonSmall" color="inverse" style={styles.reportRuleTitle}>{rule?.title || t('ruleViolation')}</ThemedText>
             {rule?.text && (
               <ThemedText variant="caption" color="inverse" style={styles.reportRuleText}>{rule.text}</ThemedText>
             )}
@@ -162,11 +173,11 @@ function AppealCard({ item, onHistoryPress, onChatPress, colors, styles }) {
                 creator: target.participants?.[0],
               }}
               authorSubtitle="username"
-              label={`Chat: ${target.participants?.map(p => p?.displayName).filter(Boolean).join(' & ')}`}
+              label={t('chatLabel', { names: target.participants?.map(p => p?.displayName).filter(Boolean).join(' & ') })}
             />
           ) : (
             <View style={{ padding: 16 }}>
-              <ThemedText variant="bodySmall" color="secondary" style={{ fontStyle: 'italic' }}>Content unavailable</ThemedText>
+              <ThemedText variant="bodySmall" color="secondary" style={{ fontStyle: 'italic' }}>{t('contentUnavailable')}</ThemedText>
             </View>
           )}
         </View>
@@ -182,9 +193,11 @@ function AppealCard({ item, onHistoryPress, onChatPress, colors, styles }) {
             style={styles.historyButton}
             onPress={() => onChatPress(data.originalReport?.targetId, data.originalReport?.submitter?.id)}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={t('viewChatLogA11y')}
           >
             <Ionicons name="chatbubbles-outline" size={16} color="#FFFFFF" />
-            <ThemedText variant="label" color="inverse">View chat log</ThemedText>
+            <ThemedText variant="label" color="inverse">{t('viewChatLog')}</ThemedText>
           </TouchableOpacity>
         )}
         {onHistoryPress && data.user && (
@@ -192,19 +205,21 @@ function AppealCard({ item, onHistoryPress, onChatPress, colors, styles }) {
             style={styles.historyButton}
             onPress={() => onHistoryPress(data.user)}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={t('viewHistoryA11y')}
           >
             <Ionicons name="time-outline" size={16} color="#FFFFFF" />
-            <ThemedText variant="label" color="inverse">User moderation history</ThemedText>
+            <ThemedText variant="label" color="inverse">{t('userModerationHistory')}</ThemedText>
           </TouchableOpacity>
         )}
         {/* Original reporter shell */}
         <View style={styles.sectionShell}>
           <View style={styles.reporterRow}>
-            <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>Reported by</ThemedText>
+            <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>{t('reportedBy')}</ThemedText>
             <Avatar user={submitter} size="sm" showKudosCount badgePosition="bottom-left" />
             <View style={styles.userInfoColumn}>
-              <ThemedText variant="buttonSmall" color="inverse">{submitter?.displayName || 'Anonymous'}</ThemedText>
-              <ThemedText variant="caption" style={styles.reporterUsername}>@{submitter?.username || 'unknown'}</ThemedText>
+              <ThemedText variant="buttonSmall" color="inverse">{submitter?.displayName || t('common:anonymous')}</ThemedText>
+              <ThemedText variant="caption" style={styles.reporterUsername}>@{submitter?.username || t('unknown')}</ThemedText>
             </View>
           </View>
           {data.originalReport?.submitterComment && (
@@ -216,18 +231,18 @@ function AppealCard({ item, onHistoryPress, onChatPress, colors, styles }) {
         {data.originalAction && (
           <View style={styles.modActionShell}>
             <View style={styles.reporterRow}>
-              <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>Mod action</ThemedText>
+              <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>{t('modAction')}</ThemedText>
               <Avatar user={data.originalAction.responder} size="sm" showKudosCount badgePosition="bottom-left" />
               <View style={styles.userInfoColumn}>
-                <ThemedText variant="buttonSmall" color="inverse">{data.originalAction.responder?.displayName || 'Moderator'}</ThemedText>
-                <ThemedText variant="caption" style={styles.reporterUsername}>@{data.originalAction.responder?.username || 'unknown'}</ThemedText>
+                <ThemedText variant="buttonSmall" color="inverse">{data.originalAction.responder?.displayName || t('moderator')}</ThemedText>
+                <ThemedText variant="caption" style={styles.reporterUsername}>@{data.originalAction.responder?.username || t('unknown')}</ThemedText>
               </View>
             </View>
             {data.originalAction.actions?.length > 0 && (
               <View style={styles.modActionDetails}>
                 {data.originalAction.actions.map((a, i) => (
                   <ThemedText key={i} variant="caption" style={styles.modActionDetailText}>
-                    {CLASS_LABELS[a.userClass] || a.userClass}: {ACTION_LABELS[a.action] || a.action}{a.action === 'temporary_ban' && a.durationDays ? ` (${a.durationDays} days)` : ''}
+                    {CLASS_LABELS[a.userClass] || a.userClass}: {ACTION_LABELS[a.action] || a.action}{a.action === 'temporary_ban' && a.durationDays ? ` ${t('durationDays', { days: a.durationDays })}` : ''}
                   </ThemedText>
                 ))}
               </View>
@@ -242,12 +257,12 @@ function AppealCard({ item, onHistoryPress, onChatPress, colors, styles }) {
         <View style={styles.sectionShell}>
           <View style={styles.reporterRow}>
             <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>
-              Appeal by{data.userClass ? ` (${CLASS_LABELS[data.userClass] || data.userClass})` : ''}
+              {t('appealBy')}{data.userClass ? ` (${CLASS_LABELS[data.userClass] || data.userClass})` : ''}
             </ThemedText>
             <Avatar user={data.user} size="sm" showKudosCount badgePosition="bottom-left" />
             <View style={styles.userInfoColumn}>
-              <ThemedText variant="buttonSmall" color="inverse">{data.user?.displayName || 'Anonymous'}</ThemedText>
-              <ThemedText variant="caption" style={styles.reporterUsername}>@{data.user?.username || 'unknown'}</ThemedText>
+              <ThemedText variant="buttonSmall" color="inverse">{data.user?.displayName || t('common:anonymous')}</ThemedText>
+              <ThemedText variant="caption" style={styles.reporterUsername}>@{data.user?.username || t('unknown')}</ThemedText>
             </View>
           </View>
           {data.appealText && (
@@ -260,19 +275,19 @@ function AppealCard({ item, onHistoryPress, onChatPress, colors, styles }) {
           <View key={i} style={pr.outcome === 'escalated' ? styles.sectionShell : styles.modActionShell}>
             <View style={styles.reporterRow}>
               <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>
-                {pr.outcome === 'overruled' ? 'Overruled by' : pr.outcome === 'escalated' ? 'Escalated by' : 'Reviewed by'}
+                {pr.outcome === 'overruled' ? t('overruledBy') : pr.outcome === 'escalated' ? t('escalatedBy') : t('reviewedBy')}
               </ThemedText>
               <Avatar user={pr.responder} size="sm" showKudosCount badgePosition="bottom-left" />
               <View style={styles.userInfoColumn}>
-                <ThemedText variant="buttonSmall" color="inverse">{pr.responder?.displayName || 'Moderator'}</ThemedText>
-                <ThemedText variant="caption" style={styles.reporterUsername}>@{pr.responder?.username || 'unknown'}</ThemedText>
+                <ThemedText variant="buttonSmall" color="inverse">{pr.responder?.displayName || t('moderator')}</ThemedText>
+                <ThemedText variant="caption" style={styles.reporterUsername}>@{pr.responder?.username || t('unknown')}</ThemedText>
               </View>
             </View>
             {pr.outcome === 'overruled' && (
-              <ThemedText variant="caption" style={styles.modActionDetailText}>Approved appeal — overruled original action</ThemedText>
+              <ThemedText variant="caption" style={styles.modActionDetailText}>{t('approvedAppealOverruled')}</ThemedText>
             )}
             {pr.outcome === 'escalated' && (
-              <ThemedText variant="caption" style={styles.modActionDetailText}>Escalated to admin review</ThemedText>
+              <ThemedText variant="caption" style={styles.modActionDetailText}>{t('escalatedToAdmin')}</ThemedText>
             )}
             {pr.responseText && (
               <ThemedText variant="label" style={styles.sectionShellComment}>"{pr.responseText}"</ThemedText>
@@ -284,11 +299,11 @@ function AppealCard({ item, onHistoryPress, onChatPress, colors, styles }) {
   )
 }
 
-const STATE_LABELS = {
-  approved: 'Appeal Approved',
-  denied: 'Appeal Denied',
-  modified: 'Action Modified',
-}
+const getStateLabels = (t) => ({
+  approved: t('stateApproved'),
+  denied: t('stateDenied'),
+  modified: t('stateModified'),
+})
 const getStateColors = (colors) => ({
   approved: SemanticColors.agree,
   denied: SemanticColors.warning,
@@ -296,6 +311,10 @@ const getStateColors = (colors) => ({
 })
 
 function AdminResponseNotificationCard({ item, onHistoryPress, onChatPress, colors, styles }) {
+  const { t } = useTranslation('moderation')
+  const ACTION_LABELS = useMemo(() => getActionLabels(t), [t])
+  const CLASS_LABELS = useMemo(() => getClassLabels(t), [t])
+  const STATE_LABELS = useMemo(() => getStateLabels(t), [t])
   const { data } = item
   const target = data.originalReport?.targetContent
   const rule = data.originalReport?.rule
@@ -307,7 +326,7 @@ function AdminResponseNotificationCard({ item, onHistoryPress, onChatPress, colo
         <View style={styles.headerRow}>
           <View style={styles.headerTypeTag}>
             <Ionicons name="shield-checkmark" size={28} color="#FFFFFF" />
-            <ThemedText variant="badgeLg" color="inverse" style={styles.headerTypeText}>Response</ThemedText>
+            <ThemedText variant="badgeLg" color="inverse" style={styles.headerTypeText}>{t('response')}</ThemedText>
           </View>
           <View style={styles.headerRuleContent}>
             <View style={[styles.outcomeBadge, { backgroundColor: getStateColors(colors)[data.appealState] || colors.primary }]}>
@@ -334,11 +353,11 @@ function AdminResponseNotificationCard({ item, onHistoryPress, onChatPress, colo
                 creator: target.participants?.[0],
               }}
               authorSubtitle="username"
-              label={`Chat: ${target.participants?.map(p => p?.displayName).filter(Boolean).join(' & ')}`}
+              label={t('chatLabel', { names: target.participants?.map(p => p?.displayName).filter(Boolean).join(' & ') })}
             />
           ) : (
             <View style={{ padding: 16 }}>
-              <ThemedText variant="bodySmall" color="secondary" style={{ fontStyle: 'italic' }}>Content unavailable</ThemedText>
+              <ThemedText variant="bodySmall" color="secondary" style={{ fontStyle: 'italic' }}>{t('contentUnavailable')}</ThemedText>
             </View>
           )}
         </View>
@@ -354,9 +373,11 @@ function AdminResponseNotificationCard({ item, onHistoryPress, onChatPress, colo
             style={styles.historyButton}
             onPress={() => onChatPress(data.originalReport?.targetId, data.originalReport?.submitter?.id)}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={t('viewChatLogA11y')}
           >
             <Ionicons name="chatbubbles-outline" size={16} color="#FFFFFF" />
-            <ThemedText variant="label" color="inverse">View chat log</ThemedText>
+            <ThemedText variant="label" color="inverse">{t('viewChatLog')}</ThemedText>
           </TouchableOpacity>
         )}
         {onHistoryPress && data.appealUser && (
@@ -364,9 +385,11 @@ function AdminResponseNotificationCard({ item, onHistoryPress, onChatPress, colo
             style={styles.historyButton}
             onPress={() => onHistoryPress(data.appealUser)}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={t('viewHistoryA11y')}
           >
             <Ionicons name="time-outline" size={16} color="#FFFFFF" />
-            <ThemedText variant="label" color="inverse">User moderation history</ThemedText>
+            <ThemedText variant="label" color="inverse">{t('userModerationHistory')}</ThemedText>
           </TouchableOpacity>
         )}
 
@@ -374,11 +397,11 @@ function AdminResponseNotificationCard({ item, onHistoryPress, onChatPress, colo
         {data.originalReport?.submitter && (
           <View style={styles.sectionShell}>
             <View style={styles.reporterRow}>
-              <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>Reported by</ThemedText>
+              <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>{t('reportedBy')}</ThemedText>
               <Avatar user={data.originalReport.submitter} size="sm" showKudosCount badgePosition="bottom-left" />
               <View style={styles.userInfoColumn}>
-                <ThemedText variant="buttonSmall" color="inverse">{data.originalReport.submitter?.displayName || 'Anonymous'}</ThemedText>
-                <ThemedText variant="caption" style={styles.reporterUsername}>@{data.originalReport.submitter?.username || 'unknown'}</ThemedText>
+                <ThemedText variant="buttonSmall" color="inverse">{data.originalReport.submitter?.displayName || t('common:anonymous')}</ThemedText>
+                <ThemedText variant="caption" style={styles.reporterUsername}>@{data.originalReport.submitter?.username || t('unknown')}</ThemedText>
               </View>
             </View>
             {data.originalReport.submitterComment && (
@@ -391,18 +414,18 @@ function AdminResponseNotificationCard({ item, onHistoryPress, onChatPress, colo
         {data.originalAction && (
           <View style={styles.modActionShell}>
             <View style={styles.reporterRow}>
-              <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>Mod action</ThemedText>
+              <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>{t('modAction')}</ThemedText>
               <Avatar user={data.originalAction.responder} size="sm" showKudosCount badgePosition="bottom-left" />
               <View style={styles.userInfoColumn}>
-                <ThemedText variant="buttonSmall" color="inverse">{data.originalAction.responder?.displayName || 'Moderator'}</ThemedText>
-                <ThemedText variant="caption" style={styles.reporterUsername}>@{data.originalAction.responder?.username || 'unknown'}</ThemedText>
+                <ThemedText variant="buttonSmall" color="inverse">{data.originalAction.responder?.displayName || t('moderator')}</ThemedText>
+                <ThemedText variant="caption" style={styles.reporterUsername}>@{data.originalAction.responder?.username || t('unknown')}</ThemedText>
               </View>
             </View>
             {data.originalAction.actions?.length > 0 && (
               <View style={styles.modActionDetails}>
                 {data.originalAction.actions.map((a, i) => (
                   <ThemedText key={i} variant="caption" style={styles.modActionDetailText}>
-                    {CLASS_LABELS[a.userClass] || a.userClass}: {ACTION_LABELS[a.action] || a.action}{a.action === 'temporary_ban' && a.durationDays ? ` (${a.durationDays} days)` : ''}
+                    {CLASS_LABELS[a.userClass] || a.userClass}: {ACTION_LABELS[a.action] || a.action}{a.action === 'temporary_ban' && a.durationDays ? ` ${t('durationDays', { days: a.durationDays })}` : ''}
                   </ThemedText>
                 ))}
               </View>
@@ -417,11 +440,11 @@ function AdminResponseNotificationCard({ item, onHistoryPress, onChatPress, colo
         {data.appealText && (
           <View style={styles.sectionShell}>
             <View style={styles.reporterRow}>
-              <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>Appeal by</ThemedText>
+              <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>{t('appealBy')}</ThemedText>
               <Avatar user={data.appealUser} size="sm" showKudosCount badgePosition="bottom-left" />
               <View style={styles.userInfoColumn}>
-                <ThemedText variant="buttonSmall" color="inverse">{data.appealUser?.displayName || 'User'}</ThemedText>
-                <ThemedText variant="caption" style={styles.reporterUsername}>@{data.appealUser?.username || 'unknown'}</ThemedText>
+                <ThemedText variant="buttonSmall" color="inverse">{data.appealUser?.displayName || t('userFallback')}</ThemedText>
+                <ThemedText variant="caption" style={styles.reporterUsername}>@{data.appealUser?.username || t('unknown')}</ThemedText>
               </View>
             </View>
             <ThemedText variant="label" style={styles.sectionShellComment}>"{data.appealText}"</ThemedText>
@@ -433,19 +456,19 @@ function AdminResponseNotificationCard({ item, onHistoryPress, onChatPress, colo
           <View key={i} style={i === 1 ? styles.sectionShell : styles.modActionShell}>
             <View style={styles.reporterRow}>
               <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>
-                {i === 0 ? 'Overruled by' : i === 1 ? 'Escalated by' : 'Reviewed by'}
+                {i === 0 ? t('overruledBy') : i === 1 ? t('escalatedBy') : t('reviewedBy')}
               </ThemedText>
               <Avatar user={pr.responder} size="sm" showKudosCount badgePosition="bottom-left" />
               <View style={styles.userInfoColumn}>
-                <ThemedText variant="buttonSmall" color="inverse">{pr.responder?.displayName || 'Moderator'}</ThemedText>
-                <ThemedText variant="caption" style={styles.reporterUsername}>@{pr.responder?.username || 'unknown'}</ThemedText>
+                <ThemedText variant="buttonSmall" color="inverse">{pr.responder?.displayName || t('moderator')}</ThemedText>
+                <ThemedText variant="caption" style={styles.reporterUsername}>@{pr.responder?.username || t('unknown')}</ThemedText>
               </View>
             </View>
             {i === 0 && (
-              <ThemedText variant="caption" style={styles.modActionDetailText}>Approved appeal — overruled original action</ThemedText>
+              <ThemedText variant="caption" style={styles.modActionDetailText}>{t('approvedAppealOverruled')}</ThemedText>
             )}
             {i === 1 && (
-              <ThemedText variant="caption" style={styles.modActionDetailText}>Escalated to admin review</ThemedText>
+              <ThemedText variant="caption" style={styles.modActionDetailText}>{t('escalatedToAdmin')}</ThemedText>
             )}
             {pr.responseText && (
               <ThemedText variant="label" style={styles.sectionShellComment}>"{pr.responseText}"</ThemedText>
@@ -456,11 +479,11 @@ function AdminResponseNotificationCard({ item, onHistoryPress, onChatPress, colo
         {/* 3. Admin decision (most recent — at bottom) */}
         <View style={styles.modActionShell}>
           <View style={styles.reporterRow}>
-            <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>Admin decision</ThemedText>
+            <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>{t('adminDecision')}</ThemedText>
             <Avatar user={data.adminResponder} size="sm" showKudosCount badgePosition="bottom-left" />
             <View style={styles.userInfoColumn}>
-              <ThemedText variant="buttonSmall" color="inverse">{data.adminResponder?.displayName || 'Admin'}</ThemedText>
-              <ThemedText variant="caption" style={styles.reporterUsername}>@{data.adminResponder?.username || 'unknown'}</ThemedText>
+              <ThemedText variant="buttonSmall" color="inverse">{data.adminResponder?.displayName || t('admin')}</ThemedText>
+              <ThemedText variant="caption" style={styles.reporterUsername}>@{data.adminResponder?.username || t('unknown')}</ThemedText>
             </View>
           </View>
           {data.adminResponseText && (
@@ -473,6 +496,7 @@ function AdminResponseNotificationCard({ item, onHistoryPress, onChatPress, colo
 }
 
 export default function ModerationQueue() {
+  const { t } = useTranslation('moderation')
   const router = useRouter()
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
@@ -513,7 +537,7 @@ export default function ModerationQueue() {
       setCurrentIndex(0)
     } catch (err) {
       console.error('Failed to fetch mod queue:', err)
-      setError(err.message || 'Failed to load moderation queue')
+      setError(translateError(err.message, t) || t('failedLoadQueue'))
     } finally {
       setLoading(false)
     }
@@ -660,7 +684,7 @@ export default function ModerationQueue() {
         <Header />
         <View style={styles.centerContent}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <ThemedText variant="body" color="secondary" style={styles.loadingText}>Loading queue...</ThemedText>
+          <ThemedText variant="body" color="secondary" style={styles.loadingText}>{t('loadingQueue')}</ThemedText>
         </View>
       </SafeAreaView>
     )
@@ -672,8 +696,8 @@ export default function ModerationQueue() {
         <Header />
         <View style={styles.centerContent}>
           <ThemedText variant="body" color="error" style={styles.errorText}>{error}</ThemedText>
-          <TouchableOpacity style={styles.retryButton} onPress={fetchQueue}>
-            <ThemedText variant="button" color="inverse">Retry</ThemedText>
+          <TouchableOpacity style={styles.retryButton} onPress={fetchQueue} accessibilityRole="button" accessibilityLabel={t('retryA11y')}>
+            <ThemedText variant="button" color="inverse">{t('common:retry')}</ThemedText>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -686,8 +710,8 @@ export default function ModerationQueue() {
         <Header />
         <EmptyState
           icon="shield-checkmark-outline"
-          title="Queue is clear"
-          subtitle="No pending reports or appeals to review"
+          title={t('queueClear')}
+          subtitle={t('queueClearSubtitle')}
           style={styles.emptyContainer}
         />
       </SafeAreaView>
@@ -712,31 +736,37 @@ export default function ModerationQueue() {
       <View style={styles.actionsContainer}>
         {currentItem?.type === 'report' ? (
           <>
-            <TouchableOpacity style={styles.actionButton} onPress={handlePass}>
+            <TouchableOpacity style={styles.actionButton} onPress={handlePass} accessibilityRole="button" accessibilityLabel={t('passAction')}>
               <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
-              <ThemedText variant="badgeLg" color="inverse">Pass</ThemedText>
+              <ThemedText variant="badgeLg" color="inverse">{t('passAction')}</ThemedText>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, styles.actionButtonDismiss]}
               onPress={() => setDismissModalVisible(true)}
+              accessibilityRole="button"
+              accessibilityLabel={t('dismissAction')}
             >
               <Ionicons name="close-circle-outline" size={20} color="#FFFFFF" />
-              <ThemedText variant="badgeLg" color="inverse">Dismiss</ThemedText>
+              <ThemedText variant="badgeLg" color="inverse">{t('dismissAction')}</ThemedText>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, styles.actionButtonAction]}
               onPress={() => setActionModalVisible(true)}
+              accessibilityRole="button"
+              accessibilityLabel={t('actionButton')}
             >
               <MaterialCommunityIcons name="gavel" size={20} color="#FFFFFF" />
-              <ThemedText variant="badgeLg" color="inverse">Action</ThemedText>
+              <ThemedText variant="badgeLg" color="inverse">{t('actionButton')}</ThemedText>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.actionButton}
               onPress={handleMarkSpurious}
               disabled={processing}
+              accessibilityRole="button"
+              accessibilityLabel={t('spurious')}
             >
               <Ionicons name="trash-outline" size={20} color="#FFFFFF" />
-              <ThemedText variant="badgeLg" color="inverse">Spurious</ThemedText>
+              <ThemedText variant="badgeLg" color="inverse">{t('spurious')}</ThemedText>
             </TouchableOpacity>
           </>
         ) : currentItem?.type === 'appeal' ? (
@@ -749,9 +779,11 @@ export default function ModerationQueue() {
                   setResponseText('')
                   setAppealResponseModalVisible(true)
                 }}
+                accessibilityRole="button"
+                accessibilityLabel={t('acceptAction')}
               >
                 <Ionicons name="checkmark-circle-outline" size={20} color="#FFFFFF" />
-                <ThemedText variant="badgeLg" color="inverse" style={styles.actionButtonTextWhite}>Accept</ThemedText>
+                <ThemedText variant="badgeLg" color="inverse" style={styles.actionButtonTextWhite}>{t('acceptAction')}</ThemedText>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.actionButton, styles.actionButtonEscalate]}
@@ -760,9 +792,11 @@ export default function ModerationQueue() {
                   setResponseText('')
                   setAppealResponseModalVisible(true)
                 }}
+                accessibilityRole="button"
+                accessibilityLabel={t('escalateAction')}
               >
                 <Ionicons name="arrow-up-circle-outline" size={20} color="#FFFFFF" />
-                <ThemedText variant="badgeLg" color="inverse" style={styles.actionButtonTextWhite}>Escalate</ThemedText>
+                <ThemedText variant="badgeLg" color="inverse" style={styles.actionButtonTextWhite}>{t('escalateAction')}</ThemedText>
               </TouchableOpacity>
             </>
           ) : currentItem.data.appealState === 'escalated' ? (
@@ -774,13 +808,15 @@ export default function ModerationQueue() {
                   setResponseText('')
                   setAppealResponseModalVisible(true)
                 }}
+                accessibilityRole="button"
+                accessibilityLabel={t('approveAction')}
               >
-                <ThemedText variant="caption" style={styles.escalatedButtonLabel}>Side with</ThemedText>
+                <ThemedText variant="caption" style={styles.escalatedButtonLabel}>{t('sideWith')}</ThemedText>
                 <View style={styles.escalatedButtonContent}>
                   <Avatar user={currentItem.data.priorResponses?.[0]?.responder} size="sm" showKudosCount badgePosition="bottom-left" />
                   <View style={styles.userInfoColumn}>
-                    <ThemedText variant="badgeLg" color="inverse" style={styles.actionButtonTextWhite}>{currentItem.data.priorResponses?.[0]?.responder?.displayName || 'Moderator'}</ThemedText>
-                    <ThemedText variant="caption" style={styles.escalatedButtonUsername}>@{currentItem.data.priorResponses?.[0]?.responder?.username || 'unknown'}</ThemedText>
+                    <ThemedText variant="badgeLg" color="inverse" style={styles.actionButtonTextWhite}>{currentItem.data.priorResponses?.[0]?.responder?.displayName || t('moderator')}</ThemedText>
+                    <ThemedText variant="caption" style={styles.escalatedButtonUsername}>@{currentItem.data.priorResponses?.[0]?.responder?.username || t('unknown')}</ThemedText>
                   </View>
                 </View>
               </TouchableOpacity>
@@ -791,13 +827,15 @@ export default function ModerationQueue() {
                   setResponseText('')
                   setAppealResponseModalVisible(true)
                 }}
+                accessibilityRole="button"
+                accessibilityLabel={t('denyAction')}
               >
-                <ThemedText variant="caption" style={styles.escalatedButtonLabel}>Side with</ThemedText>
+                <ThemedText variant="caption" style={styles.escalatedButtonLabel}>{t('sideWith')}</ThemedText>
                 <View style={styles.escalatedButtonContent}>
                   <Avatar user={currentItem.data.originalAction?.responder} size="sm" showKudosCount badgePosition="bottom-left" />
                   <View style={styles.userInfoColumn}>
-                    <ThemedText variant="badgeLg" color="inverse" style={styles.actionButtonTextWhite}>{currentItem.data.originalAction?.responder?.displayName || 'Moderator'}</ThemedText>
-                    <ThemedText variant="caption" style={styles.escalatedButtonUsername}>@{currentItem.data.originalAction?.responder?.username || 'unknown'}</ThemedText>
+                    <ThemedText variant="badgeLg" color="inverse" style={styles.actionButtonTextWhite}>{currentItem.data.originalAction?.responder?.displayName || t('moderator')}</ThemedText>
+                    <ThemedText variant="caption" style={styles.escalatedButtonUsername}>@{currentItem.data.originalAction?.responder?.username || t('unknown')}</ThemedText>
                   </View>
                 </View>
               </TouchableOpacity>
@@ -811,16 +849,20 @@ export default function ModerationQueue() {
                   setResponseText('')
                   setAppealResponseModalVisible(true)
                 }}
+                accessibilityRole="button"
+                accessibilityLabel={t('approveAction')}
               >
                 <Ionicons name="checkmark-circle-outline" size={20} color="#FFFFFF" />
-                <ThemedText variant="badgeLg" color="inverse" style={styles.actionButtonTextWhite}>Approve</ThemedText>
+                <ThemedText variant="badgeLg" color="inverse" style={styles.actionButtonTextWhite}>{t('approveAction')}</ThemedText>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.actionButton, styles.actionButtonModify]}
                 onPress={() => setModifyModalVisible(true)}
+                accessibilityRole="button"
+                accessibilityLabel={t('modifyAction')}
               >
                 <Ionicons name="create-outline" size={20} color="#FFFFFF" />
-                <ThemedText variant="badgeLg" color="inverse" style={styles.actionButtonTextWhite}>Modify</ThemedText>
+                <ThemedText variant="badgeLg" color="inverse" style={styles.actionButtonTextWhite}>{t('modifyAction')}</ThemedText>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.actionButton, styles.actionButtonDeny]}
@@ -829,9 +871,11 @@ export default function ModerationQueue() {
                   setResponseText('')
                   setAppealResponseModalVisible(true)
                 }}
+                accessibilityRole="button"
+                accessibilityLabel={t('denyAction')}
               >
                 <Ionicons name="close-circle-outline" size={20} color="#FFFFFF" />
-                <ThemedText variant="badgeLg" color="inverse" style={styles.actionButtonTextWhite}>Deny</ThemedText>
+                <ThemedText variant="badgeLg" color="inverse" style={styles.actionButtonTextWhite}>{t('denyAction')}</ThemedText>
               </TouchableOpacity>
             </>
           )
@@ -840,9 +884,11 @@ export default function ModerationQueue() {
             style={[styles.actionButton, styles.actionButtonDismissNotification]}
             onPress={handleDismissAdminResponse}
             disabled={processing}
+            accessibilityRole="button"
+            accessibilityLabel={t('dismissAction')}
           >
             <Ionicons name="checkmark-circle-outline" size={20} color="#FFFFFF" />
-            <ThemedText variant="badgeLg" color="inverse" style={styles.actionButtonTextWhite}>Dismiss</ThemedText>
+            <ThemedText variant="badgeLg" color="inverse" style={styles.actionButtonTextWhite}>{t('dismissAction')}</ThemedText>
           </TouchableOpacity>
         ) : null}
       </View>
@@ -869,7 +915,7 @@ export default function ModerationQueue() {
       <BottomDrawerModal
         visible={dismissModalVisible}
         onClose={() => setDismissModalVisible(false)}
-        title="Dismiss Report"
+        title={t('dismissReport')}
         maxHeight="40%"
       >
         <View style={styles.responseModalContent}>
@@ -877,20 +923,23 @@ export default function ModerationQueue() {
             style={styles.responseInput}
             value={responseText}
             onChangeText={setResponseText}
-            placeholder="Moderator comment (optional)..."
+            placeholder={t('modCommentPlaceholder')}
             placeholderTextColor={colors.placeholderText}
             multiline
             maxFontSizeMultiplier={1.5}
+            accessibilityLabel={t('responseInputA11y')}
           />
           <TouchableOpacity
             style={styles.responseSubmitButton}
             onPress={handleDismiss}
             disabled={processing}
+            accessibilityRole="button"
+            accessibilityLabel={t('submitResponseA11y')}
           >
             {processing ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
-              <ThemedText variant="button" color="inverse">Dismiss Report</ThemedText>
+              <ThemedText variant="button" color="inverse">{t('dismissReport')}</ThemedText>
             )}
           </TouchableOpacity>
         </View>
@@ -909,13 +958,13 @@ export default function ModerationQueue() {
         visible={appealResponseModalVisible}
         onClose={() => setAppealResponseModalVisible(false)}
         title={
-          appealResponseType === 'accept' ? 'Accept Overruling' :
-          appealResponseType === 'escalate' ? 'Escalate to Admin' :
+          appealResponseType === 'accept' ? t('acceptOverruling') :
+          appealResponseType === 'escalate' ? t('escalateToAdmin') :
           appealResponseType === 'approve' && currentItem?.data?.appealState === 'escalated'
-            ? `Side with ${currentItem?.data?.priorResponses?.[0]?.responder?.displayName || 'Moderator'}`
+            ? t('sideWithName', { name: currentItem?.data?.priorResponses?.[0]?.responder?.displayName || t('moderator') })
             : appealResponseType === 'deny' && currentItem?.data?.appealState === 'escalated'
-              ? `Side with ${currentItem?.data?.originalAction?.responder?.displayName || 'Moderator'}`
-              : appealResponseType === 'approve' ? 'Approve Appeal' : 'Deny Appeal'
+              ? t('sideWithName', { name: currentItem?.data?.originalAction?.responder?.displayName || t('moderator') })
+              : appealResponseType === 'approve' ? t('approveAppeal') : t('denyAppeal')
         }
         maxHeight="40%"
       >
@@ -924,10 +973,11 @@ export default function ModerationQueue() {
             style={styles.responseInput}
             value={responseText}
             onChangeText={setResponseText}
-            placeholder={appealResponseType === 'escalate' ? "Explain why you stand by your decision..." : "Your response..."}
+            placeholder={appealResponseType === 'escalate' ? t('escalateExplain') : t('yourResponse')}
             placeholderTextColor={colors.placeholderText}
             multiline
             maxFontSizeMultiplier={1.5}
+            accessibilityLabel={t('responseInputA11y')}
           />
           <TouchableOpacity
             style={[
@@ -937,14 +987,16 @@ export default function ModerationQueue() {
             ]}
             onPress={handleAppealResponse}
             disabled={processing}
+            accessibilityRole="button"
+            accessibilityLabel={t('submitResponseA11y')}
           >
             {processing ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
               <ThemedText variant="button" color="inverse">
-                {appealResponseType === 'accept' ? 'Accept Overruling' :
-                 appealResponseType === 'escalate' ? 'Escalate to Admin' :
-                 appealResponseType === 'approve' ? 'Approve Appeal' : 'Deny Appeal'}
+                {appealResponseType === 'accept' ? t('acceptOverruling') :
+                 appealResponseType === 'escalate' ? t('escalateToAdmin') :
+                 appealResponseType === 'approve' ? t('approveAppeal') : t('denyAppeal')}
               </ThemedText>
             )}
           </TouchableOpacity>

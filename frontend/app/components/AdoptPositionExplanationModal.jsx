@@ -1,8 +1,10 @@
+import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { SemanticColors } from '../constants/Colors'
 import InfoModal from './InfoModal'
 
 export default function AdoptPositionExplanationModal({ visible, onClose }) {
+  const { t } = useTranslation()
   const colors = useThemeColors()
 
   return (
@@ -11,14 +13,14 @@ export default function AdoptPositionExplanationModal({ visible, onClose }) {
       onClose={onClose}
       icon="add-circle"
       iconColor={SemanticColors.agree}
-      title="Position Adopted!"
+      title={t('adoptedTitle')}
       paragraphs={[
-        'You\'ve adopted this position as your own. It will now appear in your "My Positions" list.',
-        'Other users who want to discuss this topic may send you chat requests.',
+        t('adoptedParagraph1'),
+        t('adoptedParagraph2'),
       ]}
       items={[
-        { icon: 'chatbubble', iconColor: colors.chat, text: 'You\'ll receive notifications when someone wants to chat about this position' },
-        { icon: 'stats-chart', iconColor: colors.primary, text: 'Track responses and engagement on your positions in the Stats tab' },
+        { icon: 'chatbubble', iconColor: colors.chat, text: t('adoptedItem1') },
+        { icon: 'stats-chart', iconColor: colors.primary, text: t('adoptedItem2') },
       ]}
     />
   )

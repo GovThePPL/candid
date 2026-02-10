@@ -3,26 +3,30 @@ import { useMemo } from 'react'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
+import { useTranslation } from 'react-i18next'
 import { useTheme } from '../../../contexts/ThemeContext'
 import { useUser } from '../../../hooks/useUser'
 
 import ThemedText from '../../../components/ThemedText'
 import Header from '../../../components/Header'
 import Avatar from '../../../components/Avatar'
+import LanguagePicker from '../../../components/LanguagePicker'
 
-const MENU_ITEMS = [
-  { label: 'Demographics', icon: 'stats-chart-outline', route: '/settings/demographics' },
-  { label: 'Preferences', icon: 'options-outline', route: '/settings/preferences' },
-  { label: 'Notifications', icon: 'notifications-outline', route: '/settings/notifications' },
-  { label: 'Account', icon: 'shield-outline', route: '/settings/account' },
+const getMenuItems = (t) => [
+  { label: t('menuDemographics'), icon: 'stats-chart-outline', route: '/settings/demographics' },
+  { label: t('menuPreferences'), icon: 'options-outline', route: '/settings/preferences' },
+  { label: t('menuNotifications'), icon: 'notifications-outline', route: '/settings/notifications' },
+  { label: t('menuAccount'), icon: 'shield-outline', route: '/settings/account' },
 ]
 
 export default function SettingsHub() {
+  const { t } = useTranslation('settings')
   const { user } = useUser()
   const router = useRouter()
   const { returnTo } = useLocalSearchParams()
   const { colors, themePreference, setThemePreference } = useTheme()
   const styles = useMemo(() => createStyles(colors), [colors])
+  const MENU_ITEMS = useMemo(() => getMenuItems(t), [t])
 
   const handleBack = () => {
     if (returnTo) {
@@ -38,7 +42,7 @@ export default function SettingsHub() {
       <View style={styles.content}>
         <View style={styles.pageHeader}>
           <ThemedText variant="h1" title={true} style={styles.pageTitle}>
-            Settings
+            {t('settings')}
           </ThemedText>
         </View>
 
@@ -48,12 +52,12 @@ export default function SettingsHub() {
           onPress={() => router.push('/settings/profile')}
           activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel={`Edit profile for ${user?.displayName || 'Guest'}`}
+          accessibilityLabel={t('editProfileA11y', { name: user?.displayName || t('guest') })}
         >
           <Avatar user={user} size={64} showKudosBadge={false} />
           <View style={styles.userInfo}>
-            <ThemedText variant="h2" color="dark">{user?.displayName || 'Guest'}</ThemedText>
-            <ThemedText variant="bodySmall" color="secondary" style={styles.username}>@{user?.username || 'guest'}</ThemedText>
+            <ThemedText variant="h2" color="dark">{user?.displayName || t('guest')}</ThemedText>
+            <ThemedText variant="bodySmall" color="secondary" style={styles.username}>@{user?.username || t('guestUsername')}</ThemedText>
           </View>
           <Ionicons name="chevron-forward" size={20} color={colors.secondaryText} />
         </TouchableOpacity>
@@ -61,9 +65,9 @@ export default function SettingsHub() {
         {/* Theme toggle */}
         <View style={styles.themeSection}>
           {[
-            { value: 'light', icon: 'sunny-outline' },
-            { value: 'dark', icon: 'moon-outline' },
-            { value: 'system', icon: 'phone-portrait-outline' },
+            { value: 'light', icon: 'sunny-outline', label: t('themeLight') },
+            { value: 'dark', icon: 'moon-outline', label: t('themeDark') },
+            { value: 'system', icon: 'phone-portrait-outline', label: t('themeSystem') },
           ].map((option) => (
             <TouchableOpacity
               key={option.value}
@@ -74,7 +78,7 @@ export default function SettingsHub() {
               onPress={() => setThemePreference(option.value)}
               accessibilityRole="radio"
               accessibilityState={{ checked: themePreference === option.value }}
-              accessibilityLabel={`${option.value.charAt(0).toUpperCase() + option.value.slice(1)} theme`}
+              accessibilityLabel={t('themeA11y', { theme: option.label })}
             >
               <Ionicons
                 name={option.icon}
@@ -85,10 +89,15 @@ export default function SettingsHub() {
                 styles.themeOptionLabel,
                 themePreference === option.value && styles.themeOptionLabelSelected,
               ]}>
-                {option.value.charAt(0).toUpperCase() + option.value.slice(1)}
+                {option.label}
               </ThemedText>
             </TouchableOpacity>
           ))}
+        </View>
+
+        {/* Language picker */}
+        <View style={{ marginBottom: 16 }}>
+          <LanguagePicker />
         </View>
 
         {/* Menu items */}

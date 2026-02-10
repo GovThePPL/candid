@@ -7,6 +7,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons"
 import UserOnly from "../../components/auth/UserOnly"
 import { UserContext } from "../../contexts/UserContext"
 import { ToastProvider } from "../../components/Toast"
+import { useTranslation } from "react-i18next"
 import { useThemeColors } from "../../hooks/useThemeColors"
 import ThemedText from "../../components/ThemedText"
 
@@ -19,6 +20,7 @@ export default function DashboardLayout() {
   const router = useRouter()
   const { user, activeChatNavigation, clearActiveChatNavigation, activeChat, clearActiveChat } = useContext(UserContext)
   const isModerator = user?.userType === 'moderator' || user?.userType === 'admin'
+  const { t } = useTranslation()
   const colors = useThemeColors()
   const insets = useSafeAreaInsets()
   const styles = useMemo(() => createStyles(colors), [colors])
@@ -87,37 +89,37 @@ export default function DashboardLayout() {
         <Tabs.Screen
           name="cards"
           options={{
-            title: "Cards",
-            tabBarIcon: renderTabIcon(MaterialCommunityIcons, 'cards-outline', 'cards', 'Cards'),
+            title: t('tabCards'),
+            tabBarIcon: renderTabIcon(MaterialCommunityIcons, 'cards-outline', 'cards', t('tabCards')),
           }}
         />
         <Tabs.Screen
           name="create"
           options={{
-            title: "Add",
-            tabBarIcon: renderTabIcon(Ionicons, 'add-circle-outline', 'add-circle', 'Add'),
+            title: t('tabAdd'),
+            tabBarIcon: renderTabIcon(Ionicons, 'add-circle-outline', 'add-circle', t('tabAdd')),
           }}
         />
         <Tabs.Screen
           name="chats"
           options={{
-            title: "Chats",
-            tabBarIcon: renderTabIcon(Ionicons, 'chatbubbles-outline', 'chatbubbles', 'Chats'),
+            title: t('tabChats'),
+            tabBarIcon: renderTabIcon(Ionicons, 'chatbubbles-outline', 'chatbubbles', t('tabChats')),
           }}
         />
         <Tabs.Screen
           name="stats"
           options={{
-            title: "Stats",
-            tabBarIcon: renderTabIcon(Ionicons, 'stats-chart-outline', 'stats-chart', 'Stats'),
+            title: t('tabStats'),
+            tabBarIcon: renderTabIcon(Ionicons, 'stats-chart-outline', 'stats-chart', t('tabStats')),
           }}
         />
         {/* Moderation queue - only visible to moderators and admins */}
         <Tabs.Screen
           name="moderation"
           options={isModerator ? {
-            title: "Mod",
-            tabBarIcon: renderTabIcon(Ionicons, 'shield-outline', 'shield', 'Mod'),
+            title: t('tabMod'),
+            tabBarIcon: renderTabIcon(Ionicons, 'shield-outline', 'shield', t('tabMod')),
           } : { href: null }}
         />
         {/* Hide chat folder - requires chat ID, accessed via direct navigation */}

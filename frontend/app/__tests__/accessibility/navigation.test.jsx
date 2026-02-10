@@ -42,6 +42,7 @@ jest.mock('../../components/Avatar', () => {
 jest.mock('../../lib/api', () => ({
   __esModule: true,
   default: { chat: { rescindChatRequest: jest.fn() } },
+  translateError: (msg) => msg,
 }))
 
 jest.mock('../../lib/avatarUtils', () => ({
@@ -83,39 +84,39 @@ describe('Sidebar accessibility', () => {
 
   test('Settings menu item has button role and label', () => {
     render(<Sidebar {...defaultProps} />)
-    expect(screen.getByRole('button', { name: 'Settings' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /settings/i })).toBeTruthy()
   })
 
   test('Support Us menu item has button role and label', () => {
     render(<Sidebar {...defaultProps} />)
-    expect(screen.getByRole('button', { name: 'Support Us' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /supportUs/i })).toBeTruthy()
   })
 
   test('Community Reports menu item has button role and label', () => {
     render(<Sidebar {...defaultProps} />)
-    expect(screen.getByRole('button', { name: 'Community Reports' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /communityReports/i })).toBeTruthy()
   })
 
   test('Report Bug menu item has button role and label', () => {
     render(<Sidebar {...defaultProps} />)
-    expect(screen.getByRole('button', { name: 'Report a bug' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /reportBug/i })).toBeTruthy()
   })
 
   test('Log Out has button role and label', () => {
     render(<Sidebar {...defaultProps} />)
-    expect(screen.getByRole('button', { name: 'Log Out' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /logOut/i })).toBeTruthy()
   })
 })
 
 describe('Header accessibility', () => {
   test('kudos badge has accessible label', () => {
     render(<Header />)
-    expect(screen.getByLabelText('5 kudos')).toBeTruthy()
+    expect(screen.getByLabelText(/kudosCount/i)).toBeTruthy()
   })
 
   test('menu button has accessible label', () => {
     render(<Header />)
-    expect(screen.getByRole('button', { name: 'Open menu' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /openMenu/i })).toBeTruthy()
   })
 })
 
@@ -144,7 +145,7 @@ describe('GroupTabBar accessibility', () => {
     render(
       <GroupTabBar groups={groups} activeTab="majority" onTabChange={jest.fn()} />
     )
-    expect(screen.getByRole('tab', { name: 'All' })).toBeSelected()
+    expect(screen.getByRole('tab', { name: /^all$/i })).toBeSelected()
   })
 
   test('inactive tab is not selected', () => {
@@ -180,7 +181,7 @@ describe('PositionListManager expand headers accessibility', () => {
 
   test('location headers have expanded state and label with count', () => {
     render(<PositionListManager {...defaultProps} />)
-    const usaHeader = screen.getByRole('button', { name: /USA, 15 positions/ })
+    const usaHeader = screen.getByRole('button', { name: /locationGroupA11y.*USA.*15/ })
     expect(usaHeader).toBeTruthy()
     expect(usaHeader).toBeExpanded()
   })
@@ -188,7 +189,7 @@ describe('PositionListManager expand headers accessibility', () => {
   test('category headers have expanded state and label with count', () => {
     render(<PositionListManager {...defaultProps} />)
     // Under USA: 8 Politics (0,2,4,6,8,10,12,14), 7 Science (1,3,5,7,9,11,13)
-    const politicsHeader = screen.getByRole('button', { name: /Politics, 8 positions/ })
+    const politicsHeader = screen.getByRole('button', { name: /categoryGroupA11y.*Politics.*8/ })
     expect(politicsHeader).toBeTruthy()
     expect(politicsHeader).toBeExpanded()
   })

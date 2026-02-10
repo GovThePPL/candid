@@ -10,6 +10,8 @@ Text.defaultProps.maxFontSizeMultiplier = 2.0
 import { GestureHandlerRootView } from "react-native-gesture-handler"
 import { UserProvider } from "../contexts/UserContext"
 import { ThemeProvider, useTheme } from "../contexts/ThemeContext"
+import { useTranslation } from "react-i18next"
+import { I18nProvider } from "../contexts/I18nContext"
 import { CacheManager } from "../lib/cache"
 
 // Clear application cache on hard reload (Ctrl+Shift+R) so stale data doesn't persist
@@ -55,6 +57,7 @@ function useGoogleFont() {
 
 function InnerLayout() {
   const { colors, isDark } = useTheme()
+  const { t } = useTranslation()
 
   return (
     <>
@@ -65,7 +68,7 @@ function InnerLayout() {
       }}>
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(dashboard)" options={{ headerShown: false }} />
-        <Stack.Screen name="index" options={{ title: "Home" }} />
+        <Stack.Screen name="index" options={{ title: t('home') }} />
       </Stack>
     </>
   )
@@ -84,9 +87,11 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <UserProvider>
-        <ThemeProvider>
-          <InnerLayout />
-        </ThemeProvider>
+        <I18nProvider>
+          <ThemeProvider>
+            <InnerLayout />
+          </ThemeProvider>
+        </I18nProvider>
       </UserProvider>
     </GestureHandlerRootView>
   )

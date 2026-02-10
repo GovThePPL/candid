@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from 'react-native'
+import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { SemanticColors, BrandColor } from '../constants/Colors'
@@ -15,6 +16,7 @@ import BottomDrawerModal from './BottomDrawerModal'
 import { bugReportsApiWrapper } from '../lib/api'
 
 export default function BugReportModal({ visible, onClose }) {
+  const { t } = useTranslation()
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
 
@@ -44,7 +46,7 @@ export default function BugReportModal({ visible, onClose }) {
       setSuccess(true)
       setTimeout(() => onClose(), 1200)
     } catch (err) {
-      setError('Failed to submit. Please try again.')
+      setError(t('failedSubmit'))
     } finally {
       setSubmitting(false)
     }
@@ -54,22 +56,22 @@ export default function BugReportModal({ visible, onClose }) {
     <BottomDrawerModal
       visible={visible}
       onClose={onClose}
-      title="Report a Bug"
-      subtitle="Describe what went wrong"
+      title={t('reportBugTitle')}
+      subtitle={t('bugSubtitle')}
       maxHeight="60%"
     >
       {success ? (
         <View style={styles.successContainer}>
           <Ionicons name="checkmark-circle" size={48} color={SemanticColors.success} />
-          <ThemedText variant="h2" style={styles.successText}>Thanks for the report!</ThemedText>
-          <ThemedText variant="label" color="secondary">We'll look into it.</ThemedText>
+          <ThemedText variant="h2" style={styles.successText}>{t('bugSuccess')}</ThemedText>
+          <ThemedText variant="label" color="secondary">{t('bugSuccessSubtitle')}</ThemedText>
         </View>
       ) : (
         <View style={styles.container}>
           <View style={styles.body}>
             <TextInput
               style={styles.descriptionInput}
-              placeholder="What happened? What did you expect?"
+              placeholder={t('bugPlaceholder')}
               placeholderTextColor={colors.placeholderText}
               value={description}
               onChangeText={setDescription}
@@ -78,8 +80,8 @@ export default function BugReportModal({ visible, onClose }) {
               numberOfLines={5}
               textAlignVertical="top"
               maxFontSizeMultiplier={1.5}
-              accessibilityLabel="Bug description"
-              accessibilityHint="Describe the bug you encountered"
+              accessibilityLabel={t('bugDescription')}
+              accessibilityHint={t('bugDescriptionHint')}
             />
             {error && (
               <ThemedText variant="label" style={styles.errorText}>{error}</ThemedText>
@@ -93,14 +95,14 @@ export default function BugReportModal({ visible, onClose }) {
               disabled={!description.trim() || submitting}
               activeOpacity={0.7}
               accessibilityRole="button"
-              accessibilityLabel="Submit bug report"
+              accessibilityLabel={t('submitBugReport')}
             >
               {submitting ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
                 <>
                   <Ionicons name="bug" size={18} color="#FFFFFF" />
-                  <ThemedText variant="button" color="inverse">Submit Report</ThemedText>
+                  <ThemedText variant="button" color="inverse">{t('submitReport')}</ThemedText>
                 </>
               )}
             </TouchableOpacity>

@@ -3,10 +3,11 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
+import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../../hooks/useThemeColors'
 import { SemanticColors } from '../../../constants/Colors'
 import { createSharedStyles } from '../../../constants/SharedStyles'
-import api from '../../../lib/api'
+import api, { translateError } from '../../../lib/api'
 import { useUser } from '../../../hooks/useUser'
 import { CacheManager, CacheKeys, CacheDurations } from '../../../lib/cache'
 
@@ -17,6 +18,7 @@ import LoadingView from '../../../components/LoadingView'
 export default function AccountSettings() {
   const { logout, user, refreshUser } = useUser()
   const router = useRouter()
+  const { t } = useTranslation('settings')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const shared = useMemo(() => createSharedStyles(colors), [colors])
@@ -66,7 +68,7 @@ export default function AccountSettings() {
       }, 100)
     } catch (err) {
       console.error('Failed to fetch account data:', err)
-      setError(err.message || 'Failed to load account data')
+      setError(translateError(err.message, t) || t('failedLoadAccount'))
     } finally {
       setLoading(false)
     }
@@ -105,7 +107,7 @@ export default function AccountSettings() {
       setEditingEmail(false)
     } catch (err) {
       console.error('Failed to save email:', err)
-      setError(err.message || 'Failed to save email')
+      setError(translateError(err.message, t) || t('failedSaveEmail'))
       setTimeout(() => setError(null), 3000)
     } finally {
       setSavingEmail(false)
@@ -122,7 +124,7 @@ export default function AccountSettings() {
       await logout()
       router.replace('/')
     } catch (err) {
-      setDeleteError(err.message || 'Failed to delete account')
+      setDeleteError(translateError(err.message, t) || t('failedDeleteAccount'))
     } finally {
       setDeletingAccount(false)
     }
@@ -144,7 +146,7 @@ export default function AccountSettings() {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <Header onBack={() => router.back()} />
-        <LoadingView message="Loading account..." />
+        <LoadingView message={t('loadingAccount')} />
       </SafeAreaView>
     )
   }
@@ -155,7 +157,7 @@ export default function AccountSettings() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.pageHeader}>
           <ThemedText variant="h1" title={true} style={styles.pageTitle}>
-            Account
+            {t('account')}
           </ThemedText>
         </View>
 
@@ -170,7 +172,7 @@ export default function AccountSettings() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="mail-outline" size={22} color={colors.primary} />
-            <ThemedText variant="h2" color="dark">Email</ThemedText>
+            <ThemedText variant="h2" color="dark">{t('email')}</ThemedText>
           </View>
 
           {editingEmail ? (
@@ -180,13 +182,13 @@ export default function AccountSettings() {
                   style={styles.textInput}
                   value={email}
                   onChangeText={handleEmailChange}
-                  placeholder="your@email.com"
+                  placeholder={t('emailPlaceholder')}
                   placeholderTextColor={colors.placeholderText}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoFocus
                   maxFontSizeMultiplier={1.5}
-                  accessibilityLabel="Email address"
+                  accessibilityLabel={t('emailA11yLabel')}
                 />
               </View>
 
@@ -199,9 +201,9 @@ export default function AccountSettings() {
                     setEditingEmail(false)
                   }}
                   accessibilityRole="button"
-                  accessibilityLabel="Cancel email edit"
+                  accessibilityLabel={t('cancelEmailEdit')}
                 >
-                  <ThemedText variant="button" color="secondary" style={styles.cancelButtonText}>Cancel</ThemedText>
+                  <ThemedText variant="button" color="secondary" style={styles.cancelButtonText}>{t('cancel')}</ThemedText>
                 </TouchableOpacity>
                 {hasEmailChanges && (
                   <TouchableOpacity
@@ -209,13 +211,13 @@ export default function AccountSettings() {
                     onPress={handleSaveEmail}
                     disabled={savingEmail}
                     accessibilityRole="button"
-                    accessibilityLabel="Save email"
+                    accessibilityLabel={t('saveEmailA11y')}
                     accessibilityState={{ disabled: savingEmail }}
                   >
                     {savingEmail ? (
                       <ActivityIndicator size="small" color="#fff" />
                     ) : (
-                      <ThemedText variant="button" color="inverse">Save</ThemedText>
+                      <ThemedText variant="button" color="inverse">{t('save')}</ThemedText>
                     )}
                   </TouchableOpacity>
                 )}
@@ -223,12 +225,12 @@ export default function AccountSettings() {
             </>
           ) : (
             <View style={styles.emailReadOnly}>
-              <ThemedText variant="button" color="dark" style={styles.emailText}>{email || 'Not set'}</ThemedText>
+              <ThemedText variant="button" color="dark" style={styles.emailText}>{email || t('notSetEmail')}</ThemedText>
               <TouchableOpacity
                 style={styles.editButton}
                 onPress={() => setEditingEmail(true)}
                 accessibilityRole="button"
-                accessibilityLabel="Edit email"
+                accessibilityLabel={t('editEmailA11y')}
               >
                 <Ionicons name="pencil" size={18} color={colors.primary} />
               </TouchableOpacity>
@@ -240,17 +242,17 @@ export default function AccountSettings() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="shield-outline" size={22} color={colors.primary} />
-            <ThemedText variant="h2" color="dark">Account Security</ThemedText>
+            <ThemedText variant="h2" color="dark">{t('accountSecurity')}</ThemedText>
           </View>
 
           <TouchableOpacity
             style={styles.logoutButton}
             onPress={logout}
             accessibilityRole="button"
-            accessibilityLabel="Log out"
+            accessibilityLabel={t('logOutA11y')}
           >
             <Ionicons name="log-out-outline" size={20} color={colors.primary} />
-            <ThemedText variant="button" color="primary" style={styles.logoutButtonText}>Log Out</ThemedText>
+            <ThemedText variant="button" color="primary" style={styles.logoutButtonText}>{t('logOut')}</ThemedText>
           </TouchableOpacity>
         </View>
 
@@ -258,14 +260,14 @@ export default function AccountSettings() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="analytics-outline" size={22} color={colors.primary} />
-            <ThemedText variant="h2" color="dark">Diagnostics</ThemedText>
+            <ThemedText variant="h2" color="dark">{t('diagnostics')}</ThemedText>
           </View>
 
           <View style={styles.diagnosticsRow}>
             <View style={styles.diagnosticsText}>
-              <ThemedText variant="body" color="dark">Send error reports</ThemedText>
+              <ThemedText variant="body" color="dark">{t('sendErrorReports')}</ThemedText>
               <ThemedText variant="label" color="secondary">
-                Help us improve Candid by automatically sending anonymous error data
+                {t('diagnosticsSubtitle')}
               </ThemedText>
             </View>
             <Switch
@@ -273,7 +275,7 @@ export default function AccountSettings() {
               onValueChange={handleDiagnosticsToggle}
               trackColor={{ false: colors.cardBorder, true: colors.primaryMuted }}
               thumbColor={diagnosticsConsent === true ? colors.primary : colors.pass}
-              accessibilityLabel="Send diagnostics data"
+              accessibilityLabel={t('sendDiagnosticsA11y')}
               accessibilityRole="switch"
               accessibilityState={{ checked: diagnosticsConsent === true }}
             />
@@ -284,17 +286,17 @@ export default function AccountSettings() {
         <View style={[styles.section, styles.dangerSection]}>
           <View style={styles.sectionHeader}>
             <Ionicons name="warning-outline" size={22} color={SemanticColors.warning} />
-            <ThemedText variant="h2" color="error">Danger Zone</ThemedText>
+            <ThemedText variant="h2" color="error">{t('dangerZone')}</ThemedText>
           </View>
 
           <TouchableOpacity
             style={styles.deleteButton}
             onPress={() => setDeleteModalOpen(true)}
             accessibilityRole="button"
-            accessibilityLabel="Delete account"
+            accessibilityLabel={t('deleteAccountA11y')}
           >
             <Ionicons name="trash-outline" size={20} color={SemanticColors.warning} />
-            <ThemedText variant="button" color="error" style={styles.deleteButtonText}>Delete Account</ThemedText>
+            <ThemedText variant="button" color="error" style={styles.deleteButtonText}>{t('deleteAccount')}</ThemedText>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -308,12 +310,12 @@ export default function AccountSettings() {
       >
         <Pressable style={shared.modalOverlay} onPress={() => setDeleteModalOpen(false)}>
           <View style={styles.formModalContent}>
-            <ThemedText variant="h2" color="error" style={styles.modalTitle}>Delete Account</ThemedText>
+            <ThemedText variant="h2" color="error" style={styles.modalTitle}>{t('deleteAccount')}</ThemedText>
 
             <View style={styles.deleteWarning}>
               <Ionicons name="warning" size={24} color={SemanticColors.warning} />
               <ThemedText variant="bodySmall" style={styles.deleteWarningText}>
-                This action cannot be undone. Your account will be permanently deleted.
+                {t('deleteWarning')}
               </ThemedText>
             </View>
 
@@ -331,22 +333,22 @@ export default function AccountSettings() {
                   setDeleteError(null)
                 }}
                 accessibilityRole="button"
-                accessibilityLabel="Cancel account deletion"
+                accessibilityLabel={t('cancelDeletion')}
               >
-                <ThemedText variant="button" color="secondary">Cancel</ThemedText>
+                <ThemedText variant="button" color="secondary">{t('cancel')}</ThemedText>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalDeleteButton, deletingAccount && styles.modalButtonDisabled]}
                 onPress={handleDeleteAccount}
                 disabled={deletingAccount}
                 accessibilityRole="button"
-                accessibilityLabel="Confirm delete account"
+                accessibilityLabel={t('confirmDeleteA11y')}
                 accessibilityState={{ disabled: deletingAccount }}
               >
                 {deletingAccount ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
-                  <ThemedText variant="button" color="inverse">Delete Account</ThemedText>
+                  <ThemedText variant="button" color="inverse">{t('deleteAccount')}</ThemedText>
                 )}
               </TouchableOpacity>
             </View>
@@ -422,7 +424,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   editButton: {
     padding: 8,
-    borderRadius: 8,
+    borderRadius: 12,
     backgroundColor: colors.background,
     borderWidth: 1,
     borderColor: colors.cardBorder,
@@ -434,7 +436,7 @@ const createStyles = (colors) => StyleSheet.create({
   cancelButton: {
     flex: 1,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.cardBorder,
     alignItems: 'center',
@@ -445,7 +447,7 @@ const createStyles = (colors) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.primary,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 12,
     alignItems: 'center',
   },
   // saveButtonText removed - handled by ThemedText variant="button" color="inverse"
@@ -529,7 +531,7 @@ const createStyles = (colors) => StyleSheet.create({
   modalCancelButton: {
     flex: 1,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.cardBorder,
     alignItems: 'center',
@@ -538,7 +540,7 @@ const createStyles = (colors) => StyleSheet.create({
   modalDeleteButton: {
     flex: 1,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 12,
     backgroundColor: SemanticColors.warning,
     alignItems: 'center',
   },

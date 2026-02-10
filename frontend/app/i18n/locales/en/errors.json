@@ -1,0 +1,52 @@
+{
+  "invalidCredentials": "Invalid username or password",
+  "authenticationFailed": "Authentication failed",
+  "authenticationRequired": "Authentication Required",
+  "registrationFailed": "Registration failed",
+  "accountSuspended": "Your account has been suspended",
+  "unauthorized": "Unauthorized",
+  "userNotFound": "User not found",
+
+  "usernameMinLength": "Username must be at least 3 characters",
+  "emailRequired": "A valid email is required",
+  "passwordMinLength": "Password must be at least 8 characters",
+
+  "statementTooLong": "Statement must be 140 characters or less",
+  "statementTooShort": "Statement must be at least 20 characters",
+  "positionNotFound": "Position not found",
+  "positionAlreadyAdopted": "Position already adopted",
+  "queryMinLength": "Query must be at least 2 characters",
+  "locationIdRequired": "locationId is required",
+  "nlpUnavailable": "NLP service unavailable",
+  "databaseError": "Database error",
+
+  "cannotChatYourself": "Cannot request to chat with yourself",
+  "pendingRequestExists": "A pending chat request already exists",
+  "notAcceptingRequests": "This user is not accepting chat requests",
+  "chatRequestNotFound": "Chat request not found",
+  "chatNotFound": "Chat not found",
+  "requestNoLongerPending": "Chat request is no longer pending",
+  "onlyInitiatorCanRescind": "Only the initiator can rescind a request",
+  "canOnlyRescindPending": "Can only rescind pending requests",
+  "notAuthorizedViewChat": "Not authorized to view this chat",
+
+  "positionIdRequired": "positionId is required",
+  "cannotAddOwnPosition": "Cannot add your own position to chatting list",
+  "positionAlreadyInList": "Position already in chatting list",
+
+  "surveyNotFound": "Survey not found",
+  "surveyNotActive": "Survey is not active",
+  "surveyNotStarted": "Survey has not started yet",
+  "surveyEnded": "Survey has ended",
+
+  "appealTextRequired": "Appeal text is required and must be under 1000 characters",
+  "appealAlreadyExists": "An active appeal already exists for this action",
+  "reportNotFound": "Report not found",
+  "reportAlreadyClaimed": "Report is already claimed by another moderator",
+
+  "inappropriateContent": "Image contains inappropriate content and cannot be used as an avatar",
+  "imageProcessingFailed": "Image processing failed",
+
+  "notFound": "Not Found",
+  "internalServerError": "Internal Server Error"
+}

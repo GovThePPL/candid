@@ -1,6 +1,7 @@
 import { StyleSheet, View, TouchableOpacity } from 'react-native'
 import { forwardRef, useMemo } from 'react'
 import { Ionicons } from '@expo/vector-icons'
+import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { SemanticColors } from '../../constants/Colors'
 import ThemedText from '../ThemedText'
@@ -23,6 +24,7 @@ const PositionCard = forwardRef(function PositionCard({
   onRemoveFromChattingList,
   onAddToChattingList,
 }, ref) {
+  const { t } = useTranslation('cards')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const { statement, category, location, creator: author } = position
@@ -36,8 +38,8 @@ const PositionCard = forwardRef(function PositionCard({
       onSwipeDown={onPass}
       isBackCard={isBackCard}
       backCardAnimatedValue={backCardAnimatedValue}
-      accessibilityLabel={`Position by ${author?.displayName || 'Anonymous'}: ${statement}`}
-      accessibilityHint="Swipe right to agree, left to disagree, up to chat, down to pass"
+      accessibilityLabel={t('positionA11yLabel', { name: author?.displayName || t('anonymous'), statement })}
+      accessibilityHint={t('positionA11yHint')}
     >
       <CardShell size="full" bodyStyle={styles.card}>
         {/* Header */}
@@ -64,7 +66,7 @@ const PositionCard = forwardRef(function PositionCard({
                 styles.chattingListButton,
                 isFromChattingList ? styles.chattingListButtonSelected : styles.chattingListButtonUnselected
               ]}
-              accessibilityLabel={isFromChattingList ? "Remove from chatting list" : "Add to chatting list"}
+              accessibilityLabel={isFromChattingList ? t('positionRemoveFromList') : t('positionAddToList')}
               accessibilityRole="button"
             >
               <Ionicons
@@ -84,24 +86,24 @@ const PositionCard = forwardRef(function PositionCard({
 
         {/* Availability indicator */}
         {position.availability === 'none' && (
-          <ThemedText variant="label" color="secondary" style={styles.availabilityNone}>No users available to chat right now</ThemedText>
+          <ThemedText variant="label" color="secondary" style={styles.availabilityNone}>{t('positionNoUsers')}</ThemedText>
         )}
 
         {/* Footer */}
         <View style={styles.footer}>
-          <TouchableOpacity onPress={onReport} style={[styles.iconButton, styles.flagButton]} accessibilityLabel="Report position" accessibilityRole="button">
+          <TouchableOpacity onPress={onReport} style={[styles.iconButton, styles.flagButton]} accessibilityLabel={t('positionReport')} accessibilityRole="button">
             <Ionicons name="flag-outline" size={22} color="#E57373" />
           </TouchableOpacity>
 
           <View style={styles.authorInfo}>
             <Avatar user={author} size="md" showKudosCount badgePosition="bottom-left" />
             <View style={styles.authorText}>
-              <ThemedText variant="buttonSmall" color="dark">{author?.displayName || 'Anonymous'}</ThemedText>
-              <ThemedText variant="caption" color="secondary">@{author?.username || 'anonymous'}</ThemedText>
+              <ThemedText variant="buttonSmall" color="dark">{author?.displayName || t('anonymous')}</ThemedText>
+              <ThemedText variant="caption" color="secondary">@{author?.username || t('anonymousUsername')}</ThemedText>
             </View>
           </View>
 
-          <TouchableOpacity onPress={onAddPosition} style={[styles.iconButton, styles.addButton]} accessibilityLabel="Add position" accessibilityRole="button">
+          <TouchableOpacity onPress={onAddPosition} style={[styles.iconButton, styles.addButton]} accessibilityLabel={t('positionAdd')} accessibilityRole="button">
             <Ionicons name="add-circle-outline" size={26} color="#81C784" />
           </TouchableOpacity>
         </View>

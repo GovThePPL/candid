@@ -1,31 +1,36 @@
 import { StyleSheet, View, TouchableOpacity } from 'react-native'
 import { useMemo } from 'react'
 import { Ionicons } from '@expo/vector-icons'
+import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { SemanticColors } from '../../constants/Colors'
 import ThemedText from '../ThemedText'
 import Avatar from '../Avatar'
 
-const ACTION_LABELS = {
-  removed: 'Remove Content',
-  warning: 'Warning',
-  temporary_ban: 'Temporary Ban',
-  permanent_ban: 'Permanent Ban',
-}
-const CLASS_LABELS = {
-  submitter: 'Creator',
-  active_adopter: 'Active Adopters',
-  passive_adopter: 'Passive Adopters',
-}
-const STATE_LABELS = {
-  approved: 'Appeal Approved',
-  denied: 'Appeal Denied',
-  modified: 'Action Modified',
-}
+const getActionLabels = (t) => ({
+  removed: t('adminResponseActionRemove'),
+  warning: t('adminResponseActionWarning'),
+  temporary_ban: t('adminResponseActionTempBan'),
+  permanent_ban: t('adminResponseActionPermBan'),
+})
+const getClassLabels = (t) => ({
+  submitter: t('adminResponseClassCreator'),
+  active_adopter: t('adminResponseClassActiveAdopters'),
+  passive_adopter: t('adminResponseClassPassiveAdopters'),
+})
+const getStateLabels = (t) => ({
+  approved: t('adminResponseApproved'),
+  denied: t('adminResponseDenied'),
+  modified: t('adminResponseModified'),
+})
 
 export default function AdminResponseCard({ data, onDismiss }) {
+  const { t } = useTranslation('cards')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
+  const ACTION_LABELS = useMemo(() => getActionLabels(t), [t])
+  const CLASS_LABELS = useMemo(() => getClassLabels(t), [t])
+  const STATE_LABELS = useMemo(() => getStateLabels(t), [t])
 
   const STATE_COLORS = useMemo(() => ({
     approved: SemanticColors.agree,
@@ -47,7 +52,7 @@ export default function AdminResponseCard({ data, onDismiss }) {
         <Ionicons name="shield-checkmark" size={40} color={colors.primary} />
       </View>
 
-      <ThemedText variant="statement" color="primary" style={styles.title}>Administrator Response</ThemedText>
+      <ThemedText variant="statement" color="primary" style={styles.title}>{t('adminResponseTitle')}</ThemedText>
 
       <View style={[styles.outcomeBadge, { backgroundColor: STATE_COLORS[appealState] || colors.primary }]}>
         <ThemedText variant="buttonSmall" color="inverse">{STATE_LABELS[appealState] || appealState}</ThemedText>
@@ -55,18 +60,18 @@ export default function AdminResponseCard({ data, onDismiss }) {
 
       {adminResponseText ? (
         <View style={styles.responseContainer}>
-          <ThemedText variant="badgeLg" color="secondary" style={styles.sectionLabel}>Admin's response</ThemedText>
+          <ThemedText variant="badgeLg" color="secondary" style={styles.sectionLabel}>{t('adminResponseSection')}</ThemedText>
           <ThemedText variant="bodySmall" style={styles.responseText}>"{adminResponseText}"</ThemedText>
         </View>
       ) : null}
 
       {adminResponder && (
         <View style={styles.userRow}>
-          <ThemedText variant="badgeLg" color="secondary" style={styles.sectionLabel}>Decided by</ThemedText>
+          <ThemedText variant="badgeLg" color="secondary" style={styles.sectionLabel}>{t('adminResponseDecidedBy')}</ThemedText>
           <View style={styles.userInfo}>
             <Avatar user={adminResponder} size="sm" />
             <View>
-              <ThemedText variant="buttonSmall">{adminResponder.displayName || 'Admin'}</ThemedText>
+              <ThemedText variant="buttonSmall">{adminResponder.displayName || t('admin')}</ThemedText>
               <ThemedText variant="caption" color="secondary">@{adminResponder.username || 'unknown'}</ThemedText>
             </View>
           </View>
@@ -75,11 +80,11 @@ export default function AdminResponseCard({ data, onDismiss }) {
 
       {originalAction && (
         <View style={styles.contextContainer}>
-          <ThemedText variant="badgeLg" color="secondary" style={styles.sectionLabel}>Original action</ThemedText>
+          <ThemedText variant="badgeLg" color="secondary" style={styles.sectionLabel}>{t('adminResponseOriginalAction')}</ThemedText>
           <View style={styles.userInfo}>
             <Avatar user={originalAction.responder} size="sm" />
             <View>
-              <ThemedText variant="buttonSmall">{originalAction.responder?.displayName || 'Moderator'}</ThemedText>
+              <ThemedText variant="buttonSmall">{originalAction.responder?.displayName || t('moderator')}</ThemedText>
               <ThemedText variant="caption" color="secondary">@{originalAction.responder?.username || 'unknown'}</ThemedText>
             </View>
           </View>
@@ -97,13 +102,13 @@ export default function AdminResponseCard({ data, onDismiss }) {
 
       {priorResponses?.length > 0 && (
         <View style={styles.contextContainer}>
-          <ThemedText variant="badgeLg" color="secondary" style={styles.sectionLabel}>Moderator reviews</ThemedText>
+          <ThemedText variant="badgeLg" color="secondary" style={styles.sectionLabel}>{t('adminResponseModeratorReviews')}</ThemedText>
           {priorResponses.map((pr, i) => (
             <View key={i} style={styles.priorResponse}>
               <View style={styles.userInfo}>
                 <Avatar user={pr.responder} size="sm" />
                 <View>
-                  <ThemedText variant="buttonSmall">{pr.responder?.displayName || 'Moderator'}</ThemedText>
+                  <ThemedText variant="buttonSmall">{pr.responder?.displayName || t('moderator')}</ThemedText>
                   <ThemedText variant="caption" color="secondary">@{pr.responder?.username || 'unknown'}</ThemedText>
                 </View>
               </View>
@@ -116,8 +121,8 @@ export default function AdminResponseCard({ data, onDismiss }) {
       )}
 
       {onDismiss && (
-        <TouchableOpacity style={styles.dismissButton} onPress={onDismiss}>
-          <ThemedText variant="button" color="inverse">Dismiss</ThemedText>
+        <TouchableOpacity style={styles.dismissButton} onPress={onDismiss} accessibilityRole="button" accessibilityLabel={t('adminResponseDismiss')}>
+          <ThemedText variant="button" color="inverse">{t('adminResponseDismiss')}</ThemedText>
         </TouchableOpacity>
       )}
     </View>

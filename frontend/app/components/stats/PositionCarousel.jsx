@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
-import { View, TextInput, StyleSheet, useWindowDimensions } from 'react-native'
+import { View, TextInput, StyleSheet, useWindowDimensions, Platform } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { Typography } from '../../constants/Theme'
 import ThemedText from '../ThemedText'
@@ -27,11 +28,18 @@ export default function PositionCarousel({
   userVotes = {},
   userPositionIds = [],
   onViewClosures,
+  onSearchFocus,
 }) {
+  const { t } = useTranslation('stats')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const { width: screenWidth } = useWindowDimensions()
   const [searchQuery, setSearchQuery] = useState('')
+
+  // Scroll the focused search input into view
+  const handleInputFocus = Platform.OS === 'web'
+    ? (e) => { setTimeout(() => e.target?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }), 300) }
+    : onSearchFocus || undefined
 
   // Calculate number of columns based on screen width
   const containerWidth = screenWidth - 32 // Account for horizontal padding
@@ -105,9 +113,9 @@ export default function PositionCarousel({
     const emptyMessage =
       activeTab === 'my_positions'
         ? (searchQuery.trim()
-            ? 'No positions match your search'
-            : "None of your positions have been voted on yet")
-        : 'No positions to display'
+            ? t('noPositionsMatch')
+            : t('noVotedPositions'))
+        : t('noPositionsDisplay')
 
     return (
       <View style={styles.listContainer}>
@@ -116,13 +124,15 @@ export default function PositionCarousel({
             <Ionicons name="search" size={18} color={colors.secondaryText} style={styles.searchIcon} />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search your positions..."
+              placeholder={t('searchYourPositions')}
               placeholderTextColor={colors.placeholderText}
               value={searchQuery}
               onChangeText={setSearchQuery}
               autoCapitalize="none"
               autoCorrect={false}
               maxFontSizeMultiplier={1.5}
+              onFocus={handleInputFocus}
+              accessibilityLabel={t('searchYourPositions')}
             />
             {searchQuery.length > 0 && (
               <Ionicons
@@ -131,6 +141,8 @@ export default function PositionCarousel({
                 color={colors.secondaryText}
                 onPress={() => setSearchQuery('')}
                 style={styles.clearIcon}
+                accessibilityRole="button"
+                accessibilityLabel={t('clearSearchA11y')}
               />
             )}
           </View>
@@ -149,13 +161,15 @@ export default function PositionCarousel({
           <Ionicons name="search" size={18} color={colors.secondaryText} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search your positions..."
+            placeholder={t('searchYourPositions')}
             placeholderTextColor={colors.placeholderText}
             value={searchQuery}
             onChangeText={setSearchQuery}
             autoCapitalize="none"
             autoCorrect={false}
             maxFontSizeMultiplier={1.5}
+            onFocus={handleInputFocus}
+            accessibilityLabel={t('searchYourPositions')}
           />
           {searchQuery.length > 0 && (
             <Ionicons
@@ -164,6 +178,8 @@ export default function PositionCarousel({
               color={colors.secondaryText}
               onPress={() => setSearchQuery('')}
               style={styles.clearIcon}
+              accessibilityRole="button"
+              accessibilityLabel={t('clearSearchA11y')}
             />
           )}
         </View>
@@ -209,6 +225,8 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 12,
     ...Typography.body,
     color: colors.text,
+    outlineStyle: 'none',
+    scrollMarginTop: 80,
   },
   clearIcon: {
     marginLeft: 8,

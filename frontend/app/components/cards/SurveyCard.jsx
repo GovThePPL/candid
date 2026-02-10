@@ -1,6 +1,7 @@
 import { StyleSheet, View, TouchableOpacity, Animated } from 'react-native'
 import { useState, useRef, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react'
 import { Ionicons } from '@expo/vector-icons'
+import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { BrandColor, OnBrandColors } from '../../constants/Colors'
 import ThemedText from '../ThemedText'
@@ -14,6 +15,7 @@ const SurveyCard = forwardRef(function SurveyCard({
   isBackCard = false,
   backCardAnimatedValue,
 }, ref) {
+  const { t } = useTranslation('cards')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const [selectedOption, setSelectedOption] = useState(null)
@@ -69,8 +71,8 @@ const SurveyCard = forwardRef(function SurveyCard({
   // Get the options from the survey data
   const options = survey?.options || []
   const questionText = survey?.question || ''
-  const surveyTitle = survey?.surveyTitle || 'Survey'
-  const category = survey?.category || 'General'
+  const surveyTitle = survey?.surveyTitle || null
+  const category = survey?.category || t('surveyDefaultCategory')
 
   // Calculate flash background color (darkens to indicate selection needed)
   const flashBackgroundColor = flashAnim.interpolate({
@@ -87,9 +89,9 @@ const SurveyCard = forwardRef(function SurveyCard({
 
       {/* Title and Category */}
       <View style={styles.titleContainer}>
-        <ThemedText variant="statement" color="inverse" style={styles.headerTitle}>Survey</ThemedText>
+        <ThemedText variant="statement" color="inverse" style={styles.headerTitle}>{t('surveyTitle')}</ThemedText>
         <ThemedText variant="button" style={styles.headerSubtitle} numberOfLines={1}>{category}</ThemedText>
-        {surveyTitle && surveyTitle !== 'Survey' && (
+        {surveyTitle && (
           <ThemedText variant="bodySmall" style={styles.headerSurveyTitle} numberOfLines={1}>{surveyTitle}</ThemedText>
         )}
       </View>
@@ -107,8 +109,8 @@ const SurveyCard = forwardRef(function SurveyCard({
       leftSwipeAsPass={true}
       isBackCard={isBackCard}
       backCardAnimatedValue={backCardAnimatedValue}
-      accessibilityLabel={`Survey: ${questionText}`}
-      accessibilityHint="Select an option, then swipe right to submit"
+      accessibilityLabel={t('surveyA11yLabel', { question: questionText })}
+      accessibilityHint={t('surveyA11yHint')}
     >
       <CardShell
         size="full"
@@ -154,18 +156,18 @@ const SurveyCard = forwardRef(function SurveyCard({
               </TouchableOpacity>
             ))
           ) : (
-            <ThemedText variant="button" color="secondary" style={styles.noOptionsText}>No options available</ThemedText>
+            <ThemedText variant="button" color="secondary" style={styles.noOptionsText}>{t('surveyNoOptions')}</ThemedText>
           )}
         </View>
 
         {/* Instructions */}
         <View style={styles.footer}>
           {selectedOption ? (
-            <ThemedText variant="button" color="primary">Swipe right to submit</ThemedText>
+            <ThemedText variant="button" color="primary">{t('surveySubmitInstruction')}</ThemedText>
           ) : (
-            <ThemedText variant="button" color="primary">Select an option</ThemedText>
+            <ThemedText variant="button" color="primary">{t('surveySelectOption')}</ThemedText>
           )}
-          <ThemedText variant="bodySmall" color="secondary">Swipe down to skip</ThemedText>
+          <ThemedText variant="bodySmall" color="secondary">{t('surveySkipInstruction')}</ThemedText>
         </View>
       </CardShell>
     </SwipeableCard>

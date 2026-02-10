@@ -1,5 +1,6 @@
 import { View, StyleSheet } from 'react-native'
 import { memo, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../hooks/useThemeColors'
 import ThemedText from './ThemedText'
 import Avatar from './Avatar'
@@ -28,6 +29,7 @@ export default memo(function PositionInfoCard({
   size = 'compact',
   style,
 }) {
+  const { t } = useTranslation('cards')
   const colors = useThemeColors()
   const isFull = size === 'full'
   const styles = useMemo(() => createStyles(colors, isFull), [colors, isFull])
@@ -89,10 +91,10 @@ export default memo(function PositionInfoCard({
             badgePosition="bottom-left"
           />
           <View style={styles.creatorInfo}>
-            <ThemedText variant={isFull ? 'buttonSmall' : 'label'}>{creator.displayName || 'Anonymous'}</ThemedText>
+            <ThemedText variant={isFull ? 'buttonSmall' : 'label'}>{creator.displayName || t('anonymous')}</ThemedText>
             <ThemedText variant="caption" color="secondary" style={styles.creatorSubtitle}>
               {authorSubtitle === 'username'
-                ? `@${creator.username || 'anonymous'}`
+                ? `@${creator.username || t('anonymousUsername')}`
                 : creator.userType || 'user'}
             </ThemedText>
           </View>

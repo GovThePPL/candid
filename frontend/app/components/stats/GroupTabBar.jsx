@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { ScrollView, TouchableOpacity, StyleSheet, View, useWindowDimensions } from 'react-native'
+import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { Typography } from '../../constants/Theme'
 import ThemedText from '../ThemedText'
@@ -19,6 +20,7 @@ export default function GroupTabBar({
   onTabChange,
   showMyPositions = true,
 }) {
+  const { t } = useTranslation('stats')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const { width: screenWidth } = useWindowDimensions()
@@ -50,7 +52,7 @@ export default function GroupTabBar({
 
   // Build tab list: All, groups (A, B, C...), My Positions
   const tabs = [
-    { id: 'majority', label: 'All' },
+    { id: 'majority', label: t('all') },
     ...groups.map((g) => ({
       id: g.id,
       label: getDisplayLabel(g)
@@ -58,7 +60,7 @@ export default function GroupTabBar({
   ]
 
   if (showMyPositions) {
-    tabs.push({ id: 'my_positions', label: 'My Positions' })
+    tabs.push({ id: 'my_positions', label: t('myPositions') })
   }
 
   return (

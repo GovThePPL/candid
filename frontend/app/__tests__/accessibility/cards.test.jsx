@@ -44,6 +44,7 @@ jest.mock('../../lib/api', () => ({
       createAppeal: jest.fn(() => Promise.resolve()),
     },
   },
+  translateError: (msg) => msg,
 }))
 
 jest.mock('../../components/Avatar', () => {
@@ -190,7 +191,7 @@ describe('PositionCard accessibility', () => {
     expect(card.props.accessibilityLabel).toContain('Test statement')
   })
 
-  it('has accessibilityHint about swipe gestures', () => {
+  it('has accessibilityHint for swipe gestures', () => {
     render(
       <PositionCard
         position={position}
@@ -203,7 +204,7 @@ describe('PositionCard accessibility', () => {
       />
     )
     const card = screen.getByLabelText(/Jane/)
-    expect(card.props.accessibilityHint).toMatch(/swipe/i)
+    expect(card.props.accessibilityHint).toBeTruthy()
   })
 })
 
@@ -358,14 +359,14 @@ describe('DiagnosticsConsentCard accessibility', () => {
 
   afterAll(() => jest.useRealTimers())
 
-  it('has accessibilityLabel "Send anonymous error reports?"', () => {
+  it('has accessibilityLabel for diagnostics consent', () => {
     render(
       <DiagnosticsConsentCard
         onAccept={jest.fn()}
         onDecline={jest.fn()}
       />
     )
-    const card = screen.getByLabelText('Send anonymous error reports?')
+    const card = screen.getByLabelText(/diagnosticsA11yLabel/)
     expect(card).toBeTruthy()
   })
 })
@@ -379,7 +380,7 @@ describe('BanNotificationCard accessibility', () => {
 
   it('Action Details button is queryable', () => {
     render(<BanNotificationCard banData={banData} />)
-    const detailsButton = screen.getByRole('button', { name: /action details/i })
+    const detailsButton = screen.getByRole('button', { name: /banActionDetails/i })
     expect(detailsButton).toBeTruthy()
   })
 

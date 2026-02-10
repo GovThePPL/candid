@@ -33,10 +33,9 @@ patch_card_item() {
 [ -f src/model/DemographicCardItem.js ] && patch_card_item src/model/DemographicCardItem.js "demographic"
 [ -f src/model/PairwiseCardItem.js ] && patch_card_item src/model/PairwiseCardItem.js "pairwise"
 
-echo "Packaging and linking to app..."
+echo "Installing api dependencies..."
 cd "$API_DIR" && npm install
-cd "$API_DIR" && npm link
-echo "Linking in app..."
-cd "$APP_DIR" && npm link ../api/
 cd "$API_DIR" && npm run build
+echo "Re-linking api in app (file: dependency)..."
+cd "$APP_DIR" && npm install
 echo "Done"

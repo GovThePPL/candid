@@ -1,0 +1,52 @@
+{
+  "invalidCredentials": "Usuario o contrase\u00f1a inv\u00e1lidos",
+  "authenticationFailed": "Error de autenticaci\u00f3n",
+  "authenticationRequired": "Se requiere autenticaci\u00f3n",
+  "registrationFailed": "Error en el registro",
+  "accountSuspended": "Tu cuenta ha sido suspendida",
+  "unauthorized": "No autorizado",
+  "userNotFound": "Usuario no encontrado",
+
+  "usernameMinLength": "El nombre de usuario debe tener al menos 3 caracteres",
+  "emailRequired": "Se requiere un correo electr\u00f3nico v\u00e1lido",
+  "passwordMinLength": "La contrase\u00f1a debe tener al menos 8 caracteres",
+
+  "statementTooLong": "La declaraci\u00f3n debe tener 140 caracteres o menos",
+  "statementTooShort": "La declaraci\u00f3n debe tener al menos 20 caracteres",
+  "positionNotFound": "Postura no encontrada",
+  "positionAlreadyAdopted": "La postura ya fue adoptada",
+  "queryMinLength": "La b\u00fasqueda debe tener al menos 2 caracteres",
+  "locationIdRequired": "Se requiere la ubicaci\u00f3n",
+  "nlpUnavailable": "Servicio de procesamiento de lenguaje no disponible",
+  "databaseError": "Error de base de datos",
+
+  "cannotChatYourself": "No puedes solicitar un chat contigo mismo",
+  "pendingRequestExists": "Ya existe una solicitud de chat pendiente",
+  "notAcceptingRequests": "Este usuario no est\u00e1 aceptando solicitudes de chat",
+  "chatRequestNotFound": "Solicitud de chat no encontrada",
+  "chatNotFound": "Chat no encontrado",
+  "requestNoLongerPending": "La solicitud de chat ya no est\u00e1 pendiente",
+  "onlyInitiatorCanRescind": "Solo el iniciador puede cancelar la solicitud",
+  "canOnlyRescindPending": "Solo se pueden cancelar solicitudes pendientes",
+  "notAuthorizedViewChat": "No autorizado para ver este chat",
+
+  "positionIdRequired": "Se requiere el ID de la postura",
+  "cannotAddOwnPosition": "No puedes agregar tu propia postura a la lista de chat",
+  "positionAlreadyInList": "La postura ya est\u00e1 en la lista de chat",
+
+  "surveyNotFound": "Encuesta no encontrada",
+  "surveyNotActive": "La encuesta no est\u00e1 activa",
+  "surveyNotStarted": "La encuesta a\u00fan no ha comenzado",
+  "surveyEnded": "La encuesta ha terminado",
+
+  "appealTextRequired": "El texto de la apelaci\u00f3n es obligatorio y debe tener menos de 1000 caracteres",
+  "appealAlreadyExists": "Ya existe una apelaci\u00f3n activa para esta acci\u00f3n",
+  "reportNotFound": "Reporte no encontrado",
+  "reportAlreadyClaimed": "El reporte ya fue tomado por otro moderador",
+
+  "inappropriateContent": "La imagen contiene contenido inapropiado y no puede usarse como avatar",
+  "imageProcessingFailed": "Error al procesar la imagen",
+
+  "notFound": "No encontrado",
+  "internalServerError": "Error interno del servidor"
+}
