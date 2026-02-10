@@ -1,4 +1,5 @@
 """Tests for chatting list extras: metadata, explanation seen, bulk remove."""
+# Auth tests (test_unauthenticated_returns_401) live in test_auth_required.py.
 
 import pytest
 import requests
@@ -25,10 +26,6 @@ class TestChattingListMetadata:
         assert "count" in body
         assert isinstance(body["count"], int)
 
-    def test_unauthenticated(self):
-        """Unauthenticated request returns 401."""
-        resp = requests.get(f"{CHATTING_LIST_URL}/metadata")
-        assert resp.status_code == 401
 
 
 class TestMarkExplanationSeen:
@@ -43,10 +40,6 @@ class TestMarkExplanationSeen:
         )
         assert resp.status_code in (200, 204)
 
-    def test_unauthenticated(self):
-        """Unauthenticated request returns 401."""
-        resp = requests.post(f"{CHATTING_LIST_URL}/explanation-seen")
-        assert resp.status_code == 401
 
 
 class TestBulkRemove:
@@ -83,10 +76,28 @@ class TestBulkRemove:
         # May return 400 or 200 with 0 removed depending on implementation
         assert resp.status_code in (200, 400)
 
-    def test_unauthenticated(self):
-        """Unauthenticated request returns 401."""
-        resp = requests.post(
-            f"{CHATTING_LIST_URL}/bulk-remove",
-            json={"itemIds": []},
+
+
+class TestUpdateChattingListItem:
+    """PATCH /users/me/chatting-list/{itemId} — edge cases."""
+
+    def test_nonexistent_item_404(self, normal_headers):
+        """Patching a nonexistent item returns 404."""
+        resp = requests.patch(
+            f"{CHATTING_LIST_URL}/{NONEXISTENT_UUID}",
+            headers=normal_headers,
+            json={"isActive": False},
         )
-        assert resp.status_code == 401
+        assert resp.status_code == 404
+
+
+class TestRemoveFromChattingList:
+    """DELETE /users/me/chatting-list/{itemId} — edge cases."""
+
+    def test_nonexistent_item_404(self, normal_headers):
+        """Deleting a nonexistent item returns 404."""
+        resp = requests.delete(
+            f"{CHATTING_LIST_URL}/{NONEXISTENT_UUID}",
+            headers=normal_headers,
+        )
+        assert resp.status_code == 404

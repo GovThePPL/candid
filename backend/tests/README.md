@@ -47,6 +47,8 @@ python3 -m pytest backend/tests/unit/ --benchmark-only -v
 | `test_stats.py` | Statistics and analytics endpoints |
 | `test_polis_integration.py` | Pol.is API integration |
 | `test_bug_reports.py` | Bug report submission and diagnostics consent |
+| `test_avatars.py` | Avatar serving endpoint |
+| `test_auth_required.py` | Consolidated 401 checks for all protected endpoints (parametrized) |
 
 ## Unit Tests (`unit/`)
 
@@ -66,6 +68,9 @@ python3 -m pytest backend/tests/unit/ --benchmark-only -v
 | `test_push_notifications.py` | `push_notifications.py` | Statement truncation, Expo Push API formatting, daily counter |
 | `test_chat_events.py` | `chat_events.py` | Redis pub/sub event structure, optional fields, error handling |
 | `test_bug_reports.py` | `bug_reports_controller.py` | Bug report creation, diagnostics consent, input validation |
+| `test_database.py` | `database.py` | Connection pool and query execution |
+| `test_polis_scheduler.py` | `polis_scheduler.py` | Conversation lifecycle management |
+| `test_redis_pool.py` | `redis_pool.py` | Shared Redis connection pool singleton behavior |
 
 ## Key Files
 
@@ -82,3 +87,4 @@ python3 -m pytest backend/tests/unit/ --benchmark-only -v
 - Quick validation tests are marked with `@pytest.mark.smoke`
 - Unit tests are marked with `@pytest.mark.unit`
 - Performance benchmarks use `pytest-benchmark` and are marked with `@pytest.mark.benchmark`
+- Authentication (401) tests are consolidated in `test_auth_required.py` — do not add individual `test_unauthenticated` methods in domain test files

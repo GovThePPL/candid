@@ -1,4 +1,5 @@
 """Integration tests for survey endpoints."""
+# Auth tests (test_unauthenticated_returns_401) live in test_auth_required.py.
 
 import pytest
 import requests
@@ -55,10 +56,6 @@ class TestGetActiveSurveys:
         assert 'questionCount' in active_survey
         assert active_survey['questionCount'] == 2
 
-    def test_get_active_surveys_unauthenticated(self):
-        """Unauthenticated request returns 401"""
-        resp = requests.get(f"{BASE_URL}/surveys")
-        assert resp.status_code == 401
 
 
 class TestGetSurveyById:
@@ -89,10 +86,6 @@ class TestGetSurveyById:
         resp = requests.get(f"{BASE_URL}/surveys/{NONEXISTENT_UUID}", headers=normal_headers)
         assert resp.status_code == 404
 
-    def test_get_survey_by_id_unauthenticated(self):
-        """Unauthenticated request returns 401"""
-        resp = requests.get(f"{BASE_URL}/surveys/{SURVEY_ACTIVE_ID}")
-        assert resp.status_code == 401
 
 
 class TestRespondToSurveyQuestion:
@@ -159,13 +152,6 @@ class TestRespondToSurveyQuestion:
         )
         assert resp2.status_code == 200
 
-    def test_respond_to_survey_question_unauthenticated(self):
-        """Unauthenticated request returns 401"""
-        resp = requests.post(
-            f"{BASE_URL}/surveys/{SURVEY_ACTIVE_ID}/questions/{SURVEY_QUESTION_1_ID}/response",
-            json={"optionId": SURVEY_OPTION_1_ID}
-        )
-        assert resp.status_code == 401
 
 
 # ---------------------------------------------------------------------------

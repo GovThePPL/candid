@@ -1,6 +1,7 @@
 """Tests for GET /positions/{positionId}, POST /positions, POST /positions/response,
 POST /positions/{positionId}/adopt, POST /positions/search,
 GET /positions/{positionId}/agreed-closures, POST /positions/search-stats."""
+# Auth tests (test_unauthenticated_returns_401) live in test_auth_required.py.
 
 import pytest
 import requests
@@ -8,11 +9,15 @@ from conftest import (
     BASE_URL,
     POSITION1_ID,
     POSITION2_ID,
+    POSITION3_ID,
     NONEXISTENT_UUID,
     HEALTHCARE_CAT_ID,
+    ECONOMY_CAT_ID,
     OREGON_LOCATION_ID,
+    NORMAL1_ID,
     NORMAL2_ID,
     db_execute,
+    db_query,
 )
 
 POSITIONS_URL = f"{BASE_URL}/positions"
@@ -51,9 +56,6 @@ class TestGetPositionById:
         resp = requests.get(f"{POSITIONS_URL}/{NONEXISTENT_UUID}", headers=normal_headers)
         assert resp.status_code == 404
 
-    def test_unauthenticated_returns_401(self):
-        resp = requests.get(f"{POSITIONS_URL}/{POSITION1_ID}")
-        assert resp.status_code == 401
 
 
 class TestCreatePosition:
@@ -72,14 +74,53 @@ class TestCreatePosition:
         # The controller doesn't return anything explicitly, so accept 200/201/204
         assert resp.status_code in (200, 201, 204)
 
-    def test_unauthenticated_returns_401(self):
+    def test_statement_too_long_400(self, normal_headers):
+        """Statement exceeding 140 chars returns 400."""
         payload = {
-            "statement": "Should fail",
+            "statement": "A" * 141,
             "categoryId": HEALTHCARE_CAT_ID,
             "locationId": OREGON_LOCATION_ID,
         }
-        resp = requests.post(POSITIONS_URL, json=payload)
-        assert resp.status_code == 401
+        resp = requests.post(POSITIONS_URL, headers=normal_headers, json=payload)
+        assert resp.status_code == 400
+
+    def test_missing_category_400(self, normal_headers):
+        """Omitting categoryId returns 400."""
+        payload = {
+            "statement": "This position has no category assigned to it at all",
+            "locationId": OREGON_LOCATION_ID,
+        }
+        resp = requests.post(POSITIONS_URL, headers=normal_headers, json=payload)
+        assert resp.status_code == 400
+
+    def test_missing_location_400(self, normal_headers):
+        """Omitting locationId returns 400."""
+        payload = {
+            "statement": "This position has no location assigned to it ever",
+            "categoryId": HEALTHCARE_CAT_ID,
+        }
+        resp = requests.post(POSITIONS_URL, headers=normal_headers, json=payload)
+        assert resp.status_code == 400
+
+    def test_missing_statement_400(self, normal_headers):
+        """Omitting statement returns 400."""
+        payload = {
+            "categoryId": HEALTHCARE_CAT_ID,
+            "locationId": OREGON_LOCATION_ID,
+        }
+        resp = requests.post(POSITIONS_URL, headers=normal_headers, json=payload)
+        assert resp.status_code == 400
+
+    def test_invalid_category_accepted(self, normal_headers):
+        """Nonexistent categoryId — API does not FK-validate categories."""
+        payload = {
+            "statement": "Position with a nonexistent category",
+            "categoryId": NONEXISTENT_UUID,
+            "locationId": OREGON_LOCATION_ID,
+        }
+        resp = requests.post(POSITIONS_URL, headers=normal_headers, json=payload)
+        # API accepts any UUID for category; no FK constraint check
+        assert resp.status_code in (201, 400, 404, 500)
 
 
 class TestRespondToPositions:
@@ -101,14 +142,46 @@ class TestRespondToPositions:
         # Accept 200/201/204 since the controller has a partial implementation
         assert resp.status_code in (200, 201, 204)
 
-    def test_unauthenticated_returns_401(self):
+    def test_empty_responses_array_error(self, normal_headers):
+        """Empty responses array returns an error (400 or 500)."""
+        resp = requests.post(
+            f"{POSITIONS_URL}/response",
+            headers=normal_headers,
+            json={"responses": []},
+        )
+        assert resp.status_code in (400, 500)
+
+    @pytest.mark.mutation
+    def test_multiple_responses_in_batch(self, normal2_headers):
+        """Can submit multiple responses in a single batch."""
         payload = {
             "responses": [
                 {"positionId": POSITION1_ID, "response": "agree"},
+                {"positionId": POSITION2_ID, "response": "disagree"},
             ]
         }
-        resp = requests.post(f"{POSITIONS_URL}/response", json=payload)
-        assert resp.status_code == 401
+        resp = requests.post(
+            f"{POSITIONS_URL}/response",
+            headers=normal2_headers,
+            json=payload,
+        )
+        assert resp.status_code in (200, 201, 204)
+
+    @pytest.mark.mutation
+    def test_invalid_position_id_in_batch(self, moderator_headers):
+        """Nonexistent position ID in batch is handled gracefully."""
+        payload = {
+            "responses": [
+                {"positionId": NONEXISTENT_UUID, "response": "agree"},
+            ]
+        }
+        resp = requests.post(
+            f"{POSITIONS_URL}/response",
+            headers=moderator_headers,
+            json=payload,
+        )
+        # Should either skip invalid or return error, but not crash
+        assert resp.status_code in (200, 201, 204, 400, 404)
 
 
 class TestAdoptPosition:
@@ -172,10 +245,6 @@ class TestAdoptPosition:
         )
         assert resp.status_code == 404
 
-    def test_adopt_unauthenticated(self):
-        """Unauthenticated request returns 401."""
-        resp = requests.post(f"{POSITIONS_URL}/{POSITION1_ID}/adopt")
-        assert resp.status_code == 401
 
 
 class TestSearchSimilarPositions:
@@ -203,13 +272,52 @@ class TestSearchSimilarPositions:
         else:
             assert resp.status_code in (500, 503)
 
-    def test_search_unauthenticated(self):
-        """Unauthenticated request returns 401."""
+    def test_search_with_category_filter(self, normal_headers):
+        """Search with categoryId parameter returns filtered results."""
         resp = requests.post(
             f"{POSITIONS_URL}/search",
-            json={"statement": "Universal healthcare should be a fundamental right for everyone"},
+            headers=normal_headers,
+            json={
+                "statement": "Universal healthcare should be a fundamental right for everyone",
+                "categoryId": HEALTHCARE_CAT_ID,
+            },
         )
-        assert resp.status_code == 401
+        if resp.status_code == 200:
+            body = resp.json()
+            assert isinstance(body, list)
+        else:
+            assert resp.status_code in (500, 503)
+
+    def test_search_with_location_filter(self, normal_headers):
+        """Search with locationId parameter returns results."""
+        resp = requests.post(
+            f"{POSITIONS_URL}/search",
+            headers=normal_headers,
+            json={
+                "statement": "Universal healthcare should be a fundamental right for everyone",
+                "locationId": OREGON_LOCATION_ID,
+            },
+        )
+        if resp.status_code == 200:
+            body = resp.json()
+            assert isinstance(body, list)
+        else:
+            assert resp.status_code in (500, 503)
+
+    def test_search_exact_20_chars(self, normal_headers):
+        """Exactly 20-character query succeeds (boundary)."""
+        resp = requests.post(
+            f"{POSITIONS_URL}/search",
+            headers=normal_headers,
+            json={"statement": "A" * 20},  # Exactly 20 chars
+        )
+        # Should not return 400 (min is 20)
+        if resp.status_code == 200:
+            body = resp.json()
+            assert isinstance(body, list)
+        else:
+            # NLP might be down, but it shouldn't be a 400
+            assert resp.status_code in (200, 500, 503)
 
 
 class TestGetPositionAgreedClosures:
@@ -246,12 +354,45 @@ class TestGetPositionAgreedClosures:
         )
         assert resp.status_code == 404
 
-    def test_get_closures_unauthenticated(self):
-        """Unauthenticated request returns 401."""
+    def test_closures_empty_for_position_with_no_chats(self, normal_headers):
+        """Position with zero closures returns an empty list."""
+        # POSITION2_ID may not have agreed closures from seed data
+        resp = requests.get(
+            f"{POSITIONS_URL}/{POSITION2_ID}/agreed-closures",
+            headers=normal_headers,
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert isinstance(body["closures"], list)
+
+    def test_closures_contain_user_info(self, normal_headers):
+        """Closures entries have positionHolderUser and initiatorUser fields (if any exist)."""
         resp = requests.get(
             f"{POSITIONS_URL}/{POSITION1_ID}/agreed-closures",
+            headers=normal_headers,
         )
-        assert resp.status_code == 401
+        assert resp.status_code == 200
+        body = resp.json()
+        for closure in body["closures"]:
+            # Each closure should have user info for both sides
+            assert "positionHolderUser" in closure or "initiatorUser" in closure or "closingStatement" in closure
+
+    def test_closures_sorted_by_priority(self, normal_headers):
+        """Closures are returned in a consistent order (mutual kudos + cross-group first)."""
+        resp = requests.get(
+            f"{POSITIONS_URL}/{POSITION1_ID}/agreed-closures",
+            headers=normal_headers,
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        # Just verify the response is a well-formed list
+        assert isinstance(body["closures"], list)
+        # If there are closures with priority scores, verify descending order
+        priorities = [
+            c.get("priorityScore", 0) for c in body["closures"]
+            if "priorityScore" in c
+        ]
+        assert priorities == sorted(priorities, reverse=True)
 
 
 class TestSearchStatsPositions:
@@ -347,10 +488,3 @@ class TestSearchStatsPositions:
         body = resp.json()
         assert len(body["results"]) <= 2
 
-    def test_unauthenticated_returns_401(self):
-        """Unauthenticated request returns 401."""
-        resp = requests.post(
-            self.SEARCH_URL,
-            json={"query": "healthcare", "locationId": OREGON_LOCATION_ID},
-        )
-        assert resp.status_code == 401

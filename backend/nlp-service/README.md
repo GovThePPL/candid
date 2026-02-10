@@ -10,6 +10,12 @@ nlp-service/
 │   ├── main.py           # FastAPI app, health endpoint, route setup
 │   ├── embeddings.py     # Sentence embedding generation (sentence-transformers)
 │   └── nsfw_detector.py  # NSFW content classification
+├── tests/
+│   ├── conftest.py       # Shared fixtures (mock models, test images, TestClient)
+│   ├── test_embeddings.py     # EmbeddingModel unit tests (init, embed, similarity)
+│   ├── test_nsfw_detector.py  # NSFW detection + image processing unit tests
+│   └── test_endpoints.py      # FastAPI endpoint tests via TestClient
+├── pytest.ini            # Test configuration
 ├── Dockerfile            # Python container, model download at build time
 └── requirements.txt      # Dependencies
 ```
@@ -29,6 +35,14 @@ nlp-service/
 | `DEVICE` | `cpu` | Inference device (cpu/cuda) |
 | `EMBEDDING_MODEL` | `all-MiniLM-L6-v2` | Sentence-transformers model name |
 | `MAX_BATCH_SIZE` | `32` | Maximum batch size for embedding requests |
+
+## Testing
+
+```bash
+cd backend/nlp-service && pip install pytest httpx && python3 -m pytest tests/ -v
+```
+
+Tests mock all ML models (SentenceTransformer, NudeNet) via `sys.modules` stubs — no model downloads or GPU needed. FastAPI endpoints are tested via `TestClient`.
 
 ## Integration
 

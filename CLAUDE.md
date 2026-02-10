@@ -154,8 +154,8 @@ When modifying a backend helper in `controllers/helpers/`, always add or update 
 Run through all of these before committing or pushing:
 
 1. **Test coverage** — Ensure any new or changed logic has appropriate tests. New backend helpers need unit tests in `backend/tests/unit/`. New or modified endpoints need integration tests in `backend/tests/`. New frontend components or behaviors need Jest tests in `frontend/app/__tests__/`.
-2. **Internationalization** — Verify no hardcoded English strings were added to frontend components. All user-visible text and accessibility labels must use `t()` with keys in both `en/` and `es/` locale files.
-3. **Accessibility** — Every new interactive element (`TouchableOpacity`, `Pressable`, `TextInput`, `Slider`, etc.) must have `accessibilityRole` and `accessibilityLabel` (using `t()` for i18n). Stateful controls need `accessibilityState`.
+2. **Internationalization** — Verify no hardcoded English strings were introduced in your changes. Any new user-visible text and accessibility labels must use `t()` with keys in both `en/` and `es/` locale files.
+3. **Accessibility** — Any new interactive elements (`TouchableOpacity`, `Pressable`, `TextInput`, `Slider`, etc.) in your changes must have `accessibilityRole` and `accessibilityLabel` (using `t()` for i18n). New stateful controls need `accessibilityState`.
 4. **Theme compliance** — Any new colored elements use theme tokens from `useThemeColors()`, not hardcoded color values. Test in both light and dark mode.
 5. **README updates** — If you added, removed, or renamed files, update the directory's README.md.
 6. **API spec sync** — If you added or changed backend endpoints, ensure `docs/api.yaml` matches, then regenerate clients (`backend/server/build.sh` and `frontend/regenerate_api.sh`).

@@ -1,12 +1,16 @@
-"""Tests for the card queue endpoint."""
+"""Tests for the card queue endpoint and card notification dismissals."""
+# Auth tests (test_unauthenticated_returns_401) live in test_auth_required.py.
 
 import pytest
 import requests
 from conftest import (
     BASE_URL,
     NORMAL1_ID,
+    NORMAL3_ID,
     NORMAL4_ID,
     NORMAL5_ID,
+    POSITION3_ID,
+    NONEXISTENT_UUID,
     CHAT_LOG_2_ID,
     login,
     auth_header,
@@ -38,11 +42,6 @@ def normal5_headers(normal5_token):
 
 class TestCardQueueBasic:
     """Basic card queue functionality tests."""
-
-    def test_get_card_queue_unauthenticated(self):
-        """Card queue requires authentication."""
-        resp = requests.get(f"{BASE_URL}/card-queue")
-        assert resp.status_code == 401
 
     def test_get_card_queue_authenticated(self, normal_headers):
         """Authenticated users can get the card queue."""
@@ -296,3 +295,124 @@ class TestDemographicCards:
 
         for card in demographic_cards:
             assert card["data"]["field"] in valid_fields
+
+
+class TestDismissPositionRemovedNotification:
+    """POST /cards/notifications/{positionId}/dismiss"""
+
+    DISMISS_URL = f"{BASE_URL}/cards/notifications"
+
+    @pytest.fixture(autouse=True)
+    def _setup_and_cleanup(self):
+        """Set up a removed position for normal1, restore after."""
+        # Set position3 (normal1's position) to removed+not-notified
+        db_execute(
+            "UPDATE user_position SET status = 'removed', notified_removed = FALSE "
+            "WHERE position_id = %s AND user_id = %s",
+            (POSITION3_ID, NORMAL1_ID),
+        )
+        yield
+        # Restore to active
+        db_execute(
+            "UPDATE user_position SET status = 'active', notified_removed = FALSE "
+            "WHERE position_id = %s AND user_id = %s",
+            (POSITION3_ID, NORMAL1_ID),
+        )
+
+    def test_dismiss_nonexistent_ok(self, normal_headers):
+        """Dismissing a nonexistent position is a silent no-op (200)."""
+        resp = requests.post(
+            f"{self.DISMISS_URL}/{NONEXISTENT_UUID}/dismiss",
+            headers=normal_headers,
+        )
+        assert resp.status_code == 200
+
+    @pytest.mark.mutation
+    def test_dismiss_real_position(self, normal_headers):
+        """Dismissing sets notified_removed=TRUE in the database."""
+        resp = requests.post(
+            f"{self.DISMISS_URL}/{POSITION3_ID}/dismiss",
+            headers=normal_headers,
+        )
+        assert resp.status_code == 200
+
+        row = db_query_one(
+            "SELECT notified_removed FROM user_position "
+            "WHERE position_id = %s AND user_id = %s",
+            (POSITION3_ID, NORMAL1_ID),
+        )
+        assert row is not None
+        assert row["notified_removed"] is True
+
+    @pytest.mark.mutation
+    def test_dismiss_idempotent(self, normal_headers):
+        """Calling dismiss twice both return 200."""
+        resp1 = requests.post(
+            f"{self.DISMISS_URL}/{POSITION3_ID}/dismiss",
+            headers=normal_headers,
+        )
+        assert resp1.status_code == 200
+
+        resp2 = requests.post(
+            f"{self.DISMISS_URL}/{POSITION3_ID}/dismiss",
+            headers=normal_headers,
+        )
+        assert resp2.status_code == 200
+
+
+class TestCardQueueTypes:
+    """Card queue data structure validation (B6)."""
+
+    def test_position_cards_have_expected_fields(self, normal_headers):
+        """Position cards include id, statement, creator, availability, userPositionId."""
+        resp = requests.get(f"{BASE_URL}/card-queue?limit=20", headers=normal_headers)
+        assert resp.status_code == 200
+        cards = resp.json()
+        position_cards = [c for c in cards if c["type"] == "position"]
+        if not position_cards:
+            pytest.skip("No position cards in queue")
+        card = position_cards[0]
+        data = card["data"]
+        for field in ("id", "statement", "availability", "userPositionId"):
+            assert field in data, f"Position card missing field: {field}"
+        assert "creator" in data
+        assert "id" in data["creator"]
+
+    def test_survey_cards_have_expected_fields(self, normal_headers):
+        """Survey cards include id, surveyId, question, options."""
+        # Fetch a large queue to increase chance of getting a survey card
+        resp = requests.get(f"{BASE_URL}/card-queue?limit=20", headers=normal_headers)
+        assert resp.status_code == 200
+        cards = resp.json()
+        survey_cards = [c for c in cards if c["type"] == "survey"]
+        if not survey_cards:
+            pytest.skip("No survey cards in queue (probabilistic)")
+        card = survey_cards[0]
+        data = card["data"]
+        for field in ("id", "surveyId", "question", "options"):
+            assert field in data, f"Survey card missing field: {field}"
+        assert isinstance(data["options"], list)
+
+    def test_queue_with_small_limit(self, normal_headers):
+        """Card queue with limit=1 returns at most 1 card."""
+        resp = requests.get(
+            f"{BASE_URL}/card-queue",
+            headers=normal_headers,
+            params={"limit": 1},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert isinstance(data, list)
+        assert len(data) <= 1
+
+    def test_queue_with_offset(self, normal_headers):
+        """Offset parameter is accepted (limit+offset)."""
+        resp = requests.get(
+            f"{BASE_URL}/card-queue",
+            headers=normal_headers,
+            params={"limit": 5, "offset": 2},
+        )
+        # Offset may or may not be supported; at minimum the request shouldn't error
+        assert resp.status_code == 200
+        data = resp.json()
+        assert isinstance(data, list)

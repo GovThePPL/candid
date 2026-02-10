@@ -1,4 +1,5 @@
 """Tests for bug reports and diagnostics consent endpoints."""
+# Auth tests (test_unauthenticated_returns_401) live in test_auth_required.py.
 
 import pytest
 import requests
@@ -112,14 +113,6 @@ class TestCreateBugReport:
         )
         assert resp.status_code == 400
 
-    def test_unauthenticated_401(self):
-        """Unauthenticated request returns 401."""
-        resp = requests.post(
-            f"{BASE_URL}/bug-reports",
-            json={"source": "user", "description": "test"},
-        )
-        assert resp.status_code == 401
-
     @pytest.mark.mutation
     def test_banned_user_can_submit(self, normal_headers):
         """Banned users can still submit bug reports."""
@@ -229,14 +222,6 @@ class TestUpdateDiagnosticsConsent:
             json={},
         )
         assert resp.status_code == 400
-
-    def test_unauthenticated_401(self):
-        """Unauthenticated request returns 401."""
-        resp = requests.put(
-            f"{BASE_URL}/users/me/diagnostics-consent",
-            json={"consent": True},
-        )
-        assert resp.status_code == 401
 
     @pytest.mark.mutation
     def test_consent_appears_in_current_user(self, normal_headers):

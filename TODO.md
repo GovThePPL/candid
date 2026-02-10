@@ -7,6 +7,7 @@
 - Make email required?
 - Require phone number for sign-up -- explore other user de-duplication options, consider cost of sending messages
 - Captcha on sign-up
+- Require location on sign-up
 
 ## Security
 - Implement bot detection system
@@ -22,8 +23,6 @@
 - Location-aware categories — filter categories by location relevance
 
 ## Card Queue
-- Chat request card should be next in queue when on card queue page
-- Should jump to top when user is on other pages
 - Donation cards
 
 ## Chat Fixes and Enhancements
@@ -51,6 +50,7 @@
 
 ## Frontend Improvements
 - UGC Translation — runtime translation of user-generated content (positions, chat messages, surveys). See [plan](.claude-plans/2026-02-10_ugc-translation.md)
+- Language drop-down menu
 
 ## Infrastructure
 - Will eventually need frontend web servers

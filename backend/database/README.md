@@ -31,8 +31,7 @@ Rich dev data (50 users, ~36 positions, chats, moderation) is created by `backen
 ```
 database/
 ├── sql/
-│   ├── schema.sql        # Complete current schema
-│   └── migrations/       # Historical migration files (already rolled into schema.sql)
+│   └── schema.sql        # Complete current schema (all pre-production migrations rolled in)
 ├── test_data/
 │   ├── basic.sql         # Core seed data (users, categories, locations, rules)
 │   └── pairwise_surveys.sql  # Pairwise survey data

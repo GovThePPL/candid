@@ -1,5 +1,6 @@
 """Tests for pairwise survey endpoints: GET /surveys/pairwise, POST /pairwise/{surveyId}/respond,
-GET /surveys/pairwise/{surveyId}/rankings."""
+GET /surveys/pairwise/{surveyId}/rankings, POST /admin/surveys/pairwise."""
+# Auth tests (test_unauthenticated_returns_401) live in test_auth_required.py.
 
 import pytest
 import requests
@@ -15,6 +16,7 @@ from conftest import (
 
 PAIRWISE_URL = f"{BASE_URL}/surveys/pairwise"
 RESPOND_URL = f"{BASE_URL}/pairwise"
+ADMIN_PAIRWISE_URL = f"{BASE_URL}/admin/surveys/pairwise"
 
 
 @pytest.fixture(scope="module")
@@ -74,10 +76,6 @@ class TestGetPairwiseSurveys:
                 assert "id" in item
                 assert "text" in item
 
-    def test_unauthenticated(self):
-        """Unauthenticated request returns 401."""
-        resp = requests.get(PAIRWISE_URL)
-        assert resp.status_code == 401
 
 
 class TestRespondToPairwise:
@@ -194,17 +192,6 @@ class TestRespondToPairwise:
         # Should reject because it's not a pairwise survey
         assert resp.status_code in (400, 404)
 
-    def test_unauthenticated(self, pairwise_survey_data):
-        """Unauthenticated request returns 401."""
-        survey_id = pairwise_survey_data["survey_id"] if pairwise_survey_data else NONEXISTENT_UUID
-        resp = requests.post(
-            f"{RESPOND_URL}/{survey_id}/respond",
-            json={
-                "winnerItemId": NONEXISTENT_UUID,
-                "loserItemId": NONEXISTENT_UUID,
-            },
-        )
-        assert resp.status_code == 401
 
 
 class TestGetSurveyRankings:
@@ -296,3 +283,110 @@ class TestGetSurveyRankings:
             headers=normal_headers,
         )
         assert resp.status_code == 404
+
+
+class TestCreatePairwiseSurvey:
+    """POST /admin/surveys/pairwise"""
+
+    _TEST_TITLE_PREFIX = "__test_create_pairwise__"
+
+    @pytest.fixture(autouse=True)
+    def _cleanup(self):
+        """Remove any surveys created by these tests."""
+        yield
+        surveys = db_query(
+            "SELECT id FROM survey WHERE survey_title LIKE %s",
+            (f"{self._TEST_TITLE_PREFIX}%",),
+        )
+        for s in (surveys or []):
+            db_execute("DELETE FROM pairwise_item WHERE survey_id = %s", (s["id"],))
+            db_execute("DELETE FROM survey WHERE id = %s", (s["id"],))
+
+    def _make_payload(self, title_suffix, items, **extra):
+        """Build a valid CreatePairwiseSurveyRequest payload."""
+        payload = {
+            "surveyTitle": f"{self._TEST_TITLE_PREFIX}{title_suffix}",
+            "items": items,
+            "startTime": "2026-01-01T00:00:00Z",
+            "endTime": "2027-01-01T00:00:00Z",
+        }
+        payload.update(extra)
+        return payload
+
+    def test_normal_user_forbidden(self, normal_headers):
+        """Normal user cannot create pairwise surveys (403)."""
+        resp = requests.post(
+            ADMIN_PAIRWISE_URL,
+            headers=normal_headers,
+            json=self._make_payload("normal", ["A", "B"]),
+        )
+        assert resp.status_code == 403
+
+    def test_moderator_forbidden(self, moderator_headers):
+        """Moderator cannot create pairwise surveys (403)."""
+        resp = requests.post(
+            ADMIN_PAIRWISE_URL,
+            headers=moderator_headers,
+            json=self._make_payload("mod", ["A", "B"]),
+        )
+        assert resp.status_code == 403
+
+    @pytest.mark.mutation
+    def test_create_success(self, admin_headers):
+        """Admin can create a pairwise survey with valid items."""
+        title = f"{self._TEST_TITLE_PREFIX}success"
+        resp = requests.post(
+            ADMIN_PAIRWISE_URL,
+            headers=admin_headers,
+            json=self._make_payload("success", ["Option Alpha", "Option Beta", "Option Gamma"]),
+        )
+        assert resp.status_code == 201
+        body = resp.json()
+        assert "id" in body
+        assert body["surveyTitle"] == title
+        assert body["status"] == "active"
+        assert len(body["items"]) == 3
+
+    @pytest.mark.mutation
+    def test_create_with_comparison_question(self, admin_headers):
+        """comparisonQuestion is preserved in the created survey."""
+        title = f"{self._TEST_TITLE_PREFIX}cq"
+        question = "Which policy is most impactful?"
+        resp = requests.post(
+            ADMIN_PAIRWISE_URL,
+            headers=admin_headers,
+            json=self._make_payload(
+                "cq", ["Policy A", "Policy B"],
+                comparisonQuestion=question,
+            ),
+        )
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["comparisonQuestion"] == question
+
+    def test_too_few_items_400(self, admin_headers):
+        """Only 1 item returns 400."""
+        resp = requests.post(
+            ADMIN_PAIRWISE_URL,
+            headers=admin_headers,
+            json=self._make_payload("few", ["Only one"]),
+        )
+        assert resp.status_code == 400
+
+    def test_empty_items_400(self, admin_headers):
+        """0 items returns 400."""
+        resp = requests.post(
+            ADMIN_PAIRWISE_URL,
+            headers=admin_headers,
+            json=self._make_payload("empty", []),
+        )
+        assert resp.status_code == 400
+
+    def test_too_many_items_400(self, admin_headers):
+        """21 items returns 400 (max is 20)."""
+        resp = requests.post(
+            ADMIN_PAIRWISE_URL,
+            headers=admin_headers,
+            json=self._make_payload("many", [f"Item {i}" for i in range(21)]),
+        )
+        assert resp.status_code == 400

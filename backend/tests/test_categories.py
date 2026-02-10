@@ -1,4 +1,5 @@
 """Tests for GET /categories."""
+# Auth tests (test_unauthenticated_returns_401) live in test_auth_required.py.
 
 import pytest
 import requests
@@ -50,11 +51,6 @@ class TestGetAllCategories:
             if "parentId" in cat and cat["parentId"] is not None:
                 assert cat["parentId"] in cat_ids
 
-    def test_unauthenticated_returns_401(self):
-        """Returns 401 when no auth token provided."""
-        resp = requests.get(CATEGORIES_URL)
-        assert resp.status_code == 401
-
     def test_admin_can_access(self, admin_headers):
         """Admin users can access categories."""
         resp = requests.get(CATEGORIES_URL, headers=admin_headers)
@@ -95,10 +91,3 @@ class TestSuggestCategory:
         else:
             assert resp.status_code in (500, 503)
 
-    def test_suggest_unauthenticated(self):
-        """Unauthenticated request returns 401."""
-        resp = requests.post(
-            f"{CATEGORIES_URL}/suggest",
-            json={"statement": "Healthcare should be available to everyone regardless of income"},
-        )
-        assert resp.status_code == 401

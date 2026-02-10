@@ -1,4 +1,5 @@
 """Tests for survey results: GET /surveys/{surveyId}/results, GET /surveys/{surveyId}/questions/{questionId}/crosstabs."""
+# Auth tests (test_unauthenticated_returns_401) live in test_auth_required.py.
 
 import pytest
 import requests
@@ -73,10 +74,6 @@ class TestGetStandardSurveyResults:
         )
         assert resp.status_code == 200
 
-    def test_unauthenticated(self):
-        """Unauthenticated request returns 401."""
-        resp = requests.get(f"{SURVEYS_URL}/{SURVEY_ACTIVE_ID}/results")
-        assert resp.status_code == 401
 
 
 class TestGetQuestionCrosstabs:
@@ -129,9 +126,3 @@ class TestGetQuestionCrosstabs:
         )
         assert resp.status_code in (400, 404)
 
-    def test_unauthenticated(self):
-        """Unauthenticated request returns 401."""
-        resp = requests.get(
-            f"{SURVEYS_URL}/{SURVEY_ACTIVE_ID}/questions/{SURVEY_QUESTION_1_ID}/crosstabs"
-        )
-        assert resp.status_code == 401

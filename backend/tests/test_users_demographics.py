@@ -1,4 +1,5 @@
 """Tests for GET/PUT/PATCH /users/me/demographics."""
+# Auth tests (test_unauthenticated_returns_401) live in test_auth_required.py.
 
 import pytest
 import requests
@@ -27,9 +28,6 @@ class TestGetUserDemographics:
         resp = requests.get(DEMOGRAPHICS_URL, headers=normal_headers)
         assert resp.status_code in (200, 204)
 
-    def test_unauthenticated_returns_401(self):
-        resp = requests.get(DEMOGRAPHICS_URL)
-        assert resp.status_code == 401
 
 
 class TestUpdateUserDemographics:
@@ -63,9 +61,6 @@ class TestUpdateUserDemographics:
         resp = requests.put(DEMOGRAPHICS_URL, headers=admin_headers, json=_BASELINE)
         assert resp.status_code == 200
 
-    def test_unauthenticated_returns_401(self):
-        resp = requests.put(DEMOGRAPHICS_URL, json={"lean": "moderate"})
-        assert resp.status_code == 401
 
 
 class TestPartialUpdateDemographics:
@@ -106,6 +101,3 @@ class TestPartialUpdateDemographics:
         resp = requests.patch(DEMOGRAPHICS_URL, headers=admin_headers, json={})
         assert resp.status_code == 400
 
-    def test_unauthenticated_returns_401(self):
-        resp = requests.patch(DEMOGRAPHICS_URL, json={"lean": "moderate"})
-        assert resp.status_code == 401

@@ -1,5 +1,6 @@
 """Tests for stats endpoints: GET /stats/{locationId}/{categoryId},
 GET /stats/{locationId}, GET /stats/{locationId}/{categoryId}/demographics/{groupId}."""
+# Auth tests (test_unauthenticated_returns_401) live in test_auth_required.py.
 
 import pytest
 import requests
@@ -65,12 +66,6 @@ class TestGetStats:
         )
         assert resp.status_code == 404
 
-    def test_unauthenticated(self):
-        """Unauthenticated request returns 401."""
-        resp = requests.get(
-            f"{STATS_URL}/{OREGON_LOCATION_ID}/{HEALTHCARE_CAT_ID}"
-        )
-        assert resp.status_code == 401
 
 
 class TestGetLocationStats:
@@ -124,10 +119,6 @@ class TestGetLocationStats:
         )
         assert resp.status_code == 404
 
-    def test_unauthenticated(self):
-        """Unauthenticated request returns 401."""
-        resp = requests.get(f"{STATS_URL}/{OREGON_LOCATION_ID}")
-        assert resp.status_code == 401
 
 
 class TestGetGroupDemographics:
@@ -154,9 +145,3 @@ class TestGetGroupDemographics:
         # Should have group demographics info
         assert "groupId" in body or "memberCount" in body or "lean" in body or isinstance(body, dict)
 
-    def test_unauthenticated(self):
-        """Unauthenticated request returns 401."""
-        resp = requests.get(
-            f"{STATS_URL}/{OREGON_LOCATION_ID}/{HEALTHCARE_CAT_ID}/demographics/all"
-        )
-        assert resp.status_code == 401

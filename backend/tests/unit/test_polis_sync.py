@@ -134,3 +134,342 @@ class TestActiveWindowDates:
         active_from, active_until = get_active_window_dates()
         diff_months = (active_until.year - active_from.year) * 12 + (active_until.month - active_from.month)
         assert diff_months == 6
+
+
+# ---------------------------------------------------------------------------
+# get_active_conversations
+# ---------------------------------------------------------------------------
+
+class TestGetActiveConversations:
+    def test_with_category(self):
+        mock_db = MagicMock()
+        conv_rows = [
+            {"id": "c-1", "polis_conversation_id": "p-1",
+             "active_from": "2026-01-01", "active_until": "2026-07-01"},
+        ]
+        mock_db.execute_query = MagicMock(return_value=conv_rows)
+
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db):
+            from candid.controllers.helpers.polis_sync import get_active_conversations
+            result = get_active_conversations("loc-1", "cat-1")
+            assert len(result) == 1
+            sql = mock_db.execute_query.call_args[0][0]
+            assert "category_id" in sql
+            assert "category_id IS NULL" not in sql
+
+    def test_without_category(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=[
+            {"id": "c-1", "polis_conversation_id": "p-1",
+             "active_from": "2026-01-01", "active_until": "2026-07-01"},
+        ])
+
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db):
+            from candid.controllers.helpers.polis_sync import get_active_conversations
+            result = get_active_conversations("loc-1", None)
+            assert len(result) == 1
+            sql = mock_db.execute_query.call_args[0][0]
+            assert "category_id IS NULL" in sql
+
+    def test_empty_returns_empty_list(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=None)
+
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db):
+            from candid.controllers.helpers.polis_sync import get_active_conversations
+            result = get_active_conversations("loc-1", "cat-1")
+            assert result == []
+
+
+# ---------------------------------------------------------------------------
+# get_oldest_active_conversation
+# ---------------------------------------------------------------------------
+
+class TestGetOldestActiveConversation:
+    def test_returns_first(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=[
+            {"id": "oldest", "polis_conversation_id": "p-1"},
+            {"id": "newer", "polis_conversation_id": "p-2"},
+        ])
+
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db):
+            from candid.controllers.helpers.polis_sync import get_oldest_active_conversation
+            result = get_oldest_active_conversation("loc-1", "cat-1")
+            assert result["id"] == "oldest"
+
+    def test_no_conversations_returns_none(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=None)
+
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db):
+            from candid.controllers.helpers.polis_sync import get_oldest_active_conversation
+            result = get_oldest_active_conversation("loc-1", "cat-1")
+            assert result is None
+
+
+# ---------------------------------------------------------------------------
+# get_or_create_conversation
+# ---------------------------------------------------------------------------
+
+class TestGetOrCreateConversation:
+    def test_returns_existing(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value={"polis_conversation_id": "existing-conv"})
+
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db), \
+             patch("candid.controllers.helpers.polis_sync.config",
+                   MagicMock(POLIS_CONVERSATION_WINDOW_MONTHS=6)):
+            from candid.controllers.helpers.polis_sync import get_or_create_conversation
+            result = get_or_create_conversation("loc-1", "cat-1", "USA", "Politics")
+            assert result == "existing-conv"
+
+    def test_creates_new_with_category(self):
+        mock_db = MagicMock()
+        # First call: no existing, second: INSERT returning row
+        mock_db.execute_query = MagicMock(side_effect=[
+            None,  # no existing
+            {"polis_conversation_id": "new-conv"},  # INSERT RETURNING
+        ])
+
+        mock_client = MagicMock()
+        mock_client.create_conversation = MagicMock(return_value="new-conv")
+
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db), \
+             patch("candid.controllers.helpers.polis_sync.get_client", return_value=mock_client), \
+             patch("candid.controllers.helpers.polis_sync.config",
+                   MagicMock(POLIS_CONVERSATION_WINDOW_MONTHS=6)):
+            from candid.controllers.helpers.polis_sync import get_or_create_conversation
+            result = get_or_create_conversation("loc-1", "cat-1", "USA", "Politics")
+            assert result == "new-conv"
+            mock_client.create_conversation.assert_called_once()
+            # Verify topic includes location and category
+            topic = mock_client.create_conversation.call_args[0][0]
+            assert "USA" in topic
+            assert "Politics" in topic
+
+    def test_creates_new_location_only(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            None,  # no existing
+            {"polis_conversation_id": "loc-conv"},  # INSERT RETURNING
+        ])
+
+        mock_client = MagicMock()
+        mock_client.create_conversation = MagicMock(return_value="loc-conv")
+
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db), \
+             patch("candid.controllers.helpers.polis_sync.get_client", return_value=mock_client), \
+             patch("candid.controllers.helpers.polis_sync.config",
+                   MagicMock(POLIS_CONVERSATION_WINDOW_MONTHS=6)):
+            from candid.controllers.helpers.polis_sync import get_or_create_conversation
+            result = get_or_create_conversation("loc-1", None, "USA")
+            assert result == "loc-conv"
+            topic = mock_client.create_conversation.call_args[0][0]
+            assert "All Topics" in topic
+
+    def test_polis_error_returns_none(self):
+        from candid.controllers.helpers.polis_client import PolisError
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=None)
+
+        mock_client = MagicMock()
+        mock_client.create_conversation = MagicMock(side_effect=PolisError("API down"))
+
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db), \
+             patch("candid.controllers.helpers.polis_sync.get_client", return_value=mock_client), \
+             patch("candid.controllers.helpers.polis_sync.config",
+                   MagicMock(POLIS_CONVERSATION_WINDOW_MONTHS=6)):
+            from candid.controllers.helpers.polis_sync import get_or_create_conversation
+            result = get_or_create_conversation("loc-1", "cat-1", "USA", "Politics")
+            assert result is None
+
+
+# ---------------------------------------------------------------------------
+# sync_position
+# ---------------------------------------------------------------------------
+
+class TestSyncPosition:
+    def test_syncs_to_active_conversations(self):
+        mock_db = MagicMock()
+        # Calls: location lookup, category lookup, (get_active_conversations x2 handled by patches)
+        mock_db.execute_query = MagicMock(side_effect=[
+            {"name": "USA"},     # location lookup
+            {"label": "Politics"},  # category lookup
+            None,  # INSERT polis_comment (category conv)
+            None,  # INSERT polis_comment (location conv)
+        ])
+
+        mock_client = MagicMock()
+        mock_client.create_comment = MagicMock(return_value=42)
+
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db), \
+             patch("candid.controllers.helpers.polis_sync.get_client", return_value=mock_client), \
+             patch("candid.controllers.helpers.polis_sync.get_active_conversations",
+                   side_effect=[
+                       [{"polis_conversation_id": "cat-conv"}],  # category convs
+                       [{"polis_conversation_id": "loc-conv"}],  # location convs
+                   ]):
+            from candid.controllers.helpers.polis_sync import sync_position
+            payload = {
+                "position_id": "pos-1", "statement": "test",
+                "category_id": "cat-1", "location_id": "loc-1",
+                "creator_user_id": "user-1",
+            }
+            success, error = sync_position(payload)
+            assert success is True
+            assert error is None
+            assert mock_client.create_comment.call_count == 2
+
+    def test_missing_location_returns_false(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            None,  # location not found
+            {"label": "Politics"},
+        ])
+
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db):
+            from candid.controllers.helpers.polis_sync import sync_position
+            payload = {
+                "position_id": "pos-1", "statement": "test",
+                "category_id": "cat-1", "location_id": "loc-bad",
+                "creator_user_id": "user-1",
+            }
+            success, error = sync_position(payload)
+            assert success is False
+            assert "not found" in error
+
+    def test_no_conversations_creates_new(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            {"name": "USA"},     # location lookup
+            {"label": "Politics"},  # category lookup
+            None,  # INSERT from get_or_create
+            None,  # INSERT polis_comment
+            None,  # INSERT from get_or_create (location)
+            None,  # INSERT polis_comment
+        ])
+
+        mock_client = MagicMock()
+        mock_client.create_comment = MagicMock(return_value=1)
+
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db), \
+             patch("candid.controllers.helpers.polis_sync.get_client", return_value=mock_client), \
+             patch("candid.controllers.helpers.polis_sync.get_active_conversations",
+                   return_value=[]), \
+             patch("candid.controllers.helpers.polis_sync.get_or_create_conversation",
+                   return_value="new-conv"):
+            from candid.controllers.helpers.polis_sync import sync_position
+            payload = {
+                "position_id": "pos-1", "statement": "test",
+                "category_id": "cat-1", "location_id": "loc-1",
+                "creator_user_id": "user-1",
+            }
+            success, error = sync_position(payload)
+            assert success is True
+
+
+# ---------------------------------------------------------------------------
+# sync_vote
+# ---------------------------------------------------------------------------
+
+class TestSyncVote:
+    def test_syncs_across_conversations(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=[
+            {"polis_conversation_id": "conv-1", "polis_comment_tid": 10},
+            {"polis_conversation_id": "conv-2", "polis_comment_tid": 20},
+        ])
+
+        mock_client = MagicMock()
+        mock_client.submit_vote = MagicMock(return_value=True)
+
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db), \
+             patch("candid.controllers.helpers.polis_sync.get_client", return_value=mock_client):
+            from candid.controllers.helpers.polis_sync import sync_vote
+            payload = {"position_id": "pos-1", "user_id": "user-1", "polis_vote": -1}
+            success, error = sync_vote(payload)
+            assert success is True
+            assert error is None
+            assert mock_client.submit_vote.call_count == 2
+
+    def test_position_not_yet_synced(self):
+        mock_db = MagicMock()
+        # First query: no polis_comment rows; second: position exists
+        mock_db.execute_query = MagicMock(side_effect=[
+            None,  # no polis_comment mappings
+            {"1": 1},  # position exists
+        ])
+
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db), \
+             patch("candid.controllers.helpers.polis_sync.get_client", MagicMock()):
+            from candid.controllers.helpers.polis_sync import sync_vote
+            payload = {"position_id": "pos-1", "user_id": "user-1", "polis_vote": -1}
+            success, error = sync_vote(payload)
+            assert success is False
+            assert "not yet synced" in error
+
+    def test_deleted_position_skipped(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            None,  # no polis_comment mappings
+            None,  # position doesn't exist
+        ])
+
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db), \
+             patch("candid.controllers.helpers.polis_sync.get_client", MagicMock()):
+            from candid.controllers.helpers.polis_sync import sync_vote
+            payload = {"position_id": "pos-deleted", "user_id": "user-1", "polis_vote": -1}
+            success, error = sync_vote(payload)
+            assert success is True
+            assert error is None
+
+    def test_partial_sync_reports_errors(self):
+        from candid.controllers.helpers.polis_client import PolisError
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=[
+            {"polis_conversation_id": "conv-1", "polis_comment_tid": 10},
+            {"polis_conversation_id": "conv-2", "polis_comment_tid": 20},
+        ])
+
+        mock_client = MagicMock()
+        mock_client.submit_vote = MagicMock(side_effect=[
+            True,  # conv-1 succeeds
+            PolisError("failed"),  # conv-2 fails
+        ])
+
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db), \
+             patch("candid.controllers.helpers.polis_sync.get_client", return_value=mock_client):
+            from candid.controllers.helpers.polis_sync import sync_vote
+            payload = {"position_id": "pos-1", "user_id": "user-1", "polis_vote": -1}
+            success, error = sync_vote(payload)
+            assert success is True
+            assert "Partial" in error
+
+
+# ---------------------------------------------------------------------------
+# sync_adopted_position
+# ---------------------------------------------------------------------------
+
+class TestSyncAdoptedPosition:
+    def test_queues_position(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            {"statement": "test", "category_id": "cat-1", "location_id": "loc-1"},  # position lookup
+            None,  # queue INSERT
+        ])
+
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db), \
+             patch("candid.controllers.helpers.polis_sync.config", MagicMock(POLIS_ENABLED=True)):
+            from candid.controllers.helpers.polis_sync import sync_adopted_position
+            result = sync_adopted_position("adopter-1", "pos-1")
+            assert result is True
+
+    def test_missing_position_returns_false(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=None)
+
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db):
+            from candid.controllers.helpers.polis_sync import sync_adopted_position
+            result = sync_adopted_position("user-1", "pos-nonexistent")
+            assert result is False

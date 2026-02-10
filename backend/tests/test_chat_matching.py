@@ -6,6 +6,7 @@ delivery context, chatting list, and card queue composition.
 
 Requires: docker compose up (API + DB + Redis running).
 """
+# Auth tests (test_unauthenticated_returns_401) live in test_auth_required.py.
 
 import pytest
 import requests
@@ -167,6 +168,17 @@ def admin1_headers():
 # ---------------------------------------------------------------------------
 # 1. TestPresenceTracking
 # ---------------------------------------------------------------------------
+
+class TestHeartbeatEndpoint:
+    """POST /users/me/heartbeat — basic endpoint tests (A5)."""
+
+    def test_returns_ok(self, normal1_headers):
+        """Authenticated heartbeat returns 200 with status ok."""
+        resp = requests.post(HEARTBEAT_URL, headers=normal1_headers)
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body.get("status") == "ok"
+
 
 class TestPresenceTracking:
     """Redis presence mechanics: swiping and heartbeat."""
@@ -860,11 +872,6 @@ class TestCardQueueComposition:
         cards = resp.json()
         chat_req_cards = [c for c in cards if c.get("type") == "chat_request"]
         assert len(chat_req_cards) == 0
-
-    def test_unauthenticated_cannot_get_queue(self):
-        """No auth header returns 401."""
-        resp = requests.get(CARD_QUEUE_URL)
-        assert resp.status_code == 401
 
     def test_queue_includes_position_type(self, normal2_headers):
         """Card queue includes at least position-type cards."""

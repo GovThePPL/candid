@@ -1,4 +1,5 @@
 """Tests for user account operations: account delete, push token, avatar upload."""
+# Auth tests (test_unauthenticated_returns_401) live in test_auth_required.py.
 
 import pytest
 import requests
@@ -68,10 +69,6 @@ class TestDeleteCurrentUser:
         assert row["status"] == "deleted"
         assert row["keycloak_id"] is None  # Keycloak link should be cleared
 
-    def test_unauthenticated(self):
-        """Unauthenticated request returns 401."""
-        resp = requests.post(f"{BASE_URL}/users/me/delete")
-        assert resp.status_code == 401
 
 
 class TestRegisterPushToken:
@@ -116,13 +113,6 @@ class TestRegisterPushToken:
         )
         assert resp.status_code == 400
 
-    def test_unauthenticated(self):
-        """Unauthenticated request returns 401."""
-        resp = requests.post(
-            f"{BASE_URL}/users/me/push-token",
-            json={"token": "ExponentPushToken[test]", "platform": "expo"},
-        )
-        assert resp.status_code == 401
 
 
 class TestUploadAvatar:
@@ -147,10 +137,3 @@ class TestUploadAvatar:
         # Should fail with either 400 (invalid image) or 500 (processing error)
         assert resp.status_code in (400, 500)
 
-    def test_unauthenticated(self):
-        """Unauthenticated request returns 401."""
-        resp = requests.post(
-            f"{BASE_URL}/users/me/avatar",
-            json={"imageBase64": "dGVzdA=="},
-        )
-        assert resp.status_code == 401

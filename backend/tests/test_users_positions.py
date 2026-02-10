@@ -1,5 +1,6 @@
 """Tests for GET /users/me/positions, PATCH /users/me/positions/{id},
 DELETE /users/me/positions/{id}, GET /users/me/positions/metadata."""
+# Auth tests (test_unauthenticated_returns_401) live in test_auth_required.py.
 
 import pytest
 import requests
@@ -44,9 +45,6 @@ class TestGetCurrentUserPositions:
         assert resp.status_code == 200
         assert len(resp.json()) > 0
 
-    def test_unauthenticated_returns_401(self):
-        resp = requests.get(POSITIONS_URL)
-        assert resp.status_code == 401
 
 
 class TestUpdateUserPosition:
@@ -120,13 +118,6 @@ class TestUpdateUserPosition:
         )
         assert resp.status_code == 404
 
-    def test_unauthenticated(self):
-        """Unauthenticated request returns 401."""
-        resp = requests.patch(
-            f"{POSITIONS_URL}/{USER_POSITION_NORMAL1}",
-            json={"status": "inactive"},
-        )
-        assert resp.status_code == 401
 
 
 class TestDeleteUserPosition:
@@ -180,12 +171,6 @@ class TestDeleteUserPosition:
         )
         assert resp.status_code == 404
 
-    def test_unauthenticated(self):
-        """Unauthenticated request returns 401."""
-        resp = requests.delete(
-            f"{POSITIONS_URL}/{USER_POSITION_NORMAL1}",
-        )
-        assert resp.status_code == 401
 
 
 class TestPositionsMetadata:
@@ -203,7 +188,3 @@ class TestPositionsMetadata:
         assert isinstance(body["count"], int)
         assert body["count"] > 0
 
-    def test_unauthenticated(self):
-        """Unauthenticated request returns 401."""
-        resp = requests.get(f"{POSITIONS_URL}/metadata")
-        assert resp.status_code == 401

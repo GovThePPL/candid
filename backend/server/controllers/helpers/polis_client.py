@@ -64,6 +64,7 @@ class PolisClient:
 
         # Token caches
         self._admin_token: Optional[str] = None
+        self._admin_token_expires_at: Optional[datetime] = None
         self._admin_token_lock = Lock()
         self._xid_tokens: Dict[str, Dict[str, str]] = {}  # {conversation_id: {xid: token}}
         self._xid_tokens_lock = Lock()
@@ -126,9 +127,12 @@ class PolisClient:
         polis-admin client in Keycloak. Tokens are cached until they expire.
         """
         with self._admin_token_lock:
-            if self._admin_token:
-                # TODO: Check token expiration
-                return self._admin_token
+            if self._admin_token and self._admin_token_expires_at:
+                if datetime.now(timezone.utc) < self._admin_token_expires_at - timedelta(seconds=30):
+                    return self._admin_token
+                # Token expired or about to expire — clear and re-fetch
+                self._admin_token = None
+                self._admin_token_expires_at = None
 
             try:
                 # Use Keycloak ROPC flow to get admin token
@@ -155,6 +159,8 @@ class PolisClient:
 
                 token_data = response.json()
                 self._admin_token = token_data.get('access_token')
+                expires_in = token_data.get('expires_in', 300)  # Keycloak default: 300s
+                self._admin_token_expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
 
                 if not self._admin_token:
                     raise PolisAuthError("No access token in Keycloak response")
@@ -165,6 +171,23 @@ class PolisClient:
             except requests.exceptions.RequestException as e:
                 logger.error(f"Failed to get admin token: {e}")
                 raise PolisAuthError(f"Failed to get admin token: {e}")
+
+    def _clear_admin_token(self):
+        """Clear cached admin token to force re-acquisition."""
+        with self._admin_token_lock:
+            self._admin_token = None
+            self._admin_token_expires_at = None
+
+    def _admin_request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
+        """Make an admin-authenticated request with automatic token refresh on 401."""
+        token = self._get_admin_token()
+        try:
+            return self._request(method, endpoint, auth_token=token, **kwargs)
+        except PolisAuthError:
+            logger.info(f"Admin auth failed for {endpoint}, refreshing token and retrying")
+            self._clear_admin_token()
+            token = self._get_admin_token()
+            return self._request(method, endpoint, auth_token=token, **kwargs)
 
     # ========== XID Authentication ==========
 
@@ -363,13 +386,6 @@ class PolisClient:
         Returns:
             The conversation_id (zinvite) from Polis
         """
-        # Get admin token
-        try:
-            admin_token = self._get_admin_token()
-        except PolisAuthError as e:
-            logger.error(f"Cannot create conversation without admin auth: {e}")
-            raise
-
         data = {
             "topic": topic,
             "description": description,
@@ -381,7 +397,7 @@ class PolisClient:
             "auth_needed_to_write": False,
         }
 
-        response = self._request("POST", "/conversations", auth_token=admin_token, json=data)
+        response = self._admin_request("POST", "/conversations", json=data)
 
         # The response contains the conversation URL, extract conversation_id
         url = response.get("url", "")
@@ -666,26 +682,15 @@ class PolisClient:
         Returns:
             The report_id if created successfully, None otherwise
         """
-        print(f"[POLIS CLIENT] create_report called for {conversation_id}", flush=True)
-        try:
-            admin_token = self._get_admin_token()
-            print(f"[POLIS CLIENT] Got admin token: {admin_token[:20] if admin_token else 'None'}...", flush=True)
-        except PolisAuthError as e:
-            print(f"[POLIS CLIENT] Admin auth failed: {e}", flush=True)
-            logger.error(f"Cannot create report without admin auth: {e}")
-            return None
-
         data = {
             "conversation_id": conversation_id,
         }
 
         try:
-            response = self._request("POST", "/reports", auth_token=admin_token, json=data)
-            print(f"[POLIS CLIENT] POST /reports response: {response}", flush=True)
+            response = self._admin_request("POST", "/reports", json=data)
             logger.info(f"Created report for conversation {conversation_id}")
             return response.get("report_id")
         except PolisError as e:
-            print(f"[POLIS CLIENT] POST /reports failed: {e}", flush=True)
             logger.error(f"Failed to create report: {e}")
             return None
 
@@ -702,8 +707,7 @@ class PolisClient:
         params = {"conversation_id": conversation_id}
 
         try:
-            admin_token = self._get_admin_token()
-            response = self._request("GET", "/reports", auth_token=admin_token, params=params)
+            response = self._admin_request("GET", "/reports", params=params)
             if isinstance(response, list) and len(response) > 0:
                 # Return the most recent report
                 return response[0]
@@ -722,24 +726,22 @@ class PolisClient:
         Returns:
             The report_id
         """
-        print(f"[POLIS CLIENT] get_or_create_report called for {conversation_id}", flush=True)
-
         # First try to get existing report
         try:
             existing = self.get_report(conversation_id)
-            print(f"[POLIS CLIENT] get_report returned: {existing}", flush=True)
             if existing and existing.get("report_id"):
+                logger.debug(f"Found existing report for conversation {conversation_id}")
                 return existing["report_id"]
         except Exception as e:
-            print(f"[POLIS CLIENT] Error getting report: {e}", flush=True)
+            logger.debug(f"No existing report for conversation {conversation_id}: {e}")
 
         # Create new report
         try:
             report_id = self.create_report(conversation_id)
-            print(f"[POLIS CLIENT] create_report returned: {report_id}", flush=True)
+            logger.debug(f"Created new report for conversation {conversation_id}: {report_id}")
             return report_id
         except Exception as e:
-            print(f"[POLIS CLIENT] Error creating report: {e}", flush=True)
+            logger.error(f"Failed to get or create report for conversation {conversation_id}: {e}")
             return None
 
 

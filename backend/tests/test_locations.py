@@ -1,4 +1,5 @@
 """Tests for location endpoints: GET /users/me/locations, GET /locations, PUT /users/me/locations."""
+# Auth tests (test_unauthenticated_returns_401) live in test_auth_required.py.
 
 import pytest
 import requests
@@ -29,10 +30,6 @@ class TestGetUserLocations:
         assert "id" in loc
         assert "name" in loc
 
-    def test_unauthenticated(self):
-        """Unauthenticated request returns 401."""
-        resp = requests.get(USER_LOCATIONS_URL)
-        assert resp.status_code == 401
 
 
 class TestGetAllLocations:
@@ -62,10 +59,6 @@ class TestGetAllLocations:
             assert "name" in loc
             assert "code" in loc
 
-    def test_unauthenticated(self):
-        """Unauthenticated request returns 401."""
-        resp = requests.get(LOCATIONS_URL)
-        assert resp.status_code == 401
 
 
 class TestSetUserLocation:
@@ -119,10 +112,3 @@ class TestSetUserLocation:
         )
         assert resp.status_code == 400
 
-    def test_unauthenticated(self):
-        """Unauthenticated request returns 401."""
-        resp = requests.put(
-            USER_LOCATIONS_URL,
-            json={"locationId": OREGON_LOCATION_ID},
-        )
-        assert resp.status_code == 401

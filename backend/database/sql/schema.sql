@@ -22,8 +22,8 @@ CREATE TABLE users (
     trust_score DECIMAL(5,5),
     user_type VARCHAR(50) NOT NULL DEFAULT 'normal' CHECK (user_type IN ('normal', 'moderator', 'admin', 'guest')),
     status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'deleted', 'banned')),
-    chat_request_likelihood INTEGER NOT NULL DEFAULT 3 CHECK (chat_request_likelihood BETWEEN 1 AND 5),
-    chatting_list_likelihood INTEGER NOT NULL DEFAULT 3 CHECK (chatting_list_likelihood BETWEEN 1 AND 5),
+    chat_request_likelihood INTEGER NOT NULL DEFAULT 3 CHECK (chat_request_likelihood BETWEEN 0 AND 5),
+    chatting_list_likelihood INTEGER NOT NULL DEFAULT 3 CHECK (chatting_list_likelihood BETWEEN 0 AND 5),
     seen_chatting_list_explanation BOOLEAN DEFAULT false,
     -- Push notification support
     push_token TEXT,
@@ -43,8 +43,8 @@ CREATE TABLE users (
     diagnostics_consent BOOLEAN DEFAULT NULL
 );
 
-COMMENT ON COLUMN users.chat_request_likelihood IS '1=rarely, 2=less, 3=normal, 4=more, 5=often';
-COMMENT ON COLUMN users.chatting_list_likelihood IS '1=rarely, 2=less, 3=normal, 4=more, 5=often';
+COMMENT ON COLUMN users.chat_request_likelihood IS '0=off, 1=rarely, 2=less, 3=normal, 4=more, 5=often';
+COMMENT ON COLUMN users.chatting_list_likelihood IS '0=off, 1=rarely, 2=less, 3=normal, 4=more, 5=often';
 COMMENT ON COLUMN users.avatar_url IS 'URL of user-selected avatar from pre-defined SFW image set';
 
 -- User activity tracking

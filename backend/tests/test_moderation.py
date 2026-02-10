@@ -1,4 +1,5 @@
 """Tests for moderation endpoints: report position/chat, moderation queue, moderator actions, appeal responses."""
+# Auth tests (test_unauthenticated_returns_401) live in test_auth_required.py.
 
 import pytest
 import requests
@@ -23,6 +24,7 @@ from conftest import (
     login,
     auth_header,
     db_execute,
+    db_query,
     db_query_one,
 )
 
@@ -99,16 +101,6 @@ class TestReportPosition:
         )
         assert resp.status_code == 400
 
-    def test_report_position_unauthenticated(self):
-        """Unauthenticated request returns 401."""
-        payload = {
-            "ruleId": RULE_VIOLENCE_ID,
-        }
-        resp = requests.post(
-            f"{BASE_URL}/positions/{POSITION1_ID}/report",
-            json=payload,
-        )
-        assert resp.status_code == 401
 
 
 class TestReportChat:
@@ -199,16 +191,6 @@ class TestReportChat:
         )
         assert resp.status_code == 400
 
-    def test_report_chat_unauthenticated(self):
-        """Unauthenticated request returns 401."""
-        payload = {
-            "ruleId": RULE_VIOLENCE_ID,
-        }
-        resp = requests.post(
-            f"{BASE_URL}/chats/{CHAT_LOG_1_ID}/report",
-            json=payload,
-        )
-        assert resp.status_code == 401
 
 
 class TestModerationQueue:
@@ -245,10 +227,6 @@ class TestModerationQueue:
         )
         assert resp.status_code == 403
 
-    def test_unauthenticated_cannot_access_queue(self):
-        """Unauthenticated request returns 401."""
-        resp = requests.get(f"{MODERATION_URL}/queue")
-        assert resp.status_code == 401
 
 
 class TestTakeModeratorAction:
@@ -466,16 +444,6 @@ class TestTakeModeratorAction:
         )
         assert resp.status_code == 403
 
-    def test_unauthenticated_cannot_take_action(self):
-        """Unauthenticated request returns 401."""
-        payload = {
-            "modResponse": "dismiss",
-        }
-        resp = requests.post(
-            f"{MODERATION_URL}/reports/{NONEXISTENT_UUID}/response",
-            json=payload,
-        )
-        assert resp.status_code == 401
 
 
 class TestRespondToAppeal:
@@ -497,18 +465,6 @@ class TestRespondToAppeal:
             json=payload,
         )
         assert resp.status_code == 403
-
-    def test_unauthenticated_cannot_respond_to_appeal(self):
-        """Unauthenticated request returns 401."""
-        payload = {
-            "response": "approve",
-            "responseText": "Appeal approved.",
-        }
-        resp = requests.post(
-            f"{MODERATION_URL}/appeals/{NONEXISTENT_UUID}/response",
-            json=payload,
-        )
-        assert resp.status_code == 401
 
     def test_respond_to_nonexistent_appeal(self, moderator_headers):
         """Responding to nonexistent appeal returns 400."""
@@ -547,10 +503,6 @@ class TestGetRules:
         assert RULE_VIOLENCE_ID in rule_ids
         assert RULE_SPAM_ID in rule_ids
 
-    def test_get_rules_unauthenticated(self):
-        """Unauthenticated request returns 401."""
-        resp = requests.get(f"{BASE_URL}/rules")
-        assert resp.status_code == 401
 
 
 # ====================================================================
@@ -1063,3 +1015,177 @@ class TestDefaultActionsAndGuidelines:
         assert "severity" in rule
         # Clean up
         _cleanup_pending_reports()
+
+
+class TestDismissAdminResponseNotification:
+    """POST /moderation/notifications/{appealId}/dismiss-admin-response"""
+
+    def test_normal_user_forbidden(self, normal_headers):
+        """Normal user cannot dismiss admin response notifications (403)."""
+        resp = requests.post(
+            f"{MODERATION_URL}/notifications/{NONEXISTENT_UUID}/dismiss-admin-response",
+            headers=normal_headers,
+        )
+        assert resp.status_code == 403
+
+    def test_moderator_dismiss_nonexistent_ok(self, moderator_headers):
+        """Dismissing a nonexistent appeal notification is a silent no-op (200)."""
+        resp = requests.post(
+            f"{MODERATION_URL}/notifications/{NONEXISTENT_UUID}/dismiss-admin-response",
+            headers=moderator_headers,
+        )
+        assert resp.status_code == 200
+
+
+class TestAppealResponseLifecycle:
+    """Full appeal lifecycle: report → mod action → ban → appeal → response (B7).
+
+    Uses admin_headers to create/resolve; moderator_headers for initial action.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _cleanup(self):
+        """Full cleanup of moderation chain."""
+        _cleanup_all_test_reports()
+        yield
+        _cleanup_all_test_reports()
+        # Restore users that may have been banned
+        db_execute(
+            "UPDATE users SET status = 'active' WHERE id IN (%s, %s, %s)",
+            (NORMAL1_ID, NORMAL3_ID, ADMIN1_ID),
+        )
+        import redis as _redis
+        try:
+            r = _redis.from_url("redis://localhost:6379", encoding="utf-8", decode_responses=True)
+            for key in r.keys("ban_status:*"):
+                r.delete(key)
+            r.close()
+        except Exception:
+            pass
+
+    def _create_ban_and_appeal(self, reporter_headers, moderator_headers):
+        """Create report → mod action (ban normal1) → appeal. Returns appeal_id."""
+        # 1. Report normal1's position
+        report_id = _create_report(reporter_headers, POSITION3_ID, rule_id=RULE_VIOLENCE_ID)
+
+        # 2. Moderator bans the submitter (normal1)
+        action_payload = {
+            "modResponse": "take_action",
+            "modResponseText": "Banned for testing.",
+            "actions": [
+                {"userClass": "submitter", "action": "permanent_ban"}
+            ],
+        }
+        resp = requests.post(
+            f"{MODERATION_URL}/reports/{report_id}/response",
+            headers=moderator_headers,
+            json=action_payload,
+        )
+        assert resp.status_code == 200
+        mod_action_id = resp.json()["id"]
+
+        # 3. Normal1 (now banned) creates an appeal
+        # Need to re-login since ban may have invalidated cache
+        normal1_headers = auth_header(login("normal1"))
+        appeal_resp = requests.post(
+            f"{MODERATION_URL}/actions/{mod_action_id}/appeal",
+            headers=normal1_headers,
+            json={"appealText": "I did not violate any rules, please review."},
+        )
+        assert appeal_resp.status_code == 201, f"Appeal creation failed: {appeal_resp.text}"
+        return appeal_resp.json()["id"], mod_action_id
+
+    @pytest.mark.mutation
+    def test_admin_approve_appeal_reverses_ban(self, normal_headers, admin_headers):
+        """Admin approving an appeal reverses the ban."""
+        appeal_id, _ = self._create_ban_and_appeal(normal_headers, admin_headers)
+
+        # Verify user is banned
+        user = db_query_one("SELECT status FROM users WHERE id = %s", (NORMAL1_ID,))
+        assert user["status"] == "banned"
+
+        # Admin approves the appeal
+        resp = requests.post(
+            f"{MODERATION_URL}/appeals/{appeal_id}/response",
+            headers=admin_headers,
+            json={"response": "approve", "responseText": "Appeal approved."},
+        )
+        assert resp.status_code == 200
+
+        # Verify user is unbanned
+        user = db_query_one("SELECT status FROM users WHERE id = %s", (NORMAL1_ID,))
+        assert user["status"] == "active"
+
+    @pytest.mark.mutation
+    def test_admin_deny_appeal(self, normal_headers, admin_headers):
+        """Admin denying an appeal keeps user banned."""
+        appeal_id, _ = self._create_ban_and_appeal(normal_headers, admin_headers)
+
+        resp = requests.post(
+            f"{MODERATION_URL}/appeals/{appeal_id}/response",
+            headers=admin_headers,
+            json={"response": "deny", "responseText": "Appeal denied."},
+        )
+        assert resp.status_code == 200
+
+        # Verify user stays banned
+        user = db_query_one("SELECT status FROM users WHERE id = %s", (NORMAL1_ID,))
+        assert user["status"] == "banned"
+
+    @pytest.mark.mutation
+    def test_moderator_approve_overrules(self, normal_headers, moderator_headers):
+        """Non-admin moderator approving sets appeal_state to overruled."""
+        # Use a second moderator to review
+        mod2_headers = auth_header(login("moderator2"))
+        appeal_id, _ = self._create_ban_and_appeal(normal_headers, moderator_headers)
+
+        resp = requests.post(
+            f"{MODERATION_URL}/appeals/{appeal_id}/response",
+            headers=mod2_headers,
+            json={"response": "approve", "responseText": "I think the user is right."},
+        )
+        assert resp.status_code == 200
+
+        # Check appeal state is 'overruled'
+        appeal = db_query_one(
+            "SELECT appeal_state FROM mod_action_appeal WHERE id = %s",
+            (appeal_id,),
+        )
+        assert appeal["appeal_state"] == "overruled"
+
+    @pytest.mark.mutation
+    def test_only_admin_can_resolve_escalated(self, normal_headers, moderator_headers):
+        """Moderator cannot resolve escalated appeals — only admin can."""
+        mod2_headers = auth_header(login("moderator2"))
+        appeal_id, mod_action_id = self._create_ban_and_appeal(normal_headers, moderator_headers)
+
+        # Second moderator overrules
+        resp = requests.post(
+            f"{MODERATION_URL}/appeals/{appeal_id}/response",
+            headers=mod2_headers,
+            json={"response": "approve", "responseText": "Overrule."},
+        )
+        assert resp.status_code == 200
+
+        # Original moderator escalates
+        resp = requests.post(
+            f"{MODERATION_URL}/appeals/{appeal_id}/response",
+            headers=moderator_headers,
+            json={"response": "escalate", "responseText": "Escalating to admin."},
+        )
+        assert resp.status_code == 200
+
+        # Verify state is escalated
+        appeal = db_query_one(
+            "SELECT appeal_state FROM mod_action_appeal WHERE id = %s",
+            (appeal_id,),
+        )
+        assert appeal["appeal_state"] == "escalated"
+
+        # Moderator2 tries to resolve escalated → 403
+        resp = requests.post(
+            f"{MODERATION_URL}/appeals/{appeal_id}/response",
+            headers=mod2_headers,
+            json={"response": "deny", "responseText": "Trying to deny."},
+        )
+        assert resp.status_code == 403

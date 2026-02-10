@@ -1,4 +1,5 @@
 """Tests for GET/PUT /users/me/settings."""
+# Auth tests (test_unauthenticated_returns_401) live in test_auth_required.py.
 
 import pytest
 import requests
@@ -28,9 +29,6 @@ class TestGetUserSettings:
         assert resp.status_code == 200
         assert resp.json()["categoryWeights"] == []
 
-    def test_unauthenticated_returns_401(self):
-        resp = requests.get(SETTINGS_URL)
-        assert resp.status_code == 401
 
 
 class TestUpdateUserSettings:
@@ -68,6 +66,3 @@ class TestUpdateUserSettings:
         assert resp.status_code == 200
         assert resp.json()["categoryWeights"] == []
 
-    def test_unauthenticated_returns_401(self):
-        resp = requests.put(SETTINGS_URL, json={"categoryWeights": []})
-        assert resp.status_code == 401
