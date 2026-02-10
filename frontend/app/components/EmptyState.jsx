@@ -19,8 +19,8 @@ export default function EmptyState({ icon, title, subtitle, style }) {
 
   return (
     <View style={[styles.container, style]}>
-      <Ionicons name={icon} size={48} color={colors.placeholderText} />
-      <ThemedText variant="body" color="placeholder" style={styles.title}>{title}</ThemedText>
+      <Ionicons name={icon} size={48} color={colors.placeholderText} accessible={false} importantForAccessibility="no-hide-descendants" />
+      <ThemedText variant="body" color="placeholder" style={styles.title} accessibilityRole="header">{title}</ThemedText>
       {subtitle && <ThemedText variant="bodySmall" color="placeholder" style={styles.subtitle}>{subtitle}</ThemedText>}
     </View>
   )

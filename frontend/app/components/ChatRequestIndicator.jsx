@@ -157,7 +157,14 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
 
   return (
     <>
-      <TouchableOpacity onPress={handlePress} activeOpacity={0.8} style={styles.touchable}>
+      <TouchableOpacity
+        onPress={handlePress}
+        activeOpacity={0.8}
+        style={styles.touchable}
+        accessibilityRole="button"
+        accessibilityLabel={`Chat request ${isDeclined ? 'declined' : 'pending'} with ${author?.displayName || 'user'}${!isDeclined ? `, ${remainingSeconds} seconds remaining` : ''}`}
+        accessibilityHint={isDeclined ? undefined : 'Tap to cancel this chat request'}
+      >
         <Animated.View style={[styles.wrapper, { transform: [{ scale: scaleAnim }] }]}>
           {/* Author avatar */}
           <Avatar user={author} size={AVATAR_SIZE} showKudosBadge showKudosCount={false} />
@@ -247,10 +254,20 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
             <ThemedText variant="h3" style={styles.modalQuestion}>Cancel this chat request?</ThemedText>
 
             <View style={styles.modalButtons}>
-              <TouchableOpacity style={styles.keepButton} onPress={() => setShowCancelModal(false)}>
+              <TouchableOpacity
+                style={styles.keepButton}
+                onPress={() => setShowCancelModal(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Keep Waiting"
+              >
                 <ThemedText variant="buttonSmall" color="inverse">Keep Waiting</ThemedText>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.cancelButton} onPress={handleConfirmCancel}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={handleConfirmCancel}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel Request"
+              >
                 <ThemedText variant="buttonSmall" color="disagree">Cancel Request</ThemedText>
               </TouchableOpacity>
             </View>

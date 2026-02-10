@@ -62,7 +62,7 @@ export default function GroupTabBar({
   }
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} accessibilityRole="tablist">
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -76,6 +76,9 @@ export default function GroupTabBar({
               style={[styles.button, isActive && styles.activeButton]}
               onPress={() => onTabChange(tab.id)}
               activeOpacity={0.7}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: isActive }}
+              accessibilityLabel={tab.label}
             >
               <ThemedText variant="buttonSmall" style={[styles.buttonLabel, isActive && styles.activeButtonLabel]}>
                 {tab.label}

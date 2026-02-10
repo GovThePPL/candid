@@ -50,15 +50,9 @@
 - Card-based tutorial that walks user through each swipe action
 
 ## Frontend Improvements
-- Bug report endpoint from user sidebar menu
-- Merge profile and settings page
 - Search for position on stats page
-- Dark mode
 - Accessibility
 - Internationalization
-
-## Unit Tests
-- Add unit tests for backend controllers and helpers (complement existing integration tests)
 
 ## Infrastructure
 - Will eventually need frontend web servers

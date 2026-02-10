@@ -47,6 +47,8 @@ export default function SettingsHub() {
           style={styles.userSection}
           onPress={() => router.push('/settings/profile')}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={`Edit profile for ${user?.displayName || 'Guest'}`}
         >
           <Avatar user={user} size={64} showKudosBadge={false} />
           <View style={styles.userInfo}>
@@ -70,6 +72,9 @@ export default function SettingsHub() {
                 themePreference === option.value && styles.themeOptionSelected,
               ]}
               onPress={() => setThemePreference(option.value)}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: themePreference === option.value }}
+              accessibilityLabel={`${option.value.charAt(0).toUpperCase() + option.value.slice(1)} theme`}
             >
               <Ionicons
                 name={option.icon}
@@ -97,6 +102,8 @@ export default function SettingsHub() {
               ]}
               onPress={() => router.push(item.route)}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={item.label}
             >
               <Ionicons name={item.icon} size={22} color={colors.primary} />
               <ThemedText variant="button" color="dark" style={styles.menuLabel}>{item.label}</ThemedText>

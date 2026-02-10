@@ -1,5 +1,15 @@
-import { StyleSheet, Dimensions, View, Animated, PanResponder, Platform } from 'react-native'
+import { StyleSheet, Dimensions, View, Platform } from 'react-native'
 import { useRef, useCallback, useImperativeHandle, forwardRef, useMemo } from 'react'
+import { Gesture, GestureDetector } from 'react-native-gesture-handler'
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  interpolate,
+  runOnJS,
+  cancelAnimation,
+} from 'react-native-reanimated'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { SemanticColors } from '../../constants/Colors'
 import { Ionicons } from '@expo/vector-icons'
@@ -36,80 +46,97 @@ const SwipeableCard = forwardRef(function SwipeableCard({
   rightSwipeLabel,
   // Custom label for left/down pass text overlay (only used when leftSwipeAsPass is true)
   leftSwipeLabel,
+  // Accessibility
+  accessibilityLabel,
+  accessibilityHint,
 }, ref) {
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
-  const position = useRef(new Animated.ValueXY()).current
 
-  // Refs to track swipe style/handler props for pan responder access
-  const rightSwipeAsChatAcceptRef = useRef(rightSwipeAsChatAccept)
-  rightSwipeAsChatAcceptRef.current = rightSwipeAsChatAccept
-  const rightSwipeAsSubmitRef = useRef(rightSwipeAsSubmit)
-  rightSwipeAsSubmitRef.current = rightSwipeAsSubmit
-  const rightSwipeAsKudosRef = useRef(rightSwipeAsKudos)
-  rightSwipeAsKudosRef.current = rightSwipeAsKudos
-  const leftSwipeAsPassRef = useRef(leftSwipeAsPass)
-  leftSwipeAsPassRef.current = leftSwipeAsPass
+  // Position shared values
+  const posX = useSharedValue(0)
+  const posY = useSharedValue(0)
+
+  // Color overlay opacities
+  const greenOverlay = useSharedValue(0)
+  const redOverlay = useSharedValue(0)
+  const grayOverlay = useSharedValue(0)
+  const yellowOverlay = useSharedValue(0)
+  const goldOverlay = useSharedValue(0)
+
+  // Icon/text overlay opacity + scale
+  const checkO = useSharedValue(0)
+  const checkS = useSharedValue(0.5)
+  const xO = useSharedValue(0)
+  const xS = useSharedValue(0.5)
+  const passO = useSharedValue(0)
+  const passS = useSharedValue(0.5)
+  const chatO = useSharedValue(0)
+  const chatS = useSharedValue(0.5)
+  const plusO = useSharedValue(0)
+  const plusS = useSharedValue(0.5)
+  const submitO = useSharedValue(0)
+  const submitS = useSharedValue(0.5)
+  const starO = useSharedValue(0)
+  const starS = useSharedValue(0.5)
+
+  // Boolean flags as shared values for worklet access (synced each render)
+  const flagChatAccept = useSharedValue(0)
+  const flagSubmit = useSharedValue(0)
+  const flagKudos = useSharedValue(0)
+  const flagPassLeft = useSharedValue(0)
+  const flagVertical = useSharedValue(0)
+  const hasUp = useSharedValue(0)
+  const hasLeft = useSharedValue(0)
+  const hasDown = useSharedValue(0)
+  flagChatAccept.value = rightSwipeAsChatAccept ? 1 : 0
+  flagSubmit.value = rightSwipeAsSubmit ? 1 : 0
+  flagKudos.value = rightSwipeAsKudos ? 1 : 0
+  flagPassLeft.value = leftSwipeAsPass ? 1 : 0
+  flagVertical.value = enableVerticalSwipe ? 1 : 0
+  hasUp.value = onSwipeUp ? 1 : 0
+  hasLeft.value = onSwipeLeft ? 1 : 0
+  hasDown.value = onSwipeDown ? 1 : 0
+
+  // Stable refs for JS callbacks (accessed by swipeOffScreen on JS thread)
+  const onSwipeRightRef = useRef(onSwipeRight)
+  onSwipeRightRef.current = onSwipeRight
+  const onSwipeLeftRef = useRef(onSwipeLeft)
+  onSwipeLeftRef.current = onSwipeLeft
   const onSwipeUpRef = useRef(onSwipeUp)
   onSwipeUpRef.current = onSwipeUp
+  const onSwipeDownRef = useRef(onSwipeDown)
+  onSwipeDownRef.current = onSwipeDown
 
-  // Separate animated values for each color overlay
-  const greenOverlay = useRef(new Animated.Value(0)).current
-  const redOverlay = useRef(new Animated.Value(0)).current
-  const grayOverlay = useRef(new Animated.Value(0)).current
-  const yellowOverlay = useRef(new Animated.Value(0)).current
+  // Reset all animated values to initial state (JS thread — sets animations that run on UI thread)
+  const resetAll = useCallback(() => {
+    posX.value = withSpring(0, { damping: 15, stiffness: 100 })
+    posY.value = withSpring(0, { damping: 15, stiffness: 100 })
+    greenOverlay.value = withTiming(0, { duration: 150 })
+    redOverlay.value = withTiming(0, { duration: 150 })
+    grayOverlay.value = withTiming(0, { duration: 150 })
+    yellowOverlay.value = withTiming(0, { duration: 150 })
+    goldOverlay.value = withTiming(0, { duration: 150 })
+    checkO.value = withTiming(0, { duration: 150 })
+    xO.value = withTiming(0, { duration: 150 })
+    passO.value = withTiming(0, { duration: 150 })
+    chatO.value = withTiming(0, { duration: 150 })
+    starO.value = withTiming(0, { duration: 150 })
+  }, [])
 
-  // Icon/text overlay animations
-  const checkIconOpacity = useRef(new Animated.Value(0)).current
-  const checkIconScale = useRef(new Animated.Value(0.5)).current
-  const xIconOpacity = useRef(new Animated.Value(0)).current
-  const xIconScale = useRef(new Animated.Value(0.5)).current
-  const passTextOpacity = useRef(new Animated.Value(0)).current
-  const passTextScale = useRef(new Animated.Value(0.5)).current
-  const chatIconOpacity = useRef(new Animated.Value(0)).current
-  const chatIconScale = useRef(new Animated.Value(0.5)).current
-  const plusIconOpacity = useRef(new Animated.Value(0)).current
-  const plusIconScale = useRef(new Animated.Value(0.5)).current
-  const submitTextOpacity = useRef(new Animated.Value(0)).current
-  const submitTextScale = useRef(new Animated.Value(0.5)).current
-  const starIconOpacity = useRef(new Animated.Value(0)).current
-  const starIconScale = useRef(new Animated.Value(0.5)).current
-  const goldOverlay = useRef(new Animated.Value(0)).current
-
-  const resetPosition = useCallback(() => {
-    Animated.parallel([
-      Animated.spring(position, {
-        toValue: { x: 0, y: 0 },
-        useNativeDriver: false,
-        friction: 6,
-        tension: 100,
-      }),
-      Animated.timing(greenOverlay, { toValue: 0, duration: 150, useNativeDriver: false }),
-      Animated.timing(redOverlay, { toValue: 0, duration: 150, useNativeDriver: false }),
-      Animated.timing(grayOverlay, { toValue: 0, duration: 150, useNativeDriver: false }),
-      Animated.timing(yellowOverlay, { toValue: 0, duration: 150, useNativeDriver: false }),
-      Animated.timing(goldOverlay, { toValue: 0, duration: 150, useNativeDriver: false }),
-      Animated.timing(checkIconOpacity, { toValue: 0, duration: 150, useNativeDriver: false }),
-      Animated.timing(xIconOpacity, { toValue: 0, duration: 150, useNativeDriver: false }),
-      Animated.timing(passTextOpacity, { toValue: 0, duration: 150, useNativeDriver: false }),
-      Animated.timing(chatIconOpacity, { toValue: 0, duration: 150, useNativeDriver: false }),
-      Animated.timing(starIconOpacity, { toValue: 0, duration: 150, useNativeDriver: false }),
-    ]).start()
-  }, [position, greenOverlay, redOverlay, grayOverlay, yellowOverlay, goldOverlay, checkIconOpacity, xIconOpacity, passTextOpacity, chatIconOpacity, starIconOpacity])
-
+  // Swipe card off screen — runs on JS thread, calls handler, then animates departure
   const swipeOffScreen = useCallback((direction) => {
-    // Call handler first to check if swipe should proceed
     let result
     switch (direction) {
-      case 'right': result = onSwipeRight?.(); break
-      case 'left': result = onSwipeLeft?.(); break
+      case 'right': result = onSwipeRightRef.current?.(); break
+      case 'left': result = onSwipeLeftRef.current?.(); break
       case 'up': result = onSwipeUpRef.current?.(); break
-      case 'down': result = onSwipeDown?.(); break
+      case 'down': result = onSwipeDownRef.current?.(); break
     }
 
     // If handler returns false, reset position instead of swiping off
     if (result === false) {
-      resetPosition()
+      resetAll()
       return
     }
 
@@ -117,259 +144,251 @@ const SwipeableCard = forwardRef(function SwipeableCard({
               direction === 'left' ? -SCREEN_WIDTH * 1.5 : 0
     const y = direction === 'up' ? -SCREEN_HEIGHT :
               direction === 'down' ? SCREEN_HEIGHT : 0
+    posX.value = withTiming(x, { duration: 250 })
+    posY.value = withTiming(y, { duration: 250 })
+  }, [resetAll])
 
-    Animated.timing(position, {
-      toValue: { x, y },
-      duration: 250,
-      useNativeDriver: false,
-    }).start()
-  }, [position, onSwipeRight, onSwipeLeft, onSwipeUp, onSwipeDown, resetPosition])
-
-  // Expose swipe methods for keyboard control (with color overlay animation)
+  // Expose swipe methods for keyboard control (with overlay animation)
   useImperativeHandle(ref, () => ({
     swipeRight: () => {
       if (rightSwipeAsChatAccept) {
-        // Use chat styling (yellow/chat bubble) for chat request accept
-        Animated.parallel([
-          Animated.timing(yellowOverlay, { toValue: 0.4, duration: 150, useNativeDriver: false }),
-          Animated.timing(chatIconOpacity, { toValue: 1, duration: 150, useNativeDriver: false }),
-          Animated.spring(chatIconScale, { toValue: 1, friction: 6, tension: 100, useNativeDriver: false }),
-        ]).start(() => {
-          swipeOffScreen('right')
+        yellowOverlay.value = withTiming(0.4, { duration: 150 }, (finished) => {
+          if (finished) runOnJS(swipeOffScreen)('right')
         })
+        chatO.value = withTiming(1, { duration: 150 })
+        chatS.value = withSpring(1, { damping: 15, stiffness: 100 })
       } else if (rightSwipeAsSubmit) {
-        // Submit styling (green/"Submit" text) for surveys/demographics
-        Animated.parallel([
-          Animated.timing(greenOverlay, { toValue: 0.4, duration: 150, useNativeDriver: false }),
-          Animated.timing(submitTextOpacity, { toValue: 1, duration: 150, useNativeDriver: false }),
-          Animated.spring(submitTextScale, { toValue: 1, friction: 6, tension: 100, useNativeDriver: false }),
-        ]).start(() => {
-          swipeOffScreen('right')
+        greenOverlay.value = withTiming(0.4, { duration: 150 }, (finished) => {
+          if (finished) runOnJS(swipeOffScreen)('right')
         })
+        submitO.value = withTiming(1, { duration: 150 })
+        submitS.value = withSpring(1, { damping: 15, stiffness: 100 })
       } else if (rightSwipeAsKudos) {
-        // Kudos styling (gold/star) for kudos cards
-        Animated.parallel([
-          Animated.timing(goldOverlay, { toValue: 0.4, duration: 150, useNativeDriver: false }),
-          Animated.timing(starIconOpacity, { toValue: 1, duration: 150, useNativeDriver: false }),
-          Animated.spring(starIconScale, { toValue: 1, friction: 6, tension: 100, useNativeDriver: false }),
-        ]).start(() => {
-          swipeOffScreen('right')
+        goldOverlay.value = withTiming(0.4, { duration: 150 }, (finished) => {
+          if (finished) runOnJS(swipeOffScreen)('right')
         })
+        starO.value = withTiming(1, { duration: 150 })
+        starS.value = withSpring(1, { damping: 15, stiffness: 100 })
       } else {
-        // Normal agree styling (green/checkmark)
-        Animated.parallel([
-          Animated.timing(greenOverlay, { toValue: 0.4, duration: 150, useNativeDriver: false }),
-          Animated.timing(checkIconOpacity, { toValue: 1, duration: 150, useNativeDriver: false }),
-          Animated.spring(checkIconScale, { toValue: 1, friction: 6, tension: 100, useNativeDriver: false }),
-        ]).start(() => {
-          swipeOffScreen('right')
+        greenOverlay.value = withTiming(0.4, { duration: 150 }, (finished) => {
+          if (finished) runOnJS(swipeOffScreen)('right')
         })
+        checkO.value = withTiming(1, { duration: 150 })
+        checkS.value = withSpring(1, { damping: 15, stiffness: 100 })
       }
     },
     swipeLeft: () => {
       if (leftSwipeAsPass) {
-        Animated.parallel([
-          Animated.timing(grayOverlay, { toValue: 0.4, duration: 150, useNativeDriver: false }),
-          Animated.timing(passTextOpacity, { toValue: 1, duration: 150, useNativeDriver: false }),
-          Animated.spring(passTextScale, { toValue: 1, friction: 6, tension: 100, useNativeDriver: false }),
-        ]).start(() => {
-          swipeOffScreen('left')
+        grayOverlay.value = withTiming(0.4, { duration: 150 }, (finished) => {
+          if (finished) runOnJS(swipeOffScreen)('left')
         })
+        passO.value = withTiming(1, { duration: 150 })
+        passS.value = withSpring(1, { damping: 15, stiffness: 100 })
       } else {
-        Animated.parallel([
-          Animated.timing(redOverlay, { toValue: 0.4, duration: 150, useNativeDriver: false }),
-          Animated.timing(xIconOpacity, { toValue: 1, duration: 150, useNativeDriver: false }),
-          Animated.spring(xIconScale, { toValue: 1, friction: 6, tension: 100, useNativeDriver: false }),
-        ]).start(() => {
-          swipeOffScreen('left')
+        redOverlay.value = withTiming(0.4, { duration: 150 }, (finished) => {
+          if (finished) runOnJS(swipeOffScreen)('left')
         })
+        xO.value = withTiming(1, { duration: 150 })
+        xS.value = withSpring(1, { damping: 15, stiffness: 100 })
       }
     },
     swipeUp: () => {
-      Animated.parallel([
-        Animated.timing(yellowOverlay, { toValue: 0.4, duration: 150, useNativeDriver: false }),
-        Animated.timing(chatIconOpacity, { toValue: 1, duration: 150, useNativeDriver: false }),
-        Animated.spring(chatIconScale, { toValue: 1, friction: 6, tension: 100, useNativeDriver: false }),
-      ]).start(() => {
-        swipeOffScreen('up')
+      yellowOverlay.value = withTiming(0.4, { duration: 150 }, (finished) => {
+        if (finished) runOnJS(swipeOffScreen)('up')
       })
+      chatO.value = withTiming(1, { duration: 150 })
+      chatS.value = withSpring(1, { damping: 15, stiffness: 100 })
     },
     swipeDown: () => {
-      Animated.parallel([
-        Animated.timing(grayOverlay, { toValue: 0.4, duration: 150, useNativeDriver: false }),
-        Animated.timing(passTextOpacity, { toValue: 1, duration: 150, useNativeDriver: false }),
-        Animated.spring(passTextScale, { toValue: 1, friction: 6, tension: 100, useNativeDriver: false }),
-      ]).start(() => {
-        swipeOffScreen('down')
+      grayOverlay.value = withTiming(0.4, { duration: 150 }, (finished) => {
+        if (finished) runOnJS(swipeOffScreen)('down')
       })
+      passO.value = withTiming(1, { duration: 150 })
+      passS.value = withSpring(1, { damping: 15, stiffness: 100 })
     },
     swipeRightWithPlus: () => {
-      // Animate green overlay and plus icon together, then swipe off
-      Animated.parallel([
-        Animated.timing(greenOverlay, { toValue: 0.4, duration: 200, useNativeDriver: false }),
-        Animated.timing(plusIconOpacity, { toValue: 1, duration: 200, useNativeDriver: false }),
-        Animated.spring(plusIconScale, { toValue: 1, friction: 6, tension: 100, useNativeDriver: false }),
-      ]).start(() => {
-        swipeOffScreen('right')
+      greenOverlay.value = withTiming(0.4, { duration: 200 }, (finished) => {
+        if (finished) runOnJS(swipeOffScreen)('right')
       })
+      plusO.value = withTiming(1, { duration: 200 })
+      plusS.value = withSpring(1, { damping: 15, stiffness: 100 })
     },
-  }), [swipeOffScreen, greenOverlay, redOverlay, yellowOverlay, grayOverlay, goldOverlay, checkIconOpacity, checkIconScale, xIconOpacity, xIconScale, passTextOpacity, passTextScale, chatIconOpacity, chatIconScale, plusIconOpacity, plusIconScale, submitTextOpacity, submitTextScale, starIconOpacity, starIconScale, rightSwipeAsChatAccept, rightSwipeAsSubmit, rightSwipeAsKudos, leftSwipeAsPass])
+  }), [swipeOffScreen, rightSwipeAsChatAccept, rightSwipeAsSubmit, rightSwipeAsKudos, leftSwipeAsPass])
 
-  const panResponder = useRef(
-    PanResponder.create({
-      // Capture touch/mouse immediately to prevent text selection
-      onStartShouldSetPanResponder: () => true,
-      onStartShouldSetPanResponderCapture: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponderCapture: () => true,
-      onPanResponderGrant: () => {
-        // Stop any ongoing animation when starting a new gesture
-        position.stopAnimation()
-      },
-      onPanResponderMove: (_, gesture) => {
-        // Only allow vertical movement if there's a handler for that direction
-        const canSwipeUp = enableVerticalSwipe && onSwipeUpRef.current
-        const canSwipeDown = enableVerticalSwipe && onSwipeDown
-        const canSwipeVertically = canSwipeUp || canSwipeDown
-
-        // Constrain vertical movement based on available handlers
-        let dy = 0
-        if (canSwipeVertically) {
-          if (gesture.dy < 0 && canSwipeUp) {
-            dy = gesture.dy
-          } else if (gesture.dy > 0 && canSwipeDown) {
-            dy = gesture.dy
-          }
-        }
-
-        // Constrain horizontal movement based on available handlers
-        let dx = gesture.dx
-        if (gesture.dx < 0 && !onSwipeLeft) {
-          dx = 0 // Don't allow left swipe if no handler
-        }
-
-        position.setValue({ x: dx, y: dy })
-
-        // Calculate overlay intensities based on swipe direction
-        const horizontalProgress = Math.min(Math.abs(gesture.dx) / SWIPE_THRESHOLD, 1)
-        const verticalProgress = Math.min(Math.abs(gesture.dy) / VERTICAL_THRESHOLD, 1)
-        const isHorizontal = Math.abs(gesture.dx) > Math.abs(gesture.dy)
-
-        // Reset all overlays and icons first
-        greenOverlay.setValue(0)
-        redOverlay.setValue(0)
-        grayOverlay.setValue(0)
-        yellowOverlay.setValue(0)
-        checkIconOpacity.setValue(0)
-        checkIconScale.setValue(0.5)
-        xIconOpacity.setValue(0)
-        xIconScale.setValue(0.5)
-        passTextOpacity.setValue(0)
-        passTextScale.setValue(0.5)
-        chatIconOpacity.setValue(0)
-        chatIconScale.setValue(0.5)
-        submitTextOpacity.setValue(0)
-        submitTextScale.setValue(0.5)
-        starIconOpacity.setValue(0)
-        starIconScale.setValue(0.5)
-        goldOverlay.setValue(0)
-
-        if (isHorizontal) {
-          if (gesture.dx > 0) {
-            // Use chat styling for right swipe when rightSwipeAsChatAccept is true
-            if (rightSwipeAsChatAcceptRef.current) {
-              yellowOverlay.setValue(horizontalProgress * 0.4)
-              chatIconOpacity.setValue(horizontalProgress)
-              chatIconScale.setValue(0.5 + horizontalProgress * 0.5)
-            } else if (rightSwipeAsSubmitRef.current) {
-              // Use submit styling (green/"Submit" text) for surveys/demographics
-              greenOverlay.setValue(horizontalProgress * 0.4)
-              submitTextOpacity.setValue(horizontalProgress)
-              submitTextScale.setValue(0.5 + horizontalProgress * 0.5)
-            } else if (rightSwipeAsKudosRef.current) {
-              // Use kudos styling (gold/star) for kudos cards
-              goldOverlay.setValue(horizontalProgress * 0.4)
-              starIconOpacity.setValue(horizontalProgress)
-              starIconScale.setValue(0.5 + horizontalProgress * 0.5)
-            } else {
-              greenOverlay.setValue(horizontalProgress * 0.4)
-              checkIconOpacity.setValue(horizontalProgress)
-              checkIconScale.setValue(0.5 + horizontalProgress * 0.5)
-            }
-          } else if (onSwipeLeft) {
-            if (leftSwipeAsPassRef.current) {
-              // Pass styling for left swipe on non-position cards
-              grayOverlay.setValue(horizontalProgress * 0.4)
-              passTextOpacity.setValue(horizontalProgress)
-              passTextScale.setValue(0.5 + horizontalProgress * 0.5)
-            } else {
-              // Disagree styling (red/X) for position cards
-              redOverlay.setValue(horizontalProgress * 0.4)
-              xIconOpacity.setValue(horizontalProgress)
-              xIconScale.setValue(0.5 + horizontalProgress * 0.5)
-            }
-          }
-        } else if (canSwipeVertically) {
-          if (gesture.dy > 0 && canSwipeDown) {
-            grayOverlay.setValue(verticalProgress * 0.4)
-            passTextOpacity.setValue(verticalProgress)
-            passTextScale.setValue(0.5 + verticalProgress * 0.5)
-          } else if (gesture.dy < 0 && canSwipeUp) {
-            yellowOverlay.setValue(verticalProgress * 0.4)
-            chatIconOpacity.setValue(verticalProgress)
-            chatIconScale.setValue(0.5 + verticalProgress * 0.5)
-          }
-        }
-        // Note: Don't animate back card during drag - only on release
-      },
-      onPanResponderRelease: (_, gesture) => {
-        const isHorizontal = Math.abs(gesture.dx) > Math.abs(gesture.dy)
-        const canSwipeUp = enableVerticalSwipe && onSwipeUpRef.current
-        const canSwipeDown = enableVerticalSwipe && onSwipeDown
-
-        if (isHorizontal) {
-          if (gesture.dx > SWIPE_THRESHOLD) {
-            swipeOffScreen('right')
-          } else if (gesture.dx < -SWIPE_THRESHOLD && onSwipeLeft) {
-            swipeOffScreen('left')
-          } else {
-            resetPosition()
-          }
-        } else if (canSwipeUp || canSwipeDown) {
-          if (gesture.dy < -VERTICAL_THRESHOLD && canSwipeUp) {
-            swipeOffScreen('up')
-          } else if (gesture.dy > VERTICAL_THRESHOLD && canSwipeDown) {
-            swipeOffScreen('down')
-          } else {
-            resetPosition()
-          }
-        } else {
-          resetPosition()
-        }
-      },
-      onPanResponderTerminate: () => {
-        resetPosition()
-      },
+  // Pan gesture — runs entirely on UI thread for smooth 60fps tracking
+  const panGesture = Gesture.Pan()
+    .minDistance(5)
+    .onStart(() => {
+      'worklet'
+      cancelAnimation(posX)
+      cancelAnimation(posY)
     })
-  ).current
+    .onUpdate((e) => {
+      'worklet'
+      const canSwipeUp = flagVertical.value && hasUp.value
+      const canSwipeDown = flagVertical.value && hasDown.value
+      const canSwipeVertically = canSwipeUp || canSwipeDown
 
-  const cardStyle = {
+      // Constrain vertical movement based on available handlers
+      let dy = 0
+      if (canSwipeVertically) {
+        if (e.translationY < 0 && canSwipeUp) dy = e.translationY
+        else if (e.translationY > 0 && canSwipeDown) dy = e.translationY
+      }
+
+      // Constrain horizontal movement based on available handlers
+      let dx = e.translationX
+      if (e.translationX < 0 && !hasLeft.value) dx = 0
+
+      posX.value = dx
+      posY.value = dy
+
+      // Calculate overlay intensities based on swipe direction
+      const horizontalProgress = Math.min(Math.abs(e.translationX) / SWIPE_THRESHOLD, 1)
+      const verticalProgress = Math.min(Math.abs(e.translationY) / VERTICAL_THRESHOLD, 1)
+      const isHorizontal = Math.abs(e.translationX) > Math.abs(e.translationY)
+
+      // Determine which overlay is active and compute all values in one pass
+      let gVal = 0, rVal = 0, grVal = 0, yVal = 0, goVal = 0
+      let chkOV = 0, chkSV = 0.5, xOV = 0, xSV = 0.5, pOV = 0, pSV = 0.5
+      let chatOV = 0, chatSV = 0.5, subOV = 0, subSV = 0.5, starOV = 0, starSV = 0.5
+
+      if (isHorizontal) {
+        if (e.translationX > 0) {
+          if (flagChatAccept.value) {
+            yVal = horizontalProgress * 0.4
+            chatOV = horizontalProgress; chatSV = 0.5 + horizontalProgress * 0.5
+          } else if (flagSubmit.value) {
+            gVal = horizontalProgress * 0.4
+            subOV = horizontalProgress; subSV = 0.5 + horizontalProgress * 0.5
+          } else if (flagKudos.value) {
+            goVal = horizontalProgress * 0.4
+            starOV = horizontalProgress; starSV = 0.5 + horizontalProgress * 0.5
+          } else {
+            gVal = horizontalProgress * 0.4
+            chkOV = horizontalProgress; chkSV = 0.5 + horizontalProgress * 0.5
+          }
+        } else if (hasLeft.value) {
+          if (flagPassLeft.value) {
+            grVal = horizontalProgress * 0.4
+            pOV = horizontalProgress; pSV = 0.5 + horizontalProgress * 0.5
+          } else {
+            rVal = horizontalProgress * 0.4
+            xOV = horizontalProgress; xSV = 0.5 + horizontalProgress * 0.5
+          }
+        }
+      } else if (canSwipeVertically) {
+        if (e.translationY > 0 && canSwipeDown) {
+          grVal = verticalProgress * 0.4
+          pOV = verticalProgress; pSV = 0.5 + verticalProgress * 0.5
+        } else if (e.translationY < 0 && canSwipeUp) {
+          yVal = verticalProgress * 0.4
+          chatOV = verticalProgress; chatSV = 0.5 + verticalProgress * 0.5
+        }
+      }
+
+      // Set all values at once — no intermediate zero-frame
+      greenOverlay.value = gVal
+      redOverlay.value = rVal
+      grayOverlay.value = grVal
+      yellowOverlay.value = yVal
+      goldOverlay.value = goVal
+      checkO.value = chkOV; checkS.value = chkSV
+      xO.value = xOV; xS.value = xSV
+      passO.value = pOV; passS.value = pSV
+      chatO.value = chatOV; chatS.value = chatSV
+      submitO.value = subOV; submitS.value = subSV
+      starO.value = starOV; starS.value = starSV
+    })
+    .onEnd((e) => {
+      'worklet'
+      const isHorizontal = Math.abs(e.translationX) > Math.abs(e.translationY)
+      const canSwipeUp = flagVertical.value && hasUp.value
+      const canSwipeDown = flagVertical.value && hasDown.value
+
+      if (isHorizontal) {
+        if (e.translationX > SWIPE_THRESHOLD) {
+          runOnJS(swipeOffScreen)('right')
+        } else if (e.translationX < -SWIPE_THRESHOLD && hasLeft.value) {
+          runOnJS(swipeOffScreen)('left')
+        } else {
+          runOnJS(resetAll)()
+        }
+      } else if (canSwipeUp || canSwipeDown) {
+        if (e.translationY < -VERTICAL_THRESHOLD && canSwipeUp) {
+          runOnJS(swipeOffScreen)('up')
+        } else if (e.translationY > VERTICAL_THRESHOLD && canSwipeDown) {
+          runOnJS(swipeOffScreen)('down')
+        } else {
+          runOnJS(resetAll)()
+        }
+      } else {
+        runOnJS(resetAll)()
+      }
+    })
+    .onFinalize((_, success) => {
+      'worklet'
+      if (!success) {
+        runOnJS(resetAll)()
+      }
+    })
+
+  // Card transform animated style (position + rotation)
+  const cardStyle = useAnimatedStyle(() => ({
     transform: [
-      { translateX: position.x },
-      { translateY: position.y },
+      { translateX: posX.value },
+      { translateY: posY.value },
       {
-        rotate: position.x.interpolate({
-          inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
-          outputRange: ['-12deg', '0deg', '12deg'],
-        }),
+        rotate: `${interpolate(
+          posX.value,
+          [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
+          [-12, 0, 12],
+        )}deg`,
       },
     ],
-  }
+  }))
+
+  // Color overlay animated styles
+  const greenOverlayStyle = useAnimatedStyle(() => ({ opacity: greenOverlay.value }))
+  const redOverlayStyle = useAnimatedStyle(() => ({ opacity: redOverlay.value }))
+  const grayOverlayStyle = useAnimatedStyle(() => ({ opacity: grayOverlay.value }))
+  const yellowOverlayStyle = useAnimatedStyle(() => ({ opacity: yellowOverlay.value }))
+  const goldOverlayStyle = useAnimatedStyle(() => ({ opacity: goldOverlay.value }))
+
+  // Icon/text overlay animated styles
+  const checkStyle = useAnimatedStyle(() => ({
+    opacity: checkO.value,
+    transform: [{ scale: checkS.value }],
+  }))
+  const xStyle = useAnimatedStyle(() => ({
+    opacity: xO.value,
+    transform: [{ scale: xS.value }],
+  }))
+  const passAnimStyle = useAnimatedStyle(() => ({
+    opacity: passO.value,
+    transform: [{ scale: passS.value }],
+  }))
+  const chatAnimStyle = useAnimatedStyle(() => ({
+    opacity: chatO.value,
+    transform: [{ scale: chatS.value }],
+  }))
+  const plusAnimStyle = useAnimatedStyle(() => ({
+    opacity: plusO.value,
+    transform: [{ scale: plusS.value }],
+  }))
+  const submitAnimStyle = useAnimatedStyle(() => ({
+    opacity: submitO.value,
+    transform: [{ scale: submitS.value }],
+  }))
+  const starAnimStyle = useAnimatedStyle(() => ({
+    opacity: starO.value,
+    transform: [{ scale: starS.value }],
+  }))
 
   // Back card - just render the content without gesture handling
   if (isBackCard) {
     return (
-      <View style={styles.backCardContainer}>
+      <View style={styles.backCardContainer} accessible={false} importantForAccessibility="no-hide-descendants">
         <View style={styles.cardContent}>
           {children}
         </View>
@@ -378,85 +397,69 @@ const SwipeableCard = forwardRef(function SwipeableCard({
   }
 
   return (
-    <Animated.View style={[styles.container, cardStyle]} {...panResponder.panHandlers}>
-      <View style={styles.cardContent}>
-        {children}
-      </View>
-      {/* Green overlay for right swipe */}
+    <GestureDetector gesture={panGesture}>
       <Animated.View
-        style={[styles.overlay, { backgroundColor: SemanticColors.agree, opacity: greenOverlay }]}
-        pointerEvents="none"
-      />
-      {/* Red overlay for left swipe */}
-      <Animated.View
-        style={[styles.overlay, { backgroundColor: SemanticColors.disagree, opacity: redOverlay }]}
-        pointerEvents="none"
-      />
-      {/* Gray overlay for down swipe */}
-      <Animated.View
-        style={[styles.overlay, { backgroundColor: colors.pass, opacity: grayOverlay }]}
-        pointerEvents="none"
-      />
-      {/* Yellow overlay for up swipe */}
-      <Animated.View
-        style={[styles.overlay, { backgroundColor: colors.chat, opacity: yellowOverlay }]}
-        pointerEvents="none"
-      />
-      {/* Checkmark icon overlay for right swipe (agree) */}
-      <Animated.View
-        style={[styles.iconOverlay, { opacity: checkIconOpacity, transform: [{ scale: checkIconScale }] }]}
-        pointerEvents="none"
+        style={[styles.container, cardStyle]}
+        accessible={true}
+        accessibilityLabel={accessibilityLabel}
+        accessibilityHint={accessibilityHint}
       >
-        <Ionicons name="checkmark" size={120} color="#fff" />
+        <View style={styles.cardContent}>
+          {children}
+        </View>
+        {/* Swipe overlays — decorative, hidden from screen readers */}
+        <View accessible={false} importantForAccessibility="no-hide-descendants" pointerEvents="none" style={StyleSheet.absoluteFill}>
+          {/* Green overlay for right swipe */}
+          <Animated.View
+            style={[styles.overlay, { backgroundColor: SemanticColors.agree }, greenOverlayStyle]}
+          />
+          {/* Red overlay for left swipe */}
+          <Animated.View
+            style={[styles.overlay, { backgroundColor: SemanticColors.disagree }, redOverlayStyle]}
+          />
+          {/* Gray overlay for down swipe */}
+          <Animated.View
+            style={[styles.overlay, { backgroundColor: colors.pass }, grayOverlayStyle]}
+          />
+          {/* Yellow overlay for up swipe */}
+          <Animated.View
+            style={[styles.overlay, { backgroundColor: colors.chat }, yellowOverlayStyle]}
+          />
+          {/* Checkmark icon overlay for right swipe (agree) */}
+          <Animated.View style={[styles.iconOverlay, checkStyle]}>
+            <Ionicons name="checkmark" size={120} color="#fff" />
+          </Animated.View>
+          {/* X icon overlay for left swipe (disagree) */}
+          <Animated.View style={[styles.iconOverlay, xStyle]}>
+            <Ionicons name="close" size={120} color="#fff" />
+          </Animated.View>
+          {/* Pass text overlay for down swipe */}
+          <Animated.View style={[styles.iconOverlay, passAnimStyle]}>
+            <ThemedText variant="overlay" color="inverse">{leftSwipeLabel || 'Pass'}</ThemedText>
+          </Animated.View>
+          {/* Chat icon overlay for up swipe */}
+          <Animated.View style={[styles.iconOverlay, chatAnimStyle]}>
+            <Ionicons name="chatbubble" size={100} color="#fff" />
+          </Animated.View>
+          {/* Plus icon overlay for adopt */}
+          <Animated.View style={[styles.iconOverlay, plusAnimStyle]}>
+            <Ionicons name="add" size={120} color="#fff" />
+          </Animated.View>
+          {/* Submit text overlay for surveys/demographics */}
+          <Animated.View style={[styles.iconOverlay, submitAnimStyle]}>
+            <ThemedText variant="overlay" color="inverse">{rightSwipeLabel || 'Submit'}</ThemedText>
+          </Animated.View>
+          {/* Gold overlay for kudos */}
+          <Animated.View
+            style={[styles.overlay, { backgroundColor: '#FFD700' }, goldOverlayStyle]}
+          />
+          {/* Star icon overlay for kudos */}
+          <Animated.View style={[styles.iconOverlay, starAnimStyle]}>
+            <Ionicons name="star" size={120} color="#fff" />
+          </Animated.View>
+        </View>
       </Animated.View>
-      {/* X icon overlay for left swipe (disagree) */}
-      <Animated.View
-        style={[styles.iconOverlay, { opacity: xIconOpacity, transform: [{ scale: xIconScale }] }]}
-        pointerEvents="none"
-      >
-        <Ionicons name="close" size={120} color="#fff" />
-      </Animated.View>
-      {/* Pass text overlay for down swipe */}
-      <Animated.View
-        style={[styles.iconOverlay, { opacity: passTextOpacity, transform: [{ scale: passTextScale }] }]}
-        pointerEvents="none"
-      >
-        <ThemedText variant="overlay" color="inverse">{leftSwipeLabel || 'Pass'}</ThemedText>
-      </Animated.View>
-      {/* Chat icon overlay for up swipe */}
-      <Animated.View
-        style={[styles.iconOverlay, { opacity: chatIconOpacity, transform: [{ scale: chatIconScale }] }]}
-        pointerEvents="none"
-      >
-        <Ionicons name="chatbubble" size={100} color="#fff" />
-      </Animated.View>
-      {/* Plus icon overlay for adopt */}
-      <Animated.View
-        style={[styles.iconOverlay, { opacity: plusIconOpacity, transform: [{ scale: plusIconScale }] }]}
-        pointerEvents="none"
-      >
-        <Ionicons name="add" size={120} color="#fff" />
-      </Animated.View>
-      {/* Submit text overlay for surveys/demographics */}
-      <Animated.View
-        style={[styles.iconOverlay, { opacity: submitTextOpacity, transform: [{ scale: submitTextScale }] }]}
-        pointerEvents="none"
-      >
-        <ThemedText variant="overlay" color="inverse">{rightSwipeLabel || 'Submit'}</ThemedText>
-      </Animated.View>
-      {/* Gold overlay for kudos */}
-      <Animated.View
-        style={[styles.overlay, { backgroundColor: '#FFD700', opacity: goldOverlay }]}
-        pointerEvents="none"
-      />
-      {/* Star icon overlay for kudos */}
-      <Animated.View
-        style={[styles.iconOverlay, { opacity: starIconOpacity, transform: [{ scale: starIconScale }] }]}
-        pointerEvents="none"
-      >
-        <Ionicons name="star" size={120} color="#fff" />
-      </Animated.View>
-    </Animated.View>
+    </GestureDetector>
   )
 })
 
@@ -495,12 +498,6 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 16,
   },
   iconOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  plusOverlay: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 16,
     justifyContent: 'center',

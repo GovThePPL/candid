@@ -268,7 +268,7 @@ def _aggregate_demographics(
     }
 
 
-def _get_cached_group_labels(polis_conv_id: str, math_data: Dict) -> Dict[str, Dict]:
+def _get_cached_group_labels(polis_conv_id: str, math_data: Dict, location_id: str = None, category_id: str = None) -> Dict[str, Dict]:
     """
     Compute group labels from pairwise surveys, with caching.
     Returns {group_id: {"label": label_text, "wins": win_count, "rankings": [{"label": str, "wins": int}, ...]}}
@@ -282,7 +282,8 @@ def _get_cached_group_labels(polis_conv_id: str, math_data: Dict) -> Dict[str, D
         if now - timestamp < LABEL_CACHE_TTL:
             return cached
 
-    # Find pairwise survey linked to this conversation
+    # Find pairwise survey for this location/category combination
+    # First try direct polis_conversation_id link, then fall back to location+category match
     survey = db.execute_query("""
         SELECT id FROM survey
         WHERE polis_conversation_id = %s
@@ -290,6 +291,28 @@ def _get_cached_group_labels(polis_conv_id: str, math_data: Dict) -> Dict[str, D
           AND status = 'active'
         ORDER BY created_time DESC LIMIT 1
     """, (polis_conv_id,), fetchone=True)
+
+    if not survey and location_id:
+        if category_id:
+            survey = db.execute_query("""
+                SELECT id FROM survey
+                WHERE location_id = %s
+                  AND position_category_id = %s
+                  AND survey_type = 'pairwise'
+                  AND is_group_labeling = true
+                  AND status = 'active'
+                ORDER BY created_time DESC LIMIT 1
+            """, (location_id, category_id), fetchone=True)
+        else:
+            survey = db.execute_query("""
+                SELECT id FROM survey
+                WHERE location_id = %s
+                  AND position_category_id IS NULL
+                  AND survey_type = 'pairwise'
+                  AND is_group_labeling = true
+                  AND status = 'active'
+                ORDER BY created_time DESC LIMIT 1
+            """, (location_id,), fetchone=True)
 
     if not survey:
         _label_cache[cache_key] = ({}, now)
@@ -433,7 +456,7 @@ def get_stats(location_id: str, category_id: str, token_info=None):
             return _get_fallback_stats(location_id, category_id, user_id)
 
         # Transform Polis data to our format
-        groups = _extract_groups(math_data, polis_conv_id)
+        groups = _extract_groups(math_data, polis_conv_id, location_id, category_id)
         user_position = _extract_user_position(math_data, xid)
         user_votes = _get_user_votes(user_id, category_id, location_id) if user_id else None
         user_position_ids = _get_user_position_ids(user_id, category_id, location_id) if user_id else None
@@ -506,7 +529,7 @@ def get_location_stats(location_id: str, token_info=None):
             return _get_fallback_stats(location_id, None, user_id)
 
         # Transform Polis data to our format
-        groups = _extract_groups(math_data, polis_conv_id)
+        groups = _extract_groups(math_data, polis_conv_id, location_id, None)
         user_position = _extract_user_position(math_data, xid)
         user_votes = _get_user_votes(user_id, None, location_id) if user_id else None
         user_position_ids = _get_user_position_ids(user_id, None, location_id) if user_id else None
@@ -760,7 +783,7 @@ def _get_user_position_ids(
     return [str(p["id"]) for p in (positions or [])]
 
 
-def _extract_groups(math_data: Dict[str, Any], polis_conv_id: Optional[str] = None) -> List[OpinionGroup]:
+def _extract_groups(math_data: Dict[str, Any], polis_conv_id: Optional[str] = None, location_id: str = None, category_id: str = None) -> List[OpinionGroup]:
     """
     Extract opinion groups from Polis math data.
 
@@ -798,7 +821,7 @@ def _extract_groups(math_data: Dict[str, Any], polis_conv_id: Optional[str] = No
     # Get custom labels from pairwise surveys if available
     custom_labels = {}
     if polis_conv_id:
-        custom_labels = _get_cached_group_labels(polis_conv_id, math_data)
+        custom_labels = _get_cached_group_labels(polis_conv_id, math_data, location_id, category_id)
 
     for i, cluster in enumerate(group_clusters):
         if not cluster:

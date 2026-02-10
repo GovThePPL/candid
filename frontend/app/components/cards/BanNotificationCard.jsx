@@ -83,7 +83,7 @@ export default function BanNotificationCard({ banData }) {
 
   return (
     <View style={styles.card}>
-      <Ionicons name="warning" size={40} color={SemanticColors.warning} style={styles.warningIcon} />
+      <Ionicons name="warning" size={40} color={SemanticColors.warning} style={styles.warningIcon} accessible={false} importantForAccessibility="no-hide-descendants" />
 
       {/* Compact header */}
       <ThemedText variant="h4" color="error" style={styles.title}>Account Suspended</ThemedText>
@@ -144,6 +144,8 @@ export default function BanNotificationCard({ banData }) {
           <TouchableOpacity
             style={styles.appealButton}
             onPress={() => setAppealModalVisible(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Appeal"
           >
             <Ionicons name="megaphone-outline" size={15} color='#FFFFFF' />
             <ThemedText variant="buttonSmall" color="inverse">Appeal</ThemedText>
@@ -161,6 +163,8 @@ export default function BanNotificationCard({ banData }) {
           <TouchableOpacity
             style={styles.detailsButton}
             onPress={() => setHistoryModalVisible(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Action Details"
           >
             <Ionicons name="time-outline" size={15} color={colors.primary} />
             <ThemedText variant="label" color="primary">Action Details</ThemedText>
@@ -190,6 +194,7 @@ export default function BanNotificationCard({ banData }) {
             maxLength={1000}
             textAlignVertical="top"
             maxFontSizeMultiplier={1.5}
+            accessibilityLabel="Appeal reason"
           />
           <ThemedText variant="caption" color="secondary" style={styles.charCount}>{appealText.length}/1000</ThemedText>
 
@@ -201,6 +206,9 @@ export default function BanNotificationCard({ banData }) {
             style={[styles.submitAppealButton, (!appealText.trim() || appealSubmitting) && styles.submitAppealButtonDisabled]}
             onPress={handleSubmitAppeal}
             disabled={!appealText.trim() || appealSubmitting}
+            accessibilityRole="button"
+            accessibilityLabel="Submit Appeal"
+            accessibilityState={{ disabled: !appealText.trim() || appealSubmitting }}
           >
             {appealSubmitting ? (
               <ActivityIndicator size="small" color='#FFFFFF' />

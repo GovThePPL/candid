@@ -1,7 +1,8 @@
-import { StyleSheet, View, TouchableOpacity, Animated, Dimensions, Pressable } from 'react-native'
-import { useEffect, useRef, useMemo } from 'react'
+import { StyleSheet, View, TouchableOpacity, Dimensions, Pressable } from 'react-native'
+import { useEffect, useMemo } from 'react'
 import { useRouter, usePathname } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
+import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { SemanticColors, BadgeColors } from '../constants/Colors'
 import ThemedText from './ThemedText'
@@ -15,38 +16,26 @@ export default function Sidebar({ visible, onClose, user, onLogout, onBugReport 
   const pathname = usePathname()
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
-  const slideAnim = useRef(new Animated.Value(SIDEBAR_WIDTH)).current
-  const overlayOpacity = useRef(new Animated.Value(0)).current
+  const slideX = useSharedValue(SIDEBAR_WIDTH)
+  const overlayOpacity = useSharedValue(0)
 
   useEffect(() => {
     if (visible) {
-      Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 250,
-          useNativeDriver: true,
-        }),
-        Animated.timing(overlayOpacity, {
-          toValue: 1,
-          duration: 250,
-          useNativeDriver: true,
-        }),
-      ]).start()
+      slideX.value = withTiming(0, { duration: 250 })
+      overlayOpacity.value = withTiming(1, { duration: 250 })
     } else {
-      Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: SIDEBAR_WIDTH,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(overlayOpacity, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start()
+      slideX.value = withTiming(SIDEBAR_WIDTH, { duration: 200 })
+      overlayOpacity.value = withTiming(0, { duration: 200 })
     }
-  }, [visible, slideAnim, overlayOpacity])
+  }, [visible])
+
+  const overlayStyle = useAnimatedStyle(() => ({
+    opacity: overlayOpacity.value,
+  }))
+
+  const sidebarStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: slideX.value }],
+  }))
 
   const handleMenuPress = (route) => {
     onClose()
@@ -64,11 +53,11 @@ export default function Sidebar({ visible, onClose, user, onLogout, onBugReport 
     <View style={styles.container}>
       {/* Overlay */}
       <Pressable style={styles.overlayPressable} onPress={onClose} accessibilityLabel="Close menu" accessibilityRole="button">
-        <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]} />
+        <Animated.View style={[styles.overlay, overlayStyle]} />
       </Pressable>
 
       {/* Sidebar */}
-      <Animated.View style={[styles.sidebar, { transform: [{ translateX: slideAnim }] }]}>
+      <Animated.View style={[styles.sidebar, sidebarStyle]}>
         {/* User Info */}
         <View style={styles.userSection}>
           <Avatar user={user} size="lg" showKudosBadge={false} />
@@ -82,13 +71,13 @@ export default function Sidebar({ visible, onClose, user, onLogout, onBugReport 
 
         {/* Menu Items */}
         <View style={styles.menuSection}>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/settings')}>
+          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/settings')} accessibilityRole="button" accessibilityLabel="Settings">
             <ThemedText variant="button" color="inverse" style={styles.menuText}>Settings</ThemedText>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/support')}>
+          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/support')} accessibilityRole="button" accessibilityLabel="Support Us">
             <ThemedText variant="button" color="inverse" style={styles.menuText}>Support Us</ThemedText>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/reports')}>
+          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/reports')} accessibilityRole="button" accessibilityLabel="Community Reports">
             <ThemedText variant="button" color="inverse" style={styles.menuText}>Community Reports</ThemedText>
           </TouchableOpacity>
           <TouchableOpacity
@@ -103,7 +92,7 @@ export default function Sidebar({ visible, onClose, user, onLogout, onBugReport 
 
         {/* Logout */}
         <View style={styles.logoutSection}>
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} accessibilityRole="button" accessibilityLabel="Log Out">
             <Ionicons name="log-out-outline" size={20} color={SemanticColors.warning} />
             <ThemedText variant="button" color="error" style={styles.logoutText}>Log Out</ThemedText>
           </TouchableOpacity>

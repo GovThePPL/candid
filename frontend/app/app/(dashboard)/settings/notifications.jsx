@@ -227,6 +227,7 @@ export default function NotificationSettings() {
               onValueChange={handleNotificationsEnabledChange}
               trackColor={{ false: colors.cardBorder, true: colors.primaryMuted }}
               thumbColor={notificationsEnabled ? colors.primary : colors.pass}
+              accessibilityLabel="Enable push notifications"
             />
           </View>
 
@@ -235,27 +236,36 @@ export default function NotificationSettings() {
               {/* Frequency selector */}
               <ThemedText variant="bodySmall" color="dark" style={styles.notifSubLabel}>Chat request notifications</ThemedText>
               <View style={styles.likelihoodSelector}>
-                {NOTIFICATION_FREQ_OPTIONS.map((option) => (
-                  <TouchableOpacity
-                    key={option.value}
-                    style={[
-                      styles.likelihoodOption,
-                      notificationFrequency === option.value && styles.likelihoodOptionSelected
-                    ]}
-                    onPress={() => handleNotificationFrequencyChange(option.value)}
-                  >
-                    <ThemedText variant="label" color="secondary" style={[
-                      styles.likelihoodOptionLabel,
-                      notificationFrequency === option.value && styles.likelihoodOptionLabelSelected
-                    ]}>
-                      {option.label}
-                    </ThemedText>
-                  </TouchableOpacity>
-                ))}
+                {NOTIFICATION_FREQ_OPTIONS.map((option) => {
+                  const isSelected = notificationFrequency === option.value
+                  return (
+                    <TouchableOpacity
+                      key={option.value}
+                      style={[
+                        styles.likelihoodOption,
+                        isSelected && styles.likelihoodOptionSelected
+                      ]}
+                      onPress={() => handleNotificationFrequencyChange(option.value)}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: isSelected }}
+                      accessibilityLabel={`${option.label}: ${option.description}`}
+                    >
+                      <ThemedText variant="label" color="secondary" style={[
+                        styles.likelihoodOptionLabel,
+                        isSelected && styles.likelihoodOptionLabelSelected
+                      ]}>
+                        {option.label}
+                      </ThemedText>
+                      <ThemedText variant="caption" color="secondary" style={[
+                        styles.likelihoodOptionDescription,
+                        isSelected && styles.likelihoodOptionLabelSelected
+                      ]}>
+                        {option.description}
+                      </ThemedText>
+                    </TouchableOpacity>
+                  )
+                })}
               </View>
-              <ThemedText variant="caption" color="secondary" style={styles.likelihoodDescription}>
-                {NOTIFICATION_FREQ_OPTIONS.find(o => o.value === notificationFrequency)?.description}
-              </ThemedText>
 
               {/* Quiet hours */}
               <ThemedText variant="bodySmall" color="dark" style={[styles.notifSubLabel, { marginTop: 16 }]}>Quiet hours</ThemedText>
@@ -266,6 +276,8 @@ export default function NotificationSettings() {
                 <TouchableOpacity
                   style={styles.quietHoursButton}
                   onPress={() => { setQuietHoursModalField('start'); setQuietHoursModalOpen(true) }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Quiet hours start: ${HOUR_LABELS[quietHoursStart]}`}
                 >
                   <ThemedText variant="body" color="dark" style={styles.quietHoursButtonText}>{HOUR_LABELS[quietHoursStart]}</ThemedText>
                   <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
@@ -274,6 +286,8 @@ export default function NotificationSettings() {
                 <TouchableOpacity
                   style={styles.quietHoursButton}
                   onPress={() => { setQuietHoursModalField('end'); setQuietHoursModalOpen(true) }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Quiet hours end: ${HOUR_LABELS[quietHoursEnd]}`}
                 >
                   <ThemedText variant="body" color="dark" style={styles.quietHoursButtonText}>{HOUR_LABELS[quietHoursEnd]}</ThemedText>
                   <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
@@ -318,6 +332,9 @@ export default function NotificationSettings() {
                       hour === 23 && styles.modalItemLast,
                     ]}
                     onPress={() => handleQuietHoursChange(quietHoursModalField, hour)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: isSelected }}
+                    accessibilityLabel={label}
                   >
                     <ThemedText variant="button" color="dark" style={[
                       styles.modalItemLabel,
@@ -399,16 +416,17 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: 8,
   },
   likelihoodSelector: {
-    flexDirection: 'row',
     backgroundColor: colors.background,
     borderRadius: 8,
     padding: 4,
+    gap: 2,
   },
   likelihoodOption: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 4,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     borderRadius: 6,
   },
   likelihoodOptionSelected: {
@@ -417,14 +435,12 @@ const createStyles = (colors) => StyleSheet.create({
   likelihoodOptionLabel: {
     fontWeight: '500',
   },
+  likelihoodOptionDescription: {
+    fontStyle: 'italic',
+  },
   likelihoodOptionLabelSelected: {
     color: '#FFFFFF',
     fontWeight: '500',
-  },
-  likelihoodDescription: {
-    textAlign: 'center',
-    marginTop: 10,
-    fontStyle: 'italic',
   },
   quietHoursRow: {
     flexDirection: 'row',

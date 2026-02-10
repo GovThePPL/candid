@@ -39,7 +39,7 @@ export function ToastProvider({ children }) {
     <ToastContext.Provider value={showToast}>
       {children}
       {message && (
-        <Animated.View style={[styles.container, { opacity }]} pointerEvents="none">
+        <Animated.View style={[styles.container, { opacity }]} pointerEvents="none" accessibilityRole="alert" accessibilityLiveRegion="polite">
           <View style={styles.toast}>
             <ThemedText variant="bodySmall" style={styles.text}>{message}</ThemedText>
           </View>

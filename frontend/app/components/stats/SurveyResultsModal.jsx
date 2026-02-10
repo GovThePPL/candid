@@ -319,7 +319,7 @@ export default function SurveyResultsModal({
                 {rankings.questions?.map((question) => (
                   <View key={question.questionId} style={styles.section}>
                     <View style={styles.questionHeader}>
-                      <ThemedText variant="h3" style={styles.sectionTitle}>{question.question}</ThemedText>
+                      <ThemedText variant="h3" style={[styles.sectionTitle, { flex: 1 }]}>{question.question}</ThemedText>
                       {fetchCrosstabs && (
                         <TouchableOpacity
                           style={styles.crosstabsButton}

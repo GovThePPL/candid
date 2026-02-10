@@ -84,6 +84,8 @@ const KudosCard = forwardRef(function KudosCard({
       leftSwipeAsPass={true}
       isBackCard={isBackCard}
       backCardAnimatedValue={backCardAnimatedValue}
+      accessibilityLabel={`Kudos from ${otherParticipant?.displayName || 'Anonymous'}`}
+      accessibilityHint={userAlreadySentKudos ? 'Swipe to acknowledge' : 'Swipe right to send kudos back, left to dismiss'}
     >
       <CardShell
         size="full"

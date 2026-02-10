@@ -3,9 +3,12 @@ import { Pressable, StyleSheet, View } from 'react-native'
 import { useThemeColors } from '../hooks/useThemeColors'
 import ThemedText from './ThemedText'
 
-function ThemedButton({ style, disabled, children, onPress, ...props }) {
+function ThemedButton({ style, disabled, children, onPress, accessibilityRole = 'button', accessibilityLabel, ...props }) {
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
+
+  // Auto-derive label from string children if not provided
+  const resolvedLabel = accessibilityLabel || (typeof children === 'string' ? children : undefined)
 
   return (
     <Pressable
@@ -17,6 +20,9 @@ function ThemedButton({ style, disabled, children, onPress, ...props }) {
       ]}
       onPress={disabled ? undefined : onPress}
       disabled={disabled}
+      accessibilityRole={accessibilityRole}
+      accessibilityLabel={resolvedLabel}
+      accessibilityState={{ disabled: !!disabled }}
       {...props}
     >
       <View style={styles.content}>

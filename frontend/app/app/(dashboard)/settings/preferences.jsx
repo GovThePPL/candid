@@ -277,6 +277,8 @@ export default function PreferencesSettings() {
                   key={category.id}
                   style={[styles.categoryItem, isNonDefault && styles.categoryItemModified]}
                   onPress={() => openWeightModal(category)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${category.label}, weight: ${getWeightLabel(weight)}`}
                 >
                   <ThemedText variant="body" color="dark" style={styles.categoryName}>{category.label}</ThemedText>
                   <View style={styles.categoryWeightButton}>
@@ -305,27 +307,36 @@ export default function PreferencesSettings() {
           </ThemedText>
 
           <View style={styles.likelihoodSelector}>
-            {LIKELIHOOD_OPTIONS.map((option) => (
-              <TouchableOpacity
-                key={option.value}
-                style={[
-                  styles.likelihoodOption,
-                  chatRequestLikelihood === option.value && styles.likelihoodOptionSelected
-                ]}
-                onPress={() => handleChatRequestLikelihoodChange(option.value)}
-              >
-                <ThemedText variant="label" color="secondary" style={[
-                  styles.likelihoodOptionLabel,
-                  chatRequestLikelihood === option.value && styles.likelihoodOptionLabelSelected
-                ]}>
-                  {option.label}
-                </ThemedText>
-              </TouchableOpacity>
-            ))}
+            {LIKELIHOOD_OPTIONS.map((option) => {
+              const isSelected = chatRequestLikelihood === option.value
+              return (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.likelihoodOption,
+                    isSelected && styles.likelihoodOptionSelected
+                  ]}
+                  onPress={() => handleChatRequestLikelihoodChange(option.value)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: isSelected }}
+                  accessibilityLabel={`${option.label}: ${option.description}`}
+                >
+                  <ThemedText variant="label" color="secondary" style={[
+                    styles.likelihoodOptionLabel,
+                    isSelected && styles.likelihoodOptionLabelSelected
+                  ]}>
+                    {option.label}
+                  </ThemedText>
+                  <ThemedText variant="caption" color="secondary" style={[
+                    styles.likelihoodOptionDescription,
+                    isSelected && styles.likelihoodOptionLabelSelected
+                  ]}>
+                    {option.description}
+                  </ThemedText>
+                </TouchableOpacity>
+              )
+            })}
           </View>
-          <ThemedText variant="caption" color="secondary" style={styles.likelihoodDescription}>
-            {LIKELIHOOD_OPTIONS.find(o => o.value === chatRequestLikelihood)?.description}
-          </ThemedText>
         </View>
 
         {/* Chatting List Frequency Section */}
@@ -339,27 +350,36 @@ export default function PreferencesSettings() {
           </ThemedText>
 
           <View style={styles.likelihoodSelector}>
-            {LIKELIHOOD_OPTIONS.map((option) => (
-              <TouchableOpacity
-                key={option.value}
-                style={[
-                  styles.likelihoodOption,
-                  chattingListLikelihood === option.value && styles.likelihoodOptionSelected
-                ]}
-                onPress={() => handleChattingListLikelihoodChange(option.value)}
-              >
-                <ThemedText variant="label" color="secondary" style={[
-                  styles.likelihoodOptionLabel,
-                  chattingListLikelihood === option.value && styles.likelihoodOptionLabelSelected
-                ]}>
-                  {option.label}
-                </ThemedText>
-              </TouchableOpacity>
-            ))}
+            {LIKELIHOOD_OPTIONS.map((option) => {
+              const isSelected = chattingListLikelihood === option.value
+              return (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.likelihoodOption,
+                    isSelected && styles.likelihoodOptionSelected
+                  ]}
+                  onPress={() => handleChattingListLikelihoodChange(option.value)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: isSelected }}
+                  accessibilityLabel={`${option.label}: ${option.description}`}
+                >
+                  <ThemedText variant="label" color="secondary" style={[
+                    styles.likelihoodOptionLabel,
+                    isSelected && styles.likelihoodOptionLabelSelected
+                  ]}>
+                    {option.label}
+                  </ThemedText>
+                  <ThemedText variant="caption" color="secondary" style={[
+                    styles.likelihoodOptionDescription,
+                    isSelected && styles.likelihoodOptionLabelSelected
+                  ]}>
+                    {option.description}
+                  </ThemedText>
+                </TouchableOpacity>
+              )
+            })}
           </View>
-          <ThemedText variant="caption" color="secondary" style={styles.likelihoodDescription}>
-            {LIKELIHOOD_OPTIONS.find(o => o.value === chattingListLikelihood)?.description}
-          </ThemedText>
         </View>
 
         {/* Saving indicator */}
@@ -397,6 +417,9 @@ export default function PreferencesSettings() {
                       index === WEIGHT_OPTIONS.length - 1 && styles.modalItemLast,
                     ]}
                     onPress={() => handleCategoryWeightChange(selectedCategoryForWeight?.id, option.value)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: isSelected }}
+                    accessibilityLabel={option.label}
                   >
                     <View style={styles.modalItemContent}>
                       <ThemedText variant="button" color="dark" style={[
@@ -503,16 +526,17 @@ const createStyles = (colors) => StyleSheet.create({
     color: colors.primary,
   },
   likelihoodSelector: {
-    flexDirection: 'row',
     backgroundColor: colors.background,
     borderRadius: 8,
     padding: 4,
+    gap: 2,
   },
   likelihoodOption: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 4,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     borderRadius: 6,
   },
   likelihoodOptionSelected: {
@@ -521,14 +545,12 @@ const createStyles = (colors) => StyleSheet.create({
   likelihoodOptionLabel: {
     fontWeight: '500',
   },
+  likelihoodOptionDescription: {
+    fontStyle: 'italic',
+  },
   likelihoodOptionLabelSelected: {
     color: '#FFFFFF',
     fontWeight: '500',
-  },
-  likelihoodDescription: {
-    textAlign: 'center',
-    marginTop: 10,
-    fontStyle: 'italic',
   },
   savingContainer: {
     flexDirection: 'row',

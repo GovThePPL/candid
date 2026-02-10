@@ -101,6 +101,8 @@ const DemographicCard = forwardRef(function DemographicCard({
       leftSwipeAsPass={true}
       isBackCard={isBackCard}
       backCardAnimatedValue={backCardAnimatedValue}
+      accessibilityLabel={`About you: ${questionText}`}
+      accessibilityHint="Select an option, then swipe right to submit"
     >
       <CardShell
         size="full"
@@ -122,6 +124,9 @@ const DemographicCard = forwardRef(function DemographicCard({
                 activeOpacity={0.7}
                 onPress={() => handleOptionPress(option)}
                 disabled={isBackCard}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: selectedOption === option.value }}
+                accessibilityLabel={option.label}
               >
                 <Animated.View
                   style={[

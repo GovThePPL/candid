@@ -1,5 +1,5 @@
 import { View, Image, StyleSheet } from 'react-native'
-import { useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { getInitials, getInitialsColor, getTrustBadgeColor, getAvatarImageUrl } from '../lib/avatarUtils'
@@ -19,7 +19,7 @@ const SIZE_PRESETS = { sm: 28, md: 40, lg: 80 }
  * @param {Object} [props.borderStyle] - Optional border styling (e.g. for proposal avatars)
  * @param {'bottom-right'|'bottom-left'} [props.badgePosition='bottom-right'] - Badge anchor corner
  */
-export default function Avatar({
+export default memo(function Avatar({
   user,
   size = 'md',
   showKudosBadge = true,
@@ -91,7 +91,7 @@ export default function Avatar({
       )}
     </View>
   )
-}
+})
 
 const createStyles = (colors) => StyleSheet.create({
   kudosBadge: {

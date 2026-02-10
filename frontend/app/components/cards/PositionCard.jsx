@@ -36,6 +36,8 @@ const PositionCard = forwardRef(function PositionCard({
       onSwipeDown={onPass}
       isBackCard={isBackCard}
       backCardAnimatedValue={backCardAnimatedValue}
+      accessibilityLabel={`Position by ${author?.displayName || 'Anonymous'}: ${statement}`}
+      accessibilityHint="Swipe right to agree, left to disagree, up to chat, down to pass"
     >
       <CardShell size="full" bodyStyle={styles.card}>
         {/* Header */}

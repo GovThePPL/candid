@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import { View, StyleSheet } from 'react-native'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { BrandColor } from '../constants/Colors'
@@ -22,7 +22,7 @@ import { Shadows } from '../constants/Theme'
  * @param {Object} [props.bodyStyle] - Body section style override
  * @param {Object} [props.bottomStyle] - Footer section style override
  */
-export default function CardShell({
+export default memo(function CardShell({
   headerColor,
   header,
   footerColor,
@@ -100,7 +100,7 @@ export default function CardShell({
       )}
     </View>
   )
-}
+})
 
 const createStyles = (colors) => StyleSheet.create({
   // --- Size variants ---

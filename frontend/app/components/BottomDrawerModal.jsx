@@ -1,12 +1,12 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   View,
   StyleSheet,
   Modal,
   TouchableOpacity,
-  Animated,
   Dimensions,
 } from 'react-native'
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS } from 'react-native-reanimated'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { SemanticColors } from '../constants/Colors'
@@ -41,41 +41,38 @@ export default function BottomDrawerModal({
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const [modalVisible, setModalVisible] = useState(false)
-  const overlayOpacity = useRef(new Animated.Value(0)).current
-  const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current
+  const overlayOpacity = useSharedValue(0)
+  const slideY = useSharedValue(SCREEN_HEIGHT)
+
+  // Resolve percentage to pixels for native compatibility
+  const resolvedMaxHeight = typeof maxHeight === 'string' && maxHeight.endsWith('%')
+    ? (parseFloat(maxHeight) / 100) * SCREEN_HEIGHT
+    : maxHeight
+
+  const hideModal = useCallback(() => {
+    setModalVisible(false)
+  }, [])
 
   useEffect(() => {
     if (visible) {
       setModalVisible(true)
-      Animated.parallel([
-        Animated.timing(overlayOpacity, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]).start()
+      overlayOpacity.value = withTiming(1, { duration: 300 })
+      slideY.value = withTiming(0, { duration: 300 })
     } else {
-      Animated.parallel([
-        Animated.timing(overlayOpacity, {
-          toValue: 0,
-          duration: 250,
-          useNativeDriver: true,
-        }),
-        Animated.timing(slideAnim, {
-          toValue: SCREEN_HEIGHT,
-          duration: 250,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        setModalVisible(false)
+      overlayOpacity.value = withTiming(0, { duration: 250 })
+      slideY.value = withTiming(SCREEN_HEIGHT, { duration: 250 }, () => {
+        runOnJS(hideModal)()
       })
     }
   }, [visible])
+
+  const overlayStyle = useAnimatedStyle(() => ({
+    opacity: overlayOpacity.value,
+  }))
+
+  const contentStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: slideY.value }],
+  }))
 
   return (
     <Modal
@@ -85,14 +82,15 @@ export default function BottomDrawerModal({
       onRequestClose={onClose}
     >
       <View style={styles.container}>
-        <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]}>
+        <Animated.View style={[styles.overlay, overlayStyle]}>
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} accessibilityLabel="Close drawer" accessibilityRole="button" />
         </Animated.View>
 
         <Animated.View
           style={[
             styles.content,
-            { maxHeight, transform: [{ translateY: slideAnim }] },
+            { height: resolvedMaxHeight },
+            contentStyle,
           ]}
         >
           {/* Header */}

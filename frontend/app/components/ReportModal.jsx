@@ -91,6 +91,9 @@ export default function ReportModal({ visible, onClose, onSubmit }) {
                   style={[styles.ruleRow, isSelected && styles.ruleRowSelected]}
                   onPress={() => setSelectedRuleId(rule.id)}
                   activeOpacity={0.7}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: isSelected }}
+                  accessibilityLabel={rule.title}
                 >
                   <View style={styles.radioOuter}>
                     {isSelected && <View style={styles.radioInner} />}
@@ -117,12 +120,16 @@ export default function ReportModal({ visible, onClose, onSubmit }) {
               multiline
               numberOfLines={2}
               maxFontSizeMultiplier={1.5}
+              accessibilityLabel="Additional details"
             />
             <TouchableOpacity
               style={[styles.submitButton, !selectedRuleId && styles.submitButtonDisabled]}
               onPress={handleSubmit}
               disabled={!selectedRuleId || submitting}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Submit Report"
+              accessibilityState={{ disabled: !selectedRuleId || submitting }}
             >
               {submitting ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />

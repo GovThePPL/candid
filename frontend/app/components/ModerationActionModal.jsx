@@ -47,6 +47,9 @@ function ActionRow({ userClass, action, onActionChange, duration, onDurationChan
           style={[styles.dropdown, hasAction && styles.dropdownActive]}
           onPress={() => setOpen(!open)}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={`${userClass.label}: ${selected.label}`}
+          accessibilityState={{ expanded: open }}
         >
           <ThemedText variant="label" style={[styles.dropdownText, hasAction && styles.dropdownTextActive]}>
             {selected.label}
@@ -67,6 +70,9 @@ function ActionRow({ userClass, action, onActionChange, duration, onDurationChan
               style={[styles.dropdownItem, action === opt.value && styles.dropdownItemSelected]}
               onPress={() => { onActionChange(opt.value); setOpen(false) }}
               activeOpacity={0.7}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: action === opt.value }}
+              accessibilityLabel={opt.label}
             >
               <ThemedText variant="label" style={[styles.dropdownItemText, action === opt.value && styles.dropdownItemTextSelected]}>
                 {opt.label}
@@ -90,6 +96,7 @@ function ActionRow({ userClass, action, onActionChange, duration, onDurationChan
             placeholder="7"
             placeholderTextColor={colors.placeholderText}
             maxFontSizeMultiplier={1.2}
+            accessibilityLabel={`Ban duration in days for ${userClass.label}`}
           />
         </View>
       )}
@@ -223,6 +230,7 @@ export default function ModerationActionModal({ visible, onClose, onSubmit, repo
           multiline
           numberOfLines={3}
           maxFontSizeMultiplier={1.5}
+          accessibilityLabel="Moderator notes"
         />
       </ScrollView>
 
@@ -232,6 +240,9 @@ export default function ModerationActionModal({ visible, onClose, onSubmit, repo
           onPress={handleConfirm}
           disabled={!hasSelectedActions || submitting}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Confirm Action"
+          accessibilityState={{ disabled: !hasSelectedActions || submitting }}
         >
           {submitting ? (
             <ActivityIndicator size="small" color="#FFFFFF" />

@@ -2,6 +2,7 @@ import { useEffect } from "react"
 import { Stack } from "expo-router"
 import { Platform, Text } from "react-native"
 import { StatusBar } from "expo-status-bar"
+import { useFonts, Pacifico_400Regular } from "@expo-google-fonts/pacifico"
 
 // Global font scaling safety net — caps all Text at 2x even without a variant
 Text.defaultProps = Text.defaultProps || {}
@@ -71,6 +72,9 @@ function InnerLayout() {
 }
 
 export default function RootLayout() {
+  // Load Pacifico font on native
+  useFonts({ Pacifico_400Regular })
+
   // Load Google Font for web
   useGoogleFont()
 

@@ -540,7 +540,12 @@ export default function Create() {
               <ThemedText variant="h1" color="primary">
                 Add a Position
               </ThemedText>
-              <TouchableOpacity style={styles.rulesButton} onPress={handleOpenRules}>
+              <TouchableOpacity
+                style={styles.rulesButton}
+                onPress={handleOpenRules}
+                accessibilityRole="button"
+                accessibilityLabel="Community Rules"
+              >
                 <Ionicons name="book-outline" size={15} color={colors.primary} />
                 <ThemedText variant="label" color="primary" style={styles.rulesButtonText}>Community Rules</ThemedText>
               </TouchableOpacity>
@@ -598,6 +603,8 @@ export default function Create() {
                       <TouchableOpacity
                         style={styles.adoptButton}
                         onPress={() => handleAdoptPosition(result.position.id)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Adopt position: ${result.position.statement}`}
                       >
                         <Ionicons name="add-circle" size={28} color={SemanticColors.agree} />
                       </TouchableOpacity>
@@ -674,7 +681,12 @@ export default function Create() {
                 <ThemedText variant="h1" color="primary">
                   Chatting List
                 </ThemedText>
-                <TouchableOpacity onPress={() => setShowChattingExplanation(true)} hitSlop={8}>
+                <TouchableOpacity
+                  onPress={() => setShowChattingExplanation(true)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel="What is the Chatting List?"
+                >
                   <Ionicons name="help-circle-outline" size={20} color={colors.secondaryText} />
                 </TouchableOpacity>
               </View>
@@ -699,6 +711,8 @@ export default function Create() {
             <TouchableOpacity
               style={styles.addToListButton}
               onPress={() => setShowChattingSearch(!showChattingSearch)}
+              accessibilityRole="button"
+              accessibilityLabel={showChattingSearch ? 'Close Search' : 'Add Position to List'}
             >
               <Ionicons
                 name={showChattingSearch ? 'close-circle' : 'add-circle'}
@@ -744,6 +758,8 @@ export default function Create() {
                         <TouchableOpacity
                           style={styles.addToListItemButton}
                           onPress={() => handleAddToChattingList(result.position.id)}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Add to chatting list: ${result.position.statement}`}
                         >
                           <Ionicons name="add-circle" size={28} color={SemanticColors.agree} />
                         </TouchableOpacity>
@@ -792,12 +808,16 @@ export default function Create() {
             <TouchableOpacity
               style={styles.floatingDeleteCancelButton}
               onPress={() => floatingBar.ref?.current?.cancelDelete()}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel"
             >
               <ThemedText variant="bodySmall" color="secondary" style={styles.floatingDeleteCancelText}>Cancel</ThemedText>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.floatingDeleteButton}
               onPress={() => floatingBar.ref?.current?.confirmDelete()}
+              accessibilityRole="button"
+              accessibilityLabel="Delete Selected"
             >
               <Ionicons name="trash" size={18} color="#FFFFFF" />
               <ThemedText variant="buttonSmall" color="inverse">Delete Selected</ThemedText>

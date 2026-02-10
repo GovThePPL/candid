@@ -1,5 +1,6 @@
-import { StyleSheet, View, ActivityIndicator, TouchableOpacity, Platform, Animated, Dimensions } from 'react-native'
+import { StyleSheet, View, ActivityIndicator, TouchableOpacity, Platform, Dimensions } from 'react-native'
 import { useState, useEffect, useCallback, useRef, useContext, useMemo } from 'react'
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, interpolate, runOnJS } from 'react-native-reanimated'
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -69,8 +70,20 @@ export default function CardQueue() {
   const [reportModalVisible, setReportModalVisible] = useState(false)
   const [reportPositionId, setReportPositionId] = useState(null)
 
-  // Animated value for back card transition
-  const backCardProgress = useRef(new Animated.Value(0)).current
+  // Shared value for back card transition
+  const backCardProgress = useSharedValue(0)
+
+  // Reset back card animation one frame after index advances so the new
+  // back card starts invisible (behind the current card at progress=1) and
+  // then cleanly moves to its resting position.
+  const isFirstRender = useRef(true)
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
+    requestAnimationFrame(() => { backCardProgress.value = 0 })
+  }, [currentIndex])
 
   // Ref to current card for keyboard-triggered swipes
   const currentCardRef = useRef(null)
@@ -86,8 +99,9 @@ export default function CardQueue() {
   }, [])
 
   // Slide-in animation state for incoming chat requests
-  const slideInAnim = useRef(new Animated.Value(0)).current
+  const slideInAnim = useSharedValue(0)
   const [slidingInCard, setSlidingInCard] = useState(null)
+  const isSlidingIn = useSharedValue(0)
 
   // Promotion timer: promotes back-card chat request to top after delay
   const promotionTimerRef = useRef(null)
@@ -295,6 +309,21 @@ export default function CardQueue() {
     }
   }, [])
 
+  // Refs for stable callbacks used in reanimated worklet completions
+  const currentIndexRef = useRef(currentIndex)
+  currentIndexRef.current = currentIndex
+  const cardsLengthRef = useRef(cards.length)
+  cardsLengthRef.current = cards.length
+
+  const advanceIndex = useCallback(() => {
+    if (currentIndexRef.current < cardsLengthRef.current - 1) {
+      setCurrentIndex(prev => prev + 1)
+    } else if (cardsLengthRef.current > 0) {
+      backCardProgress.value = 0
+      fetchMoreCards(false)
+    }
+  }, [fetchMoreCards])
+
   const goToNextCard = useCallback(() => {
     // Track swiping activity for chat request delivery mode
     lastSwipeTimeRef.current = Date.now()
@@ -312,41 +341,32 @@ export default function CardQueue() {
     }
 
     // Animate the back card forward, then advance
-    Animated.timing(backCardProgress, {
-      toValue: 1,
-      duration: 200,
-      useNativeDriver: false,
-    }).start(() => {
-      backCardProgress.setValue(0)
-      if (currentIndex < cards.length - 1) {
-        setCurrentIndex(prev => prev + 1)
-      } else if (cards.length > 0) {
-        // At end of queue - trigger fetch if not already fetching
-        // Cards will appear once fetch completes
-        fetchMoreCards(false)
-      }
+    backCardProgress.value = withTiming(1, { duration: 200 }, (finished) => {
+      if (finished) runOnJS(advanceIndex)()
     })
-  }, [currentIndex, cards.length, fetchMoreCards, backCardProgress])
+  }, [advanceIndex])
+
+  // Complete slide-in: insert card and reset animation state
+  const completeSlideIn = useCallback((card) => {
+    setCards(prev => {
+      const next = [...prev]
+      next.splice(currentIndexRef.current, 0, card)
+      return next
+    })
+    setSlidingInCard(null)
+    isSlidingIn.value = 0
+    slideInAnim.value = 0
+  }, [])
 
   // Trigger slide-in animation to insert a card at the current position (pushes queue back)
   const triggerSlideIn = useCallback((card) => {
     setSlidingInCard(card)
-    slideInAnim.setValue(0)
-    Animated.timing(slideInAnim, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: false,
-    }).start(() => {
-      // Insert card at current index
-      setCards(prev => {
-        const next = [...prev]
-        next.splice(currentIndex, 0, card)
-        return next
-      })
-      setSlidingInCard(null)
-      slideInAnim.setValue(0)
+    isSlidingIn.value = 1
+    slideInAnim.value = 0
+    slideInAnim.value = withTiming(1, { duration: 300 }, (finished) => {
+      if (finished) runOnJS(completeSlideIn)(card)
     })
-  }, [currentIndex, slideInAnim])
+  }, [completeSlideIn])
 
   // Consume incoming chat request from context
   useEffect(() => {
@@ -849,6 +869,64 @@ export default function CardQueue() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [currentCard, pendingChatRequest])
 
+  // Animated styles for card stack (runs on UI thread)
+  const fourthCardStyle = useAnimatedStyle(() => ({
+    zIndex: -1,
+    opacity: interpolate(backCardProgress.value, [0, 1], [0, 0.85]),
+    transform: [
+      { scale: interpolate(backCardProgress.value, [0, 1], [0.88, 0.92]) },
+      { translateY: interpolate(backCardProgress.value, [0, 1], [72, 48]) },
+    ],
+  }))
+
+  const thirdCardStyle = useAnimatedStyle(() => ({
+    zIndex: 0,
+    opacity: interpolate(backCardProgress.value, [0, 1], [0.85, 1]),
+    transform: [
+      { scale: interpolate(backCardProgress.value, [0, 1], [0.92, 0.96]) },
+      { translateY: interpolate(backCardProgress.value, [0, 1], [48, 24]) },
+    ],
+  }))
+
+  const backCardStyle = useAnimatedStyle(() => {
+    const baseScale = interpolate(backCardProgress.value, [0, 1], [0.96, 1])
+    const baseTranslateY = interpolate(backCardProgress.value, [0, 1], [24, 0])
+
+    if (isSlidingIn.value) {
+      return {
+        zIndex: 1,
+        transform: [
+          { scale: baseScale + interpolate(slideInAnim.value, [0, 1], [0, -0.04]) },
+          { translateY: baseTranslateY + interpolate(slideInAnim.value, [0, 1], [0, 24]) },
+        ],
+      }
+    }
+    return {
+      zIndex: 1,
+      transform: [
+        { scale: baseScale },
+        { translateY: baseTranslateY },
+      ],
+    }
+  })
+
+  const currentCardSlideStyle = useAnimatedStyle(() => {
+    if (!isSlidingIn.value) return {}
+    return {
+      transform: [
+        { scale: interpolate(slideInAnim.value, [0, 1], [1, 0.96]) },
+        { translateY: interpolate(slideInAnim.value, [0, 1], [0, 24]) },
+      ],
+    }
+  })
+
+  const slideInCardStyle = useAnimatedStyle(() => ({
+    zIndex: 3,
+    transform: [
+      { translateY: interpolate(slideInAnim.value, [0, 1], [-SCREEN_HEIGHT, 0]) },
+    ],
+  }))
+
   const renderCard = (card, isBackCard = false) => {
     if (!card) return null
 
@@ -1051,137 +1129,33 @@ export default function CardQueue() {
         <View style={styles.cardStack}>
           {/* Fourth card in stack (index + 3) */}
           {cards[currentIndex + 3] && (
-            <Animated.View style={[
-              styles.stackedCard,
-              {
-                zIndex: -1,
-                opacity: backCardProgress.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, 0.85],
-                }),
-                transform: [
-                  { scale: backCardProgress.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.88, 0.92],
-                  })},
-                  { translateY: backCardProgress.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [72, 48],
-                  })},
-                ],
-              }
-            ]}>
+            <Animated.View style={[styles.stackedCard, fourthCardStyle]}>
               {renderCard(cards[currentIndex + 3], true)}
             </Animated.View>
           )}
 
           {/* Third card in stack (index + 2) */}
           {cards[currentIndex + 2] && (
-            <Animated.View style={[
-              styles.stackedCard,
-              {
-                zIndex: 0,
-                opacity: backCardProgress.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.85, 1],
-                }),
-                transform: [
-                  { scale: backCardProgress.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.92, 0.96],
-                  })},
-                  { translateY: backCardProgress.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [48, 24],
-                  })},
-                ],
-              }
-            ]}>
+            <Animated.View style={[styles.stackedCard, thirdCardStyle]}>
               {renderCard(cards[currentIndex + 2], true)}
             </Animated.View>
           )}
 
           {/* Back card (next card in queue) */}
           {nextCard && (
-            <Animated.View style={[
-              styles.stackedCard,
-              {
-                zIndex: 1,
-                transform: [
-                  { scale: slidingInCard
-                    ? Animated.add(
-                        // During slide-in: push back from 0.96→0.92
-                        slideInAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0, -0.04],
-                        }),
-                        backCardProgress.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0.96, 1],
-                        })
-                      )
-                    : backCardProgress.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.96, 1],
-                      })
-                  },
-                  { translateY: slidingInCard
-                    ? Animated.add(
-                        // During slide-in: push back from 24→48
-                        slideInAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0, 24],
-                        }),
-                        backCardProgress.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [24, 0],
-                        })
-                      )
-                    : backCardProgress.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [24, 0],
-                      })
-                  },
-                ],
-              }
-            ]}>
+            <Animated.View style={[styles.stackedCard, backCardStyle]}>
               {renderCard(nextCard, true)}
             </Animated.View>
           )}
 
           {/* Current card - main card on top, shifts back during slide-in */}
-          <Animated.View style={[
-            styles.currentCard,
-            slidingInCard ? {
-              transform: [
-                { scale: slideInAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [1, 0.96],
-                })},
-                { translateY: slideInAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, 24],
-                })},
-              ],
-            } : undefined,
-          ]}>
+          <Animated.View style={[styles.currentCard, currentCardSlideStyle]}>
             {renderCard(currentCard, false)}
           </Animated.View>
 
           {/* Sliding-in chat request card from top */}
           {slidingInCard && (
-            <Animated.View style={[
-              styles.stackedCard,
-              {
-                zIndex: 3,
-                transform: [
-                  { translateY: slideInAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [-SCREEN_HEIGHT, 0],
-                  })},
-                ],
-              }
-            ]}>
+            <Animated.View style={[styles.stackedCard, slideInCardStyle]}>
               {renderCard(slidingInCard, true)}
             </Animated.View>
           )}
@@ -1228,7 +1202,11 @@ const createStyles = (colors) => StyleSheet.create({
     overflow: 'visible',
   },
   currentCard: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     zIndex: 2,
   },
   stackedCard: {

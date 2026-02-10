@@ -306,6 +306,8 @@ export default function DemographicsSettings() {
           <TouchableOpacity
             style={styles.pickerItem}
             onPress={() => openPickerModal('Age Range', AGE_RANGE_OPTIONS, ageRange, handleFieldChange(setAgeRange, 'ageRange'))}
+            accessibilityRole="button"
+            accessibilityLabel={`Age Range: ${getOptionLabel(AGE_RANGE_OPTIONS, ageRange)}`}
           >
             <ThemedText variant="body" color="dark" style={styles.pickerLabel}>Age Range</ThemedText>
             <View style={styles.pickerValue}>
@@ -317,6 +319,8 @@ export default function DemographicsSettings() {
           <TouchableOpacity
             style={styles.pickerItem}
             onPress={() => openPickerModal('Income Range', INCOME_RANGE_OPTIONS, incomeRange, handleFieldChange(setIncomeRange, 'incomeRange'))}
+            accessibilityRole="button"
+            accessibilityLabel={`Income Range: ${getOptionLabel(INCOME_RANGE_OPTIONS, incomeRange)}`}
           >
             <ThemedText variant="body" color="dark" style={styles.pickerLabel}>Income Range</ThemedText>
             <View style={styles.pickerValue}>
@@ -328,6 +332,8 @@ export default function DemographicsSettings() {
           <TouchableOpacity
             style={styles.pickerItem}
             onPress={() => openPickerModal('Political Lean', POLITICAL_LEAN_OPTIONS, lean, handleFieldChange(setLean, 'lean'))}
+            accessibilityRole="button"
+            accessibilityLabel={`Political Lean: ${getOptionLabel(POLITICAL_LEAN_OPTIONS, lean)}`}
           >
             <ThemedText variant="body" color="dark" style={styles.pickerLabel}>Political Lean</ThemedText>
             <View style={styles.pickerValue}>
@@ -339,6 +345,8 @@ export default function DemographicsSettings() {
           <TouchableOpacity
             style={styles.pickerItem}
             onPress={() => openPickerModal('Education', EDUCATION_OPTIONS, education, handleFieldChange(setEducation, 'education'))}
+            accessibilityRole="button"
+            accessibilityLabel={`Education: ${getOptionLabel(EDUCATION_OPTIONS, education)}`}
           >
             <ThemedText variant="body" color="dark" style={styles.pickerLabel}>Education</ThemedText>
             <View style={styles.pickerValue}>
@@ -350,6 +358,8 @@ export default function DemographicsSettings() {
           <TouchableOpacity
             style={styles.pickerItem}
             onPress={() => openPickerModal('Geographic Locale', GEO_LOCALE_OPTIONS, geoLocale, handleFieldChange(setGeoLocale, 'geoLocale'))}
+            accessibilityRole="button"
+            accessibilityLabel={`Geographic Locale: ${getOptionLabel(GEO_LOCALE_OPTIONS, geoLocale)}`}
           >
             <ThemedText variant="body" color="dark" style={styles.pickerLabel}>Geographic Locale</ThemedText>
             <View style={styles.pickerValue}>
@@ -361,6 +371,8 @@ export default function DemographicsSettings() {
           <TouchableOpacity
             style={styles.pickerItem}
             onPress={() => openPickerModal('Race/Ethnicity', RACE_OPTIONS, race, handleFieldChange(setRace, 'race'))}
+            accessibilityRole="button"
+            accessibilityLabel={`Race/Ethnicity: ${getOptionLabel(RACE_OPTIONS, race)}`}
           >
             <ThemedText variant="body" color="dark" style={styles.pickerLabel}>Race/Ethnicity</ThemedText>
             <View style={styles.pickerValue}>
@@ -372,6 +384,8 @@ export default function DemographicsSettings() {
           <TouchableOpacity
             style={[styles.pickerItem, styles.pickerItemLast]}
             onPress={() => openPickerModal('Sex', SEX_OPTIONS, sex, handleFieldChange(setSex, 'sex'))}
+            accessibilityRole="button"
+            accessibilityLabel={`Sex: ${getOptionLabel(SEX_OPTIONS, sex)}`}
           >
             <ThemedText variant="body" color="dark" style={styles.pickerLabel}>Sex</ThemedText>
             <View style={styles.pickerValue}>
@@ -390,6 +404,8 @@ export default function DemographicsSettings() {
           <TouchableOpacity
             style={styles.locationSelector}
             onPress={() => setLocationPickerOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={`Location: ${locations.length > 0 ? locations.map(loc => loc.name).join(', ') : 'Not set'}`}
           >
             {locations.length > 0 ? (
               <ThemedText variant="body" color="badge" style={styles.locationBreadcrumb} numberOfLines={2}>
@@ -437,6 +453,9 @@ export default function DemographicsSettings() {
                       pickerModalConfig.onSelect(option.value)
                       setPickerModalOpen(false)
                     }}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: isSelected }}
+                    accessibilityLabel={option.label}
                   >
                     <ThemedText variant="button" color="dark" style={[
                       styles.modalItemLabel,

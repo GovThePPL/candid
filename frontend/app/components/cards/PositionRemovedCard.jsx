@@ -12,7 +12,7 @@ export default function PositionRemovedCard({ data, onDismiss }) {
 
   return (
     <View style={styles.card}>
-      <View style={styles.iconContainer}>
+      <View style={styles.iconContainer} accessible={false} importantForAccessibility="no-hide-descendants">
         <Ionicons name="remove-circle" size={40} color={SemanticColors.warning} />
       </View>
 
@@ -31,7 +31,7 @@ export default function PositionRemovedCard({ data, onDismiss }) {
         <ThemedText variant="button" style={styles.statement}>{statement}</ThemedText>
       </View>
 
-      <TouchableOpacity style={styles.dismissButton} onPress={onDismiss}>
+      <TouchableOpacity style={styles.dismissButton} onPress={onDismiss} accessibilityRole="button" accessibilityLabel="Dismiss">
         <ThemedText variant="button" color="inverse">Dismiss</ThemedText>
       </TouchableOpacity>
     </View>

@@ -1,5 +1,5 @@
 import { View, StyleSheet } from 'react-native'
-import { useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import { useThemeColors } from '../hooks/useThemeColors'
 import ThemedText from './ThemedText'
 import Avatar from './Avatar'
@@ -18,7 +18,7 @@ import Avatar from './Avatar'
  * @param {'compact'|'full'} [props.size='compact'] - compact: body variant, auto-height; full: statement variant, flex-centered
  * @param {Object} [props.style] - Container style override
  */
-export default function PositionInfoCard({
+export default memo(function PositionInfoCard({
   position,
   authorSubtitle = 'userType',
   headerRight,
@@ -100,7 +100,7 @@ export default function PositionInfoCard({
       )}
     </View>
   )
-}
+})
 
 const createStyles = (colors, isFull) => StyleSheet.create({
   container: {

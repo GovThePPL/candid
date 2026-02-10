@@ -1,6 +1,7 @@
 import { useEffect, useContext, useMemo } from "react"
 import { Tabs, useRouter } from "expo-router"
 import { Platform, useWindowDimensions, View, StyleSheet } from "react-native"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons"
 
 import UserOnly from "../../components/auth/UserOnly"
@@ -19,6 +20,7 @@ export default function DashboardLayout() {
   const { user, activeChatNavigation, clearActiveChatNavigation, activeChat, clearActiveChat } = useContext(UserContext)
   const isModerator = user?.userType === 'moderator' || user?.userType === 'admin'
   const colors = useThemeColors()
+  const insets = useSafeAreaInsets()
   const styles = useMemo(() => createStyles(colors), [colors])
 
   // Handle navigation when a chat starts (via socket event) - works from any tab
@@ -43,7 +45,7 @@ export default function DashboardLayout() {
     return ({ focused, color }) => (
       <View style={[styles.tabItem, isWideScreen && styles.tabItemWide]}>
         <IconComponent
-          size={32}
+          size={26}
           name={focused ? focusedIconName : iconName}
           color={color}
         />
@@ -63,8 +65,8 @@ export default function DashboardLayout() {
           tabBarStyle: {
             backgroundColor: colors.navBackground,
             paddingTop: 8,
-            paddingBottom: 8,
-            height: isWideScreen ? 70 : 60,
+            paddingBottom: 8 + (Platform.OS === 'web' ? 0 : insets.bottom),
+            height: isWideScreen ? 56 : 50 + (Platform.OS === 'web' ? 0 : insets.bottom),
             borderTopWidth: 0,
             shadowColor: '#000',
             shadowOffset: { width: 0, height: -2 },

@@ -107,6 +107,8 @@ const SurveyCard = forwardRef(function SurveyCard({
       leftSwipeAsPass={true}
       isBackCard={isBackCard}
       backCardAnimatedValue={backCardAnimatedValue}
+      accessibilityLabel={`Survey: ${questionText}`}
+      accessibilityHint="Select an option, then swipe right to submit"
     >
       <CardShell
         size="full"
@@ -128,6 +130,9 @@ const SurveyCard = forwardRef(function SurveyCard({
                 activeOpacity={0.7}
                 onPress={() => handleOptionPress(option)}
                 disabled={isBackCard}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: selectedOption === option.id }}
+                accessibilityLabel={option.option || option.label}
               >
                 <Animated.View
                   style={[

@@ -118,6 +118,8 @@ const PairwiseCard = forwardRef(function PairwiseCard({
       leftSwipeAsPass={true}
       isBackCard={isBackCard}
       backCardAnimatedValue={backCardAnimatedValue}
+      accessibilityLabel={`Survey: ${question}`}
+      accessibilityHint="Select an option, then swipe right to submit"
     >
       <CardShell
         size="full"
@@ -150,6 +152,9 @@ const PairwiseCard = forwardRef(function PairwiseCard({
               activeOpacity={0.7}
               onPress={() => handleOptionPress(option.id)}
               disabled={isBackCard}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: selectedOption === option.id }}
+              accessibilityLabel={option.option}
             >
               <Animated.View
                 style={[

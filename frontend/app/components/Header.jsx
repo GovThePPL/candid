@@ -1,6 +1,7 @@
 import { StyleSheet, View, TouchableOpacity, Platform } from 'react-native'
 import { useContext, useState, useCallback, useRef, useMemo } from 'react'
 import { useRouter } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { BadgeColors } from '../constants/Colors'
@@ -16,7 +17,8 @@ import { getTrustBadgeColor } from '../lib/avatarUtils'
 export default function Header({ onBack }) {
   const router = useRouter()
   const colors = useThemeColors()
-  const styles = useMemo(() => createStyles(colors), [colors])
+  const insets = useSafeAreaInsets()
+  const styles = useMemo(() => createStyles(colors, insets), [colors, insets])
   const { user, logout, pendingChatRequest, clearPendingChatRequest } = useContext(UserContext)
   const [sidebarVisible, setSidebarVisible] = useState(false)
   const [bugReportVisible, setBugReportVisible] = useState(false)
@@ -79,7 +81,7 @@ export default function Header({ onBack }) {
               style={styles.logo}
               onLayout={e => { logoWidthRef.current = e.nativeEvent.layout.width }}
             >
-              Candid
+              Candid{Platform.OS !== 'web' ? ' ' : ''}
             </ThemedText>
           )}
           {/* Narrow: indicator replaces logo, left-aligned */}
@@ -105,7 +107,7 @@ export default function Header({ onBack }) {
 
         {/* Right section */}
         <View style={styles.headerRight} onLayout={e => setRightWidth(e.nativeEvent.layout.width)}>
-          <View style={[styles.kudosBadge, { backgroundColor: getTrustBadgeColor(user?.trustScore) }]}>
+          <View style={[styles.kudosBadge, { backgroundColor: getTrustBadgeColor(user?.trustScore) }]} accessibilityLabel={`${user?.kudosCount || 0} kudos`}>
             <Ionicons name="star" size={16} color={colors.primary} />
             <ThemedText variant="label" color="primary">{user?.kudosCount || 0}</ThemedText>
           </View>
@@ -129,7 +131,7 @@ export default function Header({ onBack }) {
   )
 }
 
-const createStyles = (colors) => StyleSheet.create({
+const createStyles = (colors, insets) => StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -147,6 +149,15 @@ const createStyles = (colors) => StyleSheet.create({
     ...Platform.select({
       web: {
         boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+      },
+      default: {
+        // Extend header background behind the status bar on native
+        // Fixed height so it doesn't shift when chat request indicator appears/disappears
+        marginTop: -insets.top,
+        paddingTop: insets.top,
+        paddingBottom: 4,
+        height: insets.top + 58,
+        minHeight: undefined,
       },
     }),
   },
@@ -169,8 +180,7 @@ const createStyles = (colors) => StyleSheet.create({
         fontFamily: 'Pacifico, cursive',
       },
       default: {
-        fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-        fontWeight: '600',
+        fontFamily: 'Pacifico_400Regular',
       },
     }),
   },

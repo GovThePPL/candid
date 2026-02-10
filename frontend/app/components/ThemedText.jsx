@@ -22,7 +22,9 @@ function resolveColor(colorName, colors) {
   return map[colorName]
 }
 
-const ThemedText = ({ style, variant, color, title = false, maxFontSizeMultiplier, ...props }) => {
+const HEADING_VARIANTS = new Set(['h1', 'h2', 'h3', 'h4'])
+
+const ThemedText = ({ style, variant, color, title = false, maxFontSizeMultiplier, accessibilityRole, ...props }) => {
   const colors = useThemeColors()
 
   // Resolve text color: explicit color prop > title prop > default text
@@ -38,8 +40,14 @@ const ThemedText = ({ style, variant, color, title = false, maxFontSizeMultiplie
     ? maxFontSizeMultiplier
     : variant ? TypographyScaleCaps[variant] : undefined
 
+  // Auto-assign header role for heading variants unless caller overrides
+  const resolvedRole = accessibilityRole !== undefined
+    ? accessibilityRole
+    : HEADING_VARIANTS.has(variant) ? 'header' : undefined
+
   return (
     <Text
+      accessibilityRole={resolvedRole}
       maxFontSizeMultiplier={scaleCap}
       style={[{ color: resolvedColor }, variantStyle, style]}
       {...props}

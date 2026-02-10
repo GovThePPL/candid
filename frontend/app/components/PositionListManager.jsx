@@ -403,6 +403,9 @@ const PositionListManager = forwardRef(function PositionListManager({
               <TouchableOpacity
                 style={styles.locationHeader}
                 onPress={() => toggleLocationExpanded(locationName)}
+                accessibilityRole="button"
+                accessibilityLabel={`${locationName}, ${locIds.length} positions`}
+                accessibilityState={{ expanded: locExpanded }}
               >
                 <Ionicons
                   name={locExpanded ? 'chevron-down' : 'chevron-forward'}
@@ -431,6 +434,9 @@ const PositionListManager = forwardRef(function PositionListManager({
                         <TouchableOpacity
                           style={styles.categoryHeader}
                           onPress={() => toggleCategoryExpanded(locationName, categoryName)}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${categoryName}, ${catIds.length} positions`}
+                          accessibilityState={{ expanded: catExpanded }}
                         >
                           <Ionicons
                             name={catExpanded ? 'chevron-down' : 'chevron-forward'}

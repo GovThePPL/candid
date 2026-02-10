@@ -186,6 +186,7 @@ export default function AccountSettings() {
                   autoCapitalize="none"
                   autoFocus
                   maxFontSizeMultiplier={1.5}
+                  accessibilityLabel="Email address"
                 />
               </View>
 
@@ -197,6 +198,8 @@ export default function AccountSettings() {
                     setHasEmailChanges(false)
                     setEditingEmail(false)
                   }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cancel email edit"
                 >
                   <ThemedText variant="button" color="secondary" style={styles.cancelButtonText}>Cancel</ThemedText>
                 </TouchableOpacity>
@@ -205,6 +208,9 @@ export default function AccountSettings() {
                     style={[styles.saveButton, savingEmail && styles.buttonDisabled]}
                     onPress={handleSaveEmail}
                     disabled={savingEmail}
+                    accessibilityRole="button"
+                    accessibilityLabel="Save email"
+                    accessibilityState={{ disabled: savingEmail }}
                   >
                     {savingEmail ? (
                       <ActivityIndicator size="small" color="#fff" />
@@ -221,6 +227,8 @@ export default function AccountSettings() {
               <TouchableOpacity
                 style={styles.editButton}
                 onPress={() => setEditingEmail(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Edit email"
               >
                 <Ionicons name="pencil" size={18} color={colors.primary} />
               </TouchableOpacity>
@@ -238,6 +246,8 @@ export default function AccountSettings() {
           <TouchableOpacity
             style={styles.logoutButton}
             onPress={logout}
+            accessibilityRole="button"
+            accessibilityLabel="Log out"
           >
             <Ionicons name="log-out-outline" size={20} color={colors.primary} />
             <ThemedText variant="button" color="primary" style={styles.logoutButtonText}>Log Out</ThemedText>
@@ -265,6 +275,7 @@ export default function AccountSettings() {
               thumbColor={diagnosticsConsent === true ? colors.primary : colors.pass}
               accessibilityLabel="Send diagnostics data"
               accessibilityRole="switch"
+              accessibilityState={{ checked: diagnosticsConsent === true }}
             />
           </View>
         </View>
@@ -279,6 +290,8 @@ export default function AccountSettings() {
           <TouchableOpacity
             style={styles.deleteButton}
             onPress={() => setDeleteModalOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Delete account"
           >
             <Ionicons name="trash-outline" size={20} color={SemanticColors.warning} />
             <ThemedText variant="button" color="error" style={styles.deleteButtonText}>Delete Account</ThemedText>
@@ -317,6 +330,8 @@ export default function AccountSettings() {
                   setDeleteModalOpen(false)
                   setDeleteError(null)
                 }}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel account deletion"
               >
                 <ThemedText variant="button" color="secondary">Cancel</ThemedText>
               </TouchableOpacity>
@@ -324,6 +339,9 @@ export default function AccountSettings() {
                 style={[styles.modalDeleteButton, deletingAccount && styles.modalButtonDisabled]}
                 onPress={handleDeleteAccount}
                 disabled={deletingAccount}
+                accessibilityRole="button"
+                accessibilityLabel="Confirm delete account"
+                accessibilityState={{ disabled: deletingAccount }}
               >
                 {deletingAccount ? (
                   <ActivityIndicator size="small" color="#fff" />

@@ -15,7 +15,7 @@ export default function LoadingView({ message = 'Loading...', style }) {
   const styles = useMemo(() => createStyles(colors), [colors])
 
   return (
-    <View style={[styles.container, style]}>
+    <View style={[styles.container, style]} accessibilityLiveRegion="polite" accessibilityLabel={message}>
       <ActivityIndicator size="large" color={colors.primary} />
       <ThemedText variant="body" color="secondary" style={styles.text}>{message}</ThemedText>
     </View>

@@ -57,6 +57,8 @@ const DiagnosticsConsentCard = forwardRef(function DiagnosticsConsentCard({
       leftSwipeLabel="No Thanks"
       isBackCard={isBackCard}
       backCardAnimatedValue={backCardAnimatedValue}
+      accessibilityLabel="Send anonymous error reports?"
+      accessibilityHint="Swipe right to enable, left for no thanks"
     >
       <CardShell
         size="full"

@@ -55,6 +55,8 @@ const ChatRequestCard = forwardRef(function ChatRequestCard({
       leftSwipeAsPass={true}
       isBackCard={isBackCard}
       backCardAnimatedValue={backCardAnimatedValue}
+      accessibilityLabel={`Chat request from ${requester?.displayName || 'Anonymous'} about: ${position?.statement || ''}`}
+      accessibilityHint="Swipe right to accept, left to decline"
     >
       <CardShell
         size="full"
