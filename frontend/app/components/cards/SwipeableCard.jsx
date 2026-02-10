@@ -1,6 +1,7 @@
 import { StyleSheet, Dimensions, View, Animated, PanResponder, Platform, Text } from 'react-native'
-import { useRef, useCallback, useImperativeHandle, forwardRef } from 'react'
-import { Colors } from '../../constants/Colors'
+import { useRef, useCallback, useImperativeHandle, forwardRef, useMemo } from 'react'
+import { useThemeColors } from '../../hooks/useThemeColors'
+import { SemanticColors } from '../../constants/Colors'
 import { Ionicons } from '@expo/vector-icons'
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window')
@@ -29,6 +30,8 @@ const SwipeableCard = forwardRef(function SwipeableCard({
   // When true, right swipe shows star icon with gold styling (for kudos)
   rightSwipeAsKudos = false,
 }, ref) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
   const position = useRef(new Animated.ValueXY()).current
 
   // Refs to track swipe style/handler props for pan responder access
@@ -355,22 +358,22 @@ const SwipeableCard = forwardRef(function SwipeableCard({
       </View>
       {/* Green overlay for right swipe */}
       <Animated.View
-        style={[styles.overlay, { backgroundColor: Colors.agree, opacity: greenOverlay }]}
+        style={[styles.overlay, { backgroundColor: SemanticColors.agree, opacity: greenOverlay }]}
         pointerEvents="none"
       />
       {/* Red overlay for left swipe */}
       <Animated.View
-        style={[styles.overlay, { backgroundColor: Colors.disagree, opacity: redOverlay }]}
+        style={[styles.overlay, { backgroundColor: SemanticColors.disagree, opacity: redOverlay }]}
         pointerEvents="none"
       />
       {/* Gray overlay for down swipe */}
       <Animated.View
-        style={[styles.overlay, { backgroundColor: Colors.pass, opacity: grayOverlay }]}
+        style={[styles.overlay, { backgroundColor: colors.pass, opacity: grayOverlay }]}
         pointerEvents="none"
       />
       {/* Yellow overlay for up swipe */}
       <Animated.View
-        style={[styles.overlay, { backgroundColor: Colors.chat, opacity: yellowOverlay }]}
+        style={[styles.overlay, { backgroundColor: colors.chat, opacity: yellowOverlay }]}
         pointerEvents="none"
       />
       {/* Checkmark icon overlay for right swipe (agree) */}
@@ -433,7 +436,7 @@ const SwipeableCard = forwardRef(function SwipeableCard({
 
 export default SwipeableCard
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
     width: '100%',
@@ -446,10 +449,10 @@ const styles = StyleSheet.create({
   },
   cardContent: {
     flex: 1,
-    backgroundColor: Colors.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
     overflow: 'hidden',
     // Drop shadow
     shadowColor: '#000',
@@ -474,12 +477,12 @@ const styles = StyleSheet.create({
   passText: {
     fontSize: 48,
     fontWeight: 'bold',
-    color: Colors.white,
+    color: '#FFFFFF',
   },
   submitText: {
     fontSize: 48,
     fontWeight: 'bold',
-    color: Colors.white,
+    color: '#FFFFFF',
   },
   plusOverlay: {
     ...StyleSheet.absoluteFillObject,

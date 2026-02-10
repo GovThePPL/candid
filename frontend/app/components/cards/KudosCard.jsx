@@ -1,7 +1,8 @@
 import { StyleSheet, View, Text } from 'react-native'
-import { forwardRef } from 'react'
+import { forwardRef, useMemo } from 'react'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../../constants/Colors'
+import { useThemeColors } from '../../hooks/useThemeColors'
+import { SemanticColors, BrandColor } from '../../constants/Colors'
 import SwipeableCard from './SwipeableCard'
 import Avatar from '../Avatar'
 
@@ -13,6 +14,8 @@ const KudosCard = forwardRef(function KudosCard({
   isBackCard,
   backCardAnimatedValue,
 }, ref) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
   const { otherParticipant, position, closingStatement, userAlreadySentKudos } = kudos
 
   // If user already sent kudos, any swipe just acknowledges
@@ -84,7 +87,7 @@ const KudosCard = forwardRef(function KudosCard({
             {parsedClosingStatement && (
               <View style={styles.closureSection}>
                 <View style={styles.closureHeader}>
-                  <Ionicons name="checkmark-circle" size={18} color={Colors.agree} />
+                  <Ionicons name="checkmark-circle" size={18} color={SemanticColors.agree} />
                   <Text style={styles.closureLabel}>Agreed Closure</Text>
                 </View>
                 <Text style={styles.closureText}>{parsedClosingStatement}</Text>
@@ -112,19 +115,19 @@ const KudosCard = forwardRef(function KudosCard({
 
 export default KudosCard
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   card: {
     flex: 1,
-    backgroundColor: Colors.primary,
+    backgroundColor: BrandColor,
   },
   headerSection: {
-    backgroundColor: Colors.primary,
+    backgroundColor: BrandColor,
     paddingTop: 12,
     paddingHorizontal: 16,
     paddingBottom: 20,
   },
   headerText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 22,
     fontWeight: '600',
     fontStyle: 'italic',
@@ -150,7 +153,7 @@ const styles = StyleSheet.create({
   userPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     borderRadius: 25,
     paddingVertical: 8,
     paddingHorizontal: 14,
@@ -163,19 +166,19 @@ const styles = StyleSheet.create({
   displayName: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.darkText,
+    color: colors.darkText,
   },
   username: {
     fontSize: 12,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
   topicCardWrapper: {
     flex: 1,
-    backgroundColor: Colors.primary,
+    backgroundColor: BrandColor,
   },
   topicCard: {
     flex: 1,
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     overflow: 'hidden',
@@ -191,11 +194,11 @@ const styles = StyleSheet.create({
   locationCode: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.primary,
+    color: colors.primary,
   },
   categoryName: {
     fontSize: 14,
-    color: Colors.primary,
+    color: colors.primary,
   },
   statementContainer: {
     paddingHorizontal: 16,
@@ -204,7 +207,7 @@ const styles = StyleSheet.create({
   statement: {
     fontSize: 18,
     fontWeight: '500',
-    color: Colors.darkText,
+    color: colors.darkText,
     lineHeight: 26,
   },
   closureSection: {
@@ -214,7 +217,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(76, 175, 80, 0.1)',
     borderRadius: 12,
     borderLeftWidth: 4,
-    borderLeftColor: Colors.agree,
+    borderLeftColor: SemanticColors.agree,
   },
   closureHeader: {
     flexDirection: 'row',
@@ -225,21 +228,21 @@ const styles = StyleSheet.create({
   closureLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: Colors.agree,
+    color: SemanticColors.agree,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   closureText: {
     fontSize: 16,
     fontWeight: '500',
-    color: Colors.darkText,
+    color: colors.darkText,
     lineHeight: 22,
   },
   positionFooter: {
     paddingHorizontal: 16,
     paddingVertical: 16,
     borderTopWidth: 1,
-    borderTopColor: Colors.cardBorder,
+    borderTopColor: colors.cardBorder,
     alignItems: 'center',
   },
   authorInfo: {
@@ -253,10 +256,10 @@ const styles = StyleSheet.create({
   authorDisplayName: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.darkText,
+    color: colors.darkText,
   },
   authorUsername: {
     fontSize: 12,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
 })

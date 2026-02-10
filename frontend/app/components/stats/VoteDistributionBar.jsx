@@ -1,5 +1,7 @@
+import { useMemo } from 'react'
 import { View, Text, StyleSheet } from 'react-native'
-import { Colors } from '../../constants/Colors'
+import { SemanticColors } from '../../constants/Colors'
+import { useThemeColors } from '../../hooks/useThemeColors'
 
 /**
  * Horizontal stacked bar showing vote distribution (agree/pass/disagree)
@@ -16,6 +18,9 @@ export default function VoteDistributionBar({
   height = 24,
   hideUnanswered = false,
 }) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+
   const { agree = 0, pass = 0, disagree = 0 } = distribution
 
   // Calculate total answered
@@ -126,7 +131,7 @@ export default function VoteDistributionBar({
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     width: '100%',
   },
@@ -141,28 +146,28 @@ const styles = StyleSheet.create({
     minWidth: 2,
   },
   agreeSegment: {
-    backgroundColor: Colors.agree,
+    backgroundColor: SemanticColors.agree,
   },
   passSegment: {
-    backgroundColor: Colors.pass,
+    backgroundColor: colors.pass,
   },
   disagreeSegment: {
-    backgroundColor: Colors.disagree,
+    backgroundColor: SemanticColors.disagree,
   },
   unansweredSegment: {
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.border,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: colors.cardBorder,
   },
   segmentLabel: {
     fontSize: 10,
     fontWeight: '600',
-    color: Colors.white,
+    color: '#FFFFFF',
   },
   passLabel: {
-    color: '#666666',
+    color: colors.secondaryText,
   },
   unansweredLabel: {
-    color: '#999999',
+    color: colors.secondaryText,
   },
 })

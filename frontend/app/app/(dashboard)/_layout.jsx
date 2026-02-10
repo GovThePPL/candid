@@ -1,12 +1,12 @@
-import { useEffect, useContext } from "react"
+import { useEffect, useContext, useMemo } from "react"
 import { Tabs, useRouter } from "expo-router"
 import { Platform, useWindowDimensions, View, Text, StyleSheet } from "react-native"
-import { Colors } from "../../constants/Colors"
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons"
 
 import UserOnly from "../../components/auth/UserOnly"
 import { UserContext } from "../../contexts/UserContext"
 import { ToastProvider } from "../../components/Toast"
+import { useThemeColors } from "../../hooks/useThemeColors"
 
 // Screen width threshold for showing labels beside icons
 const WIDE_SCREEN_THRESHOLD = 768
@@ -17,6 +17,8 @@ export default function DashboardLayout() {
   const router = useRouter()
   const { user, activeChatNavigation, clearActiveChatNavigation, activeChat, clearActiveChat } = useContext(UserContext)
   const isModerator = user?.userType === 'moderator' || user?.userType === 'admin'
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
 
   // Handle navigation when a chat starts (via socket event) - works from any tab
   useEffect(() => {
@@ -58,7 +60,7 @@ export default function DashboardLayout() {
         screenOptions={{
           headerShown: false,
           tabBarStyle: {
-            backgroundColor: Colors.white,
+            backgroundColor: colors.navBackground,
             paddingTop: 8,
             paddingBottom: 8,
             height: isWideScreen ? 70 : 60,
@@ -74,8 +76,8 @@ export default function DashboardLayout() {
               },
             }),
           },
-          tabBarActiveTintColor: Colors.primary,
-          tabBarInactiveTintColor: Colors.pass,
+          tabBarActiveTintColor: colors.primary,
+          tabBarInactiveTintColor: colors.tabInactive,
           tabBarShowLabel: false,
         }}
       >
@@ -141,7 +143,7 @@ export default function DashboardLayout() {
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   tabItem: {
     alignItems: 'center',
     justifyContent: 'center',

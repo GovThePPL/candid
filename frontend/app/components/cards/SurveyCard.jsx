@@ -1,6 +1,6 @@
 import { StyleSheet, View, Text, TouchableOpacity, Animated, Platform } from 'react-native'
-import { useState, useRef, useImperativeHandle, forwardRef, useCallback } from 'react'
-import { Colors } from '../../constants/Colors'
+import { useState, useRef, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react'
+import { useThemeColors } from '../../hooks/useThemeColors'
 import SwipeableCard from './SwipeableCard'
 
 const SurveyCard = forwardRef(function SurveyCard({
@@ -10,6 +10,8 @@ const SurveyCard = forwardRef(function SurveyCard({
   isBackCard = false,
   backCardAnimatedValue,
 }, ref) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
   const [selectedOption, setSelectedOption] = useState(null)
   const flashAnim = useRef(new Animated.Value(0)).current
   const swipeableRef = useRef(null)
@@ -69,7 +71,7 @@ const SurveyCard = forwardRef(function SurveyCard({
   // Calculate flash background color (darkens to indicate selection needed)
   const flashBackgroundColor = flashAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [Colors.primaryLight, Colors.primaryMuted],
+    outputRange: [colors.buttonDefault, colors.buttonSelected],
   })
 
   return (
@@ -145,7 +147,7 @@ const SurveyCard = forwardRef(function SurveyCard({
 
 export default SurveyCard
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   card: {
     flex: 1,
     padding: 20,
@@ -159,8 +161,8 @@ const styles = StyleSheet.create({
   categoryName: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.primary,
-    backgroundColor: Colors.primaryLight,
+    color: colors.badgeText,
+    backgroundColor: colors.badgeBg,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -168,7 +170,7 @@ const styles = StyleSheet.create({
   surveyTitle: {
     flex: 1,
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
   questionContainer: {
     flex: 1,
@@ -178,7 +180,7 @@ const styles = StyleSheet.create({
   question: {
     fontSize: 22,
     fontWeight: '600',
-    color: Colors.darkText,
+    color: colors.darkText,
     lineHeight: 30,
     textAlign: 'center',
   },
@@ -186,26 +188,26 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   option: {
-    backgroundColor: Colors.primaryLight,
+    backgroundColor: colors.buttonDefault,
     borderRadius: 25,
     paddingVertical: 14,
     paddingHorizontal: 20,
     alignItems: 'center',
   },
   optionSelected: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.buttonSelected,
   },
   optionText: {
     fontSize: 16,
     fontWeight: '500',
-    color: Colors.darkText,
+    color: colors.buttonDefaultText,
   },
   optionTextSelected: {
-    color: Colors.white,
+    color: colors.buttonSelectedText,
   },
   noOptionsText: {
     fontSize: 16,
-    color: Colors.pass,
+    color: colors.secondaryText,
     textAlign: 'center',
     paddingVertical: 20,
   },
@@ -217,10 +219,10 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: 16,
     fontWeight: '500',
-    color: Colors.primary,
+    color: colors.primary,
   },
   skipText: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
 })

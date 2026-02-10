@@ -1,9 +1,10 @@
 import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, ScrollView, TextInput } from 'react-native'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
-import { Colors } from '../../constants/Colors'
+import { SemanticColors } from '../../constants/Colors'
+import { useThemeColors } from '../../hooks/useThemeColors'
 import Header from '../../components/Header'
 import EmptyState from '../../components/EmptyState'
 import PositionInfoCard from '../../components/PositionInfoCard'
@@ -25,7 +26,7 @@ const CLASS_LABELS = {
   passive_adopter: 'Passive Adopters',
 }
 
-function ReportCard({ item, onHistoryPress, onChatPress }) {
+function ReportCard({ item, onHistoryPress, onChatPress, colors, styles }) {
   const { data } = item
   const target = data.targetContent
 
@@ -35,7 +36,7 @@ function ReportCard({ item, onHistoryPress, onChatPress }) {
       <View style={styles.reportHeader}>
         <View style={styles.headerRow}>
           <View style={styles.headerTypeTag}>
-            <Ionicons name="shield" size={28} color={Colors.white} />
+            <Ionicons name="shield" size={28} color="#FFFFFF" />
             <Text style={styles.headerTypeText}>Report</Text>
           </View>
           <View style={styles.headerRuleContent}>
@@ -66,7 +67,7 @@ function ReportCard({ item, onHistoryPress, onChatPress }) {
             />
           ) : (
             <View style={{ padding: 16 }}>
-              <Text style={{ fontSize: 14, color: Colors.pass, fontStyle: 'italic' }}>Content unavailable</Text>
+              <Text style={{ fontSize: 14, color: colors.secondaryText, fontStyle: 'italic' }}>Content unavailable</Text>
             </View>
           )}
         </View>
@@ -83,7 +84,7 @@ function ReportCard({ item, onHistoryPress, onChatPress }) {
             onPress={() => onChatPress(data.targetId, data.submitter?.id)}
             activeOpacity={0.7}
           >
-            <Ionicons name="chatbubbles-outline" size={16} color={Colors.white} />
+            <Ionicons name="chatbubbles-outline" size={16} color="#FFFFFF" />
             <Text style={styles.historyButtonText}>View chat log</Text>
           </TouchableOpacity>
         )}
@@ -96,7 +97,7 @@ function ReportCard({ item, onHistoryPress, onChatPress }) {
               onPress={() => onHistoryPress(historyUser)}
               activeOpacity={0.7}
             >
-              <Ionicons name="time-outline" size={16} color={Colors.white} />
+              <Ionicons name="time-outline" size={16} color="#FFFFFF" />
               <Text style={styles.historyButtonText}>User moderation history</Text>
             </TouchableOpacity>
           ) : null
@@ -119,7 +120,7 @@ function ReportCard({ item, onHistoryPress, onChatPress }) {
   )
 }
 
-function AppealCard({ item, onHistoryPress, onChatPress }) {
+function AppealCard({ item, onHistoryPress, onChatPress, colors, styles }) {
   const { data } = item
   const target = data.originalReport?.targetContent
   const rule = data.originalReport?.rule
@@ -133,7 +134,7 @@ function AppealCard({ item, onHistoryPress, onChatPress }) {
       <View style={styles.reportHeader}>
         <View style={styles.headerRow}>
           <View style={styles.headerTypeTag}>
-            <Ionicons name={isEscalated ? 'arrow-up-circle' : isOverruled ? 'swap-horizontal' : 'megaphone'} size={28} color={Colors.white} />
+            <Ionicons name={isEscalated ? 'arrow-up-circle' : isOverruled ? 'swap-horizontal' : 'megaphone'} size={28} color="#FFFFFF" />
             <Text style={styles.headerTypeText}>{isEscalated ? 'Escalated' : isOverruled ? 'Overruled' : 'Appeal'}</Text>
           </View>
           <View style={styles.headerRuleContent}>
@@ -164,7 +165,7 @@ function AppealCard({ item, onHistoryPress, onChatPress }) {
             />
           ) : (
             <View style={{ padding: 16 }}>
-              <Text style={{ fontSize: 14, color: Colors.pass, fontStyle: 'italic' }}>Content unavailable</Text>
+              <Text style={{ fontSize: 14, color: colors.secondaryText, fontStyle: 'italic' }}>Content unavailable</Text>
             </View>
           )}
         </View>
@@ -181,7 +182,7 @@ function AppealCard({ item, onHistoryPress, onChatPress }) {
             onPress={() => onChatPress(data.originalReport?.targetId, data.originalReport?.submitter?.id)}
             activeOpacity={0.7}
           >
-            <Ionicons name="chatbubbles-outline" size={16} color={Colors.white} />
+            <Ionicons name="chatbubbles-outline" size={16} color="#FFFFFF" />
             <Text style={styles.historyButtonText}>View chat log</Text>
           </TouchableOpacity>
         )}
@@ -191,7 +192,7 @@ function AppealCard({ item, onHistoryPress, onChatPress }) {
             onPress={() => onHistoryPress(data.user)}
             activeOpacity={0.7}
           >
-            <Ionicons name="time-outline" size={16} color={Colors.white} />
+            <Ionicons name="time-outline" size={16} color="#FFFFFF" />
             <Text style={styles.historyButtonText}>User moderation history</Text>
           </TouchableOpacity>
         )}
@@ -287,13 +288,13 @@ const STATE_LABELS = {
   denied: 'Appeal Denied',
   modified: 'Action Modified',
 }
-const STATE_COLORS = {
-  approved: Colors.agree,
-  denied: Colors.warning,
-  modified: Colors.primary,
-}
+const getStateColors = (colors) => ({
+  approved: SemanticColors.agree,
+  denied: SemanticColors.warning,
+  modified: colors.primary,
+})
 
-function AdminResponseNotificationCard({ item, onHistoryPress, onChatPress }) {
+function AdminResponseNotificationCard({ item, onHistoryPress, onChatPress, colors, styles }) {
   const { data } = item
   const target = data.originalReport?.targetContent
   const rule = data.originalReport?.rule
@@ -304,11 +305,11 @@ function AdminResponseNotificationCard({ item, onHistoryPress, onChatPress }) {
       <View style={styles.reportHeader}>
         <View style={styles.headerRow}>
           <View style={styles.headerTypeTag}>
-            <Ionicons name="shield-checkmark" size={28} color={Colors.white} />
+            <Ionicons name="shield-checkmark" size={28} color="#FFFFFF" />
             <Text style={styles.headerTypeText}>Response</Text>
           </View>
           <View style={styles.headerRuleContent}>
-            <View style={[styles.outcomeBadge, { backgroundColor: STATE_COLORS[data.appealState] || Colors.primary }]}>
+            <View style={[styles.outcomeBadge, { backgroundColor: getStateColors(colors)[data.appealState] || colors.primary }]}>
               <Text style={styles.outcomeBadgeText}>{STATE_LABELS[data.appealState] || data.appealState}</Text>
             </View>
             {rule?.title && <Text style={styles.reportRuleTitle}>{rule.title}</Text>}
@@ -336,7 +337,7 @@ function AdminResponseNotificationCard({ item, onHistoryPress, onChatPress }) {
             />
           ) : (
             <View style={{ padding: 16 }}>
-              <Text style={{ fontSize: 14, color: Colors.pass, fontStyle: 'italic' }}>Content unavailable</Text>
+              <Text style={{ fontSize: 14, color: colors.secondaryText, fontStyle: 'italic' }}>Content unavailable</Text>
             </View>
           )}
         </View>
@@ -353,7 +354,7 @@ function AdminResponseNotificationCard({ item, onHistoryPress, onChatPress }) {
             onPress={() => onChatPress(data.originalReport?.targetId, data.originalReport?.submitter?.id)}
             activeOpacity={0.7}
           >
-            <Ionicons name="chatbubbles-outline" size={16} color={Colors.white} />
+            <Ionicons name="chatbubbles-outline" size={16} color="#FFFFFF" />
             <Text style={styles.historyButtonText}>View chat log</Text>
           </TouchableOpacity>
         )}
@@ -363,7 +364,7 @@ function AdminResponseNotificationCard({ item, onHistoryPress, onChatPress }) {
             onPress={() => onHistoryPress(data.appealUser)}
             activeOpacity={0.7}
           >
-            <Ionicons name="time-outline" size={16} color={Colors.white} />
+            <Ionicons name="time-outline" size={16} color="#FFFFFF" />
             <Text style={styles.historyButtonText}>User moderation history</Text>
           </TouchableOpacity>
         )}
@@ -472,6 +473,9 @@ function AdminResponseNotificationCard({ item, onHistoryPress, onChatPress }) {
 
 export default function ModerationQueue() {
   const router = useRouter()
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+
   const [queue, setQueue] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -654,7 +658,7 @@ export default function ModerationQueue() {
       <SafeAreaView style={styles.container} edges={['top']}>
         <Header />
         <View style={styles.centerContent}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Loading queue...</Text>
         </View>
       </SafeAreaView>
@@ -695,11 +699,11 @@ export default function ModerationQueue() {
 
       <ScrollView style={styles.cardContainer} contentContainerStyle={styles.cardContainerContent}>
         {currentItem?.type === 'report' ? (
-          <ReportCard item={currentItem} onHistoryPress={handleHistoryPress} onChatPress={handleChatPress} />
+          <ReportCard item={currentItem} onHistoryPress={handleHistoryPress} onChatPress={handleChatPress} colors={colors} styles={styles} />
         ) : currentItem?.type === 'appeal' ? (
-          <AppealCard item={currentItem} onHistoryPress={handleHistoryPress} onChatPress={handleChatPress} />
+          <AppealCard item={currentItem} onHistoryPress={handleHistoryPress} onChatPress={handleChatPress} colors={colors} styles={styles} />
         ) : currentItem?.type === 'admin_response_notification' ? (
-          <AdminResponseNotificationCard item={currentItem} onHistoryPress={handleHistoryPress} onChatPress={handleChatPress} />
+          <AdminResponseNotificationCard item={currentItem} onHistoryPress={handleHistoryPress} onChatPress={handleChatPress} colors={colors} styles={styles} />
         ) : null}
       </ScrollView>
 
@@ -708,21 +712,21 @@ export default function ModerationQueue() {
         {currentItem?.type === 'report' ? (
           <>
             <TouchableOpacity style={styles.actionButton} onPress={handlePass}>
-              <Ionicons name="arrow-forward" size={20} color={Colors.pass} />
+              <Ionicons name="arrow-forward" size={20} color={colors.pass} />
               <Text style={styles.actionButtonText}>Pass</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, styles.actionButtonDismiss]}
               onPress={() => setDismissModalVisible(true)}
             >
-              <Ionicons name="close-circle-outline" size={20} color={Colors.primary} />
+              <Ionicons name="close-circle-outline" size={20} color={colors.primary} />
               <Text style={[styles.actionButtonText, styles.actionButtonTextPrimary]}>Dismiss</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, styles.actionButtonAction]}
               onPress={() => setActionModalVisible(true)}
             >
-              <MaterialCommunityIcons name="gavel" size={20} color={Colors.white} />
+              <MaterialCommunityIcons name="gavel" size={20} color="#FFFFFF" />
               <Text style={styles.actionButtonTextWhite}>Action</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -730,7 +734,7 @@ export default function ModerationQueue() {
               onPress={handleMarkSpurious}
               disabled={processing}
             >
-              <Ionicons name="trash-outline" size={20} color={Colors.pass} />
+              <Ionicons name="trash-outline" size={20} color={colors.pass} />
               <Text style={styles.actionButtonText}>Spurious</Text>
             </TouchableOpacity>
           </>
@@ -745,7 +749,7 @@ export default function ModerationQueue() {
                   setAppealResponseModalVisible(true)
                 }}
               >
-                <Ionicons name="checkmark-circle-outline" size={20} color={Colors.white} />
+                <Ionicons name="checkmark-circle-outline" size={20} color="#FFFFFF" />
                 <Text style={styles.actionButtonTextWhite}>Accept</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -756,7 +760,7 @@ export default function ModerationQueue() {
                   setAppealResponseModalVisible(true)
                 }}
               >
-                <Ionicons name="arrow-up-circle-outline" size={20} color={Colors.white} />
+                <Ionicons name="arrow-up-circle-outline" size={20} color="#FFFFFF" />
                 <Text style={styles.actionButtonTextWhite}>Escalate</Text>
               </TouchableOpacity>
             </>
@@ -807,14 +811,14 @@ export default function ModerationQueue() {
                   setAppealResponseModalVisible(true)
                 }}
               >
-                <Ionicons name="checkmark-circle-outline" size={20} color={Colors.white} />
+                <Ionicons name="checkmark-circle-outline" size={20} color="#FFFFFF" />
                 <Text style={styles.actionButtonTextWhite}>Approve</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.actionButton, styles.actionButtonModify]}
                 onPress={() => setModifyModalVisible(true)}
               >
-                <Ionicons name="create-outline" size={20} color={Colors.white} />
+                <Ionicons name="create-outline" size={20} color="#FFFFFF" />
                 <Text style={styles.actionButtonTextWhite}>Modify</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -825,7 +829,7 @@ export default function ModerationQueue() {
                   setAppealResponseModalVisible(true)
                 }}
               >
-                <Ionicons name="close-circle-outline" size={20} color={Colors.white} />
+                <Ionicons name="close-circle-outline" size={20} color="#FFFFFF" />
                 <Text style={styles.actionButtonTextWhite}>Deny</Text>
               </TouchableOpacity>
             </>
@@ -836,7 +840,7 @@ export default function ModerationQueue() {
             onPress={handleDismissAdminResponse}
             disabled={processing}
           >
-            <Ionicons name="checkmark-circle-outline" size={20} color={Colors.white} />
+            <Ionicons name="checkmark-circle-outline" size={20} color="#FFFFFF" />
             <Text style={styles.actionButtonTextWhite}>Dismiss</Text>
           </TouchableOpacity>
         ) : null}
@@ -873,7 +877,7 @@ export default function ModerationQueue() {
             value={responseText}
             onChangeText={setResponseText}
             placeholder="Moderator comment (optional)..."
-            placeholderTextColor={Colors.pass}
+            placeholderTextColor={colors.placeholderText}
             multiline
           />
           <TouchableOpacity
@@ -882,7 +886,7 @@ export default function ModerationQueue() {
             disabled={processing}
           >
             {processing ? (
-              <ActivityIndicator size="small" color={Colors.white} />
+              <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
               <Text style={styles.responseSubmitText}>Dismiss Report</Text>
             )}
@@ -919,7 +923,7 @@ export default function ModerationQueue() {
             value={responseText}
             onChangeText={setResponseText}
             placeholder={appealResponseType === 'escalate' ? "Explain why you stand by your decision..." : "Your response..."}
-            placeholderTextColor={Colors.pass}
+            placeholderTextColor={colors.placeholderText}
             multiline
           />
           <TouchableOpacity
@@ -932,7 +936,7 @@ export default function ModerationQueue() {
             disabled={processing}
           >
             {processing ? (
-              <ActivityIndicator size="small" color={Colors.white} />
+              <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
               <Text style={styles.responseSubmitText}>
                 {appealResponseType === 'accept' ? 'Accept Overruling' :
@@ -947,10 +951,10 @@ export default function ModerationQueue() {
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
   },
   centerContent: {
     flex: 1,
@@ -961,22 +965,22 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
   errorText: {
     fontSize: 16,
-    color: Colors.warning,
+    color: SemanticColors.warning,
     textAlign: 'center',
     marginBottom: 16,
   },
   retryButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
   },
   retryButtonText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -994,7 +998,7 @@ const styles = StyleSheet.create({
   reportCard: {
     borderRadius: 16,
     overflow: 'hidden',
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
@@ -1002,7 +1006,7 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   reportHeader: {
-    backgroundColor: Colors.warning,
+    backgroundColor: SemanticColors.warning,
     paddingVertical: 10,
     paddingHorizontal: 12,
   },
@@ -1023,7 +1027,7 @@ const styles = StyleSheet.create({
     minWidth: 64,
   },
   headerTypeText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase',
@@ -1042,7 +1046,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.25)',
   },
   historyButtonText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '600',
   },
@@ -1050,7 +1054,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   reportRuleTitle: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -1061,22 +1065,22 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   reportBodyWrapper: {
-    backgroundColor: Colors.warning,
+    backgroundColor: SemanticColors.warning,
   },
   reportBody: {
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     overflow: 'hidden',
   },
   reportBodyBottomCurve: {
     height: 16,
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     borderBottomLeftRadius: 16,
     borderBottomRightRadius: 16,
   },
   reportFooter: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingHorizontal: 12,
     paddingTop: 8,
     paddingBottom: 12,
@@ -1097,7 +1101,7 @@ const styles = StyleSheet.create({
   reporterName: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.white,
+    color: '#FFFFFF',
   },
   reporterUsername: {
     fontSize: 12,
@@ -1156,9 +1160,9 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 12,
     paddingVertical: 12,
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     borderTopWidth: 1,
-    borderTopColor: Colors.cardBorder,
+    borderTopColor: colors.cardBorder,
   },
   actionButton: {
     alignItems: 'center',
@@ -1166,37 +1170,37 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 12,
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
     gap: 4,
     minWidth: 70,
   },
   actionButtonDismiss: {
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
   },
   actionButtonAction: {
-    backgroundColor: Colors.warning,
-    borderColor: Colors.warning,
+    backgroundColor: SemanticColors.warning,
+    borderColor: SemanticColors.warning,
   },
   actionButtonApprove: {
-    backgroundColor: Colors.agree,
-    borderColor: Colors.agree,
+    backgroundColor: SemanticColors.agree,
+    borderColor: SemanticColors.agree,
     flex: 1,
   },
   actionButtonModify: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
     flex: 1,
   },
   actionButtonDeny: {
-    backgroundColor: Colors.warning,
-    borderColor: Colors.warning,
+    backgroundColor: SemanticColors.warning,
+    borderColor: SemanticColors.warning,
     flex: 1,
   },
   actionButtonEscalated: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
     flex: 1,
   },
   escalatedButtonLabel: {
@@ -1218,40 +1222,40 @@ const styles = StyleSheet.create({
   actionButtonText: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
   actionButtonTextPrimary: {
-    color: Colors.primary,
+    color: colors.primary,
   },
   actionButtonTextWhite: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.white,
+    color: '#FFFFFF',
   },
   responseModalContent: {
     padding: 16,
     gap: 16,
   },
   responseInput: {
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 14,
-    color: Colors.light.text,
+    color: colors.text,
     minHeight: 60,
     maxHeight: 120,
   },
   responseSubmitButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
   },
   responseSubmitApprove: {
-    backgroundColor: Colors.agree,
+    backgroundColor: SemanticColors.agree,
   },
   responseSubmitEscalate: {
     backgroundColor: '#E67E22',
@@ -1262,7 +1266,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   responseSubmitText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -1274,13 +1278,13 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   outcomeBadgeText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
   },
   actionButtonDismissNotification: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
     flex: 1,
   },
 })

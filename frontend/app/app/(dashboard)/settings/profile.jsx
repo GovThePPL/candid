@@ -1,11 +1,12 @@
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, Image, TextInput, Alert } from 'react-native'
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
-import { Colors } from '../../../constants/Colors'
-import { SharedStyles } from '../../../constants/SharedStyles'
+import { useThemeColors } from '../../../hooks/useThemeColors'
+import { SemanticColors } from '../../../constants/Colors'
+import { createSharedStyles } from '../../../constants/SharedStyles'
 import api from '../../../lib/api'
 import { useUser } from '../../../hooks/useUser'
 import { CacheManager, CacheKeys, CacheDurations } from '../../../lib/cache'
@@ -19,6 +20,9 @@ import LoadingView from '../../../components/LoadingView'
 export default function ProfileSettings() {
   const { user, refreshUser } = useUser()
   const router = useRouter()
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+  const shared = useMemo(() => createSharedStyles(colors), [colors])
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -96,7 +100,7 @@ export default function ProfileSettings() {
     }, [fetchData])
   )
 
-  // Handler for profile field changes (display name, email) - no auto-save
+  // Handler for profile field changes (display name) - no auto-save
   const handleProfileFieldChange = (setter) => (value) => {
     setter(value)
     if (!isInitialLoadRef.current) {
@@ -235,7 +239,7 @@ export default function ProfileSettings() {
 
         {error && (
           <View style={styles.errorContainer}>
-            <Ionicons name="alert-circle" size={20} color={Colors.warning} />
+            <Ionicons name="alert-circle" size={20} color={SemanticColors.warning} />
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
@@ -259,7 +263,7 @@ export default function ProfileSettings() {
         {/* Basic Info Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="person-outline" size={22} color={Colors.primary} />
+            <Ionicons name="person-outline" size={22} color={colors.primary} />
             <Text style={styles.sectionTitle}>Basic Information</Text>
           </View>
 
@@ -270,7 +274,7 @@ export default function ProfileSettings() {
               value={displayName}
               onChangeText={handleProfileFieldChange(setDisplayName)}
               placeholder="Your display name"
-              placeholderTextColor={Colors.pass}
+              placeholderTextColor={colors.placeholderText}
             />
           </View>
 
@@ -310,7 +314,7 @@ export default function ProfileSettings() {
           setAvatarModalOpen(false)
         }}
       >
-        <Pressable style={SharedStyles.modalOverlay} onPress={() => {
+        <Pressable style={shared.modalOverlay} onPress={() => {
           setCroppedImagePreview(null)
           setAvatarModalOpen(false)
         }}>
@@ -372,7 +376,7 @@ export default function ProfileSettings() {
                     onPress={handleRemoveAvatar}
                     disabled={saving}
                   >
-                    <Ionicons name="trash-outline" size={20} color={Colors.warning} />
+                    <Ionicons name="trash-outline" size={20} color={SemanticColors.warning} />
                     <Text style={styles.removeAvatarButtonText}>Remove Photo</Text>
                   </TouchableOpacity>
                 )}
@@ -397,10 +401,10 @@ export default function ProfileSettings() {
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -413,7 +417,7 @@ const styles = StyleSheet.create({
   pageTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: Colors.primary,
+    color: colors.primary,
   },
   errorContainer: {
     flexDirection: 'row',
@@ -426,16 +430,16 @@ const styles = StyleSheet.create({
   },
   errorText: {
     flex: 1,
-    color: Colors.warning,
+    color: SemanticColors.warning,
     fontSize: 14,
   },
   section: {
-    backgroundColor: Colors.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -446,7 +450,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.darkText,
+    color: colors.darkText,
   },
   avatarSection: {
     alignItems: 'center',
@@ -459,19 +463,19 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     right: 0,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     width: 32,
     height: 32,
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: Colors.white,
+    borderColor: colors.cardBackground,
   },
   avatarHint: {
     marginTop: 8,
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
   inputGroup: {
     marginBottom: 16,
@@ -479,33 +483,33 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#666',
+    color: colors.secondaryText,
     marginBottom: 6,
   },
   textInput: {
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
     borderRadius: 8,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
-    color: Colors.darkText,
+    color: colors.darkText,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
   },
   readOnlyValue: {
     fontSize: 16,
-    color: Colors.pass,
+    color: colors.secondaryText,
     paddingVertical: 12,
   },
   saveProfileButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
     marginBottom: 16,
   },
   saveProfileButtonText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -514,7 +518,7 @@ const styles = StyleSheet.create({
   },
   // Avatar modal styles
   avatarModalContent: {
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     width: '100%',
     maxWidth: 360,
@@ -524,7 +528,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.darkText,
+    color: colors.darkText,
     padding: 16,
     textAlign: 'center',
   },
@@ -532,7 +536,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 8,
@@ -541,7 +545,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   uploadPhotoButtonText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -557,16 +561,16 @@ const styles = StyleSheet.create({
     marginTop: 12,
     gap: 8,
     borderWidth: 1,
-    borderColor: Colors.warning,
+    borderColor: SemanticColors.warning,
   },
   removeAvatarButtonText: {
-    color: Colors.warning,
+    color: SemanticColors.warning,
     fontSize: 16,
     fontWeight: '500',
   },
   avatarInfoText: {
     textAlign: 'center',
-    color: Colors.pass,
+    color: colors.secondaryText,
     fontSize: 13,
     marginTop: 16,
     marginBottom: 8,
@@ -581,7 +585,7 @@ const styles = StyleSheet.create({
     width: 150,
     height: 150,
     borderRadius: 75,
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
   },
   previewButtons: {
     flexDirection: 'row',
@@ -594,23 +598,23 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
     alignItems: 'center',
   },
   previewCancelButtonText: {
     fontSize: 16,
-    color: '#666',
+    color: colors.secondaryText,
   },
   previewAcceptButton: {
     flex: 1,
     paddingVertical: 12,
     borderRadius: 8,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     alignItems: 'center',
   },
   previewAcceptButtonText: {
     fontSize: 16,
-    color: Colors.white,
+    color: '#FFFFFF',
     fontWeight: '600',
   },
 })

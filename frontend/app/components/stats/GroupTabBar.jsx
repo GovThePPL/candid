@@ -1,5 +1,6 @@
+import { useMemo } from 'react'
 import { ScrollView, TouchableOpacity, Text, StyleSheet, View, useWindowDimensions } from 'react-native'
-import { Colors } from '../../constants/Colors'
+import { useThemeColors } from '../../hooks/useThemeColors'
 
 /**
  * Horizontal button bar for navigating between opinion groups
@@ -16,6 +17,8 @@ export default function GroupTabBar({
   onTabChange,
   showMyPositions = true,
 }) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
   const { width: screenWidth } = useWindowDimensions()
 
   // Get custom label for a group from labelRankings
@@ -83,7 +86,7 @@ export default function GroupTabBar({
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -95,21 +98,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 20,
-    backgroundColor: Colors.light.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
   },
   activeButton: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: colors.buttonSelected,
+    borderColor: colors.buttonSelected,
   },
   buttonLabel: {
     fontSize: 14,
     fontWeight: '500',
-    color: Colors.light.text,
+    color: colors.text,
   },
   activeButtonLabel: {
-    color: Colors.white,
+    color: colors.buttonSelectedText,
     fontWeight: '600',
   },
 })

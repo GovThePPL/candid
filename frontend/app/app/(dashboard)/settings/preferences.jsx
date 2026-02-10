@@ -1,10 +1,11 @@
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable } from 'react-native'
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../../../constants/Colors'
-import { SharedStyles } from '../../../constants/SharedStyles'
+import { useThemeColors } from '../../../hooks/useThemeColors'
+import { SemanticColors } from '../../../constants/Colors'
+import { createSharedStyles } from '../../../constants/SharedStyles'
 import api from '../../../lib/api'
 import { useUser } from '../../../hooks/useUser'
 import { CacheManager, CacheKeys, CacheDurations } from '../../../lib/cache'
@@ -34,6 +35,9 @@ const LIKELIHOOD_OPTIONS = [
 export default function PreferencesSettings() {
   const { user } = useUser()
   const router = useRouter()
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+  const shared = useMemo(() => createSharedStyles(colors), [colors])
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -248,7 +252,7 @@ export default function PreferencesSettings() {
 
         {error && (
           <View style={styles.errorContainer}>
-            <Ionicons name="alert-circle" size={20} color={Colors.warning} />
+            <Ionicons name="alert-circle" size={20} color={SemanticColors.warning} />
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
@@ -256,7 +260,7 @@ export default function PreferencesSettings() {
         {/* Category Preferences Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="grid-outline" size={22} color={Colors.primary} />
+            <Ionicons name="grid-outline" size={22} color={colors.primary} />
             <Text style={styles.sectionTitle}>Category Preferences</Text>
           </View>
           <Text style={styles.sectionDescription}>
@@ -282,7 +286,7 @@ export default function PreferencesSettings() {
                     ]}>
                       {getWeightLabel(weight)}
                     </Text>
-                    <Ionicons name="chevron-down" size={16} color={Colors.pass} />
+                    <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
                   </View>
                 </TouchableOpacity>
               )
@@ -293,7 +297,7 @@ export default function PreferencesSettings() {
         {/* Chat Request Frequency Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="chatbubbles-outline" size={22} color={Colors.primary} />
+            <Ionicons name="chatbubbles-outline" size={22} color={colors.primary} />
             <Text style={styles.sectionTitle}>Chat Request Frequency</Text>
           </View>
           <Text style={styles.sectionDescription}>
@@ -327,7 +331,7 @@ export default function PreferencesSettings() {
         {/* Chatting List Frequency Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="list-outline" size={22} color={Colors.primary} />
+            <Ionicons name="list-outline" size={22} color={colors.primary} />
             <Text style={styles.sectionTitle}>Chatting List Frequency</Text>
           </View>
           <Text style={styles.sectionDescription}>
@@ -361,7 +365,7 @@ export default function PreferencesSettings() {
         {/* Saving indicator */}
         {saving && (
           <View style={styles.savingContainer}>
-            <ActivityIndicator size="small" color={Colors.primary} />
+            <ActivityIndicator size="small" color={colors.primary} />
             <Text style={styles.savingText}>Saving...</Text>
           </View>
         )}
@@ -374,7 +378,7 @@ export default function PreferencesSettings() {
         animationType="fade"
         onRequestClose={() => setWeightModalOpen(false)}
       >
-        <Pressable style={SharedStyles.modalOverlay} onPress={() => setWeightModalOpen(false)}>
+        <Pressable style={shared.modalOverlay} onPress={() => setWeightModalOpen(false)}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>
               {selectedCategoryForWeight?.label || selectedCategoryForWeight?.name}
@@ -404,7 +408,7 @@ export default function PreferencesSettings() {
                       <Text style={styles.modalItemDescription}>{option.description}</Text>
                     </View>
                     {isSelected && (
-                      <Ionicons name="checkmark" size={20} color={Colors.primary} />
+                      <Ionicons name="checkmark" size={20} color={colors.primary} />
                     )}
                   </TouchableOpacity>
                 )
@@ -417,10 +421,10 @@ export default function PreferencesSettings() {
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -433,7 +437,7 @@ const styles = StyleSheet.create({
   pageTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: Colors.primary,
+    color: colors.primary,
   },
   errorContainer: {
     flexDirection: 'row',
@@ -446,16 +450,16 @@ const styles = StyleSheet.create({
   },
   errorText: {
     flex: 1,
-    color: Colors.warning,
+    color: SemanticColors.warning,
     fontSize: 14,
   },
   section: {
-    backgroundColor: Colors.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -466,11 +470,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.darkText,
+    color: colors.darkText,
   },
   sectionDescription: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
     lineHeight: 20,
     marginBottom: 16,
   },
@@ -484,16 +488,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 12,
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
+    borderBottomColor: colors.cardBorder,
   },
   categoryItemModified: {
-    backgroundColor: Colors.primaryLight + '30',
+    backgroundColor: colors.primaryLight + '30',
   },
   categoryName: {
     fontSize: 15,
-    color: Colors.darkText,
+    color: colors.darkText,
     flex: 1,
   },
   categoryWeightButton: {
@@ -502,22 +506,22 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: Colors.white,
+    backgroundColor: colors.uiBackground,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
   },
   categoryWeightText: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
   categoryWeightTextModified: {
-    color: Colors.primary,
+    color: colors.primary,
     fontWeight: '500',
   },
   likelihoodSelector: {
     flexDirection: 'row',
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
     borderRadius: 8,
     padding: 4,
   },
@@ -529,19 +533,19 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   likelihoodOptionSelected: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
   },
   likelihoodOptionLabel: {
     fontSize: 13,
-    color: Colors.pass,
+    color: colors.secondaryText,
     fontWeight: '500',
   },
   likelihoodOptionLabelSelected: {
-    color: Colors.white,
+    color: '#FFFFFF',
   },
   likelihoodDescription: {
     fontSize: 13,
-    color: Colors.pass,
+    color: colors.secondaryText,
     textAlign: 'center',
     marginTop: 10,
     fontStyle: 'italic',
@@ -555,11 +559,11 @@ const styles = StyleSheet.create({
   },
   savingText: {
     fontSize: 14,
-    color: Colors.primary,
+    color: colors.primary,
   },
   // Modal styles
   modalContent: {
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     width: '100%',
     maxWidth: 340,
@@ -569,14 +573,14 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.darkText,
+    color: colors.darkText,
     padding: 16,
     paddingBottom: 4,
     textAlign: 'center',
   },
   modalSubtitle: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
     paddingHorizontal: 16,
     paddingBottom: 12,
     textAlign: 'center',
@@ -591,10 +595,10 @@ const styles = StyleSheet.create({
     padding: 14,
     paddingHorizontal: 16,
     borderTopWidth: 1,
-    borderTopColor: Colors.cardBorder,
+    borderTopColor: colors.cardBorder,
   },
   modalItemSelected: {
-    backgroundColor: Colors.primaryLight,
+    backgroundColor: colors.primaryLight,
   },
   modalItemLast: {
     borderBottomWidth: 0,
@@ -604,15 +608,15 @@ const styles = StyleSheet.create({
   },
   modalItemLabel: {
     fontSize: 16,
-    color: Colors.darkText,
+    color: colors.darkText,
     fontWeight: '500',
   },
   modalItemLabelSelected: {
-    color: Colors.primary,
+    color: colors.primary,
   },
   modalItemDescription: {
     fontSize: 13,
-    color: Colors.pass,
+    color: colors.secondaryText,
     marginTop: 2,
   },
 })

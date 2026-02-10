@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   View,
   Text,
@@ -7,7 +7,8 @@ import {
   ScrollView,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../../constants/Colors'
+import { SemanticColors, BrandColor } from '../../constants/Colors'
+import { useThemeColors } from '../../hooks/useThemeColors'
 import { chatApiWrapper } from '../../lib/api'
 import BottomDrawerModal from '../BottomDrawerModal'
 import LoadingView from '../LoadingView'
@@ -23,6 +24,9 @@ import EmptyState from '../EmptyState'
  * @param {string|Object} props.closureText - Agreed closure text from the closure card
  */
 export default function AgreedStatementsModal({ visible, onClose, chatLogId, closureText: closureTextProp }) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [chatData, setChatData] = useState(null)
@@ -61,7 +65,7 @@ export default function AgreedStatementsModal({ visible, onClose, chatLogId, clo
     if (error) {
       return (
         <View style={styles.centerContainer}>
-          <Ionicons name="alert-circle-outline" size={48} color={Colors.disagree} />
+          <Ionicons name="alert-circle-outline" size={48} color={SemanticColors.disagree} />
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={fetchChatLog}>
             <Text style={styles.retryButtonText}>Retry</Text>
@@ -81,7 +85,7 @@ export default function AgreedStatementsModal({ visible, onClose, chatLogId, clo
             <Text style={styles.sectionTitle}>Agreed Statements ({agreedPositions.length})</Text>
             {agreedPositions.map((statement, index) => (
               <View key={index} style={styles.statementCard}>
-                <Ionicons name="checkmark-circle" size={18} color={Colors.agree} />
+                <Ionicons name="checkmark-circle" size={18} color={SemanticColors.agree} />
                 <Text style={styles.statementText}>{statement.content || statement}</Text>
               </View>
             ))}
@@ -93,7 +97,7 @@ export default function AgreedStatementsModal({ visible, onClose, chatLogId, clo
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Final Agreement</Text>
             <View style={styles.closureCard}>
-              <Ionicons name="ribbon-outline" size={20} color={Colors.primary} />
+              <Ionicons name="ribbon-outline" size={20} color={colors.primary} />
               <Text style={styles.closureText}>"{resolvedClosureText}"</Text>
             </View>
           </View>
@@ -128,7 +132,7 @@ export default function AgreedStatementsModal({ visible, onClose, chatLogId, clo
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   contentWrapper: {
     paddingHorizontal: 16,
     paddingBottom: 24,
@@ -142,19 +146,19 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 14,
-    color: Colors.disagree,
+    color: SemanticColors.disagree,
     textAlign: 'center',
     marginTop: 12,
   },
   retryButton: {
     marginTop: 16,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 8,
   },
   retryButtonText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontWeight: '600',
   },
   scrollView: {
@@ -166,13 +170,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: colors.text,
     marginBottom: 12,
   },
   statementCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: Colors.agree + '10',
+    backgroundColor: SemanticColors.agree + '10',
     borderRadius: 8,
     padding: 12,
     marginBottom: 8,
@@ -181,35 +185,35 @@ const styles = StyleSheet.create({
   statementText: {
     flex: 1,
     fontSize: 14,
-    color: Colors.light.text,
+    color: colors.text,
     lineHeight: 20,
   },
   closureCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: BrandColor + '18',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: Colors.primary + '40',
+    borderColor: BrandColor + '40',
     gap: 10,
   },
   closureText: {
     flex: 1,
     fontSize: 15,
     fontStyle: 'italic',
-    color: Colors.light.text,
+    color: colors.text,
     lineHeight: 22,
   },
   doneButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     borderRadius: 8,
     paddingVertical: 14,
     alignItems: 'center',
     marginTop: 16,
   },
   doneButtonText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },

@@ -1,9 +1,10 @@
 import { StyleSheet, View, Text, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useCallback, useState, useEffect, useContext, useRef } from 'react'
+import { useCallback, useState, useEffect, useContext, useRef, useMemo } from 'react'
 import { useRouter } from 'expo-router'
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
-import { Colors } from '../../constants/Colors'
+import { SemanticColors } from '../../constants/Colors'
+import { useThemeColors } from '../../hooks/useThemeColors'
 import Header from '../../components/Header'
 import EmptyState from '../../components/EmptyState'
 import CardShell from '../../components/CardShell'
@@ -31,27 +32,27 @@ const formatDate = (dateString) => {
   }
 }
 
-const getEndTypeLabel = (endType, endedByUserId, currentUserId) => {
+const getEndTypeLabel = (endType, endedByUserId, currentUserId, colors) => {
   switch (endType) {
     case 'mutual_agreement':
     case 'agreed_closure':
-      return { label: 'Agreed', color: Colors.agree, icon: 'handshake-outline', iconType: 'material-community' }
+      return { label: 'Agreed', color: SemanticColors.agree, icon: 'handshake-outline', iconType: 'material-community' }
     case 'disagreement':
-      return { label: 'Disagreed', color: Colors.disagree, icon: 'close-circle' }
+      return { label: 'Disagreed', color: SemanticColors.disagree, icon: 'close-circle' }
     case 'timeout':
-      return { label: 'Timed Out', color: Colors.pass, icon: 'time' }
+      return { label: 'Timed Out', color: colors.pass, icon: 'time' }
     case 'abandoned':
     case 'user_exit':
       if (endedByUserId && currentUserId) {
         if (endedByUserId === currentUserId) {
-          return { label: 'You left', color: Colors.pass, icon: 'exit-outline' }
+          return { label: 'You left', color: colors.pass, icon: 'exit-outline' }
         } else {
-          return { label: 'They left', color: Colors.pass, icon: 'exit-outline' }
+          return { label: 'They left', color: colors.pass, icon: 'exit-outline' }
         }
       }
-      return { label: 'Ended', color: Colors.pass, icon: 'exit' }
+      return { label: 'Ended', color: colors.pass, icon: 'exit' }
     default:
-      return { label: 'Active', color: Colors.primary, icon: 'chatbubbles' }
+      return { label: 'Active', color: colors.primary, icon: 'chatbubbles' }
   }
 }
 
@@ -103,9 +104,9 @@ function MetaBadgeIcon({ endTypeInfo }) {
   return <Ionicons name={endTypeInfo.icon} size={14} color={endTypeInfo.color} />
 }
 
-function ChatHistoryCard({ chat, onPress, onSendKudos, onReport, currentUserId }) {
+function ChatHistoryCard({ chat, onPress, onSendKudos, onReport, currentUserId, colors, styles }) {
   const { position, otherUser, agreedClosure, startTime, endTime, endType, status, endedByUserId, kudosSent, kudosReceived } = chat
-  const endTypeInfo = getEndTypeLabel(endType, endedByUserId, currentUserId)
+  const endTypeInfo = getEndTypeLabel(endType, endedByUserId, currentUserId, colors)
   const isActive = status === 'active' && !endTime
   const showKudosSection = agreedClosure != null
 
@@ -171,7 +172,7 @@ function ChatHistoryCard({ chat, onPress, onSendKudos, onReport, currentUserId }
               style={styles.reportIconButton}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Ionicons name="flag-outline" size={16} color={Colors.pass} />
+              <Ionicons name="flag-outline" size={16} color={colors.secondaryText} />
             </TouchableOpacity>
           )}
         </View>
@@ -179,7 +180,7 @@ function ChatHistoryCard({ chat, onPress, onSendKudos, onReport, currentUserId }
 
       <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
         <CardShell
-          accentColor={agreedClosure ? Colors.agree : Colors.cardBackground}
+          accentColor={agreedClosure ? SemanticColors.agree : colors.cardBackground}
           bottomSection={closureBottomSection}
           bottomStyle={styles.closureBottom}
         >
@@ -197,6 +198,9 @@ function ChatHistoryCard({ chat, onPress, onSendKudos, onReport, currentUserId }
 export default function Chats() {
   const { user } = useContext(UserContext)
   const router = useRouter()
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+
   const [chats, setChats] = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -333,8 +337,10 @@ export default function Chats() {
       onSendKudos={handleSendKudos}
       onReport={handleReportChat}
       currentUserId={user?.id}
+      colors={colors}
+      styles={styles}
     />
-  ), [handleChatPress, handleSendKudos, handleReportChat, user?.id])
+  ), [handleChatPress, handleSendKudos, handleReportChat, user?.id, colors, styles])
 
   const keyExtractor = useCallback((item) => item.id, [])
 
@@ -360,7 +366,7 @@ export default function Chats() {
 
       {error && (
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={24} color={Colors.warning} />
+          <Ionicons name="alert-circle" size={24} color={SemanticColors.warning} />
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity onPress={() => fetchChats()} style={styles.retryButton}>
             <Text style={styles.retryText}>Retry</Text>
@@ -370,7 +376,7 @@ export default function Chats() {
 
       {loading && !refreshing ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : (
         <FlatList
@@ -384,8 +390,8 @@ export default function Chats() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              tintColor={Colors.primary}
-              colors={[Colors.primary]}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
             />
           }
         />
@@ -400,10 +406,10 @@ export default function Chats() {
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
   },
   sectionHeader: {
     paddingHorizontal: 16,
@@ -413,11 +419,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: '700',
-    color: Colors.primary,
+    color: colors.primary,
   },
   subtitle: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
     marginTop: 4,
   },
   listContent: {
@@ -443,16 +449,16 @@ const styles = StyleSheet.create({
   errorText: {
     flex: 1,
     fontSize: 14,
-    color: Colors.warning,
+    color: SemanticColors.warning,
   },
   retryButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: Colors.warning,
+    backgroundColor: SemanticColors.warning,
     borderRadius: 6,
   },
   retryText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '600',
   },
@@ -478,7 +484,7 @@ const styles = StyleSheet.create({
   },
   metaDate: {
     fontSize: 12,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
   metaBadge: {
     flexDirection: 'row',
@@ -504,7 +510,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: Colors.agree,
+    backgroundColor: SemanticColors.agree,
   },
 
   // Closure bottom section
@@ -519,7 +525,7 @@ const styles = StyleSheet.create({
   closureText: {
     flex: 1,
     fontSize: 14,
-    color: Colors.white,
+    color: '#FFFFFF',
     lineHeight: 20,
   },
 
@@ -541,7 +547,7 @@ const styles = StyleSheet.create({
   },
   kudosReceivedText: {
     fontSize: 12,
-    color: Colors.white,
+    color: '#FFFFFF',
     fontWeight: '500',
   },
   kudosPlaceholder: {

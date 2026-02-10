@@ -1,10 +1,11 @@
 import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, Image, Alert, Platform, KeyboardAvoidingView, ScrollView } from 'react-native'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
-import { Colors } from '../../constants/Colors'
+import { SemanticColors } from '../../constants/Colors'
+import { useThemeColors } from '../../hooks/useThemeColors'
 import api from '../../lib/api'
 import { useUser } from '../../hooks/useUser'
 
@@ -19,6 +20,9 @@ import LocationPicker from '../../components/LocationPicker'
 export default function SetupProfile() {
   const { user, refreshUser, clearNewUser } = useUser()
   const router = useRouter()
+
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
 
   const [displayName, setDisplayName] = useState('')
   const [avatarUrl, setAvatarUrl] = useState(null)
@@ -146,7 +150,7 @@ export default function SetupProfile() {
           >
             {uploadingAvatar ? (
               <View style={styles.avatarPlaceholder}>
-                <ActivityIndicator size="large" color={Colors.primary} />
+                <ActivityIndicator size="large" color={colors.primary} />
               </View>
             ) : (
               <Avatar
@@ -192,7 +196,7 @@ export default function SetupProfile() {
               ) : (
                 <Text style={styles.locationPlaceholder}>Tap to set your location</Text>
               )}
-              <Ionicons name="chevron-forward" size={18} color={Colors.pass} />
+              <Ionicons name="chevron-forward" size={18} color={colors.secondaryText} />
             </TouchableOpacity>
           </View>
 
@@ -239,10 +243,10 @@ export default function SetupProfile() {
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
   },
   keyboardView: {
     flex: 1,
@@ -255,12 +259,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: Colors.primary,
+    color: colors.primary,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 15,
-    color: Colors.pass,
+    color: colors.secondaryText,
     textAlign: 'center',
     marginTop: 8,
     maxWidth: 280,
@@ -272,7 +276,7 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: Colors.cardBorder,
+    backgroundColor: colors.cardBorder,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -280,19 +284,19 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     right: 0,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     width: 36,
     height: 36,
     borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: Colors.white,
+    borderColor: colors.cardBackground,
   },
   avatarHint: {
     marginTop: 8,
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
   formContainer: {
     width: '100%',
@@ -301,36 +305,36 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#666',
+    color: colors.secondaryText,
     marginBottom: 6,
   },
   input: {
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
     fontSize: 16,
-    backgroundColor: Colors.white,
-    color: Colors.darkText,
+    backgroundColor: colors.cardBackground,
+    color: colors.darkText,
   },
   locationSelector: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
     padding: 16,
   },
   locationText: {
     flex: 1,
     fontSize: 16,
-    color: Colors.primary,
+    color: colors.primary,
   },
   locationPlaceholder: {
     flex: 1,
     fontSize: 16,
-    color: Colors.pass,
+    color: colors.placeholderText,
   },
   errorContainer: {
     marginTop: 12,
@@ -338,10 +342,10 @@ const styles = StyleSheet.create({
     maxWidth: 320,
   },
   errorText: {
-    color: Colors.warning,
+    color: SemanticColors.warning,
     padding: 12,
     backgroundColor: '#ffe6e6',
-    borderColor: Colors.warning,
+    borderColor: SemanticColors.warning,
     borderWidth: 1,
     borderRadius: 8,
     textAlign: 'center',
@@ -357,7 +361,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   continueButtonText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -366,7 +370,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   skipButtonText: {
-    color: Colors.pass,
+    color: colors.secondaryText,
     fontSize: 14,
   },
 })

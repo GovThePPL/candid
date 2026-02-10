@@ -1,6 +1,7 @@
+import { useMemo } from 'react'
 import { View, Text, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../constants/Colors'
+import { useThemeColors } from '../hooks/useThemeColors'
 
 /**
  * Empty state placeholder with icon, title, and optional subtitle.
@@ -12,16 +13,19 @@ import { Colors } from '../constants/Colors'
  * @param {Object} [props.style] - Additional container style
  */
 export default function EmptyState({ icon, title, subtitle, style }) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+
   return (
     <View style={[styles.container, style]}>
-      <Ionicons name={icon} size={48} color={Colors.pass} />
+      <Ionicons name={icon} size={48} color={colors.placeholderText} />
       <Text style={styles.title}>{title}</Text>
       {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
     </View>
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',
@@ -30,13 +34,13 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 15,
-    color: Colors.pass,
+    color: colors.placeholderText,
     textAlign: 'center',
     marginTop: 12,
   },
   subtitle: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.placeholderText,
     textAlign: 'center',
     marginTop: 8,
   },

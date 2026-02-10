@@ -1,7 +1,8 @@
 import { StyleSheet, View, Text, TouchableOpacity, Animated } from 'react-native'
-import { useState, useRef, useImperativeHandle, forwardRef, useCallback } from 'react'
+import { useState, useRef, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../../constants/Colors'
+import { useThemeColors } from '../../hooks/useThemeColors'
+import { BrandColor } from '../../constants/Colors'
 import SwipeableCard from './SwipeableCard'
 
 const PairwiseCard = forwardRef(function PairwiseCard({
@@ -11,6 +12,8 @@ const PairwiseCard = forwardRef(function PairwiseCard({
   isBackCard = false,
   backCardAnimatedValue,
 }, ref) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
   const [selectedOption, setSelectedOption] = useState(null)
   const flashAnim = useRef(new Animated.Value(0)).current
   const swipeableRef = useRef(null)
@@ -84,7 +87,7 @@ const PairwiseCard = forwardRef(function PairwiseCard({
   // Calculate flash background color (darkens to indicate selection needed)
   const flashBackgroundColor = flashAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [Colors.primaryLight, Colors.primaryMuted],
+    outputRange: [colors.buttonDefault, colors.buttonSelected],
   })
 
   return (
@@ -181,13 +184,13 @@ const PairwiseCard = forwardRef(function PairwiseCard({
 
 export default PairwiseCard
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   card: {
     flex: 1,
-    backgroundColor: Colors.primary,
+    backgroundColor: BrandColor,
   },
   headerSection: {
-    backgroundColor: Colors.primary,
+    backgroundColor: BrandColor,
     paddingTop: 24,
     paddingHorizontal: 16,
     paddingBottom: 28,
@@ -207,7 +210,7 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   headerTitle: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 22,
     fontWeight: '600',
     fontStyle: 'italic',
@@ -218,11 +221,11 @@ const styles = StyleSheet.create({
   },
   contentCardWrapper: {
     flex: 1,
-    backgroundColor: Colors.primary,
+    backgroundColor: BrandColor,
   },
   contentCard: {
     flex: 1,
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     overflow: 'hidden',
@@ -235,7 +238,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   locationBadge: {
-    backgroundColor: Colors.primaryMuted + '20',
+    backgroundColor: colors.badgeBg,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -243,11 +246,11 @@ const styles = StyleSheet.create({
   locationCode: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.primary,
+    color: colors.badgeText,
   },
   categoryName: {
     fontSize: 14,
-    color: Colors.primary,
+    color: colors.badgeText,
   },
   questionContainer: {
     flex: 1,
@@ -257,7 +260,7 @@ const styles = StyleSheet.create({
   question: {
     fontSize: 22,
     fontWeight: '600',
-    color: Colors.darkText,
+    color: colors.darkText,
     lineHeight: 30,
     textAlign: 'center',
   },
@@ -265,22 +268,22 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   option: {
-    backgroundColor: Colors.primaryLight,
+    backgroundColor: colors.buttonDefault,
     borderRadius: 25,
     paddingVertical: 14,
     paddingHorizontal: 20,
     alignItems: 'center',
   },
   optionSelected: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.buttonSelected,
   },
   optionText: {
     fontSize: 16,
     fontWeight: '500',
-    color: Colors.darkText,
+    color: colors.buttonDefaultText,
   },
   optionTextSelected: {
-    color: Colors.white,
+    color: colors.buttonSelectedText,
   },
   footer: {
     alignItems: 'center',
@@ -290,10 +293,10 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: 16,
     fontWeight: '500',
-    color: Colors.primary,
+    color: colors.primary,
   },
   skipText: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
 })

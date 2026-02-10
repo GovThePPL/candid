@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, createContext, useContext, useCallback } from 'react'
+import { useEffect, useRef, useState, useMemo, createContext, useContext, useCallback } from 'react'
 import { StyleSheet, Text, Animated, View } from 'react-native'
-import { Colors } from '../constants/Colors'
+import { useThemeColors } from '../hooks/useThemeColors'
 
 const ToastContext = createContext()
 
@@ -9,6 +9,9 @@ export function useToast() {
 }
 
 export function ToastProvider({ children }) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+
   const [message, setMessage] = useState(null)
   const opacity = useRef(new Animated.Value(0)).current
   const timeoutRef = useRef(null)
@@ -45,7 +48,7 @@ export function ToastProvider({ children }) {
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     position: 'absolute',
     bottom: 100,
@@ -55,14 +58,16 @@ const styles = StyleSheet.create({
     zIndex: 9999,
   },
   toast: {
-    backgroundColor: Colors.darkText,
+    backgroundColor: colors.navBackground,
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 25,
     maxWidth: '85%',
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
   },
   text: {
-    color: Colors.white,
+    color: colors.text,
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 20,

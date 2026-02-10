@@ -1,11 +1,14 @@
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Modal, Pressable, ActivityIndicator } from 'react-native'
 import { useState, useMemo } from 'react'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../constants/Colors'
-import { SharedStyles } from '../constants/SharedStyles'
+import { useThemeColors } from '../hooks/useThemeColors'
+import { createSharedStyles } from '../constants/SharedStyles'
 
 export default function LocationPicker({ visible, onClose, allLocations, currentLocationId, onSelect, saving }) {
   const [breadcrumb, setBreadcrumb] = useState([]) // stack of {id, name} for drill-down
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+  const shared = useMemo(() => createSharedStyles(colors), [colors])
 
   // Build tree from flat list
   const { childrenMap, locationMap } = useMemo(() => {
@@ -79,7 +82,7 @@ export default function LocationPicker({ visible, onClose, allLocations, current
       onRequestClose={onClose}
       onShow={handleOpen}
     >
-      <Pressable style={SharedStyles.modalOverlay} onPress={onClose}>
+      <Pressable style={shared.modalOverlay} onPress={onClose}>
         <Pressable style={styles.modalContent} onPress={e => e.stopPropagation()}>
           <Text style={styles.modalTitle}>Select Location</Text>
 
@@ -87,7 +90,7 @@ export default function LocationPicker({ visible, onClose, allLocations, current
           {breadcrumb.length > 0 && (
             <View style={styles.breadcrumbRow}>
               <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-                <Ionicons name="chevron-back" size={20} color={Colors.primary} />
+                <Ionicons name="chevron-back" size={20} color={colors.primary} />
                 <Text style={styles.backText}>Back</Text>
               </TouchableOpacity>
               <Text style={styles.breadcrumbText} numberOfLines={1}>
@@ -104,10 +107,10 @@ export default function LocationPicker({ visible, onClose, allLocations, current
               disabled={saving}
             >
               {saving ? (
-                <ActivityIndicator size="small" color={Colors.primary} />
+                <ActivityIndicator size="small" color={colors.primary} />
               ) : (
                 <>
-                  <Ionicons name="checkmark-circle-outline" size={18} color={Colors.primary} />
+                  <Ionicons name="checkmark-circle-outline" size={18} color={colors.primary} />
                   <Text style={styles.selectThisText}>
                     Select "{breadcrumb[breadcrumb.length - 1].name}"
                   </Text>
@@ -139,10 +142,10 @@ export default function LocationPicker({ visible, onClose, allLocations, current
                   </View>
                   <View style={styles.itemRight}>
                     {isCurrentSelection && (
-                      <Ionicons name="checkmark" size={20} color={Colors.primary} />
+                      <Ionicons name="checkmark" size={20} color={colors.primary} />
                     )}
                     {hasChildren && (
-                      <Ionicons name="chevron-forward" size={18} color={Colors.pass} />
+                      <Ionicons name="chevron-forward" size={18} color={colors.secondaryText} />
                     )}
                   </View>
                 </TouchableOpacity>
@@ -158,9 +161,9 @@ export default function LocationPicker({ visible, onClose, allLocations, current
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   modalContent: {
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     width: '100%',
     maxWidth: 360,
@@ -170,7 +173,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.darkText,
+    color: colors.darkText,
     padding: 16,
     textAlign: 'center',
   },
@@ -188,13 +191,13 @@ const styles = StyleSheet.create({
   },
   backText: {
     fontSize: 15,
-    color: Colors.primary,
+    color: colors.primary,
     fontWeight: '500',
   },
   breadcrumbText: {
     flex: 1,
     fontSize: 13,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
   selectThisButton: {
     flexDirection: 'row',
@@ -206,11 +209,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
   },
   selectThisText: {
     fontSize: 14,
-    color: Colors.primary,
+    color: colors.primary,
     fontWeight: '500',
   },
   scrollView: {
@@ -223,10 +226,10 @@ const styles = StyleSheet.create({
     padding: 14,
     paddingHorizontal: 16,
     borderTopWidth: 1,
-    borderTopColor: Colors.cardBorder,
+    borderTopColor: colors.cardBorder,
   },
   itemHighlighted: {
-    backgroundColor: Colors.primaryLight + '40',
+    backgroundColor: colors.primaryLight + '40',
   },
   itemLeft: {
     flex: 1,
@@ -236,15 +239,15 @@ const styles = StyleSheet.create({
   },
   itemName: {
     fontSize: 16,
-    color: Colors.darkText,
+    color: colors.darkText,
   },
   itemNameHighlighted: {
-    color: Colors.primary,
+    color: colors.primary,
     fontWeight: '500',
   },
   itemCode: {
     fontSize: 13,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
   itemRight: {
     flexDirection: 'row',
@@ -253,7 +256,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     textAlign: 'center',
-    color: Colors.pass,
+    color: colors.secondaryText,
     fontSize: 15,
     padding: 20,
   },

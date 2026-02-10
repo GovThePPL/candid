@@ -1,10 +1,11 @@
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable } from 'react-native'
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../../../constants/Colors'
-import { SharedStyles } from '../../../constants/SharedStyles'
+import { useThemeColors } from '../../../hooks/useThemeColors'
+import { SemanticColors } from '../../../constants/Colors'
+import { createSharedStyles } from '../../../constants/SharedStyles'
 import api from '../../../lib/api'
 import { useUser } from '../../../hooks/useUser'
 import { CacheManager, CacheKeys, CacheDurations } from '../../../lib/cache'
@@ -85,6 +86,9 @@ const SEX_OPTIONS = [
 export default function DemographicsSettings() {
   const { user, refreshUser } = useUser()
   const router = useRouter()
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+  const shared = useMemo(() => createSharedStyles(colors), [colors])
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -284,7 +288,7 @@ export default function DemographicsSettings() {
 
         {error && (
           <View style={styles.errorContainer}>
-            <Ionicons name="alert-circle" size={20} color={Colors.warning} />
+            <Ionicons name="alert-circle" size={20} color={SemanticColors.warning} />
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
@@ -292,7 +296,7 @@ export default function DemographicsSettings() {
         {/* Demographics Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="stats-chart-outline" size={22} color={Colors.primary} />
+            <Ionicons name="stats-chart-outline" size={22} color={colors.badgeText} />
             <Text style={styles.sectionTitle}>Demographics</Text>
           </View>
           <Text style={styles.sectionDescription}>
@@ -306,7 +310,7 @@ export default function DemographicsSettings() {
             <Text style={styles.pickerLabel}>Age Range</Text>
             <View style={styles.pickerValue}>
               <Text style={styles.pickerValueText}>{getOptionLabel(AGE_RANGE_OPTIONS, ageRange)}</Text>
-              <Ionicons name="chevron-down" size={16} color={Colors.pass} />
+              <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
             </View>
           </TouchableOpacity>
 
@@ -317,7 +321,7 @@ export default function DemographicsSettings() {
             <Text style={styles.pickerLabel}>Income Range</Text>
             <View style={styles.pickerValue}>
               <Text style={styles.pickerValueText}>{getOptionLabel(INCOME_RANGE_OPTIONS, incomeRange)}</Text>
-              <Ionicons name="chevron-down" size={16} color={Colors.pass} />
+              <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
             </View>
           </TouchableOpacity>
 
@@ -328,7 +332,7 @@ export default function DemographicsSettings() {
             <Text style={styles.pickerLabel}>Political Lean</Text>
             <View style={styles.pickerValue}>
               <Text style={styles.pickerValueText}>{getOptionLabel(POLITICAL_LEAN_OPTIONS, lean)}</Text>
-              <Ionicons name="chevron-down" size={16} color={Colors.pass} />
+              <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
             </View>
           </TouchableOpacity>
 
@@ -339,7 +343,7 @@ export default function DemographicsSettings() {
             <Text style={styles.pickerLabel}>Education</Text>
             <View style={styles.pickerValue}>
               <Text style={styles.pickerValueText}>{getOptionLabel(EDUCATION_OPTIONS, education)}</Text>
-              <Ionicons name="chevron-down" size={16} color={Colors.pass} />
+              <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
             </View>
           </TouchableOpacity>
 
@@ -350,7 +354,7 @@ export default function DemographicsSettings() {
             <Text style={styles.pickerLabel}>Geographic Locale</Text>
             <View style={styles.pickerValue}>
               <Text style={styles.pickerValueText}>{getOptionLabel(GEO_LOCALE_OPTIONS, geoLocale)}</Text>
-              <Ionicons name="chevron-down" size={16} color={Colors.pass} />
+              <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
             </View>
           </TouchableOpacity>
 
@@ -361,7 +365,7 @@ export default function DemographicsSettings() {
             <Text style={styles.pickerLabel}>Race/Ethnicity</Text>
             <View style={styles.pickerValue}>
               <Text style={styles.pickerValueText}>{getOptionLabel(RACE_OPTIONS, race)}</Text>
-              <Ionicons name="chevron-down" size={16} color={Colors.pass} />
+              <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
             </View>
           </TouchableOpacity>
 
@@ -372,7 +376,7 @@ export default function DemographicsSettings() {
             <Text style={styles.pickerLabel}>Sex</Text>
             <View style={styles.pickerValue}>
               <Text style={styles.pickerValueText}>{getOptionLabel(SEX_OPTIONS, sex)}</Text>
-              <Ionicons name="chevron-down" size={16} color={Colors.pass} />
+              <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
             </View>
           </TouchableOpacity>
         </View>
@@ -380,7 +384,7 @@ export default function DemographicsSettings() {
         {/* Location Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="location-outline" size={22} color={Colors.primary} />
+            <Ionicons name="location-outline" size={22} color={colors.badgeText} />
             <Text style={styles.sectionTitle}>Location</Text>
           </View>
           <TouchableOpacity
@@ -394,14 +398,14 @@ export default function DemographicsSettings() {
             ) : (
               <Text style={styles.locationPlaceholder}>Tap to set your location</Text>
             )}
-            <Ionicons name="chevron-forward" size={18} color={Colors.pass} />
+            <Ionicons name="chevron-forward" size={18} color={colors.secondaryText} />
           </TouchableOpacity>
         </View>
 
         {/* Auto-save indicator */}
         {saving && (
           <View style={styles.savingIndicator}>
-            <ActivityIndicator size="small" color={Colors.primary} />
+            <ActivityIndicator size="small" color={colors.primary} />
             <Text style={styles.savingText}>Saving...</Text>
           </View>
         )}
@@ -414,7 +418,7 @@ export default function DemographicsSettings() {
         animationType="fade"
         onRequestClose={() => setPickerModalOpen(false)}
       >
-        <Pressable style={SharedStyles.modalOverlay} onPress={() => setPickerModalOpen(false)}>
+        <Pressable style={shared.modalOverlay} onPress={() => setPickerModalOpen(false)}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>{pickerModalConfig?.title}</Text>
             <ScrollView style={styles.modalScrollView}>
@@ -441,7 +445,7 @@ export default function DemographicsSettings() {
                       {option.label}
                     </Text>
                     {isSelected && (
-                      <Ionicons name="checkmark" size={20} color={Colors.primary} />
+                      <Ionicons name="checkmark" size={20} color={colors.badgeText} />
                     )}
                   </TouchableOpacity>
                 )
@@ -464,10 +468,10 @@ export default function DemographicsSettings() {
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -480,7 +484,7 @@ const styles = StyleSheet.create({
   pageTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: Colors.primary,
+    color: colors.badgeText,
   },
   errorContainer: {
     flexDirection: 'row',
@@ -493,16 +497,16 @@ const styles = StyleSheet.create({
   },
   errorText: {
     flex: 1,
-    color: Colors.warning,
+    color: SemanticColors.warning,
     fontSize: 14,
   },
   section: {
-    backgroundColor: Colors.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -513,11 +517,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.darkText,
+    color: colors.darkText,
   },
   sectionDescription: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
     lineHeight: 20,
     marginBottom: 16,
   },
@@ -527,14 +531,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
+    borderBottomColor: colors.cardBorder,
   },
   pickerItemLast: {
     borderBottomWidth: 0,
   },
   pickerLabel: {
     fontSize: 15,
-    color: Colors.darkText,
+    color: colors.darkText,
   },
   pickerValue: {
     flexDirection: 'row',
@@ -543,7 +547,7 @@ const styles = StyleSheet.create({
   },
   pickerValueText: {
     fontSize: 15,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
   locationSelector: {
     flexDirection: 'row',
@@ -555,12 +559,12 @@ const styles = StyleSheet.create({
   locationBreadcrumb: {
     flex: 1,
     fontSize: 15,
-    color: Colors.primary,
+    color: colors.badgeText,
   },
   locationPlaceholder: {
     flex: 1,
     fontSize: 15,
-    color: Colors.pass,
+    color: colors.secondaryText,
     fontStyle: 'italic',
   },
   savingIndicator: {
@@ -573,11 +577,11 @@ const styles = StyleSheet.create({
   },
   savingText: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
   // Modal styles
   modalContent: {
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     width: '100%',
     maxWidth: 340,
@@ -587,7 +591,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.darkText,
+    color: colors.darkText,
     padding: 16,
     textAlign: 'center',
   },
@@ -601,20 +605,20 @@ const styles = StyleSheet.create({
     padding: 14,
     paddingHorizontal: 16,
     borderTopWidth: 1,
-    borderTopColor: Colors.cardBorder,
+    borderTopColor: colors.cardBorder,
   },
   modalItemSelected: {
-    backgroundColor: Colors.primaryLight + '40',
+    backgroundColor: colors.badgeBg,
   },
   modalItemLast: {
     borderBottomWidth: 0,
   },
   modalItemLabel: {
     fontSize: 16,
-    color: Colors.darkText,
+    color: colors.darkText,
   },
   modalItemLabelSelected: {
-    color: Colors.primary,
+    color: colors.badgeText,
     fontWeight: '500',
   },
 })

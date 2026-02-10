@@ -1,7 +1,8 @@
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native'
-import { forwardRef } from 'react'
+import { forwardRef, useMemo } from 'react'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../../constants/Colors'
+import { useThemeColors } from '../../hooks/useThemeColors'
+import { SemanticColors } from '../../constants/Colors'
 import SwipeableCard from './SwipeableCard'
 import Avatar from '../Avatar'
 
@@ -20,6 +21,8 @@ const PositionCard = forwardRef(function PositionCard({
   onRemoveFromChattingList,
   onAddToChattingList,
 }, ref) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
   const { statement, category, location, creator: author } = position
 
   return (
@@ -48,7 +51,7 @@ const PositionCard = forwardRef(function PositionCard({
           <View style={styles.headerRight}>
             {author?.fastResponder && (
               <View style={styles.fastResponderBadge}>
-                <Ionicons name="flash" size={18} color={Colors.chat} />
+                <Ionicons name="flash" size={18} color={colors.chat} />
               </View>
             )}
             <TouchableOpacity
@@ -61,7 +64,7 @@ const PositionCard = forwardRef(function PositionCard({
               <Ionicons
                 name={isFromChattingList ? "chatbubbles" : "chatbubbles-outline"}
                 size={20}
-                color={isFromChattingList ? '#FFFFFF' : Colors.primary}
+                color={isFromChattingList ? '#FFFFFF' : colors.primary}
               />
               {hasPendingRequests && <View style={styles.pendingDot} />}
             </TouchableOpacity>
@@ -103,7 +106,7 @@ const PositionCard = forwardRef(function PositionCard({
 
 export default PositionCard
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   card: {
     flex: 1,
     padding: 20,
@@ -125,7 +128,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   locationBadge: {
-    backgroundColor: Colors.primaryMuted + '20',
+    backgroundColor: colors.badgeBg,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -133,11 +136,11 @@ const styles = StyleSheet.create({
   locationCode: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.primary,
+    color: colors.badgeText,
   },
   categoryName: {
     fontSize: 14,
-    color: Colors.primary,
+    color: colors.badgeText,
   },
   chattingListButton: {
     width: 42,
@@ -148,10 +151,10 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   chattingListButtonUnselected: {
-    backgroundColor: Colors.primaryMuted + '40',
+    backgroundColor: colors.chattingListBg,
   },
   chattingListButtonSelected: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.chattingListSelectedBg,
   },
   pendingDot: {
     position: 'absolute',
@@ -160,14 +163,14 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: Colors.agree,
+    backgroundColor: SemanticColors.agree,
   },
   fastResponderBadge: {
-    backgroundColor: Colors.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderRadius: 20,
     padding: 4,
     borderWidth: 1,
-    borderColor: Colors.chat,
+    borderColor: colors.chat,
   },
   statementContainer: {
     flex: 1,
@@ -177,13 +180,13 @@ const styles = StyleSheet.create({
   statement: {
     fontSize: 22,
     fontWeight: '500',
-    color: Colors.darkText,
+    color: colors.darkText,
     lineHeight: 32,
   },
   availabilityNone: {
     fontSize: 13,
     fontStyle: 'italic',
-    color: Colors.pass,
+    color: colors.secondaryText,
     textAlign: 'center',
     marginBottom: 8,
   },
@@ -193,20 +196,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: Colors.cardBorder,
+    borderTopColor: colors.cardBorder,
   },
   iconButton: {
-    padding: 8,
-    borderRadius: 20,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   flagButton: {
-    backgroundColor: '#FFEBEE',
+    backgroundColor: SemanticColors.disagree + '20',
   },
   addButton: {
-    backgroundColor: '#E8F5E9',
+    backgroundColor: SemanticColors.agree + '20',
   },
   removeButton: {
-    backgroundColor: Colors.pass + '30',
+    backgroundColor: colors.pass + '20',
   },
   authorInfo: {
     flexDirection: 'row',
@@ -219,10 +225,10 @@ const styles = StyleSheet.create({
   displayName: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.darkText,
+    color: colors.darkText,
   },
   username: {
     fontSize: 12,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
 })

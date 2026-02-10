@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import {
   View,
   Text,
@@ -6,8 +7,8 @@ import {
   TouchableOpacity,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../constants/Colors'
-import { SharedStyles } from '../constants/SharedStyles'
+import { useThemeColors } from '../hooks/useThemeColors'
+import { createSharedStyles } from '../constants/SharedStyles'
 
 /**
  * Reusable info/explanation modal triggered by help icons throughout the app.
@@ -17,7 +18,7 @@ import { SharedStyles } from '../constants/SharedStyles'
  *   onClose        - Called when dismissing
  *   title          - Modal heading text
  *   icon           - Optional Ionicons name for a hero icon at the top
- *   iconColor      - Color for the hero icon (default Colors.primary)
+ *   iconColor      - Color for the hero icon (default colors.primary)
  *   paragraphs     - Array of description strings (centered text)
  *   items          - Array of { icon, iconColor?, text } for icon+text rows
  *   children       - Custom content (replaces paragraphs/items when provided)
@@ -28,12 +29,17 @@ export default function InfoModal({
   onClose,
   title,
   icon,
-  iconColor = Colors.primary,
+  iconColor,
   paragraphs,
   items,
   children,
   buttonText = 'Got it!',
 }) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+  const shared = useMemo(() => createSharedStyles(colors), [colors])
+
+  const resolvedIconColor = iconColor || colors.primary
   const hasHeroIcon = !!icon
   const hasCustomContent = !!children
 
@@ -45,7 +51,7 @@ export default function InfoModal({
       onRequestClose={onClose}
     >
       <TouchableOpacity
-        style={SharedStyles.modalOverlay}
+        style={shared.modalOverlay}
         activeOpacity={1}
         onPress={onClose}
       >
@@ -55,8 +61,8 @@ export default function InfoModal({
           onPress={(e) => e.stopPropagation()}
         >
           {hasHeroIcon && (
-            <View style={[styles.iconContainer, { backgroundColor: iconColor + '20' }]}>
-              <Ionicons name={icon} size={48} color={iconColor} />
+            <View style={[styles.iconContainer, { backgroundColor: resolvedIconColor + '20' }]}>
+              <Ionicons name={icon} size={48} color={resolvedIconColor} />
             </View>
           )}
 
@@ -78,11 +84,11 @@ export default function InfoModal({
               ))}
               {items?.map((item, i) => (
                 <View key={i} style={styles.item}>
-                  <View style={[styles.itemBadge, { backgroundColor: (item.iconColor || Colors.primary) + '20' }]}>
+                  <View style={[styles.itemBadge, { backgroundColor: (item.iconColor || colors.primary) + '20' }]}>
                     <Ionicons
                       name={item.icon}
                       size={item.badgeSize || 14}
-                      color={item.iconColor || Colors.primary}
+                      color={item.iconColor || colors.primary}
                     />
                   </View>
                   <Text style={styles.itemText}>{item.text}</Text>
@@ -102,22 +108,49 @@ export default function InfoModal({
 
 /** Convenience sub-component for custom paragraph text inside InfoModal children */
 InfoModal.Paragraph = function Paragraph({ style, children }) {
-  return <Text style={[styles.paragraph, styles.paragraphLeft, style]}>{children}</Text>
+  return <Text style={[staticStyles.paragraph, staticStyles.paragraphLeft, style]}>{children}</Text>
 }
 
 /** Convenience sub-component for icon+text item rows inside InfoModal children */
-InfoModal.Item = function Item({ icon, iconColor = Colors.primary, children }) {
+InfoModal.Item = function Item({ icon, iconColor, children }) {
   return (
-    <View style={styles.item}>
+    <View style={staticStyles.item}>
       <Ionicons name={icon} size={20} color={iconColor} />
-      <Text style={styles.itemText}>{children}</Text>
+      <Text style={[staticStyles.itemText]}>{children}</Text>
     </View>
   )
 }
 
-const styles = StyleSheet.create({
+// Static styles for sub-components that can't use hooks (not React components with hooks)
+const staticStyles = StyleSheet.create({
+  paragraph: {
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  paragraphLeft: {
+    textAlign: 'left',
+    alignSelf: 'flex-start',
+  },
+  item: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginTop: 8,
+    paddingHorizontal: 8,
+    width: '100%',
+  },
+  itemText: {
+    fontSize: 14,
+    flex: 1,
+    lineHeight: 20,
+  },
+})
+
+const createStyles = (colors) => StyleSheet.create({
   container: {
-    backgroundColor: Colors.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderRadius: 20,
     padding: 24,
     maxWidth: 360,
@@ -132,7 +165,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: '700',
-    color: Colors.primary,
+    color: colors.primary,
     marginBottom: 16,
     textAlign: 'center',
   },
@@ -142,7 +175,7 @@ const styles = StyleSheet.create({
   },
   paragraph: {
     fontSize: 15,
-    color: Colors.light.text,
+    color: colors.text,
     lineHeight: 22,
     textAlign: 'center',
     marginBottom: 12,
@@ -165,19 +198,19 @@ const styles = StyleSheet.create({
   },
   itemText: {
     fontSize: 14,
-    color: Colors.light.text,
+    color: colors.text,
     flex: 1,
     lineHeight: 20,
   },
   button: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingHorizontal: 32,
     paddingVertical: 14,
     borderRadius: 25,
     marginTop: 20,
   },
   buttonText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },

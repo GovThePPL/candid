@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useContext } from 'react'
+import { useState, useEffect, useCallback, useContext, useMemo } from 'react'
 import {
   StyleSheet,
   View,
@@ -13,7 +13,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../../constants/Colors'
+import { SemanticColors } from '../../constants/Colors'
+import { useThemeColors } from '../../hooks/useThemeColors'
 import Header from '../../components/Header'
 import LocationCategorySelector from '../../components/LocationCategorySelector'
 import OpinionMapVisualization from '../../components/stats/OpinionMapVisualization'
@@ -27,6 +28,9 @@ import { UserContext } from '../../contexts/UserContext'
 
 export default function Stats() {
   const { user } = useContext(UserContext)
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+
   const [selectedLocation, setSelectedLocation] = useState(null)
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [statsData, setStatsData] = useState(null)
@@ -148,7 +152,7 @@ export default function Stats() {
     if (loading && !refreshing) {
       return (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Loading statistics...</Text>
         </View>
       )
@@ -217,13 +221,13 @@ export default function Stats() {
                         style={styles.labelHelpButton}
                         onPress={() => setShowLabelHelpModal(true)}
                       >
-                        <Ionicons name="help-circle-outline" size={18} color={Colors.pass} />
+                        <Ionicons name="help-circle-outline" size={18} color={colors.secondaryText} />
                       </TouchableOpacity>
                     </View>
                     {topLabels.map((item, idx) => (
                       <View key={item.label} style={styles.labelRankingRow}>
                         {item.isCondorcetWinner && (
-                          <Ionicons name="trophy" size={14} color={Colors.primary} style={{ marginRight: 4 }} />
+                          <Ionicons name="trophy" size={14} color={colors.primary} style={{ marginRight: 4 }} />
                         )}
                         <Text style={[
                           styles.labelRankingText,
@@ -243,17 +247,17 @@ export default function Stats() {
                 style={styles.demographicsButton}
                 onPress={() => setShowDemographicsModal(true)}
               >
-                <Ionicons name="people-outline" size={16} color={Colors.primary} />
+                <Ionicons name="people-outline" size={16} color={colors.primary} />
                 <Text style={styles.demographicsButtonText}>Demographics</Text>
-                <Ionicons name="chevron-forward" size={16} color={Colors.primary} />
+                <Ionicons name="chevron-forward" size={16} color={colors.primary} />
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.demographicsButton}
                 onPress={() => setShowSurveyResultsModal(true)}
               >
-                <Ionicons name="bar-chart-outline" size={16} color={Colors.primary} />
+                <Ionicons name="bar-chart-outline" size={16} color={colors.primary} />
                 <Text style={styles.demographicsButtonText}>Survey Results</Text>
-                <Ionicons name="chevron-forward" size={16} color={Colors.primary} />
+                <Ionicons name="chevron-forward" size={16} color={colors.primary} />
               </TouchableOpacity>
             </View>
             {activeTab === 'majority' && statsData?.polisReportUrl && (
@@ -261,9 +265,9 @@ export default function Stats() {
                 style={styles.fullReportButton}
                 onPress={handleOpenPolisReport}
               >
-                <Ionicons name="document-text-outline" size={16} color={Colors.primary} />
+                <Ionicons name="document-text-outline" size={16} color={colors.primary} />
                 <Text style={styles.demographicsButtonText}>Full Polis Report</Text>
-                <Ionicons name="open-outline" size={16} color={Colors.primary} />
+                <Ionicons name="open-outline" size={16} color={colors.primary} />
               </TouchableOpacity>
             )}
           </View>
@@ -277,7 +281,7 @@ export default function Stats() {
               style={styles.helpButton}
               onPress={() => setShowHelpModal(true)}
             >
-              <Ionicons name="help-circle-outline" size={20} color={Colors.primary} />
+              <Ionicons name="help-circle-outline" size={20} color={colors.primary} />
             </TouchableOpacity>
           </View>
           <PositionCarousel
@@ -304,8 +308,8 @@ export default function Stats() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[Colors.primary]}
-            tintColor={Colors.primary}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
           />
         }
       >
@@ -387,10 +391,10 @@ export default function Stats() {
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
   },
   scrollView: {
     flex: 1,
@@ -406,19 +410,19 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: '700',
-    color: Colors.primary,
+    color: colors.primary,
   },
   subtitle: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
     marginTop: 2,
   },
   tabBarContainer: {
     marginTop: 16,
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: Colors.cardBorder,
-    backgroundColor: Colors.light.background,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.background,
   },
   demographicsRow: {
     paddingHorizontal: 16,
@@ -430,11 +434,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   selectedGroupLabel: {
-    backgroundColor: Colors.light.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderRadius: 8,
     padding: 12,
     borderWidth: 1,
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
   },
   selectedGroupLabelHeader: {
     flexDirection: 'row',
@@ -445,7 +449,7 @@ const styles = StyleSheet.create({
   selectedGroupLabelTitle: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
   labelHelpButton: {
     padding: 2,
@@ -458,11 +462,11 @@ const styles = StyleSheet.create({
   selectedGroupLabelText: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.primary,
+    color: colors.primary,
   },
   labelWinsText: {
     fontSize: 12,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
   labelRankingRow: {
     flexDirection: 'row',
@@ -478,41 +482,41 @@ const styles = StyleSheet.create({
   labelRankingText: {
     fontSize: 14,
     fontWeight: '500',
-    color: Colors.light.text,
+    color: colors.text,
   },
   labelRankingTextTop: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.primary,
+    color: colors.primary,
   },
   demographicsButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.light.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderRadius: 8,
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
     gap: 6,
   },
   demographicsButtonText: {
     fontSize: 14,
     fontWeight: '500',
-    color: Colors.primary,
+    color: colors.primary,
   },
   fullReportButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.light.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderRadius: 8,
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
     gap: 6,
   },
   section: {
@@ -528,14 +532,14 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: colors.text,
     paddingHorizontal: 16,
     marginBottom: 8,
   },
   sectionTitleInline: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: colors.text,
   },
   helpButton: {
     padding: 4,
@@ -549,17 +553,17 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
     marginTop: 12,
   },
   errorText: {
     fontSize: 14,
-    color: Colors.disagree,
+    color: SemanticColors.disagree,
     textAlign: 'center',
   },
   placeholderText: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
     textAlign: 'center',
   },
 })

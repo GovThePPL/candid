@@ -1,10 +1,11 @@
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, TextInput } from 'react-native'
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../../../constants/Colors'
-import { SharedStyles } from '../../../constants/SharedStyles'
+import { useThemeColors } from '../../../hooks/useThemeColors'
+import { SemanticColors } from '../../../constants/Colors'
+import { createSharedStyles } from '../../../constants/SharedStyles'
 import api from '../../../lib/api'
 import { useUser } from '../../../hooks/useUser'
 import { CacheManager, CacheKeys, CacheDurations } from '../../../lib/cache'
@@ -16,6 +17,9 @@ import LoadingView from '../../../components/LoadingView'
 export default function AccountSettings() {
   const { logout, user, refreshUser } = useUser()
   const router = useRouter()
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+  const shared = useMemo(() => createSharedStyles(colors), [colors])
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -142,7 +146,7 @@ export default function AccountSettings() {
 
         {error && (
           <View style={styles.errorContainer}>
-            <Ionicons name="alert-circle" size={20} color={Colors.warning} />
+            <Ionicons name="alert-circle" size={20} color={SemanticColors.warning} />
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
@@ -150,7 +154,7 @@ export default function AccountSettings() {
         {/* Email Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="mail-outline" size={22} color={Colors.primary} />
+            <Ionicons name="mail-outline" size={22} color={colors.primary} />
             <Text style={styles.sectionTitle}>Email</Text>
           </View>
 
@@ -162,7 +166,7 @@ export default function AccountSettings() {
                   value={email}
                   onChangeText={handleEmailChange}
                   placeholder="your@email.com"
-                  placeholderTextColor={Colors.pass}
+                  placeholderTextColor={colors.placeholderText}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoFocus
@@ -202,7 +206,7 @@ export default function AccountSettings() {
                 style={styles.editButton}
                 onPress={() => setEditingEmail(true)}
               >
-                <Ionicons name="pencil" size={18} color={Colors.primary} />
+                <Ionicons name="pencil" size={18} color={colors.primary} />
               </TouchableOpacity>
             </View>
           )}
@@ -211,7 +215,7 @@ export default function AccountSettings() {
         {/* Account Security Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="shield-outline" size={22} color={Colors.primary} />
+            <Ionicons name="shield-outline" size={22} color={colors.primary} />
             <Text style={styles.sectionTitle}>Account Security</Text>
           </View>
 
@@ -219,7 +223,7 @@ export default function AccountSettings() {
             style={styles.logoutButton}
             onPress={logout}
           >
-            <Ionicons name="log-out-outline" size={20} color={Colors.primary} />
+            <Ionicons name="log-out-outline" size={20} color={colors.primary} />
             <Text style={styles.logoutButtonText}>Log Out</Text>
           </TouchableOpacity>
         </View>
@@ -227,7 +231,7 @@ export default function AccountSettings() {
         {/* Danger Zone */}
         <View style={[styles.section, styles.dangerSection]}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="warning-outline" size={22} color={Colors.warning} />
+            <Ionicons name="warning-outline" size={22} color={SemanticColors.warning} />
             <Text style={[styles.sectionTitle, styles.dangerTitle]}>Danger Zone</Text>
           </View>
 
@@ -235,7 +239,7 @@ export default function AccountSettings() {
             style={styles.deleteButton}
             onPress={() => setDeleteModalOpen(true)}
           >
-            <Ionicons name="trash-outline" size={20} color={Colors.warning} />
+            <Ionicons name="trash-outline" size={20} color={SemanticColors.warning} />
             <Text style={styles.deleteButtonText}>Delete Account</Text>
           </TouchableOpacity>
         </View>
@@ -248,12 +252,12 @@ export default function AccountSettings() {
         animationType="fade"
         onRequestClose={() => setDeleteModalOpen(false)}
       >
-        <Pressable style={SharedStyles.modalOverlay} onPress={() => setDeleteModalOpen(false)}>
+        <Pressable style={shared.modalOverlay} onPress={() => setDeleteModalOpen(false)}>
           <View style={styles.formModalContent}>
             <Text style={[styles.modalTitle, styles.dangerTitle]}>Delete Account</Text>
 
             <View style={styles.deleteWarning}>
-              <Ionicons name="warning" size={24} color={Colors.warning} />
+              <Ionicons name="warning" size={24} color={SemanticColors.warning} />
               <Text style={styles.deleteWarningText}>
                 This action cannot be undone. Your account will be permanently deleted.
               </Text>
@@ -294,10 +298,10 @@ export default function AccountSettings() {
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -310,7 +314,7 @@ const styles = StyleSheet.create({
   pageTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: Colors.primary,
+    color: colors.primary,
   },
   errorContainer: {
     flexDirection: 'row',
@@ -323,16 +327,16 @@ const styles = StyleSheet.create({
   },
   errorText: {
     flex: 1,
-    color: Colors.warning,
+    color: SemanticColors.warning,
     fontSize: 14,
   },
   section: {
-    backgroundColor: Colors.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -343,20 +347,20 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.darkText,
+    color: colors.darkText,
   },
   inputGroup: {
     marginBottom: 12,
   },
   textInput: {
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
     borderRadius: 8,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
-    color: Colors.darkText,
+    color: colors.darkText,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
   },
   emailReadOnly: {
     flexDirection: 'row',
@@ -365,15 +369,15 @@ const styles = StyleSheet.create({
   },
   emailText: {
     fontSize: 16,
-    color: Colors.darkText,
+    color: colors.darkText,
     flex: 1,
   },
   editButton: {
     padding: 8,
     borderRadius: 8,
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
   },
   emailButtons: {
     flexDirection: 'row',
@@ -384,22 +388,22 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
     alignItems: 'center',
   },
   cancelButtonText: {
     fontSize: 16,
-    color: '#666',
+    color: colors.secondaryText,
   },
   saveButton: {
     flex: 1,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
   },
   saveButtonText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -412,19 +416,19 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     gap: 12,
     borderTopWidth: 1,
-    borderTopColor: Colors.cardBorder,
+    borderTopColor: colors.cardBorder,
   },
   logoutButtonText: {
     flex: 1,
     fontSize: 16,
-    color: Colors.primary,
+    color: colors.primary,
     fontWeight: '500',
   },
   dangerSection: {
-    borderColor: Colors.warning + '40',
+    borderColor: SemanticColors.warning + '40',
   },
   dangerTitle: {
-    color: Colors.warning,
+    color: SemanticColors.warning,
   },
   deleteButton: {
     flexDirection: 'row',
@@ -434,12 +438,12 @@ const styles = StyleSheet.create({
   },
   deleteButtonText: {
     fontSize: 16,
-    color: Colors.warning,
+    color: SemanticColors.warning,
     fontWeight: '500',
   },
   // Modal styles
   formModalContent: {
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     width: '100%',
     maxWidth: 360,
@@ -448,7 +452,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.darkText,
+    color: colors.darkText,
     textAlign: 'center',
     marginBottom: 16,
   },
@@ -474,7 +478,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   modalErrorText: {
-    color: Colors.warning,
+    color: SemanticColors.warning,
     fontSize: 14,
     textAlign: 'center',
   },
@@ -488,23 +492,23 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
     alignItems: 'center',
   },
   modalCancelButtonText: {
     fontSize: 16,
-    color: '#666',
+    color: colors.secondaryText,
   },
   modalDeleteButton: {
     flex: 1,
     paddingVertical: 12,
     borderRadius: 8,
-    backgroundColor: Colors.warning,
+    backgroundColor: SemanticColors.warning,
     alignItems: 'center',
   },
   modalDeleteButtonText: {
     fontSize: 16,
-    color: Colors.white,
+    color: '#FFFFFF',
     fontWeight: '600',
   },
   modalButtonDisabled: {

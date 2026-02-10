@@ -1,6 +1,8 @@
+import { useMemo } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
-import { Colors } from '../../constants/Colors'
+import { SemanticColors, BrandColor } from '../../constants/Colors'
+import { useThemeColors } from '../../hooks/useThemeColors'
 import { Shadows } from '../../constants/Theme'
 import UserMiniCard from './UserMiniCard'
 
@@ -14,6 +16,9 @@ import UserMiniCard from './UserMiniCard'
  * @param {Function} props.onViewStatements - Callback when "View Statements" is pressed
  */
 export default function ClosureCard({ closure, onShowMap, onViewStatements }) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+
   const {
     closureText,
     closedAt,
@@ -41,7 +46,7 @@ export default function ClosureCard({ closure, onShowMap, onViewStatements }) {
         {crossGroup && (
           <View style={styles.badgesRow}>
             <View style={styles.crossGroupBadge}>
-              <Ionicons name="git-compare-outline" size={12} color={Colors.primary} />
+              <Ionicons name="git-compare-outline" size={12} color={colors.primary} />
               <Text style={styles.badgeText}>Cross-Group</Text>
             </View>
           </View>
@@ -54,7 +59,7 @@ export default function ClosureCard({ closure, onShowMap, onViewStatements }) {
             role="PROPOSER"
           />
           <View style={styles.handshakeContainer}>
-            <MaterialCommunityIcons name="handshake-outline" size={22} color={Colors.agree} />
+            <MaterialCommunityIcons name="handshake-outline" size={22} color={SemanticColors.agree} />
           </View>
           <UserMiniCard
             user={initiatorUser?.mapPosition ? initiatorUser : { ...initiatorUser, opinionGroup: null }}
@@ -67,7 +72,7 @@ export default function ClosureCard({ closure, onShowMap, onViewStatements }) {
         <View style={styles.footerRow}>
           <Text style={styles.dateText}>{formatDate(closedAt)}</Text>
           <TouchableOpacity style={styles.actionButton} onPress={onShowMap}>
-            <Ionicons name="map-outline" size={14} color={Colors.primary} />
+            <Ionicons name="map-outline" size={14} color={colors.primary} />
             <Text style={styles.actionButtonText}>Show Map</Text>
           </TouchableOpacity>
         </View>
@@ -88,16 +93,16 @@ export default function ClosureCard({ closure, onShowMap, onViewStatements }) {
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   cardContainer: {
     borderRadius: 12,
-    backgroundColor: Colors.agree,
+    backgroundColor: SemanticColors.agree,
     marginHorizontal: 16,
     marginBottom: 12,
     ...Shadows.card,
   },
   whiteSection: {
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     padding: 16,
     borderTopLeftRadius: 12,
     borderTopRightRadius: 12,
@@ -113,18 +118,18 @@ const styles = StyleSheet.create({
   crossGroupBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: BrandColor + '15',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
     gap: 4,
     borderWidth: 1,
-    borderColor: Colors.primary + '40',
+    borderColor: BrandColor + '40',
   },
   badgeText: {
     fontSize: 11,
     fontWeight: '600',
-    color: Colors.primary,
+    color: colors.primary,
     marginLeft: 2,
   },
   usersRow: {
@@ -141,16 +146,16 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: Colors.cardBorder,
+    borderTopColor: colors.cardBorder,
   },
   dateText: {
     fontSize: 12,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.primary + '10',
+    backgroundColor: BrandColor + '18',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
@@ -159,7 +164,7 @@ const styles = StyleSheet.create({
   actionButtonText: {
     fontSize: 12,
     fontWeight: '500',
-    color: Colors.primary,
+    color: colors.primary,
   },
   greenSection: {
     padding: 16,
@@ -174,7 +179,7 @@ const styles = StyleSheet.create({
   closureText: {
     flex: 1,
     fontSize: 14,
-    color: Colors.white,
+    color: '#FFFFFF',
     lineHeight: 20,
   },
   statementsButton: {
@@ -191,6 +196,6 @@ const styles = StyleSheet.create({
   statementsButtonText: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.white,
+    color: '#FFFFFF',
   },
 })

@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect, forwardRef, useImperativeHandle } from 'react'
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../constants/Colors'
+import { useThemeColors } from '../hooks/useThemeColors'
+import { SemanticColors } from '../constants/Colors'
 import ThemedTextInput from './ThemedTextInput'
 import EmptyState from './EmptyState'
 import LoadingView from './LoadingView'
@@ -37,6 +38,9 @@ const PositionListManager = forwardRef(function PositionListManager({
   emptyTitle,
   emptySubtitle,
 }, ref) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+
   const [searchQuery, setSearchQuery] = useState('')
   const [deleteMode, setDeleteMode] = useState(false)
   const [chatMode, setChatMode] = useState(false)
@@ -221,7 +225,7 @@ const PositionListManager = forwardRef(function PositionListManager({
         <Ionicons
           name={checked ? 'checkbox' : 'checkbox-outline'}
           size={20}
-          color={checked ? Colors.warning : Colors.pass}
+          color={checked ? SemanticColors.warning : colors.secondaryText}
         />
       </TouchableOpacity>
     )
@@ -239,7 +243,7 @@ const PositionListManager = forwardRef(function PositionListManager({
         <Ionicons
           name={item.isActive ? 'chatbubble' : 'chatbubble-outline'}
           size={20}
-          color={item.isActive ? Colors.primary : Colors.pass}
+          color={item.isActive ? colors.primary : colors.secondaryText}
         />
       </TouchableOpacity>
     )
@@ -258,7 +262,7 @@ const PositionListManager = forwardRef(function PositionListManager({
         <Ionicons
           name={allActive ? 'chatbubble' : 'chatbubble-outline'}
           size={20}
-          color={allActive ? Colors.primary : Colors.pass}
+          color={allActive ? colors.primary : colors.secondaryText}
         />
       </TouchableOpacity>
     )
@@ -322,27 +326,27 @@ const PositionListManager = forwardRef(function PositionListManager({
       {/* Toolbar: search + mode buttons */}
       <View style={styles.toolbar}>
         <View style={styles.searchContainer}>
-          <Ionicons name="search" size={16} color={Colors.pass} style={styles.searchIcon} />
+          <Ionicons name="search" size={16} color={colors.secondaryText} style={styles.searchIcon} />
           <ThemedTextInput
             style={styles.searchInput}
             placeholder="Filter positions..."
-            placeholderTextColor={Colors.pass}
+            placeholderTextColor={colors.placeholderText}
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.searchClear}>
-              <Ionicons name="close-circle" size={18} color={Colors.pass} />
+              <Ionicons name="close-circle" size={18} color={colors.secondaryText} />
             </TouchableOpacity>
           )}
         </View>
         {!deleteMode && !chatMode && (
           <>
             <TouchableOpacity style={styles.modeButton} onPress={enterChatMode}>
-              <Ionicons name="chatbubble-outline" size={16} color={Colors.primary} />
+              <Ionicons name="chatbubble-outline" size={16} color={colors.primary} />
             </TouchableOpacity>
             <TouchableOpacity style={styles.modeButton} onPress={enterDeleteMode}>
-              <Ionicons name="trash-outline" size={16} color={Colors.warning} />
+              <Ionicons name="trash-outline" size={16} color={SemanticColors.warning} />
             </TouchableOpacity>
           </>
         )}
@@ -388,7 +392,7 @@ const PositionListManager = forwardRef(function PositionListManager({
                 <Ionicons
                   name={locExpanded ? 'chevron-down' : 'chevron-forward'}
                   size={18}
-                  color={Colors.primary}
+                  color={colors.primary}
                 />
                 <Text style={styles.locationTitle}>{locationName}</Text>
                 <Text style={styles.locationCount}>{locIds.length}</Text>
@@ -416,7 +420,7 @@ const PositionListManager = forwardRef(function PositionListManager({
                           <Ionicons
                             name={catExpanded ? 'chevron-down' : 'chevron-forward'}
                             size={16}
-                            color={Colors.primary}
+                            color={colors.primary}
                           />
                           <Text style={styles.categoryTitle}>{categoryName}</Text>
                           <Text style={styles.categoryCount}>{catIds.length}</Text>
@@ -444,7 +448,7 @@ const PositionListManager = forwardRef(function PositionListManager({
 
 export default PositionListManager
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   // Toolbar
   toolbar: {
     flexDirection: 'row',
@@ -456,10 +460,10 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
   },
   searchIcon: {
     paddingLeft: 10,
@@ -478,53 +482,53 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    backgroundColor: Colors.white,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.cardBackground,
   },
   doneButton: {
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    backgroundColor: Colors.white,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.cardBackground,
   },
   doneButtonText: {
     fontSize: 13,
-    color: Colors.pass,
+    color: colors.secondaryText,
     fontWeight: '500',
   },
   noResultsText: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
     textAlign: 'center',
     paddingVertical: 24,
   },
 
   // Flat list (under 25 items)
   flatList: {
-    backgroundColor: Colors.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
     overflow: 'hidden',
   },
 
   // Location group
   locationGroup: {
     marginBottom: 12,
-    backgroundColor: Colors.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
     overflow: 'hidden',
   },
   locationHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.white,
+    backgroundColor: colors.uiBackground,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
+    borderBottomColor: colors.cardBorder,
   },
   locationHeader: {
     flex: 1,
@@ -536,31 +540,31 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.primary,
+    color: colors.primary,
     marginLeft: 8,
   },
   locationCount: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.primary,
+    color: colors.primary,
     opacity: 0.6,
   },
 
   // Categories
   categoriesContainer: {
     borderTopWidth: 1,
-    borderTopColor: Colors.cardBorder,
+    borderTopColor: colors.cardBorder,
   },
   categoryGroup: {
     borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
+    borderBottomColor: colors.cardBorder,
   },
   categoryHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.white,
+    backgroundColor: colors.uiBackground,
     borderTopWidth: 1,
-    borderTopColor: Colors.cardBorder,
+    borderTopColor: colors.cardBorder,
   },
   categoryHeader: {
     flex: 1,
@@ -573,19 +577,19 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     fontWeight: '700',
-    color: Colors.primary,
+    color: colors.primary,
     marginLeft: 6,
   },
   categoryCount: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.primary,
+    color: colors.primary,
     opacity: 0.6,
   },
 
   // Items
   itemsList: {
-    backgroundColor: Colors.cardBackground,
+    backgroundColor: colors.cardBackground,
   },
   itemRow: {
     flexDirection: 'row',
@@ -593,10 +597,10 @@ const styles = StyleSheet.create({
     padding: 12,
     paddingLeft: 16,
     borderTopWidth: 1,
-    borderTopColor: Colors.cardBorder,
+    borderTopColor: colors.cardBorder,
   },
   itemRowInactive: {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.uiBackground,
   },
   itemRowDeleting: {
     opacity: 0.5,
@@ -606,20 +610,20 @@ const styles = StyleSheet.create({
   },
   itemStatement: {
     fontSize: 14,
-    color: Colors.darkText,
+    color: colors.darkText,
     lineHeight: 20,
   },
   itemStatementInactive: {
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
   itemDetail: {
     fontSize: 12,
-    color: Colors.pass,
+    color: colors.secondaryText,
     marginBottom: 2,
   },
   itemMeta: {
     fontSize: 12,
-    color: Colors.pass,
+    color: colors.secondaryText,
     marginTop: 4,
   },
 
@@ -638,10 +642,10 @@ const styles = StyleSheet.create({
 
   // Empty & loading
   emptyContainer: {
-    backgroundColor: Colors.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
     paddingVertical: 32,
   },
   loadingContainer: {

@@ -1,24 +1,23 @@
 import { forwardRef } from 'react'
-import { TextInput, useColorScheme } from 'react-native'
-import { Colors } from '../constants/Colors'
+import { TextInput } from 'react-native'
+import { useThemeColors } from '../hooks/useThemeColors'
 
 const ThemedTextInput = forwardRef(function ThemedTextInput({ style, ...props }, ref) {
-  const colorScheme = useColorScheme()
-  const theme = Colors[colorScheme] ?? Colors.light
+  const colors = useThemeColors()
 
   return (
     <TextInput
       ref={ref}
       style={[
         {
-          backgroundColor: theme.uiBackground,
-          color: theme.text,
+          backgroundColor: colors.uiBackground,
+          color: colors.text,
           padding: 20,
           borderRadius: 6,
         },
         style
       ]}
-      placeholderTextColor={Colors.pass}
+      placeholderTextColor={colors.placeholderText}
       {...props}
     />
   )

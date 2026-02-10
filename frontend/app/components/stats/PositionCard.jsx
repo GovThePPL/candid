@@ -1,6 +1,8 @@
+import { useMemo } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../../constants/Colors'
+import { SemanticColors, BrandColor } from '../../constants/Colors'
+import { useThemeColors } from '../../hooks/useThemeColors'
 import VoteDistributionBar from './VoteDistributionBar'
 import CardShell from '../CardShell'
 import PositionInfoCard from '../PositionInfoCard'
@@ -16,6 +18,9 @@ import PositionInfoCard from '../PositionInfoCard'
  * @param {Function} props.onViewClosures - Optional callback when View Closures is pressed
  */
 export default function PositionCard({ position, groups = [], activeGroup, userVote, onViewClosures }) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+
   const {
     voteDistribution,
     totalVotes = 0,
@@ -97,8 +102,8 @@ export default function PositionCard({ position, groups = [], activeGroup, userV
       )}
       {userVote === 'pass' && (
         <View style={styles.passedBadge}>
-          <Ionicons name="remove" size={12} color="#666666" />
-          <Text style={[styles.badgeText, { color: '#666666' }]}>You Passed</Text>
+          <Ionicons name="remove" size={12} color={colors.secondaryText} />
+          <Text style={[styles.badgeText, { color: colors.secondaryText }]}>You Passed</Text>
         </View>
       )}
     </View>
@@ -115,9 +120,9 @@ export default function PositionCard({ position, groups = [], activeGroup, userV
         ]}>
           {showAgree ? (
             <View style={styles.definingContent}>
-              <Ionicons name="checkmark-circle" size={20} color={Colors.agree} />
+              <Ionicons name="checkmark-circle" size={20} color={SemanticColors.agree} />
               <Text style={styles.definingText}>
-                <Text style={[styles.definingPercent, { color: Colors.agree }]}>{agreePercent}%</Text>
+                <Text style={[styles.definingPercent, { color: SemanticColors.agree }]}>{agreePercent}%</Text>
                 {activeGroup === 'majority'
                   ? ' of all users who voted on this statement agreed.'
                   : ` of those in Group ${activeGroupLabel} who voted on this statement agreed.`}
@@ -125,9 +130,9 @@ export default function PositionCard({ position, groups = [], activeGroup, userV
             </View>
           ) : (
             <View style={styles.definingContent}>
-              <Ionicons name="close-circle" size={20} color={Colors.disagree} />
+              <Ionicons name="close-circle" size={20} color={SemanticColors.disagree} />
               <Text style={styles.definingText}>
-                <Text style={[styles.definingPercent, { color: Colors.disagree }]}>{disagreePercent}%</Text>
+                <Text style={[styles.definingPercent, { color: SemanticColors.disagree }]}>{disagreePercent}%</Text>
                 {activeGroup === 'majority'
                   ? ' of all users who voted on this statement disagreed.'
                   : ` of those in Group ${activeGroupLabel} who voted on this statement disagreed.`}
@@ -191,15 +196,15 @@ export default function PositionCard({ position, groups = [], activeGroup, userV
       <View style={styles.legendRow}>
         <View style={styles.legend}>
           <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: Colors.agree }]} />
+            <View style={[styles.legendDot, { backgroundColor: SemanticColors.agree }]} />
             <Text style={styles.legendLabel}>Agree</Text>
           </View>
           <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: Colors.disagree }]} />
+            <View style={[styles.legendDot, { backgroundColor: SemanticColors.disagree }]} />
             <Text style={styles.legendLabel}>Disagree</Text>
           </View>
           <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: Colors.pass }]} />
+            <View style={[styles.legendDot, { backgroundColor: colors.pass }]} />
             <Text style={styles.legendLabel}>Pass</Text>
           </View>
           {!hideUnanswered && (
@@ -239,11 +244,11 @@ export default function PositionCard({ position, groups = [], activeGroup, userV
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   agreedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.agree,
+    backgroundColor: SemanticColors.agree,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
@@ -252,7 +257,7 @@ const styles = StyleSheet.create({
   disagreedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.disagree,
+    backgroundColor: SemanticColors.disagree,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
@@ -270,7 +275,7 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 10,
     fontWeight: '600',
-    color: Colors.white,
+    color: '#FFFFFF',
   },
   // Purple stats section
   definingStatement: {
@@ -280,12 +285,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   definingAgree: {
-    backgroundColor: '#C8E6C9',
-    borderColor: Colors.agree,
+    backgroundColor: '#0D3D0D',
+    borderColor: SemanticColors.agree,
   },
   definingDisagree: {
-    backgroundColor: '#FFCDD2',
-    borderColor: Colors.disagree,
+    backgroundColor: '#3D1515',
+    borderColor: SemanticColors.disagree,
   },
   definingContent: {
     flexDirection: 'row',
@@ -296,7 +301,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     lineHeight: 18,
-    color: '#000000',
+    color: colors.text,
   },
   definingPercent: {
     fontWeight: '700',
@@ -320,7 +325,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   labelCellActive: {
-    backgroundColor: Colors.white,
+    backgroundColor: '#FFFFFF',
   },
   barCell: {
     height: 20,
@@ -329,11 +334,11 @@ const styles = StyleSheet.create({
   groupLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.white,
+    color: '#FFFFFF',
   },
   groupLabelActive: {
     fontWeight: '700',
-    color: Colors.primary,
+    color: BrandColor,
   },
   allUsersLabel: {
     fontSize: 10,
@@ -345,7 +350,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.8)',
   },
   customLabelActive: {
-    color: Colors.primary,
+    color: BrandColor,
   },
   legendRow: {
     position: 'relative',
@@ -374,7 +379,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   unansweredDot: {
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.border,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.3)',
   },
@@ -396,6 +401,6 @@ const styles = StyleSheet.create({
   viewClosuresText: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.white,
+    color: '#FFFFFF',
   },
 })

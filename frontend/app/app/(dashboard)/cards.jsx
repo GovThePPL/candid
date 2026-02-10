@@ -1,9 +1,10 @@
 import { StyleSheet, View, Text, ActivityIndicator, TouchableOpacity, Platform, Animated, Dimensions } from 'react-native'
-import { useState, useEffect, useCallback, useRef, useContext } from 'react'
+import { useState, useEffect, useCallback, useRef, useContext, useMemo } from 'react'
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { Colors } from '../../constants/Colors'
+import { SemanticColors } from '../../constants/Colors'
+import { useThemeColors } from '../../hooks/useThemeColors'
 import api from '../../lib/api'
 import { UserContext } from '../../contexts/UserContext'
 import { CacheManager, CacheKeys, CacheDurations } from '../../lib/cache'
@@ -51,6 +52,9 @@ export default function CardQueue() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [initialLoading, setInitialLoading] = useState(true)
   const [error, setError] = useState(null)
+
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
 
   // Tutorial modal state (frontend-only, uses AsyncStorage)
   const [showChattingListModal, setShowChattingListModal] = useState(false)
@@ -962,7 +966,7 @@ export default function CardQueue() {
       <SafeAreaView style={styles.container} edges={['top']}>
         <Header />
         <View style={styles.centerContent}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Loading cards...</Text>
         </View>
       </SafeAreaView>
@@ -1173,10 +1177,10 @@ export default function CardQueue() {
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
   },
   cardContainer: {
     flex: 1,
@@ -1210,51 +1214,51 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
   errorText: {
     fontSize: 16,
-    color: Colors.warning,
+    color: SemanticColors.warning,
     textAlign: 'center',
     marginBottom: 16,
   },
   retryButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
   },
   retryButtonText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
   emptyTitle: {
     fontSize: 22,
     fontWeight: '600',
-    color: Colors.primary,
+    color: colors.primary,
     marginBottom: 12,
   },
   emptyText: {
     fontSize: 16,
-    color: Colors.pass,
+    color: colors.secondaryText,
     textAlign: 'center',
     marginBottom: 24,
   },
   createButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingHorizontal: 24,
     paddingVertical: 14,
     borderRadius: 25,
   },
   createButtonText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
   unknownCard: {
     padding: 20,
-    backgroundColor: Colors.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderRadius: 16,
     alignItems: 'center',
   },

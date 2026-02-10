@@ -1,6 +1,7 @@
 import { View, Text, Image, StyleSheet } from 'react-native'
+import { useMemo } from 'react'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../constants/Colors'
+import { useThemeColors } from '../hooks/useThemeColors'
 import { getInitials, getInitialsColor, getTrustBadgeColor, getAvatarImageUrl } from '../lib/avatarUtils'
 
 const SIZE_PRESETS = { sm: 28, md: 40, lg: 80 }
@@ -26,6 +27,8 @@ export default function Avatar({
   borderStyle,
   badgePosition = 'bottom-right',
 }) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
   const px = typeof size === 'number' ? size : (SIZE_PRESETS[size] || SIZE_PRESETS.md)
   const displayName = user?.displayName || 'Anonymous'
   const avatarUrl = getAvatarImageUrl(user?.avatarIconUrl || user?.avatarUrl)
@@ -42,7 +45,7 @@ export default function Avatar({
         <Image
           source={{ uri: avatarUrl }}
           style={[
-            { width: px, height: px, borderRadius: px / 2, backgroundColor: Colors.light.background },
+            { width: px, height: px, borderRadius: px / 2, backgroundColor: colors.background },
             borderStyle,
           ]}
         />
@@ -60,7 +63,7 @@ export default function Avatar({
             borderStyle,
           ]}
         >
-          <Text style={{ fontSize, fontWeight: '700', color: Colors.white }}>
+          <Text style={{ fontSize, fontWeight: '700', color: '#FFFFFF' }}>
             {getInitials(displayName)}
           </Text>
         </View>
@@ -79,7 +82,7 @@ export default function Avatar({
             showKudosCount && styles.kudosBadgePill,
           ]}
         >
-          <Ionicons name="star" size={starSize} color={Colors.primary} />
+          <Ionicons name="star" size={starSize} color={colors.primary} />
           {showKudosCount && user.kudosCount > 0 && (
             <Text style={styles.kudosCount}>{user.kudosCount}</Text>
           )}
@@ -89,7 +92,7 @@ export default function Avatar({
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   kudosBadge: {
     position: 'absolute',
     justifyContent: 'center',
@@ -97,7 +100,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 1,
     borderWidth: 1.5,
-    borderColor: Colors.white,
+    borderColor: colors.cardBackground,
   },
   kudosBadgeRight: {
     bottom: -2,
@@ -114,6 +117,6 @@ const styles = StyleSheet.create({
   kudosCount: {
     fontSize: 8,
     fontWeight: '700',
-    color: Colors.primary,
+    color: colors.primary,
   },
 })

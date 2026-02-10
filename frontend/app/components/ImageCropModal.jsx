@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import {
   Modal,
   View,
@@ -15,7 +15,7 @@ import Slider from '@react-native-community/slider'
 import Svg, { Defs, Mask, Rect, Circle } from 'react-native-svg'
 import * as ImageManipulator from 'expo-image-manipulator'
 
-import { Colors } from '../constants/Colors'
+import { useThemeColors } from '../hooks/useThemeColors'
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window')
 const CIRCLE_SIZE = 280
@@ -31,6 +31,9 @@ const CENTER_Y = HEADER_HEIGHT + AVAILABLE_HEIGHT / 2
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max)
 
 export default function ImageCropModal({ visible, imageUri, onCancel, onConfirm }) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 })
   const [displaySize, setDisplaySize] = useState({ width: 0, height: 0 })
   const [scale, setScale] = useState(1)
@@ -272,7 +275,7 @@ export default function ImageCropModal({ visible, imageUri, onCancel, onConfirm 
         {/* Image Container */}
         <View style={styles.imageContainer} {...panResponder.panHandlers}>
           {imageLoading ? (
-            <ActivityIndicator size="large" color={Colors.primary} />
+            <ActivityIndicator size="large" color={colors.primary} />
           ) : (
             <>
               {/* The draggable image */}
@@ -334,9 +337,9 @@ export default function ImageCropModal({ visible, imageUri, onCancel, onConfirm 
                 setScale(val)
                 scaleRef.current = val
               }}
-              minimumTrackTintColor={Colors.primary}
+              minimumTrackTintColor={colors.primary}
               maximumTrackTintColor="#666"
-              thumbTintColor={Colors.primary}
+              thumbTintColor={colors.primary}
             />
             <Ionicons name="add" size={24} color="#fff" />
           </View>
@@ -359,7 +362,7 @@ export default function ImageCropModal({ visible, imageUri, onCancel, onConfirm 
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
@@ -376,7 +379,7 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   headerTitle: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
   },
@@ -398,7 +401,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     borderRadius: CIRCLE_SIZE / 2,
     borderWidth: 2,
-    borderColor: Colors.white,
+    borderColor: '#FFFFFF',
   },
   footer: {
     height: FOOTER_HEIGHT,
@@ -417,7 +420,7 @@ const styles = StyleSheet.create({
     height: 40,
   },
   acceptButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingVertical: 14,
     borderRadius: 8,
     alignItems: 'center',
@@ -426,7 +429,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   acceptButtonText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
   },

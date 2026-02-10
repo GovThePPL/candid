@@ -1,7 +1,8 @@
 import { StyleSheet, View, Text } from 'react-native'
-import { forwardRef } from 'react'
+import { forwardRef, useMemo } from 'react'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../../constants/Colors'
+import { useThemeColors } from '../../hooks/useThemeColors'
+import { BrandColor } from '../../constants/Colors'
 import SwipeableCard from './SwipeableCard'
 import Avatar from '../Avatar'
 
@@ -12,6 +13,8 @@ const ChatRequestCard = forwardRef(function ChatRequestCard({
   isBackCard,
   backCardAnimatedValue,
 }, ref) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
   const { requester, position } = chatRequest
 
   return (
@@ -86,19 +89,19 @@ const ChatRequestCard = forwardRef(function ChatRequestCard({
 
 export default ChatRequestCard
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   card: {
     flex: 1,
-    backgroundColor: Colors.primary,
+    backgroundColor: BrandColor,
   },
   headerSection: {
-    backgroundColor: Colors.primary,
+    backgroundColor: BrandColor,
     paddingTop: 12,
     paddingHorizontal: 16,
     paddingBottom: 20,
   },
   headerText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 22,
     fontWeight: '600',
     fontStyle: 'italic',
@@ -118,7 +121,7 @@ const styles = StyleSheet.create({
   userPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     borderRadius: 25,
     paddingVertical: 8,
     paddingHorizontal: 14,
@@ -131,19 +134,19 @@ const styles = StyleSheet.create({
   displayName: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.darkText,
+    color: colors.darkText,
   },
   username: {
     fontSize: 12,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
   topicCardWrapper: {
     flex: 1,
-    backgroundColor: Colors.primary,
+    backgroundColor: BrandColor,
   },
   topicCard: {
     flex: 1,
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     overflow: 'hidden',
@@ -159,11 +162,11 @@ const styles = StyleSheet.create({
   locationCode: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.primary,
+    color: colors.primary,
   },
   categoryName: {
     fontSize: 14,
-    color: Colors.primary,
+    color: colors.primary,
   },
   statementContainer: {
     flex: 1,
@@ -174,14 +177,14 @@ const styles = StyleSheet.create({
   statement: {
     fontSize: 22,
     fontWeight: '500',
-    color: Colors.darkText,
+    color: colors.darkText,
     lineHeight: 30,
   },
   positionFooter: {
     paddingHorizontal: 16,
     paddingVertical: 16,
     borderTopWidth: 1,
-    borderTopColor: Colors.cardBorder,
+    borderTopColor: colors.cardBorder,
     alignItems: 'center',
   },
   authorInfo: {
@@ -195,10 +198,10 @@ const styles = StyleSheet.create({
   authorDisplayName: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.darkText,
+    color: colors.darkText,
   },
   authorUsername: {
     fontSize: 12,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
 })

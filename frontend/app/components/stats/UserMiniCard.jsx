@@ -1,6 +1,8 @@
+import { useMemo } from 'react'
 import { View, Text, StyleSheet, Image } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors, GROUP_COLORS } from '../../constants/Colors'
+import { GROUP_COLORS, BadgeColors, SemanticColors, BrandColor } from '../../constants/Colors'
+import { useThemeColors } from '../../hooks/useThemeColors'
 import { getAvatarImageUrl, getInitials, getInitialsColor } from '../../lib/avatarUtils'
 
 /**
@@ -14,6 +16,9 @@ import { getAvatarImageUrl, getInitials, getInitialsColor } from '../../lib/avat
  * @param {boolean} props.compact - Use smaller layout
  */
 export default function UserMiniCard({ user, role, reverse = false, compact = false }) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+
   const {
     displayName,
     username,
@@ -27,7 +32,7 @@ export default function UserMiniCard({ user, role, reverse = false, compact = fa
   const avatarSize = compact ? 32 : 38
   const groupColor = opinionGroup
     ? GROUP_COLORS[parseInt(opinionGroup.id, 10) % GROUP_COLORS.length]
-    : Colors.pass
+    : colors.pass
 
   const renderAvatar = () => (
     <View style={[styles.avatarContainer, { width: avatarSize, height: avatarSize }]}>
@@ -96,7 +101,7 @@ export default function UserMiniCard({ user, role, reverse = false, compact = fa
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -114,7 +119,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   avatarImage: {
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
   },
   avatar: {
     justifyContent: 'center',
@@ -123,7 +128,7 @@ const styles = StyleSheet.create({
   avatarText: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.white,
+    color: '#FFFFFF',
   },
   avatarTextCompact: {
     fontSize: 13,
@@ -132,14 +137,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: -2,
     right: -2,
-    backgroundColor: Colors.trustBadgeGold,
+    backgroundColor: BadgeColors.trustBadgeGold,
     borderRadius: 8,
     width: 16,
     height: 16,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: Colors.white,
+    borderColor: colors.cardBackground,
   },
   infoContainer: {
     flex: 1,
@@ -148,14 +153,14 @@ const styles = StyleSheet.create({
   displayName: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: colors.text,
   },
   displayNameCompact: {
     fontSize: 11,
   },
   username: {
     fontSize: 11,
-    color: Colors.pass,
+    color: colors.secondaryText,
     marginTop: 1,
   },
   usernameCompact: {
@@ -174,15 +179,15 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   proposerBadge: {
-    backgroundColor: Colors.agree + '20',
+    backgroundColor: SemanticColors.agree + '20',
   },
   opposerBadge: {
-    backgroundColor: Colors.primary + '20',
+    backgroundColor: BrandColor + '25',
   },
   roleBadgeText: {
     fontSize: 9,
     fontWeight: '700',
-    color: Colors.light.text,
+    color: colors.text,
     letterSpacing: 0.3,
   },
   groupBadge: {

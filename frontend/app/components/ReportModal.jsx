@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   View,
   Text,
@@ -9,11 +9,15 @@ import {
   StyleSheet,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../constants/Colors'
+import { useThemeColors } from '../hooks/useThemeColors'
+import { SemanticColors, BrandColor } from '../constants/Colors'
 import BottomDrawerModal from './BottomDrawerModal'
 import api from '../lib/api'
 
 export default function ReportModal({ visible, onClose, onSubmit }) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+
   const [rules, setRules] = useState([])
   const [loading, setLoading] = useState(false)
   const [selectedRuleId, setSelectedRuleId] = useState(null)
@@ -68,12 +72,12 @@ export default function ReportModal({ visible, onClose, onSubmit }) {
     >
       {success ? (
         <View style={styles.successContainer}>
-          <Ionicons name="checkmark-circle" size={48} color={Colors.success} />
+          <Ionicons name="checkmark-circle" size={48} color={SemanticColors.success} />
           <Text style={styles.successText}>Report submitted</Text>
         </View>
       ) : loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : (
         <View style={styles.container}>
@@ -105,7 +109,7 @@ export default function ReportModal({ visible, onClose, onSubmit }) {
             <TextInput
               style={styles.commentInput}
               placeholder="Add details (optional)..."
-              placeholderTextColor={Colors.pass}
+              placeholderTextColor={colors.placeholderText}
               value={comment}
               onChangeText={setComment}
               maxLength={255}
@@ -119,10 +123,10 @@ export default function ReportModal({ visible, onClose, onSubmit }) {
               activeOpacity={0.7}
             >
               {submitting ? (
-                <ActivityIndicator size="small" color={Colors.white} />
+                <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
                 <>
-                  <Ionicons name="flag" size={18} color={Colors.white} />
+                  <Ionicons name="flag" size={18} color="#FFFFFF" />
                   <Text style={styles.submitButtonText}>Submit Report</Text>
                 </>
               )}
@@ -134,7 +138,7 @@ export default function ReportModal({ visible, onClose, onSubmit }) {
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
     maxHeight: 500,
@@ -151,7 +155,7 @@ const styles = StyleSheet.create({
   successText: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.success,
+    color: SemanticColors.success,
   },
   rulesList: {
     flex: 1,
@@ -167,14 +171,14 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   ruleRowSelected: {
-    backgroundColor: Colors.primary + '10',
+    backgroundColor: BrandColor + '15',
   },
   radioOuter: {
     width: 22,
     height: 22,
     borderRadius: 11,
     borderWidth: 2,
-    borderColor: Colors.pass,
+    borderColor: colors.secondaryText,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 1,
@@ -183,7 +187,7 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
   },
   ruleTextContainer: {
     flex: 1,
@@ -191,39 +195,39 @@ const styles = StyleSheet.create({
   ruleTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: colors.text,
     marginBottom: 2,
   },
   ruleTitleSelected: {
-    color: Colors.primary,
+    color: colors.primary,
   },
   ruleDescription: {
     fontSize: 13,
-    color: Colors.pass,
+    color: colors.secondaryText,
     lineHeight: 18,
   },
   footer: {
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: Colors.cardBorder,
+    borderTopColor: colors.cardBorder,
     gap: 12,
   },
   commentInput: {
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 14,
-    color: Colors.light.text,
+    color: colors.text,
     maxHeight: 80,
   },
   submitButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.warning,
+    backgroundColor: SemanticColors.warning,
     paddingVertical: 14,
     borderRadius: 12,
     gap: 8,
@@ -232,7 +236,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   submitButtonText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },

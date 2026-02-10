@@ -1,7 +1,11 @@
+import { useMemo } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
-import { Colors } from '../constants/Colors'
+import { useThemeColors } from '../hooks/useThemeColors'
 
 function ThemedButton({ style, disabled, children, onPress, ...props }) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+
   return (
     <Pressable
       style={({ pressed }) => [
@@ -25,9 +29,9 @@ function ThemedButton({ style, disabled, children, onPress, ...props }) {
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   btn: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     padding: 18,
     borderRadius: 6,
     marginVertical: 10,
@@ -38,7 +42,7 @@ const styles = StyleSheet.create({
     opacity: 0.7
   },
   disabled: {
-    backgroundColor: Colors.pass,
+    backgroundColor: colors.pass,
     opacity: 0.6,
   },
   content: {
@@ -46,12 +50,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   text: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
   textDisabled: {
-    color: '#ccc',
+    color: colors.placeholderText,
   },
 })
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   View,
   Text,
@@ -8,7 +8,8 @@ import {
 } from 'react-native'
 import Svg, { Path, G } from 'react-native-svg'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../../constants/Colors'
+import { SemanticColors } from '../../constants/Colors'
+import { useThemeColors } from '../../hooks/useThemeColors'
 import BottomDrawerModal from '../BottomDrawerModal'
 import LoadingView from '../LoadingView'
 import EmptyState from '../EmptyState'
@@ -189,15 +190,38 @@ function PieChart({ data, size = 100 }) {
 /**
  * Legend item for pie chart
  */
-function LegendItem({ color, label, count, percentage }) {
+function LegendItem({ color, label, count, percentage, colors }) {
   return (
-    <View style={styles.legendItem}>
-      <View style={[styles.legendDot, { backgroundColor: color }]} />
-      <Text style={styles.legendLabel} numberOfLines={1}>{label}</Text>
-      <Text style={styles.legendValue}>{count} ({percentage}%)</Text>
+    <View style={legendStyles.legendItem}>
+      <View style={[legendStyles.legendDot, { backgroundColor: color }]} />
+      <Text style={[legendStyles.legendLabel, { color: colors.text }]} numberOfLines={1}>{label}</Text>
+      <Text style={[legendStyles.legendValue, { color: colors.secondaryText }]}>{count} ({percentage}%)</Text>
     </View>
   )
 }
+
+// Static legend styles (don't depend on theme)
+const legendStyles = StyleSheet.create({
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 8,
+  },
+  legendLabel: {
+    flex: 1,
+    fontSize: 14,
+  },
+  legendValue: {
+    fontSize: 13,
+    marginLeft: 4,
+  },
+})
 
 /**
  * Section showing a demographic category with pie chart
@@ -207,13 +231,13 @@ function LegendItem({ color, label, count, percentage }) {
  * @param {number} total - Total count
  * @param {Array} sortOrder - Optional array of keys in desired order
  */
-function DemographicSection({ title, data, labels, total, sortOrder }) {
+function DemographicSection({ title, data, labels, total, sortOrder, colors }) {
   const entries = Object.entries(data || {})
   if (entries.length === 0) {
     return (
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{title}</Text>
-        <Text style={styles.noData}>No data available</Text>
+      <View style={{ marginBottom: 24 }}>
+        <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 12 }}>{title}</Text>
+        <Text style={{ fontSize: 14, color: colors.secondaryText, fontStyle: 'italic' }}>No data available</Text>
       </View>
     )
   }
@@ -242,13 +266,13 @@ function DemographicSection({ title, data, labels, total, sortOrder }) {
   const sectionTotal = entries.reduce((sum, [, count]) => sum + count, 0)
 
   return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <View style={styles.chartContainer}>
-        <View style={styles.pieContainer}>
+    <View style={{ marginBottom: 24 }}>
+      <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 12 }}>{title}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+        <View style={{ marginRight: 16 }}>
           <PieChart data={pieData} size={100} />
         </View>
-        <View style={styles.legendContainer}>
+        <View style={{ flex: 1, justifyContent: 'center' }}>
           {entries.map(([key, count], index) => (
             <LegendItem
               key={key}
@@ -256,6 +280,7 @@ function DemographicSection({ title, data, labels, total, sortOrder }) {
               label={labels[key] || key}
               count={count}
               percentage={sectionTotal > 0 ? Math.round((count / sectionTotal) * 100) : 0}
+              colors={colors}
             />
           ))}
         </View>
@@ -277,6 +302,9 @@ export default function GroupDemographicsModal({
   labelRankings,
   fetchDemographics,
 }) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [data, setData] = useState(null)
@@ -317,7 +345,7 @@ export default function GroupDemographicsModal({
             <LoadingView message="Loading demographics..." />
           ) : error ? (
             <View style={styles.errorContainer}>
-              <Ionicons name="alert-circle-outline" size={48} color={Colors.disagree} />
+              <Ionicons name="alert-circle-outline" size={48} color={SemanticColors.disagree} />
               <Text style={styles.errorText}>{error}</Text>
               <TouchableOpacity style={styles.retryButton} onPress={loadDemographics}>
                 <Text style={styles.retryText}>Retry</Text>
@@ -345,7 +373,7 @@ export default function GroupDemographicsModal({
                       >
                         <View style={styles.identityRankingLeft}>
                           {item.isCondorcetWinner && (
-                            <Ionicons name="trophy" size={14} color={Colors.primary} style={{ marginRight: 4 }} />
+                            <Ionicons name="trophy" size={14} color={colors.primary} style={{ marginRight: 4 }} />
                           )}
                           <Text style={styles.identityRankingRank}>{index + 1}.</Text>
                           <Text style={[
@@ -365,6 +393,7 @@ export default function GroupDemographicsModal({
                 data={data?.lean}
                 labels={LEAN_LABELS}
                 total={respondentCount}
+                colors={colors}
               />
               <DemographicSection
                 title="Education"
@@ -372,18 +401,21 @@ export default function GroupDemographicsModal({
                 labels={EDUCATION_LABELS}
                 total={respondentCount}
                 sortOrder={EDUCATION_ORDER}
+                colors={colors}
               />
               <DemographicSection
                 title="Geographic Location"
                 data={data?.geoLocale}
                 labels={GEO_LOCALE_LABELS}
                 total={respondentCount}
+                colors={colors}
               />
               <DemographicSection
                 title="Sex"
                 data={data?.sex}
                 labels={SEX_LABELS}
                 total={respondentCount}
+                colors={colors}
               />
               <DemographicSection
                 title="Age"
@@ -391,12 +423,14 @@ export default function GroupDemographicsModal({
                 labels={AGE_RANGE_LABELS}
                 total={respondentCount}
                 sortOrder={AGE_RANGE_ORDER}
+                colors={colors}
               />
               <DemographicSection
                 title="Race/Ethnicity"
                 data={data?.race}
                 labels={RACE_LABELS}
                 total={respondentCount}
+                colors={colors}
               />
               <DemographicSection
                 title="Income"
@@ -404,6 +438,7 @@ export default function GroupDemographicsModal({
                 labels={INCOME_RANGE_LABELS}
                 total={respondentCount}
                 sortOrder={INCOME_RANGE_ORDER}
+                colors={colors}
               />
               <View style={styles.bottomPadding} />
             </ScrollView>
@@ -412,7 +447,7 @@ export default function GroupDemographicsModal({
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   scrollContent: {
     flex: 1,
     padding: 16,
@@ -425,7 +460,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 14,
-    color: Colors.disagree,
+    color: SemanticColors.disagree,
     textAlign: 'center',
     marginTop: 12,
   },
@@ -433,11 +468,11 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingHorizontal: 24,
     paddingVertical: 10,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     borderRadius: 8,
   },
   retryText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -447,55 +482,18 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333333',
+    color: colors.text,
     marginBottom: 12,
-  },
-  noData: {
-    fontSize: 14,
-    color: '#666666',
-    fontStyle: 'italic',
-  },
-  chartContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  pieContainer: {
-    marginRight: 16,
-  },
-  legendContainer: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  legendDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 8,
-  },
-  legendLabel: {
-    flex: 1,
-    fontSize: 14,
-    color: '#333333',
-  },
-  legendValue: {
-    fontSize: 13,
-    color: '#555555',
-    marginLeft: 4,
   },
   bottomPadding: {
     height: 24,
   },
   identityRankingList: {
-    backgroundColor: Colors.light.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderRadius: 8,
     padding: 12,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
   },
   identityRankingItem: {
     flexDirection: 'row',
@@ -503,7 +501,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
+    borderBottomColor: colors.cardBorder,
   },
   identityRankingItemLast: {
     borderBottomWidth: 0,
@@ -516,21 +514,21 @@ const styles = StyleSheet.create({
   identityRankingRank: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.pass,
+    color: colors.secondaryText,
     width: 24,
   },
   identityRankingLabel: {
     fontSize: 15,
     fontWeight: '500',
-    color: Colors.light.text,
+    color: colors.text,
   },
   identityRankingLabelTop: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.primary,
+    color: colors.primary,
   },
   identityRankingVotes: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
 })

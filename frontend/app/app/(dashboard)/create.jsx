@@ -8,8 +8,9 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 }
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../../constants/Colors'
+import { SemanticColors } from '../../constants/Colors'
 import { Shadows } from '../../constants/Theme'
+import { useThemeColors } from '../../hooks/useThemeColors'
 import { UserContext } from '../../contexts/UserContext'
 import api from '../../lib/api'
 import { CacheManager, CacheKeys, CacheDurations } from '../../lib/cache'
@@ -52,6 +53,9 @@ const Alert = {
 }
 
 export default function Create() {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+
   const [statement, setStatement] = useState("")
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [selectedLocation, setSelectedLocation] = useState(null)
@@ -537,7 +541,7 @@ export default function Create() {
                 Add a Position
               </ThemedText>
               <TouchableOpacity style={styles.rulesButton} onPress={handleOpenRules}>
-                <Ionicons name="book-outline" size={15} color={Colors.primary} />
+                <Ionicons name="book-outline" size={15} color={colors.primary} />
                 <Text style={styles.rulesButtonText}>Community Rules</Text>
               </TouchableOpacity>
             </View>
@@ -548,7 +552,7 @@ export default function Create() {
               <ThemedTextInput
                 style={styles.statementInput}
                 placeholder="What's your position?"
-                placeholderTextColor={Colors.pass}
+                placeholderTextColor={colors.placeholderText}
                 value={statement}
                 onChangeText={setStatement}
                 multiline={true}
@@ -565,12 +569,12 @@ export default function Create() {
               {(searchingSimilar || similarPositions.length > 0) && (
                 <Animated.View style={[styles.similarContainer, { opacity: similarFadeAnim }]}>
                   <View style={styles.similarHeader}>
-                    <Ionicons name="bulb-outline" size={16} color={Colors.primary} />
+                    <Ionicons name="bulb-outline" size={16} color={colors.primary} />
                     <Text style={styles.similarTitle}>
                       {searchingSimilar ? 'Searching for similar positions...' : 'Similar positions you could adopt:'}
                     </Text>
                     {searchingSimilar && (
-                      <ActivityIndicator size="small" color={Colors.primary} style={{ marginLeft: 8 }} />
+                      <ActivityIndicator size="small" color={colors.primary} style={{ marginLeft: 8 }} />
                     )}
                   </View>
 
@@ -579,7 +583,7 @@ export default function Create() {
                       <View style={styles.similarContent}>
                         {result.wasPreviouslyHeld && (
                           <View style={styles.previouslyHeldBadge}>
-                            <Ionicons name="time-outline" size={12} color={Colors.primary} />
+                            <Ionicons name="time-outline" size={12} color={colors.primary} />
                             <Text style={styles.previouslyHeldText}>Previously held</Text>
                           </View>
                         )}
@@ -595,7 +599,7 @@ export default function Create() {
                         style={styles.adoptButton}
                         onPress={() => handleAdoptPosition(result.position.id)}
                       >
-                        <Ionicons name="add-circle" size={28} color={Colors.agree} />
+                        <Ionicons name="add-circle" size={28} color={SemanticColors.agree} />
                       </TouchableOpacity>
                     </View>
                   ))}
@@ -634,7 +638,7 @@ export default function Create() {
               disabled={loading || isOverLimit || !statement.trim() || !selectedCategory || !selectedLocation}
               style={{ paddingVertical: 12 }}
             >
-              <Text style={{ color: Colors.white, fontSize: 15, fontWeight: '600' }}>
+              <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '600' }}>
                 {loading ? "Creating..." : "Create Position"}
               </Text>
             </ThemedButton>
@@ -671,7 +675,7 @@ export default function Create() {
                   Chatting List
                 </ThemedText>
                 <TouchableOpacity onPress={() => setShowChattingExplanation(true)} hitSlop={8}>
-                  <Ionicons name="help-circle-outline" size={20} color={Colors.pass} />
+                  <Ionicons name="help-circle-outline" size={20} color={colors.secondaryText} />
                 </TouchableOpacity>
               </View>
               <Text style={styles.sectionSubtitle}>
@@ -683,7 +687,7 @@ export default function Create() {
               visible={showChattingExplanation}
               onClose={() => setShowChattingExplanation(false)}
               icon="chatbubbles"
-              iconColor={Colors.chat}
+              iconColor={colors.chat}
               title="What is the Chatting List?"
               paragraphs={[
                 "This list contains other people's positions that you've previously chatted about, as well as positions you've saved by tapping the chat button on a card.",
@@ -699,7 +703,7 @@ export default function Create() {
               <Ionicons
                 name={showChattingSearch ? 'close-circle' : 'add-circle'}
                 size={22}
-                color={Colors.primary}
+                color={colors.primary}
               />
               <Text style={styles.addToListButtonText}>
                 {showChattingSearch ? 'Close Search' : 'Add Position to List'}
@@ -712,14 +716,14 @@ export default function Create() {
                 <ThemedTextInput
                   style={styles.chattingSearchInput}
                   placeholder="Search for positions to add..."
-                  placeholderTextColor={Colors.pass}
+                  placeholderTextColor={colors.placeholderText}
                   value={chattingSearchQuery}
                   onChangeText={setChattingSearchQuery}
                 />
 
                 {searchingChatting && (
                   <View style={styles.chattingSearchLoading}>
-                    <ActivityIndicator size="small" color={Colors.primary} />
+                    <ActivityIndicator size="small" color={colors.primary} />
                     <Text style={styles.chattingSearchLoadingText}>Searching...</Text>
                   </View>
                 )}
@@ -741,7 +745,7 @@ export default function Create() {
                           style={styles.addToListItemButton}
                           onPress={() => handleAddToChattingList(result.position.id)}
                         >
-                          <Ionicons name="add-circle" size={28} color={Colors.agree} />
+                          <Ionicons name="add-circle" size={28} color={SemanticColors.agree} />
                         </TouchableOpacity>
                       </View>
                     ))}
@@ -795,7 +799,7 @@ export default function Create() {
               style={styles.floatingDeleteButton}
               onPress={() => floatingBar.ref?.current?.confirmDelete()}
             >
-              <Ionicons name="trash" size={18} color={Colors.white} />
+              <Ionicons name="trash" size={18} color="#FFFFFF" />
               <Text style={styles.floatingDeleteButtonText}>Delete Selected</Text>
             </TouchableOpacity>
           </View>
@@ -809,7 +813,7 @@ export default function Create() {
         maxHeight="70%"
       >
         {rulesLoading ? (
-          <ActivityIndicator size="large" color={Colors.primary} style={{ paddingVertical: 32 }} />
+          <ActivityIndicator size="large" color={colors.primary} style={{ paddingVertical: 32 }} />
         ) : rules.length === 0 ? (
           <Text style={styles.rulesEmptyText}>No rules have been defined yet.</Text>
         ) : (
@@ -844,10 +848,10 @@ export default function Create() {
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -859,7 +863,7 @@ const styles = StyleSheet.create({
   headingCompact: {
     fontWeight: '700',
     fontSize: 24,
-    color: Colors.primary,
+    color: colors.primary,
   },
   form: {
     flex: 1,
@@ -874,22 +878,22 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
     fontSize: 15,
     lineHeight: 22,
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    color: Colors.darkText,
+    borderColor: colors.cardBorder,
+    color: colors.darkText,
   },
   charCount: {
     fontSize: 11,
-    color: Colors.pass,
+    color: colors.secondaryText,
     textAlign: 'right',
     marginTop: 4,
   },
   charCountOver: {
-    color: Colors.warning,
+    color: SemanticColors.warning,
   },
   errorText: {
-    color: Colors.warning,
+    color: SemanticColors.warning,
     fontSize: 14,
   },
   errorContainerCompact: {
@@ -897,7 +901,7 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: Colors.warning,
+    borderColor: SemanticColors.warning,
     marginBottom: 12,
   },
   // My Positions Section
@@ -905,7 +909,7 @@ const styles = StyleSheet.create({
     marginTop: 32,
     paddingTop: 24,
     borderTopWidth: 1,
-    borderTopColor: Colors.cardBorder,
+    borderTopColor: colors.cardBorder,
   },
   sectionHeader: {
     marginBottom: 16,
@@ -913,21 +917,21 @@ const styles = StyleSheet.create({
   sectionHeading: {
     fontWeight: '700',
     fontSize: 24,
-    color: Colors.primary,
+    color: colors.primary,
   },
   sectionSubtitle: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
     marginTop: 2,
   },
   // Similar Positions Suggestions
   similarContainer: {
     marginTop: 10,
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     borderRadius: 10,
     padding: 10,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
     ...Shadows.card,
   },
   similarHeader: {
@@ -938,19 +942,19 @@ const styles = StyleSheet.create({
   similarTitle: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.primary,
+    color: colors.primary,
     marginLeft: 6,
     flex: 1,
   },
   similarItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderRadius: 8,
     padding: 10,
     marginBottom: 6,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
   },
   similarContent: {
     flex: 1,
@@ -963,18 +967,18 @@ const styles = StyleSheet.create({
   },
   previouslyHeldText: {
     fontSize: 11,
-    color: Colors.primary,
+    color: colors.primary,
     fontWeight: '500',
   },
   similarStatement: {
     fontSize: 13,
-    color: Colors.darkText,
+    color: colors.darkText,
     lineHeight: 18,
     fontStyle: 'italic',
   },
   similarMeta: {
     fontSize: 11,
-    color: Colors.pass,
+    color: colors.secondaryText,
     marginTop: 2,
   },
   adoptButton: {
@@ -983,7 +987,7 @@ const styles = StyleSheet.create({
   },
   noSimilarText: {
     fontSize: 13,
-    color: Colors.pass,
+    color: colors.secondaryText,
     textAlign: 'center',
     paddingVertical: 8,
   },
@@ -992,7 +996,7 @@ const styles = StyleSheet.create({
     marginTop: 32,
     paddingTop: 24,
     borderTopWidth: 1,
-    borderTopColor: Colors.cardBorder,
+    borderTopColor: colors.cardBorder,
   },
   sectionHeadingRow: {
     flexDirection: 'row',
@@ -1003,9 +1007,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderWidth: 1,
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
     borderRadius: 12,
     padding: 12,
     marginBottom: 16,
@@ -1014,7 +1018,7 @@ const styles = StyleSheet.create({
   addToListButtonText: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.primary,
+    color: colors.primary,
   },
   chattingSearchContainer: {
     marginBottom: 16,
@@ -1023,10 +1027,10 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 12,
     fontSize: 16,
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    color: Colors.darkText,
+    borderColor: colors.cardBorder,
+    color: colors.darkText,
   },
   chattingSearchLoading: {
     flexDirection: 'row',
@@ -1037,14 +1041,14 @@ const styles = StyleSheet.create({
   },
   chattingSearchLoadingText: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
   chattingSearchResults: {
     marginTop: 12,
-    backgroundColor: Colors.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
     overflow: 'hidden',
   },
   chattingSearchResult: {
@@ -1052,20 +1056,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
+    borderBottomColor: colors.cardBorder,
   },
   chattingSearchResultContent: {
     flex: 1,
   },
   chattingSearchResultStatement: {
     fontSize: 14,
-    color: Colors.darkText,
+    color: colors.darkText,
     lineHeight: 20,
     fontStyle: 'italic',
   },
   chattingSearchResultMeta: {
     fontSize: 12,
-    color: Colors.pass,
+    color: colors.secondaryText,
     marginTop: 4,
   },
   addToListItemButton: {
@@ -1074,13 +1078,13 @@ const styles = StyleSheet.create({
   },
   noSearchResultsText: {
     fontSize: 13,
-    color: Colors.pass,
+    color: colors.secondaryText,
     textAlign: 'center',
     paddingVertical: 16,
   },
   searchHintText: {
     fontSize: 13,
-    color: Colors.pass,
+    color: colors.secondaryText,
     textAlign: 'center',
     paddingVertical: 12,
   },
@@ -1093,17 +1097,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: Colors.warning,
+    borderTopColor: SemanticColors.warning,
     ...Shadows.elevated,
   },
   floatingDeleteCount: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.darkText,
+    color: colors.darkText,
   },
   floatingDeleteActions: {
     flexDirection: 'row',
@@ -1114,26 +1118,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
   },
   floatingDeleteCancelText: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
     fontWeight: '500',
   },
   floatingDeleteButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.warning,
+    backgroundColor: SemanticColors.warning,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
     gap: 6,
   },
   floatingDeleteButtonText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -1150,7 +1154,7 @@ const styles = StyleSheet.create({
   },
   rulesButtonText: {
     fontSize: 13,
-    color: Colors.primary,
+    color: colors.primary,
     fontWeight: '500',
   },
   rulesScrollView: {
@@ -1158,14 +1162,14 @@ const styles = StyleSheet.create({
   },
   rulesEmptyText: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
     textAlign: 'center',
     paddingVertical: 32,
   },
   ruleItem: {
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
+    borderBottomColor: colors.cardBorder,
   },
   ruleHeader: {
     flexDirection: 'row',
@@ -1176,12 +1180,12 @@ const styles = StyleSheet.create({
   ruleTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.darkText,
+    color: colors.darkText,
     flex: 1,
   },
   ruleText: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
     lineHeight: 20,
   },
   severityBadge: {
@@ -1203,7 +1207,7 @@ const styles = StyleSheet.create({
     textTransform: 'capitalize',
   },
   severityTextHigh: {
-    color: Colors.warning,
+    color: SemanticColors.warning,
   },
   severityTextMedium: {
     color: '#e65100',

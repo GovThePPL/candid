@@ -1,5 +1,6 @@
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native'
-import { Colors } from '../constants/Colors'
+import { useMemo } from 'react'
+import { useThemeColors } from '../hooks/useThemeColors'
 
 /**
  * Loading spinner with optional message text.
@@ -9,15 +10,18 @@ import { Colors } from '../constants/Colors'
  * @param {Object} [props.style] - Additional container style
  */
 export default function LoadingView({ message = 'Loading...', style }) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+
   return (
     <View style={[styles.container, style]}>
-      <ActivityIndicator size="large" color={Colors.primary} />
+      <ActivityIndicator size="large" color={colors.primary} />
       <Text style={styles.text}>{message}</Text>
     </View>
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',
@@ -26,7 +30,7 @@ const styles = StyleSheet.create({
   },
   text: {
     fontSize: 15,
-    color: Colors.pass,
+    color: colors.secondaryText,
     marginTop: 12,
   },
 })

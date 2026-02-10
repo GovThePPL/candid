@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   View,
   Text,
@@ -7,7 +7,8 @@ import {
   ScrollView,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors, GROUP_COLORS } from '../../constants/Colors'
+import { GROUP_COLORS, SemanticColors, BrandColor } from '../../constants/Colors'
+import { useThemeColors } from '../../hooks/useThemeColors'
 import BottomDrawerModal from '../BottomDrawerModal'
 import LoadingView from '../LoadingView'
 import EmptyState from '../EmptyState'
@@ -28,6 +29,9 @@ export default function SurveyResultsModal({
   fetchStandardResults,
   fetchCrosstabs,
 }) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+
   // Get the selected group's info (letter and custom label)
   const getGroupInfo = () => {
     if (!selectedGroup || selectedGroup === 'majority') {
@@ -206,18 +210,18 @@ export default function SurveyResultsModal({
           </Text>
           {survey.isActive ? (
             <Text style={styles.surveyActive}>
-              <Ionicons name="ellipse" size={8} color={Colors.agree} /> Active
+              <Ionicons name="ellipse" size={8} color={SemanticColors.agree} /> Active
               {survey.daysRemaining !== null && ` · ${survey.daysRemaining} days left`}
             </Text>
           ) : (
             <Text style={styles.surveyInactive}>
-              <Ionicons name="ellipse" size={8} color={Colors.pass} /> Completed
+              <Ionicons name="ellipse" size={8} color={colors.pass} /> Completed
               {survey.dateRange && ` · ${survey.dateRange.start} - ${survey.dateRange.end}`}
             </Text>
           )}
         </View>
       </View>
-      <Ionicons name="chevron-forward" size={20} color={Colors.pass} />
+      <Ionicons name="chevron-forward" size={20} color={colors.secondaryText} />
     </TouchableOpacity>
   )
 
@@ -230,7 +234,7 @@ export default function SurveyResultsModal({
           <LoadingView message="Loading surveys..." />
         ) : error ? (
           <View style={styles.errorContainer}>
-            <Ionicons name="alert-circle-outline" size={48} color={Colors.disagree} />
+            <Ionicons name="alert-circle-outline" size={48} color={SemanticColors.disagree} />
             <Text style={styles.errorText}>{error}</Text>
             <TouchableOpacity style={styles.retryButton} onPress={loadSurveys}>
               <Text style={styles.retryText}>Retry</Text>
@@ -246,7 +250,7 @@ export default function SurveyResultsModal({
             {locationGroups.map((group, groupIndex) => (
               <View key={group.locationId} style={styles.locationSection}>
                 <View style={styles.locationHeader}>
-                  <Ionicons name="location" size={16} color={Colors.primary} />
+                  <Ionicons name="location" size={16} color={colors.primary} />
                   <Text style={styles.locationHeaderText}>
                     {group.locationName || group.locationCode || 'Unknown Location'}
                   </Text>
@@ -273,7 +277,7 @@ export default function SurveyResultsModal({
           <LoadingView message="Loading results..." />
         ) : error ? (
           <View style={styles.errorContainer}>
-            <Ionicons name="alert-circle-outline" size={48} color={Colors.disagree} />
+            <Ionicons name="alert-circle-outline" size={48} color={SemanticColors.disagree} />
             <Text style={styles.errorText}>{error}</Text>
           </View>
         ) : (
@@ -294,7 +298,7 @@ export default function SurveyResultsModal({
                       >
                         <View style={styles.rankingLeft}>
                           {item.isCondorcetWinner && (
-                            <Ionicons name="trophy" size={14} color={Colors.primary} />
+                            <Ionicons name="trophy" size={14} color={colors.primary} />
                           )}
                           <Text style={styles.rankingRank}>{index + 1}.</Text>
                           <Text style={[
@@ -321,7 +325,7 @@ export default function SurveyResultsModal({
                           style={styles.crosstabsButton}
                           onPress={() => handleViewCrosstabs(question)}
                         >
-                          <Ionicons name="stats-chart" size={16} color={Colors.primary} />
+                          <Ionicons name="stats-chart" size={16} color={colors.primary} />
                           <Text style={styles.crosstabsButtonText}>Demographics</Text>
                         </TouchableOpacity>
                       )}
@@ -376,7 +380,7 @@ export default function SurveyResultsModal({
                         Group {groupData.groupLabel}
                       </Text>
                       <View style={styles.groupMemberCount}>
-                        <Ionicons name="person" size={12} color={Colors.pass} />
+                        <Ionicons name="person" size={12} color={colors.secondaryText} />
                         <Text style={styles.groupMemberText}>{groupData.memberCount}</Text>
                       </View>
                     </View>
@@ -391,7 +395,7 @@ export default function SurveyResultsModal({
                         >
                           <View style={styles.rankingLeft}>
                             {item.isCondorcetWinner && (
-                              <Ionicons name="trophy" size={14} color={Colors.primary} />
+                              <Ionicons name="trophy" size={14} color={colors.primary} />
                             )}
                             <Text style={styles.rankingRank}>{index + 1}.</Text>
                             <Text style={[
@@ -484,7 +488,7 @@ export default function SurveyResultsModal({
           <LoadingView message="Loading demographics..." />
         ) : error ? (
           <View style={styles.errorContainer}>
-            <Ionicons name="alert-circle-outline" size={48} color={Colors.disagree} />
+            <Ionicons name="alert-circle-outline" size={48} color={SemanticColors.disagree} />
             <Text style={styles.errorText}>{error}</Text>
           </View>
         ) : (
@@ -603,7 +607,7 @@ export default function SurveyResultsModal({
         subtitle: crosstabsData.questionText,
         headerLeft: (
           <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-            <Ionicons name="arrow-back" size={24} color={Colors.primary} />
+            <Ionicons name="arrow-back" size={24} color={colors.primary} />
           </TouchableOpacity>
         ),
       }
@@ -626,7 +630,7 @@ export default function SurveyResultsModal({
         subtitle: `${locationName} · ${groupAndRespondentInfo}`,
         headerLeft: (
           <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-            <Ionicons name="arrow-back" size={24} color={Colors.primary} />
+            <Ionicons name="arrow-back" size={24} color={colors.primary} />
           </TouchableOpacity>
         ),
       }
@@ -654,7 +658,7 @@ export default function SurveyResultsModal({
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   backButton: {
     padding: 4,
   },
@@ -670,7 +674,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 14,
-    color: Colors.disagree,
+    color: SemanticColors.disagree,
     textAlign: 'center',
     marginTop: 12,
   },
@@ -678,11 +682,11 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingHorizontal: 24,
     paddingVertical: 10,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     borderRadius: 8,
   },
   retryText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -690,12 +694,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: Colors.light.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
   },
   surveyItemInactive: {
     opacity: 0.7,
@@ -711,11 +715,11 @@ const styles = StyleSheet.create({
   surveyTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: colors.text,
     flex: 1,
   },
   locationBadge: {
-    backgroundColor: Colors.primaryMuted + '30',
+    backgroundColor: colors.badgeBg,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 8,
@@ -723,11 +727,11 @@ const styles = StyleSheet.create({
   locationCode: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.primary,
+    color: colors.badgeText,
   },
   surveyQuestion: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
     marginTop: 4,
   },
   surveyMeta: {
@@ -738,15 +742,15 @@ const styles = StyleSheet.create({
   },
   surveyType: {
     fontSize: 12,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
   surveyActive: {
     fontSize: 12,
-    color: Colors.agree,
+    color: SemanticColors.agree,
   },
   surveyInactive: {
     fontSize: 12,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
   section: {
     marginBottom: 24,
@@ -754,15 +758,15 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: colors.text,
     marginBottom: 12,
   },
   rankingList: {
-    backgroundColor: Colors.light.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderRadius: 8,
     padding: 12,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
   },
   rankingItem: {
     flexDirection: 'row',
@@ -770,7 +774,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
+    borderBottomColor: colors.cardBorder,
   },
   rankingItemLast: {
     borderBottomWidth: 0,
@@ -784,23 +788,23 @@ const styles = StyleSheet.create({
   rankingRank: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.pass,
+    color: colors.secondaryText,
     width: 24,
   },
   rankingLabel: {
     fontSize: 15,
     fontWeight: '500',
-    color: Colors.light.text,
+    color: colors.text,
     flex: 1,
   },
   rankingLabelTop: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.primary,
+    color: colors.primary,
   },
   rankingVotes: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
     marginLeft: 8,
   },
   groupRankingSection: {
@@ -820,7 +824,7 @@ const styles = StyleSheet.create({
   groupLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: colors.text,
   },
   groupMemberCount: {
     flexDirection: 'row',
@@ -829,7 +833,7 @@ const styles = StyleSheet.create({
   },
   groupMemberText: {
     fontSize: 12,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
   locationSection: {
     marginBottom: 20,
@@ -841,12 +845,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingBottom: 8,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
+    borderBottomColor: colors.cardBorder,
   },
   locationHeaderText: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.primary,
+    color: colors.primary,
     flex: 1,
   },
   questionHeader: {
@@ -862,47 +866,47 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: BrandColor + '20',
     borderRadius: 8,
   },
   crosstabsButtonText: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.primary,
+    color: colors.primary,
   },
   crosstabsTable: {
-    backgroundColor: Colors.light.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
     overflow: 'hidden',
   },
   tableHeaderRow: {
     flexDirection: 'row',
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: BrandColor + '20',
     borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
+    borderBottomColor: colors.cardBorder,
   },
   tableDataRow: {
     flexDirection: 'row',
     borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
+    borderBottomColor: colors.cardBorder,
   },
   tableRowAlt: {
-    backgroundColor: Colors.light.cardBackground + 'CC',
+    backgroundColor: colors.uiBackground,
   },
   tableRowHeader: {
     width: 120,
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRightWidth: 1,
-    borderRightColor: Colors.cardBorder,
+    borderRightColor: colors.cardBorder,
     justifyContent: 'center',
   },
   tableRowHeaderText: {
     fontSize: 13,
     fontWeight: '500',
-    color: Colors.light.text,
+    color: colors.text,
   },
   tableCell: {
     width: 80,
@@ -911,11 +915,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRightWidth: 1,
-    borderRightColor: Colors.cardBorder,
+    borderRightColor: colors.cardBorder,
   },
   tableCellText: {
     fontSize: 13,
-    color: Colors.light.text,
+    color: colors.text,
     textAlign: 'center',
   },
   tableCellTotal: {
@@ -924,38 +928,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.primary + '08',
+    backgroundColor: BrandColor + '10',
   },
   tableCellTotalText: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: colors.text,
   },
   tableTotalRow: {
     flexDirection: 'row',
-    backgroundColor: Colors.primary + '10',
+    backgroundColor: BrandColor + '15',
     borderTopWidth: 2,
-    borderTopColor: Colors.primary + '30',
+    borderTopColor: BrandColor + '40',
   },
   tableTotalHeaderText: {
     fontSize: 13,
     fontWeight: '700',
-    color: Colors.light.text,
+    color: colors.text,
   },
   tableTotalCellText: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: colors.text,
   },
   tableGrandTotalText: {
     fontSize: 14,
     fontWeight: '700',
-    color: Colors.primary,
+    color: colors.primary,
   },
   tableHeaderText: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.primary,
+    color: colors.primary,
     textAlign: 'center',
   },
   bottomPadding: {

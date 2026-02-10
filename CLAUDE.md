@@ -68,6 +68,18 @@ Database access uses direct parameterized SQL queries (no ORM).
 
 React Native app with Expo (v54) and Expo Router (file-based routing). Authentication via JWT tokens from the backend API. State management via React Context (`contexts/`). All API calls use the generated JavaScript client (`frontend/api/`) via `promisify` wrappers in `lib/api.js`.
 
+#### Theme System (Light/Dark Mode)
+
+The app supports light mode (default), dark mode, and system preference via `contexts/ThemeContext.js`. Light mode is the default because it promotes trust and readability for a civic discourse platform. All UI changes must work correctly in both themes:
+
+- **Use theme tokens** from `constants/Colors.js` — never hardcode colors like `#FFFFFF` or `#333333` for backgrounds/text
+- **Use `useThemeColors()` hook** + `createStyles(colors)` factory pattern in all components
+- **Use `BrandColor`** (`#5C005C`) for surfaces with white text (card headers/footers) — it's theme-invariant
+- **Use `badgeBg`/`badgeText`** for location badges and accent elements — these are solid in dark mode (translucent alpha backgrounds are invisible on dark surfaces)
+- **Use `buttonDefault`/`buttonSelected`** for interactive pill buttons — these invert between themes (darker on select in light, lighter on select in dark)
+- **WCAG contrast**: Text must meet AA (4.5:1 normal, 3:1 large). Placeholder/disabled text is exempt. Non-text UI components need 3:1
+- **Test both themes** when modifying any component with colored elements
+
 ### Polis Integration (backend/polis-integration/)
 
 Runs Pol.is as direct docker-compose services (`polis-server` and `polis-math`) with Keycloak OIDC for admin authentication. The `polis/` subdirectory is a git submodule from https://github.com/compdemocracy/polis.git. The Polis database (`polis-dev`) lives in the shared PostgreSQL container.
@@ -102,6 +114,15 @@ PostgreSQL 17 with schema in `01-schema.sql` and test data in `02-basic-data.sql
 - **Position timeouts**: Implement expiration/archival of positions after a configurable time period.
 
 ## Development Workflow
+
+### Planning Large Tasks
+
+Before starting non-trivial multi-step tasks, write a plan to `.claude-plans/` (gitignored). Plans survive context resets and let work resume across sessions.
+
+- **File naming**: `.claude-plans/YYYY-MM-DD_HH-MM_<short-title>.md` (e.g., `2026-02-09_14-30_dark-mode-migration.md`)
+- **Contents**: Task description, step-by-step plan with checkboxes, key files involved, and any decisions made
+- **Update as you go**: Mark steps complete (`[x]`) and add notes as work progresses
+- **Check on startup**: At the beginning of a session, check `.claude-plans/` for any in-progress plans to resume
 
 ### README Maintenance
 

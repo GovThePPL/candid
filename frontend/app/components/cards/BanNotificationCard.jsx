@@ -1,16 +1,16 @@
 import { StyleSheet, View, Text, TouchableOpacity, TextInput, ActivityIndicator, ScrollView } from 'react-native'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../../constants/Colors'
+import { useThemeColors } from '../../hooks/useThemeColors'
+import { SemanticColors, BrandColor } from '../../constants/Colors'
 import BottomDrawerModal from '../BottomDrawerModal'
 import PositionInfoCard from '../PositionInfoCard'
 import api from '../../lib/api'
 
 const ACTION_COLORS = {
-  permanent_ban: Colors.warning,
+  permanent_ban: SemanticColors.warning,
   temporary_ban: '#E67E22',
   warning: '#F39C12',
-  removed: Colors.pass,
 }
 
 const ACTION_LABELS = {
@@ -18,15 +18,6 @@ const ACTION_LABELS = {
   temporary_ban: 'Temporary Ban',
   warning: 'Warning',
   removed: 'Content Removed',
-}
-
-const APPEAL_COLORS = {
-  pending: '#F39C12',
-  approved: Colors.agree,
-  denied: Colors.warning,
-  escalated: '#E67E22',
-  modified: Colors.primary,
-  overruled: '#9B59B6',
 }
 
 const APPEAL_LABELS = {
@@ -39,6 +30,23 @@ const APPEAL_LABELS = {
 }
 
 export default function BanNotificationCard({ banData }) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+
+  const ACTION_COLORS_DYNAMIC = useMemo(() => ({
+    ...ACTION_COLORS,
+    removed: colors.pass,
+  }), [colors])
+
+  const APPEAL_COLORS = useMemo(() => ({
+    pending: '#F39C12',
+    approved: SemanticColors.agree,
+    denied: SemanticColors.warning,
+    escalated: '#E67E22',
+    modified: colors.primary,
+    overruled: '#9B59B6',
+  }), [colors])
+
   const { banType, reason, ruleTitle, modActionId, expiresAt, hasAppealed, targetContent, actionChain } = banData || {}
   const isPermanent = banType === 'permanent_ban'
 
@@ -73,7 +81,7 @@ export default function BanNotificationCard({ banData }) {
 
   return (
     <View style={styles.card}>
-      <Ionicons name="warning" size={40} color={Colors.warning} style={styles.warningIcon} />
+      <Ionicons name="warning" size={40} color={SemanticColors.warning} style={styles.warningIcon} />
 
       {/* Compact header */}
       <Text style={styles.title}>Account Suspended</Text>
@@ -135,14 +143,14 @@ export default function BanNotificationCard({ banData }) {
             style={styles.appealButton}
             onPress={() => setAppealModalVisible(true)}
           >
-            <Ionicons name="megaphone-outline" size={15} color={Colors.white} />
+            <Ionicons name="megaphone-outline" size={15} color='#FFFFFF' />
             <Text style={styles.appealButtonText}>Appeal</Text>
           </TouchableOpacity>
         )}
 
         {appealSubmitted && (
           <View style={styles.appealSubmittedBadge}>
-            <Ionicons name="checkmark-circle" size={15} color={Colors.success} />
+            <Ionicons name="checkmark-circle" size={15} color={SemanticColors.success} />
             <Text style={styles.appealSubmittedText}>Appeal Submitted</Text>
           </View>
         )}
@@ -152,7 +160,7 @@ export default function BanNotificationCard({ banData }) {
             style={styles.detailsButton}
             onPress={() => setHistoryModalVisible(true)}
           >
-            <Ionicons name="time-outline" size={15} color={Colors.primary} />
+            <Ionicons name="time-outline" size={15} color={colors.primary} />
             <Text style={styles.detailsButtonText}>Action Details</Text>
           </TouchableOpacity>
         )}
@@ -173,7 +181,7 @@ export default function BanNotificationCard({ banData }) {
           <TextInput
             style={styles.appealInput}
             placeholder="Describe why this decision should be reconsidered..."
-            placeholderTextColor={Colors.pass}
+            placeholderTextColor={colors.placeholderText}
             value={appealText}
             onChangeText={setAppealText}
             multiline
@@ -192,7 +200,7 @@ export default function BanNotificationCard({ banData }) {
             disabled={!appealText.trim() || appealSubmitting}
           >
             {appealSubmitting ? (
-              <ActivityIndicator size="small" color={Colors.white} />
+              <ActivityIndicator size="small" color='#FFFFFF' />
             ) : (
               <Text style={styles.submitAppealButtonText}>Submit Appeal</Text>
             )}
@@ -213,7 +221,7 @@ export default function BanNotificationCard({ banData }) {
             contentContainerStyle={styles.historyScrollContent}
             showsVerticalScrollIndicator={false}
           >
-            <ActionChainCard chain={actionChain} />
+            <ActionChainCard chain={actionChain} colors={colors} styles={styles} actionColors={ACTION_COLORS_DYNAMIC} appealColors={APPEAL_COLORS} />
           </ScrollView>
         )}
       </BottomDrawerModal>
@@ -221,8 +229,8 @@ export default function BanNotificationCard({ banData }) {
   )
 }
 
-function ActionChainCard({ chain }) {
-  const color = ACTION_COLORS[chain.actionType] || Colors.pass
+function ActionChainCard({ chain, colors, styles, actionColors, appealColors }) {
+  const color = actionColors[chain.actionType] || colors.pass
   const date = chain.actionDate
     ? new Date(chain.actionDate).toLocaleDateString('en-US', {
         month: 'short', day: 'numeric', year: 'numeric',
@@ -243,7 +251,7 @@ function ActionChainCard({ chain }) {
       {/* Rule title */}
       {chain.ruleTitle && (
         <View style={styles.chainRuleRow}>
-          <Ionicons name="document-text-outline" size={14} color={Colors.light.text} />
+          <Ionicons name="document-text-outline" size={14} color={colors.text} />
           <Text style={styles.chainRuleTitle}>{chain.ruleTitle}</Text>
         </View>
       )}
@@ -276,7 +284,7 @@ function ActionChainCard({ chain }) {
               {chain.appealText && (
                 <Text style={styles.chainComment}>"{chain.appealText}"</Text>
               )}
-              <View style={[styles.appealStateBadge, { backgroundColor: APPEAL_COLORS[chain.appealState] || Colors.pass }]}>
+              <View style={[styles.appealStateBadge, { backgroundColor: appealColors[chain.appealState] || colors.pass }]}>
                 <Text style={styles.appealStateBadgeText}>
                   {APPEAL_LABELS[chain.appealState] || chain.appealState}
                 </Text>
@@ -289,8 +297,8 @@ function ActionChainCard({ chain }) {
         {chain.appealResponses?.map((resp, i) => {
           const outcomeColor = resp.outcome === 'overruled' ? '#9B59B6'
             : resp.outcome === 'escalated' ? '#E67E22'
-            : resp.outcome === 'admin_decision' ? (APPEAL_COLORS[chain.appealState] || Colors.primary)
-            : Colors.primary
+            : resp.outcome === 'admin_decision' ? (appealColors[chain.appealState] || colors.primary)
+            : colors.primary
           const outcomeLabel = resp.outcome === 'overruled' ? 'Overruled'
             : resp.outcome === 'escalated' ? 'Escalated to Admin'
             : resp.outcome === 'admin_decision' ? (APPEAL_LABELS[chain.appealState] || 'Decision')
@@ -317,15 +325,15 @@ function ActionChainCard({ chain }) {
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   card: {
     flex: 1,
-    backgroundColor: Colors.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderRadius: 16,
     padding: 16,
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: Colors.warning,
+    borderColor: SemanticColors.warning,
   },
   warningIcon: {
     marginBottom: 8,
@@ -333,19 +341,19 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: '700',
-    color: Colors.warning,
+    color: SemanticColors.warning,
     textAlign: 'center',
   },
   banType: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: colors.text,
     textAlign: 'center',
     marginTop: 2,
   },
   expiryText: {
     fontSize: 12,
-    color: Colors.pass,
+    color: colors.secondaryText,
     textAlign: 'center',
     marginTop: 2,
   },
@@ -358,14 +366,14 @@ const styles = StyleSheet.create({
   targetContentLabel: {
     fontSize: 11,
     fontWeight: '600',
-    color: Colors.pass,
+    color: colors.secondaryText,
     textTransform: 'uppercase',
     marginBottom: 4,
   },
   positionInfoCard: {
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
     overflow: 'hidden',
     padding: 10,
   },
@@ -393,13 +401,13 @@ const styles = StyleSheet.create({
   detailLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: Colors.pass,
+    color: colors.secondaryText,
     minWidth: 40,
   },
   detailValue: {
     flex: 1,
     fontSize: 13,
-    color: Colors.light.text,
+    color: colors.text,
     lineHeight: 18,
   },
 
@@ -415,13 +423,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingHorizontal: 18,
     paddingVertical: 8,
     borderRadius: 20,
   },
   appealButtonText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -429,15 +437,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: Colors.success + '18',
+    backgroundColor: SemanticColors.success + '18',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: Colors.success + '40',
+    borderColor: SemanticColors.success + '40',
   },
   appealSubmittedText: {
-    color: Colors.success,
+    color: SemanticColors.success,
     fontSize: 13,
     fontWeight: '600',
   },
@@ -445,21 +453,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: Colors.primary + '12',
+    backgroundColor: BrandColor + '18',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: Colors.primary + '30',
+    borderColor: BrandColor + '40',
   },
   detailsButtonText: {
-    color: Colors.primary,
+    color: colors.primary,
     fontSize: 13,
     fontWeight: '600',
   },
   infoText: {
     fontSize: 12,
-    color: Colors.pass,
+    color: colors.secondaryText,
     textAlign: 'center',
     marginTop: 10,
     lineHeight: 16,
@@ -468,28 +476,28 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   appealInput: {
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
     borderRadius: 10,
     padding: 14,
     fontSize: 15,
-    color: Colors.light.text,
+    color: colors.text,
     minHeight: 120,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
   },
   charCount: {
     textAlign: 'right',
     fontSize: 12,
-    color: Colors.pass,
+    color: colors.secondaryText,
     marginTop: 4,
   },
   errorText: {
-    color: Colors.warning,
+    color: SemanticColors.warning,
     fontSize: 13,
     marginTop: 8,
   },
   submitAppealButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingVertical: 14,
     borderRadius: 25,
     alignItems: 'center',
@@ -499,7 +507,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   submitAppealButtonText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -513,11 +521,11 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   historyCard: {
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -527,7 +535,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   cardHeaderText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '700',
   },
@@ -545,7 +553,7 @@ const styles = StyleSheet.create({
   chainRuleTitle: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: colors.text,
     flex: 1,
   },
   commentChain: {
@@ -563,7 +571,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: Colors.pass,
+    backgroundColor: colors.pass,
     marginTop: 5,
   },
   chainContent: {
@@ -573,7 +581,7 @@ const styles = StyleSheet.create({
   chainLabel: {
     fontSize: 11,
     fontWeight: '600',
-    color: Colors.pass,
+    color: colors.secondaryText,
     textTransform: 'uppercase',
     letterSpacing: 0.3,
   },
@@ -584,13 +592,13 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   chainActionBadgeText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '600',
   },
   chainComment: {
     fontSize: 12,
-    color: Colors.light.text,
+    color: colors.text,
     fontStyle: 'italic',
     lineHeight: 16,
   },
@@ -602,7 +610,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   appealStateBadgeText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '600',
   },

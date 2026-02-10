@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   StyleSheet,
   View,
@@ -11,7 +11,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../../../constants/Colors'
+import { useThemeColors } from '../../../hooks/useThemeColors'
+import { SemanticColors } from '../../../constants/Colors'
 import Header from '../../../components/Header'
 import PositionSummaryCard from '../../../components/stats/PositionSummaryCard'
 import ClosureCard from '../../../components/stats/ClosureCard'
@@ -21,6 +22,8 @@ import { positionsApiWrapper } from '../../../lib/api'
 
 export default function PositionClosures() {
   const { id: positionId } = useLocalSearchParams()
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
 
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -76,7 +79,7 @@ export default function PositionClosures() {
     if (loading) {
       return (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Loading closures...</Text>
         </View>
       )
@@ -85,7 +88,7 @@ export default function PositionClosures() {
     if (error) {
       return (
         <View style={styles.centerContainer}>
-          <Ionicons name="alert-circle-outline" size={48} color={Colors.disagree} />
+          <Ionicons name="alert-circle-outline" size={48} color={SemanticColors.disagree} />
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={fetchClosures}>
             <Text style={styles.retryButtonText}>Retry</Text>
@@ -131,7 +134,7 @@ export default function PositionClosures() {
           ))
         ) : (
           <View style={styles.emptyContainer}>
-            <Ionicons name="chatbubbles-outline" size={48} color={Colors.pass} />
+            <Ionicons name="chatbubbles-outline" size={48} color={colors.secondaryText} />
             <Text style={styles.emptyTitle}>No Agreed Closures Yet</Text>
             <Text style={styles.emptyText}>
               When chats about this position end with an agreed statement, they will appear here.
@@ -153,8 +156,8 @@ export default function PositionClosures() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[Colors.primary]}
-            tintColor={Colors.primary}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
           />
         }
       >
@@ -193,10 +196,10 @@ export default function PositionClosures() {
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
   },
   scrollView: {
     flex: 1,
@@ -212,11 +215,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: '700',
-    color: Colors.primary,
+    color: colors.primary,
   },
   subtitle: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
     marginTop: 2,
   },
   countRow: {
@@ -229,11 +232,11 @@ const styles = StyleSheet.create({
   countText: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: colors.text,
   },
   sortText: {
     fontSize: 12,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
   centerContainer: {
     flex: 1,
@@ -244,29 +247,29 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
     marginTop: 12,
   },
   errorText: {
     fontSize: 14,
-    color: Colors.disagree,
+    color: SemanticColors.disagree,
     textAlign: 'center',
     marginTop: 12,
   },
   noDataText: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
     textAlign: 'center',
   },
   retryButton: {
     marginTop: 16,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
   },
   retryButtonText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -275,18 +278,18 @@ const styles = StyleSheet.create({
     paddingVertical: 48,
     paddingHorizontal: 24,
     marginHorizontal: 16,
-    backgroundColor: Colors.light.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
   },
   emptyTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: colors.text,
     marginTop: 16,
   },
   emptyText: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
     textAlign: 'center',
     marginTop: 8,
     lineHeight: 20,

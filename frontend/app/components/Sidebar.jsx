@@ -1,8 +1,9 @@
 import { StyleSheet, View, Text, TouchableOpacity, Animated, Dimensions, Pressable } from 'react-native'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useMemo } from 'react'
 import { useRouter, usePathname } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../constants/Colors'
+import { useThemeColors } from '../hooks/useThemeColors'
+import { SemanticColors, BadgeColors } from '../constants/Colors'
 import Avatar from './Avatar'
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window')
@@ -11,6 +12,8 @@ const SIDEBAR_WIDTH = SCREEN_WIDTH * 0.65
 export default function Sidebar({ visible, onClose, user, onLogout }) {
   const router = useRouter()
   const pathname = usePathname()
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
   const slideAnim = useRef(new Animated.Value(SIDEBAR_WIDTH)).current
   const overlayOpacity = useRef(new Animated.Value(0)).current
 
@@ -69,7 +72,7 @@ export default function Sidebar({ visible, onClose, user, onLogout }) {
         <View style={styles.userSection}>
           <Avatar user={user} size="lg" showKudosBadge={false} />
           <View style={styles.kudosBadge}>
-            <Ionicons name="star" size={14} color={Colors.primary} />
+            <Ionicons name="star" size={14} color={colors.primary} />
             <Text style={styles.kudosCount}>{user?.kudosCount || 0}</Text>
           </View>
           <Text style={styles.displayName}>{user?.displayName || 'Guest'}</Text>
@@ -92,7 +95,7 @@ export default function Sidebar({ visible, onClose, user, onLogout }) {
         {/* Logout */}
         <View style={styles.logoutSection}>
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={20} color={Colors.warning} />
+            <Ionicons name="log-out-outline" size={20} color={SemanticColors.warning} />
             <Text style={styles.logoutText}>Log Out</Text>
           </TouchableOpacity>
         </View>
@@ -101,7 +104,7 @@ export default function Sidebar({ visible, onClose, user, onLogout }) {
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 100,
@@ -119,7 +122,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     width: SIDEBAR_WIDTH,
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     paddingTop: 60,
     shadowColor: '#000',
     shadowOffset: { width: -2, height: 0 },
@@ -131,17 +134,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 20,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
+    borderBottomColor: colors.cardBorder,
   },
   avatarInitial: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 32,
     fontWeight: '600',
   },
   kudosBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.kudosBadge,
+    backgroundColor: BadgeColors.kudosBadge,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -151,22 +154,22 @@ const styles = StyleSheet.create({
   kudosCount: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.primary,
+    color: colors.primary,
   },
   displayName: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.darkText,
+    color: colors.darkText,
   },
   username: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
   menuSection: {
     paddingTop: 8,
   },
   menuItem: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     marginHorizontal: 16,
     marginVertical: 6,
     paddingVertical: 12,
@@ -174,7 +177,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   menuText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '500',
   },
@@ -191,11 +194,11 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 12,
     borderWidth: 1,
-    borderColor: Colors.warning,
+    borderColor: SemanticColors.warning,
     borderRadius: 8,
   },
   logoutText: {
-    color: Colors.warning,
+    color: SemanticColors.warning,
     fontSize: 16,
     fontWeight: '500',
   },

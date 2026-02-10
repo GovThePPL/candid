@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   View,
   Text,
@@ -9,7 +9,8 @@ import {
   StyleSheet,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../constants/Colors'
+import { useThemeColors } from '../hooks/useThemeColors'
+import { SemanticColors, BrandColor } from '../constants/Colors'
 import BottomDrawerModal from './BottomDrawerModal'
 
 const ACTION_OPTIONS = [
@@ -31,7 +32,7 @@ const CHAT_USER_CLASSES = [
   { value: 'reporter', label: 'Reporting User' },
 ]
 
-function ActionRow({ userClass, action, onActionChange, duration, onDurationChange }) {
+function ActionRow({ userClass, action, onActionChange, duration, onDurationChange, colors, styles }) {
 
   const [open, setOpen] = useState(false)
   const selected = ACTION_OPTIONS.find(o => o.value === action) || ACTION_OPTIONS[0]
@@ -52,7 +53,7 @@ function ActionRow({ userClass, action, onActionChange, duration, onDurationChan
           <Ionicons
             name={open ? 'chevron-up' : 'chevron-down'}
             size={14}
-            color={hasAction ? Colors.primary : Colors.pass}
+            color={hasAction ? colors.primary : colors.secondaryText}
           />
         </TouchableOpacity>
       </View>
@@ -70,7 +71,7 @@ function ActionRow({ userClass, action, onActionChange, duration, onDurationChan
                 {opt.label}
               </Text>
               {action === opt.value && (
-                <Ionicons name="checkmark" size={14} color={Colors.primary} />
+                <Ionicons name="checkmark" size={14} color={colors.primary} />
               )}
             </TouchableOpacity>
           ))}
@@ -86,7 +87,7 @@ function ActionRow({ userClass, action, onActionChange, duration, onDurationChan
             onChangeText={onDurationChange}
             keyboardType="number-pad"
             placeholder="7"
-            placeholderTextColor={Colors.pass}
+            placeholderTextColor={colors.placeholderText}
           />
         </View>
       )}
@@ -117,6 +118,9 @@ function buildDefaultActions(rule, isChatReport) {
 }
 
 export default function ModerationActionModal({ visible, onClose, onSubmit, reportType, rule }) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+
   const isChatReport = reportType === 'chat_log'
   const userClasses = isChatReport ? CHAT_USER_CLASSES : POSITION_USER_CLASSES
   const [actions, setActions] = useState(() => buildDefaultActions(rule, isChatReport))
@@ -185,7 +189,7 @@ export default function ModerationActionModal({ visible, onClose, onSubmit, repo
             {rule.text && <Text style={styles.ruleText}>{rule.text}</Text>}
             {rule.sentencingGuidelines && (
               <View style={styles.guidelinesBox}>
-                <Ionicons name="book-outline" size={14} color={Colors.primary} style={{ marginTop: 1 }} />
+                <Ionicons name="book-outline" size={14} color={colors.primary} style={{ marginTop: 1 }} />
                 <Text style={styles.guidelinesText}>{rule.sentencingGuidelines}</Text>
               </View>
             )}
@@ -201,6 +205,8 @@ export default function ModerationActionModal({ visible, onClose, onSubmit, repo
               onActionChange={(v) => setAction(uc.value, v)}
               duration={actions[uc.value]?.duration || ''}
               onDurationChange={(v) => setDuration(uc.value, v)}
+              colors={colors}
+              styles={styles}
             />
           ))}
         </View>
@@ -211,7 +217,7 @@ export default function ModerationActionModal({ visible, onClose, onSubmit, repo
           value={modNotes}
           onChangeText={setModNotes}
           placeholder="Add notes about this action..."
-          placeholderTextColor={Colors.pass}
+          placeholderTextColor={colors.placeholderText}
           multiline
           numberOfLines={3}
         />
@@ -225,7 +231,7 @@ export default function ModerationActionModal({ visible, onClose, onSubmit, repo
           activeOpacity={0.7}
         >
           {submitting ? (
-            <ActivityIndicator size="small" color={Colors.white} />
+            <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
             <Text style={styles.confirmButtonText}>Confirm Action</Text>
           )}
@@ -235,34 +241,34 @@ export default function ModerationActionModal({ visible, onClose, onSubmit, repo
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     paddingHorizontal: 16,
   },
   ruleSection: {
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     padding: 12,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
   },
   ruleTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.light.text,
+    color: colors.text,
     marginBottom: 4,
   },
   ruleText: {
     fontSize: 13,
-    color: Colors.pass,
+    color: colors.secondaryText,
     lineHeight: 18,
     marginBottom: 8,
   },
   guidelinesBox: {
     flexDirection: 'row',
     gap: 8,
-    backgroundColor: Colors.primary + '10',
+    backgroundColor: BrandColor + '15',
     borderRadius: 8,
     padding: 10,
   },
@@ -270,7 +276,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     fontWeight: '500',
-    color: Colors.primary,
+    color: colors.primary,
     lineHeight: 18,
   },
   actionsGroup: {
@@ -285,7 +291,7 @@ const styles = StyleSheet.create({
   rowLabel: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: colors.text,
   },
   dropdown: {
     flexDirection: 'row',
@@ -294,28 +300,28 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     paddingHorizontal: 12,
     borderRadius: 8,
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
     minWidth: 140,
     justifyContent: 'space-between',
   },
   dropdownActive: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primary + '10',
+    borderColor: colors.primary,
+    backgroundColor: BrandColor + '15',
   },
   dropdownText: {
     fontSize: 13,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
   dropdownTextActive: {
-    color: Colors.primary,
+    color: colors.primary,
     fontWeight: '600',
   },
   dropdownList: {
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
     overflow: 'hidden',
   },
   dropdownItem: {
@@ -324,19 +330,19 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 9,
     paddingHorizontal: 14,
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.cardBorder,
+    borderBottomColor: colors.cardBorder,
   },
   dropdownItemSelected: {
-    backgroundColor: Colors.primary + '10',
+    backgroundColor: BrandColor + '15',
   },
   dropdownItemText: {
     fontSize: 13,
-    color: Colors.light.text,
+    color: colors.text,
   },
   dropdownItemTextSelected: {
-    color: Colors.primary,
+    color: colors.primary,
     fontWeight: '600',
   },
   durationRow: {
@@ -347,45 +353,45 @@ const styles = StyleSheet.create({
   },
   durationLabel: {
     fontSize: 13,
-    color: Colors.light.text,
+    color: colors.text,
   },
   durationInput: {
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 5,
     width: 60,
     fontSize: 13,
     textAlign: 'center',
-    color: Colors.light.text,
+    color: colors.text,
   },
   notesLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: colors.text,
     marginBottom: 8,
   },
   notesInput: {
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 14,
-    color: Colors.light.text,
+    color: colors.text,
     maxHeight: 100,
     marginBottom: 8,
   },
   footer: {
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: Colors.cardBorder,
+    borderTopColor: colors.cardBorder,
   },
   confirmButton: {
-    backgroundColor: Colors.warning,
+    backgroundColor: SemanticColors.warning,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
@@ -394,7 +400,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   confirmButtonText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },

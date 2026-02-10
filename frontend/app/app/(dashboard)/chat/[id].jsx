@@ -20,12 +20,13 @@ import {
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true)
 }
-import { useState, useEffect, useRef, useCallback, useContext } from 'react'
+import { useState, useEffect, useRef, useCallback, useContext, useMemo } from 'react'
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
-import { Colors } from '../../../constants/Colors'
+import { SemanticColors } from '../../../constants/Colors'
 import { Shadows } from '../../../constants/Theme'
+import { useThemeColors } from '../../../hooks/useThemeColors'
 import { UserContext } from '../../../contexts/UserContext'
 import Header from '../../../components/Header'
 import api from '../../../lib/api'
@@ -51,6 +52,9 @@ import PositionInfoCard from '../../../components/PositionInfoCard'
 import ReportModal from '../../../components/ReportModal'
 
 export default function ChatScreen() {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+
   const { id: chatId, from, reporterId } = useLocalSearchParams()
   const router = useRouter()
   const navigation = useNavigation()
@@ -947,12 +951,12 @@ export default function ChatScreen() {
       const isRejected = item.type === 'rejected'
       const isPending = item.type === 'proposed'
       const proposalLabel = item.isClosure ? 'Closure' : 'Statement'
-      const proposalColor = item.isClosure ? Colors.chat : Colors.agree
+      const proposalColor = item.isClosure ? colors.chat : SemanticColors.agree
 
       // Color for the main (latest) proposal
       const bubbleColor = isAccepted
-        ? Colors.messageYou
-        : (isOwnMessage ? Colors.messageYou : Colors.agree)
+        ? colors.messageYou
+        : (isOwnMessage ? colors.messageYou : SemanticColors.agree)
 
       // Helper to render a single proposal card
       // skipOffset: when true, offset styles are applied to wrapper instead
@@ -967,10 +971,10 @@ export default function ChatScreen() {
         const pIsPending = proposal.type === 'proposed'
         const pIsInactive = pIsRejected || pIsModified
         const pProposalLabel = proposal.isClosure ? 'Closure' : 'Statement'
-        const pProposalColor = proposal.isClosure ? Colors.chat : Colors.agree
+        const pProposalColor = proposal.isClosure ? colors.chat : SemanticColors.agree
         const pBubbleColor = pIsAccepted
-          ? Colors.messageYou
-          : (pIsOwn ? Colors.messageYou : Colors.agree)
+          ? colors.messageYou
+          : (pIsOwn ? colors.messageYou : SemanticColors.agree)
 
         return (
           <View
@@ -1045,7 +1049,7 @@ export default function ChatScreen() {
                   style={[styles.proposalCardButton, styles.proposalCardButtonAccept]}
                   onPress={() => handleAcceptProposal(proposal.proposalId)}
                 >
-                  <Ionicons name="checkmark" size={16} color={Colors.agree} />
+                  <Ionicons name="checkmark" size={16} color={SemanticColors.agree} />
                 </TouchableOpacity>
               </View>
             )}
@@ -1060,11 +1064,11 @@ export default function ChatScreen() {
               <View style={styles.proposalAvatarsRow}>
                 <View style={styles.proposalAvatarLeft}>
                   <Avatar user={isModerationView && participants ? participants[1] : otherUser} size={28} showKudosBadge={false} borderStyle={styles.proposalAvatarBorder} />
-                  <Ionicons name="checkmark-circle" size={14} color={Colors.agree} style={styles.proposalAvatarCheck} />
+                  <Ionicons name="checkmark-circle" size={14} color={SemanticColors.agree} style={styles.proposalAvatarCheck} />
                 </View>
                 <View style={styles.proposalAvatarRight}>
                   <Avatar user={isModerationView && participants ? participants[0] : user} size={28} showKudosBadge={false} borderStyle={styles.proposalAvatarBorder} />
-                  <Ionicons name="checkmark-circle" size={14} color={Colors.agree} style={styles.proposalAvatarCheck} />
+                  <Ionicons name="checkmark-circle" size={14} color={SemanticColors.agree} style={styles.proposalAvatarCheck} />
                 </View>
               </View>
             )}
@@ -1309,7 +1313,7 @@ export default function ChatScreen() {
       >
         <TouchableOpacity activeOpacity={1} style={styles.modifyModalCard}>
           <View style={styles.modifyModalHeader}>
-            <View style={[styles.proposalTypeBadge, { backgroundColor: modifyingProposal?.isClosure ? Colors.chat : Colors.agree }]}>
+            <View style={[styles.proposalTypeBadge, { backgroundColor: modifyingProposal?.isClosure ? colors.chat : SemanticColors.agree }]}>
               <Ionicons
                 name={modifyingProposal?.isClosure ? 'checkmark-done' : 'document-text'}
                 size={12}
@@ -1326,7 +1330,7 @@ export default function ChatScreen() {
             value={modifyText}
             onChangeText={setModifyText}
             placeholder="Edit the proposal..."
-            placeholderTextColor={Colors.pass}
+            placeholderTextColor={colors.placeholderText}
             multiline
             autoFocus
           />
@@ -1359,14 +1363,14 @@ export default function ChatScreen() {
         ) : (
           <View style={styles.header}>
             <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color={Colors.primary} />
+              <Ionicons name="arrow-back" size={24} color={colors.primary} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Chat</Text>
             <View style={styles.headerRight} />
           </View>
         )}
         <View style={styles.centerContent}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>{from === 'chats' || from === 'moderation' ? 'Loading chat log...' : 'Joining chat...'}</Text>
         </View>
         {renderLeaveConfirmModal()}
@@ -1383,7 +1387,7 @@ export default function ChatScreen() {
         ) : (
           <View style={styles.header}>
             <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color={Colors.primary} />
+              <Ionicons name="arrow-back" size={24} color={colors.primary} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Chat</Text>
             <View style={styles.headerRight} />
@@ -1412,7 +1416,7 @@ export default function ChatScreen() {
       ) : (
         <View style={styles.header}>
           <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={Colors.primary} />
+            <Ionicons name="arrow-back" size={24} color={colors.primary} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
             {otherUser ? (
@@ -1429,7 +1433,7 @@ export default function ChatScreen() {
           </View>
           <View style={styles.headerRight}>
             <View style={[styles.headerKudosBadge, { backgroundColor: getTrustBadgeColor(user?.trustScore) }]}>
-              <Ionicons name="star" size={14} color={Colors.primary} />
+              <Ionicons name="star" size={14} color={colors.primary} />
               <Text style={styles.headerKudosCount}>{user?.kudosCount || 0}</Text>
             </View>
             <Avatar user={user} size={32} showKudosBadge={false} />
@@ -1477,11 +1481,11 @@ export default function ChatScreen() {
               <Text style={styles.moderationParticipantName}>{participants[1]?.displayName}</Text>
               <Text style={styles.moderationParticipantUsername}>@{participants[1]?.username}</Text>
             </View>
-            <View style={[styles.moderationParticipantDot, { backgroundColor: Colors.agree }]} />
+            <View style={[styles.moderationParticipantDot, { backgroundColor: SemanticColors.agree }]} />
           </View>
-          <Ionicons name="chatbubbles-outline" size={20} color={Colors.pass} />
+          <Ionicons name="chatbubbles-outline" size={20} color={colors.secondaryText} />
           <View style={styles.moderationParticipantCard}>
-            <View style={[styles.moderationParticipantDot, { backgroundColor: Colors.messageYou }]} />
+            <View style={[styles.moderationParticipantDot, { backgroundColor: colors.messageYou }]} />
             <View style={styles.moderationParticipantInfo}>
               <Text style={styles.moderationParticipantName}>{participants[0]?.displayName}</Text>
               <Text style={styles.moderationParticipantUsername}>@{participants[0]?.username}</Text>
@@ -1555,7 +1559,7 @@ export default function ChatScreen() {
           }
           ListEmptyComponent={
             <View style={styles.emptyChat}>
-              <Ionicons name="chatbubbles-outline" size={48} color={Colors.pass} />
+              <Ionicons name="chatbubbles-outline" size={48} color={colors.secondaryText} />
               <Text style={styles.emptyChatText}>
                 Start the conversation!
               </Text>
@@ -1594,7 +1598,7 @@ export default function ChatScreen() {
               <Ionicons
                 name={showSpecialMenu ? 'close' : 'add'}
                 size={24}
-                color={showSpecialMenu ? Colors.white : Colors.primary}
+                color={showSpecialMenu ? '#FFFFFF' : colors.primary}
               />
             </TouchableOpacity>
 
@@ -1610,7 +1614,7 @@ export default function ChatScreen() {
                     style={[styles.specialMenuItem, messageType === 'text' && styles.specialMenuItemSelected]}
                     onPress={handleSelectChat}
                   >
-                    <View style={[styles.specialMenuIcon, { backgroundColor: Colors.primary }]}>
+                    <View style={[styles.specialMenuIcon, { backgroundColor: colors.primary }]}>
                       <Ionicons name="chatbubble" size={20} color="#fff" />
                     </View>
                     <View style={styles.specialMenuItemText}>
@@ -1618,14 +1622,14 @@ export default function ChatScreen() {
                       <Text style={styles.specialMenuItemDesc}>Send a normal message</Text>
                     </View>
                     {messageType === 'text' && (
-                      <Ionicons name="checkmark-circle" size={24} color={Colors.primary} />
+                      <Ionicons name="checkmark-circle" size={24} color={colors.primary} />
                     )}
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.specialMenuItem, messageType === 'position_proposal' && styles.specialMenuItemSelected]}
                     onPress={handleSelectProposeStatement}
                   >
-                    <View style={[styles.specialMenuIcon, { backgroundColor: Colors.agree }]}>
+                    <View style={[styles.specialMenuIcon, { backgroundColor: SemanticColors.agree }]}>
                       <Ionicons name="document-text" size={20} color="#fff" />
                     </View>
                     <View style={styles.specialMenuItemText}>
@@ -1633,14 +1637,14 @@ export default function ChatScreen() {
                       <Text style={styles.specialMenuItemDesc}>Suggest a statement you both agree on</Text>
                     </View>
                     {messageType === 'position_proposal' && (
-                      <Ionicons name="checkmark-circle" size={24} color={Colors.agree} />
+                      <Ionicons name="checkmark-circle" size={24} color={SemanticColors.agree} />
                     )}
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.specialMenuItem, messageType === 'closure_proposal' && styles.specialMenuItemSelected]}
                     onPress={handleSelectProposeClosure}
                   >
-                    <View style={[styles.specialMenuIcon, { backgroundColor: Colors.chat }]}>
+                    <View style={[styles.specialMenuIcon, { backgroundColor: colors.chat }]}>
                       <Ionicons name="checkmark-done" size={20} color="#fff" />
                     </View>
                     <View style={styles.specialMenuItemText}>
@@ -1648,7 +1652,7 @@ export default function ChatScreen() {
                       <Text style={styles.specialMenuItemDesc}>Propose ending this chat amicably</Text>
                     </View>
                     {messageType === 'closure_proposal' && (
-                      <Ionicons name="checkmark-circle" size={24} color={Colors.chat} />
+                      <Ionicons name="checkmark-circle" size={24} color={colors.chat} />
                     )}
                   </TouchableOpacity>
                 </View>
@@ -1665,7 +1669,7 @@ export default function ChatScreen() {
                 messageType === 'closure_proposal' ? 'Type a closing message...' :
                 'Type a message...'
               }
-              placeholderTextColor={Colors.pass}
+              placeholderTextColor={colors.placeholderText}
               multiline
               maxLength={1000}
               returnKeyType="send"
@@ -1697,7 +1701,7 @@ export default function ChatScreen() {
                   'send'
                 }
                 size={20}
-                color={inputText.trim() ? Colors.white : Colors.pass}
+                color={inputText.trim() ? '#FFFFFF' : colors.pass}
               />
             </TouchableOpacity>
           </View>
@@ -1716,17 +1720,17 @@ export default function ChatScreen() {
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 12,
-    backgroundColor: Colors.white,
+    backgroundColor: '#FFFFFF',
     ...Shadows.card,
     zIndex: 10,
     ...(Platform.OS === 'web' && {
@@ -1744,11 +1748,11 @@ const styles = StyleSheet.create({
   headerDisplayName: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.primary,
+    color: colors.primary,
   },
   headerUsername: {
     fontSize: 12,
-    color: Colors.pass,
+    color: colors.pass,
   },
   headerRight: {
     flexDirection: 'row',
@@ -1766,7 +1770,7 @@ const styles = StyleSheet.create({
   headerKudosCount: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.primary,
+    color: colors.primary,
   },
   backButton: {
     padding: 4,
@@ -1778,11 +1782,11 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.primary,
+    color: colors.primary,
   },
   headerSubtitle: {
     fontSize: 12,
-    color: Colors.pass,
+    color: colors.pass,
     marginTop: 2,
   },
   chatContainer: {
@@ -1809,7 +1813,7 @@ const styles = StyleSheet.create({
   },
   readIndicatorBorder: {
     borderWidth: 1.5,
-    borderColor: Colors.white,
+    borderColor: '#FFFFFF',
   },
   otherMessageRow: {
     flexDirection: 'row',
@@ -1828,12 +1832,12 @@ const styles = StyleSheet.create({
     borderRadius: 18,
   },
   ownMessage: {
-    backgroundColor: Colors.messageYou,
+    backgroundColor: colors.messageYou,
     borderBottomRightRadius: 4,
     maxWidth: '100%', // Override messageBubble maxWidth since container handles it
   },
   otherMessage: {
-    backgroundColor: Colors.agree,
+    backgroundColor: SemanticColors.agree,
     borderBottomLeftRadius: 4,
   },
   messageText: {
@@ -1841,10 +1845,10 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   ownMessageText: {
-    color: Colors.white,
+    color: '#FFFFFF',
   },
   otherMessageText: {
-    color: Colors.white,
+    color: '#FFFFFF',
   },
   messageTime: {
     fontSize: 10,
@@ -1866,7 +1870,7 @@ const styles = StyleSheet.create({
   typingBubble: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.agree,
+    backgroundColor: SemanticColors.agree,
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderRadius: 18,
@@ -1877,7 +1881,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: Colors.white,
+    backgroundColor: '#FFFFFF',
   },
   chatEndedRow: {
     alignItems: 'center',
@@ -1887,7 +1891,7 @@ const styles = StyleSheet.create({
   chatEndedText: {
     fontSize: 14,
     fontStyle: 'italic',
-    color: Colors.pass,
+    color: colors.pass,
     textAlign: 'center',
   },
   inputContainer: {
@@ -1895,7 +1899,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: Colors.white,
+    backgroundColor: '#FFFFFF',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
@@ -1907,21 +1911,21 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingTop: 10,
     paddingBottom: 10,
     fontSize: 15,
     minHeight: 40,
-    color: Colors.light.text,
+    color: colors.text,
     textAlignVertical: 'top',
   },
   sendButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 8,
@@ -1929,32 +1933,32 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   sendButtonDisabled: {
-    backgroundColor: Colors.cardBorder,
+    backgroundColor: colors.cardBorder,
   },
   sendButtonStatement: {
-    backgroundColor: Colors.agree,
+    backgroundColor: SemanticColors.agree,
   },
   sendButtonStatementDisabled: {
-    backgroundColor: Colors.agree + '40', // Light green (40% opacity)
+    backgroundColor: SemanticColors.agree + '40', // Light green (40% opacity)
   },
   sendButtonClosure: {
-    backgroundColor: Colors.chat,
+    backgroundColor: colors.chat,
   },
   sendButtonClosureDisabled: {
-    backgroundColor: Colors.chat + '40', // Light yellow (40% opacity)
+    backgroundColor: colors.chat + '40', // Light yellow (40% opacity)
   },
   specialMenuButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.primaryLight,
+    backgroundColor: colors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 8,
     alignSelf: 'flex-end',
   },
   specialMenuButtonActive: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
   },
   specialMenuBackdrop: {
     position: 'absolute',
@@ -1969,7 +1973,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 56,
     left: 12,
-    backgroundColor: Colors.white,
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     zIndex: 2,
     padding: 8,
@@ -1987,7 +1991,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   specialMenuItemSelected: {
-    backgroundColor: Colors.primaryLight,
+    backgroundColor: colors.primaryLight,
   },
   specialMenuIcon: {
     width: 40,
@@ -2002,11 +2006,11 @@ const styles = StyleSheet.create({
   specialMenuItemTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.darkText,
+    color: colors.darkText,
   },
   specialMenuItemDesc: {
     fontSize: 12,
-    color: Colors.pass,
+    color: colors.pass,
     marginTop: 2,
   },
   centerContent: {
@@ -2018,16 +2022,16 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: Colors.pass,
+    color: colors.pass,
   },
   errorText: {
     fontSize: 16,
-    color: Colors.warning,
+    color: SemanticColors.warning,
     textAlign: 'center',
     marginBottom: 16,
   },
   retryButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
@@ -2036,7 +2040,7 @@ const styles = StyleSheet.create({
     }),
   },
   retryButtonText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -2049,10 +2053,10 @@ const styles = StyleSheet.create({
   emptyChatText: {
     marginTop: 12,
     fontSize: 16,
-    color: Colors.pass,
+    color: colors.pass,
   },
   endedBanner: {
-    backgroundColor: Colors.pass,
+    backgroundColor: colors.pass,
     paddingVertical: 10,
     paddingHorizontal: 16,
     flexDirection: 'row',
@@ -2060,14 +2064,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   endedBannerClosure: {
-    backgroundColor: Colors.agree,
+    backgroundColor: SemanticColors.agree,
   },
   endedBannerModeration: {
-    backgroundColor: Colors.warning,
+    backgroundColor: SemanticColors.warning,
   },
   endedText: {
     flex: 1,
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '500',
   },
@@ -2076,16 +2080,16 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   kudosPrompt: {
-    backgroundColor: Colors.white,
+    backgroundColor: '#FFFFFF',
     paddingVertical: 16,
     paddingHorizontal: 20,
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
+    borderBottomColor: colors.cardBorder,
   },
   kudosPromptText: {
     fontSize: 15,
-    color: Colors.light.text,
+    color: colors.text,
     marginBottom: 12,
     textAlign: 'center',
   },
@@ -2101,7 +2105,7 @@ const styles = StyleSheet.create({
   },
   kudosDismissText: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.pass,
     fontWeight: '500',
   },
   kudosSendButton: {
@@ -2114,33 +2118,33 @@ const styles = StyleSheet.create({
   },
   kudosSendText: {
     fontSize: 14,
-    color: Colors.darkText,
+    color: colors.darkText,
     fontWeight: '600',
   },
   kudosSentBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.white,
+    backgroundColor: '#FFFFFF',
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
+    borderBottomColor: colors.cardBorder,
   },
   kudosSentText: {
     fontSize: 14,
-    color: Colors.light.text,
+    color: colors.text,
     fontWeight: '500',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: Colors.overlay,
+    backgroundColor: SemanticColors.overlay,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
   },
   modalCard: {
-    backgroundColor: Colors.white,
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 24,
     width: '100%',
@@ -2151,12 +2155,12 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: Colors.primary,
+    color: colors.primary,
     marginBottom: 12,
   },
   modalMessage: {
     fontSize: 15,
-    color: Colors.pass,
+    color: colors.pass,
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 24,
@@ -2169,30 +2173,30 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 25,
     borderWidth: 2,
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
     alignItems: 'center',
   },
   modalCancelText: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.primary,
+    color: colors.primary,
   },
   modalConfirmButton: {
     paddingVertical: 14,
     borderRadius: 25,
-    backgroundColor: Colors.disagree,
+    backgroundColor: SemanticColors.disagree,
     alignItems: 'center',
   },
   modalConfirmText: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.white,
+    color: '#FFFFFF',
   },
   topicCard: {
     borderRadius: 12,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
     ...Shadows.card,
   },
   topicStatement: {
@@ -2276,7 +2280,7 @@ const styles = StyleSheet.create({
   proposalTypeBadgeText: {
     fontSize: 10,
     fontWeight: '600',
-    color: Colors.white,
+    color: '#FFFFFF',
   },
   proposalStatusInline: {
     marginLeft: 'auto',
@@ -2284,7 +2288,7 @@ const styles = StyleSheet.create({
   proposalCardContent: {
     fontSize: 15,
     lineHeight: 22,
-    color: Colors.white,
+    color: '#FFFFFF',
     textAlign: 'center',
   },
   proposalCardContentInactive: {
@@ -2306,12 +2310,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   proposalCardButtonAccept: {
-    backgroundColor: Colors.white,
+    backgroundColor: '#FFFFFF',
   },
   closureWarningText: {
     fontSize: 12,
     fontStyle: 'italic',
-    color: Colors.white,
+    color: '#FFFFFF',
     textAlign: 'center',
     marginTop: 10,
     opacity: 0.85,
@@ -2338,18 +2342,18 @@ const styles = StyleSheet.create({
   },
   proposalAvatarBorder: {
     borderWidth: 2,
-    borderColor: Colors.white,
+    borderColor: '#FFFFFF',
   },
   proposalAvatarCheck: {
     position: 'absolute',
     bottom: -2,
     right: -2,
-    backgroundColor: Colors.white,
+    backgroundColor: '#FFFFFF',
     borderRadius: 7,
   },
   // Modify modal styles
   modifyModalCard: {
-    backgroundColor: Colors.white,
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 20,
     width: '100%',
@@ -2365,14 +2369,14 @@ const styles = StyleSheet.create({
   modifyModalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.primary,
+    color: colors.primary,
   },
   modifyInput: {
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
     borderRadius: 12,
     padding: 14,
     fontSize: 15,
-    color: Colors.light.text,
+    color: colors.text,
     minHeight: 100,
     textAlignVertical: 'top',
     marginBottom: 16,
@@ -2380,16 +2384,16 @@ const styles = StyleSheet.create({
   modifySubmitButton: {
     paddingVertical: 14,
     borderRadius: 25,
-    backgroundColor: Colors.agree,
+    backgroundColor: SemanticColors.agree,
     alignItems: 'center',
   },
   modifySubmitButtonDisabled: {
-    backgroundColor: Colors.cardBorder,
+    backgroundColor: colors.cardBorder,
   },
   modifySubmitText: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.white,
+    color: '#FFFFFF',
   },
   // Moderation view styles
   moderationParticipants: {
@@ -2399,9 +2403,9 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: Colors.white,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
+    borderBottomColor: colors.cardBorder,
   },
   moderationParticipantCard: {
     flexDirection: 'row',
@@ -2415,11 +2419,11 @@ const styles = StyleSheet.create({
   moderationParticipantName: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: colors.text,
   },
   moderationParticipantUsername: {
     fontSize: 12,
-    color: Colors.pass,
+    color: colors.pass,
   },
   moderationParticipantDot: {
     width: 10,
@@ -2429,14 +2433,14 @@ const styles = StyleSheet.create({
   moderationSenderLabel: {
     fontSize: 11,
     fontWeight: '600',
-    color: Colors.pass,
+    color: colors.pass,
     textAlign: 'right',
     marginBottom: 2,
   },
   moderationSenderLabelOther: {
     fontSize: 11,
     fontWeight: '600',
-    color: Colors.pass,
+    color: colors.pass,
     marginBottom: 2,
     marginLeft: 2,
   },

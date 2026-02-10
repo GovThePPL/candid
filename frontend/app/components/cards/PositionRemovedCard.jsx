@@ -1,14 +1,18 @@
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native'
+import { useMemo } from 'react'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../../constants/Colors'
+import { useThemeColors } from '../../hooks/useThemeColors'
+import { SemanticColors } from '../../constants/Colors'
 
 export default function PositionRemovedCard({ data, onDismiss }) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
   const { statement, category, location } = data || {}
 
   return (
     <View style={styles.card}>
       <View style={styles.iconContainer}>
-        <Ionicons name="remove-circle" size={40} color={Colors.warning} />
+        <Ionicons name="remove-circle" size={40} color={SemanticColors.warning} />
       </View>
 
       <Text style={styles.title}>Position Removed</Text>
@@ -33,16 +37,16 @@ export default function PositionRemovedCard({ data, onDismiss }) {
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   card: {
     flex: 1,
-    backgroundColor: Colors.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderRadius: 16,
     padding: 24,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
   },
   iconContainer: {
     marginBottom: 12,
@@ -50,19 +54,19 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: '700',
-    color: Colors.warning,
+    color: SemanticColors.warning,
     marginBottom: 6,
   },
   subtitle: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
     textAlign: 'center',
     marginBottom: 20,
     lineHeight: 20,
   },
   positionContainer: {
     width: '100%',
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
     borderRadius: 12,
     padding: 16,
     marginBottom: 20,
@@ -76,8 +80,8 @@ const styles = StyleSheet.create({
   locationCode: {
     fontSize: 12,
     fontWeight: '700',
-    color: Colors.primary,
-    backgroundColor: Colors.primaryLight,
+    color: colors.primary,
+    backgroundColor: colors.primaryLight,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
@@ -86,22 +90,22 @@ const styles = StyleSheet.create({
   categoryName: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
   statement: {
     fontSize: 16,
     fontWeight: '500',
-    color: Colors.light.text,
+    color: colors.text,
     lineHeight: 22,
   },
   dismissButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingHorizontal: 32,
     paddingVertical: 12,
     borderRadius: 25,
   },
   dismissButtonText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },

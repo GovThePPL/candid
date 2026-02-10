@@ -1,8 +1,9 @@
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native'
+import { useMemo } from 'react'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../../../constants/Colors'
+import { useTheme } from '../../../contexts/ThemeContext'
 import { useUser } from '../../../hooks/useUser'
 
 import ThemedText from '../../../components/ThemedText'
@@ -20,6 +21,8 @@ export default function SettingsHub() {
   const { user } = useUser()
   const router = useRouter()
   const { returnTo } = useLocalSearchParams()
+  const { colors, themePreference, setThemePreference } = useTheme()
+  const styles = useMemo(() => createStyles(colors), [colors])
 
   const handleBack = () => {
     if (returnTo) {
@@ -50,8 +53,38 @@ export default function SettingsHub() {
             <Text style={styles.displayName}>{user?.displayName || 'Guest'}</Text>
             <Text style={styles.username}>@{user?.username || 'guest'}</Text>
           </View>
-          <Ionicons name="chevron-forward" size={20} color={Colors.pass} />
+          <Ionicons name="chevron-forward" size={20} color={colors.secondaryText} />
         </TouchableOpacity>
+
+        {/* Theme toggle */}
+        <View style={styles.themeSection}>
+          {[
+            { value: 'light', icon: 'sunny-outline' },
+            { value: 'dark', icon: 'moon-outline' },
+            { value: 'system', icon: 'phone-portrait-outline' },
+          ].map((option) => (
+            <TouchableOpacity
+              key={option.value}
+              style={[
+                styles.themeOption,
+                themePreference === option.value && styles.themeOptionSelected,
+              ]}
+              onPress={() => setThemePreference(option.value)}
+            >
+              <Ionicons
+                name={option.icon}
+                size={18}
+                color={themePreference === option.value ? '#FFFFFF' : colors.secondaryText}
+              />
+              <Text style={[
+                styles.themeOptionLabel,
+                themePreference === option.value && styles.themeOptionLabelSelected,
+              ]}>
+                {option.value.charAt(0).toUpperCase() + option.value.slice(1)}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
         {/* Menu items */}
         <View style={styles.menuSection}>
@@ -65,9 +98,9 @@ export default function SettingsHub() {
               onPress={() => router.push(item.route)}
               activeOpacity={0.7}
             >
-              <Ionicons name={item.icon} size={22} color={Colors.primary} />
+              <Ionicons name={item.icon} size={22} color={colors.primary} />
               <Text style={styles.menuLabel}>{item.label}</Text>
-              <Ionicons name="chevron-forward" size={18} color={Colors.pass} />
+              <Ionicons name="chevron-forward" size={18} color={colors.secondaryText} />
             </TouchableOpacity>
           ))}
         </View>
@@ -76,10 +109,10 @@ export default function SettingsHub() {
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
   },
   content: {
     flex: 1,
@@ -91,17 +124,17 @@ const styles = StyleSheet.create({
   pageTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: Colors.primary,
+    color: colors.primary,
   },
   userSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
   },
   userInfo: {
     flex: 1,
@@ -110,18 +143,18 @@ const styles = StyleSheet.create({
   displayName: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.darkText,
+    color: colors.darkText,
   },
   username: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
     marginTop: 2,
   },
   menuSection: {
-    backgroundColor: Colors.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
     overflow: 'hidden',
   },
   menuItem: {
@@ -130,7 +163,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
+    borderBottomColor: colors.cardBorder,
     gap: 14,
   },
   menuItemLast: {
@@ -139,7 +172,36 @@ const styles = StyleSheet.create({
   menuLabel: {
     flex: 1,
     fontSize: 16,
-    color: Colors.darkText,
+    color: colors.darkText,
     fontWeight: '500',
+  },
+  themeSection: {
+    flexDirection: 'row',
+    backgroundColor: colors.cardBackground,
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  themeOption: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  themeOptionSelected: {
+    backgroundColor: colors.primary,
+  },
+  themeOptionLabel: {
+    fontSize: 13,
+    color: colors.secondaryText,
+    fontWeight: '500',
+  },
+  themeOptionLabelSelected: {
+    color: '#FFFFFF',
   },
 })

@@ -1,6 +1,6 @@
 import { StyleSheet, Text, Platform, View, KeyboardAvoidingView, ScrollView } from 'react-native'
 import { Link } from 'expo-router'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useUser } from '../../hooks/useUser'
 
 import ThemedView from '../../components/ThemedView'
@@ -8,7 +8,8 @@ import ThemedText from '../../components/ThemedText'
 import ThemedTextInput from '../../components/ThemedTextInput'
 import Spacer from '../../components/Spacer'
 import ThemedButton from '../../components/ThemedButton'
-import { Colors } from '../../constants/Colors'
+import { useThemeColors } from '../../hooks/useThemeColors'
+import { SemanticColors } from '../../constants/Colors'
 
 const Register = () => {
   const [username, setUsername] = useState('')
@@ -16,6 +17,8 @@ const Register = () => {
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
 
   const { register } = useUser()
 
@@ -143,10 +146,10 @@ const Register = () => {
 
 export default Register
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
   },
   keyboardView: {
     flex: 1,
@@ -162,7 +165,7 @@ const styles = StyleSheet.create({
   },
   logo: {
     fontSize: 56,
-    color: Colors.primary,
+    color: colors.primary,
     ...Platform.select({
       web: {
         fontFamily: 'Pacifico, cursive',
@@ -178,13 +181,13 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 20,
     fontWeight: '600',
-    color: Colors.primary,
+    color: colors.primary,
     marginBottom: 10,
   },
   subtitle: {
     textAlign: "center",
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
     maxWidth: 280,
   },
   formContainer: {
@@ -195,10 +198,10 @@ const styles = StyleSheet.create({
   input: {
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
     fontSize: 16,
-    backgroundColor: Colors.white,
-    color: Colors.darkText,
+    backgroundColor: colors.cardBackground,
+    color: colors.darkText,
   },
   button: {
     width: "100%",
@@ -206,7 +209,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   buttonText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -217,10 +220,10 @@ const styles = StyleSheet.create({
     maxWidth: 320,
   },
   error: {
-    color: Colors.warning,
+    color: SemanticColors.warning,
     padding: 12,
     backgroundColor: '#ffe6e6',
-    borderColor: Colors.warning,
+    borderColor: SemanticColors.warning,
     borderWidth: 1,
     borderRadius: 8,
     textAlign: 'center',
@@ -229,11 +232,11 @@ const styles = StyleSheet.create({
     opacity: 0,
   },
   loginLink: {
-    color: Colors.pass,
+    color: colors.secondaryText,
     fontSize: 14,
   },
   loginLinkBold: {
-    color: Colors.primary,
+    color: colors.primary,
     fontWeight: '600',
   },
 })

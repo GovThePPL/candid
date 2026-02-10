@@ -1,4 +1,4 @@
-import { Colors } from '../constants/Colors'
+import { BadgeColors, LightTheme } from '../constants/Colors'
 
 /**
  * Get initials from a display name for avatar fallback.
@@ -18,7 +18,7 @@ export const getInitials = (name) => {
  * Uses a simple hash to select from a fixed palette.
  */
 export const getInitialsColor = (name) => {
-  if (!name) return Colors.primaryMuted
+  if (!name) return LightTheme.primaryMuted
   let hash = 0
   for (let i = 0; i < name.length; i++) {
     hash = name.charCodeAt(i) + ((hash << 5) - hash)
@@ -32,10 +32,10 @@ export const getInitialsColor = (name) => {
  *   < 0.35 → Gray, 0.35–0.6 → Bronze, 0.6–0.9 → Silver, ≥ 0.9 → Gold
  */
 export const getTrustBadgeColor = (trustScore) => {
-  if (trustScore == null || trustScore < 0.35) return Colors.trustBadgeGray
-  if (trustScore < 0.6) return Colors.trustBadgeBronze
-  if (trustScore < 0.9) return Colors.trustBadgeSilver
-  return Colors.trustBadgeGold
+  if (trustScore == null || trustScore < 0.35) return BadgeColors.trustBadgeGray
+  if (trustScore < 0.6) return BadgeColors.trustBadgeBronze
+  if (trustScore < 0.9) return BadgeColors.trustBadgeSilver
+  return BadgeColors.trustBadgeGold
 }
 
 /**

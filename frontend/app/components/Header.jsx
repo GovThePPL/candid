@@ -1,8 +1,9 @@
 import { StyleSheet, View, Text, TouchableOpacity, Platform } from 'react-native'
-import { useContext, useState, useCallback, useRef } from 'react'
+import { useContext, useState, useCallback, useRef, useMemo } from 'react'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../constants/Colors'
+import { useThemeColors } from '../hooks/useThemeColors'
+import { BadgeColors } from '../constants/Colors'
 import { UserContext } from '../contexts/UserContext'
 import Sidebar from './Sidebar'
 import ChatRequestIndicator from './ChatRequestIndicator'
@@ -12,6 +13,8 @@ import { getTrustBadgeColor } from '../lib/avatarUtils'
 
 export default function Header({ onBack }) {
   const router = useRouter()
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
   const { user, logout, pendingChatRequest, clearPendingChatRequest } = useContext(UserContext)
   const [sidebarVisible, setSidebarVisible] = useState(false)
   const [headerWidth, setHeaderWidth] = useState(0)
@@ -63,7 +66,7 @@ export default function Header({ onBack }) {
         <View style={[styles.headerLeft, pendingChatRequest && !showLogo && styles.headerLeftExpanded]}>
           {onBack && (
             <TouchableOpacity onPress={onBack} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={22} color={Colors.primary} />
+              <Ionicons name="arrow-back" size={22} color={colors.primary} />
             </TouchableOpacity>
           )}
           {showLogo && (
@@ -98,7 +101,7 @@ export default function Header({ onBack }) {
         {/* Right section */}
         <View style={styles.headerRight} onLayout={e => setRightWidth(e.nativeEvent.layout.width)}>
           <View style={[styles.kudosBadge, { backgroundColor: getTrustBadgeColor(user?.trustScore) }]}>
-            <Ionicons name="star" size={16} color={Colors.primary} />
+            <Ionicons name="star" size={16} color={colors.primary} />
             <Text style={styles.kudosCount}>{user?.kudosCount || 0}</Text>
           </View>
           <TouchableOpacity onPress={() => setSidebarVisible(true)}>
@@ -116,7 +119,7 @@ export default function Header({ onBack }) {
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -124,7 +127,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     minHeight: 66,
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -152,7 +155,7 @@ const styles = StyleSheet.create({
   },
   logo: {
     fontSize: 32,
-    color: Colors.primary,
+    color: colors.primary,
     ...Platform.select({
       web: {
         fontFamily: 'Pacifico, cursive',
@@ -179,7 +182,7 @@ const styles = StyleSheet.create({
   kudosBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.kudosBadge,
+    backgroundColor: BadgeColors.kudosBadge,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 12,
@@ -188,6 +191,6 @@ const styles = StyleSheet.create({
   kudosCount: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.primary,
+    color: colors.primary,
   },
 })

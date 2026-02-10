@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { View, Text, TextInput, StyleSheet, useWindowDimensions } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../../constants/Colors'
+import { useThemeColors } from '../../hooks/useThemeColors'
 import PositionCard from './PositionCard'
 
 // Breakpoints for responsive grid
@@ -26,6 +26,8 @@ export default function PositionCarousel({
   userPositionIds = [],
   onViewClosures,
 }) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
   const { width: screenWidth } = useWindowDimensions()
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -109,11 +111,11 @@ export default function PositionCarousel({
       <View style={styles.listContainer}>
         {activeTab === 'my_positions' && totalUserPositions > 0 && (
           <View style={styles.searchContainer}>
-            <Ionicons name="search" size={18} color={Colors.pass} style={styles.searchIcon} />
+            <Ionicons name="search" size={18} color={colors.secondaryText} style={styles.searchIcon} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search your positions..."
-              placeholderTextColor={Colors.pass}
+              placeholderTextColor={colors.placeholderText}
               value={searchQuery}
               onChangeText={setSearchQuery}
               autoCapitalize="none"
@@ -123,7 +125,7 @@ export default function PositionCarousel({
               <Ionicons
                 name="close-circle"
                 size={18}
-                color={Colors.pass}
+                color={colors.secondaryText}
                 onPress={() => setSearchQuery('')}
                 style={styles.clearIcon}
               />
@@ -141,11 +143,11 @@ export default function PositionCarousel({
     <View style={styles.listContainer}>
       {activeTab === 'my_positions' && (
         <View style={styles.searchContainer}>
-          <Ionicons name="search" size={18} color={Colors.pass} style={styles.searchIcon} />
+          <Ionicons name="search" size={18} color={colors.secondaryText} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search your positions..."
-            placeholderTextColor={Colors.pass}
+            placeholderTextColor={colors.placeholderText}
             value={searchQuery}
             onChangeText={setSearchQuery}
             autoCapitalize="none"
@@ -155,7 +157,7 @@ export default function PositionCarousel({
             <Ionicons
               name="close-circle"
               size={18}
-              color={Colors.pass}
+              color={colors.secondaryText}
               onPress={() => setSearchQuery('')}
               style={styles.clearIcon}
             />
@@ -179,7 +181,7 @@ export default function PositionCarousel({
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   listContainer: {
     paddingTop: 8,
     paddingBottom: 24,
@@ -188,10 +190,10 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.light.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
     paddingHorizontal: 12,
     marginBottom: 16,
   },
@@ -202,7 +204,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     fontSize: 15,
-    color: Colors.light.text,
+    color: colors.text,
   },
   clearIcon: {
     marginLeft: 8,
@@ -224,6 +226,6 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
 })

@@ -1,9 +1,10 @@
 import { StyleSheet, View, Text, TouchableOpacity, Animated, Platform, Modal } from 'react-native'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import Svg, { Circle, G } from 'react-native-svg'
-import { Colors } from '../constants/Colors'
-import { SharedStyles } from '../constants/SharedStyles'
+import { useThemeColors } from '../hooks/useThemeColors'
+import { SemanticColors } from '../constants/Colors'
+import { createSharedStyles } from '../constants/SharedStyles'
 import CardShell from './CardShell'
 import PositionInfoCard from './PositionInfoCard'
 
@@ -28,6 +29,10 @@ import Avatar from './Avatar'
  * @param {Function} onCancel - Called when user confirms cancellation
  */
 export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCancel }) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+  const shared = useMemo(() => createSharedStyles(colors), [colors])
+
   const [remainingSeconds, setRemainingSeconds] = useState(0)
   const [showCancelModal, setShowCancelModal] = useState(false)
   const progressAnim = useRef(new Animated.Value(0)).current
@@ -140,7 +145,7 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
 
   const bubbleBackground = colorAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [Colors.chat, Colors.disagree],
+    outputRange: [colors.chat, SemanticColors.disagree],
   })
 
   // Purple ring shows time remaining: starts full, empties counterclockwise
@@ -188,7 +193,7 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
                     cx={INDICATOR_SIZE / 2}
                     cy={INDICATOR_SIZE / 2}
                     r={RADIUS}
-                    stroke={Colors.primary}
+                    stroke={colors.primary}
                     strokeWidth={STROKE_WIDTH}
                     fill="transparent"
                     strokeDasharray={CIRCUMFERENCE}
@@ -214,8 +219,8 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
 
       {/* Cancel confirmation modal */}
       <Modal visible={showCancelModal} transparent animationType="fade" onRequestClose={() => setShowCancelModal(false)}>
-        <TouchableOpacity style={SharedStyles.modalOverlay} activeOpacity={1} onPress={() => setShowCancelModal(false)}>
-          <TouchableOpacity activeOpacity={1} style={SharedStyles.modalContent}>
+        <TouchableOpacity style={shared.modalOverlay} activeOpacity={1} onPress={() => setShowCancelModal(false)}>
+          <TouchableOpacity activeOpacity={1} style={shared.modalContent}>
             {/* Card in stats page style: white on purple */}
             <CardShell
               style={styles.cardOuter}
@@ -255,7 +260,7 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   touchable: {
     maxWidth: '100%',
   },
@@ -264,7 +269,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     borderWidth: 2,
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
     borderRadius: 24,
     paddingVertical: 3,
     paddingLeft: 3,
@@ -277,11 +282,11 @@ const styles = StyleSheet.create({
   displayName: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: colors.text,
   },
   username: {
     fontSize: 10,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
   bubble: {
     width: INDICATOR_SIZE,
@@ -317,12 +322,12 @@ const styles = StyleSheet.create({
   pendingText: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.white,
+    color: '#FFFFFF',
   },
   modalQuestion: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: colors.text,
     textAlign: 'center',
     marginBottom: 16,
   },
@@ -332,27 +337,27 @@ const styles = StyleSheet.create({
   },
   keepButton: {
     flex: 1,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     borderRadius: 24,
     paddingVertical: 14,
     alignItems: 'center',
   },
   keepButtonText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
   },
   cancelButton: {
     flex: 1,
-    backgroundColor: Colors.disagree + '15',
+    backgroundColor: SemanticColors.disagree + '15',
     borderRadius: 24,
     paddingVertical: 14,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.disagree + '40',
+    borderColor: SemanticColors.disagree + '40',
   },
   cancelButtonText: {
-    color: Colors.disagree,
+    color: SemanticColors.disagree,
     fontSize: 14,
     fontWeight: '600',
   },

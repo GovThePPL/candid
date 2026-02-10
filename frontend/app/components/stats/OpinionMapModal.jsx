@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { View, Text, StyleSheet, Modal, TouchableOpacity, useWindowDimensions } from 'react-native'
 import Svg, { Polygon, Circle, Text as SvgText, G, ClipPath, Defs, Image as SvgImage, Line } from 'react-native-svg'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors, GROUP_COLORS } from '../../constants/Colors'
-import { SharedStyles } from '../../constants/SharedStyles'
+import { GROUP_COLORS, SemanticColors, BrandColor } from '../../constants/Colors'
+import { useThemeColors } from '../../hooks/useThemeColors'
+import { createSharedStyles } from '../../constants/SharedStyles'
 import { getAvatarImageUrl, getInitials, getInitialsColor } from '../../lib/avatarUtils'
 
 /**
@@ -31,6 +32,9 @@ export default function OpinionMapModal({
   locationCode,
   categoryLabel,
 }) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+  const shared = useMemo(() => createSharedStyles(colors), [colors])
   const { width: screenWidth } = useWindowDimensions()
   const [showAllCategories, setShowAllCategories] = useState(false)
 
@@ -169,7 +173,7 @@ export default function OpinionMapModal({
     const avatarUrl = user.avatarIconUrl || user.avatarUrl
 
     // Border color based on role
-    const borderColor = index === 0 ? Colors.agree : Colors.primary
+    const borderColor = index === 0 ? SemanticColors.agree : colors.primary
 
     return (
       <G key={index}>
@@ -246,7 +250,7 @@ export default function OpinionMapModal({
         y1={y1}
         x2={x2}
         y2={y2}
-        stroke={Colors.pass}
+        stroke={colors.pass}
         strokeWidth={2}
         strokeDasharray="4,4"
         opacity={0.6}
@@ -263,7 +267,7 @@ export default function OpinionMapModal({
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} onDismiss={onDismiss}>
       <TouchableOpacity
-        style={SharedStyles.modalOverlay}
+        style={shared.modalOverlay}
         activeOpacity={1}
         onPress={onClose}
       >
@@ -271,7 +275,7 @@ export default function OpinionMapModal({
           <View style={styles.header}>
             <Text style={styles.title}>Opinion Map</Text>
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <Ionicons name="close" size={24} color={Colors.light.text} />
+              <Ionicons name="close" size={24} color={colors.text} />
             </TouchableOpacity>
           </View>
 
@@ -326,7 +330,7 @@ export default function OpinionMapModal({
             </>
           ) : (
             <View style={styles.noDataContainer}>
-              <Ionicons name="analytics-outline" size={48} color={Colors.pass} />
+              <Ionicons name="analytics-outline" size={48} color={colors.secondaryText} />
               <Text style={styles.noDataText}>
                 Position data not available for these users.
               </Text>
@@ -345,9 +349,9 @@ export default function OpinionMapModal({
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   content: {
-    backgroundColor: Colors.light.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderRadius: 16,
     padding: 16,
     width: '100%',
@@ -363,7 +367,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.primary,
+    color: colors.primary,
     flex: 1,
   },
   closeButton: {
@@ -371,7 +375,7 @@ const styles = StyleSheet.create({
   },
   tabRow: {
     flexDirection: 'row',
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
     borderRadius: 8,
     padding: 3,
     marginBottom: 12,
@@ -384,7 +388,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   tabActive: {
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -394,15 +398,15 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 12,
     fontWeight: '500',
-    color: Colors.pass,
+    color: colors.secondaryText,
     textAlign: 'center',
   },
   tabTextActive: {
-    color: Colors.primary,
+    color: colors.primary,
     fontWeight: '600',
   },
   mapContainer: {
-    backgroundColor: '#F8F8F8',
+    backgroundColor: colors.uiBackground,
     borderRadius: 12,
     padding: 8,
     marginBottom: 12,
@@ -426,7 +430,7 @@ const styles = StyleSheet.create({
   },
   legendText: {
     fontSize: 12,
-    color: Colors.light.text,
+    color: colors.text,
   },
   noDataContainer: {
     alignItems: 'center',
@@ -435,24 +439,24 @@ const styles = StyleSheet.create({
   },
   noDataText: {
     fontSize: 14,
-    color: Colors.light.text,
+    color: colors.text,
     textAlign: 'center',
     marginTop: 12,
   },
   noDataSubtext: {
     fontSize: 12,
-    color: Colors.pass,
+    color: colors.secondaryText,
     textAlign: 'center',
     marginTop: 4,
   },
   doneButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     borderRadius: 8,
     paddingVertical: 12,
     alignItems: 'center',
   },
   doneButtonText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },

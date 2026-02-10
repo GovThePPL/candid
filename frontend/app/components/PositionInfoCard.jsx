@@ -1,5 +1,7 @@
 import { View, Text, StyleSheet } from 'react-native'
-import { Colors } from '../constants/Colors'
+import { useMemo } from 'react'
+import { useThemeColors } from '../hooks/useThemeColors'
+import { BrandColor } from '../constants/Colors'
 import Avatar from './Avatar'
 
 /**
@@ -24,6 +26,9 @@ export default function PositionInfoCard({
   numberOfLines,
   style,
 }) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+
   if (!position) return null
 
   const { statement, category, location, creator } = position
@@ -81,15 +86,15 @@ export default function PositionInfoCard({
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     padding: 16,
   },
   label: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#888888',
+    color: colors.secondaryText,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 8,
@@ -107,24 +112,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   locationBadge: {
-    backgroundColor: Colors.primaryMuted + '20',
+    backgroundColor: colors.badgeBg,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
   },
   locationText: {
     fontSize: 12,
-    color: Colors.primary,
+    color: colors.badgeText,
     fontWeight: '500',
   },
   categoryText: {
     fontSize: 12,
-    color: Colors.primary,
+    color: colors.badgeText,
   },
   statement: {
     fontSize: 15,
     lineHeight: 22,
-    color: Colors.light.text,
+    color: colors.text,
     marginBottom: 12,
   },
   creatorRow: {
@@ -134,18 +139,18 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     marginTop: 0,
     borderTopWidth: 1,
-    borderTopColor: Colors.cardBorder,
+    borderTopColor: colors.cardBorder,
     gap: 10,
   },
   creatorInfo: {},
   creatorName: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: colors.text,
   },
   creatorSubtitle: {
     fontSize: 11,
-    color: '#888888',
+    color: colors.secondaryText,
     textTransform: 'capitalize',
   },
 })

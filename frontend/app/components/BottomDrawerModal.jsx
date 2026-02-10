@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import {
   View,
   Text,
@@ -9,7 +9,8 @@ import {
   Dimensions,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../constants/Colors'
+import { useThemeColors } from '../hooks/useThemeColors'
+import { SemanticColors } from '../constants/Colors'
 
 const SCREEN_HEIGHT = Dimensions.get('window').height
 
@@ -36,6 +37,8 @@ export default function BottomDrawerModal({
   children,
   maxHeight = '85%',
 }) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
   const [modalVisible, setModalVisible] = useState(false)
   const overlayOpacity = useRef(new Animated.Value(0)).current
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current
@@ -100,7 +103,7 @@ export default function BottomDrawerModal({
             </View>
             {headerRight || (
               <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-                <Ionicons name="close" size={24} color={Colors.light.text} />
+                <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             )}
           </View>
@@ -112,17 +115,17 @@ export default function BottomDrawerModal({
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'flex-end',
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: Colors.overlay,
+    backgroundColor: SemanticColors.overlay,
   },
   content: {
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
   },
@@ -132,8 +135,8 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
-    backgroundColor: Colors.light.cardBackground,
+    borderBottomColor: colors.cardBorder,
+    backgroundColor: colors.cardBackground,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
   },
@@ -147,11 +150,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '700',
-    color: Colors.primary,
+    color: colors.primary,
   },
   subtitle: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
     marginTop: 4,
   },
   closeButton: {

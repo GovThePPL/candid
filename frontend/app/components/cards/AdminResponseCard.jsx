@@ -1,6 +1,8 @@
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native'
+import { useMemo } from 'react'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../../constants/Colors'
+import { useThemeColors } from '../../hooks/useThemeColors'
+import { SemanticColors } from '../../constants/Colors'
 import Avatar from '../Avatar'
 
 const ACTION_LABELS = {
@@ -19,13 +21,17 @@ const STATE_LABELS = {
   denied: 'Appeal Denied',
   modified: 'Action Modified',
 }
-const STATE_COLORS = {
-  approved: Colors.agree,
-  denied: Colors.warning,
-  modified: Colors.primary,
-}
 
 export default function AdminResponseCard({ data, onDismiss }) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+
+  const STATE_COLORS = useMemo(() => ({
+    approved: SemanticColors.agree,
+    denied: SemanticColors.warning,
+    modified: colors.primary,
+  }), [colors])
+
   const {
     appealState,
     adminResponseText,
@@ -37,12 +43,12 @@ export default function AdminResponseCard({ data, onDismiss }) {
   return (
     <View style={styles.card}>
       <View style={styles.iconContainer}>
-        <Ionicons name="shield-checkmark" size={40} color={Colors.primary} />
+        <Ionicons name="shield-checkmark" size={40} color={colors.primary} />
       </View>
 
       <Text style={styles.title}>Administrator Response</Text>
 
-      <View style={[styles.outcomeBadge, { backgroundColor: STATE_COLORS[appealState] || Colors.primary }]}>
+      <View style={[styles.outcomeBadge, { backgroundColor: STATE_COLORS[appealState] || colors.primary }]}>
         <Text style={styles.outcomeBadgeText}>{STATE_LABELS[appealState] || appealState}</Text>
       </View>
 
@@ -117,15 +123,15 @@ export default function AdminResponseCard({ data, onDismiss }) {
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   card: {
     flex: 1,
-    backgroundColor: Colors.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderRadius: 16,
     padding: 24,
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
   },
   iconContainer: {
     marginBottom: 12,
@@ -133,7 +139,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: '700',
-    color: Colors.primary,
+    color: colors.primary,
     marginBottom: 12,
   },
   outcomeBadge: {
@@ -143,13 +149,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   outcomeBadgeText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
   },
   responseContainer: {
     width: '100%',
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
     borderRadius: 10,
     padding: 14,
     marginBottom: 12,
@@ -157,13 +163,13 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.pass,
+    color: colors.secondaryText,
     textTransform: 'uppercase',
     marginBottom: 6,
   },
   responseText: {
     fontSize: 14,
-    color: Colors.light.text,
+    color: colors.text,
     fontStyle: 'italic',
     lineHeight: 20,
   },
@@ -180,15 +186,15 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: colors.text,
   },
   userUsername: {
     fontSize: 12,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
   contextContainer: {
     width: '100%',
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
     borderRadius: 10,
     padding: 14,
     marginBottom: 12,
@@ -203,7 +209,7 @@ const styles = StyleSheet.create({
   actionDetailText: {
     fontSize: 12,
     fontWeight: '500',
-    color: Colors.light.text,
+    color: colors.text,
     lineHeight: 18,
   },
   priorResponse: {
@@ -212,19 +218,19 @@ const styles = StyleSheet.create({
   },
   priorResponseText: {
     fontSize: 13,
-    color: Colors.pass,
+    color: colors.secondaryText,
     fontStyle: 'italic',
     marginLeft: 40,
   },
   dismissButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingHorizontal: 32,
     paddingVertical: 12,
     borderRadius: 25,
     marginTop: 8,
   },
   dismissButtonText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },

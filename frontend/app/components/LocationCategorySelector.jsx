@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, Modal, FlatList } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../constants/Colors'
-import { SharedStyles } from '../constants/SharedStyles'
+import { useThemeColors } from '../hooks/useThemeColors'
+import { createSharedStyles } from '../constants/SharedStyles'
 import { usersApiWrapper, categoriesApiWrapper } from '../lib/api'
 
 /**
@@ -29,6 +29,9 @@ export default function LocationCategorySelector({
   categoryAutoSelected = false,
   style,
 }) {
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+  const shared = useMemo(() => createSharedStyles(colors), [colors])
   const [locations, setLocations] = useState([])
   const [categories, setCategories] = useState([])
   const [showLocationPicker, setShowLocationPicker] = useState(false)
@@ -99,9 +102,9 @@ export default function LocationCategorySelector({
     labelKey = 'name'
   ) => (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <TouchableOpacity style={SharedStyles.modalOverlay} activeOpacity={1} onPress={onClose}>
-        <View style={SharedStyles.modalContent}>
-          <Text style={SharedStyles.modalTitle}>{title}</Text>
+      <TouchableOpacity style={shared.modalOverlay} activeOpacity={1} onPress={onClose}>
+        <View style={shared.modalContent}>
+          <Text style={shared.modalTitle}>{title}</Text>
           <FlatList
             data={items}
             keyExtractor={(item) => item.id}
@@ -125,7 +128,7 @@ export default function LocationCategorySelector({
                   {item[labelKey] || item.name}
                 </Text>
                 {item.id === selectedId && (
-                  <Ionicons name="checkmark" size={20} color={Colors.primary} />
+                  <Ionicons name="checkmark" size={20} color={colors.buttonDefaultText} />
                 )}
               </TouchableOpacity>
             )}
@@ -157,12 +160,12 @@ export default function LocationCategorySelector({
           onPress={() => setShowLocationPicker(true)}
         >
           {!showLabels && (
-            <Ionicons name="location-outline" size={18} color={Colors.primary} />
+            <Ionicons name="location-outline" size={18} color={colors.primary} />
           )}
           <Text style={styles.selectorText} numberOfLines={1}>
             {getSelectedLocationName()}
           </Text>
-          <Ionicons name="chevron-down" size={16} color={Colors.pass} />
+          <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
         </TouchableOpacity>
       </View>
 
@@ -172,7 +175,7 @@ export default function LocationCategorySelector({
           <View style={styles.labelRow}>
             <Text style={styles.labelText}>Category</Text>
             {categoryAutoSelected && (
-              <Ionicons name="sparkles" size={10} color={Colors.primary} style={{ marginLeft: 4 }} />
+              <Ionicons name="sparkles" size={10} color={colors.primary} style={{ marginLeft: 4 }} />
             )}
           </View>
         )}
@@ -184,12 +187,12 @@ export default function LocationCategorySelector({
           onPress={() => setShowCategoryPicker(true)}
         >
           {!showLabels && (
-            <Ionicons name="folder-outline" size={18} color={Colors.primary} />
+            <Ionicons name="folder-outline" size={18} color={colors.primary} />
           )}
           <Text style={styles.selectorText} numberOfLines={1}>
             {getSelectedCategoryName()}
           </Text>
-          <Ionicons name="chevron-down" size={16} color={Colors.pass} />
+          <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
         </TouchableOpacity>
       </View>
 
@@ -216,7 +219,7 @@ export default function LocationCategorySelector({
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flexDirection: 'row',
     paddingHorizontal: 16,
@@ -235,32 +238,32 @@ const styles = StyleSheet.create({
   labelText: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.darkText,
+    color: colors.darkText,
   },
   selector: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.light.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     gap: 8,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
   },
   selectorAutoSelected: {
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
     borderWidth: 2,
   },
   selectorText: {
     flex: 1,
     fontSize: 14,
-    color: Colors.light.text,
+    color: colors.text,
   },
   loadingText: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
     textAlign: 'center',
     paddingVertical: 16,
   },
@@ -273,14 +276,14 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   pickerItemSelected: {
-    backgroundColor: Colors.primaryLight,
+    backgroundColor: colors.buttonDefault,
   },
   pickerItemText: {
     fontSize: 16,
-    color: Colors.light.text,
+    color: colors.text,
   },
   pickerItemTextSelected: {
-    color: Colors.primary,
+    color: colors.buttonDefaultText,
     fontWeight: '600',
   },
 })

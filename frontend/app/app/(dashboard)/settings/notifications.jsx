@@ -1,10 +1,11 @@
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, Switch } from 'react-native'
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../../../constants/Colors'
-import { SharedStyles } from '../../../constants/SharedStyles'
+import { useThemeColors } from '../../../hooks/useThemeColors'
+import { SemanticColors } from '../../../constants/Colors'
+import { createSharedStyles } from '../../../constants/SharedStyles'
 import api from '../../../lib/api'
 import { useUser } from '../../../hooks/useUser'
 import { CacheManager, CacheKeys, CacheDurations } from '../../../lib/cache'
@@ -32,6 +33,9 @@ const HOUR_LABELS = [
 export default function NotificationSettings() {
   const { user } = useUser()
   const router = useRouter()
+  const colors = useThemeColors()
+  const styles = useMemo(() => createStyles(colors), [colors])
+  const shared = useMemo(() => createSharedStyles(colors), [colors])
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -200,7 +204,7 @@ export default function NotificationSettings() {
 
         {error && (
           <View style={styles.errorContainer}>
-            <Ionicons name="alert-circle" size={20} color={Colors.warning} />
+            <Ionicons name="alert-circle" size={20} color={SemanticColors.warning} />
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
@@ -208,7 +212,7 @@ export default function NotificationSettings() {
         {/* Notification Settings Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="notifications-outline" size={22} color={Colors.primary} />
+            <Ionicons name="notifications-outline" size={22} color={colors.primary} />
             <Text style={styles.sectionTitle}>Notifications</Text>
           </View>
           <Text style={styles.sectionDescription}>
@@ -221,8 +225,8 @@ export default function NotificationSettings() {
             <Switch
               value={notificationsEnabled}
               onValueChange={handleNotificationsEnabledChange}
-              trackColor={{ false: Colors.cardBorder, true: Colors.primaryMuted }}
-              thumbColor={notificationsEnabled ? Colors.primary : Colors.pass}
+              trackColor={{ false: colors.cardBorder, true: colors.primaryMuted }}
+              thumbColor={notificationsEnabled ? colors.primary : colors.pass}
             />
           </View>
 
@@ -264,7 +268,7 @@ export default function NotificationSettings() {
                   onPress={() => { setQuietHoursModalField('start'); setQuietHoursModalOpen(true) }}
                 >
                   <Text style={styles.quietHoursButtonText}>{HOUR_LABELS[quietHoursStart]}</Text>
-                  <Ionicons name="chevron-down" size={16} color={Colors.pass} />
+                  <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
                 </TouchableOpacity>
                 <Text style={styles.quietHoursSeparator}>to</Text>
                 <TouchableOpacity
@@ -272,7 +276,7 @@ export default function NotificationSettings() {
                   onPress={() => { setQuietHoursModalField('end'); setQuietHoursModalOpen(true) }}
                 >
                   <Text style={styles.quietHoursButtonText}>{HOUR_LABELS[quietHoursEnd]}</Text>
-                  <Ionicons name="chevron-down" size={16} color={Colors.pass} />
+                  <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
                 </TouchableOpacity>
               </View>
             </>
@@ -282,7 +286,7 @@ export default function NotificationSettings() {
         {/* Saving indicator */}
         {saving && (
           <View style={styles.savingContainer}>
-            <ActivityIndicator size="small" color={Colors.primary} />
+            <ActivityIndicator size="small" color={colors.primary} />
             <Text style={styles.savingText}>Saving...</Text>
           </View>
         )}
@@ -295,7 +299,7 @@ export default function NotificationSettings() {
         animationType="fade"
         onRequestClose={() => setQuietHoursModalOpen(false)}
       >
-        <Pressable style={SharedStyles.modalOverlay} onPress={() => setQuietHoursModalOpen(false)}>
+        <Pressable style={shared.modalOverlay} onPress={() => setQuietHoursModalOpen(false)}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>
               {quietHoursModalField === 'start' ? 'Quiet hours start' : 'Quiet hours end'}
@@ -322,7 +326,7 @@ export default function NotificationSettings() {
                       {label}
                     </Text>
                     {isSelected && (
-                      <Ionicons name="checkmark" size={20} color={Colors.primary} />
+                      <Ionicons name="checkmark" size={20} color={colors.primary} />
                     )}
                   </TouchableOpacity>
                 )
@@ -335,10 +339,10 @@ export default function NotificationSettings() {
   )
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -351,7 +355,7 @@ const styles = StyleSheet.create({
   pageTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: Colors.primary,
+    color: colors.primary,
   },
   errorContainer: {
     flexDirection: 'row',
@@ -364,16 +368,16 @@ const styles = StyleSheet.create({
   },
   errorText: {
     flex: 1,
-    color: Colors.warning,
+    color: SemanticColors.warning,
     fontSize: 14,
   },
   section: {
-    backgroundColor: Colors.cardBackground,
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -384,11 +388,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.darkText,
+    color: colors.darkText,
   },
   sectionDescription: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
     lineHeight: 20,
     marginBottom: 16,
   },
@@ -401,18 +405,18 @@ const styles = StyleSheet.create({
   },
   notifToggleLabel: {
     fontSize: 15,
-    color: Colors.darkText,
+    color: colors.darkText,
     fontWeight: '500',
   },
   notifSubLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.darkText,
+    color: colors.darkText,
     marginBottom: 8,
   },
   likelihoodSelector: {
     flexDirection: 'row',
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
     borderRadius: 8,
     padding: 4,
   },
@@ -424,19 +428,19 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   likelihoodOptionSelected: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
   },
   likelihoodOptionLabel: {
     fontSize: 13,
-    color: Colors.pass,
+    color: colors.secondaryText,
     fontWeight: '500',
   },
   likelihoodOptionLabelSelected: {
-    color: Colors.white,
+    color: '#FFFFFF',
   },
   likelihoodDescription: {
     fontSize: 13,
-    color: Colors.pass,
+    color: colors.secondaryText,
     textAlign: 'center',
     marginTop: 10,
     fontStyle: 'italic',
@@ -453,19 +457,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     paddingVertical: 10,
-    backgroundColor: Colors.light.background,
+    backgroundColor: colors.background,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: colors.cardBorder,
   },
   quietHoursButtonText: {
     fontSize: 15,
-    color: Colors.darkText,
+    color: colors.darkText,
     fontWeight: '500',
   },
   quietHoursSeparator: {
     fontSize: 14,
-    color: Colors.pass,
+    color: colors.secondaryText,
   },
   savingContainer: {
     flexDirection: 'row',
@@ -476,11 +480,11 @@ const styles = StyleSheet.create({
   },
   savingText: {
     fontSize: 14,
-    color: Colors.primary,
+    color: colors.primary,
   },
   // Modal styles
   modalContent: {
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     width: '100%',
     maxWidth: 340,
@@ -490,7 +494,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.darkText,
+    color: colors.darkText,
     padding: 16,
     paddingBottom: 4,
     textAlign: 'center',
@@ -505,20 +509,20 @@ const styles = StyleSheet.create({
     padding: 14,
     paddingHorizontal: 16,
     borderTopWidth: 1,
-    borderTopColor: Colors.cardBorder,
+    borderTopColor: colors.cardBorder,
   },
   modalItemSelected: {
-    backgroundColor: Colors.primaryLight,
+    backgroundColor: colors.primaryLight,
   },
   modalItemLast: {
     borderBottomWidth: 0,
   },
   modalItemLabel: {
     fontSize: 16,
-    color: Colors.darkText,
+    color: colors.darkText,
     fontWeight: '500',
   },
   modalItemLabelSelected: {
-    color: Colors.primary,
+    color: colors.primary,
   },
 })
