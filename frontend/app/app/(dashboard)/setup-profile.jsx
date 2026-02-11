@@ -106,6 +106,11 @@ export default function SetupProfile() {
       setSaving(true)
       setError(null)
 
+      if (userLocations.length === 0) {
+        setError(t('locationRequired'))
+        return
+      }
+
       const trimmedName = displayName.trim()
       if (trimmedName) {
         await api.users.updateProfile({ displayName: trimmedName })
@@ -119,11 +124,6 @@ export default function SetupProfile() {
     } finally {
       setSaving(false)
     }
-  }
-
-  const handleSkip = () => {
-    clearNewUser()
-    router.replace('/cards')
   }
 
   return (
@@ -210,7 +210,8 @@ export default function SetupProfile() {
 
           <Spacer height={20} />
           <View style={styles.formContainer}>
-            <LanguagePicker />
+            <ThemedText variant="bodySmall" color="secondary" style={styles.inputLabel}>{t('languageLabel')}</ThemedText>
+            <LanguagePicker variant="inline" />
           </View>
 
           {error && (
@@ -227,10 +228,6 @@ export default function SetupProfile() {
                 {saving ? t('saving') : t('continue')}
               </ThemedText>
             </ThemedButton>
-
-            <TouchableOpacity onPress={handleSkip} style={styles.skipButton} accessibilityRole="button" accessibilityLabel={t('skipSetupA11y')}>
-              <ThemedText variant="bodySmall" color="secondary">{t('skipForNow')}</ThemedText>
-            </TouchableOpacity>
           </View>
 
           <Spacer height={40} />
@@ -360,9 +357,5 @@ const createStyles = (colors) => StyleSheet.create({
   },
   continueButton: {
     width: '100%',
-  },
-  skipButton: {
-    marginTop: 16,
-    paddingVertical: 8,
   },
 })
