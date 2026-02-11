@@ -142,7 +142,17 @@ jest.mock('./contexts/I18nContext', () => ({
     setLanguagePreference: jest.fn(),
   }),
   SUPPORTED_LANGUAGES: ['en', 'es'],
+  systemLanguageAvailable: () => true,
 }))
+
+// Mock react-native-keyboard-controller
+jest.mock('react-native-keyboard-controller', () => {
+  const { ScrollView } = require('react-native')
+  return {
+    KeyboardProvider: ({ children }) => children,
+    KeyboardAwareScrollView: ScrollView,
+  }
+})
 
 // Mock @react-native-async-storage/async-storage
 jest.mock('@react-native-async-storage/async-storage', () => ({

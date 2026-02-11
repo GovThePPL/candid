@@ -10,6 +10,7 @@ import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS } from 
 import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
+import useKeyboardHeight from '../hooks/useKeyboardHeight'
 import { SemanticColors } from '../constants/Colors'
 import { Typography } from '../constants/Theme'
 import ThemedText from './ThemedText'
@@ -45,11 +46,16 @@ export default function BottomDrawerModal({
   const [modalVisible, setModalVisible] = useState(false)
   const overlayOpacity = useSharedValue(0)
   const slideY = useSharedValue(SCREEN_HEIGHT)
+  const { keyboardHeight } = useKeyboardHeight()
 
-  // Resolve percentage to pixels for native compatibility
-  const resolvedMaxHeight = typeof maxHeight === 'string' && maxHeight.endsWith('%')
+  // Resolve percentage to pixels for native compatibility.
+  // When keyboard is open, cap height so the drawer doesn't overflow off-screen.
+  const baseMaxHeight = typeof maxHeight === 'string' && maxHeight.endsWith('%')
     ? (parseFloat(maxHeight) / 100) * SCREEN_HEIGHT
     : maxHeight
+  const resolvedMaxHeight = keyboardHeight > 0
+    ? Math.min(baseMaxHeight, SCREEN_HEIGHT - keyboardHeight - 40)
+    : baseMaxHeight
 
   const hideModal = useCallback(() => {
     setModalVisible(false)

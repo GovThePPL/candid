@@ -42,6 +42,11 @@ from datetime import datetime, timedelta, timezone
 WORKERS = 8  # Thread pool size for parallel API calls
 print_lock = threading.Lock()
 
+# Shared admin token cache to avoid concurrent client_credentials requests
+# which cause 409 Conflict in Keycloak
+_admin_token_lock = threading.Lock()
+_admin_token_cache = {"token": None, "expires_at": 0}
+
 API_URL = os.environ.get('API_URL', 'http://localhost:8000')
 DB_URL = os.environ.get('DATABASE_URL', 'postgresql://user:postgres@localhost:5432/candid')
 KEYCLOAK_URL = os.environ.get('KEYCLOAK_URL', 'http://localhost:8180')
@@ -379,15 +384,41 @@ class CandidAPI:
         return None
 
     def _get_admin_token(self):
-        """Get admin token via candid-backend service account."""
-        token_url = f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token"
-        resp = self.session.post(token_url, data={
-            "grant_type": "client_credentials",
-            "client_id": KEYCLOAK_BACKEND_CLIENT_ID,
-            "client_secret": KEYCLOAK_BACKEND_CLIENT_SECRET,
-        }, timeout=10)
-        resp.raise_for_status()
-        return resp.json()["access_token"]
+        """Get admin token via candid-backend service account.
+
+        Uses a module-level cache with lock to avoid concurrent
+        client_credentials requests which cause 409 in Keycloak.
+        """
+        global _admin_token_cache
+        now = time.time()
+
+        # Fast path: return cached token if still valid (with 30s margin)
+        if _admin_token_cache["token"] and now < _admin_token_cache["expires_at"] - 30:
+            return _admin_token_cache["token"]
+
+        with _admin_token_lock:
+            # Re-check after acquiring lock (another thread may have refreshed)
+            now = time.time()
+            if _admin_token_cache["token"] and now < _admin_token_cache["expires_at"] - 30:
+                return _admin_token_cache["token"]
+
+            token_url = f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token"
+            for attempt in range(3):
+                resp = self.session.post(token_url, data={
+                    "grant_type": "client_credentials",
+                    "client_id": KEYCLOAK_BACKEND_CLIENT_ID,
+                    "client_secret": KEYCLOAK_BACKEND_CLIENT_SECRET,
+                }, timeout=10)
+                if resp.status_code == 409:
+                    time.sleep(0.5 * (attempt + 1))
+                    continue
+                resp.raise_for_status()
+                data = resp.json()
+                _admin_token_cache["token"] = data["access_token"]
+                _admin_token_cache["expires_at"] = now + data.get("expires_in", 300)
+                return data["access_token"]
+            # Final attempt failed
+            resp.raise_for_status()
 
     def _assign_roles(self, user_id, role_names, admin_token, base, headers):
         """Assign realm roles to a Keycloak user."""

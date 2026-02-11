@@ -169,11 +169,12 @@ def get_active_surveys(location_id=None, category_id=None, token_info=None):  # 
     if location_id:
         hierarchy = db.execute_query("""
             WITH RECURSIVE location_hierarchy AS (
-                SELECT id, parent_location_id, code, name FROM location WHERE id = %s
+                SELECT id, parent_location_id, code, name FROM location WHERE id = %s AND deleted_at IS NULL
                 UNION ALL
                 SELECT l.id, l.parent_location_id, l.code, l.name
                 FROM location l
                 JOIN location_hierarchy lh ON l.id = lh.parent_location_id
+                WHERE l.deleted_at IS NULL
             )
             SELECT id, code, name FROM location_hierarchy
         """, (location_id,))
@@ -469,11 +470,12 @@ def get_pairwise_surveys(location_id=None, category_id=None, token_info=None):  
     if location_id:
         hierarchy = db.execute_query("""
             WITH RECURSIVE location_hierarchy AS (
-                SELECT id, parent_location_id, code, name FROM location WHERE id = %s
+                SELECT id, parent_location_id, code, name FROM location WHERE id = %s AND deleted_at IS NULL
                 UNION ALL
                 SELECT l.id, l.parent_location_id, l.code, l.name
                 FROM location l
                 JOIN location_hierarchy lh ON l.id = lh.parent_location_id
+                WHERE l.deleted_at IS NULL
             )
             SELECT id, code, name FROM location_hierarchy
         """, (location_id,))

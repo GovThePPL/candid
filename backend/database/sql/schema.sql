@@ -77,8 +77,12 @@ CREATE TABLE location (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     parent_location_id UUID REFERENCES location(id) ON DELETE SET NULL,
     code VARCHAR(50),
-    name VARCHAR(255) NOT NULL
+    name VARCHAR(255) NOT NULL,
+    deleted_at TIMESTAMPTZ DEFAULT NULL
 );
+
+-- Partial index: fast lookup of non-deleted locations
+CREATE INDEX idx_location_not_deleted ON location(id) WHERE deleted_at IS NULL;
 
 -- User locations
 CREATE TABLE user_location (
@@ -499,12 +503,22 @@ CREATE TABLE role_change_request (
     requester_authority_location_id UUID NOT NULL REFERENCES location(id) ON DELETE CASCADE,
     request_reason TEXT,
     status VARCHAR(20) NOT NULL DEFAULT 'pending'
-        CHECK (status IN ('pending','approved','denied','auto_approved')),
+        CHECK (status IN ('pending','approved','denied','auto_approved','rescinded')),
     reviewed_by UUID REFERENCES users(id) ON DELETE SET NULL,
     denial_reason TEXT,
     auto_approve_at TIMESTAMPTZ NOT NULL,
     created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Notification queue (for quiet-hours delayed delivery)
+CREATE TABLE notification_queue (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    data JSONB DEFAULT '{}',
+    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create indexes for performance
@@ -563,3 +577,4 @@ CREATE INDEX idx_role_change_request_target ON role_change_request(target_user_i
 CREATE INDEX idx_role_change_request_status ON role_change_request(status) WHERE status = 'pending';
 CREATE INDEX idx_role_change_request_requested_by ON role_change_request(requested_by);
 CREATE INDEX idx_role_change_request_auto_approve ON role_change_request(auto_approve_at) WHERE status = 'pending';
+CREATE INDEX idx_notification_queue_user ON notification_queue(user_id);

@@ -1,9 +1,10 @@
 import { StyleSheet, View, TouchableOpacity, Modal, Pressable, Text } from 'react-native'
 import { useState, useMemo } from 'react'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../hooks/useThemeColors'
-import { useI18n, SUPPORTED_LANGUAGES } from '../contexts/I18nContext'
+import { useI18n, SUPPORTED_LANGUAGES, systemLanguageAvailable } from '../contexts/I18nContext'
 import ThemedText from './ThemedText'
 
 const LANGUAGE_META = {
@@ -11,10 +12,9 @@ const LANGUAGE_META = {
   es: { label: 'Espa\u00f1ol', flag: '\u{1F1EA}\u{1F1F8}', code: 'ES' },
 }
 
-const PILL_OPTIONS = [
-  ...SUPPORTED_LANGUAGES.map((code) => ({ value: code, label: LANGUAGE_META[code]?.label || code })),
-  { value: 'system', label: null },
-]
+const LANGUAGE_OPTIONS = SUPPORTED_LANGUAGES.map((code) => ({ value: code, label: LANGUAGE_META[code]?.label || code }))
+
+const showSystemOption = systemLanguageAvailable()
 
 /**
  * Language picker with three variants:
@@ -31,6 +31,7 @@ export default function LanguagePicker({ variant = 'pills', compact = false }) {
 function DropdownPicker() {
   const { t } = useTranslation()
   const colors = useThemeColors()
+  const insets = useSafeAreaInsets()
   const { language, languagePreference, setLanguagePreference } = useI18n()
   const [open, setOpen] = useState(false)
   const styles = useMemo(() => createDropdownStyles(colors), [colors])
@@ -58,7 +59,7 @@ function DropdownPicker() {
         onRequestClose={() => setOpen(false)}
       >
         <Pressable style={styles.backdrop} onPress={() => setOpen(false)}>
-          <View style={styles.menuAnchor}>
+          <View style={[styles.menuAnchor, { marginTop: insets.top + 12 }]}>
             <View style={styles.menu}>
               {SUPPORTED_LANGUAGES.map((code) => {
                 const meta = LANGUAGE_META[code]
@@ -87,23 +88,27 @@ function DropdownPicker() {
                   </TouchableOpacity>
                 )
               })}
-              <View style={styles.menuDivider} />
-              <TouchableOpacity
-                style={[styles.menuItem, languagePreference === 'system' && styles.menuItemSelected]}
-                onPress={() => { setLanguagePreference('system'); setOpen(false) }}
-                accessibilityRole="menuitem"
-                accessibilityState={{ selected: languagePreference === 'system' }}
-                accessibilityLabel={t('systemLanguageA11y')}
-              >
-                <Ionicons name="phone-portrait-outline" size={16} color={colors.secondaryText} style={styles.systemIcon} />
-                <ThemedText variant="bodySmall" style={[
-                  styles.menuLabel,
-                  languagePreference === 'system' && styles.menuLabelSelected,
-                ]}>{t('systemLanguage')}</ThemedText>
-                {languagePreference === 'system' && (
-                  <Ionicons name="checkmark" size={16} color={colors.primary} style={styles.checkmark} />
-                )}
-              </TouchableOpacity>
+              {showSystemOption && (
+                <>
+                  <View style={styles.menuDivider} />
+                  <TouchableOpacity
+                    style={[styles.menuItem, languagePreference === 'system' && styles.menuItemSelected]}
+                    onPress={() => { setLanguagePreference('system'); setOpen(false) }}
+                    accessibilityRole="menuitem"
+                    accessibilityState={{ selected: languagePreference === 'system' }}
+                    accessibilityLabel={t('systemLanguageA11y')}
+                  >
+                    <Ionicons name="phone-portrait-outline" size={16} color={colors.secondaryText} style={styles.systemIcon} />
+                    <ThemedText variant="bodySmall" style={[
+                      styles.menuLabel,
+                      languagePreference === 'system' && styles.menuLabelSelected,
+                    ]}>{t('systemLanguage')}</ThemedText>
+                    {languagePreference === 'system' && (
+                      <Ionicons name="checkmark" size={16} color={colors.primary} style={styles.checkmark} />
+                    )}
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
           </View>
         </Pressable>
@@ -166,23 +171,27 @@ function InlinePicker() {
                   </TouchableOpacity>
                 )
               })}
-              <View style={styles.menuDivider} />
-              <TouchableOpacity
-                style={[styles.menuItem, languagePreference === 'system' && styles.menuItemSelected]}
-                onPress={() => { setLanguagePreference('system'); setOpen(false) }}
-                accessibilityRole="menuitem"
-                accessibilityState={{ selected: languagePreference === 'system' }}
-                accessibilityLabel={t('common:systemLanguageA11y')}
-              >
-                <Ionicons name="phone-portrait-outline" size={16} color={colors.secondaryText} style={styles.systemIcon} />
-                <ThemedText variant="bodySmall" style={[
-                  styles.menuLabel,
-                  languagePreference === 'system' && styles.menuLabelSelected,
-                ]}>{t('common:systemLanguage')}</ThemedText>
-                {languagePreference === 'system' && (
-                  <Ionicons name="checkmark" size={16} color={colors.primary} style={styles.checkmark} />
-                )}
-              </TouchableOpacity>
+              {showSystemOption && (
+                <>
+                  <View style={styles.menuDivider} />
+                  <TouchableOpacity
+                    style={[styles.menuItem, languagePreference === 'system' && styles.menuItemSelected]}
+                    onPress={() => { setLanguagePreference('system'); setOpen(false) }}
+                    accessibilityRole="menuitem"
+                    accessibilityState={{ selected: languagePreference === 'system' }}
+                    accessibilityLabel={t('common:systemLanguageA11y')}
+                  >
+                    <Ionicons name="phone-portrait-outline" size={16} color={colors.secondaryText} style={styles.systemIcon} />
+                    <ThemedText variant="bodySmall" style={[
+                      styles.menuLabel,
+                      languagePreference === 'system' && styles.menuLabelSelected,
+                    ]}>{t('common:systemLanguage')}</ThemedText>
+                    {languagePreference === 'system' && (
+                      <Ionicons name="checkmark" size={16} color={colors.primary} style={styles.checkmark} />
+                    )}
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
           </View>
         </Pressable>
@@ -202,7 +211,7 @@ function PillPicker({ compact }) {
       {!compact && (
         <Ionicons name="globe-outline" size={18} color={colors.secondaryText} style={styles.icon} />
       )}
-      {PILL_OPTIONS.map((option) => (
+      {LANGUAGE_OPTIONS.map((option) => (
         <TouchableOpacity
           key={option.value}
           style={[
@@ -212,23 +221,40 @@ function PillPicker({ compact }) {
           onPress={() => setLanguagePreference(option.value)}
           accessibilityRole="radio"
           accessibilityState={{ checked: languagePreference === option.value }}
-          accessibilityLabel={option.label || t('systemLanguageA11y')}
+          accessibilityLabel={option.label}
         >
-          {option.value === 'system' ? (
-            <Ionicons
-              name="phone-portrait-outline"
-              size={16}
-              color={languagePreference === 'system' ? '#FFFFFF' : colors.secondaryText}
-            />
-          ) : null}
           <ThemedText variant="label" color="secondary" style={[
             styles.optionLabel,
             languagePreference === option.value && styles.optionLabelSelected,
           ]}>
-            {option.label || t('systemLanguage')}
+            {option.label}
           </ThemedText>
         </TouchableOpacity>
       ))}
+      {showSystemOption && (
+        <TouchableOpacity
+          style={[
+            styles.option,
+            languagePreference === 'system' && styles.optionSelected,
+          ]}
+          onPress={() => setLanguagePreference('system')}
+          accessibilityRole="radio"
+          accessibilityState={{ checked: languagePreference === 'system' }}
+          accessibilityLabel={t('systemLanguageA11y')}
+        >
+          <Ionicons
+            name="phone-portrait-outline"
+            size={16}
+            color={languagePreference === 'system' ? '#FFFFFF' : colors.secondaryText}
+          />
+          <ThemedText variant="label" color="secondary" style={[
+            styles.optionLabel,
+            languagePreference === 'system' && styles.optionLabelSelected,
+          ]}>
+            {t('systemLanguage')}
+          </ThemedText>
+        </TouchableOpacity>
+      )}
     </View>
   )
 }
@@ -262,7 +288,6 @@ const createDropdownStyles = (colors) => StyleSheet.create({
     alignItems: 'flex-end',
   },
   menuAnchor: {
-    marginTop: 60,
     marginRight: 20,
   },
   menu: {

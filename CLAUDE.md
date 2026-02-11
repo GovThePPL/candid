@@ -60,13 +60,56 @@ Python Flask app using Connexion for OpenAPI routing. Controllers are organized 
 - `controllers/helpers/auth.py` - Role-based authorization
 - `controllers/__init__.py` - Flask app initialization, DB setup
 
-Auth hierarchy: guest < normal < moderator < admin. Authorization decorator returns 401 if unauthenticated, 403 if insufficient role.
+Auth: `user_type` is only `'normal'` or `'guest'`. All privileged roles (admin, moderator, facilitator, etc.) are location-scoped in the `user_role` table with a hierarchical approval workflow. See `backend/server/controllers/README.md` for the full role system. Authorization returns 401 if unauthenticated, 403 if insufficient role.
 
 Database access uses direct parameterized SQL queries (no ORM).
 
 ### Frontend (frontend/app/)
 
 React Native app with Expo (v54) and Expo Router (file-based routing). Authentication via JWT tokens from the backend API. State management via React Context (`contexts/`). All API calls use the generated JavaScript client (`frontend/api/`) via `promisify` wrappers in `lib/api.js`.
+
+#### Keyboard Handling
+
+Keyboard avoidance must work on Expo Go (iOS/Android) and mobile web. The app uses **platform branching**: native `Keyboard` API on iOS/Android, `visualViewport` API on web. Reference implementations: `login.jsx` and `register.jsx` in `frontend/app/app/(auth)/`.
+
+**Rules:**
+
+- **Never use `KeyboardAvoidingView`** — causes layout re-centering bugs with `justifyContent: center`. The `behavior` prop is inconsistent across iOS/Android.
+- **Platform branching is required** — React Native Web's `KeyboardAvoidingView` is a no-op stub, and `Keyboard` module events don't fire on web. Always branch on `Platform.OS === 'web'`.
+- **`react-native-keyboard-controller`** is installed (bundled in Expo Go SDK 54+) but only works on native. Its `KeyboardAwareScrollView` scrolls to the focused input, not the submit button — use manual scroll for forms where the button must be visible. Useful for simpler screens where showing the focused input is sufficient.
+
+**Native pattern (Expo Go):**
+
+Use plain `ScrollView` with `Keyboard.addListener('keyboardDidShow'/'keyboardDidHide')`. Structure:
+```
+ScrollView (flexGrow: 1)
+├── Centering wrapper (flex: 1, justifyContent: center, minHeight: measured)
+│   ├── Logo/header
+│   └── Form container (onLayout → track Y + height)
+│       ├── Inputs
+│       └── Submit button
+├── Below-fold content (errors, nav links — outside centering wrapper)
+└── Keyboard spacer (height: keyboardHeight, only when keyboard open)
+```
+- Lock `minHeight` on centering wrapper via `onLayout` when keyboard is closed — prevents collapse when keyboard spacer makes content exceed screen height.
+- Scroll target: `formBottom - screenHeight + keyboardHeight + 20` (positions submit button 20px above keyboard).
+- On keyboard hide: `scrollTo({ y: 0 })`.
+
+**Web pattern (mobile browsers):**
+
+Use `window.visualViewport` API (Chrome 62+, Safari 13+, Firefox 91+). Key requirements:
+- Store `window.innerHeight` at mount as `initialHeight` — compare `visualViewport.height` against this stored value, NOT live `window.innerHeight`.
+- Threshold: `initialHeight - vv.height > 150` filters address bar changes (~50-80px).
+- **Firefox fires NO resize events on keyboard open**. `vv.height` doesn't update on the *first* open. You MUST use `focusin`/`focusout` listeners as the primary detection path, not a fallback. On `focusin`, immediately estimate keyboard height (40% of screen), render spacer, scroll. Poll `vv.height` every 100ms to refine with real value.
+- **Firefox shrinks layout viewport** when keyboard opens, which shrinks ScrollView container. Set `minHeight` on `contentContainerStyle` to `initialHeight` to prevent content from shrinking with it.
+- `focusout`: wait 300ms then check `vv.height` — reset if keyboard closed. Use `clearTimeout` to cancel pending focusout on new focusin (handles input switching).
+- Separate scroll logic into a `useEffect` watching `keyboardHeight` state (ensures spacer has rendered before scrolling). Use 150-300ms delay before scroll on web.
+
+**Other web notes:**
+- `position: fixed; bottom: 0` is hidden behind keyboard on both iOS Safari and Chrome Android.
+- `interactive-widget=resizes-content` meta tag fixes Chrome Android without JS (not supported in Safari).
+- `100dvh` instead of `100vh` avoids address-bar overflow issues.
+- Android `softwareKeyboardLayoutMode` defaults to `resize` (correct for manual scroll management).
 
 #### Theme System (Light/Dark Mode)
 

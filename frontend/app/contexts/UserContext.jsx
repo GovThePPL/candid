@@ -37,6 +37,11 @@ export function UserProvider({ children }) {
   // Shape: { chatId, otherUserId, positionStatement, role }
   const [activeChatNavigation, setActiveChatNavigation] = useState(null)
 
+  // Deep link navigation triggered by push notification tap
+  // Shape: string path (e.g., '/admin/request-log')
+  const [pendingDeepLink, setPendingDeepLink] = useState(null)
+  const clearPendingDeepLink = useCallback(() => setPendingDeepLink(null), [])
+
   // Existing active chat that user should rejoin on app load
   // Shape: { id, positionStatement, otherUser }
   const [activeChat, setActiveChat] = useState(null)
@@ -175,6 +180,8 @@ export function UserProvider({ children }) {
         if (data?.action === 'open_cards') {
           // Navigate to cards page when user taps a chat request notification
           setActiveChatNavigation(null) // Clear any stale navigation
+        } else if (data?.action === 'open_admin_pending') {
+          setPendingDeepLink('/admin/request-log')
         }
       })
     } catch (error) {
@@ -362,6 +369,7 @@ export function UserProvider({ children }) {
       incomingChatRequest, clearIncomingChatRequest,
       activeChatNavigation, clearActiveChatNavigation,
       activeChat, clearActiveChat,
+      pendingDeepLink, clearPendingDeepLink,
     }}>
       {children}
     </UserContext.Provider>

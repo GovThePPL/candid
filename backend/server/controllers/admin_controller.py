@@ -605,6 +605,54 @@ def _compute_pairwise_rankings(survey_id, user_id_filter=None):
 
 
 # ---------------------------------------------------------------------------
+# User Search API
+# ---------------------------------------------------------------------------
+
+def search_users(search=None, limit=20, offset=0, token_info=None):  # noqa: E501
+    """Search users by username or display name.
+
+    GET /admin/users?search=&limit=&offset=
+    Auth: facilitator+ (any scoped role holder).
+    """
+    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    limit = min(int(limit or 20), 100)
+    offset = int(offset or 0)
+
+    if search:
+        pattern = f"%{search}%"
+        rows = db.execute_query("""
+            SELECT id, username, display_name, avatar_icon_url, status
+            FROM users
+            WHERE (username ILIKE %s OR display_name ILIKE %s)
+              AND status != 'deleted'
+            ORDER BY username ASC
+            LIMIT %s OFFSET %s
+        """, (pattern, pattern, limit, offset))
+    else:
+        rows = db.execute_query("""
+            SELECT id, username, display_name, avatar_icon_url, status
+            FROM users
+            WHERE status != 'deleted'
+            ORDER BY username ASC
+            LIMIT %s OFFSET %s
+        """, (limit, offset))
+
+    return [
+        {
+            'id': str(r['id']),
+            'username': r['username'],
+            'displayName': r['display_name'],
+            'avatarIconUrl': r.get('avatar_icon_url'),
+            'status': r['status'],
+        }
+        for r in (rows or [])
+    ]
+
+
+# ---------------------------------------------------------------------------
 # Role Management API (Phase 6)
 # ---------------------------------------------------------------------------
 
@@ -614,6 +662,21 @@ _ADMIN_ASSIGNABLE = {'admin', 'moderator', 'facilitator'}
 _FACILITATOR_ASSIGNABLE = {'assistant_moderator', 'expert', 'liaison'}
 
 _ALL_ASSIGNABLE = _ADMIN_ASSIGNABLE | _FACILITATOR_ASSIGNABLE
+
+
+def _notify_peers(peer_user_ids, requester_name, action, role, target_name):
+    """Send push notifications to approval peers about a role change request."""
+    try:
+        from candid.controllers.helpers.push_notifications import send_or_queue_notification
+        action_word = "assign" if action == "assign" else "remove"
+        title = "Role change request needs review"
+        body = f"{requester_name} requested to {action_word} {role} for {target_name}"
+        data = {"action": "open_admin_pending"}
+        for peer_id in peer_user_ids:
+            send_or_queue_notification(title, body, data, peer_id, db)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error("Failed to notify peers: %s", e)
 
 
 def _check_auto_approve_expired():
@@ -677,8 +740,10 @@ def _find_approval_peer(request_row):
     if role in _ADMIN_ASSIGNABLE:
         # Admin requesting: find peer admin at authority location
         rows = db.execute_query("""
-            SELECT user_id FROM user_role
-            WHERE role = 'admin' AND location_id = %s AND user_id != %s
+            SELECT ur.user_id FROM user_role ur
+            JOIN users u ON ur.user_id = u.id
+            WHERE ur.role = 'admin' AND ur.location_id = %s AND ur.user_id != %s
+            AND u.keycloak_id IS NOT NULL
         """, (authority_loc, requester_id))
         if rows:
             return [str(r['user_id']) for r in rows]
@@ -686,8 +751,10 @@ def _find_approval_peer(request_row):
         # No peer at authority level; try admin at target location
         if target_loc and target_loc != authority_loc:
             rows = db.execute_query("""
-                SELECT user_id FROM user_role
-                WHERE role = 'admin' AND location_id = %s AND user_id != %s
+                SELECT ur.user_id FROM user_role ur
+                JOIN users u ON ur.user_id = u.id
+                WHERE ur.role = 'admin' AND ur.location_id = %s AND ur.user_id != %s
+                AND u.keycloak_id IS NOT NULL
             """, (target_loc, requester_id))
             if rows:
                 return [str(r['user_id']) for r in rows]
@@ -698,9 +765,11 @@ def _find_approval_peer(request_row):
         # Facilitator requesting: find peer facilitator
         if target_loc and target_cat:
             rows = db.execute_query("""
-                SELECT user_id FROM user_role
-                WHERE role = 'facilitator' AND location_id = %s
-                AND position_category_id = %s AND user_id != %s
+                SELECT ur.user_id FROM user_role ur
+                JOIN users u ON ur.user_id = u.id
+                WHERE ur.role = 'facilitator' AND ur.location_id = %s
+                AND ur.position_category_id = %s AND ur.user_id != %s
+                AND u.keycloak_id IS NOT NULL
             """, (target_loc, target_cat, requester_id))
             if rows:
                 return [str(r['user_id']) for r in rows]
@@ -710,16 +779,20 @@ def _find_approval_peer(request_row):
             ancestors = get_location_ancestors(target_loc)
             if ancestors:
                 rows = db.execute_query("""
-                    SELECT user_id FROM user_role
-                    WHERE role = 'moderator' AND location_id = ANY(%s::uuid[]) AND user_id != %s
+                    SELECT ur.user_id FROM user_role ur
+                    JOIN users u ON ur.user_id = u.id
+                    WHERE ur.role = 'moderator' AND ur.location_id = ANY(%s::uuid[]) AND ur.user_id != %s
+                    AND u.keycloak_id IS NOT NULL
                 """, (ancestors, requester_id))
                 if rows:
                     return [str(r['user_id']) for r in rows]
 
                 # Fallback: location admin
                 rows = db.execute_query("""
-                    SELECT user_id FROM user_role
-                    WHERE role = 'admin' AND location_id = ANY(%s::uuid[]) AND user_id != %s
+                    SELECT ur.user_id FROM user_role ur
+                    JOIN users u ON ur.user_id = u.id
+                    WHERE ur.role = 'admin' AND ur.location_id = ANY(%s::uuid[]) AND ur.user_id != %s
+                    AND u.keycloak_id IS NOT NULL
                 """, (ancestors, requester_id))
                 if rows:
                     return [str(r['user_id']) for r in rows]
@@ -803,8 +876,8 @@ def request_role_assignment(body, token_info=None):  # noqa: E501
     if not target:
         return ErrorModel(400, "Target user not found"), 400
 
-    # Validate location exists
-    loc = db.execute_query("SELECT id FROM location WHERE id = %s", (location_id,), fetchone=True)
+    # Validate location exists (exclude soft-deleted)
+    loc = db.execute_query("SELECT id FROM location WHERE id = %s AND deleted_at IS NULL", (location_id,), fetchone=True)
     if not loc:
         return ErrorModel(400, "Location not found"), 400
 
@@ -851,7 +924,7 @@ def request_role_assignment(body, token_info=None):  # noqa: E501
 
     # Compute auto-approve time
     from datetime import datetime, timezone, timedelta
-    timeout_days = config.Config.ROLE_APPROVAL_TIMEOUT_DAYS
+    timeout_days = config.ROLE_APPROVAL_TIMEOUT_DAYS
     auto_approve_at = datetime.now(timezone.utc) + timedelta(days=timeout_days)
 
     # Create request
@@ -887,6 +960,12 @@ def request_role_assignment(body, token_info=None):  # noqa: E501
             'requested_by': str(user.id),
         })
         return {'id': request_id, 'status': 'auto_approved'}, 201
+
+    # Notify approval peers
+    target_name = db.execute_query("SELECT display_name FROM users WHERE id = %s",
+                                    (target_user_id,), fetchone=True)
+    target_display = target_name['display_name'] if target_name else 'a user'
+    _notify_peers(peers, user.display_name, 'assign', role, target_display)
 
     return {'id': request_id, 'status': 'pending'}, 201
 
@@ -937,7 +1016,7 @@ def request_role_removal(body, token_info=None):  # noqa: E501
         return ErrorModel(400, "A pending removal request already exists"), 400
 
     from datetime import datetime, timezone, timedelta
-    timeout_days = config.Config.ROLE_APPROVAL_TIMEOUT_DAYS
+    timeout_days = config.ROLE_APPROVAL_TIMEOUT_DAYS
     auto_approve_at = datetime.now(timezone.utc) + timedelta(days=timeout_days)
 
     request_id = str(uuid.uuid4())
@@ -972,6 +1051,12 @@ def request_role_removal(body, token_info=None):  # noqa: E501
             'requested_by': str(user.id),
         })
         return {'id': request_id, 'status': 'auto_approved'}, 201
+
+    # Notify approval peers
+    target_name = db.execute_query("SELECT display_name FROM users WHERE id = %s",
+                                    (str(role_row['user_id']),), fetchone=True)
+    target_display = target_name['display_name'] if target_name else 'a user'
+    _notify_peers(peers, user.display_name, 'remove', role, target_display)
 
     return {'id': request_id, 'status': 'pending'}, 201
 
@@ -1128,6 +1213,164 @@ def deny_role_request(request_id, body=None, token_info=None):  # noqa: E501
     return {'id': str(req['id']), 'status': 'denied'}
 
 
+def _format_role_request(r):
+    """Shared serializer for role change request rows (with JOINed fields)."""
+    result = {
+        'id': str(r['id']),
+        'action': r['action'],
+        'targetUser': {
+            'id': str(r['target_user_id']),
+            'username': r['target_username'],
+            'displayName': r['target_display_name'],
+        },
+        'role': r['role'],
+        'location': {
+            'id': str(r['location_id']),
+            'name': r['location_name'],
+            'code': r['location_code'],
+        } if r.get('location_id') else None,
+        'category': {
+            'id': str(r['position_category_id']),
+            'label': r['category_label'],
+        } if r.get('position_category_id') else None,
+        'requester': {
+            'id': str(r['requested_by']),
+            'username': r['requester_username'],
+            'displayName': r['requester_display_name'],
+        },
+        'reason': r.get('request_reason'),
+        'autoApproveAt': r['auto_approve_at'].isoformat() if r.get('auto_approve_at') else None,
+        'createdTime': r['created_time'].isoformat() if r.get('created_time') else None,
+        'status': r['status'],
+        'denialReason': r.get('denial_reason'),
+        'reviewer': {
+            'id': str(r['reviewer_id']),
+            'username': r['reviewer_username'],
+            'displayName': r['reviewer_display_name'],
+        } if r.get('reviewer_id') else None,
+        'updatedTime': r['updated_time'].isoformat() if r.get('updated_time') else None,
+    }
+    return result
+
+
+_ROLE_REQUEST_SELECT = """
+    SELECT rcr.id, rcr.action, rcr.target_user_id, rcr.role,
+           rcr.location_id, rcr.position_category_id, rcr.user_role_id,
+           rcr.requested_by, rcr.requester_authority_location_id,
+           rcr.request_reason, rcr.auto_approve_at, rcr.created_time,
+           rcr.status, rcr.denial_reason, rcr.updated_time,
+           u_target.username AS target_username, u_target.display_name AS target_display_name,
+           u_req.username AS requester_username, u_req.display_name AS requester_display_name,
+           l.name AS location_name, l.code AS location_code,
+           pc.label AS category_label,
+           u_rev.id AS reviewer_id, u_rev.username AS reviewer_username,
+           u_rev.display_name AS reviewer_display_name
+    FROM role_change_request rcr
+    JOIN users u_target ON rcr.target_user_id = u_target.id
+    JOIN users u_req ON rcr.requested_by = u_req.id
+    LEFT JOIN location l ON rcr.location_id = l.id
+    LEFT JOIN position_category pc ON rcr.position_category_id = pc.id
+    LEFT JOIN users u_rev ON rcr.reviewed_by = u_rev.id
+"""
+
+
+def get_role_requests(view=None, token_info=None):  # noqa: E501
+    """Get role change requests with view filter.
+
+    GET /admin/roles/requests?view=pending|all|mine
+    """
+    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    user = token_to_user(token_info)
+    view = view or 'pending'
+
+    # Auto-approve expired before any view
+    _check_auto_approve_expired()
+
+    if view == 'pending':
+        # Same logic as get_pending_role_requests: pending + filterable by peer
+        requests = db.execute_query(
+            _ROLE_REQUEST_SELECT + " WHERE rcr.status = 'pending' ORDER BY rcr.created_time ASC"
+        )
+        result = []
+        for r in (requests or []):
+            peers = _find_approval_peer(r)
+            if peers and str(user.id) in peers:
+                result.append(_format_role_request(r))
+        return result
+
+    elif view == 'mine':
+        requests = db.execute_query(
+            _ROLE_REQUEST_SELECT + " WHERE rcr.requested_by = %s ORDER BY rcr.created_time DESC",
+            (str(user.id),)
+        )
+        return [_format_role_request(r) for r in (requests or [])]
+
+    elif view == 'all':
+        # Compute user's scope from their roles
+        roles = get_user_roles(str(user.id))
+        scope_locs = set()
+        for ur in roles:
+            loc_id = str(ur['location_id']) if ur.get('location_id') else None
+            if not loc_id:
+                continue
+            r = ur['role']
+            if r in ('admin', 'moderator'):
+                descendants = get_location_descendants(loc_id)
+                scope_locs.update(descendants)
+            elif r == 'facilitator':
+                scope_locs.add(loc_id)
+
+        if not scope_locs:
+            return []
+
+        scope_list = list(scope_locs)
+        requests = db.execute_query(
+            _ROLE_REQUEST_SELECT +
+            " WHERE rcr.location_id = ANY(%s::uuid[]) ORDER BY rcr.created_time DESC LIMIT 200",
+            (scope_list,)
+        )
+        return [_format_role_request(r) for r in (requests or [])]
+
+    else:
+        return ErrorModel(400, f"Invalid view: {view}"), 400
+
+
+def rescind_role_request(request_id, token_info=None):  # noqa: E501
+    """Rescind a pending role change request (requester only).
+
+    POST /admin/roles/requests/{id}/rescind
+    """
+    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    user = token_to_user(token_info)
+
+    req = db.execute_query("""
+        SELECT id, requested_by, status FROM role_change_request WHERE id = %s
+    """, (request_id,), fetchone=True)
+
+    if not req:
+        return ErrorModel(404, "Request not found"), 404
+
+    if str(req['requested_by']) != str(user.id):
+        return ErrorModel(403, "Only the original requester can rescind"), 403
+
+    if req['status'] != 'pending':
+        return ErrorModel(400, f"Request is already {req['status']}"), 400
+
+    db.execute_query("""
+        UPDATE role_change_request
+        SET status = 'rescinded', updated_time = CURRENT_TIMESTAMP
+        WHERE id = %s
+    """, (request_id,))
+
+    return {'id': str(req['id']), 'status': 'rescinded'}
+
+
 def list_roles(user_id=None, location_id=None, role=None, token_info=None):  # noqa: E501
     """List roles with optional filters.
 
@@ -1220,8 +1463,8 @@ def create_location(body, token_info=None):  # noqa: E501
     if not parent_id or not name:
         return ErrorModel(400, "parentLocationId and name are required"), 400
 
-    # Validate parent exists
-    parent = db.execute_query("SELECT id FROM location WHERE id = %s", (parent_id,), fetchone=True)
+    # Validate parent exists (exclude soft-deleted)
+    parent = db.execute_query("SELECT id FROM location WHERE id = %s AND deleted_at IS NULL", (parent_id,), fetchone=True)
     if not parent:
         return ErrorModel(400, "Parent location not found"), 400
 
@@ -1260,9 +1503,9 @@ def update_location(location_id, body, token_info=None):  # noqa: E501
     if connexion.request.is_json:
         body = connexion.request.get_json()
 
-    # Validate location exists
+    # Validate location exists (exclude soft-deleted)
     loc = db.execute_query("""
-        SELECT id, parent_location_id, name, code FROM location WHERE id = %s
+        SELECT id, parent_location_id, name, code FROM location WHERE id = %s AND deleted_at IS NULL
     """, (location_id,), fetchone=True)
     if not loc:
         return ErrorModel(404, "Location not found"), 404
@@ -1276,8 +1519,8 @@ def update_location(location_id, body, token_info=None):  # noqa: E501
 
     # If reparenting, validate no circular reference
     if new_parent_id and str(new_parent_id) != str(loc['parent_location_id'] or ''):
-        # Check new parent exists
-        new_parent = db.execute_query("SELECT id FROM location WHERE id = %s", (new_parent_id,), fetchone=True)
+        # Check new parent exists (exclude soft-deleted)
+        new_parent = db.execute_query("SELECT id FROM location WHERE id = %s AND deleted_at IS NULL", (new_parent_id,), fetchone=True)
         if not new_parent:
             return ErrorModel(400, "New parent location not found"), 400
 
@@ -1309,7 +1552,7 @@ def update_location(location_id, body, token_info=None):  # noqa: E501
 
 
 def delete_location(location_id, token_info=None):  # noqa: E501
-    """Delete a location (only if no children or content).
+    """Soft-delete a location, reparenting children to its parent.
 
     DELETE /admin/locations/{id}
     Auth: admin at location or ancestor.
@@ -1320,8 +1563,9 @@ def delete_location(location_id, token_info=None):  # noqa: E501
 
     user = token_to_user(token_info)
 
-    loc = db.execute_query("SELECT id, parent_location_id FROM location WHERE id = %s",
-                           (location_id,), fetchone=True)
+    loc = db.execute_query(
+        "SELECT id, parent_location_id FROM location WHERE id = %s AND deleted_at IS NULL",
+        (location_id,), fetchone=True)
     if not loc:
         return ErrorModel(404, "Location not found"), 404
 
@@ -1332,31 +1576,41 @@ def delete_location(location_id, token_info=None):  # noqa: E501
     if not is_admin_at_location(str(user.id), location_id):
         return ErrorModel(403, "Admin authority at this location is required"), 403
 
-    # Check no children
-    children = db.execute_query("""
-        SELECT id FROM location WHERE parent_location_id = %s LIMIT 1
-    """, (location_id,), fetchone=True)
-    if children:
-        return ErrorModel(400, "Cannot delete: location has child locations"), 400
+    # Reparent children + soft-delete atomically
+    parent_id = loc['parent_location_id']
+    db.execute_query("""
+        WITH reparent AS (
+            UPDATE location SET parent_location_id = %s
+            WHERE parent_location_id = %s AND deleted_at IS NULL
+            RETURNING id
+        )
+        UPDATE location SET deleted_at = NOW() WHERE id = %s
+    """, (parent_id, location_id, location_id))
 
-    # Check no positions
-    positions = db.execute_query("""
-        SELECT id FROM position WHERE location_id = %s AND status = 'active' LIMIT 1
-    """, (location_id,), fetchone=True)
-    if positions:
-        return ErrorModel(400, "Cannot delete: location has active positions"), 400
-
-    # Check no user_roles at this location
-    roles = db.execute_query("""
-        SELECT id FROM user_role WHERE location_id = %s LIMIT 1
-    """, (location_id,), fetchone=True)
-    if roles:
-        return ErrorModel(400, "Cannot delete: location has role assignments"), 400
-
-    db.execute_query("DELETE FROM location WHERE id = %s", (location_id,))
     invalidate_location_cache()
 
     return '', 204
+
+
+def get_location_categories(location_id, token_info=None):  # noqa: E501
+    """Get categories assigned to a location.
+
+    GET /admin/locations/{id}/categories
+    Auth: facilitator+ (any scoped role holder).
+    """
+    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    rows = db.execute_query("""
+        SELECT pc.id, pc.label
+        FROM location_category lc
+        JOIN position_category pc ON lc.position_category_id = pc.id
+        WHERE lc.location_id = %s
+        ORDER BY pc.label ASC
+    """, (location_id,))
+
+    return [{'id': str(r['id']), 'label': r['label']} for r in (rows or [])]
 
 
 def assign_location_category(location_id, body, token_info=None):  # noqa: E501
@@ -1378,8 +1632,8 @@ def assign_location_category(location_id, body, token_info=None):  # noqa: E501
     if not category_id:
         return ErrorModel(400, "positionCategoryId is required"), 400
 
-    # Validate location and category exist
-    loc = db.execute_query("SELECT id FROM location WHERE id = %s", (location_id,), fetchone=True)
+    # Validate location and category exist (exclude soft-deleted)
+    loc = db.execute_query("SELECT id FROM location WHERE id = %s AND deleted_at IS NULL", (location_id,), fetchone=True)
     if not loc:
         return ErrorModel(404, "Location not found"), 404
 

@@ -1,4 +1,4 @@
-import { StyleSheet, View, TouchableOpacity } from 'react-native'
+import { StyleSheet, View, TouchableOpacity, Platform } from 'react-native'
 import { useMemo } from 'react'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -15,7 +15,7 @@ import LanguagePicker from '../../../components/LanguagePicker'
 const getMenuItems = (t) => [
   { label: t('menuDemographics'), icon: 'stats-chart-outline', route: '/settings/demographics' },
   { label: t('menuPreferences'), icon: 'options-outline', route: '/settings/preferences' },
-  { label: t('menuNotifications'), icon: 'notifications-outline', route: '/settings/notifications' },
+  ...(Platform.OS !== 'web' ? [{ label: t('menuNotifications'), icon: 'notifications-outline', route: '/settings/notifications' }] : []),
   { label: t('menuAccount'), icon: 'shield-outline', route: '/settings/account' },
 ]
 
@@ -97,7 +97,7 @@ export default function SettingsHub() {
 
         {/* Language picker */}
         <View style={{ marginBottom: 16 }}>
-          <LanguagePicker />
+          <LanguagePicker variant="inline" />
         </View>
 
         {/* Menu items */}

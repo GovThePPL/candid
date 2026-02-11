@@ -184,12 +184,14 @@ components:
           type: integer
           minimum: 0
           maximum: 23
-          description: Hour to start quiet period (no notifications)
+          nullable: true
+          description: Hour to start quiet period (no notifications). Null means quiet hours disabled.
         quietHoursEnd:
           type: integer
           minimum: 0
           maximum: 23
-          description: Hour to end quiet period
+          nullable: true
+          description: Hour to end quiet period. Null means quiet hours disabled.
         timezone:
           type: string
           description: User timezone (e.g. America/New_York)
@@ -1471,7 +1473,7 @@ components:
           format: uuid
         status:
           type: string
-          enum: [pending, approved, denied, auto_approved]
+          enum: [pending, approved, denied, auto_approved, rescinded]
 
     PendingRoleRequest:
       type: object
@@ -1534,6 +1536,90 @@ components:
         createdTime:
           type: string
           format: date-time
+
+    RoleChangeRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        action:
+          type: string
+          enum: [assign, remove]
+        targetUser:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            username:
+              type: string
+            displayName:
+              type: string
+        role:
+          type: string
+          enum: [admin, moderator, facilitator, assistant_moderator, expert, liaison]
+        location:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            code:
+              type: string
+        category:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            label:
+              type: string
+        requester:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            username:
+              type: string
+            displayName:
+              type: string
+        reason:
+          type: string
+          nullable: true
+        autoApproveAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdTime:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [pending, approved, denied, auto_approved, rescinded]
+        denialReason:
+          type: string
+          nullable: true
+        reviewer:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            username:
+              type: string
+            displayName:
+              type: string
+        updatedTime:
+          type: string
+          format: date-time
+          nullable: true
 
     PairwiseSurvey:
       type: object
@@ -5291,6 +5377,62 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
+  /admin/users:
+    get:
+      operationId: searchUsers
+      summary: Search users by username or display name
+      tags:
+        - Admin
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search query (matches username or displayName, case-insensitive)
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+          description: Maximum number of results
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: Offset for pagination
+      responses:
+        '200':
+          description: List of matching users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      format: uuid
+                    username:
+                      type: string
+                    displayName:
+                      type: string
+                    avatarIconUrl:
+                      type: string
+                      nullable: true
+                    status:
+                      type: string
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+      security:
+        - BearerAuth: []
+
   /admin/roles:
     get:
       operationId: listRoles
@@ -5498,6 +5640,74 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
+  /admin/roles/requests:
+    get:
+      operationId: getRoleRequests
+      summary: Get role change requests with view filter
+      tags:
+        - Admin
+      parameters:
+        - name: view
+          in: query
+          schema:
+            type: string
+            enum: [pending, all, mine]
+            default: pending
+      responses:
+        '200':
+          description: List of role change requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RoleChangeRequest'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /admin/roles/requests/{requestId}/rescind:
+    post:
+      operationId: rescindRoleRequest
+      summary: Rescind a pending role change request (requester only)
+      tags:
+        - Admin
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Request rescinded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleChangeResult'
+        '400':
+          description: Request is not pending
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '403':
+          description: Forbidden (not the original requester)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: Request not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
   /admin/locations:
     post:
       operationId: createLocation
@@ -5596,7 +5806,12 @@ paths:
                 $ref: '#/components/schemas/ErrorModel'
     delete:
       operationId: deleteLocation
-      summary: Delete a location (only if no children or content)
+      summary: Soft-delete a location, reparenting children to its parent
+      description: >
+        Marks the location as deleted (soft-delete). Any child locations are
+        reparented to the deleted location's parent. The root location cannot
+        be deleted. Existing content (positions, surveys) at the deleted
+        location is preserved but the location no longer appears in the tree.
       tags:
         - Admin
       parameters:
@@ -5608,9 +5823,9 @@ paths:
             format: uuid
       responses:
         '204':
-          description: Location deleted
+          description: Location soft-deleted
         '400':
-          description: Cannot delete (has children or content)
+          description: Cannot delete (root location)
           content:
             application/json:
               schema:
@@ -5629,6 +5844,41 @@ paths:
                 $ref: '#/components/schemas/ErrorModel'
 
   /admin/locations/{locationId}/categories:
+    get:
+      operationId: getLocationCategories
+      summary: Get categories assigned to a location
+      tags:
+        - Admin
+      parameters:
+        - name: locationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of assigned categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      format: uuid
+                    label:
+                      type: string
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+      security:
+        - BearerAuth: []
     post:
       operationId: assignLocationCategory
       summary: Assign a category to a location

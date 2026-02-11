@@ -1,6 +1,7 @@
-import { StyleSheet, Platform, View, KeyboardAvoidingView, ScrollView } from 'react-native'
+import { StyleSheet, Platform, View, ScrollView, useWindowDimensions } from 'react-native'
 import { Link } from 'expo-router'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useUser } from '../../hooks/useUser'
 import { translateError } from '../../lib/api'
 
@@ -14,6 +15,7 @@ import { useThemeColors } from '../../hooks/useThemeColors'
 import { SemanticColors } from '../../constants/Colors'
 import { Typography } from '../../constants/Theme'
 import LanguagePicker from '../../components/LanguagePicker'
+import useKeyboardHeight from '../../hooks/useKeyboardHeight'
 
 const Register = () => {
   const [username, setUsername] = useState('')
@@ -21,16 +23,46 @@ const Register = () => {
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [centerMinHeight, setCenterMinHeight] = useState(0)
   const { t } = useTranslation('auth')
   const colors = useThemeColors()
+  const insets = useSafeAreaInsets()
+  const { height: screenHeight } = useWindowDimensions()
   const styles = useMemo(() => createStyles(colors), [colors])
 
   const { register } = useUser()
+  const { keyboardHeight, webInitialHeight } = useKeyboardHeight()
 
-  // On mobile web, scroll the focused input into view above the keyboard
-  const handleInputFocus = Platform.OS === 'web'
-    ? (e) => { setTimeout(() => e.target?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }), 300) }
-    : undefined
+  const scrollRef = useRef(null)
+  const centerY = useRef(0)
+  const formLayout = useRef({ y: 0, height: 0 })
+  const centerMeasured = useRef(false)
+
+  // Scroll to form when keyboard opens (both native and web)
+  useEffect(() => {
+    if (keyboardHeight > 0) {
+      const delay = Platform.OS === 'web' ? 300 : 50
+      const timer = setTimeout(() => {
+        const formBottom = centerY.current + formLayout.current.y + formLayout.current.height
+        let visibleHeight
+        if (Platform.OS === 'web') {
+          const vv = window.visualViewport
+          const init = webInitialHeight || window.innerHeight
+          const actualKB = vv ? (init - vv.height) : 0
+          visibleHeight = actualKB > 150 ? vv.height : init - keyboardHeight
+        } else {
+          visibleHeight = screenHeight - keyboardHeight
+        }
+        const target = formBottom - visibleHeight + 20
+        if (target > 0) {
+          scrollRef.current?.scrollTo({ y: Math.max(0, target), animated: true })
+        }
+      }, delay)
+      return () => clearTimeout(timer)
+    } else {
+      scrollRef.current?.scrollTo({ y: 0, animated: true })
+    }
+  }, [keyboardHeight, screenHeight, webInitialHeight])
 
   const handleRegister = async () => {
     setError(null)
@@ -68,32 +100,46 @@ const Register = () => {
 
   return (
     <ThemedView style={styles.container}>
-      <View style={styles.languageDropdown}>
-        <LanguagePicker variant="dropdown" />
-      </View>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: insets.top + 8 },
+          Platform.OS === 'web' && webInitialHeight > 0 && { minHeight: webInitialHeight },
+        ]}
+        keyboardShouldPersistTaps="handled"
       >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
+        <View style={[styles.languageOverlay, { top: insets.top + 8 }]}>
+          <LanguagePicker variant="dropdown" />
+        </View>
+
+        {/* Centering wrapper — flex:1 fills available space, justifyContent centers logo+form */}
+        <View
+          style={[styles.centerWrapper, { minHeight: centerMinHeight }]}
+          onLayout={(e) => {
+            centerY.current = e.nativeEvent.layout.y
+            if (!centerMeasured.current && !keyboardHeight) {
+              setCenterMinHeight(e.nativeEvent.layout.height)
+              centerMeasured.current = true
+            }
+          }}
         >
           <View style={styles.logoContainer}>
-            <ThemedText variant="brand" color="primary" style={styles.logo}>Candid</ThemedText>
+            <ThemedText variant="brand" color="primary" style={styles.logo}>{' Candid '}</ThemedText>
           </View>
 
-          <Spacer height={30} />
+          <Spacer height={16} />
           <ThemedText variant="h1" title={true} style={styles.title}>
             {t('createAccountTitle')}
           </ThemedText>
 
-          <ThemedText variant="body" style={styles.subtitle}>
-            {t('createAccountSubtitle')}
-          </ThemedText>
-
-          <Spacer height={24} />
-          <View style={styles.formContainer}>
+          <Spacer height={16} />
+          <View
+            style={styles.formContainer}
+            onLayout={(e) => {
+              formLayout.current = { y: e.nativeEvent.layout.y, height: e.nativeEvent.layout.height }
+            }}
+          >
             <ThemedTextInput
               style={styles.input}
               placeholder={t('usernamePlaceholder')}
@@ -103,7 +149,6 @@ const Register = () => {
               autoCorrect={false}
               autoComplete="username-new"
               returnKeyType="next"
-              onFocus={handleInputFocus}
             />
 
             <ThemedTextInput
@@ -116,7 +161,6 @@ const Register = () => {
               autoComplete="email"
               keyboardType="email-address"
               returnKeyType="next"
-              onFocus={handleInputFocus}
             />
 
             <ThemedTextInput
@@ -129,7 +173,6 @@ const Register = () => {
               autoComplete="password-new"
               returnKeyType="done"
               onSubmitEditing={handleRegister}
-              onFocus={handleInputFocus}
             />
 
             <Spacer height={8} />
@@ -139,24 +182,28 @@ const Register = () => {
               </ThemedText>
             </ThemedButton>
           </View>
+        </View>
 
-          {/* Error container - always present to prevent layout shift */}
+        {/* Below centered area — error + link */}
+        {error && (
           <View style={styles.errorContainer}>
-            <ThemedText variant="bodySmall" style={[styles.error, !error && styles.errorHidden]}>
-              {error || 'Placeholder'}
+            <ThemedText variant="bodySmall" style={styles.error}>
+              {error}
             </ThemedText>
           </View>
+        )}
 
-          <Spacer height={24} />
-          <Link href="/login" replace>
-            <ThemedText variant="bodySmall" color="secondary">
-              {t('hasAccount')} <ThemedText variant="buttonSmall" color="primary">{t('signInLink')}</ThemedText>
-            </ThemedText>
-          </Link>
+        <Spacer height={24} />
+        <Link href="/login" replace>
+          <ThemedText variant="bodySmall" color="secondary">
+            {t('hasAccount')} <ThemedText variant="buttonSmall" color="primary">{t('signInLink')}</ThemedText>
+          </ThemedText>
+        </Link>
+        <Spacer height={20} />
 
-          <Spacer height={40} />
-        </ScrollView>
-      </KeyboardAvoidingView>
+        {/* Keyboard spacer — creates scroll room so form can be scrolled above keyboard */}
+        {keyboardHeight > 0 && <View style={{ height: keyboardHeight }} />}
+      </ScrollView>
     </ThemedView>
   )
 }
@@ -168,43 +215,30 @@ const createStyles = (colors) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  languageDropdown: {
+  languageOverlay: {
     position: 'absolute',
-    top: 12,
-    right: 16,
+    right: 20,
     zIndex: 10,
-  },
-  keyboardView: {
-    flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: "center",
     alignItems: "center",
-    padding: 20,
+    paddingHorizontal: 20,
+  },
+  centerWrapper: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
   },
   logoContainer: {
-    marginBottom: 20,
+    marginBottom: 0,
   },
   logo: {
-    ...Platform.select({
-      web: {
-        fontFamily: 'Pacifico, cursive',
-      },
-      default: {
-        // Fallback for native
-        fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-        fontWeight: '600',
-      },
-    }),
+    fontFamily: Platform.OS === 'web' ? 'Pacifico, cursive' : 'Pacifico_400Regular',
   },
   title: {
     textAlign: "center",
-    marginBottom: 10,
-  },
-  subtitle: {
-    textAlign: "center",
-    maxWidth: 280,
   },
   formContainer: {
     width: "100%",
@@ -224,8 +258,7 @@ const createStyles = (colors) => StyleSheet.create({
     width: "100%",
   },
   errorContainer: {
-    height: 60,
-    justifyContent: 'center',
+    marginTop: 12,
     width: '100%',
     maxWidth: 320,
   },
@@ -237,8 +270,5 @@ const createStyles = (colors) => StyleSheet.create({
     borderWidth: 1,
     borderRadius: 8,
     textAlign: 'center',
-  },
-  errorHidden: {
-    opacity: 0,
   },
 })

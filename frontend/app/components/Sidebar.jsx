@@ -1,5 +1,5 @@
 import { StyleSheet, View, TouchableOpacity, Dimensions, Pressable } from 'react-native'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useRouter, usePathname } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
@@ -8,6 +8,8 @@ import { useThemeColors } from '../hooks/useThemeColors'
 import { SemanticColors, BadgeColors } from '../constants/Colors'
 import ThemedText from './ThemedText'
 import Avatar from './Avatar'
+import { canAccessAdmin, canModerate } from '../lib/roles'
+import api from '../lib/api'
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window')
 const SIDEBAR_WIDTH = SCREEN_WIDTH * 0.65
@@ -20,6 +22,26 @@ export default function Sidebar({ visible, onClose, user, onLogout, onBugReport 
   const styles = useMemo(() => createStyles(colors), [colors])
   const slideX = useSharedValue(SIDEBAR_WIDTH)
   const overlayOpacity = useSharedValue(0)
+  const [pendingCount, setPendingCount] = useState(0)
+  const [modQueueCount, setModQueueCount] = useState(0)
+
+  const showAdmin = canAccessAdmin(user)
+  const showModQueue = canModerate(user)
+
+  // Fetch badge counts when sidebar becomes visible
+  useEffect(() => {
+    if (!visible) return
+    if (showAdmin) {
+      api.admin.getPendingRequests()
+        .then(data => setPendingCount(Array.isArray(data) ? data.length : 0))
+        .catch(() => {})
+    }
+    if (showModQueue) {
+      api.moderation.getQueue()
+        .then(data => setModQueueCount(Array.isArray(data) ? data.length : 0))
+        .catch(() => {})
+    }
+  }, [visible, showAdmin, showModQueue])
 
   useEffect(() => {
     if (visible) {
@@ -82,6 +104,30 @@ export default function Sidebar({ visible, onClose, user, onLogout, onBugReport 
           <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/reports')} accessibilityRole="button" accessibilityLabel={t('communityReports')}>
             <ThemedText variant="button" color="inverse" style={styles.menuText}>{t('communityReports')}</ThemedText>
           </TouchableOpacity>
+          {showAdmin && (
+            <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/admin')} accessibilityRole="button" accessibilityLabel={t('admin:adminPanelA11y')}>
+              <View style={styles.menuItemRow}>
+                <ThemedText variant="button" color="inverse" style={styles.menuText}>{t('admin:admin')}</ThemedText>
+                {pendingCount > 0 && (
+                  <View style={styles.badge}>
+                    <ThemedText variant="caption" color="inverse" style={styles.badgeText}>{pendingCount}</ThemedText>
+                  </View>
+                )}
+              </View>
+            </TouchableOpacity>
+          )}
+          {showModQueue && (
+            <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/moderation')} accessibilityRole="button" accessibilityLabel={t('admin:modQueue')}>
+              <View style={styles.menuItemRow}>
+                <ThemedText variant="button" color="inverse" style={styles.menuText}>{t('admin:modQueue')}</ThemedText>
+                {modQueueCount > 0 && (
+                  <View style={styles.badge}>
+                    <ThemedText variant="caption" color="inverse" style={styles.badgeText}>{modQueueCount}</ThemedText>
+                  </View>
+                )}
+              </View>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             style={styles.menuItem}
             onPress={() => { onClose(); onBugReport?.(); }}
@@ -159,6 +205,24 @@ const createStyles = (colors) => StyleSheet.create({
   },
   menuText: {
     fontWeight: '500',
+  },
+  menuItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  badge: {
+    backgroundColor: SemanticColors.warning,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  badgeText: {
+    fontWeight: '700',
+    fontSize: 11,
   },
   logoutSection: {
     flex: 1,

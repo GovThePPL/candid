@@ -47,6 +47,7 @@ export default function NotificationSettings() {
   // Notification settings state
   const [notificationsEnabled, setNotificationsEnabled] = useState(false)
   const [notificationFrequency, setNotificationFrequency] = useState('normal')
+  const [quietHoursEnabled, setQuietHoursEnabled] = useState(false)
   const [quietHoursStart, setQuietHoursStart] = useState(22)
   const [quietHoursEnd, setQuietHoursEnd] = useState(7)
 
@@ -60,20 +61,26 @@ export default function NotificationSettings() {
 
   const notificationsEnabledRef = useRef(notificationsEnabled)
   const notificationFrequencyRef = useRef(notificationFrequency)
+  const quietHoursEnabledRef = useRef(quietHoursEnabled)
   const quietHoursStartRef = useRef(quietHoursStart)
   const quietHoursEndRef = useRef(quietHoursEnd)
 
   // Keep refs in sync with state
   notificationsEnabledRef.current = notificationsEnabled
   notificationFrequencyRef.current = notificationFrequency
+  quietHoursEnabledRef.current = quietHoursEnabled
   quietHoursStartRef.current = quietHoursStart
   quietHoursEndRef.current = quietHoursEnd
 
   const applySettingsData = useCallback((settingsData) => {
     setNotificationsEnabled(settingsData?.notificationsEnabled || false)
     setNotificationFrequency(settingsData?.notificationFrequency || 'normal')
-    if (settingsData?.quietHoursStart != null) setQuietHoursStart(settingsData.quietHoursStart)
-    if (settingsData?.quietHoursEnd != null) setQuietHoursEnd(settingsData.quietHoursEnd)
+    const hasQuietHours = settingsData?.quietHoursStart != null && settingsData?.quietHoursEnd != null
+    setQuietHoursEnabled(hasQuietHours)
+    if (hasQuietHours) {
+      setQuietHoursStart(settingsData.quietHoursStart)
+      setQuietHoursEnd(settingsData.quietHoursEnd)
+    }
   }, [])
 
   const fetchData = useCallback(async () => {
@@ -139,8 +146,8 @@ export default function NotificationSettings() {
         const settingsPayload = {
           notificationsEnabled: notificationsEnabledRef.current,
           notificationFrequency: notificationFrequencyRef.current,
-          quietHoursStart: quietHoursStartRef.current,
-          quietHoursEnd: quietHoursEndRef.current,
+          quietHoursStart: quietHoursEnabledRef.current ? quietHoursStartRef.current : null,
+          quietHoursEnd: quietHoursEnabledRef.current ? quietHoursEndRef.current : null,
         }
 
         await api.users.updateSettings(settingsPayload)
@@ -170,6 +177,12 @@ export default function NotificationSettings() {
   const handleNotificationFrequencyChange = (value) => {
     setNotificationFrequency(value)
     notificationFrequencyRef.current = value
+    performAutoSave()
+  }
+
+  const handleQuietHoursEnabledChange = (value) => {
+    setQuietHoursEnabled(value)
+    quietHoursEnabledRef.current = value
     performAutoSave()
   }
 
@@ -275,27 +288,39 @@ export default function NotificationSettings() {
               <ThemedText variant="bodySmall" color="secondary" style={styles.sectionDescription}>
                 {t('quietHoursDesc')}
               </ThemedText>
-              <View style={styles.quietHoursRow}>
-                <TouchableOpacity
-                  style={styles.quietHoursButton}
-                  onPress={() => { setQuietHoursModalField('start'); setQuietHoursModalOpen(true) }}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('quietHoursStartA11y', { time: HOUR_LABELS[quietHoursStart] })}
-                >
-                  <ThemedText variant="body" color="dark" style={styles.quietHoursButtonText}>{HOUR_LABELS[quietHoursStart]}</ThemedText>
-                  <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
-                </TouchableOpacity>
-                <ThemedText variant="bodySmall" color="secondary" style={styles.quietHoursSeparator}>{t('quietHoursTo')}</ThemedText>
-                <TouchableOpacity
-                  style={styles.quietHoursButton}
-                  onPress={() => { setQuietHoursModalField('end'); setQuietHoursModalOpen(true) }}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('quietHoursEndA11y', { time: HOUR_LABELS[quietHoursEnd] })}
-                >
-                  <ThemedText variant="body" color="dark" style={styles.quietHoursButtonText}>{HOUR_LABELS[quietHoursEnd]}</ThemedText>
-                  <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
-                </TouchableOpacity>
+              <View style={styles.notifToggleRow}>
+                <ThemedText variant="body" color="dark" style={styles.notifToggleLabel}>{t('enableQuietHours')}</ThemedText>
+                <Switch
+                  value={quietHoursEnabled}
+                  onValueChange={handleQuietHoursEnabledChange}
+                  trackColor={{ false: colors.cardBorder, true: colors.primaryMuted }}
+                  thumbColor={quietHoursEnabled ? colors.primary : colors.pass}
+                  accessibilityLabel={t('enableQuietHours')}
+                />
               </View>
+              {quietHoursEnabled && (
+                <View style={styles.quietHoursRow}>
+                  <TouchableOpacity
+                    style={styles.quietHoursButton}
+                    onPress={() => { setQuietHoursModalField('start'); setQuietHoursModalOpen(true) }}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('quietHoursStartA11y', { time: HOUR_LABELS[quietHoursStart] })}
+                  >
+                    <ThemedText variant="body" color="dark" style={styles.quietHoursButtonText}>{HOUR_LABELS[quietHoursStart]}</ThemedText>
+                    <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
+                  </TouchableOpacity>
+                  <ThemedText variant="bodySmall" color="secondary" style={styles.quietHoursSeparator}>{t('quietHoursTo')}</ThemedText>
+                  <TouchableOpacity
+                    style={styles.quietHoursButton}
+                    onPress={() => { setQuietHoursModalField('end'); setQuietHoursModalOpen(true) }}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('quietHoursEndA11y', { time: HOUR_LABELS[quietHoursEnd] })}
+                  >
+                    <ThemedText variant="body" color="dark" style={styles.quietHoursButtonText}>{HOUR_LABELS[quietHoursEnd]}</ThemedText>
+                    <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
+                  </TouchableOpacity>
+                </View>
+              )}
             </>
           )}
         </View>

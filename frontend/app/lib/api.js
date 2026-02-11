@@ -838,6 +838,127 @@ export const moderationApiWrapper = {
   },
 }
 
+// Admin API (direct fetch — no generated client available)
+export const adminApiWrapper = {
+  async _fetch(path, options = {}) {
+    const token = await getToken()
+    const res = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options.headers,
+      },
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error(body.detail || `Request failed: ${res.status}`)
+    }
+    if (res.status === 204) return null
+    return res.json()
+  },
+
+  async searchUsers(query, { limit = 20, offset = 0 } = {}) {
+    const params = new URLSearchParams()
+    if (query) params.set('search', query)
+    params.set('limit', limit)
+    params.set('offset', offset)
+    return this._fetch(`/admin/users?${params}`)
+  },
+
+  async listRoles({ userId, locationId, role } = {}) {
+    const params = new URLSearchParams()
+    if (userId) params.set('userId', userId)
+    if (locationId) params.set('locationId', locationId)
+    if (role) params.set('role', role)
+    return this._fetch(`/admin/roles?${params}`)
+  },
+
+  async requestRoleAssignment(body) {
+    return this._fetch('/admin/roles', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    })
+  },
+
+  async requestRoleRemoval(userRoleId, reason) {
+    return this._fetch('/admin/roles/remove', {
+      method: 'POST',
+      body: JSON.stringify({ userRoleId, reason }),
+    })
+  },
+
+  async getPendingRequests() {
+    return this._fetch('/admin/roles/pending')
+  },
+
+  async getRoleRequests(view = 'pending') {
+    const params = new URLSearchParams()
+    if (view) params.set('view', view)
+    return this._fetch(`/admin/roles/requests?${params}`)
+  },
+
+  async rescindRoleRequest(requestId) {
+    return this._fetch(`/admin/roles/requests/${requestId}/rescind`, {
+      method: 'POST',
+    })
+  },
+
+  async approveRoleRequest(requestId) {
+    return this._fetch(`/admin/roles/requests/${requestId}/approve`, {
+      method: 'POST',
+    })
+  },
+
+  async denyRoleRequest(requestId, reason) {
+    return this._fetch(`/admin/roles/requests/${requestId}/deny`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    })
+  },
+
+  async createLocation(parentLocationId, name, code) {
+    return this._fetch('/admin/locations', {
+      method: 'POST',
+      body: JSON.stringify({ parentLocationId, name, code }),
+    })
+  },
+
+  async updateLocation(locationId, updates) {
+    return this._fetch(`/admin/locations/${locationId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    })
+  },
+
+  async deleteLocation(locationId) {
+    return this._fetch(`/admin/locations/${locationId}`, {
+      method: 'DELETE',
+    })
+  },
+
+  async getAllCategories() {
+    return this._fetch('/categories')
+  },
+
+  async getLocationCategories(locationId) {
+    return this._fetch(`/admin/locations/${locationId}/categories`)
+  },
+
+  async assignLocationCategory(locationId, categoryId) {
+    return this._fetch(`/admin/locations/${locationId}/categories`, {
+      method: 'POST',
+      body: JSON.stringify({ positionCategoryId: categoryId }),
+    })
+  },
+
+  async removeLocationCategory(locationId, categoryId) {
+    return this._fetch(`/admin/locations/${locationId}/categories/${categoryId}`, {
+      method: 'DELETE',
+    })
+  },
+}
+
 // Bug Reports API
 export const bugReportsApiWrapper = {
   async createReport(body) {
@@ -859,6 +980,7 @@ export default {
   stats: statsApiWrapper,
   chattingList: chattingListApiWrapper,
   moderation: moderationApiWrapper,
+  admin: adminApiWrapper,
   bugReports: bugReportsApiWrapper,
   initializeAuth,
 }

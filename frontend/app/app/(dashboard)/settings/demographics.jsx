@@ -14,7 +14,6 @@ import { CacheManager, CacheKeys, CacheDurations } from '../../../lib/cache'
 import ThemedText from '../../../components/ThemedText'
 import Header from '../../../components/Header'
 import LoadingView from '../../../components/LoadingView'
-import LocationPicker from '../../../components/LocationPicker'
 
 const getAgeRangeOptions = (t) => [
   { value: null, label: t('preferNotToSay') },
@@ -113,12 +112,6 @@ export default function DemographicsSettings() {
   const [race, setRace] = useState(null)
   const [sex, setSex] = useState(null)
 
-  // Location state
-  const [locations, setLocations] = useState([])
-  const [allLocations, setAllLocations] = useState([])
-  const [locationPickerOpen, setLocationPickerOpen] = useState(false)
-  const [savingLocation, setSavingLocation] = useState(false)
-
   // Picker modal state
   const [pickerModalOpen, setPickerModalOpen] = useState(false)
   const [pickerModalConfig, setPickerModalConfig] = useState(null)
@@ -150,25 +143,12 @@ export default function DemographicsSettings() {
 
       if (demographicsFresh) {
         applyDemographicsData(cachedDemographics.data)
-      }
-
-      // Always fetch locations directly (not cached via profile)
-      const fetches = [
-        api.users.getLocations().catch(() => []),
-        api.users.getAllLocations().catch(() => []),
-      ]
-      if (!demographicsFresh) {
-        fetches.push(api.users.getDemographics().catch(() => null))
-      }
-
-      const [locationsData, allLocationsData, demographicsData] = await Promise.all(fetches)
-
-      setLocations(locationsData || [])
-      setAllLocations(allLocationsData || [])
-
-      if (!demographicsFresh && demographicsData !== undefined) {
-        applyDemographicsData(demographicsData)
-        await CacheManager.set(demographicsCacheKey, demographicsData)
+      } else {
+        const demographicsData = await api.users.getDemographics().catch(() => null)
+        if (demographicsData !== undefined) {
+          applyDemographicsData(demographicsData)
+          await CacheManager.set(demographicsCacheKey, demographicsData)
+        }
       }
 
       setTimeout(() => {
@@ -224,24 +204,6 @@ export default function DemographicsSettings() {
       setSaving(false)
     }
   }, [ageRange, incomeRange, lean, education, geoLocale, race, sex, refreshUser, t])
-
-  // Handle location selection
-  const handleSetLocation = async (locationId) => {
-    try {
-      setSavingLocation(true)
-      setError(null)
-      const updatedLocations = await api.users.setLocation(locationId)
-      setLocations(updatedLocations || [])
-      setLocationPickerOpen(false)
-      if (user?.id) await CacheManager.invalidate(CacheKeys.profile(user.id))
-    } catch (err) {
-      console.error('Failed to set location:', err)
-      setError(translateError(err.message, t) || t('failedUpdateLocation'))
-      setTimeout(() => setError(null), 3000)
-    } finally {
-      setSavingLocation(false)
-    }
-  }
 
   // Debounced field change handler
   const handleFieldChange = (setter, fieldName) => (value) => {
@@ -405,29 +367,6 @@ export default function DemographicsSettings() {
           </TouchableOpacity>
         </View>
 
-        {/* Location Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="location-outline" size={22} color={colors.badgeText} />
-            <ThemedText variant="h2" color="dark">{t('location')}</ThemedText>
-          </View>
-          <TouchableOpacity
-            style={styles.locationSelector}
-            onPress={() => setLocationPickerOpen(true)}
-            accessibilityRole="button"
-            accessibilityLabel={t('locationA11y', { location: locations.length > 0 ? locations.map(loc => loc.name).join(', ') : t('notSet') })}
-          >
-            {locations.length > 0 ? (
-              <ThemedText variant="body" color="badge" style={styles.locationBreadcrumb} numberOfLines={2}>
-                {locations.map(loc => loc.name).join(' \u203A ')}
-              </ThemedText>
-            ) : (
-              <ThemedText variant="body" color="secondary" style={styles.locationPlaceholder}>{t('tapSetLocation')}</ThemedText>
-            )}
-            <Ionicons name="chevron-forward" size={18} color={colors.secondaryText} />
-          </TouchableOpacity>
-        </View>
-
         {/* Auto-save indicator */}
         {saving && (
           <View style={styles.savingIndicator}>
@@ -484,15 +423,6 @@ export default function DemographicsSettings() {
         </Pressable>
       </Modal>
 
-      {/* Location Picker Modal */}
-      <LocationPicker
-        visible={locationPickerOpen}
-        onClose={() => setLocationPickerOpen(false)}
-        allLocations={allLocations}
-        currentLocationId={locations.length > 0 ? locations[locations.length - 1].id : null}
-        onSelect={handleSetLocation}
-        saving={savingLocation}
-      />
     </SafeAreaView>
   )
 }
@@ -561,20 +491,6 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 4,
   },
   pickerValueText: {
-  },
-  locationSelector: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    gap: 8,
-  },
-  locationBreadcrumb: {
-    flex: 1,
-  },
-  locationPlaceholder: {
-    flex: 1,
-    fontStyle: 'italic',
   },
   savingIndicator: {
     flexDirection: 'row',

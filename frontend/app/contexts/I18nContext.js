@@ -6,6 +6,16 @@ import i18n from '../i18n'
 const LANGUAGE_PREFERENCE_KEY = '@candid_language_preference'
 const SUPPORTED_LANGUAGES = ['en', 'es']
 
+/** Whether the device reports a usable locale (on web, getLocales() returns []) */
+function systemLanguageAvailable() {
+  const locales = getLocales()
+  return (
+    Array.isArray(locales) &&
+    locales.length > 0 &&
+    SUPPORTED_LANGUAGES.includes(locales[0]?.languageCode)
+  )
+}
+
 const I18nContext = createContext()
 
 function getDeviceLanguage() {
@@ -71,4 +81,4 @@ export function useI18n() {
   return ctx
 }
 
-export { SUPPORTED_LANGUAGES }
+export { SUPPORTED_LANGUAGES, systemLanguageAvailable }

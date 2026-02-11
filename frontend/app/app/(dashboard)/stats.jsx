@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../../hooks/useThemeColors'
+import useKeyboardHeight from '../../hooks/useKeyboardHeight'
 import { Typography } from '../../constants/Theme'
 import ThemedText from '../../components/ThemedText'
 import Header from '../../components/Header'
@@ -85,11 +86,11 @@ export default function Stats() {
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchOffset, setSearchOffset] = useState(0)
   const [searchExecuted, setSearchExecuted] = useState(false)
-  const [searchFocused, setSearchFocused] = useState(false)
   const searchDebounceRef = useRef(null)
   const scrollViewRef = useRef(null)
   const positionsSectionY = useRef(0)
-  const { width: screenWidth, height: screenHeight } = useWindowDimensions()
+  const { width: screenWidth } = useWindowDimensions()
+  const { keyboardHeight, webInitialHeight } = useKeyboardHeight()
 
   const isSearchActive = selectedCategory === 'all' && activeTab === 'majority'
     && searchQuery.trim().length > 0 && (searchResults.length > 0 || searchLoading || searchExecuted)
@@ -97,19 +98,13 @@ export default function Stats() {
   // Scroll the search input into view on focus
   const handleSearchFocus = Platform.OS === 'web'
     ? (e) => {
-        setSearchFocused(true)
         setTimeout(() => e.target?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }), 300)
       }
     : () => {
-        setSearchFocused(true)
         setTimeout(() => {
           scrollViewRef.current?.scrollTo({ y: Math.max(0, positionsSectionY.current - 8), animated: true })
         }, 50)
       }
-
-  const handleSearchBlur = useCallback(() => {
-    setSearchFocused(false)
-  }, [])
 
   // Responsive grid for search results
   const containerWidth = screenWidth - 32
@@ -435,7 +430,6 @@ export default function Stats() {
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                   onFocus={handleSearchFocus}
-                  onBlur={handleSearchBlur}
                   autoCapitalize="none"
                   autoCorrect={false}
                   maxFontSizeMultiplier={1.5}
@@ -530,7 +524,11 @@ export default function Stats() {
       <ScrollView
         ref={scrollViewRef}
         style={styles.scrollView}
-        contentContainerStyle={[styles.scrollContent, searchFocused && { paddingBottom: screenHeight }]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          keyboardHeight > 0 && { paddingBottom: keyboardHeight },
+          Platform.OS === 'web' && webInitialHeight > 0 && { minHeight: webInitialHeight },
+        ]}
         onScroll={handleScroll}
         scrollEventThrottle={400}
         refreshControl={

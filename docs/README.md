@@ -6,9 +6,9 @@ Documentation, API specification, and design references for Candid.
 
 ```
 docs/
-├── api.yaml              # OpenAPI 3.0.3 spec (source of truth)
-├── candid_app_screens/   # UI mockup screenshots (PNG)
-└── debug/                # Debugging artifacts (HAR files, HTML visualizations)
+├── api.yaml                   # OpenAPI 3.0.3 spec (source of truth)
+├── candid_app_screens/        # UI mockup screenshots (PNG)
+└── debug/                     # Debugging artifacts (HAR files, HTML visualizations)
 ```
 
 ## API Specification

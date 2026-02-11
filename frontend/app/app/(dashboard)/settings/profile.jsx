@@ -17,6 +17,7 @@ import Header from '../../../components/Header'
 import ImageCropModal from '../../../components/ImageCropModal'
 import Avatar from '../../../components/Avatar'
 import LoadingView from '../../../components/LoadingView'
+import LocationPicker from '../../../components/LocationPicker'
 
 export default function ProfileSettings() {
   const { t } = useTranslation('settings')
@@ -40,6 +41,12 @@ export default function ProfileSettings() {
   // Track unsaved changes to profile fields (display name)
   const [hasProfileChanges, setHasProfileChanges] = useState(false)
   const [savingProfile, setSavingProfile] = useState(false)
+
+  // Location state
+  const [locations, setLocations] = useState([])
+  const [allLocations, setAllLocations] = useState([])
+  const [locationPickerOpen, setLocationPickerOpen] = useState(false)
+  const [savingLocation, setSavingLocation] = useState(false)
 
   // Modal state
   const [avatarModalOpen, setAvatarModalOpen] = useState(false)
@@ -71,14 +78,28 @@ export default function ProfileSettings() {
       const cachedProfile = await CacheManager.get(profileCacheKey)
       const profileFresh = cachedProfile && !CacheManager.isStale(cachedProfile, CacheDurations.PROFILE)
 
+      // Always fetch locations directly (not cached via profile)
+      const locationFetches = [
+        api.users.getLocations().catch(() => []),
+        api.users.getAllLocations().catch(() => []),
+      ]
+
       if (profileFresh) {
         applyProfileData(cachedProfile.data)
+        const [locationsData, allLocationsData] = await Promise.all(locationFetches)
+        setLocations(locationsData || [])
+        setAllLocations(allLocationsData || [])
       } else {
-        const profileData = await api.users.getProfile()
+        const [profileData, locationsData, allLocationsData] = await Promise.all([
+          api.users.getProfile(),
+          ...locationFetches,
+        ])
         if (profileData) {
           applyProfileData(profileData)
           await CacheManager.set(profileCacheKey, profileData)
         }
+        setLocations(locationsData || [])
+        setAllLocations(allLocationsData || [])
       }
 
       setTimeout(() => {
@@ -133,6 +154,24 @@ export default function ProfileSettings() {
       setTimeout(() => setError(null), 3000)
     } finally {
       setSavingProfile(false)
+    }
+  }
+
+  // Handle location selection
+  const handleSetLocation = async (locationId) => {
+    try {
+      setSavingLocation(true)
+      setError(null)
+      const updatedLocations = await api.users.setLocation(locationId)
+      setLocations(updatedLocations || [])
+      setLocationPickerOpen(false)
+      if (user?.id) await CacheManager.invalidate(CacheKeys.profile(user.id))
+    } catch (err) {
+      console.error('Failed to set location:', err)
+      setError(translateError(err.message, t) || t('failedUpdateLocation'))
+      setTimeout(() => setError(null), 3000)
+    } finally {
+      setSavingLocation(false)
     }
   }
 
@@ -311,6 +350,29 @@ export default function ProfileSettings() {
             <ThemedText variant="button" color="secondary" style={styles.readOnlyValue}>{formatJoinDate(profile?.joinTime)}</ThemedText>
           </View>
         </View>
+
+        {/* Location Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="location-outline" size={22} color={colors.primary} />
+            <ThemedText variant="h2" color="dark">{t('location')}</ThemedText>
+          </View>
+          <TouchableOpacity
+            style={styles.locationSelector}
+            onPress={() => setLocationPickerOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={t('locationA11y', { location: locations.length > 0 ? locations.map(loc => loc.name).join(', ') : t('notSet') })}
+          >
+            {locations.length > 0 ? (
+              <ThemedText variant="body" color="badge" style={styles.locationBreadcrumb} numberOfLines={2}>
+                {locations.map(loc => loc.name).join(' \u203A ')}
+              </ThemedText>
+            ) : (
+              <ThemedText variant="body" color="secondary" style={styles.locationPlaceholder}>{t('tapSetLocation')}</ThemedText>
+            )}
+            <Ionicons name="chevron-forward" size={18} color={colors.secondaryText} />
+          </TouchableOpacity>
+        </View>
       </ScrollView>
 
       {/* Avatar Selection Modal */}
@@ -414,6 +476,16 @@ export default function ProfileSettings() {
         onCancel={handleCropCancel}
         onConfirm={handleCropConfirm}
       />
+
+      {/* Location Picker Modal */}
+      <LocationPicker
+        visible={locationPickerOpen}
+        onClose={() => setLocationPickerOpen(false)}
+        allLocations={allLocations}
+        currentLocationId={locations.length > 0 ? locations[locations.length - 1].id : null}
+        onSelect={handleSetLocation}
+        saving={savingLocation}
+      />
     </SafeAreaView>
   )
 }
@@ -513,6 +585,20 @@ const createStyles = (colors) => StyleSheet.create({
   // saveProfileButtonText removed - handled by ThemedText variant="button" color="inverse"
   buttonDisabled: {
     opacity: 0.6,
+  },
+  locationSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    gap: 8,
+  },
+  locationBreadcrumb: {
+    flex: 1,
+  },
+  locationPlaceholder: {
+    flex: 1,
+    fontStyle: 'italic',
   },
   // Avatar modal styles
   avatarModalContent: {

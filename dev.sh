@@ -8,6 +8,7 @@
 #   ./dev.sh --reset-all              Reset DB + Redis volumes
 #   ./dev.sh --skip-seed              Skip seed script
 #   ./dev.sh --seed-only              Only run seed (services already up)
+#   ./dev.sh --down                   Stop all services and exit
 #   ./dev.sh --snapshot               Snapshot all volumes then exit
 #   ./dev.sh --restore                Restore volumes from snapshots/ before starting
 #
@@ -24,6 +25,7 @@ RESET_DB=false
 RESET_ALL=false
 SKIP_SEED=false
 SEED_ONLY=false
+DOWN=false
 SNAPSHOT=false
 RESTORE=false
 
@@ -33,6 +35,7 @@ for arg in "$@"; do
         --reset-all)  RESET_ALL=true ;;
         --skip-seed)  SKIP_SEED=true ;;
         --seed-only)  SEED_ONLY=true ;;
+        --down)       DOWN=true ;;
         --snapshot)   SNAPSHOT=true ;;
         --restore)    RESTORE=true ;;
         -h|--help)
@@ -43,6 +46,7 @@ for arg in "$@"; do
             echo "  --reset-all    Remove DB and Redis volumes before starting"
             echo "  --skip-seed    Skip running the seed script"
             echo "  --seed-only    Only run the seed script (services must already be up)"
+            echo "  --down         Stop all services"
             echo "  --snapshot     Snapshot all volumes (stops services) then exit"
             echo "  --restore      Restore volumes from snapshots/ before starting"
             echo "  -h, --help     Show this help message"
@@ -72,12 +76,10 @@ wait_for_healthy() {
     local elapsed=0
     echo -n "  Waiting for $service "
     while (( elapsed < timeout )); do
-        local json
-        json=$(docker compose ps --format json "$service" 2>/dev/null || true)
-        if [[ -n "$json" ]]; then
-            local state health
-            state=$(echo "$json" | jq -r '.State // empty' 2>/dev/null || true)
-            health=$(echo "$json" | jq -r '.Health // empty' 2>/dev/null || true)
+        local state health
+        state=$(docker compose ps --format '{{.State}}' "$service" 2>/dev/null || true)
+        health=$(docker compose ps --format '{{.Health}}' "$service" 2>/dev/null || true)
+        if [[ -n "$state" ]]; then
 
             # If container exited/crashed, fail immediately
             if [[ "$state" == "exited" || "$state" == "dead" ]]; then
@@ -108,6 +110,56 @@ wait_for_healthy() {
     docker compose logs --tail=10 "$service" 2>/dev/null || true
     return 1
 }
+
+# --- Dependency check ----------------------------------------------------
+
+check_deps() {
+    local missing=0
+
+    # CLI tools
+    for cmd in docker curl python3; do
+        if ! command -v "$cmd" &>/dev/null; then
+            err "Missing required command: $cmd"
+            missing=$((missing + 1))
+        fi
+    done
+
+    if ! docker compose version &>/dev/null; then
+        err "Missing required command: docker compose"
+        missing=$((missing + 1))
+    fi
+
+    # Docker daemon access
+    if ! docker info &>/dev/null; then
+        if id -nG | grep -qw docker; then
+            err "Cannot connect to Docker daemon despite being in the docker group."
+            err "On WSL2, run 'wsl --shutdown' from PowerShell, then reopen your terminal."
+        else
+            err "Cannot connect to Docker daemon. Add yourself to the docker group:"
+            err "  sudo usermod -aG docker \$USER"
+            err "Then restart your terminal (on WSL2: 'wsl --shutdown' from PowerShell)."
+        fi
+        missing=$((missing + 1))
+    fi
+
+    # Python packages (needed for seed/backfill scripts)
+    if [[ "$SKIP_SEED" == "false" ]]; then
+        for pkg in psycopg2 requests; do
+            if ! python3 -c "import $pkg" &>/dev/null; then
+                err "Missing Python package: $pkg (pip3 install ${pkg/psycopg2/psycopg2-binary})"
+                missing=$((missing + 1))
+            fi
+        done
+    fi
+
+    if (( missing > 0 )); then
+        echo ""
+        err "Install missing dependencies and try again."
+        exit 1
+    fi
+}
+
+check_deps
 
 # --- Volume names (must match docker-compose.yaml) ----------------------
 
@@ -200,6 +252,15 @@ restore_volumes() {
     ok "Volume restore complete"
 }
 
+# --- Down mode (stop services, exit) ------------------------------------
+
+if [[ "$DOWN" == "true" ]]; then
+    log "Stopping all services..."
+    docker compose down
+    ok "All services stopped"
+    exit 0
+fi
+
 # --- Snapshot mode (stop, snapshot, exit) --------------------------------
 
 if [[ "$SNAPSHOT" == "true" ]]; then
@@ -236,7 +297,7 @@ if [[ "$SEED_ONLY" == "false" ]]; then
 
     # Wait for critical services using Docker health status
     log "Waiting for services to become ready..."
-    wait_for_healthy "db" 30
+    wait_for_healthy "db" 60
     wait_for_healthy "redis" 15
     wait_for_healthy "keycloak" 60
     wait_for_healthy "api" 60
@@ -341,7 +402,8 @@ echo "    guest1-2    - Guest users"
 echo ""
 echo "  Useful commands:"
 echo "    psql -h localhost -p 5432 -U user -d candid    # Connect to DB"
-echo "    python3 -m pytest backend/tests/ -v            # Run tests"
+echo "    ./run-tests.sh                                 # Run tests"
+echo "    ./dev.sh --down                                # Stop all services"
 echo "    ./dev.sh --seed-only                           # Re-run seed script"
 echo "    ./dev.sh --reset-db                            # Fresh DB + reseed"
 echo "    ./dev.sh --snapshot                            # Save state to snapshots/"

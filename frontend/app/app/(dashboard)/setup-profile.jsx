@@ -18,7 +18,6 @@ import Spacer from '../../components/Spacer'
 import Avatar from '../../components/Avatar'
 import ImageCropModal from '../../components/ImageCropModal'
 import LocationPicker from '../../components/LocationPicker'
-import LanguagePicker from '../../components/LanguagePicker'
 
 export default function SetupProfile() {
   const { user, refreshUser, clearNewUser } = useUser()
@@ -206,12 +205,6 @@ export default function SetupProfile() {
               )}
               <Ionicons name="chevron-forward" size={18} color={colors.secondaryText} />
             </TouchableOpacity>
-          </View>
-
-          <Spacer height={20} />
-          <View style={styles.formContainer}>
-            <ThemedText variant="bodySmall" color="secondary" style={styles.inputLabel}>{t('languageLabel')}</ThemedText>
-            <LanguagePicker variant="inline" />
           </View>
 
           {error && (

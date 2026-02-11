@@ -10,6 +10,7 @@ import { ToastProvider } from "../../components/Toast"
 import { useTranslation } from "react-i18next"
 import { useThemeColors } from "../../hooks/useThemeColors"
 import ThemedText from "../../components/ThemedText"
+import { canModerate } from "../../lib/roles"
 
 // Screen width threshold for showing labels beside icons
 const WIDE_SCREEN_THRESHOLD = 768
@@ -18,8 +19,8 @@ export default function DashboardLayout() {
   const { width } = useWindowDimensions()
   const isWideScreen = width >= WIDE_SCREEN_THRESHOLD
   const router = useRouter()
-  const { user, activeChatNavigation, clearActiveChatNavigation, activeChat, clearActiveChat } = useContext(UserContext)
-  const isModerator = user?.userType === 'moderator' || user?.userType === 'admin'
+  const { user, activeChatNavigation, clearActiveChatNavigation, activeChat, clearActiveChat, pendingDeepLink, clearPendingDeepLink } = useContext(UserContext)
+  const isModerator = canModerate(user)
   const { t } = useTranslation()
   const colors = useThemeColors()
   const insets = useSafeAreaInsets()
@@ -42,6 +43,14 @@ export default function DashboardLayout() {
       clearActiveChat()
     }
   }, [activeChat, router, clearActiveChat])
+
+  // Handle deep link navigation from push notification taps
+  useEffect(() => {
+    if (pendingDeepLink) {
+      router.push(pendingDeepLink)
+      clearPendingDeepLink()
+    }
+  }, [pendingDeepLink, router, clearPendingDeepLink])
 
   const renderTabIcon = (IconComponent, iconName, focusedIconName, label) => {
     return ({ focused, color }) => (
@@ -128,6 +137,10 @@ export default function DashboardLayout() {
           options={{ href: null }}
         />
         {/* Hidden screens - accessed via user menu */}
+        <Tabs.Screen
+          name="admin"
+          options={{ href: null }}
+        />
         <Tabs.Screen
           name="settings"
           options={{ href: null }}

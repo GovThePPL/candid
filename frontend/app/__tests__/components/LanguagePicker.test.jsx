@@ -15,6 +15,7 @@ jest.mock('../../contexts/I18nContext', () => ({
     setLanguagePreference: mockSetLanguagePreference,
   }),
   SUPPORTED_LANGUAGES: ['en', 'es'],
+  systemLanguageAvailable: () => true,
 }))
 
 import LanguagePicker from '../../components/LanguagePicker'

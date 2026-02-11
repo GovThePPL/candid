@@ -140,12 +140,12 @@ def get_user_locations(token_info=None):  # noqa: E501
         return auth_err, auth_err.code
     user = token_to_user(token_info)
 
-    # Get all locations the user is directly associated with
+    # Get all locations the user is directly associated with (exclude soft-deleted)
     user_locations = db.execute_query("""
         SELECT l.id, l.name, l.code, l.parent_location_id
         FROM user_location ul
         JOIN location l ON ul.location_id = l.id
-        WHERE ul.user_id = %s
+        WHERE ul.user_id = %s AND l.deleted_at IS NULL
     """, (user.id,))
 
     if not user_locations:
@@ -167,7 +167,7 @@ def get_user_locations(token_info=None):  # noqa: E501
             location = db.execute_query("""
                 SELECT id, name, code, parent_location_id
                 FROM location
-                WHERE id = %s
+                WHERE id = %s AND deleted_at IS NULL
             """, (current_id,), fetchone=True)
 
             if not location:
@@ -220,6 +220,7 @@ def get_all_locations(token_info=None):  # noqa: E501
     all_locs = db.execute_query("""
         SELECT id, name, code, parent_location_id
         FROM location
+        WHERE deleted_at IS NULL
         ORDER BY name
     """)
 
@@ -272,9 +273,9 @@ def set_user_location(body, token_info=None):  # noqa: E501
     if not location_id:
         return ErrorModel(400, "locationId is required"), 400
 
-    # Validate location exists
+    # Validate location exists (exclude soft-deleted)
     loc = db.execute_query("""
-        SELECT id FROM location WHERE id = %s
+        SELECT id FROM location WHERE id = %s AND deleted_at IS NULL
     """, (location_id,), fetchone=True)
 
     if not loc:
@@ -1097,6 +1098,14 @@ def heartbeat(token_info=None):  # noqa: E501
     user = token_to_user(token_info)
 
     presence.record_heartbeat(str(user.id))
+
+    # Drain any queued notifications (quiet-hours delivery)
+    try:
+        from candid.controllers.helpers.push_notifications import drain_notification_queue
+        drain_notification_queue(str(user.id), db)
+    except Exception:
+        pass  # Notification drain failure shouldn't break heartbeat
+
     return {"status": "ok"}
 
 

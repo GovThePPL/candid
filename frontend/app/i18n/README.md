@@ -17,6 +17,7 @@ i18n/
     │   ├── settings.json     # All settings sub-pages
     │   ├── moderation.json   # Moderation queue, reports
     │   ├── stats.json        # Stats, opinion map, surveys
+    │   ├── admin.json        # Admin panel, roles, pending requests, locations
     │   └── errors.json       # Backend error message translations
     └── es/           # Spanish (must match en/ keys exactly)
         └── (same files)
@@ -37,7 +38,7 @@ Cross-namespace: `t('common:retry')`, `t('errors:positionNotFound')`
 
 ## Adding a Language
 
-1. Create `locales/<code>/` with all 9 JSON files (copy from `en/`)
+1. Create `locales/<code>/` with all 10 JSON files (copy from `en/`)
 2. Add imports and resource entry in `index.js`
 3. Add option in `SUPPORTED_LANGUAGES` in `contexts/I18nContext.js`
 4. Add display label in `components/LanguagePicker.jsx`

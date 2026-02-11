@@ -69,7 +69,7 @@ def get_root_location_id():
         return _root_location_cache["value"]
 
     row = db.execute_query(
-        "SELECT id FROM location WHERE parent_location_id IS NULL LIMIT 1",
+        "SELECT id FROM location WHERE parent_location_id IS NULL AND deleted_at IS NULL LIMIT 1",
         fetchone=True,
     )
     if row:
@@ -89,11 +89,12 @@ def get_location_ancestors(location_id):
     rows = db.execute_query("""
         WITH RECURSIVE ancestors AS (
             SELECT id, parent_location_id, 0 AS depth
-            FROM location WHERE id = %s
+            FROM location WHERE id = %s AND deleted_at IS NULL
             UNION ALL
             SELECT l.id, l.parent_location_id, a.depth + 1
             FROM location l
             JOIN ancestors a ON l.id = a.parent_location_id
+            WHERE l.deleted_at IS NULL
         )
         SELECT id FROM ancestors ORDER BY depth
     """, (loc_str,))
@@ -112,11 +113,12 @@ def get_location_descendants(location_id):
 
     rows = db.execute_query("""
         WITH RECURSIVE descendants AS (
-            SELECT id FROM location WHERE id = %s
+            SELECT id FROM location WHERE id = %s AND deleted_at IS NULL
             UNION ALL
             SELECT l.id
             FROM location l
             JOIN descendants d ON l.parent_location_id = d.id
+            WHERE l.deleted_at IS NULL
         )
         SELECT id FROM descendants
     """, (loc_str,))

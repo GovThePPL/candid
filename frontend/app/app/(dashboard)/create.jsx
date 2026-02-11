@@ -1,4 +1,4 @@
-import { StyleSheet, View, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, Alert as RNAlert, ActivityIndicator, Animated, LayoutAnimation, UIManager, useWindowDimensions } from 'react-native'
+import { StyleSheet, View, ScrollView, TouchableOpacity, Platform, Alert as RNAlert, ActivityIndicator, Animated, LayoutAnimation, UIManager } from 'react-native'
 import { useRouter, useFocusEffect } from 'expo-router'
 import { useState, useEffect, useCallback, useRef, useContext, useMemo } from 'react'
 
@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next'
 import { SemanticColors } from '../../constants/Colors'
 import { Shadows, Typography } from '../../constants/Theme'
 import { useThemeColors } from '../../hooks/useThemeColors'
+import useKeyboardHeight from '../../hooks/useKeyboardHeight'
 import { UserContext } from '../../contexts/UserContext'
 import api, { translateError } from '../../lib/api'
 import { CacheManager, CacheKeys, CacheDurations } from '../../lib/cache'
@@ -90,8 +91,7 @@ export default function Create() {
   const scrollViewRef = useRef(null)
   const myPositionsSectionY = useRef(0)
   const chattingListSectionY = useRef(0)
-  const [filterFocused, setFilterFocused] = useState(false)
-  const { height: screenHeight } = useWindowDimensions()
+  const { keyboardHeight, webInitialHeight } = useKeyboardHeight()
 
   const router = useRouter()
   const searchTimeoutRef = useRef(null)
@@ -350,20 +350,15 @@ export default function Create() {
 
   // Scroll to section when search input is focused
   const scrollToMyPositions = useCallback(() => {
-    setFilterFocused(true)
     // Offset past the section header (~60px for title + subtitle + margin)
     setTimeout(() => {
       scrollViewRef.current?.scrollTo({ y: myPositionsSectionY.current + 60, animated: true })
     }, 50)
   }, [])
   const scrollToChattingList = useCallback(() => {
-    setFilterFocused(true)
     setTimeout(() => {
       scrollViewRef.current?.scrollTo({ y: chattingListSectionY.current + 60, animated: true })
     }, 50)
-  }, [])
-  const handleFilterBlur = useCallback(() => {
-    setFilterFocused(false)
   }, [])
 
   // --- PositionListManager callbacks for My Positions ---
@@ -555,11 +550,11 @@ export default function Create() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <Header />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
-      >
-        <ScrollView ref={scrollViewRef} contentContainerStyle={[styles.scrollContent, filterFocused && { paddingBottom: screenHeight }]} keyboardShouldPersistTaps="handled">
+        <ScrollView ref={scrollViewRef} contentContainerStyle={[
+          styles.scrollContent,
+          keyboardHeight > 0 && { paddingBottom: keyboardHeight },
+          Platform.OS === 'web' && webInitialHeight > 0 && { minHeight: webInitialHeight },
+        ]} keyboardShouldPersistTaps="handled">
           <View style={styles.sectionHeaderAreaCompact}>
             <View style={styles.headingRow}>
               <ThemedText variant="h1" color="primary">
@@ -691,7 +686,6 @@ export default function Create() {
               onBulkToggle={handleBulkTogglePositions}
               onFloatingBarChange={(state) => setFloatingBar({ ...state, ref: positionsListRef })}
               onSearchFocus={scrollToMyPositions}
-              onSearchBlur={handleFilterBlur}
               emptyIcon="megaphone-outline"
               emptyTitle={t('noPositionsTitle')}
               emptySubtitle={t('noPositionsSubtitle')}
@@ -814,7 +808,6 @@ export default function Create() {
               onBulkToggle={handleBulkToggleChattingItems}
               onFloatingBarChange={(state) => setFloatingBar({ ...state, ref: chattingListRef })}
               onSearchFocus={scrollToChattingList}
-              onSearchBlur={handleFilterBlur}
               loading={chattingListLoading}
               emptyIcon="chatbubbles-outline"
               emptyTitle={t('emptyChattingTitle')}
@@ -822,7 +815,6 @@ export default function Create() {
             />
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
 
       {/* Floating delete bar - positioned above tab bar */}
       {floatingBar.visible && (

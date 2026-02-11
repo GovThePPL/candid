@@ -445,11 +445,12 @@ def search_similar_positions(body, token_info=None):  # noqa: E501
         query_parts.append("""
             AND p.location_id IN (
                 WITH RECURSIVE location_hierarchy AS (
-                    SELECT id, parent_location_id FROM location WHERE id = %s
+                    SELECT id, parent_location_id FROM location WHERE id = %s AND deleted_at IS NULL
                     UNION ALL
                     SELECT l.id, l.parent_location_id
                     FROM location l
                     JOIN location_hierarchy lh ON l.id = lh.parent_location_id
+                    WHERE l.deleted_at IS NULL
                 )
                 SELECT id FROM location_hierarchy
             )
@@ -535,15 +536,16 @@ def search_stats_positions(body, token_info=None):  # noqa: E501
     if not location_id:
         return ErrorModel(400, "locationId is required"), 400
 
-    # Location hierarchy filter (include parent locations)
+    # Location hierarchy filter (include parent locations, exclude soft-deleted)
     location_filter = """
         p.location_id IN (
             WITH RECURSIVE location_hierarchy AS (
-                SELECT id, parent_location_id FROM location WHERE id = %s
+                SELECT id, parent_location_id FROM location WHERE id = %s AND deleted_at IS NULL
                 UNION ALL
                 SELECT l.id, l.parent_location_id
                 FROM location l
                 JOIN location_hierarchy lh ON l.id = lh.parent_location_id
+                WHERE l.deleted_at IS NULL
             )
             SELECT id FROM location_hierarchy
         )

@@ -113,6 +113,35 @@ class TestLocationAncestors:
             assert mock_db.execute_query.call_count == 1
 
 
+    def test_soft_deleted_location_returns_empty(self):
+        """If the starting location is soft-deleted, the CTE base case
+        (WHERE deleted_at IS NULL) returns nothing, so ancestors is empty."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=[])
+
+        with patch("candid.controllers.helpers.auth.db", mock_db):
+            from candid.controllers.helpers.auth import get_location_ancestors
+            result = get_location_ancestors("soft-deleted-id")
+            assert result == []
+
+    def test_soft_deleted_ancestor_excluded(self):
+        """If an ancestor in the chain is soft-deleted, it and everything
+        above it are excluded (the recursive step skips deleted rows)."""
+        mock_db = MagicMock()
+        # Simulates: Portland exists, Multnomah exists, but Oregon is deleted
+        # so the CTE stops at Multnomah — Oregon and US_ROOT are not returned
+        mock_db.execute_query = MagicMock(return_value=[
+            {"id": PORTLAND}, {"id": MULTNOMAH}
+        ])
+
+        with patch("candid.controllers.helpers.auth.db", mock_db):
+            from candid.controllers.helpers.auth import get_location_ancestors
+            result = get_location_ancestors(PORTLAND)
+            assert result == [PORTLAND, MULTNOMAH]
+            assert OREGON not in result
+            assert US_ROOT not in result
+
+
 class TestLocationDescendants:
     def test_returns_self_and_children(self):
         mock_db = MagicMock()
@@ -127,6 +156,31 @@ class TestLocationDescendants:
             assert MULTNOMAH in result
             assert PORTLAND in result
 
+    def test_soft_deleted_location_returns_empty(self):
+        """If the starting location is soft-deleted, descendants is empty."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=[])
+
+        with patch("candid.controllers.helpers.auth.db", mock_db):
+            from candid.controllers.helpers.auth import get_location_descendants
+            result = get_location_descendants("soft-deleted-id")
+            assert result == []
+
+    def test_soft_deleted_child_excluded(self):
+        """A soft-deleted child does not appear in descendants, and its
+        subtree is also excluded (the recursive step skips deleted rows)."""
+        mock_db = MagicMock()
+        # Simulates: Oregon exists, Multnomah is deleted, Portland is under
+        # Multnomah so also excluded — only Oregon is returned
+        mock_db.execute_query = MagicMock(return_value=[{"id": OREGON}])
+
+        with patch("candid.controllers.helpers.auth.db", mock_db):
+            from candid.controllers.helpers.auth import get_location_descendants
+            result = get_location_descendants(OREGON)
+            assert result == [OREGON]
+            assert MULTNOMAH not in result
+            assert PORTLAND not in result
+
 
 class TestRootLocation:
     def test_finds_root(self):
@@ -136,6 +190,28 @@ class TestRootLocation:
         with patch("candid.controllers.helpers.auth.db", mock_db):
             from candid.controllers.helpers.auth import get_root_location_id
             assert get_root_location_id() == US_ROOT
+
+    def test_no_root_returns_none(self):
+        """If no non-deleted root location exists, returns None."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=None)
+
+        with patch("candid.controllers.helpers.auth.db", mock_db):
+            from candid.controllers.helpers.auth import get_root_location_id
+            assert get_root_location_id() is None
+
+    def test_query_includes_deleted_at_filter(self):
+        """The root location query should filter out soft-deleted locations."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value={"id": US_ROOT})
+
+        with patch("candid.controllers.helpers.auth.db", mock_db):
+            from candid.controllers.helpers.auth import get_root_location_id
+            get_root_location_id()
+            # Verify the SQL includes deleted_at IS NULL
+            call_args = mock_db.execute_query.call_args
+            sql = call_args[0][0] if call_args[0] else call_args[1].get("query", "")
+            assert "deleted_at IS NULL" in sql
 
 
 # ---------------------------------------------------------------------------

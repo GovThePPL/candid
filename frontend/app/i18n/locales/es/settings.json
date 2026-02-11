@@ -58,6 +58,7 @@
   "enablePushNotifications": "Activar notificaciones push",
   "chatRequestNotifications": "Notificaciones de solicitudes de chat",
   "quietHours": "Horas de silencio",
+  "enableQuietHours": "Activar horas de silencio",
   "quietHoursDesc": "No enviar notificaciones entre estas horas.",
   "quietHoursStartA11y": "Inicio de horas de silencio: {{time}}",
   "quietHoursEndA11y": "Fin de horas de silencio: {{time}}",

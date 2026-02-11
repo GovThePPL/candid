@@ -529,12 +529,13 @@ def _get_unvoted_positions_from_db(
     positions = db.execute_query("""
         WITH RECURSIVE location_hierarchy AS (
             -- Start with user's location
-            SELECT id, parent_location_id FROM location WHERE id = %s::uuid
+            SELECT id, parent_location_id FROM location WHERE id = %s::uuid AND deleted_at IS NULL
             UNION ALL
             -- Recursively get parent locations
             SELECT l.id, l.parent_location_id
             FROM location l
             JOIN location_hierarchy lh ON l.id = lh.parent_location_id
+            WHERE l.deleted_at IS NULL
         )
         SELECT p.id, p.statement, p.category_id, p.creator_user_id,
                u.display_name as creator_display_name, u.username as creator_username,

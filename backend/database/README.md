@@ -13,7 +13,7 @@ The schema supports the full Candid domain: users, positions, voting, chat, surv
 - **survey / survey_question / survey_question_option** -- Multi-question surveys with pairwise comparisons
 - **report / mod_action** -- Content moderation pipeline with appeals
 - **user_demographics** -- Demographics for group analytics
-- **position_category / location** -- Hierarchical categorization and geography
+- **position_category / location** -- Hierarchical categorization and geography. `location` has a `deleted_at` column for soft-delete; deleted locations are preserved for FK references but filtered from all active queries
 - **bug_report** -- User-submitted bug reports with optional device diagnostics
 
 ## Dockerfile Init Flow

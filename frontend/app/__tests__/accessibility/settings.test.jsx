@@ -108,7 +108,7 @@ describe('Settings Hub accessibility', () => {
   test('theme options have radio role', () => {
     render(<SettingsHub />)
     const radios = screen.getAllByRole('radio')
-    expect(radios.length).toBe(6) // 3 theme (light, dark, system) + 3 language (en, es, system)
+    expect(radios.length).toBe(3) // 3 theme (light, dark, system); language uses inline variant (button role)
   })
 
   test('light theme radio is checked when active', () => {

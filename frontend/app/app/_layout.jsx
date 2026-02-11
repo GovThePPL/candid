@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next"
 import { I18nProvider } from "../contexts/I18nContext"
 import { CacheManager } from "../lib/cache"
 
+
 // Clear application cache on hard reload (Ctrl+Shift+R) so stale data doesn't persist
 function useClearCacheOnReload() {
   useEffect(() => {

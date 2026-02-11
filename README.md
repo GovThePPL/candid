@@ -79,13 +79,20 @@ Other modes:
 
 ## Running Tests
 
-Tests are integration tests that run against the live API:
+```bash
+./run-tests.sh              # Backend unit tests + frontend Jest (auto-installs deps)
+./run-tests.sh unit         # Backend unit tests only (no Docker)
+./run-tests.sh frontend     # Frontend Jest tests only
+./run-tests.sh integration  # Backend integration tests (Docker required)
+./run-tests.sh all          # All of the above
+```
+
+Or run directly:
 
 ```bash
-docker compose up -d                           # Ensure services are running
-python3 -m pytest backend/tests/ -v            # All tests
-python3 -m pytest backend/tests/ -v -m smoke   # Quick smoke tests
-python3 -m pytest backend/tests/ -v -m "not mutation"  # Read-only tests
+python3 -m pytest backend/tests/unit/ -v                           # Unit tests (no Docker)
+cd frontend/app && npx jest                                        # Frontend tests
+docker compose up -d && python3 -m pytest backend/tests/ -v --ignore=backend/tests/unit  # Integration tests
 ```
 
 ## Frontend

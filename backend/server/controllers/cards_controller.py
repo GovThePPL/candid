@@ -628,12 +628,13 @@ def _get_unvoted_positions_fallback(user_id: str, location_id: str, limit: int =
     positions = db.execute_query("""
         WITH RECURSIVE location_hierarchy AS (
             -- Start with user's location
-            SELECT id, parent_location_id FROM location WHERE id = %s
+            SELECT id, parent_location_id FROM location WHERE id = %s AND deleted_at IS NULL
             UNION ALL
             -- Recursively get parent locations
             SELECT l.id, l.parent_location_id
             FROM location l
             JOIN location_hierarchy lh ON l.id = lh.parent_location_id
+            WHERE l.deleted_at IS NULL
         )
         SELECT
             p.id,

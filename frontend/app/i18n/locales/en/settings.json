@@ -58,6 +58,7 @@
   "enablePushNotifications": "Enable push notifications",
   "chatRequestNotifications": "Chat request notifications",
   "quietHours": "Quiet hours",
+  "enableQuietHours": "Enable quiet hours",
   "quietHoursDesc": "Don't send notifications between these hours.",
   "quietHoursStartA11y": "Quiet hours start: {{time}}",
   "quietHoursEndA11y": "Quiet hours end: {{time}}",
