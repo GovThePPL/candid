@@ -15,7 +15,13 @@ from candid.models.user import User
 from candid import util
 
 from candid.controllers import db
-from candid.controllers.helpers.auth import authorization, authorization_allow_banned, token_to_user, get_user_type, invalidate_ban_cache
+from candid.controllers.helpers.auth import (
+    authorization, authorization_allow_banned, authorization_scoped,
+    token_to_user, invalidate_ban_cache,
+    is_admin_anywhere, is_moderator_anywhere,
+    is_admin_at_location, is_moderator_at_location,
+    get_highest_role_at_location, get_location_ancestors,
+)
 
 
 def get_user_moderation_history(user_id, token_info=None):  # noqa: E501
@@ -28,7 +34,7 @@ def get_user_moderation_history(user_id, token_info=None):  # noqa: E501
 
     :rtype: Union[List[ModerationHistoryEvent], Tuple[List[ModerationHistoryEvent], int]]
     """
-    authorized, auth_err = authorization("moderator", token_info)
+    authorized, auth_err = authorization_scoped("moderator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -250,40 +256,45 @@ def _get_user_info(user_id):
 
 
 def _get_reported_user_role(target_object_type, target_object_id):
-    """Determine the highest role among the 'reported' users for a report.
+    """Determine the highest scoped role among the 'reported' users for a report.
 
-    Returns the user_type string ('normal', 'moderator', 'admin') of the
-    highest-role user affected by the report.
+    Returns a role string: 'admin', 'moderator', or 'normal'.
+    Checks the user_role table (not user_type, which is only 'normal'/'guest').
     """
-    role_hierarchy = {'guest': 0, 'normal': 1, 'moderator': 2, 'admin': 3}
+    role_hierarchy = {'normal': 0, 'moderator': 1, 'admin': 2}
+
+    def _highest_role_for_user(user_id):
+        """Get the highest scoped role for a single user."""
+        row = db.execute_query("""
+            SELECT role FROM user_role
+            WHERE user_id = %s AND role IN ('admin', 'moderator')
+            ORDER BY CASE role WHEN 'admin' THEN 1 WHEN 'moderator' THEN 2 END
+            LIMIT 1
+        """, (str(user_id),), fetchone=True)
+        return row['role'] if row else 'normal'
+
     highest_role = 'normal'
 
     if target_object_type == 'position':
         row = db.execute_query("""
-            SELECT u.user_type FROM position p
-            JOIN users u ON p.creator_user_id = u.id
-            WHERE p.id = %s
+            SELECT p.creator_user_id FROM position p WHERE p.id = %s
         """, (target_object_id,), fetchone=True)
         if row:
-            highest_role = row['user_type']
+            highest_role = _highest_role_for_user(row['creator_user_id'])
 
     elif target_object_type == 'chat_log':
         rows = db.execute_query("""
-            SELECT u.user_type FROM (
-                SELECT cr.initiator_user_id AS uid FROM chat_log cl
-                JOIN chat_request cr ON cl.chat_request_id = cr.id
-                WHERE cl.id = %s
-                UNION
-                SELECT up.user_id AS uid FROM chat_log cl
-                JOIN chat_request cr ON cl.chat_request_id = cr.id
-                JOIN user_position up ON cr.user_position_id = up.id
-                WHERE cl.id = %s
-            ) participants
-            JOIN users u ON participants.uid = u.id
-        """, (target_object_id, target_object_id))
-        for r in (rows or []):
-            if role_hierarchy.get(r['user_type'], 0) > role_hierarchy.get(highest_role, 0):
-                highest_role = r['user_type']
+            SELECT cr.initiator_user_id, up.user_id AS position_holder_user_id
+            FROM chat_log cl
+            JOIN chat_request cr ON cl.chat_request_id = cr.id
+            JOIN user_position up ON cr.user_position_id = up.id
+            WHERE cl.id = %s
+        """, (target_object_id,), fetchone=True)
+        if rows:
+            for uid in (rows['initiator_user_id'], rows['position_holder_user_id']):
+                role = _highest_role_for_user(uid)
+                if role_hierarchy.get(role, 0) > role_hierarchy.get(highest_role, 0):
+                    highest_role = role
 
     return highest_role
 
@@ -307,6 +318,214 @@ def _get_reported_user_ids(target_object_type, target_object_id):
         if row:
             return [str(row['initiator_user_id']), str(row['position_holder_user_id'])]
     return []
+
+
+def _get_content_scope(report_id):
+    """Get the location_id and category_id of a report's target content.
+
+    Returns (location_id, category_id) or (None, None).
+    """
+    report = db.execute_query("""
+        SELECT target_object_type, target_object_id FROM report WHERE id = %s
+    """, (str(report_id),), fetchone=True)
+    if not report:
+        return None, None
+
+    if report['target_object_type'] == 'position':
+        row = db.execute_query("""
+            SELECT location_id, category_id FROM position WHERE id = %s
+        """, (report['target_object_id'],), fetchone=True)
+        if row:
+            return (str(row['location_id']) if row.get('location_id') else None,
+                    str(row['category_id']) if row.get('category_id') else None)
+
+    elif report['target_object_type'] == 'chat_log':
+        # Chat's scope comes from the underlying position
+        row = db.execute_query("""
+            SELECT p.location_id, p.category_id
+            FROM chat_log cl
+            JOIN chat_request cr ON cl.chat_request_id = cr.id
+            JOIN user_position up ON cr.user_position_id = up.id
+            JOIN position p ON up.position_id = p.id
+            WHERE cl.id = %s
+        """, (report['target_object_id'],), fetchone=True)
+        if row:
+            return (str(row['location_id']) if row.get('location_id') else None,
+                    str(row['category_id']) if row.get('category_id') else None)
+
+    return None, None
+
+
+def _determine_actioner_role_level(user_id, content_loc, content_cat):
+    """Determine the actioner's highest role relevant to the content scope.
+
+    Returns one of: 'admin', 'moderator', 'facilitator', 'assistant_moderator', or None.
+    """
+    if content_loc:
+        role = get_highest_role_at_location(user_id, content_loc, content_cat)
+        if role:
+            return role
+    # Fallback: check if they have any role at all
+    row = db.execute_query("""
+        SELECT role FROM user_role WHERE user_id = %s
+        ORDER BY CASE role
+            WHEN 'admin' THEN 1 WHEN 'moderator' THEN 2
+            WHEN 'facilitator' THEN 3 WHEN 'assistant_moderator' THEN 4
+            WHEN 'expert' THEN 5 WHEN 'liaison' THEN 6
+        END
+        LIMIT 1
+    """, (str(user_id),), fetchone=True)
+    return row['role'] if row else None
+
+
+def _find_appeal_reviewers(actioner_level, content_loc, content_cat, exclude_user_id):
+    """Find eligible reviewers for an appeal based on hierarchical escalation.
+
+    Routes to next tier up:
+      assistant_moderator → facilitator (same location+category)
+      facilitator → moderator (same location, walk ancestors)
+      moderator → admin (same location, walk ancestors)
+      admin → parent location admin
+
+    Returns list of user_id strings, or empty list if no eligible reviewers.
+    """
+    exclude = str(exclude_user_id) if exclude_user_id else None
+
+    if actioner_level == 'assistant_moderator' and content_loc and content_cat:
+        # Route to facilitator for this location+category
+        rows = db.execute_query("""
+            SELECT user_id FROM user_role
+            WHERE role = 'facilitator' AND location_id = %s AND position_category_id = %s
+        """, (content_loc, content_cat))
+        targets = [str(r['user_id']) for r in (rows or []) if str(r['user_id']) != exclude]
+        if targets:
+            return targets
+        # Fall through: if no facilitator, route to moderator
+        actioner_level = 'facilitator'
+
+    if actioner_level == 'facilitator' and content_loc:
+        # Route to moderator at this location (walk ancestors for hierarchical)
+        ancestors = get_location_ancestors(content_loc)
+        if ancestors:
+            rows = db.execute_query("""
+                SELECT user_id FROM user_role
+                WHERE role IN ('moderator') AND location_id = ANY(%s::uuid[])
+            """, (ancestors,))
+            targets = [str(r['user_id']) for r in (rows or []) if str(r['user_id']) != exclude]
+            if targets:
+                return targets
+        # Fall through: if no moderator, route to admin
+        actioner_level = 'moderator'
+
+    if actioner_level == 'moderator' and content_loc:
+        # Route to admin at this location (walk ancestors)
+        ancestors = get_location_ancestors(content_loc)
+        if ancestors:
+            rows = db.execute_query("""
+                SELECT user_id FROM user_role
+                WHERE role = 'admin' AND location_id = ANY(%s::uuid[])
+            """, (ancestors,))
+            targets = [str(r['user_id']) for r in (rows or []) if str(r['user_id']) != exclude]
+            if targets:
+                return targets
+        # Fall through: no admin found
+        return []
+
+    if actioner_level == 'admin' and content_loc:
+        # Route to parent location admin
+        # Get the actioner's admin locations within the content ancestry
+        ancestors = get_location_ancestors(content_loc)
+        if ancestors:
+            actioner_admin_locs = db.execute_query("""
+                SELECT location_id FROM user_role
+                WHERE user_id = %s AND role = 'admin' AND location_id = ANY(%s::uuid[])
+            """, (exclude, ancestors))
+            # Find the most specific (deepest) admin location
+            ancestor_set = {a: i for i, a in enumerate(ancestors)}
+            if actioner_admin_locs:
+                deepest = min(actioner_admin_locs,
+                              key=lambda r: ancestor_set.get(str(r['location_id']), 999))
+                deepest_loc = str(deepest['location_id'])
+                # Get ancestors of the actioner's admin location; [1] is parent
+                admin_loc_ancestors = get_location_ancestors(deepest_loc)
+                if len(admin_loc_ancestors) > 1:
+                    parent_loc = admin_loc_ancestors[1]
+                    rows = db.execute_query("""
+                        SELECT user_id FROM user_role
+                        WHERE role = 'admin' AND location_id = %s
+                    """, (parent_loc,))
+                    targets = [str(r['user_id']) for r in (rows or []) if str(r['user_id']) != exclude]
+                    if targets:
+                        return targets
+
+    return []
+
+
+def _find_peer_reviewers(actioner_level, content_loc, content_cat, exclude_user_id):
+    """Find peer reviewers at the same role level as the original actioner.
+
+    Peers are others with the same role at the same scope:
+      admin: other admins with authority at content location
+      moderator: other moderators with authority at content location
+      facilitator: other facilitators at same location+category
+      assistant_moderator: other assistant_moderators at same location+category
+
+    If no peers found, falls through to _find_appeal_reviewers (next tier up).
+    Returns list of user_id strings.
+    """
+    exclude = str(exclude_user_id) if exclude_user_id else None
+
+    if actioner_level in ('admin', 'moderator') and content_loc:
+        # Hierarchical roles: find peers at this location or ancestors
+        ancestors = get_location_ancestors(content_loc)
+        if ancestors:
+            rows = db.execute_query("""
+                SELECT user_id FROM user_role
+                WHERE role = %s AND location_id = ANY(%s::uuid[])
+            """, (actioner_level, ancestors))
+            targets = [str(r['user_id']) for r in (rows or []) if str(r['user_id']) != exclude]
+            if targets:
+                return targets
+
+    elif actioner_level in ('facilitator', 'assistant_moderator') and content_loc:
+        # Category-scoped roles: find peers at exact location+category
+        if content_cat:
+            rows = db.execute_query("""
+                SELECT user_id FROM user_role
+                WHERE role = %s AND location_id = %s AND position_category_id = %s
+            """, (actioner_level, content_loc, content_cat))
+        else:
+            rows = db.execute_query("""
+                SELECT user_id FROM user_role
+                WHERE role = %s AND location_id = %s AND position_category_id IS NULL
+            """, (actioner_level, content_loc))
+        targets = [str(r['user_id']) for r in (rows or []) if str(r['user_id']) != exclude]
+        if targets:
+            return targets
+
+    # No peers found: fall through to next tier up
+    return _find_appeal_reviewers(actioner_level, content_loc, content_cat, exclude_user_id)
+
+
+def _can_review_appeal_at_scope(user_id, content_loc, content_cat, actioner_level):
+    """Check if a user is eligible to review an appeal at the given scope.
+
+    Returns True if the user has a role at the appropriate tier above the actioner.
+    """
+    _TIER_ORDER = ['assistant_moderator', 'facilitator', 'moderator', 'admin']
+    if actioner_level not in _TIER_ORDER:
+        return False
+
+    actioner_idx = _TIER_ORDER.index(actioner_level)
+
+    # Check if user has a role at any tier above the actioner
+    if content_loc:
+        user_role = get_highest_role_at_location(user_id, content_loc, content_cat)
+        if user_role and user_role in _TIER_ORDER:
+            user_idx = _TIER_ORDER.index(user_role)
+            return user_idx > actioner_idx
+
+    return False
 
 
 def _get_rule_info(rule_id):
@@ -540,24 +759,72 @@ def _get_user_polis_group(user_id, report):
         return None
 
 
-def _should_show_appeal_to_moderator(appeal_data, current_user_id):
-    """Determine if an appeal should be shown to the current moderator.
+def _should_show_escalated_appeal(appeal_row, current_user_id):
+    """Determine if an escalated appeal should be shown to the current user.
 
-    - Never show to original moderator
-    - Prefer moderator from a different Polis group in the same category
-    - Fallback: any moderator who isn't the original
+    Escalated appeals route to the next tier above the original actioner:
+      assistant_moderator → facilitator
+      facilitator → moderator
+      moderator → admin
+      admin → parent location admin
+    """
+    mod_action = db.execute_query("""
+        SELECT report_id, responder_user_id FROM mod_action WHERE id = %s
+    """, (str(appeal_row['mod_action_id']),), fetchone=True)
+    if not mod_action:
+        return False
+
+    content_loc, content_cat = _get_content_scope(mod_action['report_id'])
+    actioner_level = _determine_actioner_role_level(
+        mod_action['responder_user_id'], content_loc, content_cat)
+
+    if not actioner_level or not content_loc:
+        # Fallback: show to any admin
+        return is_admin_anywhere(current_user_id)
+
+    # Find eligible reviewers for the escalated appeal
+    reviewers = _find_appeal_reviewers(actioner_level, content_loc, content_cat,
+                                        mod_action['responder_user_id'])
+    return current_user_id in reviewers
+
+
+def _should_show_appeal_to_reviewer(appeal_data, current_user_id, appeal_row):
+    """Determine if a pending appeal should be shown to the current user.
+
+    Uses hierarchical routing: the appeal is shown to peers at the same role
+    level as the original actioner, or to the next tier up if no peers exist.
+    Never shown to the original actioner.
     """
     original_action = appeal_data.get('originalAction') or {}
     original_responder = original_action.get('responder') or {}
     original_mod_id = original_responder.get('id')
 
-    # Never show to the original moderator
+    # Never show to the original actioner
     if str(current_user_id) == str(original_mod_id):
         return False
 
-    # For now, allow any non-original moderator to see it
-    # Polis group filtering is best-effort (if data is available)
-    return True
+    # Get content scope from the original report
+    mod_action_id = appeal_row.get('mod_action_id') or appeal_data.get('modActionId')
+    if not mod_action_id:
+        return True  # Fallback: show to any eligible reviewer
+
+    mod_action = db.execute_query("""
+        SELECT report_id, responder_user_id FROM mod_action WHERE id = %s
+    """, (str(mod_action_id),), fetchone=True)
+    if not mod_action:
+        return True
+
+    content_loc, content_cat = _get_content_scope(mod_action['report_id'])
+    actioner_level = _determine_actioner_role_level(
+        mod_action['responder_user_id'], content_loc, content_cat)
+
+    if not actioner_level or not content_loc:
+        return True  # Fallback: show to any eligible reviewer
+
+    # Check if this user is among the eligible peer reviewers
+    reviewers = _find_peer_reviewers(actioner_level, content_loc, content_cat,
+                                      mod_action['responder_user_id'])
+    return str(current_user_id) in reviewers
 
 
 def _get_admin_response_notifications(user_id):
@@ -674,7 +941,7 @@ def _get_admin_response_notifications(user_id):
 
 def dismiss_admin_response_notification(appeal_id, token_info=None):
     """Dismiss an admin response notification."""
-    authorized, auth_err = authorization("moderator", token_info)
+    authorized, auth_err = authorization_scoped("moderator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -695,7 +962,7 @@ def claim_report(report_id, token_info=None):  # noqa: E501
 
     :rtype: Union[dict, Tuple[dict, int]]
     """
-    authorized, auth_err = authorization("moderator", token_info)
+    authorized, auth_err = authorization_scoped("moderator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -736,7 +1003,7 @@ def release_report(report_id, token_info=None):  # noqa: E501
 
     :rtype: Union[dict, Tuple[dict, int]]
     """
-    authorized, auth_err = authorization("moderator", token_info)
+    authorized, auth_err = authorization_scoped("moderator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -767,13 +1034,12 @@ def get_moderation_queue(token_info=None):  # noqa: E501
 
     :rtype: Union[List[GetModerationQueue200ResponseInner], Tuple[List[GetModerationQueue200ResponseInner], int], Tuple[List[GetModerationQueue200ResponseInner], int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("moderator", token_info)
+    authorized, auth_err = authorization_scoped("moderator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
     user = token_to_user(token_info)
-    current_user_type = get_user_type(user.id)
-    is_admin = current_user_type == 'admin'
+    is_admin = is_admin_anywhere(user.id)
 
     # Get pending reports (exclude those claimed by other users with active claims)
     reports = db.execute_query("""
@@ -790,10 +1056,8 @@ def get_moderation_queue(token_info=None):  # noqa: E501
         ORDER BY created_time ASC
     """, (str(user.id),))
 
-    # Get active appeals needing review
-    appeal_states = ['pending', 'overruled']
-    if is_admin:
-        appeal_states.append('escalated')
+    # Get active appeals needing review (all states; per-appeal filtering in the loop)
+    appeal_states = ['pending', 'overruled', 'escalated']
 
     appeals = db.execute_query("""
         SELECT id, user_id, mod_action_id, appeal_text, appeal_state, created_time
@@ -809,7 +1073,7 @@ def get_moderation_queue(token_info=None):  # noqa: E501
     queue.extend(admin_notifications)
 
     # Add enriched reports to queue (with role-based routing)
-    role_hierarchy = {'guest': 0, 'normal': 1, 'moderator': 2, 'admin': 3}
+    role_hierarchy = {'normal': 0, 'moderator': 1, 'admin': 2}
     if reports:
         for r in reports:
             # Role-based routing: determine reported user's role
@@ -956,18 +1220,21 @@ def get_moderation_queue(token_info=None):  # noqa: E501
                 '_created_time': a['created_time']
             }
 
-            # Filter: don't show pending appeals to the original moderator
+            # Filter: pending appeals shown to peer reviewers (hierarchical routing)
             if a['appeal_state'] == 'pending':
-                if not _should_show_appeal_to_moderator(appeal_item['data'], str(user.id)):
+                if not _should_show_appeal_to_reviewer(appeal_item['data'], str(user.id), a):
                     continue
 
-            # Overruled appeals: ONLY show to the original moderator
+            # Overruled appeals: ONLY show to the original actioner
             if a['appeal_state'] == 'overruled':
                 original_mod_id = (appeal_item['data'].get('originalAction') or {}).get('responder', {}).get('id')
                 if str(user.id) != str(original_mod_id):
                     continue
 
-            # Escalated appeals are already filtered (only fetched for admins)
+            # Escalated appeals: show to next tier up (hierarchical routing)
+            if a['appeal_state'] == 'escalated':
+                if not _should_show_escalated_appeal(a, str(user.id)):
+                    continue
 
             queue.append(appeal_item)
 
@@ -1124,7 +1391,7 @@ def respond_to_appeal(appeal_id, body, token_info=None):  # noqa: E501
 
     :rtype: Union[ModActionAppealResponse, Tuple[ModActionAppealResponse, int], Tuple[ModActionAppealResponse, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("moderator", token_info)
+    authorized, auth_err = authorization_scoped("moderator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -1155,10 +1422,26 @@ def respond_to_appeal(appeal_id, body, token_info=None):  # noqa: E501
     if appeal['appeal_state'] not in ('pending', 'escalated', 'overruled'):
         return ErrorModel(400, "Appeal has already been responded to"), 400
 
-    # Escalated appeals can only be handled by admins
-    current_user_type = get_user_type(user.id)
-    if appeal['appeal_state'] == 'escalated' and current_user_type != 'admin':
-        return ErrorModel(403, "Only admins can handle escalated appeals"), 403
+    # Escalated appeals: verify this user is an eligible reviewer (next tier up)
+    is_admin = is_admin_anywhere(user.id)
+    if appeal['appeal_state'] == 'escalated':
+        mod_action_row = db.execute_query("""
+            SELECT report_id, responder_user_id FROM mod_action WHERE id = %s
+        """, (appeal['mod_action_id'],), fetchone=True)
+        if mod_action_row:
+            content_loc, content_cat = _get_content_scope(mod_action_row['report_id'])
+            actioner_level = _determine_actioner_role_level(
+                mod_action_row['responder_user_id'], content_loc, content_cat)
+            if actioner_level and content_loc:
+                reviewers = _find_appeal_reviewers(
+                    actioner_level, content_loc, content_cat,
+                    mod_action_row['responder_user_id'])
+                if str(user.id) not in reviewers:
+                    return ErrorModel(403, "You are not authorized to handle this escalated appeal"), 403
+            elif not is_admin:
+                return ErrorModel(403, "Only admins can handle escalated appeals"), 403
+        elif not is_admin:
+            return ErrorModel(403, "Only admins can handle escalated appeals"), 403
 
     # Overruled appeals can only be handled by the original moderator
     if appeal['appeal_state'] == 'overruled':
@@ -1174,7 +1457,6 @@ def respond_to_appeal(appeal_id, body, token_info=None):  # noqa: E501
     if response_type in ('accept', 'escalate') and appeal['appeal_state'] != 'overruled':
         return ErrorModel(400, "Accept and escalate are only valid for overruled appeals"), 400
 
-    is_admin = current_user_type == 'admin'
     is_modifying = response_type == 'modify'
     is_approving = response_type == 'approve'
 
@@ -1188,18 +1470,18 @@ def respond_to_appeal(appeal_id, body, token_info=None):  # noqa: E501
         # Original mod accepting overruled appeal → final approval
         db_appeal_state = 'approved'
     elif response_type == 'escalate':
-        # Original mod escalating overruled appeal → admin review
+        # Original actioner escalating overruled appeal → next tier up reviews
         db_appeal_state = 'escalated'
     elif is_modifying:
         db_appeal_state = 'modified'
     elif not is_approving:
         # Deny: original decision stands regardless of who responds
         db_appeal_state = 'denied'
-    elif is_admin:
-        # Admin approving: final decision, reverse the action
+    elif appeal['appeal_state'] == 'escalated':
+        # Escalated appeal: reviewer at next tier has final authority
         db_appeal_state = 'approved'
     else:
-        # Non-admin moderator approving: overruled, goes to original mod
+        # Pending appeal: peer reviewer approving → overruled, goes to original actioner
         db_appeal_state = 'overruled'
 
     response_text = raw_body.get('responseText', '') or ''
@@ -1299,13 +1581,13 @@ def respond_to_appeal(appeal_id, body, token_info=None):  # noqa: E501
                             WHERE position_id = %s AND status = 'active'
                         """, (report['target_object_id'],))
 
-    # When admin resolves an escalated appeal, notify both moderators
+    # When escalation reviewer resolves an escalated appeal, notify prior responders
     if appeal['appeal_state'] == 'escalated' and db_appeal_state in ('approved', 'denied', 'modified'):
-        # Get the original moderator (who took the initial action)
+        # Get the original actioner (who took the initial action)
         orig_mod = db.execute_query("""
             SELECT responder_user_id FROM mod_action WHERE id = %s
         """, (appeal['mod_action_id'],), fetchone=True)
-        # Get the second moderator (first appeal responder who overruled)
+        # Get the peer reviewer (first appeal responder who overruled)
         second_mod = db.execute_query("""
             SELECT responder_user_id FROM mod_action_appeal_response
             WHERE mod_action_appeal_id = %s
@@ -1350,7 +1632,7 @@ def take_moderator_action(report_id, body, token_info=None):  # noqa: E501
 
     :rtype: Union[ModAction, Tuple[ModAction, int], Tuple[ModAction, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("moderator", token_info)
+    authorized, auth_err = authorization_scoped("moderator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -1374,12 +1656,12 @@ def take_moderator_action(report_id, body, token_info=None):  # noqa: E501
         return ErrorModel(400, "Report has already been processed"), 400
 
     # Role-based check: moderators cannot action reports against moderators+
-    current_user_type = get_user_type(user.id)
+    is_admin = is_admin_anywhere(user.id)
     reported_role = _get_reported_user_role(report['target_object_type'], report['target_object_id'])
-    role_hierarchy = {'guest': 0, 'normal': 1, 'moderator': 2, 'admin': 3}
-    if current_user_type != 'admin' and role_hierarchy.get(reported_role, 0) >= role_hierarchy['moderator']:
+    role_hierarchy = {'normal': 0, 'moderator': 1, 'admin': 2}
+    if not is_admin and role_hierarchy.get(reported_role, 0) >= role_hierarchy['moderator']:
         return ErrorModel(403, "Reports against moderators or admins require admin privileges"), 403
-    if current_user_type == 'admin' and role_hierarchy.get(reported_role, 0) >= role_hierarchy['admin']:
+    if is_admin and role_hierarchy.get(reported_role, 0) >= role_hierarchy['admin']:
         reported_ids = _get_reported_user_ids(report['target_object_type'], report['target_object_id'])
         if str(user.id) in reported_ids:
             return ErrorModel(403, "You cannot take action on reports against yourself"), 403

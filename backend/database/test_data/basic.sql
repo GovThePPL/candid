@@ -4,7 +4,7 @@ and that tests depend on by hardcoded UUID.
 
 Tables WITH seed data:
 
-  1 users             - 10 users (1 admin, 2 moderators, 5 normal, 2 guests)
+  1 users             - 10 users (all normal or guest; roles in user_role table)
   2 position_category - 10 categories
   3 location          - 4 locations (US > Oregon > Multnomah > Portland)
   4 user_location     - 10 entries linking all users to Oregon/Portland
@@ -18,6 +18,8 @@ Tables WITH seed data:
  12 chat_request      - 3 test-critical chat requests (for chat_log test data)
  13 chat_log          - 3 test-critical chat logs (2 active + 1 archived for tests)
  14 kudos             - 1 kudos entry (for card queue tests)
+ 15 user_role         - 4 role assignments (admin, 2 moderators, 1 facilitator)
+ 16 location_category - 10 entries (all categories assigned to Oregon)
 
 All other data (additional positions, votes, demographics, moderation
 actions, chatting list, pairwise data, etc.) is created by the seed
@@ -29,12 +31,12 @@ script: backend/scripts/seed_dev_data.py
 -- keycloak_id is NULL so validate_token() auto-links by username on first login
 -- (password for all users is "password", managed by Keycloak)
 INSERT INTO users (id, username, email, keycloak_id, created_time, updated_time, display_name, user_type, status, trust_score) VALUES
--- Admin user
-('0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'admin1', 'admin1@example.com', NULL, '2024-09-22 14:32:15+00', '2025-06-18 09:45:22+00', 'Admin 1', 'admin', 'active', 0.95310),
+-- Admin user (admin role via user_role table, not user_type)
+('0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'admin1', 'admin1@example.com', NULL, '2024-09-22 14:32:15+00', '2025-06-18 09:45:22+00', 'Admin 1', 'normal', 'active', 0.95310),
 
--- Moderator users
-('a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'moderator1', 'moderator1@example.com', NULL, '2024-11-08 07:18:43+00', '2025-03-14 16:27:09+00', 'Moderator 1', 'moderator', 'active', 0.92512),
-('010f84ad-0abd-4352-a7b3-7f9b95d51983', 'moderator2', 'moderator2@example.com', NULL, '2024-12-15 22:41:07+00', '2025-07-29 11:53:34+00', 'Moderator 2', 'moderator', 'active', 0.91562),
+-- Moderator users (moderator role via user_role table, not user_type)
+('a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'moderator1', 'moderator1@example.com', NULL, '2024-11-08 07:18:43+00', '2025-03-14 16:27:09+00', 'Moderator 1', 'normal', 'active', 0.92512),
+('010f84ad-0abd-4352-a7b3-7f9b95d51983', 'moderator2', 'moderator2@example.com', NULL, '2024-12-15 22:41:07+00', '2025-07-29 11:53:34+00', 'Moderator 2', 'normal', 'active', 0.91562),
 
 -- Normal users
 ('6c9344ed-0313-4b25-a616-5ac08967e84f', 'normal1', 'normal1@example.com', NULL, '2024-10-03 16:25:51+00', '2025-01-22 08:14:17+00', 'Normal 1', 'normal', 'active', 0.15245),
@@ -199,3 +201,27 @@ INSERT INTO survey_question_option (id, survey_question_id, survey_question_opti
 ('ee444444-4444-4444-4444-444444444444', 'dd222222-2222-2222-2222-222222222222', 'Very satisfied'),
 ('ee555555-5555-5555-5555-555555555555', 'dd222222-2222-2222-2222-222222222222', 'Somewhat satisfied'),
 ('ee666666-6666-6666-6666-666666666666', 'dd222222-2222-2222-2222-222222222222', 'Dissatisfied');
+
+-- User roles (scoped role assignments — replaces user_type for admin/moderator)
+INSERT INTO user_role (id, user_id, role, location_id, position_category_id, assigned_by) VALUES
+-- admin1: admin at US root (= superadmin, inherits down to all locations)
+('11111111-aaaa-bbbb-cccc-000000000001', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'admin', 'f1a2b3c4-d5e6-7890-abcd-ef1234567890', NULL, NULL),
+-- moderator1: moderator at Oregon (inherits down to Multnomah, Portland)
+('11111111-aaaa-bbbb-cccc-000000000002', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'moderator', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', NULL, '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e'),
+-- moderator2: moderator at Portland (only Portland, no inheritance below)
+('11111111-aaaa-bbbb-cccc-000000000003', '010f84ad-0abd-4352-a7b3-7f9b95d51983', 'moderator', 'd3c4b5a6-f7e8-9012-cdef-123456789012', NULL, '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e'),
+-- normal1: facilitator for Oregon + Healthcare (category-scoped, no location inheritance)
+('11111111-aaaa-bbbb-cccc-000000000004', '6c9344ed-0313-4b25-a616-5ac08967e84f', 'facilitator', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '4d439108-2128-46ec-b4b2-80ec3dbf6aa3', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e');
+
+-- Location-category assignments (all 10 categories available in Oregon)
+INSERT INTO location_category (id, location_id, position_category_id) VALUES
+('22222222-aaaa-bbbb-cccc-000000000001', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '4d439108-2128-46ec-b4b2-80ec3dbf6aa3'),
+('22222222-aaaa-bbbb-cccc-000000000002', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '63e233e9-187e-441f-a7a9-f5f44dffadf0'),
+('22222222-aaaa-bbbb-cccc-000000000003', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'be3305f5-df1a-4cf5-855e-49a88ed3cbd3'),
+('22222222-aaaa-bbbb-cccc-000000000004', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '66344e48-ecfe-4b7f-aa33-fe05e0d08873'),
+('22222222-aaaa-bbbb-cccc-000000000005', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'e2e608f7-169e-409b-9678-6dee57fab9c3'),
+('22222222-aaaa-bbbb-cccc-000000000006', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '04edc480-aded-4b93-94c4-d62cbb507dc4'),
+('22222222-aaaa-bbbb-cccc-000000000007', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '92d7131c-bf5c-40c1-89ef-e58b40e67bc8'),
+('22222222-aaaa-bbbb-cccc-000000000008', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '2d83d6eb-3000-47eb-b136-9d1c44f9b98d'),
+('22222222-aaaa-bbbb-cccc-000000000009', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '26c8146e-d080-419e-b98b-5089c3a81b5b'),
+('22222222-aaaa-bbbb-cccc-000000000010', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'cdc48d27-d636-481b-90b2-d6f6a2e6780e');

@@ -54,8 +54,17 @@ POSITION2_ID = "4d0b2198-414e-4cf9-93a9-83033b81ce76"
 # Third healthcare position by normal1
 POSITION3_ID = "f7aeb957-a41a-4b1e-9482-6297f5f07743"
 
-# Location
+# Locations
+US_LOCATION_ID = "f1a2b3c4-d5e6-7890-abcd-ef1234567890"
 OREGON_LOCATION_ID = "ba5e3dcf-af51-47f4-941d-ee3448ee826a"
+MULTNOMAH_LOCATION_ID = "c2b3a4d5-e6f7-8901-bcde-f12345678901"
+PORTLAND_LOCATION_ID = "d3c4b5a6-f7e8-9012-cdef-123456789012"
+
+# User roles
+ADMIN1_ROLE_ID = "11111111-aaaa-bbbb-cccc-000000000001"    # admin at US root
+MODERATOR1_ROLE_ID = "11111111-aaaa-bbbb-cccc-000000000002" # moderator at Oregon
+MODERATOR2_ROLE_ID = "11111111-aaaa-bbbb-cccc-000000000003" # moderator at Portland
+NORMAL1_FACILITATOR_ROLE_ID = "11111111-aaaa-bbbb-cccc-000000000004" # facilitator at Oregon+Healthcare
 
 # Affiliations
 DEM_PARTY_ID = "6a76fec7-bf77-4333-937f-07d48c1ae966"

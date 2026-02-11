@@ -29,12 +29,17 @@ class TestGetCurrentUser:
     def test_admin_user_type(self, admin_headers):
         resp = requests.get(ME_URL, headers=admin_headers)
         assert resp.status_code == 200
-        assert resp.json()["userType"] == "admin"
+        # Admins/moderators now have user_type='normal'; roles are in the roles array
+        assert resp.json()["userType"] == "normal"
+        roles = resp.json().get("roles", [])
+        assert any(r["role"] == "admin" for r in roles)
 
     def test_moderator_user_type(self, moderator_headers):
         resp = requests.get(ME_URL, headers=moderator_headers)
         assert resp.status_code == 200
-        assert resp.json()["userType"] == "moderator"
+        assert resp.json()["userType"] == "normal"
+        roles = resp.json().get("roles", [])
+        assert any(r["role"] == "moderator" for r in roles)
 
 
 

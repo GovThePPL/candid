@@ -13,8 +13,13 @@ from candid.models.update_survey_request import UpdateSurveyRequest  # noqa: E50
 from candid.models.user import User  # noqa: E501
 from candid import util
 
-from candid.controllers import db
-from candid.controllers.helpers.auth import authorization, token_to_user
+from candid.controllers import db, config
+from candid.controllers.helpers.auth import (
+    authorization_site_admin, authorization_scoped, token_to_user,
+    is_admin_at_location, is_moderator_at_location, is_facilitator_for,
+    get_location_descendants, get_location_ancestors, get_user_roles,
+    invalidate_location_cache,
+)
 def _get_user_card(user_id):
     """Helper to fetch and return a User model for API responses."""
     user = db.execute_query("""
@@ -100,7 +105,7 @@ def create_survey(body, token_info=None):  # noqa: E501
 
     :rtype: Union[Survey, Tuple[Survey, int], Tuple[Survey, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("admin", token_info)
+    authorized, auth_err = authorization_site_admin(token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -161,7 +166,7 @@ def delete_survey(survey_id, token_info=None):  # noqa: E501
 
     :rtype: Union[None, Tuple[None, int], Tuple[None, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("admin", token_info)
+    authorized, auth_err = authorization_site_admin(token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -195,7 +200,7 @@ def get_survey_by_id_admin(survey_id, token_info=None):  # noqa: E501
 
     :rtype: Union[Survey, Tuple[Survey, int], Tuple[Survey, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("admin", token_info)
+    authorized, auth_err = authorization_site_admin(token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -222,7 +227,7 @@ def get_surveys(title=None, status=None, created_after=None, created_before=None
 
     :rtype: Union[List[Survey], Tuple[List[Survey], int], Tuple[List[Survey], int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("admin", token_info)
+    authorized, auth_err = authorization_site_admin(token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -288,7 +293,7 @@ def update_survey(survey_id, body, token_info=None):  # noqa: E501
 
     :rtype: Union[Survey, Tuple[Survey, int], Tuple[Survey, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("admin", token_info)
+    authorized, auth_err = authorization_site_admin(token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -349,7 +354,7 @@ def create_pairwise_survey(body, token_info=None):  # noqa: E501
 
     :rtype: Union[dict, Tuple[dict, int], Tuple[dict, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("admin", token_info)
+    authorized, auth_err = authorization_site_admin(token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -454,7 +459,7 @@ def get_pairwise_rankings(survey_id, group_id=None, token_info=None):  # noqa: E
 
     :rtype: Union[dict, Tuple[dict, int], Tuple[dict, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("admin", token_info)
+    authorized, auth_err = authorization_site_admin(token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -557,14 +562,14 @@ def _compute_pairwise_rankings(survey_id, user_id_filter=None):
             win_count = db.execute_query("""
                 SELECT COUNT(*) as count
                 FROM pairwise_response
-                WHERE survey_id = %s AND winner_item_id = %s AND user_id = ANY(%s)
+                WHERE survey_id = %s AND winner_item_id = %s AND user_id = ANY(%s::uuid[])
             """, (survey_id, item_id, user_id_filter), fetchone=True)['count']
 
             # Count total comparisons involving this item
             comparison_count = db.execute_query("""
                 SELECT COUNT(*) as count
                 FROM pairwise_response
-                WHERE survey_id = %s AND (winner_item_id = %s OR loser_item_id = %s) AND user_id = ANY(%s)
+                WHERE survey_id = %s AND (winner_item_id = %s OR loser_item_id = %s) AND user_id = ANY(%s::uuid[])
             """, (survey_id, item_id, item_id, user_id_filter), fetchone=True)['count']
         elif user_id_filter is not None:
             # Empty user list means no responses to count
@@ -597,3 +602,842 @@ def _compute_pairwise_rankings(survey_id, user_id_filter=None):
         r['rank'] = i + 1
 
     return rankings
+
+
+# ---------------------------------------------------------------------------
+# Role Management API (Phase 6)
+# ---------------------------------------------------------------------------
+
+# Roles admins can assign (at their location or descendants)
+_ADMIN_ASSIGNABLE = {'admin', 'moderator', 'facilitator'}
+# Roles facilitators can assign (at their location+category)
+_FACILITATOR_ASSIGNABLE = {'assistant_moderator', 'expert', 'liaison'}
+
+_ALL_ASSIGNABLE = _ADMIN_ASSIGNABLE | _FACILITATOR_ASSIGNABLE
+
+
+def _check_auto_approve_expired():
+    """Auto-approve any pending requests past their timeout. Check-on-access pattern."""
+    from datetime import datetime, timezone, timedelta
+    db.execute_query("""
+        UPDATE role_change_request
+        SET status = 'auto_approved', updated_time = CURRENT_TIMESTAMP
+        WHERE status = 'pending' AND auto_approve_at <= CURRENT_TIMESTAMP
+    """)
+
+
+def _apply_role_change(request_row):
+    """Apply an approved/auto-approved role change request."""
+    if request_row['action'] == 'assign':
+        # Check if already exists (idempotent)
+        existing = db.execute_query("""
+            SELECT id FROM user_role
+            WHERE user_id = %s AND role = %s AND location_id = %s
+            AND (position_category_id = %s OR (position_category_id IS NULL AND %s IS NULL))
+            LIMIT 1
+        """, (request_row['target_user_id'], request_row['role'],
+              request_row['location_id'],
+              request_row['position_category_id'], request_row['position_category_id']),
+            fetchone=True)
+        if not existing:
+            role_id = str(uuid.uuid4())
+            db.execute_query("""
+                INSERT INTO user_role (id, user_id, role, location_id, position_category_id, assigned_by)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (role_id, request_row['target_user_id'], request_row['role'],
+                  request_row['location_id'], request_row['position_category_id'],
+                  request_row['requested_by']))
+    elif request_row['action'] == 'remove':
+        if request_row.get('user_role_id'):
+            db.execute_query("""
+                DELETE FROM user_role WHERE id = %s
+            """, (request_row['user_role_id'],))
+
+
+def _find_approval_peer(request_row):
+    """Find a peer who can approve this request. Returns user_id or None.
+
+    Admin requesting (admin/moderator/facilitator):
+      1. Peer admin at same level (requester_authority_location_id)
+      2. Admin at target level (if lower)
+      3. None → auto-approve
+
+    Facilitator requesting (asst_mod/expert/liaison):
+      1. Peer facilitator at same location+category
+      2. Location moderator
+      3. Location admin
+      4. None → auto-approve
+    """
+    requester_id = str(request_row['requested_by'])
+    role = request_row['role']
+    target_loc = str(request_row['location_id']) if request_row.get('location_id') else None
+    target_cat = str(request_row['position_category_id']) if request_row.get('position_category_id') else None
+    authority_loc = str(request_row['requester_authority_location_id'])
+
+    if role in _ADMIN_ASSIGNABLE:
+        # Admin requesting: find peer admin at authority location
+        rows = db.execute_query("""
+            SELECT user_id FROM user_role
+            WHERE role = 'admin' AND location_id = %s AND user_id != %s
+        """, (authority_loc, requester_id))
+        if rows:
+            return [str(r['user_id']) for r in rows]
+
+        # No peer at authority level; try admin at target location
+        if target_loc and target_loc != authority_loc:
+            rows = db.execute_query("""
+                SELECT user_id FROM user_role
+                WHERE role = 'admin' AND location_id = %s AND user_id != %s
+            """, (target_loc, requester_id))
+            if rows:
+                return [str(r['user_id']) for r in rows]
+
+        return None  # auto-approve
+
+    elif role in _FACILITATOR_ASSIGNABLE:
+        # Facilitator requesting: find peer facilitator
+        if target_loc and target_cat:
+            rows = db.execute_query("""
+                SELECT user_id FROM user_role
+                WHERE role = 'facilitator' AND location_id = %s
+                AND position_category_id = %s AND user_id != %s
+            """, (target_loc, target_cat, requester_id))
+            if rows:
+                return [str(r['user_id']) for r in rows]
+
+        # Fallback: location moderator
+        if target_loc:
+            ancestors = get_location_ancestors(target_loc)
+            if ancestors:
+                rows = db.execute_query("""
+                    SELECT user_id FROM user_role
+                    WHERE role = 'moderator' AND location_id = ANY(%s::uuid[]) AND user_id != %s
+                """, (ancestors, requester_id))
+                if rows:
+                    return [str(r['user_id']) for r in rows]
+
+                # Fallback: location admin
+                rows = db.execute_query("""
+                    SELECT user_id FROM user_role
+                    WHERE role = 'admin' AND location_id = ANY(%s::uuid[]) AND user_id != %s
+                """, (ancestors, requester_id))
+                if rows:
+                    return [str(r['user_id']) for r in rows]
+
+        return None  # auto-approve
+
+    return None
+
+
+def _get_requester_authority_location(user_id, role, location_id, category_id=None):
+    """Determine the requester's authority location for a role change.
+
+    Returns the location_id where the requester has authority, or None if unauthorized.
+    """
+    if role in _ADMIN_ASSIGNABLE:
+        # Admin must have admin role at target location or ancestor.
+        # Walk from target up to root; return first match (deepest authority).
+        ancestors = get_location_ancestors(location_id)
+        if ancestors:
+            # Find all admin locations in the ancestry
+            admin_locs = db.execute_query("""
+                SELECT location_id FROM user_role
+                WHERE user_id = %s AND role = 'admin' AND location_id = ANY(%s::uuid[])
+            """, (str(user_id), ancestors))
+            if admin_locs:
+                admin_set = {str(r['location_id']) for r in admin_locs}
+                # Return the deepest (closest to target) admin location
+                for anc in ancestors:
+                    if anc in admin_set:
+                        return anc
+        return None
+
+    elif role in _FACILITATOR_ASSIGNABLE:
+        # Facilitator must have facilitator role at exact location+category
+        if category_id:
+            row = db.execute_query("""
+                SELECT 1 FROM user_role
+                WHERE user_id = %s AND role = 'facilitator'
+                AND location_id = %s AND position_category_id = %s
+                LIMIT 1
+            """, (str(user_id), str(location_id), str(category_id)), fetchone=True)
+            if row:
+                return str(location_id)
+        return None
+
+    return None
+
+
+def request_role_assignment(body, token_info=None):  # noqa: E501
+    """Request a role assignment for a user.
+
+    POST /admin/roles
+
+    Admins can request: admin, moderator, facilitator (at their location or descendants).
+    Facilitators can request: assistant_moderator, expert, liaison (at their location+category).
+    """
+    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    user = token_to_user(token_info)
+
+    if connexion.request.is_json:
+        body = connexion.request.get_json()
+
+    target_user_id = body.get('targetUserId')
+    role = body.get('role')
+    location_id = body.get('locationId')
+    category_id = body.get('positionCategoryId')
+    reason = body.get('reason', '')
+
+    # Validate inputs
+    if not target_user_id or not role or not location_id:
+        return ErrorModel(400, "targetUserId, role, and locationId are required"), 400
+
+    if role not in _ALL_ASSIGNABLE:
+        return ErrorModel(400, f"Invalid role: {role}"), 400
+
+    # Validate target user exists
+    target = db.execute_query("SELECT id FROM users WHERE id = %s", (target_user_id,), fetchone=True)
+    if not target:
+        return ErrorModel(400, "Target user not found"), 400
+
+    # Validate location exists
+    loc = db.execute_query("SELECT id FROM location WHERE id = %s", (location_id,), fetchone=True)
+    if not loc:
+        return ErrorModel(400, "Location not found"), 400
+
+    # Category required for non-hierarchical roles
+    if role in _FACILITATOR_ASSIGNABLE and not category_id:
+        return ErrorModel(400, "positionCategoryId is required for this role"), 400
+
+    if category_id:
+        cat = db.execute_query("SELECT id FROM position_category WHERE id = %s", (category_id,), fetchone=True)
+        if not cat:
+            return ErrorModel(400, "Category not found"), 400
+
+    # Check authorization: does the requester have authority?
+    authority_loc = _get_requester_authority_location(str(user.id), role, location_id, category_id)
+    if not authority_loc:
+        return ErrorModel(403, "You do not have authority to assign this role at this location"), 403
+
+    # Check if target already has this role
+    if category_id:
+        existing = db.execute_query("""
+            SELECT id FROM user_role
+            WHERE user_id = %s AND role = %s AND location_id = %s AND position_category_id = %s
+        """, (target_user_id, role, location_id, category_id), fetchone=True)
+    else:
+        existing = db.execute_query("""
+            SELECT id FROM user_role
+            WHERE user_id = %s AND role = %s AND location_id = %s AND position_category_id IS NULL
+        """, (target_user_id, role, location_id), fetchone=True)
+    if existing:
+        return ErrorModel(400, "User already has this role"), 400
+
+    # Check for duplicate pending request
+    dup_check_params = [target_user_id, role, location_id]
+    dup_cat_clause = "AND position_category_id = %s" if category_id else "AND position_category_id IS NULL"
+    if category_id:
+        dup_check_params.append(category_id)
+    dup = db.execute_query(f"""
+        SELECT id FROM role_change_request
+        WHERE action = 'assign' AND target_user_id = %s AND role = %s
+        AND location_id = %s {dup_cat_clause} AND status = 'pending'
+    """, tuple(dup_check_params), fetchone=True)
+    if dup:
+        return ErrorModel(400, "A pending request already exists for this role assignment"), 400
+
+    # Compute auto-approve time
+    from datetime import datetime, timezone, timedelta
+    timeout_days = config.Config.ROLE_APPROVAL_TIMEOUT_DAYS
+    auto_approve_at = datetime.now(timezone.utc) + timedelta(days=timeout_days)
+
+    # Create request
+    request_id = str(uuid.uuid4())
+    db.execute_query("""
+        INSERT INTO role_change_request
+            (id, action, target_user_id, role, location_id, position_category_id,
+             requested_by, requester_authority_location_id, request_reason, auto_approve_at)
+        VALUES (%s, 'assign', %s, %s, %s, %s, %s, %s, %s, %s)
+    """, (request_id, target_user_id, role, location_id, category_id,
+          str(user.id), authority_loc, reason, auto_approve_at))
+
+    # Check if auto-approve (no peer available)
+    peers = _find_approval_peer({
+        'requested_by': str(user.id),
+        'role': role,
+        'location_id': location_id,
+        'position_category_id': category_id,
+        'requester_authority_location_id': authority_loc,
+    })
+    if peers is None:
+        # Auto-approve immediately
+        db.execute_query("""
+            UPDATE role_change_request SET status = 'auto_approved', updated_time = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (request_id,))
+        _apply_role_change({
+            'action': 'assign',
+            'target_user_id': target_user_id,
+            'role': role,
+            'location_id': location_id,
+            'position_category_id': category_id,
+            'requested_by': str(user.id),
+        })
+        return {'id': request_id, 'status': 'auto_approved'}, 201
+
+    return {'id': request_id, 'status': 'pending'}, 201
+
+
+def request_role_removal(body, token_info=None):  # noqa: E501
+    """Request removal of a user's role.
+
+    POST /admin/roles/remove
+    """
+    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    user = token_to_user(token_info)
+
+    if connexion.request.is_json:
+        body = connexion.request.get_json()
+
+    user_role_id = body.get('userRoleId')
+    reason = body.get('reason', '')
+
+    if not user_role_id:
+        return ErrorModel(400, "userRoleId is required"), 400
+
+    # Fetch the existing role
+    role_row = db.execute_query("""
+        SELECT id, user_id, role, location_id, position_category_id
+        FROM user_role WHERE id = %s
+    """, (user_role_id,), fetchone=True)
+    if not role_row:
+        return ErrorModel(400, "Role assignment not found"), 400
+
+    role = role_row['role']
+    location_id = str(role_row['location_id']) if role_row['location_id'] else None
+    category_id = str(role_row['position_category_id']) if role_row['position_category_id'] else None
+
+    # Check authorization
+    authority_loc = _get_requester_authority_location(str(user.id), role, location_id, category_id)
+    if not authority_loc:
+        return ErrorModel(403, "You do not have authority to remove this role"), 403
+
+    # Check for duplicate pending request
+    dup = db.execute_query("""
+        SELECT id FROM role_change_request
+        WHERE action = 'remove' AND user_role_id = %s AND status = 'pending'
+    """, (user_role_id,), fetchone=True)
+    if dup:
+        return ErrorModel(400, "A pending removal request already exists"), 400
+
+    from datetime import datetime, timezone, timedelta
+    timeout_days = config.Config.ROLE_APPROVAL_TIMEOUT_DAYS
+    auto_approve_at = datetime.now(timezone.utc) + timedelta(days=timeout_days)
+
+    request_id = str(uuid.uuid4())
+    db.execute_query("""
+        INSERT INTO role_change_request
+            (id, action, target_user_id, role, location_id, position_category_id,
+             user_role_id, requested_by, requester_authority_location_id, request_reason, auto_approve_at)
+        VALUES (%s, 'remove', %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """, (request_id, str(role_row['user_id']), role, location_id, category_id,
+          user_role_id, str(user.id), authority_loc, reason, auto_approve_at))
+
+    # Check auto-approve
+    peers = _find_approval_peer({
+        'requested_by': str(user.id),
+        'role': role,
+        'location_id': location_id,
+        'position_category_id': category_id,
+        'requester_authority_location_id': authority_loc,
+    })
+    if peers is None:
+        db.execute_query("""
+            UPDATE role_change_request SET status = 'auto_approved', updated_time = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (request_id,))
+        _apply_role_change({
+            'action': 'remove',
+            'user_role_id': user_role_id,
+            'target_user_id': str(role_row['user_id']),
+            'role': role,
+            'location_id': location_id,
+            'position_category_id': category_id,
+            'requested_by': str(user.id),
+        })
+        return {'id': request_id, 'status': 'auto_approved'}, 201
+
+    return {'id': request_id, 'status': 'pending'}, 201
+
+
+def get_pending_role_requests(token_info=None):  # noqa: E501
+    """Get pending role change requests that the current user can approve.
+
+    GET /admin/roles/pending
+    """
+    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    user = token_to_user(token_info)
+
+    # First, auto-approve any expired requests
+    _check_auto_approve_expired()
+
+    # Get all pending requests
+    requests = db.execute_query("""
+        SELECT rcr.id, rcr.action, rcr.target_user_id, rcr.role,
+               rcr.location_id, rcr.position_category_id, rcr.user_role_id,
+               rcr.requested_by, rcr.requester_authority_location_id,
+               rcr.request_reason, rcr.auto_approve_at, rcr.created_time,
+               u_target.username AS target_username, u_target.display_name AS target_display_name,
+               u_req.username AS requester_username, u_req.display_name AS requester_display_name,
+               l.name AS location_name, l.code AS location_code,
+               pc.label AS category_label
+        FROM role_change_request rcr
+        JOIN users u_target ON rcr.target_user_id = u_target.id
+        JOIN users u_req ON rcr.requested_by = u_req.id
+        LEFT JOIN location l ON rcr.location_id = l.id
+        LEFT JOIN position_category pc ON rcr.position_category_id = pc.id
+        WHERE rcr.status = 'pending'
+        ORDER BY rcr.created_time ASC
+    """)
+
+    result = []
+    for r in (requests or []):
+        # Check if current user can approve this request
+        peers = _find_approval_peer(r)
+        if peers and str(user.id) in peers:
+            result.append({
+                'id': str(r['id']),
+                'action': r['action'],
+                'targetUser': {
+                    'id': str(r['target_user_id']),
+                    'username': r['target_username'],
+                    'displayName': r['target_display_name'],
+                },
+                'role': r['role'],
+                'location': {
+                    'id': str(r['location_id']),
+                    'name': r['location_name'],
+                    'code': r['location_code'],
+                } if r.get('location_id') else None,
+                'category': {
+                    'id': str(r['position_category_id']),
+                    'label': r['category_label'],
+                } if r.get('position_category_id') else None,
+                'requester': {
+                    'id': str(r['requested_by']),
+                    'username': r['requester_username'],
+                    'displayName': r['requester_display_name'],
+                },
+                'reason': r.get('request_reason'),
+                'autoApproveAt': r['auto_approve_at'].isoformat() if r.get('auto_approve_at') else None,
+                'createdTime': r['created_time'].isoformat() if r.get('created_time') else None,
+            })
+
+    return result
+
+
+def approve_role_request(request_id, token_info=None):  # noqa: E501
+    """Approve a pending role change request.
+
+    POST /admin/roles/requests/{id}/approve
+    """
+    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    user = token_to_user(token_info)
+
+    # Auto-approve expired first
+    _check_auto_approve_expired()
+
+    req = db.execute_query("""
+        SELECT * FROM role_change_request WHERE id = %s
+    """, (request_id,), fetchone=True)
+
+    if not req:
+        return ErrorModel(404, "Request not found"), 404
+
+    if req['status'] != 'pending':
+        return ErrorModel(400, f"Request is already {req['status']}"), 400
+
+    # Verify this user can approve
+    peers = _find_approval_peer(req)
+    if not peers or str(user.id) not in peers:
+        return ErrorModel(403, "You are not authorized to approve this request"), 403
+
+    # Approve
+    db.execute_query("""
+        UPDATE role_change_request
+        SET status = 'approved', reviewed_by = %s, updated_time = CURRENT_TIMESTAMP
+        WHERE id = %s
+    """, (str(user.id), request_id))
+
+    _apply_role_change(req)
+
+    return {'id': str(req['id']), 'status': 'approved'}
+
+
+def deny_role_request(request_id, body=None, token_info=None):  # noqa: E501
+    """Deny a pending role change request.
+
+    POST /admin/roles/requests/{id}/deny
+    """
+    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    user = token_to_user(token_info)
+
+    if connexion.request.is_json:
+        body = connexion.request.get_json()
+    denial_reason = (body or {}).get('reason', '')
+
+    # Auto-approve expired first
+    _check_auto_approve_expired()
+
+    req = db.execute_query("""
+        SELECT * FROM role_change_request WHERE id = %s
+    """, (request_id,), fetchone=True)
+
+    if not req:
+        return ErrorModel(404, "Request not found"), 404
+
+    if req['status'] != 'pending':
+        return ErrorModel(400, f"Request is already {req['status']}"), 400
+
+    # Verify this user can approve/deny
+    peers = _find_approval_peer(req)
+    if not peers or str(user.id) not in peers:
+        return ErrorModel(403, "You are not authorized to deny this request"), 403
+
+    db.execute_query("""
+        UPDATE role_change_request
+        SET status = 'denied', reviewed_by = %s, denial_reason = %s, updated_time = CURRENT_TIMESTAMP
+        WHERE id = %s
+    """, (str(user.id), denial_reason, request_id))
+
+    return {'id': str(req['id']), 'status': 'denied'}
+
+
+def list_roles(user_id=None, location_id=None, role=None, token_info=None):  # noqa: E501
+    """List roles with optional filters.
+
+    GET /admin/roles
+    """
+    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    conditions = []
+    params = []
+
+    if user_id:
+        conditions.append("ur.user_id = %s")
+        params.append(user_id)
+    if location_id:
+        conditions.append("ur.location_id = %s")
+        params.append(location_id)
+    if role:
+        conditions.append("ur.role = %s")
+        params.append(role)
+
+    where = ""
+    if conditions:
+        where = "WHERE " + " AND ".join(conditions)
+
+    rows = db.execute_query(f"""
+        SELECT ur.id, ur.user_id, ur.role, ur.location_id, ur.position_category_id,
+               ur.assigned_by, ur.created_time,
+               u.username, u.display_name,
+               l.name AS location_name, l.code AS location_code,
+               pc.label AS category_label
+        FROM user_role ur
+        JOIN users u ON ur.user_id = u.id
+        LEFT JOIN location l ON ur.location_id = l.id
+        LEFT JOIN position_category pc ON ur.position_category_id = pc.id
+        {where}
+        ORDER BY ur.created_time DESC
+    """, tuple(params) if params else None)
+
+    result = []
+    for r in (rows or []):
+        result.append({
+            'id': str(r['id']),
+            'user': {
+                'id': str(r['user_id']),
+                'username': r['username'],
+                'displayName': r['display_name'],
+            },
+            'role': r['role'],
+            'location': {
+                'id': str(r['location_id']),
+                'name': r['location_name'],
+                'code': r['location_code'],
+            } if r.get('location_id') else None,
+            'category': {
+                'id': str(r['position_category_id']),
+                'label': r['category_label'],
+            } if r.get('position_category_id') else None,
+            'assignedBy': str(r['assigned_by']) if r.get('assigned_by') else None,
+            'createdTime': r['created_time'].isoformat() if r.get('created_time') else None,
+        })
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Location Management API (Phase 7)
+# ---------------------------------------------------------------------------
+
+def create_location(body, token_info=None):  # noqa: E501
+    """Create a child location.
+
+    POST /admin/locations
+    Auth: admin at parent location.
+    """
+    authorized, auth_err = authorization_scoped("admin", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    user = token_to_user(token_info)
+
+    if connexion.request.is_json:
+        body = connexion.request.get_json()
+
+    parent_id = body.get('parentLocationId')
+    name = body.get('name')
+    code = body.get('code')
+
+    if not parent_id or not name:
+        return ErrorModel(400, "parentLocationId and name are required"), 400
+
+    # Validate parent exists
+    parent = db.execute_query("SELECT id FROM location WHERE id = %s", (parent_id,), fetchone=True)
+    if not parent:
+        return ErrorModel(400, "Parent location not found"), 400
+
+    # Check admin at parent
+    if not is_admin_at_location(str(user.id), parent_id):
+        return ErrorModel(403, "Admin authority at parent location is required"), 403
+
+    location_id = str(uuid.uuid4())
+    db.execute_query("""
+        INSERT INTO location (id, parent_location_id, name, code)
+        VALUES (%s, %s, %s, %s)
+    """, (location_id, parent_id, name, code))
+
+    invalidate_location_cache()
+
+    return {
+        'id': location_id,
+        'parentLocationId': parent_id,
+        'name': name,
+        'code': code,
+    }, 201
+
+
+def update_location(location_id, body, token_info=None):  # noqa: E501
+    """Update a location (name, code, parent).
+
+    PUT /admin/locations/{id}
+    Auth: admin at location or ancestor.
+    """
+    authorized, auth_err = authorization_scoped("admin", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    user = token_to_user(token_info)
+
+    if connexion.request.is_json:
+        body = connexion.request.get_json()
+
+    # Validate location exists
+    loc = db.execute_query("""
+        SELECT id, parent_location_id, name, code FROM location WHERE id = %s
+    """, (location_id,), fetchone=True)
+    if not loc:
+        return ErrorModel(404, "Location not found"), 404
+
+    if not is_admin_at_location(str(user.id), location_id):
+        return ErrorModel(403, "Admin authority at this location is required"), 403
+
+    name = body.get('name', loc['name'])
+    code = body.get('code', loc['code'])
+    new_parent_id = body.get('parentLocationId')
+
+    # If reparenting, validate no circular reference
+    if new_parent_id and str(new_parent_id) != str(loc['parent_location_id'] or ''):
+        # Check new parent exists
+        new_parent = db.execute_query("SELECT id FROM location WHERE id = %s", (new_parent_id,), fetchone=True)
+        if not new_parent:
+            return ErrorModel(400, "New parent location not found"), 400
+
+        # Check admin at new parent too
+        if not is_admin_at_location(str(user.id), new_parent_id):
+            return ErrorModel(403, "Admin authority at new parent location is required"), 403
+
+        # Circular reference check: new_parent must not be a descendant of this location
+        descendants = get_location_descendants(location_id)
+        if str(new_parent_id) in descendants:
+            return ErrorModel(400, "Cannot reparent: would create circular reference"), 400
+
+        db.execute_query("""
+            UPDATE location SET parent_location_id = %s, name = %s, code = %s WHERE id = %s
+        """, (new_parent_id, name, code, location_id))
+    else:
+        db.execute_query("""
+            UPDATE location SET name = %s, code = %s WHERE id = %s
+        """, (name, code, location_id))
+
+    invalidate_location_cache()
+
+    return {
+        'id': str(location_id),
+        'parentLocationId': str(new_parent_id) if new_parent_id else (str(loc['parent_location_id']) if loc['parent_location_id'] else None),
+        'name': name,
+        'code': code,
+    }
+
+
+def delete_location(location_id, token_info=None):  # noqa: E501
+    """Delete a location (only if no children or content).
+
+    DELETE /admin/locations/{id}
+    Auth: admin at location or ancestor.
+    """
+    authorized, auth_err = authorization_scoped("admin", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    user = token_to_user(token_info)
+
+    loc = db.execute_query("SELECT id, parent_location_id FROM location WHERE id = %s",
+                           (location_id,), fetchone=True)
+    if not loc:
+        return ErrorModel(404, "Location not found"), 404
+
+    # Cannot delete root location
+    if loc['parent_location_id'] is None:
+        return ErrorModel(400, "Cannot delete the root location"), 400
+
+    if not is_admin_at_location(str(user.id), location_id):
+        return ErrorModel(403, "Admin authority at this location is required"), 403
+
+    # Check no children
+    children = db.execute_query("""
+        SELECT id FROM location WHERE parent_location_id = %s LIMIT 1
+    """, (location_id,), fetchone=True)
+    if children:
+        return ErrorModel(400, "Cannot delete: location has child locations"), 400
+
+    # Check no positions
+    positions = db.execute_query("""
+        SELECT id FROM position WHERE location_id = %s AND status = 'active' LIMIT 1
+    """, (location_id,), fetchone=True)
+    if positions:
+        return ErrorModel(400, "Cannot delete: location has active positions"), 400
+
+    # Check no user_roles at this location
+    roles = db.execute_query("""
+        SELECT id FROM user_role WHERE location_id = %s LIMIT 1
+    """, (location_id,), fetchone=True)
+    if roles:
+        return ErrorModel(400, "Cannot delete: location has role assignments"), 400
+
+    db.execute_query("DELETE FROM location WHERE id = %s", (location_id,))
+    invalidate_location_cache()
+
+    return '', 204
+
+
+def assign_location_category(location_id, body, token_info=None):  # noqa: E501
+    """Assign a category to a location.
+
+    POST /admin/locations/{id}/categories
+    Auth: admin at location or ancestor.
+    """
+    authorized, auth_err = authorization_scoped("admin", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    user = token_to_user(token_info)
+
+    if connexion.request.is_json:
+        body = connexion.request.get_json()
+
+    category_id = body.get('positionCategoryId')
+    if not category_id:
+        return ErrorModel(400, "positionCategoryId is required"), 400
+
+    # Validate location and category exist
+    loc = db.execute_query("SELECT id FROM location WHERE id = %s", (location_id,), fetchone=True)
+    if not loc:
+        return ErrorModel(404, "Location not found"), 404
+
+    if not is_admin_at_location(str(user.id), location_id):
+        return ErrorModel(403, "Admin authority at this location is required"), 403
+
+    cat = db.execute_query("SELECT id, label FROM position_category WHERE id = %s",
+                           (category_id,), fetchone=True)
+    if not cat:
+        return ErrorModel(400, "Category not found"), 400
+
+    # Check if already assigned
+    existing = db.execute_query("""
+        SELECT id FROM location_category
+        WHERE location_id = %s AND position_category_id = %s
+    """, (location_id, category_id), fetchone=True)
+    if existing:
+        return ErrorModel(400, "Category already assigned to this location"), 400
+
+    lc_id = str(uuid.uuid4())
+    db.execute_query("""
+        INSERT INTO location_category (id, location_id, position_category_id)
+        VALUES (%s, %s, %s)
+    """, (lc_id, location_id, category_id))
+
+    return {
+        'id': lc_id,
+        'locationId': str(location_id),
+        'positionCategoryId': str(category_id),
+        'categoryLabel': cat['label'],
+    }, 201
+
+
+def remove_location_category(location_id, category_id, token_info=None):  # noqa: E501
+    """Remove a category from a location.
+
+    DELETE /admin/locations/{id}/categories/{catId}
+    Auth: admin at location or ancestor.
+    """
+    authorized, auth_err = authorization_scoped("admin", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    user = token_to_user(token_info)
+
+    if not is_admin_at_location(str(user.id), location_id):
+        return ErrorModel(403, "Admin authority at this location is required"), 403
+
+    existing = db.execute_query("""
+        SELECT id FROM location_category
+        WHERE location_id = %s AND position_category_id = %s
+    """, (location_id, category_id), fetchone=True)
+    if not existing:
+        return ErrorModel(404, "Category assignment not found"), 404
+
+    db.execute_query("""
+        DELETE FROM location_category
+        WHERE location_id = %s AND position_category_id = %s
+    """, (location_id, category_id))
+
+    return '', 204

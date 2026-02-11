@@ -18,7 +18,7 @@ from candid import util
 
 from candid.controllers import db
 from candid.controllers.helpers.config import Config
-from candid.controllers.helpers.auth import authorization, authorization_allow_banned, token_to_user
+from candid.controllers.helpers.auth import authorization, authorization_allow_banned, token_to_user, get_user_roles
 from candid.controllers.helpers import keycloak
 from candid.controllers.helpers import nlp
 from candid.controllers.helpers import presence
@@ -216,10 +216,7 @@ def get_all_locations(token_info=None):  # noqa: E501
 
     :rtype: Union[List[Location], Tuple[List[Location], int]]
     """
-    authorized, auth_err = authorization_allow_banned("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
+    # Public endpoint — no auth required
     all_locs = db.execute_query("""
         SELECT id, name, code, parent_location_id
         FROM location
@@ -339,7 +336,21 @@ def get_current_user(token_info=None):  # noqa: E501
 
     if current_user is None:
         return ErrorModel(404, "Not Found"), 404
-    return _row_to_current_user(current_user)
+
+    result = _row_to_current_user(current_user)
+
+    # Add scoped roles from user_role table
+    roles = get_user_roles(user.id)
+    result.roles = [
+        {
+            "role": r["role"],
+            "locationId": r["location_id"],
+            "positionCategoryId": r["position_category_id"],
+        }
+        for r in roles
+    ]
+
+    return result
 
 
 def get_current_user_positions(status='active', token_info=None):  # noqa: E501

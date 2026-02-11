@@ -29,6 +29,12 @@ _mock_database_class.return_value = _mock_database_instance
 sys.modules.setdefault("psycopg2", MagicMock())
 sys.modules.setdefault("psycopg2.extras", MagicMock())
 sys.modules.setdefault("psycopg2.pool", MagicMock())
+# Mock connexion to avoid Flask/Connexion version compatibility issues
+# (connexion.apps.flask_app references removed flask.json.JSONEncoder)
+_mock_connexion = MagicMock()
+_mock_connexion.request = MagicMock()
+_mock_connexion.request.is_json = False
+sys.modules.setdefault("connexion", _mock_connexion)
 
 # Patch Database before candid.controllers.__init__ imports it
 with patch.dict("sys.modules", {

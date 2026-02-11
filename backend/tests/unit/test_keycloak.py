@@ -5,6 +5,17 @@ from unittest.mock import patch, MagicMock
 
 pytestmark = pytest.mark.unit
 
+US_ROOT = "f1a2b3c4-d5e6-7890-abcd-ef1234567890"
+
+
+@pytest.fixture(autouse=True)
+def _clear_location_caches():
+    """Clear auth location caches before each test."""
+    from candid.controllers.helpers.auth import invalidate_location_cache
+    invalidate_location_cache()
+    yield
+    invalidate_location_cache()
+
 
 # ---------------------------------------------------------------------------
 # _extract_role
@@ -45,6 +56,67 @@ class TestExtractRole:
         from candid.controllers.helpers.keycloak import _extract_role
         payload = {"realm_access": {"roles": ["guest", "normal", "moderator", "admin"]}}
         assert _extract_role(payload) == "admin"
+
+
+# ---------------------------------------------------------------------------
+# _map_keycloak_role_to_user_type
+# ---------------------------------------------------------------------------
+
+class TestMapKeycloakRoleToUserType:
+    def test_admin_maps_to_normal(self):
+        from candid.controllers.helpers.keycloak import _map_keycloak_role_to_user_type
+        assert _map_keycloak_role_to_user_type("admin") == "normal"
+
+    def test_moderator_maps_to_normal(self):
+        from candid.controllers.helpers.keycloak import _map_keycloak_role_to_user_type
+        assert _map_keycloak_role_to_user_type("moderator") == "normal"
+
+    def test_normal_maps_to_normal(self):
+        from candid.controllers.helpers.keycloak import _map_keycloak_role_to_user_type
+        assert _map_keycloak_role_to_user_type("normal") == "normal"
+
+    def test_guest_maps_to_guest(self):
+        from candid.controllers.helpers.keycloak import _map_keycloak_role_to_user_type
+        assert _map_keycloak_role_to_user_type("guest") == "guest"
+
+
+# ---------------------------------------------------------------------------
+# _ensure_root_admin_role
+# ---------------------------------------------------------------------------
+
+class TestEnsureRootAdminRole:
+    def test_creates_admin_role_at_root(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            {"id": US_ROOT},  # get_root_location_id
+            None,             # no existing admin role
+            None,             # INSERT
+        ])
+
+        with patch("candid.controllers.helpers.keycloak.db", mock_db), \
+             patch("candid.controllers.helpers.auth.db", mock_db):
+            from candid.controllers.helpers.keycloak import _ensure_root_admin_role
+            _ensure_root_admin_role("user-1")
+
+            # Should have called INSERT for the admin role
+            calls = mock_db.execute_query.call_args_list
+            assert any("INSERT INTO user_role" in str(c) for c in calls)
+
+    def test_skips_if_already_exists(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            {"id": US_ROOT},  # get_root_location_id
+            {"1": 1},         # existing admin role found
+        ])
+
+        with patch("candid.controllers.helpers.keycloak.db", mock_db), \
+             patch("candid.controllers.helpers.auth.db", mock_db):
+            from candid.controllers.helpers.keycloak import _ensure_root_admin_role
+            _ensure_root_admin_role("user-1")
+
+            # Should NOT have called INSERT
+            calls = mock_db.execute_query.call_args_list
+            assert not any("INSERT INTO user_role" in str(c) for c in calls)
 
 
 # ---------------------------------------------------------------------------
@@ -107,6 +179,69 @@ class TestValidateToken:
             from candid.controllers.helpers.keycloak import validate_token
             result = validate_token("fake-jwt")
             assert result == {"sub": "new-candid-uuid"}
+
+    def test_auto_registration_guest_user_type(self):
+        """Guest Keycloak role should create user with user_type='guest'."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(
+            side_effect=[
+                None,                              # keycloak_id lookup: not found
+                None,                              # link existing: no match
+                {"id": "guest-uuid"},               # INSERT new user
+            ]
+        )
+
+        mock_jwks = MagicMock()
+        mock_signing_key = MagicMock()
+        mock_signing_key.key = "test-key"
+        mock_jwks.get_signing_key_from_jwt = MagicMock(return_value=mock_signing_key)
+
+        with patch("candid.controllers.helpers.keycloak.db", mock_db), \
+             patch("candid.controllers.helpers.keycloak._get_jwks_client", return_value=mock_jwks), \
+             patch("candid.controllers.helpers.keycloak.jwt_decode", return_value={
+                 "sub": "kc-uuid-guest",
+                 "preferred_username": "guestuser",
+                 "realm_access": {"roles": ["guest"]},
+             }):
+            from candid.controllers.helpers.keycloak import validate_token
+            result = validate_token("fake-jwt")
+            # Check that INSERT was called with user_type='guest'
+            insert_call = mock_db.execute_query.call_args_list[2]
+            assert insert_call[0][1][4] == "guest"  # user_type param
+
+    def test_admin_auto_creates_root_role_on_new_user(self):
+        """Admin Keycloak role should auto-create admin at root location."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(
+            side_effect=[
+                None,                              # keycloak_id lookup: not found
+                None,                              # link existing: no match
+                {"id": "admin-uuid"},               # INSERT new user
+                {"id": US_ROOT},                    # get_root_location_id
+                None,                              # no existing admin role
+                None,                              # INSERT user_role
+            ]
+        )
+
+        mock_jwks = MagicMock()
+        mock_signing_key = MagicMock()
+        mock_signing_key.key = "test-key"
+        mock_jwks.get_signing_key_from_jwt = MagicMock(return_value=mock_signing_key)
+
+        with patch("candid.controllers.helpers.keycloak.db", mock_db), \
+             patch("candid.controllers.helpers.auth.db", mock_db), \
+             patch("candid.controllers.helpers.keycloak._get_jwks_client", return_value=mock_jwks), \
+             patch("candid.controllers.helpers.keycloak.jwt_decode", return_value={
+                 "sub": "kc-uuid-admin",
+                 "preferred_username": "adminuser",
+                 "realm_access": {"roles": ["admin"]},
+             }):
+            from candid.controllers.helpers.keycloak import validate_token
+            result = validate_token("fake-jwt")
+            assert result == {"sub": "admin-uuid"}
+            # Verify admin role INSERT was called
+            calls = mock_db.execute_query.call_args_list
+            assert any("INSERT INTO user_role" in str(c) for c in calls)
 
     def test_link_existing_user(self):
         mock_db = MagicMock()

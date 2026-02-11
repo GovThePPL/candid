@@ -71,6 +71,8 @@ python3 -m pytest backend/tests/unit/ --benchmark-only -v
 | `test_database.py` | `database.py` | Connection pool and query execution |
 | `test_polis_scheduler.py` | `polis_scheduler.py` | Conversation lifecycle management |
 | `test_redis_pool.py` | `redis_pool.py` | Shared Redis connection pool singleton behavior |
+| `test_admin_helpers.py` | `admin_controller.py` | Role management helpers: authority location, approval peers, role changes, auto-approve |
+| `test_moderation_helpers.py` | `moderation_controller.py` | Hierarchical appeal routing: content scope, actioner level, peer/escalation reviewers |
 
 ## Key Files
 

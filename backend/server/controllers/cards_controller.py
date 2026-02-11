@@ -154,7 +154,11 @@ def _get_ban_notification(user_id):
                 # Fetch appeal responses with responder roles and original mod in one query
                 responses = db.execute_query("""
                     SELECT r.appeal_response_text, r.created_time,
-                           r.responder_user_id, u.user_type,
+                           r.responder_user_id,
+                           EXISTS(
+                               SELECT 1 FROM user_role ur
+                               WHERE ur.user_id = r.responder_user_id AND ur.role = 'admin'
+                           ) as is_admin_role,
                            ma.responder_user_id as original_mod_id
                     FROM mod_action_appeal_response r
                     JOIN users u ON r.responder_user_id = u.id
@@ -168,7 +172,7 @@ def _get_ban_notification(user_id):
                 for idx, resp in enumerate(resp_list):
                     responder_id = str(resp['responder_user_id'])
                     original_mod_id = str(resp['original_mod_id']) if resp.get('original_mod_id') else None
-                    is_admin = resp.get('user_type') == 'admin'
+                    is_admin = bool(resp.get('is_admin_role'))
 
                     if is_admin:
                         role = 'Admin'

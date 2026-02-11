@@ -1097,18 +1097,27 @@ class TestAppealResponseLifecycle:
 
     @pytest.mark.mutation
     def test_admin_approve_appeal_reverses_ban(self, normal_headers, admin_headers):
-        """Admin approving an appeal reverses the ban."""
+        """Hierarchical appeal: peer approves → overruled → actioner accepts → ban reversed."""
         appeal_id, _ = self._create_ban_and_appeal(normal_headers, admin_headers)
 
         # Verify user is banned
         user = db_query_one("SELECT status FROM users WHERE id = %s", (NORMAL1_ID,))
         assert user["status"] == "banned"
 
-        # Admin approves the appeal
+        # Step 1: Peer reviewer approves the appeal → state becomes 'overruled'
+        # (In this test admin is both actioner and reviewer — simplified single-admin setup)
         resp = requests.post(
             f"{MODERATION_URL}/appeals/{appeal_id}/response",
             headers=admin_headers,
-            json={"response": "approve", "responseText": "Appeal approved."},
+            json={"response": "approve", "responseText": "Appeal approved by peer."},
+        )
+        assert resp.status_code == 200
+
+        # Step 2: Original actioner (admin) accepts the overrule → state becomes 'approved'
+        resp = requests.post(
+            f"{MODERATION_URL}/appeals/{appeal_id}/response",
+            headers=admin_headers,
+            json={"response": "accept", "responseText": "Accepting overrule."},
         )
         assert resp.status_code == 200
 

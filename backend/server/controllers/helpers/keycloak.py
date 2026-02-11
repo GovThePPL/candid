@@ -4,6 +4,7 @@ Keycloak integration helpers.
 - validate_token(): RS256 JWKS validation for incoming bearer tokens
 - Admin REST API helpers for seed script user creation
 - Auto-registration: if Keycloak token is valid but no users row, create one
+- Bootstrap: Keycloak 'admin' realm role auto-creates admin at root location
 """
 
 import logging
@@ -45,6 +46,38 @@ def _extract_role(token_payload):
     return best_role
 
 
+def _map_keycloak_role_to_user_type(keycloak_role):
+    """Map Keycloak realm role to user_type (only 'normal' or 'guest')."""
+    if keycloak_role == "guest":
+        return "guest"
+    return "normal"  # admin, moderator, normal all map to 'normal'
+
+
+def _ensure_root_admin_role(user_id):
+    """Auto-create admin role at root location if not already present.
+
+    Called when a Keycloak user with 'admin' realm role logs in.
+    """
+    from candid.controllers.helpers.auth import get_root_location_id
+    root_id = get_root_location_id()
+    if not root_id:
+        logger.warning("No root location found — cannot auto-create admin role")
+        return
+
+    existing = db.execute_query("""
+        SELECT 1 FROM user_role
+        WHERE user_id = %s AND role = 'admin' AND location_id = %s
+        LIMIT 1
+    """, (str(user_id), root_id), fetchone=True)
+
+    if not existing:
+        db.execute_query("""
+            INSERT INTO user_role (user_id, role, location_id)
+            VALUES (%s, 'admin', %s)
+        """, (str(user_id), root_id))
+        logger.info(f"Auto-created admin role at root location for user {user_id}")
+
+
 def validate_token(token):
     """
     Validate a Keycloak RS256 JWT and return token info dict.
@@ -53,6 +86,7 @@ def validate_token(token):
     the existing authorization() system which reads token_info['sub']).
 
     If the Keycloak user doesn't have a Candid users row yet, auto-creates one.
+    If the Keycloak user has 'admin' realm role, auto-creates admin at root location.
 
     Returns None on any validation failure.
     """
@@ -71,6 +105,8 @@ def validate_token(token):
         if not keycloak_id:
             return None
 
+        keycloak_role = _extract_role(payload)
+
         # Look up user by keycloak_id
         user = db.execute_query(
             "SELECT id FROM users WHERE keycloak_id = %s",
@@ -78,13 +114,16 @@ def validate_token(token):
         )
 
         if user:
+            # Bootstrap: ensure admin at root for Keycloak admin users
+            if keycloak_role == "admin":
+                _ensure_root_admin_role(user["id"])
             return {"sub": str(user["id"])}
 
         # Auto-register or link: create Candid user or link existing one
         username = payload.get("preferred_username", keycloak_id)
         email = payload.get("email")
         display_name = payload.get("name") or username
-        user_type = _extract_role(payload)
+        user_type = _map_keycloak_role_to_user_type(keycloak_role)
 
         # Try linking an existing user by username first (e.g. pre-seeded users)
         linked_user = db.execute_query("""
@@ -95,6 +134,8 @@ def validate_token(token):
 
         if linked_user:
             logger.info(f"Linked existing user {username} to keycloak_id={keycloak_id}")
+            if keycloak_role == "admin":
+                _ensure_root_admin_role(linked_user["id"])
             return {"sub": str(linked_user["id"])}
 
         # Create a new user
@@ -106,6 +147,8 @@ def validate_token(token):
 
         if new_user:
             logger.info(f"Auto-registered user {username} (keycloak_id={keycloak_id})")
+            if keycloak_role == "admin":
+                _ensure_root_admin_role(new_user["id"])
             return {"sub": str(new_user["id"])}
 
         return None

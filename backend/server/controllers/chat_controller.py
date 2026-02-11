@@ -12,7 +12,7 @@ from candid import util
 
 from candid.controllers import db
 from candid.controllers.helpers.config import Config
-from candid.controllers.helpers.auth import authorization, authorization_allow_banned, token_to_user, get_user_type
+from candid.controllers.helpers.auth import authorization, authorization_allow_banned, token_to_user, is_moderator_anywhere
 from candid.controllers.helpers.chat_events import publish_chat_accepted, publish_chat_request_response, publish_chat_request_received
 from candid.controllers.cards_controller import _get_pending_chat_requests, _chat_request_to_card
 from candid.controllers.helpers import presence
@@ -443,7 +443,7 @@ def get_chat_log(chat_id, token_info=None):
     initiator_id = str(result["initiator_user_id"])
     responder_id = str(result["responder_user_id"])
     is_participant = str(user.id) in (initiator_id, responder_id)
-    is_moderator = get_user_type(user.id) in ('moderator', 'admin')
+    is_moderator = is_moderator_anywhere(user.id)
 
     # Non-participants (except moderators) can only see agreed statements
     if not is_participant and not is_moderator:
@@ -601,8 +601,8 @@ def get_user_chats_metadata(user_id, token_info=None):
         return auth_err, auth_err.code
     user = token_to_user(token_info)
 
-    # Users can only view their own chat metadata (or admins can view any)
-    if str(user.id) != user_id and user.user_type not in ("admin", "moderator"):
+    # Users can only view their own chat metadata (or moderators/admins can view any)
+    if str(user.id) != user_id and not is_moderator_anywhere(user.id):
         return ErrorModel(code=403, message="Not authorized to view these chats"), 403
 
     # Get count and latest activity time
@@ -652,8 +652,8 @@ def get_user_chats(user_id, position_id=None, limit=None, offset=None, token_inf
         return auth_err, auth_err.code
     user = token_to_user(token_info)
 
-    # Users can only view their own chats (or admins can view any)
-    if str(user.id) != user_id and user.user_type not in ("admin", "moderator"):
+    # Users can only view their own chats (or moderators/admins can view any)
+    if str(user.id) != user_id and not is_moderator_anywhere(user.id):
         return ErrorModel(code=403, message="Not authorized to view these chats"), 403
 
     # Build query with full position, category, location, and user details

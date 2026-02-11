@@ -47,7 +47,7 @@ components:
           nullable: true
         userType:
           type: string
-          enum: [normal, moderator, admin, guest]
+          enum: [normal, guest]
         status:
           type: string
           enum: [active, inactive, deleted, banned]
@@ -64,6 +64,25 @@ components:
           type: boolean
           nullable: true
           description: "Diagnostics consent: null = never asked, true = opted in, false = opted out"
+        roles:
+          type: array
+          description: Scoped roles from user_role table (admin, moderator, facilitator, etc.)
+          items:
+            $ref: '#/components/schemas/UserRole'
+    UserRole:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [admin, moderator, facilitator, assistant_moderator, expert, liaison]
+        locationId:
+          type: string
+          format: uuid
+          nullable: true
+        positionCategoryId:
+          type: string
+          format: uuid
+          nullable: true
     User:
       type: object
       required:
@@ -1372,6 +1391,149 @@ components:
         isCondorcetWinner:
           type: boolean
           description: Whether this item is the Condorcet winner
+
+    RoleAssignment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            username:
+              type: string
+            displayName:
+              type: string
+        role:
+          type: string
+          enum: [admin, moderator, facilitator, assistant_moderator, expert, liaison]
+        location:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            code:
+              type: string
+        category:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            label:
+              type: string
+        assignedBy:
+          type: string
+          format: uuid
+          nullable: true
+        createdTime:
+          type: string
+          format: date-time
+
+    RoleAssignmentRequest:
+      type: object
+      required:
+        - targetUserId
+        - role
+        - locationId
+      properties:
+        targetUserId:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [admin, moderator, facilitator, assistant_moderator, expert, liaison]
+        locationId:
+          type: string
+          format: uuid
+        positionCategoryId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Required for facilitator, assistant_moderator, expert, liaison
+        reason:
+          type: string
+
+    RoleChangeResult:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, approved, denied, auto_approved]
+
+    PendingRoleRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        action:
+          type: string
+          enum: [assign, remove]
+        targetUser:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            username:
+              type: string
+            displayName:
+              type: string
+        role:
+          type: string
+          enum: [admin, moderator, facilitator, assistant_moderator, expert, liaison]
+        location:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            code:
+              type: string
+        category:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            label:
+              type: string
+        requester:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            username:
+              type: string
+            displayName:
+              type: string
+        reason:
+          type: string
+          nullable: true
+        autoApproveAt:
+          type: string
+          format: date-time
+        createdTime:
+          type: string
+          format: date-time
 
     PairwiseSurvey:
       type: object
@@ -4931,6 +5093,7 @@ paths:
       summary: Get all locations as a flat list with hierarchy info
       tags:
         - Users
+      security: []
       responses:
         '200':
           description: Flat list of all locations with hierarchy info
@@ -4940,12 +5103,6 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Location'
-        '401':
-          description: Unauthorized - authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorModel'
 
   /users/{userId}:
     get:
@@ -5129,6 +5286,435 @@ paths:
                 $ref: '#/components/schemas/ErrorModel'
         '404':
           description: Survey not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /admin/roles:
+    get:
+      operationId: listRoles
+      summary: List roles with optional filters
+      tags:
+        - Admin
+      parameters:
+        - name: userId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by user ID
+        - name: locationId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by location ID
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [admin, moderator, facilitator, assistant_moderator, expert, liaison]
+          description: Filter by role type
+      responses:
+        '200':
+          description: List of role assignments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RoleAssignment'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+    post:
+      operationId: requestRoleAssignment
+      summary: Request a role assignment for a user
+      tags:
+        - Admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleAssignmentRequest'
+      responses:
+        '201':
+          description: Request created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleChangeResult'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /admin/roles/remove:
+    post:
+      operationId: requestRoleRemoval
+      summary: Request removal of a user's role
+      tags:
+        - Admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userRoleId
+              properties:
+                userRoleId:
+                  type: string
+                  format: uuid
+                reason:
+                  type: string
+      responses:
+        '201':
+          description: Request created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleChangeResult'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /admin/roles/pending:
+    get:
+      operationId: getPendingRoleRequests
+      summary: Get pending role change requests the current user can approve
+      tags:
+        - Admin
+      responses:
+        '200':
+          description: List of pending requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PendingRoleRequest'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /admin/roles/requests/{requestId}/approve:
+    post:
+      operationId: approveRoleRequest
+      summary: Approve a pending role change request
+      tags:
+        - Admin
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Request approved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleChangeResult'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: Request not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /admin/roles/requests/{requestId}/deny:
+    post:
+      operationId: denyRoleRequest
+      summary: Deny a pending role change request
+      tags:
+        - Admin
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Request denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleChangeResult'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: Request not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /admin/locations:
+    post:
+      operationId: createLocation
+      summary: Create a child location
+      tags:
+        - Admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - parentLocationId
+                - name
+              properties:
+                parentLocationId:
+                  type: string
+                  format: uuid
+                name:
+                  type: string
+                code:
+                  type: string
+      responses:
+        '201':
+          description: Location created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Location'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /admin/locations/{locationId}:
+    put:
+      operationId: updateLocation
+      summary: Update a location (name, code, parent)
+      tags:
+        - Admin
+      parameters:
+        - name: locationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                code:
+                  type: string
+                parentLocationId:
+                  type: string
+                  format: uuid
+                  description: Reparent the location (validates no circular refs)
+      responses:
+        '200':
+          description: Location updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Location'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+    delete:
+      operationId: deleteLocation
+      summary: Delete a location (only if no children or content)
+      tags:
+        - Admin
+      parameters:
+        - name: locationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Location deleted
+        '400':
+          description: Cannot delete (has children or content)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /admin/locations/{locationId}/categories:
+    post:
+      operationId: assignLocationCategory
+      summary: Assign a category to a location
+      tags:
+        - Admin
+      parameters:
+        - name: locationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - positionCategoryId
+              properties:
+                positionCategoryId:
+                  type: string
+                  format: uuid
+      responses:
+        '201':
+          description: Category assigned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  locationId:
+                    type: string
+                    format: uuid
+                  positionCategoryId:
+                    type: string
+                    format: uuid
+                  categoryLabel:
+                    type: string
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /admin/locations/{locationId}/categories/{categoryId}:
+    delete:
+      operationId: removeLocationCategory
+      summary: Remove a category from a location
+      tags:
+        - Admin
+      parameters:
+        - name: locationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: categoryId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Category removed
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: Not found
           content:
             application/json:
               schema:

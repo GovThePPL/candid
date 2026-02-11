@@ -1,3 +1,18 @@
+"""Authorization helpers with hierarchical, location-scoped role system.
+
+Role hierarchy:
+  Admin (location-scoped, inherits DOWN)
+    └─ Moderator (location-scoped, inherits DOWN)
+        └─ Facilitator (location + category scoped, NO inheritance)
+            ├─ Assistant Moderator
+            ├─ Expert
+            └─ Liaison
+
+user_type is now only 'normal' or 'guest'. All privileged roles live in user_role.
+"""
+
+import logging
+import time
 from datetime import datetime, timezone
 
 from candid.models.user import User
@@ -5,25 +20,436 @@ from candid.models.error_model import ErrorModel
 from candid.controllers import config, db
 from candid.controllers.helpers.redis_pool import get_redis
 
-_USER_ROLE_RANKING = {
-    "guest": 1,
-    "normal": 10,
-    "moderator": 20,
-    "admin": 30,
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# user_type ranking (only for guest vs normal checks)
+# ---------------------------------------------------------------------------
+
+_USER_ROLE_RANKING = {"guest": 1, "normal": 10}
+
+# Scoped role hierarchy: each role is satisfied by any role above it
+_SCOPED_ROLE_HIERARCHY = {
+    "admin": {"admin"},
+    "moderator": {"admin", "moderator"},
+    "facilitator": {"admin", "moderator", "facilitator"},
+    "assistant_moderator": {"admin", "moderator", "facilitator", "assistant_moderator"},
+    "liaison": {"admin", "moderator", "facilitator", "liaison"},
+    "expert": {"admin", "moderator", "facilitator", "expert"},
 }
 
-def get_user_type(user_id):
-    ret = db.execute_query("""
-        SELECT user_type
-        FROM users
-        WHERE id = %s
-    """,
-    (user_id,), fetchone=True)
+# Roles that inherit DOWN the location tree (authority at parent covers children)
+_HIERARCHICAL_ROLES = {"admin", "moderator"}
 
+# ---------------------------------------------------------------------------
+# Location tree helpers (cached with TTL)
+# ---------------------------------------------------------------------------
+
+_LOCATION_CACHE_TTL = 300  # 5 minutes
+_location_ancestor_cache = {}  # location_id -> (timestamp, [ancestor_ids])
+_location_descendant_cache = {}  # location_id -> (timestamp, [descendant_ids])
+_root_location_cache = {"value": None, "ts": 0}
+
+
+def invalidate_location_cache():
+    """Invalidate all location tree caches. Call after location rearrangement."""
+    _location_ancestor_cache.clear()
+    _location_descendant_cache.clear()
+    _root_location_cache["value"] = None
+    _root_location_cache["ts"] = 0
+
+
+def _is_cache_valid(ts):
+    return (time.time() - ts) < _LOCATION_CACHE_TTL
+
+
+def get_root_location_id():
+    """Get the root location (no parent). Cached."""
+    if _root_location_cache["value"] and _is_cache_valid(_root_location_cache["ts"]):
+        return _root_location_cache["value"]
+
+    row = db.execute_query(
+        "SELECT id FROM location WHERE parent_location_id IS NULL LIMIT 1",
+        fetchone=True,
+    )
+    if row:
+        _root_location_cache["value"] = str(row["id"])
+        _root_location_cache["ts"] = time.time()
+        return _root_location_cache["value"]
+    return None
+
+
+def get_location_ancestors(location_id):
+    """Return [self, parent, ..., root] for the given location. Cached."""
+    loc_str = str(location_id)
+    cached = _location_ancestor_cache.get(loc_str)
+    if cached and _is_cache_valid(cached[0]):
+        return cached[1]
+
+    rows = db.execute_query("""
+        WITH RECURSIVE ancestors AS (
+            SELECT id, parent_location_id, 0 AS depth
+            FROM location WHERE id = %s
+            UNION ALL
+            SELECT l.id, l.parent_location_id, a.depth + 1
+            FROM location l
+            JOIN ancestors a ON l.id = a.parent_location_id
+        )
+        SELECT id FROM ancestors ORDER BY depth
+    """, (loc_str,))
+
+    result = [str(r["id"]) for r in rows] if rows else []
+    _location_ancestor_cache[loc_str] = (time.time(), result)
+    return result
+
+
+def get_location_descendants(location_id):
+    """Return all descendants (including self) of the given location. Cached."""
+    loc_str = str(location_id)
+    cached = _location_descendant_cache.get(loc_str)
+    if cached and _is_cache_valid(cached[0]):
+        return cached[1]
+
+    rows = db.execute_query("""
+        WITH RECURSIVE descendants AS (
+            SELECT id FROM location WHERE id = %s
+            UNION ALL
+            SELECT l.id
+            FROM location l
+            JOIN descendants d ON l.parent_location_id = d.id
+        )
+        SELECT id FROM descendants
+    """, (loc_str,))
+
+    result = [str(r["id"]) for r in rows] if rows else []
+    _location_descendant_cache[loc_str] = (time.time(), result)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Role queries
+# ---------------------------------------------------------------------------
+
+def get_user_roles(user_id):
+    """Get all roles for a user from user_role table.
+
+    Returns list of dicts: [{'role', 'location_id', 'position_category_id'}, ...]
+    """
+    rows = db.execute_query("""
+        SELECT role, location_id, position_category_id
+        FROM user_role WHERE user_id = %s
+    """, (str(user_id),))
+    if not rows:
+        return []
+    return [
+        {
+            "role": r["role"],
+            "location_id": str(r["location_id"]) if r["location_id"] else None,
+            "position_category_id": str(r["position_category_id"]) if r["position_category_id"] else None,
+        }
+        for r in rows
+    ]
+
+
+def has_any_scoped_role(user_id):
+    """Check if a user has any entry in user_role."""
+    row = db.execute_query(
+        "SELECT 1 FROM user_role WHERE user_id = %s LIMIT 1",
+        (str(user_id),), fetchone=True,
+    )
+    return row is not None
+
+
+def is_admin_anywhere(user_id):
+    """Check if user has admin role at any location."""
+    row = db.execute_query(
+        "SELECT 1 FROM user_role WHERE user_id = %s AND role = 'admin' LIMIT 1",
+        (str(user_id),), fetchone=True,
+    )
+    return row is not None
+
+
+def is_moderator_anywhere(user_id):
+    """Check if user has moderator or admin role at any location."""
+    row = db.execute_query(
+        "SELECT 1 FROM user_role WHERE user_id = %s AND role IN ('admin', 'moderator') LIMIT 1",
+        (str(user_id),), fetchone=True,
+    )
+    return row is not None
+
+
+def get_user_type(user_id):
+    """Get the user_type ('normal' or 'guest') from the users table."""
+    ret = db.execute_query(
+        "SELECT user_type FROM users WHERE id = %s",
+        (user_id,), fetchone=True,
+    )
     if ret:
         return ret["user_type"]
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Hierarchical authority checks
+# ---------------------------------------------------------------------------
+
+def is_root_admin(user_id):
+    """Check if user is admin at the root location (= superadmin)."""
+    root_id = get_root_location_id()
+    if not root_id:
+        return False
+    return is_admin_at_location(user_id, root_id)
+
+
+def is_admin_at_location(user_id, location_id):
+    """Check if user has admin role at this location or any ancestor (inherits down)."""
+    ancestors = get_location_ancestors(location_id)
+    if not ancestors:
+        return False
+    row = db.execute_query("""
+        SELECT 1 FROM user_role
+        WHERE user_id = %s AND role = 'admin' AND location_id = ANY(%s::uuid[])
+        LIMIT 1
+    """, (str(user_id), ancestors), fetchone=True)
+    return row is not None
+
+
+def is_moderator_at_location(user_id, location_id):
+    """Check if user has moderator (or admin) role at this location or any ancestor."""
+    ancestors = get_location_ancestors(location_id)
+    if not ancestors:
+        return False
+    row = db.execute_query("""
+        SELECT 1 FROM user_role
+        WHERE user_id = %s AND role IN ('admin', 'moderator') AND location_id = ANY(%s::uuid[])
+        LIMIT 1
+    """, (str(user_id), ancestors), fetchone=True)
+    return row is not None
+
+
+def is_facilitator_for(user_id, location_id, category_id=None):
+    """Check if user is facilitator at exact location+category (no location inheritance).
+
+    If category_id is None, checks for any facilitator role at the location.
+    """
+    if category_id:
+        row = db.execute_query("""
+            SELECT 1 FROM user_role
+            WHERE user_id = %s AND role = 'facilitator'
+            AND location_id = %s AND position_category_id = %s
+            LIMIT 1
+        """, (str(user_id), str(location_id), str(category_id)), fetchone=True)
     else:
-        return None
+        row = db.execute_query("""
+            SELECT 1 FROM user_role
+            WHERE user_id = %s AND role = 'facilitator' AND location_id = %s
+            LIMIT 1
+        """, (str(user_id), str(location_id)), fetchone=True)
+    return row is not None
+
+
+def get_highest_role_at_location(user_id, location_id, category_id=None):
+    """Get user's highest role relevant to a location (+ optional category).
+
+    Checks hierarchical roles (admin, moderator) at location ancestors,
+    then category-scoped roles at exact location.
+    Returns role name string or None.
+    """
+    # Check hierarchical roles (admin > moderator) at ancestors
+    ancestors = get_location_ancestors(location_id)
+    if ancestors:
+        row = db.execute_query("""
+            SELECT role FROM user_role
+            WHERE user_id = %s AND role IN ('admin', 'moderator')
+            AND location_id = ANY(%s::uuid[])
+            ORDER BY CASE role WHEN 'admin' THEN 1 WHEN 'moderator' THEN 2 END
+            LIMIT 1
+        """, (str(user_id), ancestors), fetchone=True)
+        if row:
+            return row["role"]
+
+    # Check category-scoped roles at exact location
+    if category_id:
+        row = db.execute_query("""
+            SELECT role FROM user_role
+            WHERE user_id = %s AND location_id = %s AND position_category_id = %s
+            ORDER BY CASE role
+                WHEN 'facilitator' THEN 1
+                WHEN 'assistant_moderator' THEN 2
+                WHEN 'expert' THEN 3
+                WHEN 'liaison' THEN 4
+            END
+            LIMIT 1
+        """, (str(user_id), str(location_id), str(category_id)), fetchone=True)
+        if row:
+            return row["role"]
+
+    # Check category-scoped roles without specific category
+    row = db.execute_query("""
+        SELECT role FROM user_role
+        WHERE user_id = %s AND location_id = %s
+        AND role IN ('facilitator', 'assistant_moderator', 'expert', 'liaison')
+        ORDER BY CASE role
+            WHEN 'facilitator' THEN 1
+            WHEN 'assistant_moderator' THEN 2
+            WHEN 'expert' THEN 3
+            WHEN 'liaison' THEN 4
+        END
+        LIMIT 1
+    """, (str(user_id), str(location_id)), fetchone=True)
+    if row:
+        return row["role"]
+
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Authorization functions
+# ---------------------------------------------------------------------------
+
+def authorization_site_admin(token_info=None):
+    """Check if the user is a root admin (admin at root location).
+
+    Returns (True, None) or (False, ErrorModel).
+    """
+    if not token_info:
+        return False, ErrorModel(401, "Authentication Required")
+
+    user_id = token_info["sub"]
+    user_type = get_user_type(user_id)
+    if user_type is None:
+        return False, ErrorModel(401, "User not found")
+
+    is_banned, ban_err = _check_ban_status(user_id)
+    if is_banned:
+        return False, ban_err
+
+    if is_root_admin(user_id):
+        return True, None
+    return False, ErrorModel(403, "Unauthorized")
+
+
+def authorization(required_level, token_info=None):
+    """Basic user_type authorization (guest vs normal).
+
+    For scoped role checks, use authorization_scoped() instead.
+    This only checks user_type ('normal' >= 'guest').
+    """
+    if not token_info:
+        return False, ErrorModel(401, "Authentication Required")
+    user_id = token_info['sub']
+    user_type = get_user_type(user_id)
+    if user_type is None:
+        return False, ErrorModel(401, "User not found")
+    if _USER_ROLE_RANKING.get(user_type, 0) < _USER_ROLE_RANKING.get(required_level, 0):
+        return False, ErrorModel(403, "Unauthorized")
+
+    is_banned, ban_err = _check_ban_status(user_id)
+    if is_banned:
+        return False, ban_err
+
+    return True, None
+
+
+def authorization_allow_banned(required_level, token_info=None):
+    """Same as authorization() but skips ban check.
+    Used for endpoints banned users still need: card queue, profile, appeal creation.
+    """
+    if not token_info:
+        return False, ErrorModel(401, "Authentication Required")
+    user_id = token_info['sub']
+    user_type = get_user_type(user_id)
+    if user_type is None:
+        return False, ErrorModel(401, "User not found")
+    if _USER_ROLE_RANKING.get(user_type, 0) >= _USER_ROLE_RANKING.get(required_level, 0):
+        return True, None
+    return False, ErrorModel(403, "Unauthorized")
+
+
+def authorization_scoped(required_role, token_info=None, location_id=None, category_id=None):
+    """Hierarchical, location-scoped authorization check.
+
+    Checks whether the user has `required_role` (or higher) at the given
+    location/category scope. The hierarchy:
+      1. Admin at location (or ancestor)? → pass
+      2. Moderator at location (or ancestor)? → pass if required_role is moderator or below
+      3. Facilitator at location+category? → pass if required_role is facilitator or below
+      4. Exact scoped role match? → pass
+
+    Returns (True, None) or (False, ErrorModel).
+    """
+    if not token_info:
+        return False, ErrorModel(401, "Authentication Required")
+
+    user_id = token_info["sub"]
+    user_type = get_user_type(user_id)
+    if user_type is None:
+        return False, ErrorModel(401, "User not found")
+
+    is_banned, ban_err = _check_ban_status(user_id)
+    if is_banned:
+        return False, ban_err
+
+    # Get the set of roles that satisfy the required_role
+    satisfying_roles = _SCOPED_ROLE_HIERARCHY.get(required_role)
+    if not satisfying_roles:
+        return False, ErrorModel(403, "Unauthorized")
+
+    if location_id:
+        ancestors = get_location_ancestors(location_id)
+
+        # Check hierarchical roles (admin, moderator) at ancestors
+        if ancestors:
+            for role in ("admin", "moderator"):
+                if role in satisfying_roles:
+                    row = db.execute_query("""
+                        SELECT 1 FROM user_role
+                        WHERE user_id = %s AND role = %s AND location_id = ANY(%s::uuid[])
+                        LIMIT 1
+                    """, (str(user_id), role, ancestors), fetchone=True)
+                    if row:
+                        return True, None
+
+        # Check category-scoped roles at exact location
+        non_hierarchical = satisfying_roles - _HIERARCHICAL_ROLES
+        if non_hierarchical:
+            if category_id:
+                row = db.execute_query("""
+                    SELECT 1 FROM user_role
+                    WHERE user_id = %s AND role = ANY(%s)
+                    AND location_id = %s AND position_category_id = %s
+                    LIMIT 1
+                """, (str(user_id), list(non_hierarchical), str(location_id), str(category_id)),
+                    fetchone=True)
+                if row:
+                    return True, None
+
+            # Also check roles without category constraint
+            row = db.execute_query("""
+                SELECT 1 FROM user_role
+                WHERE user_id = %s AND role = ANY(%s)
+                AND location_id = %s AND position_category_id IS NULL
+                LIMIT 1
+            """, (str(user_id), list(non_hierarchical), str(location_id)),
+                fetchone=True)
+            if row:
+                return True, None
+    else:
+        # No location specified — check if user has any satisfying role anywhere
+        row = db.execute_query("""
+            SELECT 1 FROM user_role
+            WHERE user_id = %s AND role = ANY(%s)
+            LIMIT 1
+        """, (str(user_id), list(satisfying_roles)), fetchone=True)
+        if row:
+            return True, None
+
+    return False, ErrorModel(403, "Unauthorized")
+
+
+# ---------------------------------------------------------------------------
+# User model helper
+# ---------------------------------------------------------------------------
 
 def token_to_user(token_info):
     res = db.execute_query("""
@@ -43,6 +469,11 @@ def token_to_user(token_info):
             kudos_count=res.get('kudos_count', 0),
         )
     return None
+
+
+# ---------------------------------------------------------------------------
+# Ban checking (unchanged from original)
+# ---------------------------------------------------------------------------
 
 BAN_CACHE_TTL = 60  # seconds
 
@@ -68,7 +499,6 @@ def _check_ban_status(user_id):
         cached = r.get(f"ban_status:{user_id}")
         if cached == "not_banned":
             return False, None
-        # If cached == "banned" or cache miss, check DB
     except Exception:
         pass  # Redis failure falls through to DB check
 
@@ -77,7 +507,6 @@ def _check_ban_status(user_id):
     """, (user_id,), fetchone=True)
 
     if not user_info or user_info['status'] != 'banned':
-        # Cache non-banned status
         try:
             r = get_redis()
             r.setex(f"ban_status:{user_id}", BAN_CACHE_TTL, "not_banned")
@@ -101,7 +530,6 @@ def _check_ban_status(user_id):
         else:
             end_time = active_ban['action_end_time']
         if end_time < now:
-            # Temp ban expired, restore user
             db.execute_query("UPDATE users SET status = 'active' WHERE id = %s", (user_id,))
             try:
                 r = get_redis()
@@ -111,37 +539,3 @@ def _check_ban_status(user_id):
             return False, None
 
     return True, ErrorModel(403, "Your account has been suspended")
-
-
-def authorization(required_level, token_info=None):
-    if not token_info:
-        return False, ErrorModel(401, "Authentication Required")
-    user_id = token_info['sub']
-    user_type = get_user_type(user_id)
-    if user_type is None:
-        return False, ErrorModel(401, "User not found")
-    if _USER_ROLE_RANKING[user_type] < _USER_ROLE_RANKING[required_level]:
-        return False, ErrorModel(403, "Unauthorized")
-
-    # Check ban status
-    is_banned, ban_err = _check_ban_status(user_id)
-    if is_banned:
-        return False, ban_err
-
-    return True, None
-
-
-def authorization_allow_banned(required_level, token_info=None):
-    """Same as authorization() but skips ban check.
-    Used for endpoints banned users still need: card queue, profile, appeal creation.
-    """
-    if not token_info:
-        return False, ErrorModel(401, "Authentication Required")
-    user_id = token_info['sub']
-    user_type = get_user_type(user_id)
-    if user_type is None:
-        return False, ErrorModel(401, "User not found")
-    if _USER_ROLE_RANKING[user_type] >= _USER_ROLE_RANKING[required_level]:
-        return True, None
-    else:
-        return False, ErrorModel(403, "Unauthorized")

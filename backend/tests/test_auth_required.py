@@ -51,8 +51,8 @@ PROTECTED_ENDPOINTS = [
     ("GET",    "/users/me/locations"),
     ("PUT",    "/users/me/locations"),
 
-    # --- Locations ---
-    ("GET",    "/locations"),
+    # --- Locations (now public, no auth required) ---
+    # ("GET",    "/locations"),
 
     # --- Categories ---
     ("GET",    "/categories"),
@@ -61,32 +61,32 @@ PROTECTED_ENDPOINTS = [
     # --- Positions ---
     ("GET",    f"/positions/{_UUID}"),
     ("POST",   "/positions"),
-    ("POST",   "/positions/respond"),
+    ("POST",   "/positions/response"),
     ("POST",   f"/positions/{_UUID}/adopt"),
     ("POST",   "/positions/search"),
     ("GET",    f"/positions/{_UUID}/agreed-closures"),
-    ("POST",   "/positions/stats-search"),
+    ("POST",   "/positions/search-stats"),
 
     # --- Card queue ---
     ("GET",    "/card-queue"),
 
     # --- Chat requests ---
-    ("POST",   "/chat-requests"),
-    ("GET",    f"/chats/{_UUID}"),
+    ("POST",   "/chats/requests/"),
+    ("GET",    f"/chats/{_UUID}/log"),
     ("GET",    f"/chats/user/{_UUID}"),
     ("POST",   f"/chats/{_UUID}/kudos"),
     ("POST",   f"/chats/{_UUID}/kudos/dismiss"),
     ("GET",    f"/chats/user/{_UUID}/metadata"),
 
     # --- Chat matching ---
-    ("POST",   "/heartbeat"),
+    ("POST",   "/users/me/heartbeat"),
 
     # --- Chatting list ---
-    ("GET",    "/chatting-list/metadata"),
-    ("POST",   "/chatting-list/explanation-seen"),
-    ("POST",   "/chatting-list/bulk-remove"),
-    ("PATCH",  f"/chatting-list/{_UUID}"),
-    ("DELETE", f"/chatting-list/{_UUID}"),
+    ("GET",    "/users/me/chatting-list/metadata"),
+    ("POST",   "/users/me/chatting-list/explanation-seen"),
+    ("POST",   "/users/me/chatting-list/bulk-remove"),
+    ("PATCH",  f"/users/me/chatting-list/{_UUID}"),
+    ("DELETE", f"/users/me/chatting-list/{_UUID}"),
 
     # --- Surveys ---
     ("GET",    "/surveys"),
@@ -98,9 +98,9 @@ PROTECTED_ENDPOINTS = [
     ("GET",    f"/surveys/{_UUID}/questions/{_UUID}/crosstabs"),
 
     # --- Pairwise surveys ---
-    ("GET",    "/pairwise-surveys"),
-    ("POST",   f"/pairwise-surveys/{_UUID}/respond"),
-    ("POST",   "/admin/pairwise-surveys"),
+    ("GET",    "/surveys/pairwise"),
+    ("POST",   f"/pairwise/{_UUID}/respond"),
+    ("POST",   "/admin/surveys/pairwise"),
 
     # --- Stats ---
     ("GET",    f"/stats/{_UUID}/{_UUID}"),
@@ -111,14 +111,29 @@ PROTECTED_ENDPOINTS = [
     ("POST",   f"/positions/{_UUID}/report"),
     ("POST",   f"/chats/{_UUID}/report"),
     ("GET",    "/moderation/queue"),
-    ("POST",   f"/moderation/reports/{_UUID}/action"),
-    ("POST",   f"/moderation/reports/{_UUID}/appeal-response"),
+    ("POST",   f"/moderation/reports/{_UUID}/response"),
+    ("POST",   f"/moderation/appeals/{_UUID}/response"),
     ("GET",    "/rules"),
     ("POST",   f"/moderation/notifications/{_UUID}/dismiss-admin-response"),
 
     # --- Bug reports ---
     ("POST",   "/bug-reports"),
     ("PUT",    "/users/me/diagnostics-consent"),
+
+    # --- Admin role management ---
+    ("GET",    "/admin/roles"),
+    ("POST",   "/admin/roles"),
+    ("POST",   "/admin/roles/remove"),
+    ("GET",    "/admin/roles/pending"),
+    ("POST",   f"/admin/roles/requests/{_UUID}/approve"),
+    ("POST",   f"/admin/roles/requests/{_UUID}/deny"),
+
+    # --- Admin location management ---
+    ("POST",   "/admin/locations"),
+    ("PUT",    f"/admin/locations/{_UUID}"),
+    ("DELETE", f"/admin/locations/{_UUID}"),
+    ("POST",   f"/admin/locations/{_UUID}/categories"),
+    ("DELETE", f"/admin/locations/{_UUID}/categories/{_UUID}"),
 ]
 
 

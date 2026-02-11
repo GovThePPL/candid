@@ -20,7 +20,7 @@ CREATE TABLE users (
     avatar_url TEXT,
     avatar_icon_url TEXT,
     trust_score DECIMAL(5,5),
-    user_type VARCHAR(50) NOT NULL DEFAULT 'normal' CHECK (user_type IN ('normal', 'moderator', 'admin', 'guest')),
+    user_type VARCHAR(50) NOT NULL DEFAULT 'normal' CHECK (user_type IN ('normal', 'guest')),
     status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'deleted', 'banned')),
     chat_request_likelihood INTEGER NOT NULL DEFAULT 3 CHECK (chat_request_likelihood BETWEEN 0 AND 5),
     chatting_list_likelihood INTEGER NOT NULL DEFAULT 3 CHECK (chatting_list_likelihood BETWEEN 0 AND 5),
@@ -444,6 +444,69 @@ CREATE TABLE bug_report (
     created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
+-- User roles (location-scoped, hierarchical)
+-- Admin + Moderator: location-scoped, inherit DOWN the location tree
+-- Facilitator + below: location + category scoped, NO location inheritance
+CREATE TABLE user_role (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role VARCHAR(50) NOT NULL CHECK (role IN (
+        'admin','moderator','facilitator','assistant_moderator','liaison','expert'
+    )),
+    location_id UUID REFERENCES location(id) ON DELETE CASCADE,
+    position_category_id UUID REFERENCES position_category(id) ON DELETE CASCADE,
+    assigned_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_role_scope CHECK (
+        CASE
+            -- Hierarchical roles: location required, no category
+            WHEN role IN ('admin','moderator') THEN
+                location_id IS NOT NULL AND position_category_id IS NULL
+            -- Category-scoped roles: location required, category optional
+            WHEN role IN ('facilitator','assistant_moderator','expert','liaison') THEN
+                location_id IS NOT NULL
+        END
+    )
+);
+
+-- Unique indexes handling NULLs for category
+CREATE UNIQUE INDEX idx_ur_with_cat ON user_role(user_id, role, location_id, position_category_id)
+    WHERE position_category_id IS NOT NULL;
+CREATE UNIQUE INDEX idx_ur_no_cat ON user_role(user_id, role, location_id)
+    WHERE position_category_id IS NULL;
+
+-- Location-category assignments (which categories are available at which locations)
+CREATE TABLE location_category (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    location_id UUID NOT NULL REFERENCES location(id) ON DELETE CASCADE,
+    position_category_id UUID NOT NULL REFERENCES position_category(id) ON DELETE CASCADE,
+    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(location_id, position_category_id)
+);
+
+-- Role change requests (approval workflow for role assignments and removals)
+CREATE TABLE role_change_request (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    action VARCHAR(20) NOT NULL CHECK (action IN ('assign','remove')),
+    target_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role VARCHAR(50) NOT NULL CHECK (role IN (
+        'admin','moderator','facilitator','assistant_moderator','liaison','expert'
+    )),
+    location_id UUID REFERENCES location(id) ON DELETE CASCADE,
+    position_category_id UUID REFERENCES position_category(id) ON DELETE CASCADE,
+    user_role_id UUID REFERENCES user_role(id) ON DELETE CASCADE,  -- for removals
+    requested_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    requester_authority_location_id UUID NOT NULL REFERENCES location(id) ON DELETE CASCADE,
+    request_reason TEXT,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending','approved','denied','auto_approved')),
+    reviewed_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    denial_reason TEXT,
+    auto_approve_at TIMESTAMPTZ NOT NULL,
+    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Create indexes for performance
 CREATE INDEX idx_users_username ON users(username);
 CREATE INDEX idx_users_email ON users(email);
@@ -490,3 +553,13 @@ CREATE INDEX idx_polis_sync_queue_status ON polis_sync_queue(status, next_retry_
 CREATE INDEX idx_polis_sync_queue_created ON polis_sync_queue(created_time);
 CREATE INDEX idx_bug_report_user_id ON bug_report(user_id);
 CREATE INDEX idx_bug_report_created_time ON bug_report(created_time DESC);
+CREATE INDEX idx_user_role_user_id ON user_role(user_id);
+CREATE INDEX idx_user_role_location ON user_role(location_id);
+CREATE INDEX idx_user_role_role ON user_role(role);
+CREATE INDEX idx_user_role_category ON user_role(position_category_id) WHERE position_category_id IS NOT NULL;
+CREATE INDEX idx_location_category_location ON location_category(location_id);
+CREATE INDEX idx_location_category_category ON location_category(position_category_id);
+CREATE INDEX idx_role_change_request_target ON role_change_request(target_user_id);
+CREATE INDEX idx_role_change_request_status ON role_change_request(status) WHERE status = 'pending';
+CREATE INDEX idx_role_change_request_requested_by ON role_change_request(requested_by);
+CREATE INDEX idx_role_change_request_auto_approve ON role_change_request(auto_approve_at) WHERE status = 'pending';
