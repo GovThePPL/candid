@@ -50,7 +50,7 @@ export default function PositionClosures() {
       setData(result)
     } catch (err) {
       console.error('Error fetching closures:', err)
-      setError(err.message || t('failedLoadClosures'))
+      setError(err.message || t('failedLoadAgreements'))
     } finally {
       setLoading(false)
     }
@@ -82,7 +82,7 @@ export default function PositionClosures() {
       return (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <ThemedText variant="bodySmall" color="secondary" style={styles.loadingText}>{t('loadingClosures')}</ThemedText>
+          <ThemedText variant="bodySmall" color="secondary" style={styles.loadingText}>{t('loadingAgreements')}</ThemedText>
         </View>
       )
     }
@@ -117,7 +117,7 @@ export default function PositionClosures() {
         {/* Closures count */}
         <View style={styles.countRow}>
           <ThemedText variant="buttonSmall" style={styles.countText}>
-            {t('agreedClosureCount', { count: closures.length })}
+            {t('agreementCount', { count: closures.length })}
           </ThemedText>
           {closures.length > 0 && (
             <ThemedText variant="caption" color="secondary">{t('sortedByValue')}</ThemedText>
@@ -137,9 +137,9 @@ export default function PositionClosures() {
         ) : (
           <View style={styles.emptyContainer}>
             <Ionicons name="chatbubbles-outline" size={48} color={colors.secondaryText} />
-            <ThemedText variant="h3" style={styles.emptyTitle}>{t('noAgreedClosuresYet')}</ThemedText>
+            <ThemedText variant="h3" style={styles.emptyTitle}>{t('noAgreementsYet')}</ThemedText>
             <ThemedText variant="bodySmall" color="secondary" style={styles.emptyText}>
-              {t('noAgreedClosuresDesc')}
+              {t('noAgreementsDesc')}
             </ThemedText>
           </View>
         )}
@@ -164,8 +164,8 @@ export default function PositionClosures() {
         }
       >
         <View style={styles.pageHeader}>
-          <ThemedText variant="h1" color="primary">{t('agreedClosuresTitle')}</ThemedText>
-          <ThemedText variant="bodySmall" color="secondary" style={styles.subtitle}>{t('agreedClosuresSubtitle')}</ThemedText>
+          <ThemedText variant="h1" color="primary">{t('agreementsTitle')}</ThemedText>
+          <ThemedText variant="bodySmall" color="secondary" style={styles.subtitle}>{t('agreementsSubtitle')}</ThemedText>
         </View>
 
         {renderContent()}

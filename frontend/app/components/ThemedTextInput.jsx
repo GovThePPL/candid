@@ -14,7 +14,7 @@ const ThemedTextInput = forwardRef(function ThemedTextInput({ style, maxFontSize
           backgroundColor: colors.uiBackground,
           color: colors.text,
           padding: 20,
-          borderRadius: 6,
+          borderRadius: 12,
         },
         style
       ]}

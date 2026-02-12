@@ -13,6 +13,7 @@ import EmptyState from '../../../components/EmptyState'
 import Avatar from '../../../components/Avatar'
 import ModerationHistoryModal from '../../../components/ModerationHistoryModal'
 import BottomDrawerModal from '../../../components/BottomDrawerModal'
+import LocationPicker from '../../../components/LocationPicker'
 import { useToast } from '../../../components/Toast'
 import { ROLE_LABEL_KEYS, getAssignableRoles, getAssignableLocations, getAssignableCategories } from '../../../lib/roles'
 import { useUser } from '../../../hooks/useUser'
@@ -45,6 +46,11 @@ export default function UsersScreen() {
   const [assignSubmitting, setAssignSubmitting] = useState(false)
   const [locations, setLocations] = useState([])
   const [categories, setCategories] = useState([])
+
+  // Picker modals for assign role
+  const [rolePickerVisible, setRolePickerVisible] = useState(false)
+  const [locationPickerVisible, setLocationPickerVisible] = useState(false)
+  const [categoryPickerVisible, setCategoryPickerVisible] = useState(false)
 
   // Ban/unban modal
   const [banModalVisible, setBanModalVisible] = useState(false)
@@ -95,6 +101,13 @@ export default function UsersScreen() {
     if (assignableCategoryIds === null) return categories
     return categories.filter(c => assignableCategoryIds.has(c.id))
   }, [categories, assignableCategoryIds])
+
+  const allowableLocationsForPicker = useMemo(() => {
+    if (!assignableLocations.length) return []
+    const allowedIds = new Set(assignableLocations.map(l => l.id))
+    return assignableLocations.map(l =>
+      allowedIds.has(l.parentLocationId) ? l : { ...l, parentLocationId: null })
+  }, [assignableLocations])
 
   useEffect(() => { setSelectedLocation(null); setSelectedCategory(null) }, [selectedRole])
   useEffect(() => { setSelectedCategory(null) }, [selectedLocation])
@@ -311,57 +324,52 @@ export default function UsersScreen() {
       >
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.modalContent}>
           <ThemedText variant="label" color="secondary" style={styles.fieldLabel}>{t('selectRole')}</ThemedText>
-          <View style={styles.chipRow}>
-            {assignableRoles.map(r => (
-              <TouchableOpacity
-                key={r}
-                style={[styles.optionChip, selectedRole === r && styles.optionChipActive]}
-                onPress={() => setSelectedRole(r)}
-                accessibilityRole="radio"
-                accessibilityState={{ checked: selectedRole === r }}
-              >
-                <ThemedText variant="caption" style={selectedRole === r ? styles.optionChipTextActive : styles.optionChipText}>
-                  {t(ROLE_LABEL_KEYS[r])}
-                </ThemedText>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <TouchableOpacity
+            style={styles.pickerButton}
+            onPress={() => setRolePickerVisible(true)}
+            accessibilityRole="button"
+            accessibilityLabel={t('selectRole')}
+          >
+            <Ionicons name="shield-outline" size={16} color={colors.secondaryText} />
+            <ThemedText variant="body" color="dark" style={styles.pickerButtonText}>
+              {selectedRole ? t(ROLE_LABEL_KEYS[selectedRole]) : t('selectRole')}
+            </ThemedText>
+            <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
+          </TouchableOpacity>
 
           <ThemedText variant="label" color="secondary" style={styles.fieldLabel}>{t('selectLocation')}</ThemedText>
-          <View style={styles.chipRow}>
-            {assignableLocations.map(l => (
-              <TouchableOpacity
-                key={l.id}
-                style={[styles.optionChip, selectedLocation === l.id && styles.optionChipActive]}
-                onPress={() => setSelectedLocation(l.id)}
-                accessibilityRole="radio"
-                accessibilityState={{ checked: selectedLocation === l.id }}
-              >
-                <ThemedText variant="caption" style={selectedLocation === l.id ? styles.optionChipTextActive : styles.optionChipText}>
-                  {l.name}
-                </ThemedText>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <TouchableOpacity
+            style={styles.pickerButton}
+            onPress={() => setLocationPickerVisible(true)}
+            accessibilityRole="button"
+            accessibilityLabel={t('selectLocation')}
+          >
+            <Ionicons name="location-outline" size={16} color={colors.secondaryText} />
+            <ThemedText variant="body" color="dark" style={styles.pickerButtonText}>
+              {selectedLocation
+                ? locations.find(l => l.id === selectedLocation)?.name || t('selectLocation')
+                : t('selectLocation')}
+            </ThemedText>
+            <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
+          </TouchableOpacity>
 
           {selectedRole && CATEGORY_REQUIRED_ROLES.has(selectedRole) && (
             <>
               <ThemedText variant="label" color="secondary" style={styles.fieldLabel}>{t('selectCategory')}</ThemedText>
-              <View style={styles.chipRow}>
-                {assignableCategories.map(c => (
-                  <TouchableOpacity
-                    key={c.id}
-                    style={[styles.optionChip, selectedCategory === c.id && styles.optionChipActive]}
-                    onPress={() => setSelectedCategory(c.id)}
-                    accessibilityRole="radio"
-                    accessibilityState={{ checked: selectedCategory === c.id }}
-                  >
-                    <ThemedText variant="caption" style={selectedCategory === c.id ? styles.optionChipTextActive : styles.optionChipText}>
-                      {c.label}
-                    </ThemedText>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <TouchableOpacity
+                style={styles.pickerButton}
+                onPress={() => setCategoryPickerVisible(true)}
+                accessibilityRole="button"
+                accessibilityLabel={t('selectCategory')}
+              >
+                <Ionicons name="pricetag-outline" size={16} color={colors.secondaryText} />
+                <ThemedText variant="body" color="dark" style={styles.pickerButtonText}>
+                  {selectedCategory
+                    ? assignableCategories.find(c => c.id === selectedCategory)?.label || t('selectCategory')
+                    : t('selectCategory')}
+                </ThemedText>
+                <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
+              </TouchableOpacity>
             </>
           )}
 
@@ -387,6 +395,71 @@ export default function UsersScreen() {
               <ThemedText variant="button" color="inverse">{t('submit')}</ThemedText>
             )}
           </TouchableOpacity>
+        </ScrollView>
+      </BottomDrawerModal>
+
+      {/* Role Picker Modal */}
+      <BottomDrawerModal
+        visible={rolePickerVisible}
+        onClose={() => setRolePickerVisible(false)}
+        title={t('selectRole')}
+      >
+        <ScrollView contentContainerStyle={styles.categoryList}>
+          {assignableRoles.map(r => {
+            const selected = selectedRole === r
+            return (
+              <TouchableOpacity
+                key={r}
+                style={[styles.categoryRow, selected && styles.categoryRowSelected]}
+                onPress={() => { setSelectedRole(r); setRolePickerVisible(false) }}
+                accessibilityRole="button"
+                accessibilityLabel={t(ROLE_LABEL_KEYS[r])}
+                accessibilityState={{ selected }}
+              >
+                <ThemedText variant="body" color={selected ? 'primary' : 'dark'}>
+                  {t(ROLE_LABEL_KEYS[r])}
+                </ThemedText>
+                {selected && <Ionicons name="checkmark" size={20} color={colors.primary} />}
+              </TouchableOpacity>
+            )
+          })}
+        </ScrollView>
+      </BottomDrawerModal>
+
+      {/* Location Picker Modal */}
+      <LocationPicker
+        visible={locationPickerVisible}
+        onClose={() => setLocationPickerVisible(false)}
+        allLocations={allowableLocationsForPicker}
+        currentLocationId={selectedLocation}
+        onSelect={(id) => { setSelectedLocation(id); setLocationPickerVisible(false) }}
+      />
+
+      {/* Category Picker Modal */}
+      <BottomDrawerModal
+        visible={categoryPickerVisible}
+        onClose={() => setCategoryPickerVisible(false)}
+        title={t('selectCategory')}
+      >
+        <ScrollView contentContainerStyle={styles.categoryList}>
+          {assignableCategories.map(c => {
+            const selected = selectedCategory === c.id
+            return (
+              <TouchableOpacity
+                key={c.id}
+                style={[styles.categoryRow, selected && styles.categoryRowSelected]}
+                onPress={() => { setSelectedCategory(c.id); setCategoryPickerVisible(false) }}
+                accessibilityRole="button"
+                accessibilityLabel={c.label}
+                accessibilityState={{ selected }}
+              >
+                <ThemedText variant="body" color={selected ? 'primary' : 'dark'}>
+                  {c.label}
+                </ThemedText>
+                {selected && <Ionicons name="checkmark" size={20} color={colors.primary} />}
+              </TouchableOpacity>
+            )
+          })}
         </ScrollView>
       </BottomDrawerModal>
 
@@ -452,7 +525,7 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.cardBackground,
     borderWidth: 1,
     borderColor: colors.cardBorder,
-    borderRadius: 10,
+    borderRadius: 30,
     paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 14,
@@ -518,7 +591,7 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 4,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: 25,
     backgroundColor: SemanticColors.warning,
     flex: 1,
     justifyContent: 'center',
@@ -529,7 +602,7 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 4,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: 25,
     backgroundColor: SemanticColors.success,
     flex: 1,
     justifyContent: 'center',
@@ -554,32 +627,41 @@ const createStyles = (colors) => StyleSheet.create({
     letterSpacing: 0.5,
     marginTop: 4,
   },
-  chipRow: {
+  pickerButton: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'center',
     gap: 8,
+    backgroundColor: colors.cardBackground,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
-  optionChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
-    backgroundColor: colors.buttonDefault,
+  pickerButtonText: {
+    flex: 1,
   },
-  optionChipActive: {
-    backgroundColor: colors.buttonSelected,
+  categoryList: {
+    padding: 16,
+    paddingBottom: 40,
   },
-  optionChipText: {
-    color: colors.buttonDefaultText,
+  categoryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.cardBorder,
   },
-  optionChipTextActive: {
-    color: colors.buttonSelectedText,
-    fontWeight: '600',
+  categoryRowSelected: {
+    backgroundColor: colors.primaryLight + '20',
   },
   reasonInput: {
     backgroundColor: colors.cardBackground,
     borderWidth: 1,
     borderColor: colors.cardBorder,
-    borderRadius: 10,
+    borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 14,
@@ -590,7 +672,7 @@ const createStyles = (colors) => StyleSheet.create({
   submitButton: {
     backgroundColor: colors.primarySurface,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 25,
     alignItems: 'center',
     marginTop: 8,
   },

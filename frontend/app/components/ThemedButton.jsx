@@ -41,7 +41,7 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.primarySurface,
     paddingVertical: 16,
     paddingHorizontal: 18,
-    borderRadius: 12,
+    borderRadius: 25,
     alignItems: 'center',
     justifyContent: 'center',
   },

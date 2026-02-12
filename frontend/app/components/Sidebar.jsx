@@ -179,7 +179,7 @@ const createStyles = (colors) => StyleSheet.create({
     marginVertical: 6,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 8,
+    borderRadius: 25,
   },
   menuText: {
     fontWeight: '500',
@@ -216,7 +216,7 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 12,
     borderWidth: 1,
     borderColor: SemanticColors.warning,
-    borderRadius: 8,
+    borderRadius: 25,
   },
   logoutText: {
     fontWeight: '500',

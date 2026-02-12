@@ -209,14 +209,14 @@ export default function PositionCard({ position, groups = [], activeGroup, userV
         </View>
       </View>
 
-      {/* View Closures button - only show when closures exist */}
+      {/* View Agreements button - only show when agreements exist */}
       {onViewClosures && position.closureCount > 0 && (
         <TouchableOpacity
-          style={styles.viewClosuresButton}
+          style={styles.viewAgreementsButton}
           onPress={() => onViewClosures(position.id)}
         >
           <Ionicons name="chatbubbles-outline" size={14} color="#FFFFFF" />
-          <ThemedText variant="badgeLg" color="inverse" style={styles.viewClosuresText}>{t('viewClosures')}</ThemedText>
+          <ThemedText variant="badgeLg" color="inverse" style={styles.viewAgreementsText}>{t('viewAgreements')}</ThemedText>
           <Ionicons name="chevron-forward" size={14} color="#FFFFFF" />
         </TouchableOpacity>
       )}
@@ -368,17 +368,17 @@ const createStyles = (colors) => StyleSheet.create({
   legendLabel: {
     color: 'rgba(255, 255, 255, 0.8)',
   },
-  viewClosuresButton: {
+  viewAgreementsButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 8,
+    borderRadius: 25,
     paddingVertical: 8,
     paddingHorizontal: 12,
     marginTop: 12,
     gap: 6,
   },
-  viewClosuresText: {
+  viewAgreementsText: {
   },
 })

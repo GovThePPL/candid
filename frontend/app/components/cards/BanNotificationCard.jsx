@@ -429,7 +429,7 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.primarySurface,
     paddingHorizontal: 18,
     paddingVertical: 8,
-    borderRadius: 20,
+    borderRadius: 25,
   },
   appealSubmittedBadge: {
     flexDirection: 'row',
@@ -449,7 +449,7 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: BrandColor + '18',
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 20,
+    borderRadius: 25,
     borderWidth: 1,
     borderColor: BrandColor + '40',
   },

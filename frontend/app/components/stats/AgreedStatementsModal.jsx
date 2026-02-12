@@ -156,7 +156,7 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.primarySurface,
     paddingHorizontal: 20,
     paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: 25,
   },
   scrollView: {
     flex: 1,
@@ -195,7 +195,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   doneButton: {
     backgroundColor: colors.primarySurface,
-    borderRadius: 8,
+    borderRadius: 25,
     paddingVertical: 14,
     alignItems: 'center',
     marginTop: 16,

@@ -374,21 +374,7 @@ def get_card_queue(limit=None, token_info=None):  # noqa: E501
         if random.random() < 0.25:
             pairwise_cards = _get_pending_pairwise(user.id, limit=1)
             shuffled_cards.extend(pairwise_cards)
-    else:
-        # No positions available: guarantee demographics, surveys, and pairwise appear
-        # Get more of them to fill the queue
-        fill_limit = max(3, limit - len(priority_cards))
-
-        demographics = _get_unanswered_demographics(user.id, limit=fill_limit)
-        for field in demographics:
-            shuffled_cards.append(_demographic_to_card(field))
-
-        surveys = _get_pending_surveys(user.id, limit=fill_limit)
-        for survey in surveys:
-            shuffled_cards.append(_survey_to_card(survey))
-
-        pairwise_cards = _get_pending_pairwise(user.id, limit=fill_limit)
-        shuffled_cards.extend(pairwise_cards)
+    # When no positions: shuffled_cards stays empty, only priority + chatting list cards remain
 
     # Add position cards and chatting list cards to shuffled pool
     shuffled_cards.extend(position_cards)

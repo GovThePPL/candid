@@ -573,6 +573,20 @@ export default function Create() {
           </View>
 
           <View style={styles.form}>
+            <LocationCategorySelector
+              selectedLocation={selectedLocation}
+              selectedCategory={selectedCategory}
+              onLocationChange={setSelectedLocation}
+              onCategoryChange={(id) => {
+                setSelectedCategory(id)
+                setCategoryAutoSelected(false)
+              }}
+              showLabels
+              defaultLocation="last"
+              categoryAutoSelected={categoryAutoSelected}
+              style={{ paddingHorizontal: 0, marginBottom: 12 }}
+            />
+
             <View style={styles.inputGroupCompact}>
               <ThemedTextInput
                 style={styles.statementInput}
@@ -639,20 +653,6 @@ export default function Create() {
                 </Animated.View>
               )}
             </View>
-
-            <LocationCategorySelector
-              selectedLocation={selectedLocation}
-              selectedCategory={selectedCategory}
-              onLocationChange={setSelectedLocation}
-              onCategoryChange={(id) => {
-                setSelectedCategory(id)
-                setCategoryAutoSelected(false)
-              }}
-              showLabels
-              defaultLocation="last"
-              categoryAutoSelected={categoryAutoSelected}
-              style={{ paddingHorizontal: 0, marginBottom: 12 }}
-            />
 
             {error && (
               <View style={styles.errorContainerCompact}>
@@ -905,7 +905,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   statementInput: {
     padding: 12,
-    borderRadius: 10,
+    borderRadius: 12,
     minHeight: 70,
     textAlignVertical: 'top',
     ...Typography.body,
@@ -1017,7 +1017,7 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.cardBackground,
     borderWidth: 1,
     borderColor: colors.primary,
-    borderRadius: 12,
+    borderRadius: 25,
     padding: 12,
     marginBottom: 16,
     gap: 8,
@@ -1030,7 +1030,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   chattingSearchInput: {
     padding: 14,
-    borderRadius: 12,
+    borderRadius: 30,
     ...Typography.button,
     fontWeight: undefined,
     backgroundColor: colors.cardBackground,
@@ -1108,7 +1108,7 @@ const createStyles = (colors) => StyleSheet.create({
   floatingDeleteCancelButton: {
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 20,
+    borderRadius: 25,
     backgroundColor: colors.cardBackground,
     borderWidth: 1,
     borderColor: colors.cardBorder,
@@ -1122,7 +1122,7 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: SemanticColors.warning,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 20,
+    borderRadius: 25,
     gap: 6,
   },
   // Community Rules

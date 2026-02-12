@@ -423,7 +423,7 @@ const createStyles = (colors) => StyleSheet.create({
   acceptButton: {
     backgroundColor: colors.primarySurface,
     paddingVertical: 14,
-    borderRadius: 8,
+    borderRadius: 25,
     alignItems: 'center',
   },
   acceptButtonDisabled: {

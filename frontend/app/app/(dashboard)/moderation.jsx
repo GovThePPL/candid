@@ -1029,7 +1029,7 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.primarySurface,
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 25,
   },
   retryButtonText: {
   },
@@ -1200,7 +1200,7 @@ const createStyles = (colors) => StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 10,
     paddingHorizontal: 14,
-    borderRadius: 12,
+    borderRadius: 25,
     backgroundColor: colors.primarySurface,
     borderWidth: 1,
     borderColor: colors.primary,
@@ -1270,7 +1270,7 @@ const createStyles = (colors) => StyleSheet.create({
   responseSubmitButton: {
     backgroundColor: colors.primarySurface,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 25,
     alignItems: 'center',
   },
   responseSubmitApprove: {

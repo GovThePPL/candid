@@ -406,7 +406,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   textInput: {
     backgroundColor: colors.background,
-    borderRadius: 8,
+    borderRadius: 30,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
@@ -424,7 +424,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   editButton: {
     padding: 8,
-    borderRadius: 12,
+    borderRadius: 25,
     backgroundColor: colors.background,
     borderWidth: 1,
     borderColor: colors.cardBorder,
@@ -436,7 +436,7 @@ const createStyles = (colors) => StyleSheet.create({
   cancelButton: {
     flex: 1,
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: 25,
     borderWidth: 1,
     borderColor: colors.cardBorder,
     alignItems: 'center',
@@ -447,7 +447,7 @@ const createStyles = (colors) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.primarySurface,
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: 25,
     alignItems: 'center',
   },
   // saveButtonText removed - handled by ThemedText variant="button" color="inverse"
@@ -531,7 +531,7 @@ const createStyles = (colors) => StyleSheet.create({
   modalCancelButton: {
     flex: 1,
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: 25,
     borderWidth: 1,
     borderColor: colors.cardBorder,
     alignItems: 'center',
@@ -540,7 +540,7 @@ const createStyles = (colors) => StyleSheet.create({
   modalDeleteButton: {
     flex: 1,
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: 25,
     backgroundColor: SemanticColors.warning,
     alignItems: 'center',
   },

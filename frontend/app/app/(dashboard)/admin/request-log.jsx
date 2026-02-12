@@ -499,7 +499,7 @@ const createStyles = (colors) => StyleSheet.create({
   tab: {
     flex: 1,
     paddingVertical: 10,
-    borderRadius: 16,
+    borderRadius: 8,
     backgroundColor: colors.buttonDefault,
     alignItems: 'center',
   },
@@ -510,7 +510,7 @@ const createStyles = (colors) => StyleSheet.create({
     color: colors.buttonDefaultText,
   },
   tabTextActive: {
-    color: '#FFFFFF',
+    color: colors.buttonSelectedText,
     fontWeight: '700',
   },
   center: {
@@ -606,7 +606,7 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.primarySurface,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 12,
+    borderRadius: 25,
     flex: 1,
     justifyContent: 'center',
   },
@@ -619,7 +619,7 @@ const createStyles = (colors) => StyleSheet.create({
     borderColor: SemanticColors.warning,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 12,
+    borderRadius: 25,
     flex: 1,
     justifyContent: 'center',
   },
@@ -630,7 +630,7 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.buttonDefault,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 12,
+    borderRadius: 25,
     flex: 1,
     justifyContent: 'center',
   },
@@ -642,7 +642,7 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.cardBackground,
     borderWidth: 1,
     borderColor: colors.cardBorder,
-    borderRadius: 10,
+    borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: Typography.bodySmall.fontSize,
@@ -653,7 +653,7 @@ const createStyles = (colors) => StyleSheet.create({
   denySubmitButton: {
     backgroundColor: colors.primarySurface,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 25,
     alignItems: 'center',
   },
 })

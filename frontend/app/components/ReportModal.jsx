@@ -221,7 +221,7 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.cardBackground,
     borderWidth: 1,
     borderColor: colors.cardBorder,
-    borderRadius: 10,
+    borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
     color: colors.text,
@@ -233,7 +233,7 @@ const createStyles = (colors) => StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: SemanticColors.warning,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 25,
     gap: 8,
   },
   submitButtonDisabled: {

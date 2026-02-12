@@ -813,7 +813,7 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.primarySurface,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: 25,
   },
   center: {
     flex: 1,
@@ -881,7 +881,7 @@ const createStyles = (colors) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.primary,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: 25,
   },
   deleteButton: {
     flex: 1,
@@ -891,7 +891,7 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 4,
     backgroundColor: SemanticColors.warning,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: 25,
   },
 
   // Modal
@@ -937,7 +937,7 @@ const createStyles = (colors) => StyleSheet.create({
   chip: {
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 16,
+    borderRadius: 8,
     backgroundColor: colors.buttonDefault,
   },
   chipActive: {
@@ -947,7 +947,7 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.cardBackground,
     borderWidth: 1,
     borderColor: colors.cardBorder,
-    borderRadius: 10,
+    borderRadius: 30,
     paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 14,
@@ -989,7 +989,7 @@ const createStyles = (colors) => StyleSheet.create({
   submitButton: {
     backgroundColor: colors.primarySurface,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 25,
     alignItems: 'center',
     marginTop: 8,
   },

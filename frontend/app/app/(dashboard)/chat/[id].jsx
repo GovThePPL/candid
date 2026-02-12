@@ -2134,7 +2134,7 @@ const createStyles = (colors) => StyleSheet.create({
   kudosDismissButton: {
     paddingVertical: 10,
     paddingHorizontal: 20,
-    borderRadius: 20,
+    borderRadius: 25,
     backgroundColor: colors.background,
   },
   kudosDismissText: {
@@ -2146,7 +2146,7 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 10,
     paddingHorizontal: 20,
-    borderRadius: 20,
+    borderRadius: 25,
     backgroundColor: '#FFD700',
   },
   kudosSendText: {

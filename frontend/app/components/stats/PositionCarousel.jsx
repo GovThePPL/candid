@@ -211,7 +211,7 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.cardBackground,
-    borderRadius: 12,
+    borderRadius: 30,
     borderWidth: 1,
     borderColor: colors.cardBorder,
     paddingHorizontal: 12,

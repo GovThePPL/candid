@@ -157,7 +157,7 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: BrandColor + '18',
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: 25,
     gap: 4,
   },
   actionButtonText: {
@@ -181,7 +181,7 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 8,
+    borderRadius: 25,
     paddingVertical: 8,
     paddingHorizontal: 12,
     marginTop: 12,

@@ -246,7 +246,7 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 12,
   },
   input: {
-    borderRadius: 12,
+    borderRadius: 30,
     borderWidth: 1,
     borderColor: colors.cardBorder,
     ...Typography.button,

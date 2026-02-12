@@ -521,7 +521,7 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.cardBackground,
-    borderRadius: 12,
+    borderRadius: 30,
     borderWidth: 1,
     borderColor: colors.cardBorder,
     paddingHorizontal: 12,
@@ -547,7 +547,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   modeButton: {
     padding: 10,
-    borderRadius: 12,
+    borderRadius: 25,
     borderWidth: 1,
     borderColor: colors.cardBorder,
     backgroundColor: colors.cardBackground,
@@ -555,7 +555,7 @@ const createStyles = (colors) => StyleSheet.create({
   doneButton: {
     width: 84, // matches two modeButtons (38px each) + 8px gap
     paddingVertical: 10,
-    borderRadius: 12,
+    borderRadius: 25,
     borderWidth: 1,
     borderColor: colors.cardBorder,
     backgroundColor: colors.cardBackground,

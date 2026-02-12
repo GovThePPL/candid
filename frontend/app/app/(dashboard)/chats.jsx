@@ -505,7 +505,7 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: 'rgba(255, 248, 220, 0.25)',
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 20,
+    borderRadius: 25,
     width: 130,
     justifyContent: 'center',
   },

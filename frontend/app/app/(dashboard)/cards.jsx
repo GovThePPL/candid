@@ -1240,7 +1240,7 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.primarySurface,
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 25,
   },
   emptyTitle: {
     fontWeight: '600',

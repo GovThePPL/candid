@@ -47,7 +47,7 @@ describe('PositionCard', () => {
         onViewClosures={onViewClosures}
       />
     )
-    const button = screen.getByText('viewClosures')
+    const button = screen.getByText('viewAgreements')
     fireEvent.press(button)
     expect(onViewClosures).toHaveBeenCalledWith('pos-1')
   })

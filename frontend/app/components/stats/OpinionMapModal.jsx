@@ -454,7 +454,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   doneButton: {
     backgroundColor: colors.primarySurface,
-    borderRadius: 8,
+    borderRadius: 25,
     paddingVertical: 12,
     alignItems: 'center',
   },

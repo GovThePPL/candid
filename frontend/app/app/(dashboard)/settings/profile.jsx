@@ -546,7 +546,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   textInput: {
     backgroundColor: colors.background,
-    borderRadius: 8,
+    borderRadius: 30,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
@@ -560,7 +560,7 @@ const createStyles = (colors) => StyleSheet.create({
   saveProfileButton: {
     backgroundColor: colors.primarySurface,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 25,
     alignItems: 'center',
     marginBottom: 16,
   },
@@ -588,7 +588,7 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.primarySurface,
     paddingVertical: 12,
     paddingHorizontal: 24,
-    borderRadius: 8,
+    borderRadius: 25,
     marginHorizontal: 16,
     marginTop: 8,
     gap: 8,
@@ -601,7 +601,7 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: 'transparent',
     paddingVertical: 12,
     paddingHorizontal: 24,
-    borderRadius: 8,
+    borderRadius: 25,
     marginHorizontal: 16,
     marginTop: 12,
     gap: 8,
@@ -637,7 +637,7 @@ const createStyles = (colors) => StyleSheet.create({
   previewCancelButton: {
     flex: 1,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 25,
     borderWidth: 1,
     borderColor: colors.cardBorder,
     alignItems: 'center',
@@ -646,7 +646,7 @@ const createStyles = (colors) => StyleSheet.create({
   previewAcceptButton: {
     flex: 1,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 25,
     backgroundColor: colors.primarySurface,
     alignItems: 'center',
   },
