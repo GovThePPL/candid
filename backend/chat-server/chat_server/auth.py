@@ -53,7 +53,7 @@ def decode_token(token: str) -> Optional[TokenPayload]:
             token,
             signing_key.key,
             algorithms=["RS256"],
-            options={"verify_aud": False},
+            audience="users",
         )
 
         return TokenPayload(

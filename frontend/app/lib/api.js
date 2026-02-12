@@ -457,9 +457,9 @@ export const chatApiWrapper = {
   async getActiveChat(userId) {
     // Get user's chats and find any that are still active (no endTime)
     const chats = await this.getUserChats(userId, { limit: 10 })
-    console.log('[api.getActiveChat] Chats:', chats.map(c => ({ id: c.id, endTime: c.endTime })))
+    console.debug('[api.getActiveChat] Chats:', chats.map(c => ({ id: c.id, endTime: c.endTime })))
     const activeChat = chats.find(chat => !chat.endTime) || null
-    console.log('[api.getActiveChat] Active chat:', activeChat?.id || 'none')
+    console.debug('[api.getActiveChat] Active chat:', activeChat?.id || 'none')
     return activeChat
   },
 

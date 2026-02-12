@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from candid.models.user import User
 from candid.models.error_model import ErrorModel
 from candid.controllers import config, db
+from candid.controllers.helpers.constants import HIERARCHICAL_ROLES
 from candid.controllers.helpers.redis_pool import get_redis
 
 logger = logging.getLogger(__name__)
@@ -38,8 +39,7 @@ _SCOPED_ROLE_HIERARCHY = {
     "expert": {"admin", "moderator", "facilitator", "expert"},
 }
 
-# Roles that inherit DOWN the location tree (authority at parent covers children)
-_HIERARCHICAL_ROLES = {"admin", "moderator"}
+# HIERARCHICAL_ROLES imported from constants.py
 
 # ---------------------------------------------------------------------------
 # Location tree helpers (cached with TTL)
@@ -435,7 +435,7 @@ def authorization_scoped(required_role, token_info=None, location_id=None, categ
                         return True, None
 
         # Check category-scoped roles at exact location
-        non_hierarchical = satisfying_roles - _HIERARCHICAL_ROLES
+        non_hierarchical = satisfying_roles - HIERARCHICAL_ROLES
         if non_hierarchical:
             if category_id:
                 row = db.execute_query("""

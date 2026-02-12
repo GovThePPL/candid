@@ -14,7 +14,7 @@ CREATE TABLE users (
     username VARCHAR(255) UNIQUE NOT NULL,
     email VARCHAR(255) UNIQUE,
     keycloak_id VARCHAR(255) UNIQUE,
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     display_name VARCHAR(255),
     avatar_url TEXT,
@@ -68,7 +68,7 @@ CREATE TABLE user_position_categories (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     position_category_id UUID NOT NULL REFERENCES position_category(id) ON DELETE RESTRICT,
     priority INTEGER NOT NULL DEFAULT 0,
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, position_category_id)
 );
 
@@ -89,7 +89,7 @@ CREATE TABLE user_location (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     location_id UUID NOT NULL REFERENCES location(id) ON DELETE CASCADE,
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, location_id)
 );
 
@@ -113,7 +113,7 @@ CREATE TABLE user_demographics (
     sex VARCHAR(50) CHECK (sex IN ('male', 'female', 'other')),
     age_range VARCHAR(20) CHECK (age_range IN ('18-24', '25-34', '35-44', '45-54', '55-64', '65+')),
     income_range VARCHAR(30) CHECK (income_range IN ('under_25k', '25k-50k', '50k-75k', '75k-100k', '100k-150k', '150k-200k', 'over_200k')),
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id)
 );
@@ -126,7 +126,7 @@ CREATE TABLE position (
     location_id UUID REFERENCES location(id) ON DELETE SET NULL,
     statement TEXT NOT NULL,
     embedding vector(384),
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     agree_count INTEGER DEFAULT 0,
     disagree_count INTEGER DEFAULT 0,
@@ -148,7 +148,7 @@ CREATE TABLE user_position (
     pass_count INTEGER DEFAULT 0,
     chat_count INTEGER DEFAULT 0,
     notified_removed BOOLEAN DEFAULT FALSE,
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, position_id)
 );
@@ -171,7 +171,7 @@ CREATE TABLE response (
     position_id UUID NOT NULL REFERENCES position(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     response VARCHAR(50) NOT NULL CHECK (response IN ('agree', 'disagree', 'pass', 'chat')),
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(position_id, user_id)
 );
 
@@ -182,7 +182,7 @@ CREATE TABLE chat_request (
     user_position_id UUID NOT NULL REFERENCES user_position(id) ON DELETE CASCADE,
     response VARCHAR(50) DEFAULT 'pending' CHECK (response IN ('pending', 'accepted', 'dismissed', 'timeout')),
     response_time TIMESTAMPTZ,
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     delivery_context VARCHAR(20) DEFAULT 'swiping' CHECK (delivery_context IN ('swiping', 'in_app', 'notification'))
 );
@@ -205,7 +205,7 @@ CREATE TABLE kudos (
     receiver_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     chat_log_id UUID NOT NULL REFERENCES chat_log(id) ON DELETE CASCADE,
     status VARCHAR(50) NOT NULL DEFAULT 'sent' CHECK (status IN ('sent', 'dismissed')),
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(sender_user_id, receiver_user_id, chat_log_id)
 );
 
@@ -220,7 +220,7 @@ CREATE TABLE survey (
     polis_conversation_id VARCHAR(255),
     comparison_question TEXT,
     is_group_labeling BOOLEAN NOT NULL DEFAULT false,
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     start_time TIMESTAMPTZ,
     end_time TIMESTAMPTZ,
@@ -251,7 +251,7 @@ CREATE TABLE survey_question_response (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     survey_question_option_id UUID NOT NULL REFERENCES survey_question_option(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(survey_question_option_id, user_id)
 );
 
@@ -261,7 +261,7 @@ CREATE TABLE pairwise_item (
     survey_id UUID NOT NULL REFERENCES survey(id) ON DELETE CASCADE,
     item_text VARCHAR(255) NOT NULL,
     item_order INTEGER NOT NULL,
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE pairwise_item IS 'Items in the comparison pool for pairwise surveys';
@@ -273,7 +273,7 @@ CREATE TABLE pairwise_response (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     winner_item_id UUID NOT NULL REFERENCES pairwise_item(id) ON DELETE CASCADE,
     loser_item_id UUID NOT NULL REFERENCES pairwise_item(id) ON DELETE CASCADE,
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT unique_pairwise_response UNIQUE(survey_id, user_id, winner_item_id, loser_item_id)
 );
 
@@ -289,7 +289,7 @@ CREATE TABLE rule (
     severity INTEGER CHECK (severity BETWEEN 1 AND 5),
     default_actions JSONB DEFAULT '[]'::jsonb,
     sentencing_guidelines TEXT,
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -304,7 +304,7 @@ CREATE TABLE report (
     submitter_comment TEXT,
     claimed_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     claimed_at TIMESTAMPTZ,
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -315,7 +315,7 @@ CREATE TABLE mod_action (
     responder_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     mod_response VARCHAR(50) NOT NULL CHECK (mod_response IN ('dismiss', 'take_action', 'mark_spurious')),
     mod_response_text TEXT,
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Moderation action classes
@@ -346,7 +346,7 @@ CREATE TABLE mod_action_appeal (
     status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'deleted', 'withdrawn')),
     claimed_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     claimed_at TIMESTAMPTZ,
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -356,7 +356,7 @@ CREATE TABLE mod_action_appeal_response (
     mod_action_appeal_id UUID NOT NULL REFERENCES mod_action_appeal(id) ON DELETE CASCADE,
     responder_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     appeal_response_text TEXT NOT NULL,
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Admin response notifications for moderators
@@ -365,7 +365,7 @@ CREATE TABLE mod_appeal_response_notification (
     mod_action_appeal_id UUID NOT NULL REFERENCES mod_action_appeal(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     dismissed BOOLEAN DEFAULT FALSE,
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(mod_action_appeal_id, user_id)
 );
 
@@ -378,8 +378,8 @@ CREATE TABLE polis_conversation (
     conversation_type VARCHAR(50) NOT NULL CHECK (conversation_type IN ('category', 'location_all')),
     active_from DATE NOT NULL,
     active_until DATE NOT NULL,
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    status VARCHAR(50) DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'expired')),
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'expired')),
     UNIQUE(location_id, category_id, active_from)
 );
 
@@ -398,8 +398,8 @@ CREATE TABLE polis_comment (
     position_id UUID NOT NULL REFERENCES position(id) ON DELETE CASCADE,
     polis_conversation_id VARCHAR(255) NOT NULL,
     polis_comment_tid INTEGER NOT NULL,
-    sync_status VARCHAR(50) DEFAULT 'synced' CHECK (sync_status IN ('synced', 'pending', 'error')),
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    sync_status VARCHAR(50) NOT NULL DEFAULT 'synced' CHECK (sync_status IN ('synced', 'pending', 'error')),
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(position_id, polis_conversation_id)
 );
 
@@ -415,7 +415,7 @@ CREATE TABLE polis_participant (
     polis_jwt_token TEXT,
     token_issued_at TIMESTAMPTZ,
     token_expires_at TIMESTAMPTZ,
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, polis_conversation_id)
 );
 
@@ -429,9 +429,9 @@ CREATE TABLE polis_sync_queue (
     retry_count INTEGER DEFAULT 0,
     max_retries INTEGER DEFAULT 3,
     next_retry_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'partial')),
+    status VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'partial')),
     error_message TEXT,
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -445,7 +445,7 @@ CREATE TABLE bug_report (
     error_metrics JSONB,
     client_context JSONB,
     source VARCHAR(10) NOT NULL DEFAULT 'user' CHECK (source IN ('user', 'auto', 'crash')),
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- User roles (location-scoped, hierarchical)
@@ -460,7 +460,7 @@ CREATE TABLE user_role (
     location_id UUID REFERENCES location(id) ON DELETE CASCADE,
     position_category_id UUID REFERENCES position_category(id) ON DELETE CASCADE,
     assigned_by UUID REFERENCES users(id) ON DELETE SET NULL,
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_role_scope CHECK (
         CASE
             -- Hierarchical roles: location required, no category
@@ -484,7 +484,7 @@ CREATE TABLE location_category (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     location_id UUID NOT NULL REFERENCES location(id) ON DELETE CASCADE,
     position_category_id UUID NOT NULL REFERENCES position_category(id) ON DELETE CASCADE,
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(location_id, position_category_id)
 );
 
@@ -507,7 +507,7 @@ CREATE TABLE role_change_request (
     reviewed_by UUID REFERENCES users(id) ON DELETE SET NULL,
     denial_reason TEXT,
     auto_approve_at TIMESTAMPTZ NOT NULL,
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -518,7 +518,7 @@ CREATE TABLE admin_action_log (
     target_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     performed_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     reason TEXT NOT NULL,
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX idx_admin_action_log_target ON admin_action_log(target_user_id);
 CREATE INDEX idx_admin_action_log_created ON admin_action_log(created_time DESC);
@@ -530,7 +530,7 @@ CREATE TABLE notification_queue (
     title TEXT NOT NULL,
     body TEXT NOT NULL,
     data JSONB DEFAULT '{}',
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- ========== Posts ==========
@@ -553,7 +553,7 @@ CREATE TABLE post (
     weighted_downvotes DOUBLE PRECISION NOT NULL DEFAULT 0,
     score DOUBLE PRECISION NOT NULL DEFAULT 0,
     comment_count INTEGER NOT NULL DEFAULT 0,
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -582,7 +582,7 @@ CREATE TABLE comment (
     weighted_downvotes DOUBLE PRECISION NOT NULL DEFAULT 0,
     score DOUBLE PRECISION NOT NULL DEFAULT 0,
     child_count INTEGER NOT NULL DEFAULT 0,
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -604,7 +604,7 @@ CREATE TABLE post_vote (
         CHECK (downvote_reason IS NULL OR downvote_reason IN (
             'offtopic', 'unkind', 'low_effort', 'spam', 'misinformation'
         )),
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(post_id, user_id)
 );
 
@@ -618,7 +618,7 @@ CREATE TABLE comment_vote (
         CHECK (downvote_reason IS NULL OR downvote_reason IN (
             'offtopic', 'unkind', 'low_effort', 'spam', 'misinformation'
         )),
-    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(comment_id, user_id)
 );
 
@@ -706,3 +706,238 @@ CREATE INDEX idx_post_vote_user ON post_vote(user_id);
 CREATE INDEX idx_post_vote_post ON post_vote(post_id);
 CREATE INDEX idx_comment_vote_user ON comment_vote(user_id);
 CREATE INDEX idx_comment_vote_comment ON comment_vote(comment_id);
+
+-- ========== Missing FK indexes (added 2026-02-12) ==========
+CREATE INDEX idx_admin_action_log_performed_by ON admin_action_log(performed_by);
+CREATE INDEX idx_affiliation_location_id ON affiliation(location_id);
+CREATE INDEX idx_chat_request_user_position_id ON chat_request(user_position_id);
+CREATE INDEX idx_comment_deleted_by_user_id ON comment(deleted_by_user_id);
+CREATE INDEX idx_kudos_chat_log_id ON kudos(chat_log_id);
+CREATE INDEX idx_kudos_receiver_user_id ON kudos(receiver_user_id);
+CREATE INDEX idx_location_parent_location_id ON location(parent_location_id);
+CREATE INDEX idx_mod_action_appeal_mod_action_id ON mod_action_appeal(mod_action_id);
+CREATE INDEX idx_mod_action_appeal_user_id ON mod_action_appeal(user_id);
+CREATE INDEX idx_mod_action_appeal_response_mod_action_appeal_id ON mod_action_appeal_response(mod_action_appeal_id);
+CREATE INDEX idx_mod_action_appeal_response_responder_user_id ON mod_action_appeal_response(responder_user_id);
+CREATE INDEX idx_mod_action_class_mod_action_id ON mod_action_class(mod_action_id);
+CREATE INDEX idx_mod_action_target_mod_action_class_id ON mod_action_target(mod_action_class_id);
+CREATE INDEX idx_mod_appeal_response_notification_user_id ON mod_appeal_response_notification(user_id);
+CREATE INDEX idx_pairwise_response_loser_item_id ON pairwise_response(loser_item_id);
+CREATE INDEX idx_polis_conversation_category_id ON polis_conversation(category_id);
+CREATE INDEX idx_position_location_id ON position(location_id);
+CREATE INDEX idx_position_category_parent ON position_category(parent_position_category_id);
+CREATE INDEX idx_post_category_id_fk ON post(category_id);
+CREATE INDEX idx_post_deleted_by_user_id ON post(deleted_by_user_id);
+CREATE INDEX idx_report_rule_id ON report(rule_id);
+CREATE INDEX idx_role_change_request_location_id ON role_change_request(location_id);
+CREATE INDEX idx_role_change_request_position_category_id ON role_change_request(position_category_id);
+CREATE INDEX idx_role_change_request_authority_location ON role_change_request(requester_authority_location_id);
+CREATE INDEX idx_role_change_request_reviewed_by ON role_change_request(reviewed_by);
+CREATE INDEX idx_role_change_request_user_role_id ON role_change_request(user_role_id);
+CREATE INDEX idx_rule_creator_user_id ON rule(creator_user_id);
+CREATE INDEX idx_survey_creator_user_id ON survey(creator_user_id);
+CREATE INDEX idx_survey_position_category_id ON survey(position_category_id);
+CREATE INDEX idx_survey_question_survey_id ON survey_question(survey_id);
+CREATE INDEX idx_survey_question_option_survey_question_id ON survey_question_option(survey_question_id);
+CREATE INDEX idx_survey_question_response_user_id ON survey_question_response(user_id);
+CREATE INDEX idx_user_chatting_list_position_id ON user_chatting_list(position_id);
+CREATE INDEX idx_user_demographics_affiliation_id ON user_demographics(affiliation_id);
+CREATE INDEX idx_user_demographics_location_id ON user_demographics(location_id);
+CREATE INDEX idx_user_ideological_coords_category_id ON user_ideological_coords(category_id);
+CREATE INDEX idx_user_ideological_coords_location_id ON user_ideological_coords(location_id);
+CREATE INDEX idx_user_location_location_id ON user_location(location_id);
+CREATE INDEX idx_user_position_categories_category ON user_position_categories(position_category_id);
+CREATE INDEX idx_user_role_assigned_by ON user_role(assigned_by);
+
+-- ========== Counter Triggers ==========
+
+-- Trigger: response changes → update position vote counters
+CREATE OR REPLACE FUNCTION update_position_response_counts() RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        UPDATE position SET
+            agree_count    = agree_count    + (NEW.response = 'agree')::int,
+            disagree_count = disagree_count + (NEW.response = 'disagree')::int,
+            pass_count     = pass_count     + (NEW.response = 'pass')::int,
+            chat_count     = chat_count     + (NEW.response = 'chat')::int
+        WHERE id = NEW.position_id;
+        RETURN NEW;
+    ELSIF TG_OP = 'UPDATE' AND OLD.response <> NEW.response THEN
+        UPDATE position SET
+            agree_count    = agree_count
+                + (NEW.response = 'agree')::int    - (OLD.response = 'agree')::int,
+            disagree_count = disagree_count
+                + (NEW.response = 'disagree')::int - (OLD.response = 'disagree')::int,
+            pass_count     = pass_count
+                + (NEW.response = 'pass')::int     - (OLD.response = 'pass')::int,
+            chat_count     = chat_count
+                + (NEW.response = 'chat')::int     - (OLD.response = 'chat')::int
+        WHERE id = NEW.position_id;
+        RETURN NEW;
+    ELSIF TG_OP = 'DELETE' THEN
+        UPDATE position SET
+            agree_count    = agree_count    - (OLD.response = 'agree')::int,
+            disagree_count = disagree_count - (OLD.response = 'disagree')::int,
+            pass_count     = pass_count     - (OLD.response = 'pass')::int,
+            chat_count     = chat_count     - (OLD.response = 'chat')::int
+        WHERE id = OLD.position_id;
+        RETURN OLD;
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_response_position_counts
+    AFTER INSERT OR UPDATE OR DELETE ON response
+    FOR EACH ROW EXECUTE FUNCTION update_position_response_counts();
+
+-- Trigger: comment insert/delete → update post.comment_count and parent comment.child_count
+CREATE OR REPLACE FUNCTION update_comment_counts() RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        UPDATE post SET comment_count = comment_count + 1 WHERE id = NEW.post_id;
+        IF NEW.parent_comment_id IS NOT NULL THEN
+            UPDATE comment SET child_count = child_count + 1 WHERE id = NEW.parent_comment_id;
+        END IF;
+        RETURN NEW;
+    ELSIF TG_OP = 'DELETE' THEN
+        UPDATE post SET comment_count = GREATEST(comment_count - 1, 0) WHERE id = OLD.post_id;
+        IF OLD.parent_comment_id IS NOT NULL THEN
+            UPDATE comment SET child_count = GREATEST(child_count - 1, 0) WHERE id = OLD.parent_comment_id;
+        END IF;
+        RETURN OLD;
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_comment_counts
+    AFTER INSERT OR DELETE ON comment
+    FOR EACH ROW EXECUTE FUNCTION update_comment_counts();
+
+-- ========== Counter Reconciliation ==========
+
+-- Recalculates all denormalized counters from source tables.
+-- Returns one row per counter group with the number of rows corrected.
+-- Safe to run periodically (idempotent, only updates drifted rows).
+CREATE OR REPLACE FUNCTION reconcile_counters() RETURNS TABLE(
+    counter_name TEXT,
+    rows_fixed INTEGER
+) AS $$
+DECLARE
+    fixed_count INTEGER;
+BEGIN
+    -- 1. Position response counters (from response table)
+    WITH counts AS (
+        SELECT position_id,
+            COUNT(*) FILTER (WHERE response = 'agree')    AS agree,
+            COUNT(*) FILTER (WHERE response = 'disagree') AS disagree,
+            COUNT(*) FILTER (WHERE response = 'pass')     AS pass,
+            COUNT(*) FILTER (WHERE response = 'chat')     AS chat
+        FROM response GROUP BY position_id
+    ), updated AS (
+        UPDATE position p SET
+            agree_count    = COALESCE(c.agree, 0),
+            disagree_count = COALESCE(c.disagree, 0),
+            pass_count     = COALESCE(c.pass, 0),
+            chat_count     = COALESCE(c.chat, 0)
+        FROM counts c
+        WHERE p.id = c.position_id
+            AND (p.agree_count    IS DISTINCT FROM COALESCE(c.agree, 0)
+              OR p.disagree_count IS DISTINCT FROM COALESCE(c.disagree, 0)
+              OR p.pass_count     IS DISTINCT FROM COALESCE(c.pass, 0)
+              OR p.chat_count     IS DISTINCT FROM COALESCE(c.chat, 0))
+        RETURNING 1
+    )
+    SELECT COUNT(*) INTO fixed_count FROM updated;
+    counter_name := 'position.response_counts';
+    rows_fixed := fixed_count;
+    RETURN NEXT;
+
+    -- 2. Post comment counts (from comment table)
+    WITH counts AS (
+        SELECT post_id, COUNT(*) AS cnt FROM comment GROUP BY post_id
+    ), updated AS (
+        UPDATE post p SET comment_count = COALESCE(c.cnt, 0)
+        FROM counts c
+        WHERE p.id = c.post_id AND p.comment_count IS DISTINCT FROM c.cnt
+        RETURNING 1
+    )
+    SELECT COUNT(*) INTO fixed_count FROM updated;
+    counter_name := 'post.comment_count';
+    rows_fixed := fixed_count;
+    RETURN NEXT;
+
+    -- 3. Comment child counts (from comment self-join)
+    WITH counts AS (
+        SELECT parent_comment_id, COUNT(*) AS cnt
+        FROM comment WHERE parent_comment_id IS NOT NULL
+        GROUP BY parent_comment_id
+    ), updated AS (
+        UPDATE comment c SET child_count = COALESCE(cc.cnt, 0)
+        FROM counts cc
+        WHERE c.id = cc.parent_comment_id AND c.child_count IS DISTINCT FROM cc.cnt
+        RETURNING 1
+    )
+    SELECT COUNT(*) INTO fixed_count FROM updated;
+    counter_name := 'comment.child_count';
+    rows_fixed := fixed_count;
+    RETURN NEXT;
+
+    -- 4. Post vote counts (from post_vote table)
+    WITH counts AS (
+        SELECT post_id,
+            COUNT(*) FILTER (WHERE vote_type = 'upvote')   AS up_count,
+            COUNT(*) FILTER (WHERE vote_type = 'downvote') AS down_count,
+            COALESCE(SUM(weight) FILTER (WHERE vote_type = 'upvote'), 0)   AS weighted_up,
+            COALESCE(SUM(weight) FILTER (WHERE vote_type = 'downvote'), 0) AS weighted_down
+        FROM post_vote GROUP BY post_id
+    ), updated AS (
+        UPDATE post p SET
+            upvote_count     = COALESCE(v.up_count, 0),
+            downvote_count   = COALESCE(v.down_count, 0),
+            weighted_upvotes   = COALESCE(v.weighted_up, 0),
+            weighted_downvotes = COALESCE(v.weighted_down, 0)
+        FROM counts v
+        WHERE p.id = v.post_id
+            AND (p.upvote_count       IS DISTINCT FROM COALESCE(v.up_count, 0)
+              OR p.downvote_count     IS DISTINCT FROM COALESCE(v.down_count, 0)
+              OR p.weighted_upvotes   IS DISTINCT FROM COALESCE(v.weighted_up, 0)
+              OR p.weighted_downvotes IS DISTINCT FROM COALESCE(v.weighted_down, 0))
+        RETURNING 1
+    )
+    SELECT COUNT(*) INTO fixed_count FROM updated;
+    counter_name := 'post.vote_counts';
+    rows_fixed := fixed_count;
+    RETURN NEXT;
+
+    -- 5. Comment vote counts (from comment_vote table)
+    WITH counts AS (
+        SELECT comment_id,
+            COUNT(*) FILTER (WHERE vote_type = 'upvote')   AS up_count,
+            COUNT(*) FILTER (WHERE vote_type = 'downvote') AS down_count,
+            COALESCE(SUM(weight) FILTER (WHERE vote_type = 'upvote'), 0)   AS weighted_up,
+            COALESCE(SUM(weight) FILTER (WHERE vote_type = 'downvote'), 0) AS weighted_down
+        FROM comment_vote GROUP BY comment_id
+    ), updated AS (
+        UPDATE comment c SET
+            upvote_count     = COALESCE(v.up_count, 0),
+            downvote_count   = COALESCE(v.down_count, 0),
+            weighted_upvotes   = COALESCE(v.weighted_up, 0),
+            weighted_downvotes = COALESCE(v.weighted_down, 0)
+        FROM counts v
+        WHERE c.id = v.comment_id
+            AND (c.upvote_count       IS DISTINCT FROM COALESCE(v.up_count, 0)
+              OR c.downvote_count     IS DISTINCT FROM COALESCE(v.down_count, 0)
+              OR c.weighted_upvotes   IS DISTINCT FROM COALESCE(v.weighted_up, 0)
+              OR c.weighted_downvotes IS DISTINCT FROM COALESCE(v.weighted_down, 0))
+        RETURNING 1
+    )
+    SELECT COUNT(*) INTO fixed_count FROM updated;
+    counter_name := 'comment.vote_counts';
+    rows_fixed := fixed_count;
+    RETURN NEXT;
+
+    RETURN;
+END;
+$$ LANGUAGE plpgsql;

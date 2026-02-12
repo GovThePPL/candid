@@ -139,6 +139,19 @@ def db_execute(query, params=None):
         conn.close()
 
 
+def db_execute_returning(query, params=None):
+    """Execute a database query that returns results, and commit."""
+    conn = psycopg2.connect(DB_URL)
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, params)
+            rows = cur.fetchall()
+            conn.commit()
+            return rows
+    finally:
+        conn.close()
+
+
 def delete_survey_response(user_id, question_id):
     """Delete a user's response to a survey question (for test idempotency)."""
     db_execute(

@@ -48,36 +48,69 @@ class PubSubService:
         logger.info("Started pub/sub listener task")
 
     async def _listen(self, on_chat_accepted, on_chat_request_response=None, on_chat_request_received=None) -> None:
-        """Listen for messages and dispatch to handlers."""
-        try:
-            async for message in self._pubsub.listen():
-                if message["type"] != "message":
-                    continue
+        """Listen for messages and dispatch to handlers.
 
+        Auto-reconnects with exponential backoff on connection failures.
+        """
+        backoff = 1  # seconds
+        max_backoff = 60
+        while True:
+            try:
+                async for message in self._pubsub.listen():
+                    backoff = 1  # Reset on successful message
+                    if message["type"] != "message":
+                        continue
+
+                    try:
+                        data = json.loads(message["data"])
+                        event_type = data.get("event")
+
+                        if event_type == "chat_accepted":
+                            await on_chat_accepted(data)
+                        elif event_type == "chat_request_response":
+                            if on_chat_request_response:
+                                await on_chat_request_response(data)
+                        elif event_type == "chat_request_received":
+                            if on_chat_request_received:
+                                await on_chat_request_received(data)
+                        else:
+                            logger.warning(f"Unknown event type: {event_type}")
+
+                    except json.JSONDecodeError:
+                        logger.error(f"Invalid JSON in pub/sub message: {message['data']}")
+                    except Exception as e:
+                        logger.error(f"Error handling pub/sub message: {e}")
+
+            except asyncio.CancelledError:
+                logger.info("Pub/sub listener cancelled")
+                return
+            except Exception as e:
+                logger.error(f"Pub/sub listener error, reconnecting in {backoff}s: {e}")
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, max_backoff)
                 try:
-                    data = json.loads(message["data"])
-                    event_type = data.get("event")
+                    await self._reconnect()
+                except Exception as re:
+                    logger.error(f"Pub/sub reconnect failed: {re}")
 
-                    if event_type == "chat_accepted":
-                        await on_chat_accepted(data)
-                    elif event_type == "chat_request_response":
-                        if on_chat_request_response:
-                            await on_chat_request_response(data)
-                    elif event_type == "chat_request_received":
-                        if on_chat_request_received:
-                            await on_chat_request_received(data)
-                    else:
-                        logger.warning(f"Unknown event type: {event_type}")
+    async def _reconnect(self) -> None:
+        """Re-establish pub/sub subscription after a connection failure."""
+        try:
+            if self._pubsub:
+                await self._pubsub.close()
+            if self._redis:
+                await self._redis.close()
+        except Exception:
+            pass
 
-                except json.JSONDecodeError:
-                    logger.error(f"Invalid JSON in pub/sub message: {message['data']}")
-                except Exception as e:
-                    logger.error(f"Error handling pub/sub message: {e}")
-
-        except asyncio.CancelledError:
-            logger.info("Pub/sub listener cancelled")
-        except Exception as e:
-            logger.error(f"Pub/sub listener error: {e}")
+        self._redis = redis.from_url(
+            config.REDIS_URL,
+            encoding="utf-8",
+            decode_responses=True,
+        )
+        self._pubsub = self._redis.pubsub()
+        await self._pubsub.subscribe(CHAT_EVENTS_CHANNEL)
+        logger.info("Pub/sub reconnected successfully")
 
     async def close(self) -> None:
         """Close the pub/sub connection."""

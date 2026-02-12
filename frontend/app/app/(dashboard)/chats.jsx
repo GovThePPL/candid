@@ -1,19 +1,19 @@
 import { StyleSheet, View, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useCallback, useState, useEffect, useContext, useRef, useMemo } from 'react'
+import { useCallback, useState, useContext, useMemo } from 'react'
 import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { SemanticColors } from '../../constants/Colors'
 import { useThemeColors } from '../../hooks/useThemeColors'
+import useChatHistory from '../../hooks/useChatHistory'
 import ThemedText from '../../components/ThemedText'
 import Header from '../../components/Header'
 import EmptyState from '../../components/EmptyState'
 import CardShell from '../../components/CardShell'
 import PositionInfoCard from '../../components/PositionInfoCard'
 import { UserContext } from '../../contexts/UserContext'
-import api, { translateError } from '../../lib/api'
-import { CacheManager, CacheKeys, CacheDurations } from '../../lib/cache'
+import api from '../../lib/api'
 import ReportModal from '../../components/ReportModal'
 import KudosMedallion from '../../components/KudosMedallion'
 
@@ -170,123 +170,18 @@ export default function Chats() {
   const styles = useMemo(() => createStyles(colors), [colors])
   const { t } = useTranslation('chat')
 
-  const [chats, setChats] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [error, setError] = useState(null)
-  const [fromCache, setFromCache] = useState(false)
-  const cachedMetadataRef = useRef(null)
+  const {
+    chats, loading, refreshing, error,
+    fetchChats, handleSendKudos, handleRefresh,
+  } = useChatHistory()
+
   const [reportModalVisible, setReportModalVisible] = useState(false)
   const [reportChatId, setReportChatId] = useState(null)
-
-  const fetchChats = useCallback(async (isRefresh = false) => {
-    if (!user?.id) return
-
-    const cacheKey = CacheKeys.userChats(user.id)
-
-    try {
-      if (isRefresh) {
-        setRefreshing(true)
-      } else {
-        setLoading(true)
-      }
-      setError(null)
-
-      // Try to show cached data immediately (stale-while-revalidate)
-      if (!isRefresh) {
-        const cached = await CacheManager.get(cacheKey)
-        if (cached?.data) {
-          setChats(cached.data)
-          setFromCache(true)
-          setLoading(false)
-          cachedMetadataRef.current = cached.metadata
-        }
-      }
-
-      // Check metadata to see if we need to fetch fresh data
-      const shouldFetch = await (async () => {
-        if (isRefresh) return true // Always fetch on pull-to-refresh
-
-        try {
-          const metadata = await api.chat.getUserChatsMetadata(user.id)
-          const cached = await CacheManager.get(cacheKey)
-
-          // No cache - need to fetch
-          if (!cached) return true
-
-          // Check if count changed
-          if (metadata.count !== cached.metadata?.count) return true
-
-          // Check if last activity time changed
-          if (metadata.lastActivityTime !== cached.metadata?.lastActivityTime) return true
-
-          // Cache is fresh - no need to fetch
-          return false
-        } catch {
-          // If metadata check fails, fetch full data to be safe
-          return true
-        }
-      })()
-
-      if (shouldFetch) {
-        const data = await api.chat.getUserChats(user.id, { limit: 50 })
-        setChats(data)
-        setFromCache(false)
-
-        // Get fresh metadata for cache
-        let metadata = null
-        try {
-          metadata = await api.chat.getUserChatsMetadata(user.id)
-        } catch {
-          metadata = { count: data.length, lastActivityTime: new Date().toISOString() }
-        }
-
-        // Cache the result
-        await CacheManager.set(cacheKey, data, { metadata })
-      }
-    } catch (err) {
-      console.error('Failed to fetch chats:', err)
-      // If we have cached data, show it with a warning
-      const cached = await CacheManager.get(cacheKey)
-      if (cached?.data) {
-        setChats(cached.data)
-        setFromCache(true)
-      }
-      setError(translateError(err.message, t) || t('failedLoadChats'))
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
-    }
-  }, [user?.id])
-
-  useEffect(() => {
-    fetchChats()
-  }, [fetchChats])
 
   const handleChatPress = useCallback((chat) => {
     // Pass 'from' parameter so the chat page knows to navigate back to chats
     router.push(`/chat/${chat.id}?from=chats`)
   }, [router])
-
-  const handleSendKudos = useCallback(async (chatId) => {
-    try {
-      await api.chat.sendKudos(chatId)
-      // Update local state to reflect kudos sent
-      setChats(prev => prev.map(chat =>
-        chat.id === chatId ? { ...chat, kudosSent: true } : chat
-      ))
-      // Invalidate chat list cache since kudos status changed
-      if (user?.id) {
-        await CacheManager.invalidate(CacheKeys.userChats(user.id))
-      }
-    } catch (err) {
-      console.error('Failed to send kudos:', err)
-    }
-  }, [user?.id])
-
-  const handleRefresh = useCallback(() => {
-    fetchChats(true)
-  }, [fetchChats])
 
   const handleReportChat = useCallback((chatId) => {
     setReportChatId(chatId)

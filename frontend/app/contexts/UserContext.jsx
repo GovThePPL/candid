@@ -58,12 +58,12 @@ export function UserProvider({ children }) {
 
   // Check for active chats when user is authenticated
   const checkForActiveChat = useCallback(async (userId) => {
-    console.log('[UserContext] Checking for active chat for user:', userId)
+    console.debug('[UserContext] Checking for active chat for user:', userId)
     try {
       const chat = await api.chat.getActiveChat(userId)
-      console.log('[UserContext] getActiveChat result:', chat?.id || 'none')
+      console.debug('[UserContext] getActiveChat result:', chat?.id || 'none')
       if (chat) {
-        console.log('[UserContext] Setting activeChat:', chat.id)
+        console.debug('[UserContext] Setting activeChat:', chat.id)
         setActiveChat(chat)
       }
     } catch (error) {
@@ -108,12 +108,12 @@ export function UserProvider({ children }) {
       // Set up listeners for chat request responses
       const requestCleanup = onChatRequestResponse({
         onAccepted: (data) => {
-          console.log('[UserContext] Chat request accepted:', data)
+          console.debug('[UserContext] Chat request accepted:', data)
           updateChatRequestStatus('accepted')
           // Navigate using chatLogId from the accepted event
           // This is more reliable than waiting for chat_started since it comes via REST API pub/sub
           if (data.chatLogId) {
-            console.log('[UserContext] Navigating to chat via chat_request_accepted:', data.chatLogId)
+            console.debug('[UserContext] Navigating to chat via chat_request_accepted:', data.chatLogId)
             setActiveChatNavigation({
               chatId: data.chatLogId,
               otherUserId: null, // Will be populated when joining chat
@@ -125,7 +125,7 @@ export function UserProvider({ children }) {
           setTimeout(() => clearPendingChatRequest(), 500)
         },
         onDeclined: (data) => {
-          console.log('[UserContext] Chat request declined:', data)
+          console.debug('[UserContext] Chat request declined:', data)
           updateChatRequestStatus('declined')
           // Keep declined state visible for 5 seconds
           setTimeout(() => clearPendingChatRequest(), 5000)
@@ -134,7 +134,7 @@ export function UserProvider({ children }) {
 
       // Set up listener for incoming chat request cards (real-time delivery to recipient)
       const chatRequestReceivedCleanup = onChatRequestReceived((cardData) => {
-        console.log('[UserContext] Chat request received:', cardData?.data?.id)
+        console.debug('[UserContext] Chat request received:', cardData?.data?.id)
         setIncomingChatRequest(cardData)
       })
 
@@ -142,13 +142,13 @@ export function UserProvider({ children }) {
       // For initiators, this may arrive after chat_request_accepted already triggered navigation
       // For responders, this is the primary navigation trigger (though they also navigate via REST response)
       const chatStartedCleanup = onChatStarted((data) => {
-        console.log('[UserContext] Chat started:', data)
+        console.debug('[UserContext] Chat started:', data)
         // Set navigation state - the component will handle actual navigation
         // This will update with full details even if already set by chat_request_accepted
         setActiveChatNavigation((prev) => {
           // If already navigating to this chat, just update with full details
           if (prev?.chatId === data.chatId) {
-            console.log('[UserContext] Updating existing navigation with full details')
+            console.debug('[UserContext] Updating existing navigation with full details')
             return {
               ...prev,
               otherUserId: data.otherUserId,

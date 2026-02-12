@@ -1,5 +1,5 @@
-import { StyleSheet, View, ScrollView, TouchableOpacity, Platform, Alert as RNAlert, ActivityIndicator, Animated, LayoutAnimation, UIManager } from 'react-native'
-import { useRouter, useFocusEffect } from 'expo-router'
+import { StyleSheet, View, ScrollView, TouchableOpacity, Platform, ActivityIndicator, Animated, LayoutAnimation, UIManager } from 'react-native'
+import { useRouter } from 'expo-router'
 import { useState, useEffect, useCallback, useRef, useContext, useMemo } from 'react'
 
 // Enable LayoutAnimation on Android
@@ -13,9 +13,9 @@ import { SemanticColors } from '../../constants/Colors'
 import { Shadows, Typography } from '../../constants/Theme'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import useKeyboardHeight from '../../hooks/useKeyboardHeight'
+import usePositionManagement from '../../hooks/usePositionManagement'
 import { UserContext } from '../../contexts/UserContext'
-import api, { translateError } from '../../lib/api'
-import { CacheManager, CacheKeys, CacheDurations } from '../../lib/cache'
+import api from '../../lib/api'
 
 import ThemedText from "../../components/ThemedText"
 import ThemedTextInput from "../../components/ThemedTextInput"
@@ -31,29 +31,6 @@ const MAX_STATEMENT_LENGTH = 140  // Polis has a 140 character limit
 const SEARCH_DEBOUNCE_MS = 500
 const MIN_SEARCH_LENGTH = 20
 
-// Cross-platform alert that works on web
-const Alert = {
-  alert: (title, message, buttons) => {
-    if (Platform.OS === 'web') {
-      // For web, use window.confirm for destructive actions
-      if (buttons && buttons.length === 2) {
-        const destructiveButton = buttons.find(b => b.style === 'destructive')
-        const cancelButton = buttons.find(b => b.style === 'cancel')
-        if (destructiveButton && cancelButton) {
-          if (window.confirm(`${title}\n\n${message}`)) {
-            destructiveButton.onPress?.()
-          }
-          return
-        }
-      }
-      // For simple alerts
-      window.alert(`${title}\n\n${message}`)
-    } else {
-      RNAlert.alert(title, message, buttons)
-    }
-  }
-}
-
 export default function Create() {
   const { t } = useTranslation('create')
   const colors = useThemeColors()
@@ -64,7 +41,6 @@ export default function Create() {
   const [selectedLocation, setSelectedLocation] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [myPositions, setMyPositions] = useState([])
   const [similarPositions, setSimilarPositions] = useState([])
   const [searchingSimilar, setSearchingSimilar] = useState(false)
   const [suggestedCategory, setSuggestedCategory] = useState(null)
@@ -75,9 +51,7 @@ export default function Create() {
   const [rules, setRules] = useState([])
   const [rulesLoading, setRulesLoading] = useState(false)
 
-  // Chatting List state
-  const [chattingList, setChattingList] = useState([])
-  const [chattingListLoading, setChattingListLoading] = useState(false)
+  // Chatting List search UI state
   const [showChattingSearch, setShowChattingSearch] = useState(false)
   const [chattingSearchQuery, setChattingSearchQuery] = useState('')
   const [chattingSearchResults, setChattingSearchResults] = useState([])
@@ -96,58 +70,21 @@ export default function Create() {
   const router = useRouter()
   const searchTimeoutRef = useRef(null)
   const chattingSearchTimeoutRef = useRef(null)
-  const { user, positionsVersion, isBanned } = useContext(UserContext)
-  const lastFetchedVersion = useRef(-1) // -1 means never fetched
+  const { user, isBanned } = useContext(UserContext)
+
+  // Position and chatting list data management
+  const {
+    chattingList, chattingListLoading,
+    normalizedMyPositions, normalizedChattingList,
+    handleTogglePositionActive, handleDeletePositions, handleBulkTogglePositions,
+    adoptPosition, createPosition,
+    handleToggleChattingActive, handleDeleteChattingItems, handleBulkToggleChattingItems,
+    addToChattingList,
+  } = usePositionManagement()
 
   // Animation values for similar positions
   const similarFadeAnim = useRef(new Animated.Value(0)).current
   const previousSimilarCount = useRef(0)
-
-  const fetchMyPositions = useCallback(async () => {
-    try {
-      const cacheKey = user?.id ? CacheKeys.userPositions(user.id) : null
-      if (cacheKey) {
-        const cached = await CacheManager.get(cacheKey)
-        if (cached && !CacheManager.isStale(cached, CacheDurations.POSITIONS)) {
-          setMyPositions(cached.data)
-          return
-        }
-      }
-
-      const positionsData = await api.users.getMyPositions('all')
-      setMyPositions(positionsData || [])
-      if (cacheKey) {
-        await CacheManager.set(cacheKey, positionsData || [])
-      }
-    } catch (err) {
-      console.error('Failed to fetch my positions:', err)
-    }
-  }, [user?.id])
-
-  const fetchChattingList = useCallback(async () => {
-    try {
-      setChattingListLoading(true)
-      const cacheKey = user?.id ? CacheKeys.chattingList(user.id) : null
-      if (cacheKey) {
-        const cached = await CacheManager.get(cacheKey)
-        if (cached && !CacheManager.isStale(cached, CacheDurations.CHATTING_LIST)) {
-          setChattingList(cached.data)
-          setChattingListLoading(false)
-          return
-        }
-      }
-
-      const data = await api.chattingList.getList()
-      setChattingList(data || [])
-      if (cacheKey) {
-        await CacheManager.set(cacheKey, data || [])
-      }
-    } catch (err) {
-      console.error('Failed to fetch chatting list:', err)
-    } finally {
-      setChattingListLoading(false)
-    }
-  }, [user?.id])
 
   async function fetchRules() {
     if (rules.length > 0) return // Already fetched
@@ -166,29 +103,6 @@ export default function Create() {
     setShowRules(true)
     fetchRules()
   }
-
-  useEffect(() => {
-    async function fetchData() {
-      await fetchMyPositions()
-      await fetchChattingList()
-      lastFetchedVersion.current = positionsVersion
-    }
-    fetchData()
-  }, [fetchMyPositions, fetchChattingList, positionsVersion])
-
-  // Refresh positions and chatting list when screen comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      if (lastFetchedVersion.current !== positionsVersion) {
-        // Invalidate positions cache when version changes
-        if (user?.id) CacheManager.invalidate(CacheKeys.userPositions(user.id))
-        fetchMyPositions()
-        lastFetchedVersion.current = positionsVersion
-      }
-      // Chatting list uses cache - will only fetch if stale
-      fetchChattingList()
-    }, [fetchMyPositions, fetchChattingList, positionsVersion, user?.id])
-  )
 
   // Debounced search for similar positions and category suggestion
   useEffect(() => {
@@ -278,14 +192,14 @@ export default function Create() {
       Animated.timing(similarFadeAnim, {
         toValue: 1,
         duration: 300,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
       }).start()
     } else if (!showingSimilar && wasShowingSimilar) {
       // Fade out when similar positions disappear
       Animated.timing(similarFadeAnim, {
         toValue: 0,
         duration: 200,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
       }).start()
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
     }
@@ -293,21 +207,17 @@ export default function Create() {
     previousSimilarCount.current = showingSimilar ? 1 : 0
   }, [searchingSimilar, similarPositions.length, similarFadeAnim])
 
+  function resetForm() {
+    setStatement('')
+    setSimilarPositions([])
+    setSelectedCategory(null)
+    setCategoryAutoSelected(false)
+    setSuggestedCategory(null)
+  }
+
   async function handleAdoptPosition(positionId) {
-    try {
-      await api.positions.adopt(positionId)
-      // Invalidate positions cache
-      if (user?.id) await CacheManager.invalidate(CacheKeys.userPositions(user.id))
-      // Clear form and refresh my positions
-      setStatement('')
-      setSimilarPositions([])
-      setSelectedCategory(null)
-      setCategoryAutoSelected(false)
-      setSuggestedCategory(null)
-      await fetchMyPositions()
-    } catch (err) {
-      Alert.alert(t('errorTitle'), translateError(err.message, t) || t('failedAdopt'))
-    }
+    const success = await adoptPosition(positionId)
+    if (success) resetForm()
   }
 
   async function handleSubmit() {
@@ -327,25 +237,13 @@ export default function Create() {
     setLoading(true)
     setError(null)
 
-    try {
-      await api.positions.create(statement.trim(), selectedCategory, selectedLocation)
-
-      // Invalidate positions cache
-      if (user?.id) await CacheManager.invalidate(CacheKeys.userPositions(user.id))
-
-      setStatement("")
-      setSelectedCategory(null)
-      setCategoryAutoSelected(false)
-      setSuggestedCategory(null)
-      setSimilarPositions([])
-
-      // Refresh the positions list to show the new position
-      await fetchMyPositions()
-    } catch (err) {
-      setError(translateError(err.message, t) || t('failedCreate'))
-    } finally {
-      setLoading(false)
+    const result = await createPosition(statement.trim(), selectedCategory, selectedLocation)
+    if (result.success) {
+      resetForm()
+    } else {
+      setError(result.error)
     }
+    setLoading(false)
   }
 
   // Scroll to section when search input is focused
@@ -360,121 +258,6 @@ export default function Create() {
       scrollViewRef.current?.scrollTo({ y: chattingListSectionY.current + 60, animated: true })
     }, 50)
   }, [])
-
-  // --- PositionListManager callbacks for My Positions ---
-
-  async function handleTogglePositionActive(id, newActive) {
-    const newStatus = newActive ? 'active' : 'inactive'
-    try {
-      await api.users.updatePosition(id, newStatus)
-      if (user?.id) await CacheManager.invalidate(CacheKeys.userPositions(user.id))
-      setMyPositions(prev => prev.map(p =>
-        p.id === id ? { ...p, status: newStatus } : p
-      ))
-    } catch (err) {
-      Alert.alert(t('errorTitle'), translateError(err.message, t) || t('failedUpdate'))
-    }
-  }
-
-  async function handleDeletePositions(ids) {
-    try {
-      for (const id of ids) {
-        await api.users.deletePosition(id)
-      }
-      if (user?.id) await CacheManager.invalidate(CacheKeys.userPositions(user.id))
-      setMyPositions(prev => prev.filter(p => !ids.includes(p.id)))
-    } catch (err) {
-      Alert.alert(t('errorTitle'), translateError(err.message, t) || t('failedDelete'))
-      // Refresh to get accurate state
-      await fetchMyPositions()
-    }
-  }
-
-  async function handleBulkTogglePositions(ids, newActive) {
-    const newStatus = newActive ? 'active' : 'inactive'
-    try {
-      for (const id of ids) {
-        await api.users.updatePosition(id, newStatus)
-      }
-      if (user?.id) await CacheManager.invalidate(CacheKeys.userPositions(user.id))
-      setMyPositions(prev => prev.map(p =>
-        ids.includes(p.id) ? { ...p, status: newStatus } : p
-      ))
-    } catch (err) {
-      Alert.alert(t('errorTitle'), translateError(err.message, t) || t('failedUpdateItems'))
-      await fetchMyPositions()
-    }
-  }
-
-  // --- PositionListManager callbacks for Chatting List ---
-
-  async function handleToggleChattingActive(id, newActive) {
-    try {
-      await api.chattingList.toggleActive(id, newActive)
-      if (user?.id) await CacheManager.invalidate(CacheKeys.chattingList(user.id))
-      setChattingList(prev => prev.map(i =>
-        i.id === id ? { ...i, isActive: newActive } : i
-      ))
-    } catch (err) {
-      Alert.alert(t('errorTitle'), translateError(err.message, t) || t('failedUpdateItem'))
-    }
-  }
-
-  async function handleDeleteChattingItems(ids) {
-    try {
-      await api.chattingList.bulkRemove({ itemIds: ids })
-      if (user?.id) await CacheManager.invalidate(CacheKeys.chattingList(user.id))
-      const idSet = new Set(ids)
-      setChattingList(prev => prev.filter(i => !idSet.has(i.id)))
-    } catch (err) {
-      Alert.alert(t('errorTitle'), translateError(err.message, t) || t('failedRemoveItems'))
-      await fetchChattingList()
-    }
-  }
-
-  async function handleBulkToggleChattingItems(ids, newActive) {
-    try {
-      for (const id of ids) {
-        await api.chattingList.toggleActive(id, newActive)
-      }
-      if (user?.id) await CacheManager.invalidate(CacheKeys.chattingList(user.id))
-      setChattingList(prev => prev.map(i =>
-        ids.includes(i.id) ? { ...i, isActive: newActive } : i
-      ))
-    } catch (err) {
-      Alert.alert(t('errorTitle'), translateError(err.message, t) || t('failedUpdateItems'))
-      await fetchChattingList()
-    }
-  }
-
-  // --- Normalize data for PositionListManager ---
-
-  const normalizedMyPositions = useMemo(() =>
-    myPositions.map(p => ({
-      id: p.id,
-      statement: p.statement,
-      isActive: p.status === 'active',
-      locationName: p.locationName || t('unknownLocation'),
-      locationCode: p.locationCode || '',
-      categoryName: p.categoryName || t('uncategorized'),
-      categoryId: p.categoryId,
-    })),
-    [myPositions]
-  )
-
-  const normalizedChattingList = useMemo(() =>
-    chattingList.map(item => ({
-      id: item.id,
-      statement: item.position?.statement,
-      isActive: item.isActive,
-      locationName: item.position?.location?.name || t('unknownLocation'),
-      locationCode: item.position?.location?.code || '',
-      categoryName: item.position?.category?.label || t('uncategorized'),
-      categoryId: item.position?.categoryId,
-      meta: item.pendingRequestCount > 0 ? t('pendingCount', { count: item.pendingRequestCount }) : undefined,
-    })),
-    [chattingList]
-  )
 
   // Chatting list search with debounce
   useEffect(() => {
@@ -519,15 +302,9 @@ export default function Create() {
   }, [chattingSearchQuery, showChattingSearch, chattingList])
 
   async function handleAddToChattingList(positionId) {
-    try {
-      await api.chattingList.addPosition(positionId)
-      // Invalidate chatting list cache
-      if (user?.id) await CacheManager.invalidate(CacheKeys.chattingList(user.id))
-      await fetchChattingList()
-      // Remove from search results
+    const success = await addToChattingList(positionId)
+    if (success) {
       setChattingSearchResults(prev => prev.filter(r => r.position.id !== positionId))
-    } catch (err) {
-      Alert.alert(t('errorTitle'), translateError(err.message, t) || t('failedAddToList'))
     }
   }
 

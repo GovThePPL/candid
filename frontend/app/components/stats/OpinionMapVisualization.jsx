@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
-import { View, StyleSheet, TouchableOpacity, Image, useWindowDimensions } from 'react-native'
-import Svg, { Polygon, Circle, Text as SvgText, G, ClipPath, Defs, Image as SvgImage } from 'react-native-svg'
+import { View, StyleSheet, TouchableOpacity, Image, Platform, useWindowDimensions } from 'react-native'
+import RNSvg, { Polygon as RNPolygon, Circle as RNCircle, Text as RNSvgText, G as RNG, ClipPath as RNClipPath, Defs as RNDefs, Image as RNSvgImage } from 'react-native-svg'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { GROUP_COLORS, BrandColor } from '../../constants/Colors'
@@ -9,6 +9,19 @@ import { useThemeColors } from '../../hooks/useThemeColors'
 import ThemedText from '../ThemedText'
 import InfoModal from '../InfoModal'
 import { getAvatarImageUrl, getInitials, getInitialsColor } from '../../lib/avatarUtils'
+
+// On web, use native SVG elements to avoid react-native-svg responder prop warnings.
+// react-native-svg's web Shape class unconditionally applies RN's TouchableMixin,
+// injecting invalid DOM props (onStartShouldSetResponder, etc.) on every shape element.
+const isWeb = Platform.OS === 'web'
+const Svg = isWeb ? 'svg' : RNSvg
+const G = isWeb ? 'g' : RNG
+const Circle = isWeb ? 'circle' : RNCircle
+const Polygon = isWeb ? 'polygon' : RNPolygon
+const SvgText = isWeb ? 'text' : RNSvgText
+const Defs = isWeb ? 'defs' : RNDefs
+const ClipPath = isWeb ? 'clipPath' : RNClipPath
+const SvgImage = isWeb ? 'image' : RNSvgImage
 
 /**
  * SVG visualization of opinion groups as convex hulls
@@ -81,6 +94,9 @@ export default function OpinionMapVisualization({
   const toSvgX = (x) => (x - minX) * scaleX + offsetX
   const toSvgY = (y) => (maxY - y) * scaleY + offsetY // Flip Y
 
+  const svgPressProps = (handler) =>
+    isWeb ? { onClick: handler } : { onPress: handler }
+
   const renderGroup = (group, index) => {
     const hull = group.hull || []
     const color = GROUP_COLORS[index % GROUP_COLORS.length]
@@ -98,7 +114,7 @@ export default function OpinionMapVisualization({
       const radius = isSingleMember ? 3 : 8
 
       return (
-        <G key={group.id}>
+        <G key={group.id} id={`group-${group.id}`}>
           {/* Single solid circle for small groups */}
           <Circle
             cx={cx}
@@ -109,7 +125,7 @@ export default function OpinionMapVisualization({
             stroke={color}
             strokeWidth={isSelected ? 2 : 1}
             strokeOpacity={isOtherSelected ? 0.5 : 1}
-            onPress={() => onGroupSelect && onGroupSelect(group.id)}
+            {...svgPressProps(() => onGroupSelect && onGroupSelect(group.id))}
           />
           <SvgText
             x={cx}
@@ -129,7 +145,7 @@ export default function OpinionMapVisualization({
     const points = hull.map((p) => `${toSvgX(p.x)},${toSvgY(p.y)}`).join(' ')
 
     return (
-      <G key={group.id}>
+      <G key={group.id} id={`group-${group.id}`}>
         <Polygon
           points={points}
           fill={color}
@@ -137,7 +153,7 @@ export default function OpinionMapVisualization({
           stroke={color}
           strokeWidth={isSelected ? 3 : 2}
           strokeOpacity={isOtherSelected ? 0.5 : 1}
-          onPress={() => onGroupSelect && onGroupSelect(group.id)}
+          {...svgPressProps(() => onGroupSelect && onGroupSelect(group.id))}
         />
         <SvgText
           x={toSvgX(centroid.x)}
@@ -195,7 +211,7 @@ export default function OpinionMapVisualization({
               y={y - avatarRadius}
               width={avatarRadius * 2}
               height={avatarRadius * 2}
-              href={{ uri: getAvatarImageUrl(avatarUrl) }}
+              href={isWeb ? getAvatarImageUrl(avatarUrl) : { uri: getAvatarImageUrl(avatarUrl) }}
               clipPath={`url(#${clipId})`}
               preserveAspectRatio="xMidYMid slice"
             />

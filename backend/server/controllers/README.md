@@ -151,15 +151,20 @@ Separate from roles. `users.status = 'banned'` blocks all authorized endpoints e
 
 | Module | Purpose |
 |--------|---------|
+| `admin.py` | Admin-specific helpers (request log queries, organization management) |
 | `auth.py` | Role-based authorization, location-scoped role checks, hierarchy walking, Q&A authority |
 | `cache_headers.py` | HTTP cache header utilities |
+| `card_builders.py` | Card queue construction helpers (position, survey, demographic cards) |
 | `chat_availability.py` | Chat partner matching and availability logic |
 | `chat_events.py` | WebSocket chat event handling |
 | `config.py` | Dev/prod configuration loader |
-| `database.py` | PostgreSQL connection pool wrapper (psycopg2, RealDictCursor) |
+| `constants.py` | Shared constants (limits, defaults, enums) |
+| `database.py` | PostgreSQL connection pool wrapper (psycopg2, RealDictCursor, DatabaseError) |
+| `geometry.py` | Geometric helpers (convex hull, centroid, coordinate transforms) |
 | `ideological_coords.py` | PCA projection from Polis votes, lazy coord caching, blending with MF |
 | `keycloak.py` | Keycloak OIDC token validation (RS256 JWKS), auto-registration |
 | `matrix_factorization.py` | Stub for Community Notes-style MF on comment votes (Phase 4) |
+| `moderation.py` | Moderation queue helpers (report aggregation, action resolution) |
 | `nlp.py` | NLP service client for embeddings |
 | `pairwise_graph.py` | Graph algorithms for pairwise survey ranking |
 | `polis_client.py` | Polis API client (XID auth for participants, OIDC for admin) |
@@ -171,3 +176,5 @@ Separate from roles. `users.status = 'banned'` blocks all authorized endpoints e
 | `rate_limiting.py` | Sliding-window rate limiting using Redis sorted sets |
 | `redis_pool.py` | Shared Redis connection pool |
 | `scoring.py` | Wilson score, hot score, controversial score, vote weighting by ideological distance |
+| `stats.py` | Stats computation helpers (opinion groups, vote distributions) |
+| `user_mappers.py` | User object serialization helpers (profile, public view, admin view) |

@@ -30,6 +30,26 @@ class ChatExporter:
         )
         logger.info("Connected to PostgreSQL")
 
+    async def resolve_keycloak_id(self, keycloak_id: str) -> Optional[str]:
+        """Look up a Candid user_id from a Keycloak subject claim.
+
+        Args:
+            keycloak_id: Keycloak subject identifier
+
+        Returns:
+            Candid user UUID string, or None if not found
+        """
+        if not self._pool:
+            logger.error("PostgreSQL pool not initialized")
+            return None
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT id FROM users WHERE keycloak_id = $1", keycloak_id
+            )
+            if row:
+                return str(row["id"])
+        return None
+
     async def close(self) -> None:
         """Close PostgreSQL connection."""
         if self._pool:
@@ -182,6 +202,7 @@ class ChatExporter:
                     WHERE up.user_id = $1::uuid
                       AND cr.response = 'pending'
                     ORDER BY cr.created_time DESC
+                    LIMIT 50
                     """,
                     user_id,
                 )

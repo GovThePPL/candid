@@ -1,5 +1,5 @@
 import { StyleSheet, Dimensions, View, Platform } from 'react-native'
-import { useRef, useCallback, useImperativeHandle, forwardRef, useMemo } from 'react'
+import { useRef, useCallback, useImperativeHandle, forwardRef, useMemo, useEffect } from 'react'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import Animated, {
   useSharedValue,
@@ -82,23 +82,25 @@ const SwipeableCard = forwardRef(function SwipeableCard({
   const starO = useSharedValue(0)
   const starS = useSharedValue(0.5)
 
-  // Boolean flags as shared values for worklet access (synced each render)
-  const flagChatAccept = useSharedValue(0)
-  const flagSubmit = useSharedValue(0)
-  const flagKudos = useSharedValue(0)
-  const flagPassLeft = useSharedValue(0)
-  const flagVertical = useSharedValue(0)
-  const hasUp = useSharedValue(0)
-  const hasLeft = useSharedValue(0)
-  const hasDown = useSharedValue(0)
-  flagChatAccept.value = rightSwipeAsChatAccept ? 1 : 0
-  flagSubmit.value = rightSwipeAsSubmit ? 1 : 0
-  flagKudos.value = rightSwipeAsKudos ? 1 : 0
-  flagPassLeft.value = leftSwipeAsPass ? 1 : 0
-  flagVertical.value = enableVerticalSwipe ? 1 : 0
-  hasUp.value = onSwipeUp ? 1 : 0
-  hasLeft.value = onSwipeLeft ? 1 : 0
-  hasDown.value = onSwipeDown ? 1 : 0
+  // Boolean flags as shared values for worklet access (synced via useEffect to avoid render-time writes)
+  const flagChatAccept = useSharedValue(rightSwipeAsChatAccept ? 1 : 0)
+  const flagSubmit = useSharedValue(rightSwipeAsSubmit ? 1 : 0)
+  const flagKudos = useSharedValue(rightSwipeAsKudos ? 1 : 0)
+  const flagPassLeft = useSharedValue(leftSwipeAsPass ? 1 : 0)
+  const flagVertical = useSharedValue(enableVerticalSwipe ? 1 : 0)
+  const hasUp = useSharedValue(onSwipeUp ? 1 : 0)
+  const hasLeft = useSharedValue(onSwipeLeft ? 1 : 0)
+  const hasDown = useSharedValue(onSwipeDown ? 1 : 0)
+  useEffect(() => {
+    flagChatAccept.value = rightSwipeAsChatAccept ? 1 : 0
+    flagSubmit.value = rightSwipeAsSubmit ? 1 : 0
+    flagKudos.value = rightSwipeAsKudos ? 1 : 0
+    flagPassLeft.value = leftSwipeAsPass ? 1 : 0
+    flagVertical.value = enableVerticalSwipe ? 1 : 0
+    hasUp.value = onSwipeUp ? 1 : 0
+    hasLeft.value = onSwipeLeft ? 1 : 0
+    hasDown.value = onSwipeDown ? 1 : 0
+  }, [rightSwipeAsChatAccept, rightSwipeAsSubmit, rightSwipeAsKudos, leftSwipeAsPass, enableVerticalSwipe, !!onSwipeUp, !!onSwipeLeft, !!onSwipeDown])
 
   // Stable refs for JS callbacks (accessed by swipeOffScreen on JS thread)
   const onSwipeRightRef = useRef(onSwipeRight)
@@ -410,7 +412,7 @@ const SwipeableCard = forwardRef(function SwipeableCard({
           {children}
         </View>
         {/* Swipe overlays — decorative, hidden from screen readers */}
-        <View accessible={false} importantForAccessibility="no-hide-descendants" pointerEvents="none" style={StyleSheet.absoluteFill}>
+        <View accessible={false} importantForAccessibility="no-hide-descendants" style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
           {/* Green overlay for right swipe */}
           <Animated.View
             style={[styles.overlay, { backgroundColor: SemanticColors.agree }, greenOverlayStyle]}
@@ -486,13 +488,10 @@ const createStyles = (colors) => StyleSheet.create({
     borderColor: colors.cardBorder,
     overflow: 'hidden',
     // Drop shadow
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 8,
-    ...(Platform.OS === 'web' && {
-      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.15)',
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8 },
+      android: { elevation: 8 },
+      default: { boxShadow: '0 4px 8px rgba(0, 0, 0, 0.15)' },
     }),
   },
   overlay: {

@@ -10,27 +10,20 @@ from candid.controllers.helpers.auth import authorization, authorization_allow_b
 from candid.controllers.helpers import polis_sync
 from candid.controllers.helpers import presence
 from candid.controllers.helpers.chat_availability import get_batch_availability
+from candid.controllers.helpers.card_builders import (
+    DEMOGRAPHIC_QUESTIONS,
+    DB_TO_API_FIELD as _DB_TO_API_FIELD,
+    value_to_label as _value_to_label,
+    position_to_card as _position_to_card,
+    chatting_list_position_to_card as _chatting_list_position_to_card,
+    survey_to_card as _survey_to_card,
+    chat_request_to_card as _chat_request_to_card,
+    kudos_to_card as _kudos_to_card,
+    demographic_to_card as _demographic_to_card,
+)
 from candid.controllers.moderation_controller import _get_target_content
 import itertools
 import random
-
-
-# Demographic field questions (options come from the database schema)
-# Keys are DB column names (snake_case)
-DEMOGRAPHIC_QUESTIONS = {
-    'lean': 'What is your political lean?',
-    'education': 'What is your highest level of education?',
-    'geo_locale': 'How would you describe where you live?',
-    'sex': 'What is your sex?',
-}
-
-# Map DB column names to camelCase API field names for card responses
-_DB_TO_API_FIELD = {
-    'lean': 'lean',
-    'education': 'education',
-    'geo_locale': 'geoLocale',
-    'sex': 'sex',
-}
 
 # Cached demographic options from database schema
 _demographic_options_cache = None
@@ -76,11 +69,6 @@ def _get_demographic_options():
 
     _demographic_options_cache = options
     return options
-
-
-def _value_to_label(value: str) -> str:
-    """Convert a snake_case value to a human-readable label."""
-    return value.replace('_', ' ').title()
 
 
 def _get_ban_notification(user_id):
@@ -363,8 +351,9 @@ def get_card_queue(limit=None, token_info=None):  # noqa: E501
         # Normal behavior: 20% chance for demographics, 30% for surveys, 25% for pairwise
         if random.random() < 0.20:
             demographics = _get_unanswered_demographics(user.id, limit=1)
+            demo_options = _get_demographic_options()
             for field in demographics:
-                shuffled_cards.append(_demographic_to_card(field))
+                shuffled_cards.append(_demographic_to_card(field, demo_options))
 
         if random.random() < 0.30:
             surveys = _get_pending_surveys(user.id, limit=1)
@@ -496,56 +485,6 @@ def _get_chatting_list_cards(user_id: str, limit: int = 3) -> List[dict]:
         })
 
     return result
-
-
-def _chatting_list_position_to_card(pos: dict) -> dict:
-    """Convert a chatting list position to a card response with source info."""
-    creator = {
-        "id": pos.get("creator_id") or pos.get("creator_user_id"),
-        "displayName": pos.get("creator_display_name"),
-        "username": pos.get("creator_username"),
-        "status": pos.get("creator_status", "active"),
-        "kudosCount": pos.get("creator_kudos_count", 0),
-        "trustScore": pos.get("creator_trust_score"),
-        "avatarUrl": pos.get("creator_avatar_url"),
-        "avatarIconUrl": pos.get("creator_avatar_icon_url")
-    }
-
-    category = None
-    if pos.get("category_name"):
-        category = {
-            "id": pos.get("category_id"),
-            "label": pos.get("category_name")
-        }
-
-    location = None
-    if pos.get("location_code"):
-        location = {
-            "code": pos.get("location_code"),
-            "name": pos.get("location_name")
-        }
-
-    data = {
-        "id": pos["id"],
-        "creator": creator,
-        "statement": pos["statement"],
-        "categoryId": pos.get("category_id"),
-        "category": category,
-        "location": location,
-        "createdTime": pos.get("created_time"),
-        "agreeCount": pos.get("agree_count", 0),
-        "disagreeCount": pos.get("disagree_count", 0),
-        "passCount": pos.get("pass_count", 0),
-        "chatCount": pos.get("chat_count", 0),
-        "status": pos.get("status", "active"),
-        "userPositionId": pos.get("user_position_id"),
-        # Chatting list specific fields
-        "source": "chatting_list",
-        "hasPendingRequests": pos.get("has_pending_requests", False),
-        "chattingListId": pos.get("chatting_list_id"),
-    }
-
-    return {"type": "position", "data": data}
 
 
 # Per-user context cache: location + category priorities
@@ -709,54 +648,6 @@ def _get_unvoted_positions_fallback(user_id: str, location_id: str, limit: int =
     return result
 
 
-def _position_to_card(pos: dict) -> dict:
-    """Convert a position dict to a card response."""
-    creator = {
-        "id": pos.get("creator_id") or pos.get("creator_user_id"),
-        "displayName": pos.get("creator_display_name"),
-        "username": pos.get("creator_username"),
-        "status": pos.get("creator_status", "active"),
-        "kudosCount": pos.get("creator_kudos_count", 0),
-        "trustScore": pos.get("creator_trust_score"),
-        "avatarUrl": pos.get("creator_avatar_url"),
-        "avatarIconUrl": pos.get("creator_avatar_icon_url")
-    }
-
-    # Build category object if we have category data
-    category = None
-    if pos.get("category_name"):
-        category = {
-            "id": pos.get("category_id"),
-            "label": pos.get("category_name")
-        }
-
-    # Build location object if we have location data
-    location = None
-    if pos.get("location_code"):
-        location = {
-            "code": pos.get("location_code"),
-            "name": pos.get("location_name")
-        }
-
-    data = {
-        "id": pos["id"],
-        "creator": creator,
-        "statement": pos["statement"],
-        "categoryId": pos.get("category_id"),
-        "category": category,
-        "location": location,
-        "createdTime": pos.get("created_time"),
-        "agreeCount": pos.get("agree_count", 0),
-        "disagreeCount": pos.get("disagree_count", 0),
-        "passCount": pos.get("pass_count", 0),
-        "chatCount": pos.get("chat_count", 0),
-        "status": pos.get("status", "active"),
-        "userPositionId": pos.get("user_position_id"),
-    }
-
-    return {"type": "position", "data": data}
-
-
 # In-memory survey cache: all active surveys with questions and options
 _survey_cache = None
 _survey_cache_time = 0
@@ -834,24 +725,6 @@ def _get_pending_surveys(user_id: str, limit: int = 2) -> List[dict]:
     return result
 
 
-def _survey_to_card(survey: dict) -> dict:
-    """Convert a survey dict to a card response."""
-    options = [
-        {"id": str(opt["id"]), "option": opt["survey_question_option"]}
-        for opt in survey.get("options", [])
-    ]
-
-    data = {
-        "id": survey["question_id"],
-        "surveyId": survey["survey_id"],
-        "question": survey["question"],
-        "options": options,
-        "surveyTitle": survey.get("survey_title")
-    }
-
-    return {"type": "survey", "data": data}
-
-
 def _get_pending_chat_requests(user_id: str, limit: int = 2) -> List[dict]:
     """Get pending chat requests for the user (where they hold the position)."""
     requests = db.execute_query("""
@@ -903,58 +776,6 @@ def _get_pending_chat_requests(user_id: str, limit: int = 2) -> List[dict]:
     """, (Config.TIMESTAMP_FORMAT, user_id, limit))
 
     return [dict(r) for r in (requests or [])]
-
-
-def _chat_request_to_card(chat_req: dict) -> dict:
-    """Convert a chat request dict to a card response."""
-    initiator = {
-        "id": str(chat_req["initiator_id"]),
-        "displayName": chat_req["initiator_display_name"],
-        "username": chat_req["initiator_username"],
-        "status": chat_req["initiator_status"],
-        "kudosCount": chat_req.get("initiator_kudos_count", 0),
-        "trustScore": float(chat_req["initiator_trust_score"]) if chat_req.get("initiator_trust_score") is not None else None,
-        "avatarUrl": chat_req.get("initiator_avatar_url"),
-        "avatarIconUrl": chat_req.get("initiator_avatar_icon_url")
-    }
-
-    # Build position creator
-    creator = {
-        "id": str(chat_req["author_id"]),
-        "displayName": chat_req["author_display_name"],
-        "username": chat_req["author_username"],
-        "status": chat_req["author_status"],
-        "kudosCount": chat_req.get("author_kudos_count", 0),
-        "trustScore": float(chat_req["author_trust_score"]) if chat_req.get("author_trust_score") is not None else None,
-        "avatarUrl": chat_req.get("author_avatar_url"),
-        "avatarIconUrl": chat_req.get("author_avatar_icon_url")
-    }
-
-    # Build position with category and location
-    position = {
-        "id": str(chat_req["position_id"]),
-        "statement": chat_req["position_statement"],
-        "creator": creator
-    }
-
-    if chat_req.get("position_category_name"):
-        position["category"] = {"label": chat_req["position_category_name"]}
-
-    if chat_req.get("position_location_code"):
-        position["location"] = {
-            "code": chat_req["position_location_code"],
-            "name": chat_req.get("position_location_name")
-        }
-
-    data = {
-        "id": str(chat_req["id"]),
-        "requester": initiator,
-        "userPositionId": str(chat_req["user_position_id"]),
-        "position": position,
-        "response": chat_req["response"]
-    }
-
-    return {"type": "chat_request", "data": data}
 
 
 def _get_pending_kudos_cards(user_id: str, limit: int = 2) -> List[dict]:
@@ -1057,61 +878,6 @@ def _get_pending_kudos_cards(user_id: str, limit: int = 2) -> List[dict]:
     return [dict(r) for r in (kudos_prompts or [])]
 
 
-def _kudos_to_card(kudos_data: dict, user_id: str) -> dict:
-    """Convert a kudos prompt dict to a card response."""
-    other_participant = {
-        "id": str(kudos_data["other_user_id"]),
-        "displayName": kudos_data["other_display_name"],
-        "username": kudos_data["other_username"],
-        "status": kudos_data["other_status"],
-        "kudosCount": kudos_data.get("other_kudos_count", 0),
-        "trustScore": float(kudos_data["other_trust_score"]) if kudos_data.get("other_trust_score") is not None else None,
-        "avatarUrl": kudos_data.get("other_avatar_url"),
-        "avatarIconUrl": kudos_data.get("other_avatar_icon_url")
-    }
-
-    # Build position creator
-    position_creator = {
-        "id": str(kudos_data["position_author_id"]),
-        "displayName": kudos_data["position_author_display_name"],
-        "username": kudos_data["position_author_username"],
-        "status": kudos_data["position_author_status"],
-        "kudosCount": kudos_data.get("position_author_kudos_count", 0),
-        "trustScore": float(kudos_data["position_author_trust_score"]) if kudos_data.get("position_author_trust_score") is not None else None,
-        "avatarUrl": kudos_data.get("position_author_avatar_url"),
-        "avatarIconUrl": kudos_data.get("position_author_avatar_icon_url")
-    }
-
-    # Build position with category and location
-    position = {
-        "id": str(kudos_data["position_id"]),
-        "statement": kudos_data["position_statement"],
-        "creator": position_creator
-    }
-
-    if kudos_data.get("position_category_name"):
-        position["category"] = {
-            "id": str(kudos_data["position_category_id"]) if kudos_data.get("position_category_id") else None,
-            "label": kudos_data["position_category_name"]
-        }
-
-    if kudos_data.get("position_location_code"):
-        position["location"] = {
-            "code": kudos_data["position_location_code"],
-            "name": kudos_data["position_location_name"]
-        }
-
-    data = {
-        "id": str(kudos_data["chat_log_id"]),
-        "otherParticipant": other_participant,
-        "position": position,
-        "closingStatement": kudos_data["closing_statement"],
-        "chatEndTime": kudos_data["end_time"].isoformat() if kudos_data["end_time"] else None
-    }
-
-    return {"type": "kudos", "data": data}
-
-
 def _get_unanswered_demographics(user_id: str, limit: int = 1) -> List[str]:
     """Get unanswered demographic fields for the user."""
     # Get current demographics
@@ -1134,21 +900,6 @@ def _get_unanswered_demographics(user_id: str, limit: int = 1) -> List[str]:
 
     # Return up to limit unanswered fields
     return unanswered[:limit]
-
-
-def _demographic_to_card(field: str) -> dict:
-    """Convert a demographic field to a card response."""
-    options = _get_demographic_options()
-    question = DEMOGRAPHIC_QUESTIONS.get(field, f"What is your {field.replace('_', ' ')}?")
-    field_options = options.get(field, [])
-
-    data = {
-        "field": _DB_TO_API_FIELD.get(field, field),
-        "question": question,
-        "options": field_options
-    }
-
-    return {"type": "demographic", "data": data}
 
 
 # In-memory pairwise survey cache: all active pairwise surveys with items
@@ -1288,7 +1039,3 @@ def _get_pending_pairwise(user_id: str, limit: int = 2) -> List[dict]:
     return cards[:limit]
 
 
-def _pairwise_to_card(pairwise: dict) -> dict:
-    """Convert a pairwise comparison dict to a card response (passthrough)."""
-    # Already in card format from _get_pending_pairwise
-    return pairwise

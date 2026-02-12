@@ -46,49 +46,43 @@ beforeEach(() => {
 })
 
 describe('connectSocket', () => {
-  it('gets token from api and creates socket', async () => {
-    // Simulate connect event -> authenticate success
+  it('passes token in auth handshake and resolves on authenticated event', async () => {
+    const { io } = require('socket.io-client')
+
+    // Simulate: connect triggers server 'authenticated' event
     mockOn.mockImplementation((event, handler) => {
-      if (event === 'connect') {
-        // Call connect handler after socket.connect()
-        setTimeout(() => handler(), 0)
+      if (event === 'authenticated') {
+        // Server emits authenticated after accepting handshake
+        setTimeout(() => handler({ userId: 'u1', activeChats: [] }), 0)
       }
     })
-    mockEmit.mockImplementation((event, data, callback) => {
-      if (event === 'authenticate') {
-        callback({ status: 'authenticated', userId: 'u1' })
-      }
-    })
+
     mockConnect.mockImplementation(() => {
-      // Trigger connect event
-      const connectHandler = mockOn.mock.calls.find(c => c[0] === 'connect')?.[1]
-      if (connectHandler) connectHandler()
+      const authHandler = mockOn.mock.calls.find(c => c[0] === 'authenticated')?.[1]
+      if (authHandler) authHandler({ userId: 'u1', activeChats: [] })
     })
 
     const result = await socketModule.connectSocket()
     expect(result).toBe(mockSocket)
+    // Verify token passed in auth option
+    expect(io).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ auth: { token: 'test-token' } }),
+    )
   })
 
   it('reuses existing connected socket', async () => {
-    // First simulate an existing connected socket
-    mockSocket.connected = true
-    // Set internal socket by calling connectSocket with connected mock
-    // Actually, getSocket returns internal socket. Let's test differently.
-    // Use connectSocket first, then call again
     const { io } = require('socket.io-client')
 
-    // On second call, socket.connected is true so it should return immediately
     mockSocket.connected = true
-    // Need to set the internal socket variable - do a successful connect first
     mockOn.mockImplementation((event, handler) => {
-      if (event === 'connect') setTimeout(() => handler(), 0)
-    })
-    mockEmit.mockImplementation((event, data, callback) => {
-      if (event === 'authenticate') callback({ status: 'authenticated', userId: 'u1' })
+      if (event === 'authenticated') {
+        setTimeout(() => handler({ userId: 'u1', activeChats: [] }), 0)
+      }
     })
     mockConnect.mockImplementation(() => {
-      const connectHandler = mockOn.mock.calls.find(c => c[0] === 'connect')?.[1]
-      if (connectHandler) connectHandler()
+      const authHandler = mockOn.mock.calls.find(c => c[0] === 'authenticated')?.[1]
+      if (authHandler) authHandler({ userId: 'u1', activeChats: [] })
     })
 
     await socketModule.connectSocket()
@@ -97,7 +91,6 @@ describe('connectSocket', () => {
     // Second call should return immediately
     const result = await socketModule.connectSocket()
     expect(result).toBe(mockSocket)
-    // io should only be called once (from first connect)
     expect(io).toHaveBeenCalledTimes(1)
   })
 
@@ -108,19 +101,28 @@ describe('connectSocket', () => {
     await expect(socketModule.connectSocket()).rejects.toThrow('No authentication token available')
   })
 
-  it('rejects on authentication failure', async () => {
+  it('rejects after max connect_error attempts', async () => {
     mockOn.mockImplementation((event, handler) => {
-      if (event === 'connect') setTimeout(() => handler(), 0)
-    })
-    mockEmit.mockImplementation((event, data, callback) => {
-      if (event === 'authenticate') callback({ status: 'error', message: 'Invalid token' })
-    })
-    mockConnect.mockImplementation(() => {
-      const connectHandler = mockOn.mock.calls.find(c => c[0] === 'connect')?.[1]
-      if (connectHandler) connectHandler()
+      if (event === 'connect_error') {
+        // Simulate 5 consecutive failures (auth rejection at handshake)
+        setTimeout(() => {
+          for (let i = 0; i < 5; i++) {
+            handler(new Error('invalid or expired token'))
+          }
+        }, 0)
+      }
     })
 
-    await expect(socketModule.connectSocket()).rejects.toThrow('Invalid token')
+    mockConnect.mockImplementation(() => {
+      const errorHandler = mockOn.mock.calls.find(c => c[0] === 'connect_error')?.[1]
+      if (errorHandler) {
+        for (let i = 0; i < 5; i++) {
+          errorHandler(new Error('invalid or expired token'))
+        }
+      }
+    })
+
+    await expect(socketModule.connectSocket()).rejects.toThrow('invalid or expired token')
   })
 })
 
@@ -128,14 +130,13 @@ describe('disconnectSocket', () => {
   it('disconnects and clears socket', async () => {
     // First connect
     mockOn.mockImplementation((event, handler) => {
-      if (event === 'connect') setTimeout(() => handler(), 0)
-    })
-    mockEmit.mockImplementation((event, data, callback) => {
-      if (event === 'authenticate') callback({ status: 'authenticated', userId: 'u1' })
+      if (event === 'authenticated') {
+        setTimeout(() => handler({ userId: 'u1', activeChats: [] }), 0)
+      }
     })
     mockConnect.mockImplementation(() => {
-      const connectHandler = mockOn.mock.calls.find(c => c[0] === 'connect')?.[1]
-      if (connectHandler) connectHandler()
+      const authHandler = mockOn.mock.calls.find(c => c[0] === 'authenticated')?.[1]
+      if (authHandler) authHandler({ userId: 'u1', activeChats: [] })
     })
     await socketModule.connectSocket()
 

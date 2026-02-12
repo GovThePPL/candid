@@ -254,7 +254,7 @@ export default function Stats() {
       // Construct full URL - polisReportUrl is now just /report/{id}
       const baseHost = API_BASE_URL.replace(/\/api\/v1$/, '')
       const fullUrl = `${baseHost}${statsData.polisReportUrl}`
-      console.log('Opening Polis report:', fullUrl)
+      console.debug('Opening Polis report:', fullUrl)
 
       if (Platform.OS === 'web') {
         window.open(fullUrl, '_blank')
@@ -264,7 +264,7 @@ export default function Stats() {
         })
       }
     } else {
-      console.log('No polisReportUrl available:', statsData)
+      console.debug('No polisReportUrl available:', statsData)
     }
   }
 

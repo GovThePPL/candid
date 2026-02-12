@@ -14,7 +14,8 @@ from candid.controllers import db
 from candid.controllers.helpers.config import Config
 from candid.controllers.helpers.auth import authorization, authorization_allow_banned, token_to_user, is_moderator_anywhere
 from candid.controllers.helpers.chat_events import publish_chat_accepted, publish_chat_request_response, publish_chat_request_received
-from candid.controllers.cards_controller import _get_pending_chat_requests, _chat_request_to_card
+from candid.controllers.cards_controller import _get_pending_chat_requests
+from candid.controllers.helpers.card_builders import chat_request_to_card as _chat_request_to_card
 from candid.controllers.helpers import presence
 from candid.controllers.helpers.push_notifications import send_chat_request_notification
 from candid.controllers.helpers.chat_availability import _is_notifiable
@@ -25,6 +26,7 @@ from candid.controllers.helpers.cache_headers import (
     generate_etag,
 )
 
+from candid.controllers.helpers.rate_limiting import check_rate_limit_for
 from flask import jsonify, make_response
 import uuid
 
@@ -46,6 +48,11 @@ def create_chat_request(body, token_info=None):
     if not authorized:
         return auth_err, auth_err.code
     user = token_to_user(token_info)
+
+    # Rate limit
+    allowed, _ = check_rate_limit_for(str(user.id), "chat_request")
+    if not allowed:
+        return ErrorModel(code=429, message="Rate limit exceeded"), 429
 
     if connexion.request.is_json:
         body = connexion.request.get_json()
@@ -878,7 +885,8 @@ def send_kudos(chat_id, token_info=None):
             cl.id,
             cl.status,
             cr.initiator_user_id,
-            up.user_id as responder_user_id
+            up.user_id as responder_user_id,
+            up.position_id
         FROM chat_log cl
         JOIN chat_request cr ON cl.chat_request_id = cr.id
         JOIN user_position up ON cr.user_position_id = up.id
@@ -900,6 +908,23 @@ def send_kudos(chat_id, token_info=None):
         receiver_id = responder_id
     else:
         receiver_id = initiator_id
+
+    # Check if user already sent kudos to this person for the same position
+    # (prevents gaming via repeated chats on the same topic)
+    position_id = str(result["position_id"])
+    existing = db.execute_query("""
+        SELECT k.id FROM kudos k
+        JOIN chat_log cl2 ON k.chat_log_id = cl2.id
+        JOIN chat_request cr2 ON cl2.chat_request_id = cr2.id
+        JOIN user_position up2 ON cr2.user_position_id = up2.id
+        WHERE k.sender_user_id = %s
+          AND k.receiver_user_id = %s
+          AND up2.position_id = %s
+          AND k.status = 'sent'
+    """, (str(user.id), receiver_id, position_id), fetchone=True)
+
+    if existing:
+        return ErrorModel(code=409, message="You have already sent kudos to this user for this topic"), 409
 
     # Create or update kudos (allows sending after dismissing)
     kudos_id = str(uuid.uuid4())

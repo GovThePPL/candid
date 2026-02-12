@@ -5,8 +5,9 @@ from unittest.mock import patch, MagicMock
 
 pytestmark = pytest.mark.unit
 
-# Module path for patching
+# Module paths for patching
 MOD = "candid.controllers.moderation_controller"
+MOD_HELPERS = "candid.controllers.helpers.moderation"
 AUTH = "candid.controllers.helpers.auth"
 
 # Test location UUIDs
@@ -37,7 +38,7 @@ def _clear_caches():
 
 
 # ---------------------------------------------------------------------------
-# _get_reported_user_role
+# _get_reported_user_role  (extracted to helpers/moderation.py)
 # ---------------------------------------------------------------------------
 
 class TestGetReportedUserRole:
@@ -48,7 +49,7 @@ class TestGetReportedUserRole:
             {"role": "admin"},                 # user_role lookup
         ])
 
-        with patch(f"{MOD}.db", mock_db):
+        with patch(f"{MOD_HELPERS}.db", mock_db):
             from candid.controllers.moderation_controller import _get_reported_user_role
             assert _get_reported_user_role("position", POSITION_ID) == "admin"
 
@@ -59,7 +60,7 @@ class TestGetReportedUserRole:
             None,  # no admin/moderator role
         ])
 
-        with patch(f"{MOD}.db", mock_db):
+        with patch(f"{MOD_HELPERS}.db", mock_db):
             from candid.controllers.moderation_controller import _get_reported_user_role
             assert _get_reported_user_role("position", POSITION_ID) == "normal"
 
@@ -72,19 +73,19 @@ class TestGetReportedUserRole:
             {"role": "moderator"},  # mod user is moderator
         ])
 
-        with patch(f"{MOD}.db", mock_db):
+        with patch(f"{MOD_HELPERS}.db", mock_db):
             from candid.controllers.moderation_controller import _get_reported_user_role
             assert _get_reported_user_role("chat_log", "chat-id-1") == "moderator"
 
     def test_unknown_target_type_returns_normal(self):
         mock_db = MagicMock()
-        with patch(f"{MOD}.db", mock_db):
+        with patch(f"{MOD_HELPERS}.db", mock_db):
             from candid.controllers.moderation_controller import _get_reported_user_role
             assert _get_reported_user_role("unknown", "id-1") == "normal"
 
 
 # ---------------------------------------------------------------------------
-# _get_content_scope
+# _get_content_scope  (extracted to helpers/moderation.py)
 # ---------------------------------------------------------------------------
 
 class TestGetContentScope:
@@ -95,7 +96,7 @@ class TestGetContentScope:
             {"location_id": OREGON, "category_id": HEALTHCARE_CAT},
         ])
 
-        with patch(f"{MOD}.db", mock_db):
+        with patch(f"{MOD_HELPERS}.db", mock_db):
             from candid.controllers.moderation_controller import _get_content_scope
             loc, cat = _get_content_scope(REPORT_ID)
             assert loc == OREGON
@@ -105,7 +106,7 @@ class TestGetContentScope:
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value=None)
 
-        with patch(f"{MOD}.db", mock_db):
+        with patch(f"{MOD_HELPERS}.db", mock_db):
             from candid.controllers.moderation_controller import _get_content_scope
             loc, cat = _get_content_scope("nonexistent")
             assert loc is None
@@ -118,7 +119,7 @@ class TestGetContentScope:
             {"location_id": None, "category_id": None},
         ])
 
-        with patch(f"{MOD}.db", mock_db):
+        with patch(f"{MOD_HELPERS}.db", mock_db):
             from candid.controllers.moderation_controller import _get_content_scope
             loc, cat = _get_content_scope(REPORT_ID)
             assert loc is None
@@ -131,7 +132,7 @@ class TestGetContentScope:
             {"location_id": PORTLAND, "category_id": HEALTHCARE_CAT},
         ])
 
-        with patch(f"{MOD}.db", mock_db):
+        with patch(f"{MOD_HELPERS}.db", mock_db):
             from candid.controllers.moderation_controller import _get_content_scope
             loc, cat = _get_content_scope(REPORT_ID)
             assert loc == PORTLAND
@@ -139,12 +140,12 @@ class TestGetContentScope:
 
 
 # ---------------------------------------------------------------------------
-# _determine_actioner_role_level
+# _determine_actioner_role_level  (extracted to helpers/moderation.py)
 # ---------------------------------------------------------------------------
 
 class TestDetermineActionerRoleLevel:
     def test_returns_role_from_location_scope(self):
-        with patch(f"{MOD}.get_highest_role_at_location", return_value="moderator"):
+        with patch(f"{MOD_HELPERS}.get_highest_role_at_location", return_value="moderator"):
             from candid.controllers.moderation_controller import _determine_actioner_role_level
             assert _determine_actioner_role_level(MOD_USER, OREGON, HEALTHCARE_CAT) == "moderator"
 
@@ -152,8 +153,8 @@ class TestDetermineActionerRoleLevel:
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value={"role": "facilitator"})
 
-        with patch(f"{MOD}.get_highest_role_at_location", return_value=None), \
-             patch(f"{MOD}.db", mock_db):
+        with patch(f"{MOD_HELPERS}.get_highest_role_at_location", return_value=None), \
+             patch(f"{MOD_HELPERS}.db", mock_db):
             from candid.controllers.moderation_controller import _determine_actioner_role_level
             assert _determine_actioner_role_level(FACILITATOR_USER, None, None) == "facilitator"
 
@@ -161,14 +162,14 @@ class TestDetermineActionerRoleLevel:
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value=None)
 
-        with patch(f"{MOD}.get_highest_role_at_location", return_value=None), \
-             patch(f"{MOD}.db", mock_db):
+        with patch(f"{MOD_HELPERS}.get_highest_role_at_location", return_value=None), \
+             patch(f"{MOD_HELPERS}.db", mock_db):
             from candid.controllers.moderation_controller import _determine_actioner_role_level
             assert _determine_actioner_role_level(NORMAL_USER, None, None) is None
 
 
 # ---------------------------------------------------------------------------
-# _find_appeal_reviewers
+# _find_appeal_reviewers  (extracted to helpers/moderation.py)
 # ---------------------------------------------------------------------------
 
 class TestFindAppealReviewers:
@@ -178,7 +179,7 @@ class TestFindAppealReviewers:
             {"user_id": FACILITATOR_USER}
         ])
 
-        with patch(f"{MOD}.db", mock_db):
+        with patch(f"{MOD_HELPERS}.db", mock_db):
             from candid.controllers.moderation_controller import _find_appeal_reviewers
             result = _find_appeal_reviewers(
                 "assistant_moderator", OREGON, HEALTHCARE_CAT, ASST_MOD_USER)
@@ -192,8 +193,8 @@ class TestFindAppealReviewers:
             [{"user_id": MOD_USER}],  # moderator found
         ])
 
-        with patch(f"{MOD}.db", mock_db), \
-             patch(f"{MOD}.get_location_ancestors", return_value=[OREGON, US_ROOT]):
+        with patch(f"{MOD_HELPERS}.db", mock_db), \
+             patch(f"{MOD_HELPERS}.get_location_ancestors", return_value=[OREGON, US_ROOT]):
             from candid.controllers.moderation_controller import _find_appeal_reviewers
             result = _find_appeal_reviewers(
                 "assistant_moderator", OREGON, HEALTHCARE_CAT, ASST_MOD_USER)
@@ -203,8 +204,8 @@ class TestFindAppealReviewers:
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value=[{"user_id": MOD_USER}])
 
-        with patch(f"{MOD}.db", mock_db), \
-             patch(f"{MOD}.get_location_ancestors", return_value=[OREGON, US_ROOT]):
+        with patch(f"{MOD_HELPERS}.db", mock_db), \
+             patch(f"{MOD_HELPERS}.get_location_ancestors", return_value=[OREGON, US_ROOT]):
             from candid.controllers.moderation_controller import _find_appeal_reviewers
             result = _find_appeal_reviewers(
                 "facilitator", OREGON, HEALTHCARE_CAT, FACILITATOR_USER)
@@ -214,8 +215,8 @@ class TestFindAppealReviewers:
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value=[{"user_id": ADMIN_USER}])
 
-        with patch(f"{MOD}.db", mock_db), \
-             patch(f"{MOD}.get_location_ancestors", return_value=[OREGON, US_ROOT]):
+        with patch(f"{MOD_HELPERS}.db", mock_db), \
+             patch(f"{MOD_HELPERS}.get_location_ancestors", return_value=[OREGON, US_ROOT]):
             from candid.controllers.moderation_controller import _find_appeal_reviewers
             result = _find_appeal_reviewers("moderator", OREGON, None, MOD_USER)
             assert ADMIN_USER in result
@@ -224,8 +225,8 @@ class TestFindAppealReviewers:
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value=[])
 
-        with patch(f"{MOD}.db", mock_db), \
-             patch(f"{MOD}.get_location_ancestors", return_value=[OREGON, US_ROOT]):
+        with patch(f"{MOD_HELPERS}.db", mock_db), \
+             patch(f"{MOD_HELPERS}.get_location_ancestors", return_value=[OREGON, US_ROOT]):
             from candid.controllers.moderation_controller import _find_appeal_reviewers
             result = _find_appeal_reviewers("moderator", OREGON, None, MOD_USER)
             assert result == []
@@ -235,8 +236,8 @@ class TestFindAppealReviewers:
         # Only the actioner has the role
         mock_db.execute_query = MagicMock(return_value=[{"user_id": MOD_USER}])
 
-        with patch(f"{MOD}.db", mock_db), \
-             patch(f"{MOD}.get_location_ancestors", return_value=[OREGON, US_ROOT]):
+        with patch(f"{MOD_HELPERS}.db", mock_db), \
+             patch(f"{MOD_HELPERS}.get_location_ancestors", return_value=[OREGON, US_ROOT]):
             from candid.controllers.moderation_controller import _find_appeal_reviewers
             # Exclude MOD_USER (the actioner)
             result = _find_appeal_reviewers("facilitator", OREGON, None, MOD_USER)
@@ -251,8 +252,8 @@ class TestFindAppealReviewers:
             [{"user_id": "root-admin"}],  # admin at parent location
         ])
 
-        with patch(f"{MOD}.db", mock_db), \
-             patch(f"{MOD}.get_location_ancestors", side_effect=[
+        with patch(f"{MOD_HELPERS}.db", mock_db), \
+             patch(f"{MOD_HELPERS}.get_location_ancestors", side_effect=[
                  [OREGON, US_ROOT],   # content ancestors
                  [OREGON, US_ROOT],   # actioner's admin location ancestors
              ]):
@@ -266,7 +267,7 @@ class TestFindAppealReviewers:
 
 
 # ---------------------------------------------------------------------------
-# _find_peer_reviewers
+# _find_peer_reviewers  (extracted to helpers/moderation.py)
 # ---------------------------------------------------------------------------
 
 class TestFindPeerReviewers:
@@ -274,8 +275,8 @@ class TestFindPeerReviewers:
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value=[{"user_id": PEER_MOD_USER}])
 
-        with patch(f"{MOD}.db", mock_db), \
-             patch(f"{MOD}.get_location_ancestors", return_value=[OREGON, US_ROOT]):
+        with patch(f"{MOD_HELPERS}.db", mock_db), \
+             patch(f"{MOD_HELPERS}.get_location_ancestors", return_value=[OREGON, US_ROOT]):
             from candid.controllers.moderation_controller import _find_peer_reviewers
             result = _find_peer_reviewers("moderator", OREGON, None, MOD_USER)
             assert PEER_MOD_USER in result
@@ -287,7 +288,7 @@ class TestFindPeerReviewers:
             {"user_id": "peer-facilitator"}
         ])
 
-        with patch(f"{MOD}.db", mock_db):
+        with patch(f"{MOD_HELPERS}.db", mock_db):
             from candid.controllers.moderation_controller import _find_peer_reviewers
             result = _find_peer_reviewers(
                 "facilitator", OREGON, HEALTHCARE_CAT, FACILITATOR_USER)
@@ -301,8 +302,8 @@ class TestFindPeerReviewers:
             [{"user_id": ADMIN_USER}],  # admin found (from _find_appeal_reviewers)
         ])
 
-        with patch(f"{MOD}.db", mock_db), \
-             patch(f"{MOD}.get_location_ancestors", return_value=[OREGON, US_ROOT]):
+        with patch(f"{MOD_HELPERS}.db", mock_db), \
+             patch(f"{MOD_HELPERS}.get_location_ancestors", return_value=[OREGON, US_ROOT]):
             from candid.controllers.moderation_controller import _find_peer_reviewers
             result = _find_peer_reviewers("moderator", OREGON, None, MOD_USER)
             assert ADMIN_USER in result
@@ -311,38 +312,38 @@ class TestFindPeerReviewers:
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value=[{"user_id": "peer-admin"}])
 
-        with patch(f"{MOD}.db", mock_db), \
-             patch(f"{MOD}.get_location_ancestors", return_value=[US_ROOT]):
+        with patch(f"{MOD_HELPERS}.db", mock_db), \
+             patch(f"{MOD_HELPERS}.get_location_ancestors", return_value=[US_ROOT]):
             from candid.controllers.moderation_controller import _find_peer_reviewers
             result = _find_peer_reviewers("admin", US_ROOT, None, ADMIN_USER)
             assert "peer-admin" in result
 
 
 # ---------------------------------------------------------------------------
-# _can_review_appeal_at_scope
+# _can_review_appeal_at_scope  (extracted to helpers/moderation.py)
 # ---------------------------------------------------------------------------
 
 class TestCanReviewAppealAtScope:
     def test_moderator_can_review_facilitator_action(self):
-        with patch(f"{MOD}.get_highest_role_at_location", return_value="moderator"):
+        with patch(f"{MOD_HELPERS}.get_highest_role_at_location", return_value="moderator"):
             from candid.controllers.moderation_controller import _can_review_appeal_at_scope
             assert _can_review_appeal_at_scope(
                 MOD_USER, OREGON, HEALTHCARE_CAT, "facilitator") is True
 
     def test_facilitator_cannot_review_moderator_action(self):
-        with patch(f"{MOD}.get_highest_role_at_location", return_value="facilitator"):
+        with patch(f"{MOD_HELPERS}.get_highest_role_at_location", return_value="facilitator"):
             from candid.controllers.moderation_controller import _can_review_appeal_at_scope
             assert _can_review_appeal_at_scope(
                 FACILITATOR_USER, OREGON, HEALTHCARE_CAT, "moderator") is False
 
     def test_same_tier_cannot_review(self):
-        with patch(f"{MOD}.get_highest_role_at_location", return_value="moderator"):
+        with patch(f"{MOD_HELPERS}.get_highest_role_at_location", return_value="moderator"):
             from candid.controllers.moderation_controller import _can_review_appeal_at_scope
             assert _can_review_appeal_at_scope(
                 MOD_USER, OREGON, None, "moderator") is False
 
     def test_admin_can_review_any_lower_tier(self):
-        with patch(f"{MOD}.get_highest_role_at_location", return_value="admin"):
+        with patch(f"{MOD_HELPERS}.get_highest_role_at_location", return_value="admin"):
             from candid.controllers.moderation_controller import _can_review_appeal_at_scope
             assert _can_review_appeal_at_scope(
                 ADMIN_USER, OREGON, None, "assistant_moderator") is True
@@ -359,7 +360,7 @@ class TestCanReviewAppealAtScope:
 
 
 # ---------------------------------------------------------------------------
-# _should_show_escalated_appeal
+# _should_show_escalated_appeal  (extracted to helpers/moderation.py)
 # ---------------------------------------------------------------------------
 
 class TestShouldShowEscalatedAppeal:
@@ -369,10 +370,10 @@ class TestShouldShowEscalatedAppeal:
             "report_id": REPORT_ID, "responder_user_id": MOD_USER
         })
 
-        with patch(f"{MOD}.db", mock_db), \
-             patch(f"{MOD}._get_content_scope", return_value=(OREGON, HEALTHCARE_CAT)), \
-             patch(f"{MOD}._determine_actioner_role_level", return_value="moderator"), \
-             patch(f"{MOD}._find_appeal_reviewers", return_value=[ADMIN_USER]):
+        with patch(f"{MOD_HELPERS}.db", mock_db), \
+             patch(f"{MOD_HELPERS}.get_content_scope", return_value=(OREGON, HEALTHCARE_CAT)), \
+             patch(f"{MOD_HELPERS}.determine_actioner_role_level", return_value="moderator"), \
+             patch(f"{MOD_HELPERS}.find_appeal_reviewers", return_value=[ADMIN_USER]):
             from candid.controllers.moderation_controller import _should_show_escalated_appeal
             assert _should_show_escalated_appeal(
                 {"mod_action_id": MOD_ACTION_ID}, ADMIN_USER) is True
@@ -383,10 +384,10 @@ class TestShouldShowEscalatedAppeal:
             "report_id": REPORT_ID, "responder_user_id": MOD_USER
         })
 
-        with patch(f"{MOD}.db", mock_db), \
-             patch(f"{MOD}._get_content_scope", return_value=(OREGON, HEALTHCARE_CAT)), \
-             patch(f"{MOD}._determine_actioner_role_level", return_value="moderator"), \
-             patch(f"{MOD}._find_appeal_reviewers", return_value=[ADMIN_USER]):
+        with patch(f"{MOD_HELPERS}.db", mock_db), \
+             patch(f"{MOD_HELPERS}.get_content_scope", return_value=(OREGON, HEALTHCARE_CAT)), \
+             patch(f"{MOD_HELPERS}.determine_actioner_role_level", return_value="moderator"), \
+             patch(f"{MOD_HELPERS}.find_appeal_reviewers", return_value=[ADMIN_USER]):
             from candid.controllers.moderation_controller import _should_show_escalated_appeal
             assert _should_show_escalated_appeal(
                 {"mod_action_id": MOD_ACTION_ID}, NORMAL_USER) is False
@@ -395,7 +396,7 @@ class TestShouldShowEscalatedAppeal:
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value=None)
 
-        with patch(f"{MOD}.db", mock_db):
+        with patch(f"{MOD_HELPERS}.db", mock_db):
             from candid.controllers.moderation_controller import _should_show_escalated_appeal
             assert _should_show_escalated_appeal(
                 {"mod_action_id": "bad-id"}, ADMIN_USER) is False
@@ -406,17 +407,17 @@ class TestShouldShowEscalatedAppeal:
             "report_id": REPORT_ID, "responder_user_id": MOD_USER
         })
 
-        with patch(f"{MOD}.db", mock_db), \
-             patch(f"{MOD}._get_content_scope", return_value=(None, None)), \
-             patch(f"{MOD}._determine_actioner_role_level", return_value=None), \
-             patch(f"{MOD}.is_admin_anywhere", return_value=True):
+        with patch(f"{MOD_HELPERS}.db", mock_db), \
+             patch(f"{MOD_HELPERS}.get_content_scope", return_value=(None, None)), \
+             patch(f"{MOD_HELPERS}.determine_actioner_role_level", return_value=None), \
+             patch(f"{MOD_HELPERS}.is_admin_anywhere", return_value=True):
             from candid.controllers.moderation_controller import _should_show_escalated_appeal
             assert _should_show_escalated_appeal(
                 {"mod_action_id": MOD_ACTION_ID}, ADMIN_USER) is True
 
 
 # ---------------------------------------------------------------------------
-# _should_show_appeal_to_reviewer
+# _should_show_appeal_to_reviewer  (extracted to helpers/moderation.py)
 # ---------------------------------------------------------------------------
 
 class TestShouldShowAppealToReviewer:
@@ -434,10 +435,10 @@ class TestShouldShowAppealToReviewer:
 
         appeal_data = {"originalAction": {"responder": {"id": MOD_USER}}}
 
-        with patch(f"{MOD}.db", mock_db), \
-             patch(f"{MOD}._get_content_scope", return_value=(OREGON, None)), \
-             patch(f"{MOD}._determine_actioner_role_level", return_value="moderator"), \
-             patch(f"{MOD}._find_peer_reviewers", return_value=[PEER_MOD_USER]):
+        with patch(f"{MOD_HELPERS}.db", mock_db), \
+             patch(f"{MOD_HELPERS}.get_content_scope", return_value=(OREGON, None)), \
+             patch(f"{MOD_HELPERS}.determine_actioner_role_level", return_value="moderator"), \
+             patch(f"{MOD_HELPERS}.find_peer_reviewers", return_value=[PEER_MOD_USER]):
             from candid.controllers.moderation_controller import _should_show_appeal_to_reviewer
             assert _should_show_appeal_to_reviewer(
                 appeal_data, PEER_MOD_USER,
@@ -451,10 +452,10 @@ class TestShouldShowAppealToReviewer:
 
         appeal_data = {"originalAction": {"responder": {"id": MOD_USER}}}
 
-        with patch(f"{MOD}.db", mock_db), \
-             patch(f"{MOD}._get_content_scope", return_value=(OREGON, None)), \
-             patch(f"{MOD}._determine_actioner_role_level", return_value="moderator"), \
-             patch(f"{MOD}._find_peer_reviewers", return_value=[PEER_MOD_USER]):
+        with patch(f"{MOD_HELPERS}.db", mock_db), \
+             patch(f"{MOD_HELPERS}.get_content_scope", return_value=(OREGON, None)), \
+             patch(f"{MOD_HELPERS}.determine_actioner_role_level", return_value="moderator"), \
+             patch(f"{MOD_HELPERS}.find_peer_reviewers", return_value=[PEER_MOD_USER]):
             from candid.controllers.moderation_controller import _should_show_appeal_to_reviewer
             assert _should_show_appeal_to_reviewer(
                 appeal_data, NORMAL_USER,

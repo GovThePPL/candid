@@ -68,6 +68,24 @@ def validate_image(image_bytes: bytes, max_size_mb: float = 5.0) -> Optional[str
     return None
 
 
+def decode_and_validate_image(base64_data: str) -> Tuple[Optional[bytes], Optional[str]]:
+    """Decode base64 image data and validate the result.
+
+    Returns:
+        (image_bytes, None) on success, or (None, error_message) on failure.
+    """
+    try:
+        image_bytes = decode_base64_image(base64_data)
+    except Exception as e:
+        return None, f"Invalid base64 data: {str(e)}"
+
+    validation_error = validate_image(image_bytes)
+    if validation_error:
+        return None, validation_error
+
+    return image_bytes, None
+
+
 def check_nsfw(image_bytes: bytes, threshold: float = 0.6) -> Dict:
     """
     Check if an image contains NSFW content.

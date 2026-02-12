@@ -6,8 +6,9 @@ import logging
 from typing import Any
 
 import socketio
+from socketio.exceptions import ConnectionRefusedError
 
-from ..auth import validate_token, resolve_keycloak_id
+from ..auth import validate_token
 from ..services import get_redis_store, get_room_manager, get_chat_exporter
 
 logger = logging.getLogger(__name__)
@@ -18,9 +19,69 @@ def register_connection_handlers(sio: socketio.AsyncServer) -> None:
 
     @sio.event
     async def connect(sid: str, environ: dict, auth: dict | None = None) -> bool:
-        """Handle new socket connection."""
-        logger.info(f"New connection: {sid}")
-        # Connection is accepted, but user must authenticate via 'authenticate' event
+        """
+        Authenticate and accept a socket connection at the handshake level.
+
+        The client must pass {"token": "JWT"} in the Socket.IO `auth` option.
+        Connections without a valid token are rejected immediately via
+        ConnectionRefusedError — no unauthenticated sockets ever exist.
+        """
+        # --- Validate token ---
+        token = auth.get("token") if isinstance(auth, dict) else None
+        if not token:
+            logger.warning(f"Connection rejected for {sid}: no token provided")
+            raise ConnectionRefusedError("authentication required")
+
+        keycloak_id = validate_token(token)
+        if not keycloak_id:
+            logger.warning(f"Connection rejected for {sid}: invalid token")
+            raise ConnectionRefusedError("invalid or expired token")
+
+        # Resolve Keycloak subject → Candid user ID
+        chat_exporter = get_chat_exporter()
+        user_id = await chat_exporter.resolve_keycloak_id(keycloak_id)
+        if not user_id:
+            logger.warning(
+                f"Connection rejected for {sid}: keycloak_id {keycloak_id} not in users table"
+            )
+            raise ConnectionRefusedError("user not found")
+
+        # --- Session setup ---
+        room_manager = get_room_manager()
+        room_manager.add_session(sid, user_id)
+
+        # Join user's personal room for notifications
+        await sio.enter_room(sid, room_manager.user_room(user_id))
+
+        # Rejoin active chats
+        redis_store = get_redis_store()
+        active_chats = await redis_store.get_user_active_chats(user_id)
+        for chat_id in active_chats:
+            await sio.enter_room(sid, room_manager.chat_room(chat_id))
+
+        logger.info(
+            f"User {user_id} connected and authenticated (sid: {sid}), "
+            f"active chats: {active_chats}"
+        )
+
+        # Send session data to client (connect handler can't return data)
+        await sio.emit("authenticated", {
+            "userId": user_id,
+            "activeChats": active_chats,
+        }, to=sid)
+
+        # Catch-up: deliver any pending chat requests the user may have missed
+        try:
+            pending_requests = await chat_exporter.get_pending_chat_requests(user_id)
+            for card in pending_requests:
+                await sio.emit("chat_request_received", card, to=sid)
+            if pending_requests:
+                logger.info(
+                    f"Delivered {len(pending_requests)} pending chat requests to user {user_id}"
+                )
+        except Exception as e:
+            logger.error(f"Failed to deliver pending chat requests to user {user_id}: {e}")
+
         return True
 
     @sio.event
@@ -32,78 +93,7 @@ def register_connection_handlers(sio: socketio.AsyncServer) -> None:
         if session:
             logger.info(f"User {session.user_id} disconnected (sid: {sid})")
         else:
-            logger.info(f"Unauthenticated session disconnected: {sid}")
-
-    @sio.event
-    async def authenticate(sid: str, data: dict) -> dict[str, Any]:
-        """
-        Authenticate a socket connection with a JWT token.
-
-        Expected data: {"token": "JWT_TOKEN_HERE"}
-
-        Returns: {"status": "authenticated", "userId": "...", "activeChats": [...]}
-        or {"status": "error", "message": "..."}
-        """
-        token = data.get("token") if isinstance(data, dict) else None
-
-        if not token:
-            logger.warning(f"Authentication failed for {sid}: no token provided")
-            return {"status": "error", "code": "NO_TOKEN", "message": "No token provided"}
-
-        keycloak_id = validate_token(token)
-        if not keycloak_id:
-            logger.warning(f"Authentication failed for {sid}: invalid token")
-            return {
-                "status": "error",
-                "code": "INVALID_TOKEN",
-                "message": "Invalid or expired token",
-            }
-
-        # Resolve Keycloak subject to Candid user ID
-        chat_exporter = get_chat_exporter()
-        user_id = await resolve_keycloak_id(chat_exporter._pool, keycloak_id)
-        if not user_id:
-            logger.warning(f"Authentication failed for {sid}: keycloak_id {keycloak_id} not found in users table")
-            return {
-                "status": "error",
-                "code": "USER_NOT_FOUND",
-                "message": "User not found",
-            }
-
-        # Register session
-        room_manager = get_room_manager()
-        room_manager.add_session(sid, user_id)
-
-        # Join user's personal room for notifications
-        await sio.enter_room(sid, room_manager.user_room(user_id))
-
-        # Get active chats and join those rooms
-        redis_store = get_redis_store()
-        active_chats = await redis_store.get_user_active_chats(user_id)
-
-        for chat_id in active_chats:
-            await sio.enter_room(sid, room_manager.chat_room(chat_id))
-
-        logger.info(
-            f"User {user_id} authenticated (sid: {sid}), active chats: {active_chats}"
-        )
-
-        # Catch-up: deliver any pending chat requests the user may have missed
-        try:
-            chat_exporter = get_chat_exporter()
-            pending_requests = await chat_exporter.get_pending_chat_requests(user_id)
-            for card in pending_requests:
-                await sio.emit("chat_request_received", card, to=sid)
-            if pending_requests:
-                logger.info(f"Delivered {len(pending_requests)} pending chat requests to user {user_id}")
-        except Exception as e:
-            logger.error(f"Failed to deliver pending chat requests to user {user_id}: {e}")
-
-        return {
-            "status": "authenticated",
-            "userId": user_id,
-            "activeChats": active_chats,
-        }
+            logger.info(f"Session disconnected: {sid}")
 
     @sio.event
     async def join_chat(sid: str, data: dict) -> dict[str, Any]:

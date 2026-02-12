@@ -103,6 +103,79 @@ def queue_vote_sync(position_id: str, user_id: str, response: str) -> bool:
         return False
 
 
+# ========== Internal Helpers ==========
+
+def _lookup_conversation_for_month(
+    location_id: str,
+    category_id: Optional[str],
+    active_from: date
+) -> Optional[Dict[str, Any]]:
+    """Look up an existing conversation by location, category, and month."""
+    if category_id:
+        return db.execute_query("""
+            SELECT polis_conversation_id FROM polis_conversation
+            WHERE location_id = %s AND category_id = %s AND active_from = %s
+        """, (location_id, category_id, active_from), fetchone=True)
+    else:
+        return db.execute_query("""
+            SELECT polis_conversation_id FROM polis_conversation
+            WHERE location_id = %s AND category_id IS NULL AND active_from = %s
+        """, (location_id, active_from), fetchone=True)
+
+
+def _store_polis_comment(position_id: str, polis_conv_id: str, tid: int) -> None:
+    """Insert a polis_comment mapping row (idempotent via ON CONFLICT)."""
+    db.execute_query("""
+        INSERT INTO polis_comment (id, position_id, polis_conversation_id, polis_comment_tid)
+        VALUES (%s, %s, %s, %s)
+        ON CONFLICT (position_id, polis_conversation_id) DO NOTHING
+    """, (str(uuid.uuid4()), position_id, polis_conv_id, tid))
+
+
+def _sync_position_to_conv_group(
+    client: 'PolisClient',
+    position_id: str,
+    statement: str,
+    xid: str,
+    location_id: str,
+    category_id: Optional[str],
+    location_name: str,
+    category_name: Optional[str],
+    errors: List[str],
+) -> int:
+    """Sync a position to all active conversations for a location+category, creating one if needed.
+
+    Returns the number of successfully synced conversations.
+    """
+    conv_label = f"category {category_id}" if category_id else "location-all"
+    convs = get_active_conversations(location_id, category_id)
+    synced = 0
+
+    for conv in convs:
+        try:
+            tid = client.create_comment(conv["polis_conversation_id"], statement, xid)
+            if tid is not None:
+                _store_polis_comment(position_id, conv["polis_conversation_id"], tid)
+                synced += 1
+        except PolisError as e:
+            errors.append(f"{conv_label} conv {conv['polis_conversation_id']}: {e}")
+
+    if not convs:
+        polis_conv_id = get_or_create_conversation(
+            location_id, category_id, location_name, category_name
+        )
+        if polis_conv_id:
+            try:
+                tid = client.create_comment(polis_conv_id, statement, xid)
+                if tid is not None:
+                    _store_polis_comment(position_id, polis_conv_id, tid)
+                    synced += 1
+            except PolisError as e:
+                errors.append(f"New {conv_label} conv: {e}")
+
+    return synced
+
+
 # ========== Time-Window Management ==========
 
 def get_active_window_dates() -> Tuple[date, date]:
@@ -186,17 +259,7 @@ def get_or_create_conversation(
     active_from, active_until = get_active_window_dates()
 
     # Check if conversation already exists for this month
-    if category_id:
-        existing = db.execute_query("""
-            SELECT polis_conversation_id FROM polis_conversation
-            WHERE location_id = %s AND category_id = %s AND active_from = %s
-        """, (location_id, category_id, active_from), fetchone=True)
-    else:
-        existing = db.execute_query("""
-            SELECT polis_conversation_id FROM polis_conversation
-            WHERE location_id = %s AND category_id IS NULL AND active_from = %s
-        """, (location_id, active_from), fetchone=True)
-
+    existing = _lookup_conversation_for_month(location_id, category_id, active_from)
     if existing:
         return existing["polis_conversation_id"]
 
@@ -245,16 +308,7 @@ def get_or_create_conversation(
             return polis_conv_id
 
         # Another worker won the race — return the existing conversation
-        if category_id:
-            existing = db.execute_query("""
-                SELECT polis_conversation_id FROM polis_conversation
-                WHERE location_id = %s AND category_id = %s AND active_from = %s
-            """, (location_id, category_id, active_from), fetchone=True)
-        else:
-            existing = db.execute_query("""
-                SELECT polis_conversation_id FROM polis_conversation
-                WHERE location_id = %s AND category_id IS NULL AND active_from = %s
-            """, (location_id, active_from), fetchone=True)
+        existing = _lookup_conversation_for_month(location_id, category_id, active_from)
         return existing["polis_conversation_id"] if existing else None
 
     except PolisError as e:
@@ -294,71 +348,19 @@ def sync_position(payload: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
 
     xid = generate_xid(creator_user_id)
     client = get_client()
-
-    synced_count = 0
     errors = []
 
-    # Sync to category+location conversations (up to 6)
-    category_convs = get_active_conversations(location_id, category_id)
-    for conv in category_convs:
-        try:
-            tid = client.create_comment(conv["polis_conversation_id"], statement, xid)
-            if tid is not None:
-                db.execute_query("""
-                    INSERT INTO polis_comment (id, position_id, polis_conversation_id, polis_comment_tid)
-                    VALUES (%s, %s, %s, %s)
-                    ON CONFLICT (position_id, polis_conversation_id) DO NOTHING
-                """, (str(uuid.uuid4()), position_id, conv["polis_conversation_id"], tid))
-                synced_count += 1
-        except PolisError as e:
-            errors.append(f"Category conv {conv['polis_conversation_id']}: {e}")
+    # Sync to category+location conversations
+    synced_count = _sync_position_to_conv_group(
+        client, position_id, statement, xid,
+        location_id, category_id, location_name, category_name, errors
+    )
 
-    # If no category conversations exist, create one for current month
-    if not category_convs:
-        polis_conv_id = get_or_create_conversation(
-            location_id, category_id, location_name, category_name
-        )
-        if polis_conv_id:
-            try:
-                tid = client.create_comment(polis_conv_id, statement, xid)
-                if tid is not None:
-                    db.execute_query("""
-                        INSERT INTO polis_comment (id, position_id, polis_conversation_id, polis_comment_tid)
-                        VALUES (%s, %s, %s, %s)
-                    """, (str(uuid.uuid4()), position_id, polis_conv_id, tid))
-                    synced_count += 1
-            except PolisError as e:
-                errors.append(f"New category conv: {e}")
-
-    # Sync to location-only conversations (up to 6)
-    location_convs = get_active_conversations(location_id, None)
-    for conv in location_convs:
-        try:
-            tid = client.create_comment(conv["polis_conversation_id"], statement, xid)
-            if tid is not None:
-                db.execute_query("""
-                    INSERT INTO polis_comment (id, position_id, polis_conversation_id, polis_comment_tid)
-                    VALUES (%s, %s, %s, %s)
-                    ON CONFLICT (position_id, polis_conversation_id) DO NOTHING
-                """, (str(uuid.uuid4()), position_id, conv["polis_conversation_id"], tid))
-                synced_count += 1
-        except PolisError as e:
-            errors.append(f"Location conv {conv['polis_conversation_id']}: {e}")
-
-    # If no location-only conversations exist, create one
-    if not location_convs:
-        polis_conv_id = get_or_create_conversation(location_id, None, location_name)
-        if polis_conv_id:
-            try:
-                tid = client.create_comment(polis_conv_id, statement, xid)
-                if tid is not None:
-                    db.execute_query("""
-                        INSERT INTO polis_comment (id, position_id, polis_conversation_id, polis_comment_tid)
-                        VALUES (%s, %s, %s, %s)
-                    """, (str(uuid.uuid4()), position_id, polis_conv_id, tid))
-                    synced_count += 1
-            except PolisError as e:
-                errors.append(f"New location conv: {e}")
+    # Sync to location-only conversations
+    synced_count += _sync_position_to_conv_group(
+        client, position_id, statement, xid,
+        location_id, None, location_name, None, errors
+    )
 
     if synced_count > 0:
         if errors:

@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from .embeddings import embedding_model
-from .nsfw_detector import decode_base64_image, validate_image, check_nsfw, process_avatar
+from .nsfw_detector import decode_and_validate_image, check_nsfw, process_avatar
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -166,27 +166,15 @@ async def nsfw_check(request: NSFWCheckRequest):
     Returns whether the image is safe and the NSFW probability score.
     """
     try:
-        # Decode base64 image
-        try:
-            image_bytes = decode_base64_image(request.image_base64)
-        except Exception as e:
+        # Decode and validate image
+        image_bytes, error = decode_and_validate_image(request.image_base64)
+        if error:
             return NSFWCheckResponse(
                 is_safe=False,
                 nsfw_score=1.0,
                 safe_score=0.0,
                 threshold=request.threshold,
-                error=f"Invalid base64 data: {str(e)}"
-            )
-
-        # Validate image
-        validation_error = validate_image(image_bytes)
-        if validation_error:
-            return NSFWCheckResponse(
-                is_safe=False,
-                nsfw_score=1.0,
-                safe_score=0.0,
-                threshold=request.threshold,
-                error=validation_error
+                error=error
             )
 
         # Check for NSFW content
@@ -213,27 +201,15 @@ async def process_avatar_endpoint(request: ProcessAvatarRequest):
     Returns resized images (256x256 full, 64x64 icon) as base64 data URIs.
     """
     try:
-        # Decode base64 image
-        try:
-            image_bytes = decode_base64_image(request.image_base64)
-        except Exception as e:
+        # Decode and validate image
+        image_bytes, error = decode_and_validate_image(request.image_base64)
+        if error:
             return ProcessAvatarResponse(
                 is_safe=False,
                 full_base64=None,
                 icon_base64=None,
                 nsfw_score=1.0,
-                error=f"Invalid base64 data: {str(e)}"
-            )
-
-        # Validate image
-        validation_error = validate_image(image_bytes)
-        if validation_error:
-            return ProcessAvatarResponse(
-                is_safe=False,
-                full_base64=None,
-                icon_base64=None,
-                nsfw_score=1.0,
-                error=validation_error
+                error=error
             )
 
         # Check for NSFW content

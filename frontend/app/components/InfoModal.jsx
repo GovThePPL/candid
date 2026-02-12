@@ -4,6 +4,7 @@ import {
   StyleSheet,
   Modal,
   TouchableOpacity,
+  Pressable,
 } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
@@ -52,16 +53,13 @@ export default function InfoModal({
       animationType="fade"
       onRequestClose={onClose}
     >
-      <TouchableOpacity
+      <Pressable
         style={shared.modalOverlay}
-        activeOpacity={1}
         onPress={onClose}
-        accessibilityRole="button"
         accessibilityLabel={t('dismissModal')}
       >
-        <TouchableOpacity
+        <Pressable
           style={styles.container}
-          activeOpacity={1}
           onPress={(e) => e.stopPropagation()}
           accessible={false}
           importantForAccessibility="no"
@@ -107,8 +105,8 @@ export default function InfoModal({
           <TouchableOpacity style={styles.button} onPress={onClose} accessibilityRole="button" accessibilityLabel={buttonText || t('gotIt')}>
             <ThemedText variant="button" color="inverse">{buttonText || t('gotIt')}</ThemedText>
           </TouchableOpacity>
-        </TouchableOpacity>
-      </TouchableOpacity>
+        </Pressable>
+      </Pressable>
     </Modal>
   )
 }

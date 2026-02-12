@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { View, StyleSheet, Modal, TouchableOpacity, useWindowDimensions } from 'react-native'
+import { View, StyleSheet, Modal, TouchableOpacity, Pressable, useWindowDimensions, Platform } from 'react-native'
 import Svg, { Polygon, Circle, Text as SvgText, G, ClipPath, Defs, Image as SvgImage, Line } from 'react-native-svg'
 import { Ionicons } from '@expo/vector-icons'
 import { GROUP_COLORS, SemanticColors, BrandColor } from '../../constants/Colors'
@@ -270,14 +270,12 @@ export default function OpinionMapModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} onDismiss={onDismiss}>
-      <TouchableOpacity
+      <Pressable
         style={shared.modalOverlay}
-        activeOpacity={1}
         onPress={onClose}
-        accessibilityRole="button"
         accessibilityLabel={t('stats:closeA11y')}
       >
-        <TouchableOpacity activeOpacity={1} style={styles.content}>
+        <Pressable style={styles.content} onPress={e => e.stopPropagation()} accessible={false}>
           <View style={styles.header}>
             <ThemedText variant="h3" color="primary" style={styles.title}>{t('stats:opinionMapTitle')}</ThemedText>
             <TouchableOpacity style={styles.closeButton} onPress={onClose} accessibilityRole="button" accessibilityLabel={t('stats:closeA11y')}>
@@ -355,8 +353,8 @@ export default function OpinionMapModal({
           <TouchableOpacity style={styles.doneButton} onPress={onClose} accessibilityRole="button" accessibilityLabel={t('done')}>
             <ThemedText variant="button" color="inverse">{t('done')}</ThemedText>
           </TouchableOpacity>
-        </TouchableOpacity>
-      </TouchableOpacity>
+        </Pressable>
+      </Pressable>
     </Modal>
   )
 }
@@ -399,11 +397,11 @@ const createStyles = (colors) => StyleSheet.create({
   },
   tabActive: {
     backgroundColor: colors.cardBackground,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
+      android: { elevation: 1 },
+      default: { boxShadow: '0 1px 2px rgba(0, 0, 0, 0.1)' },
+    }),
   },
   tabText: {
     fontWeight: '500',

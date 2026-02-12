@@ -43,7 +43,7 @@ export default function DashboardLayout() {
   // Handle navigation when a chat starts (via socket event) - works from any tab
   useEffect(() => {
     if (activeChatNavigation?.chatId) {
-      console.log('[DashboardLayout] Navigating to chat:', activeChatNavigation.chatId)
+      console.debug('[DashboardLayout] Navigating to chat:', activeChatNavigation.chatId)
       router.push(`/chat/${activeChatNavigation.chatId}`)
       clearActiveChatNavigation()
     }
@@ -52,7 +52,7 @@ export default function DashboardLayout() {
   // Handle navigation to existing active chat on app load
   useEffect(() => {
     if (activeChat?.id) {
-      console.log('[DashboardLayout] Navigating to active chat:', activeChat.id)
+      console.debug('[DashboardLayout] Navigating to active chat:', activeChat.id)
       router.push(`/chat/${activeChat.id}`)
       clearActiveChat()
     }
@@ -85,6 +85,15 @@ export default function DashboardLayout() {
     <UserOnly>
       <ToastProvider>
       <Tabs
+        screenListeners={{
+          focus: () => {
+            // On web, blur the previously focused element so React Navigation can
+            // set aria-hidden on the inactive tab without the browser blocking it
+            if (Platform.OS === 'web' && document.activeElement instanceof HTMLElement) {
+              document.activeElement.blur()
+            }
+          },
+        }}
         screenOptions={{
           headerShown: false,
           tabBarStyle: {
@@ -93,15 +102,10 @@ export default function DashboardLayout() {
             paddingBottom: 8 + (Platform.OS === 'web' ? 0 : insets.bottom),
             height: isWideScreen ? 56 : 50 + (Platform.OS === 'web' ? 0 : insets.bottom),
             borderTopWidth: 0,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: -2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
-            elevation: 8,
             ...Platform.select({
-              web: {
-                boxShadow: '0 -2px 8px rgba(0, 0, 0, 0.1)',
-              },
+              ios: { shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+              android: { elevation: 8 },
+              default: { boxShadow: '0 -2px 4px rgba(0, 0, 0, 0.1)' },
             }),
           },
           tabBarActiveTintColor: colors.primary,

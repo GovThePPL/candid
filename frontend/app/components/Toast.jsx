@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useMemo, createContext, useContext, useCallback } from 'react'
-import { StyleSheet, Animated, View } from 'react-native'
+import { StyleSheet, Animated, View, Platform } from 'react-native'
 import { useThemeColors } from '../hooks/useThemeColors'
 import ThemedText from './ThemedText'
 
@@ -23,14 +23,14 @@ export function ToastProvider({ children }) {
     Animated.timing(opacity, {
       toValue: 1,
       duration: 200,
-      useNativeDriver: true,
+      useNativeDriver: Platform.OS !== 'web',
     }).start()
 
     timeoutRef.current = setTimeout(() => {
       Animated.timing(opacity, {
         toValue: 0,
         duration: 300,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
       }).start(() => setMessage(null))
     }, duration)
   }, [opacity])
@@ -39,7 +39,7 @@ export function ToastProvider({ children }) {
     <ToastContext.Provider value={showToast}>
       {children}
       {message && (
-        <Animated.View style={[styles.container, { opacity }]} pointerEvents="none" accessibilityRole="alert" accessibilityLiveRegion="polite">
+        <Animated.View style={[styles.container, { opacity, pointerEvents: 'none' }]} accessibilityRole="alert" accessibilityLiveRegion="polite">
           <View style={styles.toast}>
             <ThemedText variant="bodySmall" style={styles.text}>{message}</ThemedText>
           </View>

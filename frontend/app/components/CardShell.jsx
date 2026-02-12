@@ -46,12 +46,12 @@ export default memo(function CardShell({
 
   // Header layout: colored header → curved body → optional footer
   if (header) {
-    const containerBg = resolvedFooterColor || resolvedFooterColor || headerColor || BrandColor
+    const footerBg = resolvedFooterColor || headerColor || BrandColor
     return (
       <View style={[
         styles.headerContainer,
         isFullSize ? styles.sizeFull : styles.sizeCompact,
-        { backgroundColor: containerBg },
+        { backgroundColor: colors.cardBackground },
         style,
       ]}>
         {/* Colored header */}
@@ -70,7 +70,7 @@ export default memo(function CardShell({
         {resolvedFooter && (
           <>
             <View style={[styles.bodyBottomCurve, { backgroundColor: colors.cardBackground }]} />
-            <View style={[styles.footerSection, { backgroundColor: resolvedFooterColor || containerBg }, bottomStyle]}>
+            <View style={[styles.footerSection, { backgroundColor: resolvedFooterColor || footerBg }, bottomStyle]}>
               {resolvedFooter}
             </View>
           </>
@@ -80,11 +80,14 @@ export default memo(function CardShell({
   }
 
   // No-header layout: existing compact card behavior
+  // Container uses cardBackground to prevent colored bleed-through at top corners;
+  // the footer section carries its own colored background.
+  const noHeaderFooterBg = resolvedFooterColor || accentColor || BrandColor
   return (
     <View style={[
       styles.noHeaderContainer,
       isFullSize ? styles.sizeFull : styles.sizeCompact,
-      { backgroundColor: resolvedFooterColor || accentColor || BrandColor },
+      { backgroundColor: colors.cardBackground },
       style,
     ]}>
       {/* White content section */}
@@ -94,7 +97,7 @@ export default memo(function CardShell({
 
       {/* Optional colored bottom section */}
       {resolvedFooter && (
-        <View style={[styles.bottomSection, bottomStyle]}>
+        <View style={[styles.bottomSection, { backgroundColor: noHeaderFooterBg }, bottomStyle]}>
           {resolvedFooter}
         </View>
       )}

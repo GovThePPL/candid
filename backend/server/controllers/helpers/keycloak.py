@@ -98,7 +98,7 @@ def validate_token(token):
             token,
             signing_key.key,
             algorithms=["RS256"],
-            options={"verify_aud": False},  # Keycloak tokens use azp, not aud
+            audience="users",
         )
 
         keycloak_id = payload.get("sub")

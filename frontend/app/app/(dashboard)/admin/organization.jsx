@@ -1,4 +1,4 @@
-import { StyleSheet, View, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Alert, Platform, Switch, Modal } from 'react-native'
+import { StyleSheet, View, TouchableOpacity, Pressable, ScrollView, ActivityIndicator, TextInput, Alert, Platform, Switch, Modal } from 'react-native'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -6,9 +6,10 @@ import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../../hooks/useThemeColors'
 import { SemanticColors } from '../../../constants/Colors'
-import { createSharedStyles } from '../../../constants/SharedStyles'
-import { ROLE_LABEL_KEYS, getAssignableRoles, getAssignableLocations, getAssignableCategories, canManageRoleAssignment, isAdminAtLocation } from '../../../lib/roles'
+import { ROLE_LABEL_KEYS, canManageRoleAssignment, isAdminAtLocation } from '../../../lib/roles'
 import { useUser } from '../../../hooks/useUser'
+import useCategoryManagement from '../../../hooks/useCategoryManagement'
+import useRoleAssignment from '../../../hooks/useRoleAssignment'
 import api, { translateError } from '../../../lib/api'
 import ThemedText from '../../../components/ThemedText'
 import Header from '../../../components/Header'
@@ -18,8 +19,6 @@ import BottomDrawerModal from '../../../components/BottomDrawerModal'
 import LocationPicker from '../../../components/LocationPicker'
 import { useToast } from '../../../components/Toast'
 
-const ALL_ROLES = ['admin', 'moderator', 'facilitator', 'assistant_moderator', 'expert', 'liaison']
-const CATEGORY_REQUIRED_ROLES = new Set(['assistant_moderator', 'expert', 'liaison'])
 const ROLE_HIERARCHY_ORDER = ['admin', 'moderator', 'facilitator', 'assistant_moderator', 'expert', 'liaison']
 
 function RoleUserCard({ item, user, locations, onRemove, colors, styles, t }) {
@@ -63,14 +62,12 @@ function RoleUserCard({ item, user, locations, onRemove, colors, styles, t }) {
             animationType="fade"
             onRequestClose={() => setMenuVisible(false)}
           >
-            <TouchableOpacity
+            <Pressable
               style={styles.actionMenuOverlay}
-              activeOpacity={1}
               onPress={() => setMenuVisible(false)}
             >
-              <TouchableOpacity
+              <Pressable
                 style={styles.actionMenuPopup}
-                activeOpacity={1}
                 onPress={(e) => e.stopPropagation()}
                 accessible={false}
                 importantForAccessibility="no"
@@ -87,8 +84,8 @@ function RoleUserCard({ item, user, locations, onRemove, colors, styles, t }) {
                   <Ionicons name="trash-outline" size={20} color={SemanticColors.warning} />
                   <ThemedText variant="bodySmall" color="error">{t('removeRole')}</ThemedText>
                 </TouchableOpacity>
-              </TouchableOpacity>
-            </TouchableOpacity>
+              </Pressable>
+            </Pressable>
           </Modal>
         </>
       )}
@@ -162,14 +159,12 @@ function LocationSection({ location, allLocations, depth, expandedLocations, tog
         animationType="fade"
         onRequestClose={() => setActionsMenuVisible(false)}
       >
-        <TouchableOpacity
+        <Pressable
           style={styles.actionMenuOverlay}
-          activeOpacity={1}
           onPress={() => setActionsMenuVisible(false)}
         >
-          <TouchableOpacity
+          <Pressable
             style={styles.actionMenuPopup}
-            activeOpacity={1}
             onPress={(e) => e.stopPropagation()}
             accessible={false}
             importantForAccessibility="no"
@@ -228,8 +223,8 @@ function LocationSection({ location, allLocations, depth, expandedLocations, tog
                 <ThemedText variant="bodySmall" color="error">{t('actionDeleteLocation')}</ThemedText>
               </TouchableOpacity>
             )}
-          </TouchableOpacity>
-        </TouchableOpacity>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       {/* Expanded content: role holders */}
@@ -314,38 +309,6 @@ export default function OrganizationScreen() {
   const [editParentPickerOpen, setEditParentPickerOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
-  // --- Categories modal ---
-  const [catModalVisible, setCatModalVisible] = useState(false)
-  const [catLocation, setCatLocation] = useState(null)
-  const [catLoading, setCatLoading] = useState(false)
-  const [assignedCategories, setAssignedCategories] = useState([])
-  const [newCategoryLabel, setNewCategoryLabel] = useState('')
-  const [creatingCategory, setCreatingCategory] = useState(false)
-  const [createLabelSurvey, setCreateLabelSurvey] = useState(true)
-  const [labelSurveyItems, setLabelSurveyItems] = useState(['', ''])
-  const [labelSurveyComparisonQuestion, setLabelSurveyComparisonQuestion] = useState('')
-  const [categoryLabelSurveys, setCategoryLabelSurveys] = useState({})
-  const [inlineLabelCatId, setInlineLabelCatId] = useState(null)
-  const [inlineLabelItems, setInlineLabelItems] = useState(['', ''])
-  const [inlineLabelComparison, setInlineLabelComparison] = useState('')
-  const [inlineLabelCreating, setInlineLabelCreating] = useState(false)
-
-  // --- Assign role modal ---
-  const [assignModalVisible, setAssignModalVisible] = useState(false)
-  const [prefilledLocationId, setPrefilledLocationId] = useState(null)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState([])
-  const [searching, setSearching] = useState(false)
-  const [selectedUser, setSelectedUser] = useState(null)
-  const [selectedRole, setSelectedRole] = useState(null)
-  const [selectedLocation, setSelectedLocation] = useState(null)
-  const [selectedCategory, setSelectedCategory] = useState(null)
-  const [assignReason, setAssignReason] = useState('')
-  const [assignSubmitting, setAssignSubmitting] = useState(false)
-  const [rolePickerVisible, setRolePickerVisible] = useState(false)
-  const [locationPickerVisible, setLocationPickerVisible] = useState(false)
-  const [categoryPickerVisible, setCategoryPickerVisible] = useState(false)
-
   // --- Data fetching ---
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -393,6 +356,12 @@ export default function OrganizationScreen() {
   }, [])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  // --- Category management (hook) ---
+  const categoryMgmt = useCategoryManagement({ allCategories, fetchAllCategories })
+
+  // --- Role assignment (hook) ---
+  const roleAssign = useRoleAssignment({ user, locations, allCategories, fetchRoles })
 
   // --- Computed values ---
   const rootLocations = useMemo(() => {
@@ -470,58 +439,6 @@ export default function OrganizationScreen() {
     })
   }, [])
 
-  // --- Assign role helpers ---
-  const assignableRoles = useMemo(() => getAssignableRoles(user), [user])
-
-  const assignableLocations = useMemo(
-    () => getAssignableLocations(user, selectedRole, locations),
-    [user, selectedRole, locations]
-  )
-
-  const assignableCategoryIds = useMemo(
-    () => getAssignableCategories(user, selectedRole, selectedLocation),
-    [user, selectedRole, selectedLocation]
-  )
-
-  const assignableCategories = useMemo(() => {
-    if (assignableCategoryIds === null) return allCategories
-    return allCategories.filter(c => assignableCategoryIds.has(c.id))
-  }, [allCategories, assignableCategoryIds])
-
-  const allowableLocationsForPicker = useMemo(() => {
-    if (!assignableLocations.length) return []
-    const allowedIds = new Set(assignableLocations.map(l => l.id))
-    return assignableLocations.map(l =>
-      allowedIds.has(l.parentLocationId) ? l : { ...l, parentLocationId: null })
-  }, [assignableLocations])
-
-  // Cascading resets
-  useEffect(() => {
-    setSelectedLocation(prefilledLocationId)
-    setSelectedCategory(null)
-  }, [selectedRole, prefilledLocationId])
-
-  useEffect(() => {
-    setSelectedCategory(null)
-  }, [selectedLocation])
-
-  // User search debounce
-  useEffect(() => {
-    if (!searchQuery || searchQuery.length < 2) {
-      setSearchResults([])
-      return
-    }
-    const timer = setTimeout(async () => {
-      setSearching(true)
-      try {
-        const data = await api.admin.searchUsers(searchQuery)
-        setSearchResults(data || [])
-      } catch {}
-      setSearching(false)
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [searchQuery])
-
   // --- Location handlers ---
   const handleEdit = useCallback((location) => {
     setEditingLocation(location)
@@ -589,230 +506,6 @@ export default function OrganizationScreen() {
     }
   }, [editingLocation, editParentId, editNewParentId, editName, editCode, fetchLocations, t, toast])
 
-  // --- Category handlers ---
-  const handleManageCategories = useCallback(async (location) => {
-    setCatLocation(location)
-    setCatModalVisible(true)
-    setCatLoading(true)
-    setInlineLabelCatId(null)
-    try {
-      const data = await api.admin.getLocationCategories(location.id)
-      const cats = data || []
-      setAssignedCategories(cats)
-      const surveyMap = {}
-      await Promise.all(cats.map(async (cat) => {
-        try {
-          const result = await api.admin.getCategoryLabelSurvey(cat.id)
-          surveyMap[cat.id] = result?.labelSurvey || null
-        } catch {
-          surveyMap[cat.id] = null
-        }
-      }))
-      setCategoryLabelSurveys(surveyMap)
-    } catch {
-      setAssignedCategories([])
-      setCategoryLabelSurveys({})
-    } finally {
-      setCatLoading(false)
-    }
-  }, [])
-
-  const handleAssignCategory = useCallback(async (categoryId) => {
-    if (!catLocation) return
-    try {
-      await api.admin.assignLocationCategory(catLocation.id, categoryId)
-      toast?.(t('categoryAssigned'), 'success')
-      handleManageCategories(catLocation)
-    } catch (err) {
-      toast?.(translateError(err.message, t) || t('error'), 'error')
-    }
-  }, [catLocation, handleManageCategories, t, toast])
-
-  const handleRemoveCategory = useCallback(async (categoryId) => {
-    if (!catLocation) return
-    try {
-      await api.admin.removeLocationCategory(catLocation.id, categoryId)
-      toast?.(t('categoryRemoved'), 'success')
-      handleManageCategories(catLocation)
-    } catch (err) {
-      toast?.(translateError(err.message, t) || t('error'), 'error')
-    }
-  }, [catLocation, handleManageCategories, t, toast])
-
-  const handleCreateCategory = useCallback(async () => {
-    if (!newCategoryLabel.trim()) return
-    if (createLabelSurvey) {
-      const validItems = labelSurveyItems.filter(i => i.trim())
-      if (validItems.length < 2) {
-        toast?.(t('labelSurveyItemsRequired'), 'error')
-        return
-      }
-    }
-    setCreatingCategory(true)
-    try {
-      const opts = {}
-      if (createLabelSurvey) {
-        opts.createLabelSurvey = true
-        opts.labelSurveyItems = labelSurveyItems.filter(i => i.trim())
-        if (labelSurveyComparisonQuestion.trim()) {
-          opts.labelSurveyComparisonQuestion = labelSurveyComparisonQuestion.trim()
-        }
-      }
-      const result = await api.admin.createCategory(newCategoryLabel.trim(), null, opts)
-      if (catLocation && result?.id) {
-        await api.admin.assignLocationCategory(catLocation.id, result.id)
-      }
-      toast?.(t('categoryCreated'), 'success')
-      setNewCategoryLabel('')
-      setLabelSurveyItems(['', ''])
-      setLabelSurveyComparisonQuestion('')
-      setCreateLabelSurvey(true)
-      fetchAllCategories()
-      if (catLocation) handleManageCategories(catLocation)
-    } catch (err) {
-      toast?.(translateError(err.message, t) || t('error'), 'error')
-    } finally {
-      setCreatingCategory(false)
-    }
-  }, [newCategoryLabel, createLabelSurvey, labelSurveyItems, labelSurveyComparisonQuestion, fetchAllCategories, catLocation, handleManageCategories, t, toast])
-
-  const handleDeleteLabelSurvey = useCallback(async (categoryId, surveyId) => {
-    const confirmed = Platform.OS === 'web'
-      ? window.confirm(`${t('deleteLabelSurveyConfirm')}\n${t('deleteLabelSurveyMessage')}`)
-      : await new Promise(resolve => Alert.alert(
-          t('deleteLabelSurveyConfirm'),
-          t('deleteLabelSurveyMessage'),
-          [
-            { text: t('cancel'), style: 'cancel', onPress: () => resolve(false) },
-            { text: t('deleteAction'), style: 'destructive', onPress: () => resolve(true) },
-          ],
-          { cancelable: true, onDismiss: () => resolve(false) }
-        ))
-    if (!confirmed) return
-    try {
-      await api.admin.deleteSurvey(surveyId)
-      toast?.(t('labelSurveyDeleted'), 'success')
-      setCategoryLabelSurveys(prev => ({ ...prev, [categoryId]: null }))
-    } catch (err) {
-      toast?.(translateError(err.message, t) || t('error'), 'error')
-    }
-  }, [t, toast])
-
-  const handleCreateLabelSurvey = useCallback(async (categoryId) => {
-    const validItems = inlineLabelItems.filter(i => i.trim())
-    if (validItems.length < 2) {
-      toast?.(t('labelSurveyItemsRequired'), 'error')
-      return
-    }
-    setInlineLabelCreating(true)
-    try {
-      const body = {
-        isGroupLabeling: true,
-        positionCategoryId: categoryId,
-        items: validItems,
-      }
-      if (inlineLabelComparison.trim()) {
-        body.comparisonQuestion = inlineLabelComparison.trim()
-      }
-      await api.admin.createPairwiseSurvey(body)
-      toast?.(t('labelSurveyCreated'), 'success')
-      setInlineLabelCatId(null)
-      setInlineLabelItems(['', ''])
-      setInlineLabelComparison('')
-      try {
-        const result = await api.admin.getCategoryLabelSurvey(categoryId)
-        setCategoryLabelSurveys(prev => ({ ...prev, [categoryId]: result?.labelSurvey || null }))
-      } catch {
-        setCategoryLabelSurveys(prev => ({ ...prev, [categoryId]: null }))
-      }
-    } catch (err) {
-      toast?.(translateError(err.message, t) || t('error'), 'error')
-    } finally {
-      setInlineLabelCreating(false)
-    }
-  }, [inlineLabelItems, inlineLabelComparison, t, toast])
-
-  const unassignedCategories = useMemo(() => {
-    const assignedIds = new Set(assignedCategories.map(c => c.id))
-    return allCategories.filter(c => !assignedIds.has(c.id))
-  }, [allCategories, assignedCategories])
-
-  // --- Assign role handlers ---
-  const openAssignAtLocation = useCallback((locationId) => {
-    setPrefilledLocationId(locationId)
-    setSelectedUser(null)
-    setSelectedRole(null)
-    setSelectedLocation(locationId)
-    setSelectedCategory(null)
-    setAssignReason('')
-    setSearchQuery('')
-    setSearchResults([])
-    setAssignModalVisible(true)
-  }, [])
-
-  const resetAssignForm = useCallback(() => {
-    setSelectedUser(null)
-    setSelectedRole(null)
-    setSelectedLocation(null)
-    setSelectedCategory(null)
-    setAssignReason('')
-    setSearchQuery('')
-    setSearchResults([])
-    setPrefilledLocationId(null)
-  }, [])
-
-  const handleAssignRole = useCallback(async () => {
-    if (!selectedUser) { toast?.(t('userRequired'), 'error'); return }
-    if (!selectedRole) { toast?.(t('roleRequired'), 'error'); return }
-    if (!selectedLocation) { toast?.(t('locationRequired'), 'error'); return }
-    if (CATEGORY_REQUIRED_ROLES.has(selectedRole) && !selectedCategory) {
-      toast?.(t('categoryRequired'), 'error'); return
-    }
-
-    setAssignSubmitting(true)
-    try {
-      await api.admin.requestRoleAssignment({
-        targetUserId: selectedUser.id,
-        role: selectedRole,
-        locationId: selectedLocation,
-        positionCategoryId: selectedCategory || undefined,
-        reason: assignReason || undefined,
-      })
-      toast?.(t('roleAssigned'), 'success')
-      setAssignModalVisible(false)
-      resetAssignForm()
-      fetchRoles()
-    } catch (err) {
-      toast?.(translateError(err.message, t) || t('error'), 'error')
-    } finally {
-      setAssignSubmitting(false)
-    }
-  }, [selectedUser, selectedRole, selectedLocation, selectedCategory, assignReason, fetchRoles, resetAssignForm, t, toast])
-
-  const handleRemoveRole = useCallback(async (roleAssignment) => {
-    const roleName = t(ROLE_LABEL_KEYS[roleAssignment.role] || roleAssignment.role)
-    const userName = roleAssignment.user?.displayName || roleAssignment.user?.username
-    const confirmed = Platform.OS === 'web'
-      ? window.confirm(`${t('removeRoleConfirm')}\n${t('removeRoleMessage', { role: roleName, user: userName })}`)
-      : await new Promise(resolve => Alert.alert(
-          t('removeRoleConfirm'),
-          t('removeRoleMessage', { role: roleName, user: userName }),
-          [
-            { text: t('cancel'), style: 'cancel', onPress: () => resolve(false) },
-            { text: t('removeRole'), style: 'destructive', onPress: () => resolve(true) },
-          ],
-          { cancelable: true, onDismiss: () => resolve(false) }
-        ))
-    if (!confirmed) return
-    try {
-      const result = await api.admin.requestRoleRemoval(roleAssignment.id)
-      const msg = result?.status === 'auto_approved' ? t('roleRemovedApproved') : t('roleRemovedPending')
-      toast?.(msg, 'success')
-      fetchRoles()
-    } catch (err) {
-      toast?.(translateError(err.message, t) || t('error'), 'error')
-    }
-  }, [fetchRoles, t, toast])
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -845,9 +538,9 @@ export default function OrganizationScreen() {
                 onEdit={handleEdit}
                 onDelete={handleDelete}
                 onAddChild={handleAddChild}
-                onManageCategories={handleManageCategories}
-                onAssignRole={openAssignAtLocation}
-                onRemoveRole={handleRemoveRole}
+                onManageCategories={categoryMgmt.handleManageCategories}
+                onAssignRole={roleAssign.openAssignAtLocation}
+                onRemoveRole={roleAssign.handleRemoveRole}
                 canManageLocation={canManageLocation}
                 user={user}
                 colors={colors}
@@ -931,21 +624,21 @@ export default function OrganizationScreen() {
 
       {/* Categories Modal */}
       <BottomDrawerModal
-        visible={catModalVisible}
-        onClose={() => setCatModalVisible(false)}
-        title={catLocation ? t('manageCategoriesFor', { name: catLocation.name }) : t('manageCategories')}
+        visible={categoryMgmt.catModalVisible}
+        onClose={() => categoryMgmt.setCatModalVisible(false)}
+        title={categoryMgmt.catLocation ? t('manageCategoriesFor', { name: categoryMgmt.catLocation.name }) : t('manageCategories')}
       >
         <ScrollView contentContainerStyle={styles.modalContent}>
-          {catLoading ? (
+          {categoryMgmt.catLoading ? (
             <ActivityIndicator size="small" color={colors.primary} />
           ) : (
             <>
               <ThemedText variant="label" color="secondary" style={styles.catSectionLabel}>{t('assignedCategories')}</ThemedText>
-              {assignedCategories.length === 0 ? (
+              {categoryMgmt.assignedCategories.length === 0 ? (
                 <ThemedText variant="caption" color="secondary">{t('noCategories')}</ThemedText>
               ) : (
-                assignedCategories.map(cat => {
-                  const labelSurvey = categoryLabelSurveys[cat.id]
+                categoryMgmt.assignedCategories.map(cat => {
+                  const labelSurvey = categoryMgmt.categoryLabelSurveys[cat.id]
                   const hasLabelSurvey = !!labelSurvey
                   return (
                     <View key={cat.id} style={styles.catRowExpanded}>
@@ -958,7 +651,7 @@ export default function OrganizationScreen() {
                             </ThemedText>
                           </View>
                           <TouchableOpacity
-                            onPress={() => handleRemoveCategory(cat.id)}
+                            onPress={() => categoryMgmt.handleRemoveCategory(cat.id)}
                             accessibilityRole="button"
                             accessibilityLabel={t('removeCategoryA11y', { category: cat.label })}
                           >
@@ -969,7 +662,7 @@ export default function OrganizationScreen() {
                       {hasLabelSurvey ? (
                         <TouchableOpacity
                           style={styles.labelSurveyAction}
-                          onPress={() => handleDeleteLabelSurvey(cat.id, labelSurvey.id)}
+                          onPress={() => categoryMgmt.handleDeleteLabelSurvey(cat.id, labelSurvey.id)}
                           accessibilityRole="button"
                           accessibilityLabel={t('deleteLabelSurvey')}
                         >
@@ -977,26 +670,26 @@ export default function OrganizationScreen() {
                           <ThemedText variant="caption" color="error">{t('deleteLabelSurvey')}</ThemedText>
                         </TouchableOpacity>
                       ) : (
-                        inlineLabelCatId === cat.id ? (
+                        categoryMgmt.inlineLabelCatId === cat.id ? (
                           <View style={styles.inlineLabelForm}>
-                            {inlineLabelItems.map((item, i) => (
+                            {categoryMgmt.inlineLabelItems.map((item, i) => (
                               <View key={i} style={styles.inlineLabelRow}>
                                 <TextInput
                                   style={[styles.modalInput, { flex: 1 }]}
                                   value={item}
                                   onChangeText={(text) => {
-                                    const updated = [...inlineLabelItems]
+                                    const updated = [...categoryMgmt.inlineLabelItems]
                                     updated[i] = text
-                                    setInlineLabelItems(updated)
+                                    categoryMgmt.setInlineLabelItems(updated)
                                   }}
                                   placeholder={t('itemPlaceholder', { number: i + 1 })}
                                   placeholderTextColor={colors.placeholderText}
                                   maxFontSizeMultiplier={1.5}
                                   accessibilityLabel={t('itemA11y', { number: i + 1 })}
                                 />
-                                {inlineLabelItems.length > 2 && (
+                                {categoryMgmt.inlineLabelItems.length > 2 && (
                                   <TouchableOpacity
-                                    onPress={() => setInlineLabelItems(prev => prev.filter((_, j) => j !== i))}
+                                    onPress={() => categoryMgmt.setInlineLabelItems(prev => prev.filter((_, j) => j !== i))}
                                     accessibilityRole="button"
                                     accessibilityLabel={t('removeItemA11y', { number: i + 1 })}
                                   >
@@ -1005,10 +698,10 @@ export default function OrganizationScreen() {
                                 )}
                               </View>
                             ))}
-                            {inlineLabelItems.length < 20 && (
+                            {categoryMgmt.inlineLabelItems.length < 20 && (
                               <TouchableOpacity
                                 style={styles.addItemRow}
-                                onPress={() => setInlineLabelItems(prev => [...prev, ''])}
+                                onPress={() => categoryMgmt.setInlineLabelItems(prev => [...prev, ''])}
                                 accessibilityRole="button"
                                 accessibilityLabel={t('addItemA11y')}
                               >
@@ -1018,8 +711,8 @@ export default function OrganizationScreen() {
                             )}
                             <TextInput
                               style={styles.modalInput}
-                              value={inlineLabelComparison}
-                              onChangeText={setInlineLabelComparison}
+                              value={categoryMgmt.inlineLabelComparison}
+                              onChangeText={categoryMgmt.setInlineLabelComparison}
                               placeholder={t('comparisonQuestionPlaceholder')}
                               placeholderTextColor={colors.placeholderText}
                               maxFontSizeMultiplier={1.5}
@@ -1028,20 +721,20 @@ export default function OrganizationScreen() {
                             <View style={styles.inlineLabelActions}>
                               <TouchableOpacity
                                 style={[styles.catChip, { backgroundColor: colors.cardBorder }]}
-                                onPress={() => { setInlineLabelCatId(null); setInlineLabelItems(['', '']); setInlineLabelComparison('') }}
+                                onPress={() => { categoryMgmt.setInlineLabelCatId(null); categoryMgmt.setInlineLabelItems(['', '']); categoryMgmt.setInlineLabelComparison('') }}
                                 accessibilityRole="button"
                                 accessibilityLabel={t('cancel')}
                               >
                                 <ThemedText variant="caption" color="secondary">{t('cancel')}</ThemedText>
                               </TouchableOpacity>
                               <TouchableOpacity
-                                style={[styles.catChip, styles.catChipActive, { opacity: inlineLabelCreating ? 0.5 : 1 }]}
-                                onPress={() => handleCreateLabelSurvey(cat.id)}
-                                disabled={inlineLabelCreating}
+                                style={[styles.catChip, styles.catChipActive, { opacity: categoryMgmt.inlineLabelCreating ? 0.5 : 1 }]}
+                                onPress={() => categoryMgmt.handleCreateLabelSurvey(cat.id)}
+                                disabled={categoryMgmt.inlineLabelCreating}
                                 accessibilityRole="button"
                                 accessibilityLabel={t('createLabelSurvey')}
                               >
-                                {inlineLabelCreating ? (
+                                {categoryMgmt.inlineLabelCreating ? (
                                   <ActivityIndicator size="small" color="#FFFFFF" />
                                 ) : (
                                   <ThemedText variant="caption" color="inverse">{t('createLabelSurvey')}</ThemedText>
@@ -1052,7 +745,7 @@ export default function OrganizationScreen() {
                         ) : (
                           <TouchableOpacity
                             style={styles.labelSurveyAction}
-                            onPress={() => { setInlineLabelCatId(cat.id); setInlineLabelItems(['', '']); setInlineLabelComparison('') }}
+                            onPress={() => { categoryMgmt.setInlineLabelCatId(cat.id); categoryMgmt.setInlineLabelItems(['', '']); categoryMgmt.setInlineLabelComparison('') }}
                             accessibilityRole="button"
                             accessibilityLabel={t('createLabelSurvey')}
                           >
@@ -1066,15 +759,15 @@ export default function OrganizationScreen() {
                 })
               )}
 
-              {unassignedCategories.length > 0 && (
+              {categoryMgmt.unassignedCategories.length > 0 && (
                 <>
                   <ThemedText variant="label" color="secondary" style={styles.catSectionLabel}>{t('addCategory')}</ThemedText>
                   <View style={styles.catChipRow}>
-                    {unassignedCategories.map(cat => (
+                    {categoryMgmt.unassignedCategories.map(cat => (
                       <TouchableOpacity
                         key={cat.id}
                         style={styles.catChip}
-                        onPress={() => handleAssignCategory(cat.id)}
+                        onPress={() => categoryMgmt.handleAssignCategory(cat.id)}
                         accessibilityRole="button"
                         accessibilityLabel={t('addCategoryA11y', { category: cat.label })}
                       >
@@ -1093,8 +786,8 @@ export default function OrganizationScreen() {
               <ThemedText variant="label" color="secondary" style={styles.catSectionLabel}>{t('createNewCategory')}</ThemedText>
               <TextInput
                 style={styles.modalInput}
-                value={newCategoryLabel}
-                onChangeText={setNewCategoryLabel}
+                value={categoryMgmt.newCategoryLabel}
+                onChangeText={categoryMgmt.setNewCategoryLabel}
                 placeholder={t('categoryLabelPlaceholder')}
                 placeholderTextColor={colors.placeholderText}
                 maxFontSizeMultiplier={1.5}
@@ -1103,34 +796,34 @@ export default function OrganizationScreen() {
               <View style={styles.labelSurveyToggleRow}>
                 <ThemedText variant="bodySmall" color="dark">{t('createLabelSurveyToggle')}</ThemedText>
                 <Switch
-                  value={createLabelSurvey}
-                  onValueChange={setCreateLabelSurvey}
+                  value={categoryMgmt.createLabelSurvey}
+                  onValueChange={categoryMgmt.setCreateLabelSurvey}
                   trackColor={{ false: colors.cardBorder, true: colors.primary }}
                   accessibilityRole="switch"
                   accessibilityLabel={t('createLabelSurveyToggle')}
-                  accessibilityState={{ checked: createLabelSurvey }}
+                  accessibilityState={{ checked: categoryMgmt.createLabelSurvey }}
                 />
               </View>
-              {createLabelSurvey && (
+              {categoryMgmt.createLabelSurvey && (
                 <View style={styles.inlineLabelForm}>
-                  {labelSurveyItems.map((item, i) => (
+                  {categoryMgmt.labelSurveyItems.map((item, i) => (
                     <View key={i} style={styles.inlineLabelRow}>
                       <TextInput
                         style={[styles.modalInput, { flex: 1 }]}
                         value={item}
                         onChangeText={(text) => {
-                          const updated = [...labelSurveyItems]
+                          const updated = [...categoryMgmt.labelSurveyItems]
                           updated[i] = text
-                          setLabelSurveyItems(updated)
+                          categoryMgmt.setLabelSurveyItems(updated)
                         }}
                         placeholder={t('itemPlaceholder', { number: i + 1 })}
                         placeholderTextColor={colors.placeholderText}
                         maxFontSizeMultiplier={1.5}
                         accessibilityLabel={t('itemA11y', { number: i + 1 })}
                       />
-                      {labelSurveyItems.length > 2 && (
+                      {categoryMgmt.labelSurveyItems.length > 2 && (
                         <TouchableOpacity
-                          onPress={() => setLabelSurveyItems(prev => prev.filter((_, j) => j !== i))}
+                          onPress={() => categoryMgmt.setLabelSurveyItems(prev => prev.filter((_, j) => j !== i))}
                           accessibilityRole="button"
                           accessibilityLabel={t('removeItemA11y', { number: i + 1 })}
                         >
@@ -1139,10 +832,10 @@ export default function OrganizationScreen() {
                       )}
                     </View>
                   ))}
-                  {labelSurveyItems.length < 20 && (
+                  {categoryMgmt.labelSurveyItems.length < 20 && (
                     <TouchableOpacity
                       style={styles.addItemRow}
-                      onPress={() => setLabelSurveyItems(prev => [...prev, ''])}
+                      onPress={() => categoryMgmt.setLabelSurveyItems(prev => [...prev, ''])}
                       accessibilityRole="button"
                       accessibilityLabel={t('addItemA11y')}
                     >
@@ -1152,8 +845,8 @@ export default function OrganizationScreen() {
                   )}
                   <TextInput
                     style={styles.modalInput}
-                    value={labelSurveyComparisonQuestion}
-                    onChangeText={setLabelSurveyComparisonQuestion}
+                    value={categoryMgmt.labelSurveyComparisonQuestion}
+                    onChangeText={categoryMgmt.setLabelSurveyComparisonQuestion}
                     placeholder={t('comparisonQuestionPlaceholder')}
                     placeholderTextColor={colors.placeholderText}
                     maxFontSizeMultiplier={1.5}
@@ -1162,13 +855,13 @@ export default function OrganizationScreen() {
                 </View>
               )}
               <TouchableOpacity
-                style={[styles.saveButton, { opacity: (!newCategoryLabel.trim() || creatingCategory) ? 0.5 : 1 }]}
-                onPress={handleCreateCategory}
-                disabled={!newCategoryLabel.trim() || creatingCategory}
+                style={[styles.saveButton, { opacity: (!categoryMgmt.newCategoryLabel.trim() || categoryMgmt.creatingCategory) ? 0.5 : 1 }]}
+                onPress={categoryMgmt.handleCreateCategory}
+                disabled={!categoryMgmt.newCategoryLabel.trim() || categoryMgmt.creatingCategory}
                 accessibilityRole="button"
                 accessibilityLabel={t('createCategoryA11y')}
               >
-                {creatingCategory ? (
+                {categoryMgmt.creatingCategory ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <ThemedText variant="button" color="inverse">{t('createNewCategory')}</ThemedText>
@@ -1181,17 +874,17 @@ export default function OrganizationScreen() {
 
       {/* Assign Role Modal */}
       <BottomDrawerModal
-        visible={assignModalVisible}
-        onClose={() => { setAssignModalVisible(false); resetAssignForm() }}
+        visible={roleAssign.assignModalVisible}
+        onClose={() => { roleAssign.setAssignModalVisible(false); roleAssign.resetAssignForm() }}
         title={t('assignRole')}
       >
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.modalContent}>
           {/* User search */}
           <ThemedText variant="label" color="secondary" style={styles.fieldLabel}>{t('selectUser')}</ThemedText>
-          {selectedUser ? (
+          {roleAssign.selectedUser ? (
             <View style={styles.selectedChip}>
-              <ThemedText variant="button" color="dark">{selectedUser.displayName} (@{selectedUser.username})</ThemedText>
-              <TouchableOpacity onPress={() => setSelectedUser(null)} accessibilityRole="button" accessibilityLabel={t('cancel')}>
+              <ThemedText variant="button" color="dark">{roleAssign.selectedUser.displayName} (@{roleAssign.selectedUser.username})</ThemedText>
+              <TouchableOpacity onPress={() => roleAssign.setSelectedUser(null)} accessibilityRole="button" accessibilityLabel={t('cancel')}>
                 <Ionicons name="close" size={18} color={colors.secondaryText} />
               </TouchableOpacity>
             </View>
@@ -1199,19 +892,19 @@ export default function OrganizationScreen() {
             <>
               <TextInput
                 style={styles.modalInput}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
+                value={roleAssign.searchQuery}
+                onChangeText={roleAssign.setSearchQuery}
                 placeholder={t('searchUsersPlaceholder')}
                 placeholderTextColor={colors.placeholderText}
                 maxFontSizeMultiplier={1.5}
                 accessibilityLabel={t('searchUsersA11y')}
               />
-              {searching && <ActivityIndicator size="small" color={colors.primary} />}
-              {searchResults.map(u => (
+              {roleAssign.searching && <ActivityIndicator size="small" color={colors.primary} />}
+              {roleAssign.searchResults.map(u => (
                 <TouchableOpacity
                   key={u.id}
                   style={styles.searchResultItem}
-                  onPress={() => { setSelectedUser(u); setSearchQuery(''); setSearchResults([]) }}
+                  onPress={() => { roleAssign.setSelectedUser(u); roleAssign.setSearchQuery(''); }}
                   accessibilityRole="button"
                   accessibilityLabel={`${u.displayName} @${u.username}`}
                 >
@@ -1234,13 +927,13 @@ export default function OrganizationScreen() {
           <ThemedText variant="label" color="secondary" style={styles.fieldLabel}>{t('selectRole')}</ThemedText>
           <TouchableOpacity
             style={styles.pickerButton}
-            onPress={() => setRolePickerVisible(true)}
+            onPress={() => roleAssign.setRolePickerVisible(true)}
             accessibilityRole="button"
             accessibilityLabel={t('selectRole')}
           >
             <Ionicons name="shield-outline" size={16} color={colors.secondaryText} />
             <ThemedText variant="body" color="dark" style={styles.pickerButtonText}>
-              {selectedRole ? t(ROLE_LABEL_KEYS[selectedRole]) : t('selectRole')}
+              {roleAssign.selectedRole ? t(ROLE_LABEL_KEYS[roleAssign.selectedRole]) : t('selectRole')}
             </ThemedText>
             <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
           </TouchableOpacity>
@@ -1249,33 +942,33 @@ export default function OrganizationScreen() {
           <ThemedText variant="label" color="secondary" style={styles.fieldLabel}>{t('selectLocation')}</ThemedText>
           <TouchableOpacity
             style={styles.pickerButton}
-            onPress={() => setLocationPickerVisible(true)}
+            onPress={() => roleAssign.setLocationPickerVisible(true)}
             accessibilityRole="button"
             accessibilityLabel={t('selectLocation')}
           >
             <Ionicons name="location-outline" size={16} color={colors.secondaryText} />
             <ThemedText variant="body" color="dark" style={styles.pickerButtonText}>
-              {selectedLocation
-                ? locations.find(l => l.id === selectedLocation)?.name || t('selectLocation')
+              {roleAssign.selectedLocation
+                ? locations.find(l => l.id === roleAssign.selectedLocation)?.name || t('selectLocation')
                 : t('selectLocation')}
             </ThemedText>
             <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
           </TouchableOpacity>
 
           {/* Category picker */}
-          {selectedRole && CATEGORY_REQUIRED_ROLES.has(selectedRole) && (
+          {roleAssign.showCategoryPicker && (
             <>
               <ThemedText variant="label" color="secondary" style={styles.fieldLabel}>{t('selectCategory')}</ThemedText>
               <TouchableOpacity
                 style={styles.pickerButton}
-                onPress={() => setCategoryPickerVisible(true)}
+                onPress={() => roleAssign.setCategoryPickerVisible(true)}
                 accessibilityRole="button"
                 accessibilityLabel={t('selectCategory')}
               >
                 <Ionicons name="pricetag-outline" size={16} color={colors.secondaryText} />
                 <ThemedText variant="body" color="dark" style={styles.pickerButtonText}>
-                  {selectedCategory
-                    ? assignableCategories.find(c => c.id === selectedCategory)?.label || t('selectCategory')
+                  {roleAssign.selectedCategory
+                    ? roleAssign.assignableCategories.find(c => c.id === roleAssign.selectedCategory)?.label || t('selectCategory')
                     : t('selectCategory')}
                 </ThemedText>
                 <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
@@ -1286,8 +979,8 @@ export default function OrganizationScreen() {
           {/* Reason */}
           <TextInput
             style={styles.modalInput}
-            value={assignReason}
-            onChangeText={setAssignReason}
+            value={roleAssign.assignReason}
+            onChangeText={roleAssign.setAssignReason}
             placeholder={t('reasonPlaceholder')}
             placeholderTextColor={colors.placeholderText}
             maxFontSizeMultiplier={1.5}
@@ -1296,12 +989,12 @@ export default function OrganizationScreen() {
           {/* Submit */}
           <TouchableOpacity
             style={styles.submitButton}
-            onPress={handleAssignRole}
-            disabled={assignSubmitting}
+            onPress={roleAssign.handleAssignRole}
+            disabled={roleAssign.assignSubmitting}
             accessibilityRole="button"
             accessibilityLabel={t('submit')}
           >
-            {assignSubmitting ? (
+            {roleAssign.assignSubmitting ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
               <ThemedText variant="button" color="inverse">{t('submit')}</ThemedText>
@@ -1312,18 +1005,18 @@ export default function OrganizationScreen() {
 
       {/* Role Picker Modal */}
       <BottomDrawerModal
-        visible={rolePickerVisible}
-        onClose={() => setRolePickerVisible(false)}
+        visible={roleAssign.rolePickerVisible}
+        onClose={() => roleAssign.setRolePickerVisible(false)}
         title={t('selectRole')}
       >
         <ScrollView contentContainerStyle={styles.pickerList}>
-          {assignableRoles.map(r => {
-            const selected = selectedRole === r
+          {roleAssign.assignableRoles.map(r => {
+            const selected = roleAssign.selectedRole === r
             return (
               <TouchableOpacity
                 key={r}
                 style={[styles.pickerRow, selected && styles.pickerRowSelected]}
-                onPress={() => { setSelectedRole(r); setRolePickerVisible(false) }}
+                onPress={() => { roleAssign.setSelectedRole(r); roleAssign.setRolePickerVisible(false) }}
                 accessibilityRole="button"
                 accessibilityLabel={t(ROLE_LABEL_KEYS[r])}
                 accessibilityState={{ selected }}
@@ -1340,27 +1033,27 @@ export default function OrganizationScreen() {
 
       {/* Location Picker Modal */}
       <LocationPicker
-        visible={locationPickerVisible}
-        onClose={() => setLocationPickerVisible(false)}
-        allLocations={allowableLocationsForPicker}
-        currentLocationId={selectedLocation}
-        onSelect={(id) => { setSelectedLocation(id); setLocationPickerVisible(false) }}
+        visible={roleAssign.locationPickerVisible}
+        onClose={() => roleAssign.setLocationPickerVisible(false)}
+        allLocations={roleAssign.allowableLocationsForPicker}
+        currentLocationId={roleAssign.selectedLocation}
+        onSelect={(id) => { roleAssign.setSelectedLocation(id); roleAssign.setLocationPickerVisible(false) }}
       />
 
       {/* Category Picker Modal */}
       <BottomDrawerModal
-        visible={categoryPickerVisible}
-        onClose={() => setCategoryPickerVisible(false)}
+        visible={roleAssign.categoryPickerVisible}
+        onClose={() => roleAssign.setCategoryPickerVisible(false)}
         title={t('selectCategory')}
       >
         <ScrollView contentContainerStyle={styles.pickerList}>
-          {assignableCategories.map(c => {
-            const selected = selectedCategory === c.id
+          {roleAssign.assignableCategories.map(c => {
+            const selected = roleAssign.selectedCategory === c.id
             return (
               <TouchableOpacity
                 key={c.id}
                 style={[styles.pickerRow, selected && styles.pickerRowSelected]}
-                onPress={() => { setSelectedCategory(c.id); setCategoryPickerVisible(false) }}
+                onPress={() => { roleAssign.setSelectedCategory(c.id); roleAssign.setCategoryPickerVisible(false) }}
                 accessibilityRole="button"
                 accessibilityLabel={c.label}
                 accessibilityState={{ selected }}

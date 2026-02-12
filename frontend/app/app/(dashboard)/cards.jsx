@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useTranslation } from 'react-i18next'
 import { SemanticColors } from '../../constants/Colors'
 import { useThemeColors } from '../../hooks/useThemeColors'
+import useCardHandlers from '../../hooks/useCardHandlers'
 import api from '../../lib/api'
 import ThemedText from '../../components/ThemedText'
 import { UserContext } from '../../contexts/UserContext'
@@ -26,7 +27,6 @@ import Header from '../../components/Header'
 import ChattingListExplanationModal from '../../components/ChattingListExplanationModal'
 import AdoptPositionExplanationModal from '../../components/AdoptPositionExplanationModal'
 import ReportModal from '../../components/ReportModal'
-import { useToast } from '../../components/Toast'
 
 // AsyncStorage keys for tutorial tracking
 const TUTORIAL_CHATTING_LIST_KEY = '@tutorial_seen_chatting_list'
@@ -50,9 +50,8 @@ const SCREEN_HEIGHT = Dimensions.get('window').height
 
 export default function CardQueue() {
   const router = useRouter()
-  const showToast = useToast()
   const { t } = useTranslation('cards')
-  const { user, logout, invalidatePositions, pendingChatRequest, setPendingChatRequest, incomingChatRequest, clearIncomingChatRequest } = useContext(UserContext)
+  const { user, incomingChatRequest, clearIncomingChatRequest } = useContext(UserContext)
   const [cards, setCards] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [initialLoading, setInitialLoading] = useState(true)
@@ -318,9 +317,8 @@ export default function CardQueue() {
   cardsLengthRef.current = cards.length
 
   const advanceIndex = useCallback(() => {
-    if (currentIndexRef.current < cardsLengthRef.current - 1) {
-      setCurrentIndex(prev => prev + 1)
-    } else if (cardsLengthRef.current > 0) {
+    setCurrentIndex(prev => prev + 1)
+    if (currentIndexRef.current >= cardsLengthRef.current - 1) {
       backCardProgress.value = 0
       fetchMoreCards(false)
     }
@@ -347,6 +345,19 @@ export default function CardQueue() {
       if (finished) runOnJS(advanceIndex)()
     })
   }, [advanceIndex])
+
+  // Card-type-specific response handlers (API calls + advance)
+  const {
+    pendingChatRequest,
+    handleAgree, handleDisagree, handlePass, handleChatRequest,
+    handleSubmitReport, handleDismissRemoval, handleAdoptPosition,
+    handleAcceptChat, handleDeclineChat,
+    handleSurveyResponse, handleSurveySkip,
+    handleDemographicResponse, handleDemographicSkip,
+    handleSendKudos, handleDismissKudos, handleAcknowledgeKudos,
+    handlePairwiseResponse, handlePairwiseSkip,
+    handleDiagnosticsAccept, handleDiagnosticsDecline,
+  } = useCardHandlers({ currentCard, goToNextCard })
 
   // Complete slide-in: insert card and reset animation state
   const completeSlideIn = useCallback((card) => {
@@ -500,115 +511,10 @@ export default function CardQueue() {
     }
   }, [])
 
-  // Position card handlers
-  const handleAgree = useCallback(async () => {
-    if (currentCard?.type !== 'position') return
-    try {
-      await api.positions.respond([{
-        positionId: currentCard.data.id,
-        response: 'agree',
-      }])
-      goToNextCard()
-    } catch (err) {
-      console.error('Failed to respond:', err)
-    }
-  }, [currentCard, goToNextCard])
-
-  const handleDisagree = useCallback(async () => {
-    if (currentCard?.type !== 'position') return
-    try {
-      await api.positions.respond([{
-        positionId: currentCard.data.id,
-        response: 'disagree',
-      }])
-      goToNextCard()
-    } catch (err) {
-      console.error('Failed to respond:', err)
-    }
-  }, [currentCard, goToNextCard])
-
-  const handlePass = useCallback(async () => {
-    if (currentCard?.type !== 'position') return
-    try {
-      await api.positions.respond([{
-        positionId: currentCard.data.id,
-        response: 'pass',
-      }])
-      goToNextCard()
-    } catch (err) {
-      console.error('Failed to respond:', err)
-    }
-  }, [currentCard, goToNextCard])
-
-  const handleChatRequest = useCallback(async () => {
-    if (currentCard?.type !== 'position') return
-    if (pendingChatRequest) return
-
-    // If no users are available, add to chatting list + show toast instead
-    if (currentCard.data?.availability === 'none') {
-      const isAlreadyInChattingList = currentCard.data?.source === 'chatting_list'
-      if (!isAlreadyInChattingList) {
-        try {
-          await api.chattingList.addPosition(currentCard.data.id)
-        } catch (err) {
-          console.error('Failed to add to chatting list:', err)
-        }
-      }
-      showToast(t('addedToChattingList'))
-      goToNextCard()
-      return
-    }
-
-    try {
-      const response = await api.chat.createRequest(currentCard.data.userPositionId)
-      // Set pending chat request with countdown info
-      const now = new Date()
-      const author = currentCard.data.creator || {}
-      setPendingChatRequest({
-        id: response.id,
-        createdTime: now.toISOString(),
-        expiresAt: new Date(now.getTime() + CHAT_REQUEST_TIMEOUT_MS).toISOString(),
-        positionStatement: currentCard.data.statement,
-        category: currentCard.data.category,
-        location: currentCard.data.location,
-        author: {
-          displayName: author.displayName,
-          username: author.username,
-          avatarUrl: author.avatarUrl,
-          avatarIconUrl: author.avatarIconUrl,
-          trustScore: author.trustScore,
-          kudosCount: author.kudosCount,
-        },
-        status: 'pending',
-      })
-      goToNextCard()
-    } catch (err) {
-      console.error('Failed to create chat request:', err)
-    }
-  }, [currentCard, goToNextCard, setPendingChatRequest, pendingChatRequest, showToast])
-
   const handleReport = useCallback(() => {
     setReportPositionId(currentCard?.data?.id)
     setReportModalVisible(true)
   }, [currentCard])
-
-  const handleSubmitReport = useCallback(async (ruleId, comment) => {
-    if (!reportPositionId) return
-    await api.positions.report(reportPositionId, ruleId, comment)
-    setReportModalVisible(false)
-    goToNextCard()
-  }, [reportPositionId, goToNextCard])
-
-  // Dismiss position removed notification
-  const handleDismissRemoval = useCallback(async () => {
-    if (currentCard?.type !== 'position_removed_notification') return
-    try {
-      await api.cards.dismissPositionRemovedNotification(currentCard.data.positionId)
-      goToNextCard()
-    } catch (err) {
-      console.error('Failed to dismiss removal notification:', err)
-    }
-  }, [currentCard, goToNextCard])
 
   const handleAddPosition = useCallback(async () => {
     if (currentCard?.type !== 'position') return
@@ -620,18 +526,12 @@ export default function CardQueue() {
 
     const cardRef = currentCardRef.current
     if (cardRef?.swipeRightWithPlus) {
-      // Trigger swipe animation with plus icon - API call happens after animation
       cardRef.swipeRightWithPlus()
     } else {
       goToNextCard()
     }
-    try {
-      await api.positions.adopt(currentCard.data.id)
-      invalidatePositions() // Signal that positions list needs refresh
-    } catch (err) {
-      console.error('Failed to adopt position:', err)
-    }
-  }, [currentCard, goToNextCard, invalidatePositions])
+    handleAdoptPosition()
+  }, [currentCard, goToNextCard, handleAdoptPosition])
 
   // Handle removing a position from the chatting list
   const handleRemoveFromChattingList = useCallback(async () => {
@@ -702,129 +602,6 @@ export default function CardQueue() {
       console.error('Failed to add to chatting list:', err)
     }
   }, [currentCard, currentIndex, user?.seenChattingListExplanation])
-
-  // Chat request handlers
-  const handleAcceptChat = useCallback(async () => {
-    if (currentCard?.type !== 'chat_request') return
-    let response
-    try {
-      response = await api.chat.respondToRequest(currentCard.data.id, 'accepted')
-    } catch (err) {
-      console.error('Failed to accept chat:', err)
-    }
-    goToNextCard()
-    // Navigate to chat screen with the new chat log ID
-    if (response?.chatLogId) {
-      router.push(`/chat/${response.chatLogId}`)
-    }
-  }, [currentCard, goToNextCard, router])
-
-  const handleDeclineChat = useCallback(async () => {
-    if (currentCard?.type !== 'chat_request') return
-    try {
-      await api.chat.respondToRequest(currentCard.data.id, 'dismissed')
-    } catch (err) {
-      console.error('Failed to decline chat:', err)
-    }
-    goToNextCard()
-  }, [currentCard, goToNextCard])
-
-  // Survey handlers
-  const handleSurveyResponse = useCallback(async (surveyId, questionId, optionId) => {
-    try {
-      await api.surveys.respond(surveyId, questionId, optionId)
-    } catch (err) {
-      console.error('Failed to submit survey response:', err)
-    }
-    goToNextCard()
-  }, [goToNextCard])
-
-  const handleSurveySkip = useCallback(() => {
-    // Just move to next card - the survey will appear again later
-    // since no response was recorded
-    goToNextCard()
-  }, [goToNextCard])
-
-  // Demographic handlers
-  const handleDemographicResponse = useCallback(async (field, value) => {
-    try {
-      await api.users.updateDemographics({ [field]: value })
-    } catch (err) {
-      console.error('Failed to update demographics:', err)
-    }
-    goToNextCard()
-  }, [goToNextCard])
-
-  const handleDemographicSkip = useCallback(() => {
-    // Just move to next card - the demographic will appear again later
-    goToNextCard()
-  }, [goToNextCard])
-
-  // Kudos handlers
-  const handleSendKudos = useCallback(async () => {
-    if (currentCard?.type !== 'kudos') return
-    try {
-      await api.chat.sendKudos(currentCard.data.id)
-    } catch (err) {
-      console.error('Failed to send kudos:', err)
-    }
-    goToNextCard()
-  }, [currentCard, goToNextCard])
-
-  const handleDismissKudos = useCallback(async () => {
-    if (currentCard?.type !== 'kudos') return
-    try {
-      await api.chat.dismissKudos(currentCard.data.id)
-    } catch (err) {
-      console.error('Failed to dismiss kudos:', err)
-    }
-    goToNextCard()
-  }, [currentCard, goToNextCard])
-
-  // Acknowledge kudos (when user already sent kudos, just mark as seen)
-  const handleAcknowledgeKudos = useCallback(async () => {
-    if (currentCard?.type !== 'kudos') return
-    try {
-      await api.chat.acknowledgeKudos(currentCard.data.id)
-    } catch (err) {
-      console.error('Failed to acknowledge kudos:', err)
-    }
-    goToNextCard()
-  }, [currentCard, goToNextCard])
-
-  // Pairwise comparison handlers
-  const handlePairwiseResponse = useCallback(async (surveyId, winnerItemId, loserItemId) => {
-    try {
-      await api.surveys.respondToPairwise(surveyId, winnerItemId, loserItemId)
-    } catch (err) {
-      console.error('Failed to submit pairwise response:', err)
-    }
-    goToNextCard()
-  }, [goToNextCard])
-
-  const handlePairwiseSkip = useCallback(() => {
-    // Just move to next card - the pairwise comparison will appear again later
-    goToNextCard()
-  }, [goToNextCard])
-
-  // Diagnostics consent handlers
-  const handleDiagnosticsAccept = useCallback(async () => {
-    try {
-      await api.users.updateDiagnosticsConsent(true)
-    } catch (err) {
-      console.error('Failed to update diagnostics consent:', err)
-    }
-    goToNextCard()
-  }, [goToNextCard])
-
-  const handleDiagnosticsDecline = useCallback(async () => {
-    try {
-      await api.users.updateDiagnosticsConsent(false)
-    } catch (err) {
-      console.error('Failed to update diagnostics consent:', err)
-    }
-    goToNextCard()
-  }, [goToNextCard])
 
   // Keyboard support for PC
   useEffect(() => {
@@ -1182,7 +959,7 @@ export default function CardQueue() {
       <ReportModal
         visible={reportModalVisible}
         onClose={() => setReportModalVisible(false)}
-        onSubmit={handleSubmitReport}
+        onSubmit={(ruleId, comment) => handleSubmitReport(reportPositionId, ruleId, comment)}
       />
     </SafeAreaView>
   )

@@ -13,7 +13,7 @@ from candid.controllers import db
 from candid.controllers.helpers.auth import (
     authorization, token_to_user, is_moderator_at_location,
 )
-from candid.controllers.helpers.rate_limiting import check_rate_limit
+from candid.controllers.helpers.rate_limiting import check_rate_limit_for
 from candid.controllers.helpers.scoring import wilson_score
 from candid.controllers.helpers.ideological_coords import (
     get_effective_coords, get_conversation_for_post,
@@ -123,7 +123,7 @@ def create_post(body, token_info=None):  # noqa: E501
     user_id = str(user.id)
 
     # Rate limit
-    allowed, count = check_rate_limit(user_id, "post_create", 5, 3600)
+    allowed, count = check_rate_limit_for(user_id, "post_create")
     if not allowed:
         return ErrorModel(429, "Rate limit exceeded. Max 5 posts per hour."), 429
 
@@ -525,7 +525,7 @@ def vote_on_post(post_id, body, token_info=None):  # noqa: E501
     user_id = str(user.id)
 
     # Rate limit
-    allowed, count = check_rate_limit(user_id, "vote", 100, 3600)
+    allowed, count = check_rate_limit_for(user_id, "vote")
     if not allowed:
         return ErrorModel(429, "Rate limit exceeded. Max 100 votes per hour."), 429
 

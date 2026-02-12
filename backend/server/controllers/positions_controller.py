@@ -25,6 +25,14 @@ from candid.controllers.helpers.polis_sync import (
 from candid.controllers.helpers.polis_client import get_client, PolisError
 
 from candid.controllers.stats_controller import _get_cached_group_labels
+from candid.controllers.helpers.geometry import (
+    compute_convex_hull as _compute_convex_hull,
+    compute_centroid as _compute_centroid,
+)
+from candid.controllers.helpers.user_mappers import (
+    row_to_user_position as _row_to_user_position,
+)
+from candid.controllers.helpers.rate_limiting import check_rate_limit_for
 import uuid
 
 def _get_user_card(user_id):
@@ -51,24 +59,6 @@ def _get_user_card(user_id):
         )
     return None
 
-def _row_to_user_position(row):
-    return UserPosition(
-        id=str(row['id']),
-        user_id=str(row['user_id']),
-        position_id=str(row['position_id']),
-        location_id=str(row['location_id']) if row.get('location_id') else None,
-        category_id=str(row['category_id']) if row.get('category_id') else None,
-        category_name=row.get('category_name'),
-        location_name=row.get('location_name'),
-        location_code=row.get('location_code'),
-        statement=row.get('statement'),
-        status=row['status'],
-        agree_count=row.get('agree_count', 0),
-        disagree_count=row.get('disagree_count', 0),
-        pass_count=row.get('pass_count', 0),
-        chat_count=row.get('chat_count', 0),
-    )
-
 def create_position(body, token_info=None):  # noqa: E501
     """Create a new position statement
 
@@ -87,6 +77,11 @@ def create_position(body, token_info=None):  # noqa: E501
     if not authorized:
         return auth_err, auth_err.code
     user = token_to_user(token_info)
+
+    # Rate limit
+    allowed, _ = check_rate_limit_for(str(user.id), "position_create")
+    if not allowed:
+        return {"code": 429, "message": "Rate limit exceeded. Max 5 positions per hour."}, 429
 
     # Validate statement length (Polis has a 140 character limit)
     if len(create_position_request.statement) > 140:
@@ -327,10 +322,7 @@ def adopt_position(position_id, token_info=None):  # noqa: E501
         ON CONFLICT (user_id, position_id) DO UPDATE SET response = 'agree'
     """, (user.id, position_id))
 
-    # Update position agree count
-    db.execute_query("""
-        UPDATE position SET agree_count = agree_count + 1 WHERE id = %s
-    """, (position_id,))
+    # Position agree_count is maintained by trg_response_position_counts trigger
 
     # Queue vote for Polis sync
     polis_sync.queue_vote_sync(
@@ -1108,51 +1100,3 @@ def _get_user_polis_info(
     return {'group': group_info, 'position': position}
 
 
-def _compute_convex_hull(points: List[Dict[str, float]]) -> List[Dict[str, float]]:
-    """Compute the convex hull of a set of 2D points using Graham scan."""
-    import math
-
-    if len(points) < 3:
-        return points
-
-    def bottom_left(p):
-        return (p["y"], p["x"])
-
-    points = sorted(points, key=bottom_left)
-    start = points[0]
-
-    def polar_angle(p):
-        dx = p["x"] - start["x"]
-        dy = p["y"] - start["y"]
-        return math.atan2(dy, dx)
-
-    rest = sorted(points[1:], key=polar_angle)
-    hull = [start]
-
-    for p in rest:
-        while len(hull) > 1:
-            o = hull[-2]
-            a = hull[-1]
-            cross = (a["x"] - o["x"]) * (p["y"] - o["y"]) - (a["y"] - o["y"]) * (p["x"] - o["x"])
-            if cross <= 0:
-                hull.pop()
-            else:
-                break
-        hull.append(p)
-
-    return hull
-
-
-def _compute_centroid(points: List[Dict[str, float]]) -> Dict[str, float]:
-    """Compute the centroid of a set of points."""
-    if not points:
-        return {"x": 0, "y": 0}
-
-    x_sum = sum(p["x"] for p in points)
-    y_sum = sum(p["y"] for p in points)
-    n = len(points)
-
-    return {
-        "x": round(x_sum / n, 4),
-        "y": round(y_sum / n, 4)
-    }

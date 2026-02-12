@@ -3,11 +3,17 @@
 All external calls (DB, Redis, HTTP) are mocked via fixtures.
 """
 
+import builtins
 import sys
 import os
 import shutil
 from unittest.mock import MagicMock, patch
 import pytest
+
+# Inject UUID into builtins so auto-generated OpenAPI models (which use
+# ``UUID`` in type annotations without importing it) work outside Docker.
+from uuid import UUID as _UUID
+builtins.UUID = _UUID
 
 # ---------------------------------------------------------------------------
 # Path setup: sync real controllers → generated, then add to sys.path

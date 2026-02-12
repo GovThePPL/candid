@@ -286,7 +286,7 @@ export default function ImageCropModal({ visible, imageUri, onCancel, onConfirm 
               </View>
 
               {/* Dark overlay with circular cutout */}
-              <View style={StyleSheet.absoluteFill} pointerEvents="none">
+              <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
                 <Svg width={SCREEN_WIDTH} height={AVAILABLE_HEIGHT}>
                   <Defs>
                     <Mask id="circleMask">
@@ -317,9 +317,9 @@ export default function ImageCropModal({ visible, imageUri, onCancel, onConfirm 
                     left: (SCREEN_WIDTH - CIRCLE_SIZE) / 2,
                     width: CIRCLE_SIZE,
                     height: CIRCLE_SIZE,
+                    pointerEvents: 'none',
                   },
                 ]}
-                pointerEvents="none"
               />
             </>
           )}

@@ -113,6 +113,14 @@ async def _handle_propose(
             "message": "Content is required for propose action",
         }
 
+    # Validate proposal length
+    if len(content) > 1000:
+        return {
+            "status": "error",
+            "code": "CONTENT_TOO_LONG",
+            "message": "Proposal must be 1000 characters or less",
+        }
+
     # Create the proposal
     position = await redis_store.add_agreed_position(
         chat_id=chat_id,
@@ -302,6 +310,14 @@ async def _handle_modify(
             "status": "error",
             "code": "MISSING_CONTENT",
             "message": "content is required for modify action",
+        }
+
+    # Validate proposal length
+    if len(content) > 1000:
+        return {
+            "status": "error",
+            "code": "CONTENT_TOO_LONG",
+            "message": "Proposal must be 1000 characters or less",
         }
 
     # Get the original proposal

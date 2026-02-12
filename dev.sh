@@ -288,6 +288,28 @@ if [[ "$RESTORE" == "true" ]]; then
     restore_volumes
 fi
 
+# --- Detect host IP and set CORS origins --------------------------------
+
+if [[ -z "${CORS_ORIGINS:-}" ]]; then
+    HOST_IP=""
+    if grep -qi microsoft /proc/version 2>/dev/null; then
+        # WSL2: get the Windows Wi-Fi LAN IP (reachable from phone on same network)
+        HOST_IP=$(powershell.exe -NoProfile -Command \
+            "(Get-NetIPAddress -AddressFamily IPv4 | Where-Object { \$_.InterfaceAlias -match 'Wi-Fi' -and \$_.PrefixOrigin -eq 'Dhcp' }).IPAddress" \
+            2>/dev/null | tr -d '\r')
+    fi
+    if [[ -z "$HOST_IP" ]]; then
+        HOST_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+    fi
+
+    CORS_ORIGINS="http://localhost:3001,http://localhost:8081,http://localhost:8082,http://localhost:19006"
+    if [[ -n "$HOST_IP" ]]; then
+        CORS_ORIGINS="${CORS_ORIGINS},http://${HOST_IP}:3001,http://${HOST_IP}:8081,http://${HOST_IP}:8082,http://${HOST_IP}:19006"
+        ok "CORS origins include host IP ${HOST_IP}"
+    fi
+    export CORS_ORIGINS
+fi
+
 # --- Start services (unless --seed-only) --------------------------------
 
 if [[ "$SEED_ONLY" == "false" ]]; then

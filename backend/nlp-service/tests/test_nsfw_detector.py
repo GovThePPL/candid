@@ -10,6 +10,7 @@ from PIL import Image
 
 from app.nsfw_detector import (
     check_nsfw,
+    decode_and_validate_image,
     decode_base64_image,
     process_avatar,
     resize_image,
@@ -161,3 +162,31 @@ class TestProcessAvatar:
         assert result["error"] is not None
         assert result["full_base64"] is None
         assert result["icon_base64"] is None
+
+
+class TestDecodeAndValidateImage:
+    """Test combined decode + validate helper."""
+
+    def test_valid_image(self, small_png_bytes):
+        encoded = base64.b64encode(small_png_bytes).decode("utf-8")
+        image_bytes, error = decode_and_validate_image(encoded)
+        assert image_bytes == small_png_bytes
+        assert error is None
+
+    def test_data_uri(self, small_png_bytes):
+        encoded = base64.b64encode(small_png_bytes).decode("utf-8")
+        data_uri = f"data:image/png;base64,{encoded}"
+        image_bytes, error = decode_and_validate_image(data_uri)
+        assert image_bytes == small_png_bytes
+        assert error is None
+
+    def test_invalid_base64(self):
+        image_bytes, error = decode_and_validate_image("not-valid!!!")
+        assert image_bytes is None
+        assert "Invalid base64" in error
+
+    def test_corrupted_image(self):
+        encoded = base64.b64encode(b"not an image").decode("utf-8")
+        image_bytes, error = decode_and_validate_image(encoded)
+        assert image_bytes is None
+        assert "Invalid image" in error

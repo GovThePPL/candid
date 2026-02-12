@@ -75,10 +75,24 @@ class FakePipeline:
         return results
 
 
+def _mock_config(dev=False):
+    """Create a mock config with DEV flag."""
+    cfg = MagicMock()
+    cfg.DEV = dev
+    return cfg
+
+
+# Patch targets: get_redis is a module-level name in rate_limiting.py;
+# config is imported at call time from candid.controllers.
+_PATCH_REDIS = "candid.controllers.helpers.rate_limiting.get_redis"
+_PATCH_CONFIG = "candid.controllers.config"
+
+
 class TestCheckRateLimit:
     """Tests for check_rate_limit()."""
 
-    @patch("candid.controllers.helpers.rate_limiting.get_redis")
+    @patch(_PATCH_CONFIG, _mock_config(dev=False))
+    @patch(_PATCH_REDIS)
     def test_first_action_allowed(self, mock_get_redis):
         fake = FakeRedis()
         mock_get_redis.return_value = fake
@@ -88,7 +102,8 @@ class TestCheckRateLimit:
         assert allowed is True
         assert count == 1
 
-    @patch("candid.controllers.helpers.rate_limiting.get_redis")
+    @patch(_PATCH_CONFIG, _mock_config(dev=False))
+    @patch(_PATCH_REDIS)
     def test_within_limit_allowed(self, mock_get_redis):
         fake = FakeRedis()
         mock_get_redis.return_value = fake
@@ -99,7 +114,8 @@ class TestCheckRateLimit:
             assert allowed is True
         assert count == 4
 
-    @patch("candid.controllers.helpers.rate_limiting.get_redis")
+    @patch(_PATCH_CONFIG, _mock_config(dev=False))
+    @patch(_PATCH_REDIS)
     def test_at_limit_last_allowed(self, mock_get_redis):
         fake = FakeRedis()
         mock_get_redis.return_value = fake
@@ -110,7 +126,8 @@ class TestCheckRateLimit:
         assert allowed is True
         assert count == 5
 
-    @patch("candid.controllers.helpers.rate_limiting.get_redis")
+    @patch(_PATCH_CONFIG, _mock_config(dev=False))
+    @patch(_PATCH_REDIS)
     def test_over_limit_blocked(self, mock_get_redis):
         fake = FakeRedis()
         mock_get_redis.return_value = fake
@@ -124,7 +141,8 @@ class TestCheckRateLimit:
         assert allowed is False
         assert count == 5
 
-    @patch("candid.controllers.helpers.rate_limiting.get_redis")
+    @patch(_PATCH_CONFIG, _mock_config(dev=False))
+    @patch(_PATCH_REDIS)
     def test_different_users_independent(self, mock_get_redis):
         fake = FakeRedis()
         mock_get_redis.return_value = fake
@@ -138,7 +156,8 @@ class TestCheckRateLimit:
         assert allowed is True
         assert count == 1
 
-    @patch("candid.controllers.helpers.rate_limiting.get_redis")
+    @patch(_PATCH_CONFIG, _mock_config(dev=False))
+    @patch(_PATCH_REDIS)
     def test_different_actions_independent(self, mock_get_redis):
         fake = FakeRedis()
         mock_get_redis.return_value = fake
@@ -151,3 +170,61 @@ class TestCheckRateLimit:
         allowed, count = check_rate_limit("user1", "vote", 100)
         assert allowed is True
         assert count == 1
+
+
+class TestDevModeSkip:
+    """Tests that dev mode skips all Redis calls."""
+
+    @patch(_PATCH_CONFIG, _mock_config(dev=True))
+    def test_dev_mode_always_allowed(self):
+        """In dev mode, check_rate_limit returns (True, 0) without Redis."""
+        from candid.controllers.helpers.rate_limiting import check_rate_limit
+        allowed, count = check_rate_limit("user1", "post_create", 5)
+        assert allowed is True
+        assert count == 0
+
+    @patch(_PATCH_CONFIG, _mock_config(dev=True))
+    @patch(_PATCH_REDIS)
+    def test_dev_mode_no_redis_call(self, mock_get_redis):
+        """In dev mode, get_redis is never called."""
+        from candid.controllers.helpers.rate_limiting import check_rate_limit
+        check_rate_limit("user1", "post_create", 5)
+        mock_get_redis.assert_not_called()
+
+
+class TestCheckRateLimitFor:
+    """Tests for check_rate_limit_for() convenience wrapper."""
+
+    @patch(_PATCH_CONFIG, _mock_config(dev=False))
+    @patch(_PATCH_REDIS)
+    def test_uses_rate_limits_dict(self, mock_get_redis):
+        """check_rate_limit_for looks up limits from RATE_LIMITS."""
+        fake = FakeRedis()
+        mock_get_redis.return_value = fake
+
+        from candid.controllers.helpers.rate_limiting import check_rate_limit_for
+        allowed, count = check_rate_limit_for("user1", "post_create")
+        assert allowed is True
+        assert count == 1
+
+    def test_invalid_action_raises_key_error(self):
+        """Unknown action key raises KeyError."""
+        from candid.controllers.helpers.rate_limiting import check_rate_limit_for
+        with pytest.raises(KeyError):
+            check_rate_limit_for("user1", "nonexistent_action")
+
+    @patch(_PATCH_CONFIG, _mock_config(dev=False))
+    @patch(_PATCH_REDIS)
+    def test_login_limit_by_ip(self, mock_get_redis):
+        """Login rate limit works with IP addresses."""
+        fake = FakeRedis()
+        mock_get_redis.return_value = fake
+
+        from candid.controllers.helpers.rate_limiting import check_rate_limit_for
+        for i in range(10):
+            allowed, _ = check_rate_limit_for("192.168.1.1", "login")
+            assert allowed is True
+
+        # 11th should be blocked
+        allowed, _ = check_rate_limit_for("192.168.1.1", "login")
+        assert allowed is False

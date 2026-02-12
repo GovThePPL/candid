@@ -12,7 +12,7 @@ from candid.controllers.helpers.auth import (
     authorization, token_to_user, is_moderator_at_location,
     has_qa_authority, get_highest_role_at_location,
 )
-from candid.controllers.helpers.rate_limiting import check_rate_limit
+from candid.controllers.helpers.rate_limiting import check_rate_limit_for
 from candid.controllers.helpers.scoring import wilson_score, vote_weight
 from candid.controllers.helpers.ideological_coords import (
     get_effective_coords, get_conversation_for_post,
@@ -154,7 +154,7 @@ def create_comment(post_id, body, token_info=None):  # noqa: E501
     user_id = str(user.id)
 
     # Rate limit
-    allowed, count = check_rate_limit(user_id, "comment_create", 30, 3600)
+    allowed, count = check_rate_limit_for(user_id, "comment_create")
     if not allowed:
         return ErrorModel(429, "Rate limit exceeded. Max 30 comments per hour."), 429
 
@@ -222,18 +222,7 @@ def create_comment(post_id, body, token_info=None):  # noqa: E501
         VALUES (%s, %s, %s, %s, %s, %s, %s)
     """, (comment_id, post_id, parent_comment_id, user_id, body_text, path, depth))
 
-    # Update post comment count
-    db.execute_query(
-        "UPDATE post SET comment_count = comment_count + 1 WHERE id = %s",
-        (post_id,),
-    )
-
-    # Update parent child count
-    if parent_comment_id:
-        db.execute_query(
-            "UPDATE comment SET child_count = child_count + 1 WHERE id = %s",
-            (parent_comment_id,),
-        )
+    # post.comment_count and comment.child_count are maintained by trg_comment_counts trigger
 
     # Fetch created comment
     row = db.execute_query("""
@@ -353,7 +342,7 @@ def vote_on_comment(comment_id, body, token_info=None):  # noqa: E501
     user_id = str(user.id)
 
     # Rate limit
-    allowed, count = check_rate_limit(user_id, "vote", 100, 3600)
+    allowed, count = check_rate_limit_for(user_id, "vote")
     if not allowed:
         return ErrorModel(429, "Rate limit exceeded. Max 100 votes per hour."), 429
 

@@ -14,8 +14,9 @@ import BottomDrawerModal from '../../../components/BottomDrawerModal'
 import LocationFilterButton from '../../../components/LocationFilterButton'
 import { useToast } from '../../../components/Toast'
 import { useUser } from '../../../hooks/useUser'
-import { getHighestRole, getDescendantLocationIds } from '../../../lib/roles'
+import { getHighestRole } from '../../../lib/roles'
 import LocationPicker from '../../../components/LocationPicker'
+import useSurveyForm from '../../../hooks/useSurveyForm'
 
 const SURVEY_TYPES = ['standard', 'pairwise']
 
@@ -38,28 +39,9 @@ export default function SurveysScreen() {
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(null)
 
-  // Create modal state
-  const [createVisible, setCreateVisible] = useState(false)
-  const [surveyType, setSurveyType] = useState('standard')
-  const [surveyTitle, setSurveyTitle] = useState('')
-  const [startTime, setStartTime] = useState('')
-  const [endTime, setEndTime] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-
-  // Standard survey: questions with options
-  const [questions, setQuestions] = useState([{ text: '', options: ['', ''] }])
-
-  // Pairwise survey: items + comparison question
-  const [items, setItems] = useState(['', ''])
-  const [comparisonQuestion, setComparisonQuestion] = useState('')
-
-  // Location/category pickers
+  // Location/category data
   const [locations, setLocations] = useState([])
   const [allCategories, setAllCategories] = useState([])
-  const [selectedLocationId, setSelectedLocationId] = useState(null)
-  const [selectedCategoryId, setSelectedCategoryId] = useState(null)
-  const [locationPickerVisible, setLocationPickerVisible] = useState(false)
-  const [categoryPickerVisible, setCategoryPickerVisible] = useState(false)
 
   // Location filter for survey list — default to user's highest role location
   const [filterLocationId, setFilterLocationId] = useState(defaultLocationId)
@@ -106,125 +88,8 @@ export default function SurveysScreen() {
     load()
   }, [])
 
-  // Locations the user can scope surveys to (admin scope)
-  const allowableLocations = useMemo(() => {
-    if (!user?.roles?.length || !locations.length) return []
-    const allowedIds = new Set()
-    for (const r of user.roles) {
-      if (r.role === 'admin' && r.locationId) {
-        for (const id of getDescendantLocationIds(r.locationId, locations)) {
-          allowedIds.add(id)
-        }
-      }
-    }
-    // Reparent locations whose parent isn't in the filtered set so they appear at root
-    return locations
-      .filter(l => allowedIds.has(l.id))
-      .map(l => allowedIds.has(l.parentLocationId) ? l : { ...l, parentLocationId: null })
-  }, [user, locations])
-
-  // Form helpers — standard
-  const addQuestion = useCallback(() => {
-    setQuestions(prev => [...prev, { text: '', options: ['', ''] }])
-  }, [])
-  const removeQuestion = useCallback((index) => {
-    setQuestions(prev => prev.filter((_, i) => i !== index))
-  }, [])
-  const updateQuestion = useCallback((index, text) => {
-    setQuestions(prev => prev.map((q, i) => i === index ? { ...q, text } : q))
-  }, [])
-  const addOption = useCallback((qIndex) => {
-    setQuestions(prev => prev.map((q, i) => i === qIndex ? { ...q, options: [...q.options, ''] } : q))
-  }, [])
-  const removeOption = useCallback((qIndex, oIndex) => {
-    setQuestions(prev => prev.map((q, i) => i === qIndex ? { ...q, options: q.options.filter((_, j) => j !== oIndex) } : q))
-  }, [])
-  const updateOption = useCallback((qIndex, oIndex, text) => {
-    setQuestions(prev => prev.map((q, i) => i === qIndex ? { ...q, options: q.options.map((o, j) => j === oIndex ? text : o) } : q))
-  }, [])
-
-  // Form helpers — pairwise
-  const addItem = useCallback(() => {
-    setItems(prev => [...prev, ''])
-  }, [])
-  const removeItem = useCallback((index) => {
-    setItems(prev => prev.filter((_, i) => i !== index))
-  }, [])
-  const updateItem = useCallback((index, text) => {
-    setItems(prev => prev.map((item, i) => i === index ? text : item))
-  }, [])
-
-  const resetForm = useCallback(() => {
-    setSurveyTitle('')
-    setStartTime('')
-    setEndTime('')
-    setSurveyType('standard')
-    setQuestions([{ text: '', options: ['', ''] }])
-    setItems(['', ''])
-    setComparisonQuestion('')
-    setSelectedLocationId(defaultLocationId)
-    setSelectedCategoryId(null)
-  }, [defaultLocationId])
-
-  const handleCreate = useCallback(async () => {
-    if (!surveyTitle.trim()) {
-      toast?.(t('surveyTitleRequired'), 'error')
-      return
-    }
-    if (!startTime.trim() || !endTime.trim()) {
-      toast?.(t('surveyDatesRequired'), 'error')
-      return
-    }
-
-    if (surveyType === 'standard') {
-      const valid = questions.every(q => q.text.trim() && q.options.filter(o => o.trim()).length >= 2)
-      if (!valid || questions.length === 0) {
-        toast?.(t('surveyQuestionRequired'), 'error')
-        return
-      }
-    } else {
-      const validItems = items.filter(i => i.trim())
-      if (validItems.length < 2) {
-        toast?.(t('surveyMinItems'), 'error')
-        return
-      }
-    }
-
-    setSubmitting(true)
-    try {
-      if (surveyType === 'standard') {
-        await api.admin.createSurvey({
-          surveyTitle: surveyTitle.trim(),
-          startTime: new Date(startTime).toISOString(),
-          endTime: new Date(endTime).toISOString(),
-          locationId: selectedLocationId || undefined,
-          positionCategoryId: selectedCategoryId || undefined,
-          questions: questions.map(q => ({
-            question: q.text.trim(),
-            options: q.options.filter(o => o.trim()),
-          })),
-        })
-      } else {
-        await api.admin.createPairwiseSurvey({
-          surveyTitle: surveyTitle.trim(),
-          startTime: new Date(startTime).toISOString(),
-          endTime: new Date(endTime).toISOString(),
-          locationId: selectedLocationId || undefined,
-          positionCategoryId: selectedCategoryId || undefined,
-          items: items.filter(i => i.trim()),
-          comparisonQuestion: comparisonQuestion.trim() || undefined,
-        })
-      }
-      toast?.(t('surveyCreated'), 'success')
-      setCreateVisible(false)
-      resetForm()
-      fetchSurveys()
-    } catch (err) {
-      toast?.(translateError(err.message, t) || t('error'), 'error')
-    } finally {
-      setSubmitting(false)
-    }
-  }, [surveyType, surveyTitle, startTime, endTime, selectedLocationId, selectedCategoryId, questions, items, comparisonQuestion, fetchSurveys, resetForm, t, toast])
+  // --- Survey form (hook) ---
+  const form = useSurveyForm({ user, locations, allCategories, defaultLocationId, fetchSurveys })
 
   const handleDelete = useCallback(async (survey) => {
     const title = survey.surveyTitle || survey.survey_title || ''
@@ -439,7 +304,7 @@ export default function SurveysScreen() {
           <ThemedText variant="h1" title={true} style={styles.pageTitle}>{t('surveysTitle')}</ThemedText>
           <TouchableOpacity
             style={styles.createButton}
-            onPress={() => { setSelectedLocationId(defaultLocationId); setCreateVisible(true) }}
+            onPress={form.openCreateForm}
             accessibilityRole="button"
             accessibilityLabel={t('createSurveyA11y')}
           >
@@ -481,8 +346,8 @@ export default function SurveysScreen() {
 
       {/* Create Survey Modal */}
       <BottomDrawerModal
-        visible={createVisible}
-        onClose={() => { setCreateVisible(false); resetForm() }}
+        visible={form.createVisible}
+        onClose={() => { form.setCreateVisible(false); form.resetForm() }}
         title={t('createSurvey')}
       >
         <ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
@@ -492,12 +357,12 @@ export default function SurveysScreen() {
             {SURVEY_TYPES.map(type => (
               <TouchableOpacity
                 key={type}
-                style={[styles.chip, surveyType === type && styles.chipActive]}
-                onPress={() => setSurveyType(type)}
+                style={[styles.chip, form.surveyType === type && styles.chipActive]}
+                onPress={() => form.setSurveyType(type)}
                 accessibilityRole="button"
-                accessibilityState={{ selected: surveyType === type }}
+                accessibilityState={{ selected: form.surveyType === type }}
               >
-                <ThemedText variant="caption" color={surveyType === type ? 'inverse' : 'dark'}>
+                <ThemedText variant="caption" color={form.surveyType === type ? 'inverse' : 'dark'}>
                   {type === 'standard' ? t('typeStandard') : t('typePairwise')}
                 </ThemedText>
               </TouchableOpacity>
@@ -508,8 +373,8 @@ export default function SurveysScreen() {
           <ThemedText variant="label" color="secondary">{t('surveyTitleLabel')}</ThemedText>
           <TextInput
             style={styles.input}
-            value={surveyTitle}
-            onChangeText={setSurveyTitle}
+            value={form.surveyTitle}
+            onChangeText={form.setSurveyTitle}
             placeholder={t('surveyTitlePlaceholder')}
             placeholderTextColor={colors.placeholderText}
             maxFontSizeMultiplier={1.5}
@@ -522,8 +387,8 @@ export default function SurveysScreen() {
               <ThemedText variant="label" color="secondary">{t('startTimeLabel')}</ThemedText>
               <TextInput
                 style={styles.input}
-                value={startTime}
-                onChangeText={setStartTime}
+                value={form.startTime}
+                onChangeText={form.setStartTime}
                 placeholder="YYYY-MM-DD"
                 placeholderTextColor={colors.placeholderText}
                 maxFontSizeMultiplier={1.5}
@@ -534,8 +399,8 @@ export default function SurveysScreen() {
               <ThemedText variant="label" color="secondary">{t('endTimeLabel')}</ThemedText>
               <TextInput
                 style={styles.input}
-                value={endTime}
-                onChangeText={setEndTime}
+                value={form.endTime}
+                onChangeText={form.setEndTime}
                 placeholder="YYYY-MM-DD"
                 placeholderTextColor={colors.placeholderText}
                 maxFontSizeMultiplier={1.5}
@@ -545,19 +410,19 @@ export default function SurveysScreen() {
           </View>
 
           {/* Location picker */}
-          {allowableLocations.length > 0 && (
+          {form.allowableLocations.length > 0 && (
             <>
               <ThemedText variant="label" color="secondary">{t('selectLocationOptional')}</ThemedText>
               <TouchableOpacity
                 style={styles.pickerButton}
-                onPress={() => setLocationPickerVisible(true)}
+                onPress={() => form.setLocationPickerVisible(true)}
                 accessibilityRole="button"
                 accessibilityLabel={t('selectLocationA11y')}
               >
                 <Ionicons name="location-outline" size={16} color={colors.secondaryText} />
                 <ThemedText variant="body" color="dark" style={styles.pickerButtonText}>
-                  {selectedLocationId
-                    ? locations.find(l => l.id === selectedLocationId)?.name || t('selectLocation')
+                  {form.selectedLocationId
+                    ? locations.find(l => l.id === form.selectedLocationId)?.name || t('selectLocation')
                     : t('selectLocation')}
                 </ThemedText>
                 <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
@@ -571,14 +436,14 @@ export default function SurveysScreen() {
               <ThemedText variant="label" color="secondary">{t('selectCategoryOptional')}</ThemedText>
               <TouchableOpacity
                 style={styles.pickerButton}
-                onPress={() => setCategoryPickerVisible(true)}
+                onPress={() => form.setCategoryPickerVisible(true)}
                 accessibilityRole="button"
                 accessibilityLabel={t('selectCategoryA11y')}
               >
                 <Ionicons name="pricetag-outline" size={16} color={colors.secondaryText} />
                 <ThemedText variant="body" color="dark" style={styles.pickerButtonText}>
-                  {selectedCategoryId
-                    ? allCategories.find(c => c.id === selectedCategoryId)?.label || t('allCategories')
+                  {form.selectedCategoryId
+                    ? allCategories.find(c => c.id === form.selectedCategoryId)?.label || t('allCategories')
                     : t('allCategories')}
                 </ThemedText>
                 <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
@@ -587,16 +452,16 @@ export default function SurveysScreen() {
           )}
 
           {/* Standard form: questions */}
-          {surveyType === 'standard' && (
+          {form.surveyType === 'standard' && (
             <>
               <ThemedText variant="label" color="secondary">{t('questionsLabel')}</ThemedText>
-              {questions.map((q, qi) => (
+              {form.questions.map((q, qi) => (
                 <View key={qi} style={styles.questionBlock}>
                   <View style={styles.questionHeader}>
                     <ThemedText variant="bodySmall" color="dark">{t('questionNumber', { number: qi + 1 })}</ThemedText>
-                    {questions.length > 1 && (
+                    {form.questions.length > 1 && (
                       <TouchableOpacity
-                        onPress={() => removeQuestion(qi)}
+                        onPress={() => form.removeQuestion(qi)}
                         accessibilityRole="button"
                         accessibilityLabel={t('removeQuestionA11y', { number: qi + 1 })}
                       >
@@ -607,7 +472,7 @@ export default function SurveysScreen() {
                   <TextInput
                     style={styles.input}
                     value={q.text}
-                    onChangeText={(text) => updateQuestion(qi, text)}
+                    onChangeText={(text) => form.updateQuestion(qi, text)}
                     placeholder={t('questionPlaceholder')}
                     placeholderTextColor={colors.placeholderText}
                     maxFontSizeMultiplier={1.5}
@@ -618,7 +483,7 @@ export default function SurveysScreen() {
                       <TextInput
                         style={[styles.input, styles.optionInput]}
                         value={opt}
-                        onChangeText={(text) => updateOption(qi, oi, text)}
+                        onChangeText={(text) => form.updateOption(qi, oi, text)}
                         placeholder={t('optionPlaceholder', { number: oi + 1 })}
                         placeholderTextColor={colors.placeholderText}
                         maxFontSizeMultiplier={1.5}
@@ -626,7 +491,7 @@ export default function SurveysScreen() {
                       />
                       {q.options.length > 2 && (
                         <TouchableOpacity
-                          onPress={() => removeOption(qi, oi)}
+                          onPress={() => form.removeOption(qi, oi)}
                           accessibilityRole="button"
                           accessibilityLabel={t('removeOptionA11y', { number: oi + 1, question: qi + 1 })}
                         >
@@ -637,7 +502,7 @@ export default function SurveysScreen() {
                   ))}
                   <TouchableOpacity
                     style={styles.addRow}
-                    onPress={() => addOption(qi)}
+                    onPress={() => form.addOption(qi)}
                     accessibilityRole="button"
                     accessibilityLabel={t('addOptionA11y', { number: qi + 1 })}
                   >
@@ -648,7 +513,7 @@ export default function SurveysScreen() {
               ))}
               <TouchableOpacity
                 style={styles.addRow}
-                onPress={addQuestion}
+                onPress={form.addQuestion}
                 accessibilityRole="button"
                 accessibilityLabel={t('addQuestionA11y')}
               >
@@ -659,23 +524,23 @@ export default function SurveysScreen() {
           )}
 
           {/* Pairwise form: items */}
-          {surveyType === 'pairwise' && (
+          {form.surveyType === 'pairwise' && (
             <>
               <ThemedText variant="label" color="secondary">{t('itemsLabel')}</ThemedText>
-              {items.map((item, i) => (
+              {form.items.map((item, i) => (
                 <View key={i} style={styles.optionRow}>
                   <TextInput
                     style={[styles.input, styles.optionInput]}
                     value={item}
-                    onChangeText={(text) => updateItem(i, text)}
+                    onChangeText={(text) => form.updateItem(i, text)}
                     placeholder={t('itemPlaceholder', { number: i + 1 })}
                     placeholderTextColor={colors.placeholderText}
                     maxFontSizeMultiplier={1.5}
                     accessibilityLabel={t('itemA11y', { number: i + 1 })}
                   />
-                  {items.length > 2 && (
+                  {form.items.length > 2 && (
                     <TouchableOpacity
-                      onPress={() => removeItem(i)}
+                      onPress={() => form.removeItem(i)}
                       accessibilityRole="button"
                       accessibilityLabel={t('removeItemA11y', { number: i + 1 })}
                     >
@@ -684,10 +549,10 @@ export default function SurveysScreen() {
                   )}
                 </View>
               ))}
-              {items.length < 20 && (
+              {form.items.length < 20 && (
                 <TouchableOpacity
                   style={styles.addRow}
-                  onPress={addItem}
+                  onPress={form.addItem}
                   accessibilityRole="button"
                   accessibilityLabel={t('addItemA11y')}
                 >
@@ -699,8 +564,8 @@ export default function SurveysScreen() {
               <ThemedText variant="label" color="secondary">{t('comparisonQuestionLabel')}</ThemedText>
               <TextInput
                 style={styles.input}
-                value={comparisonQuestion}
-                onChangeText={setComparisonQuestion}
+                value={form.comparisonQuestion}
+                onChangeText={form.setComparisonQuestion}
                 placeholder={t('comparisonQuestionPlaceholder')}
                 placeholderTextColor={colors.placeholderText}
                 maxFontSizeMultiplier={1.5}
@@ -712,13 +577,13 @@ export default function SurveysScreen() {
           {/* Submit */}
           <TouchableOpacity
             style={styles.submitButton}
-            onPress={handleCreate}
-            disabled={submitting}
+            onPress={form.handleCreate}
+            disabled={form.submitting}
             accessibilityRole="button"
             accessibilityLabel={t('createSurveyA11y')}
-            accessibilityState={{ disabled: submitting }}
+            accessibilityState={{ disabled: form.submitting }}
           >
-            {submitting ? (
+            {form.submitting ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
               <ThemedText variant="button" color="inverse">{t('createSurvey')}</ThemedText>
@@ -737,40 +602,40 @@ export default function SurveysScreen() {
       </BottomDrawerModal>
       {/* Location Picker Modal */}
       <LocationPicker
-        visible={locationPickerVisible}
-        onClose={() => setLocationPickerVisible(false)}
-        allLocations={allowableLocations}
-        currentLocationId={selectedLocationId}
-        onSelect={(id) => { setSelectedLocationId(id); setLocationPickerVisible(false) }}
+        visible={form.locationPickerVisible}
+        onClose={() => form.setLocationPickerVisible(false)}
+        allLocations={form.allowableLocations}
+        currentLocationId={form.selectedLocationId}
+        onSelect={(id) => { form.setSelectedLocationId(id); form.setLocationPickerVisible(false) }}
         saving={false}
       />
 
       {/* Category Picker Modal */}
       <BottomDrawerModal
-        visible={categoryPickerVisible}
-        onClose={() => setCategoryPickerVisible(false)}
+        visible={form.categoryPickerVisible}
+        onClose={() => form.setCategoryPickerVisible(false)}
         title={t('selectCategory')}
       >
         <ScrollView contentContainerStyle={styles.categoryList}>
           <TouchableOpacity
-            style={[styles.categoryRow, !selectedCategoryId && styles.categoryRowSelected]}
-            onPress={() => { setSelectedCategoryId(null); setCategoryPickerVisible(false) }}
+            style={[styles.categoryRow, !form.selectedCategoryId && styles.categoryRowSelected]}
+            onPress={() => { form.setSelectedCategoryId(null); form.setCategoryPickerVisible(false) }}
             accessibilityRole="button"
             accessibilityLabel={t('allCategories')}
-            accessibilityState={{ selected: !selectedCategoryId }}
+            accessibilityState={{ selected: !form.selectedCategoryId }}
           >
-            <ThemedText variant="body" color={!selectedCategoryId ? 'primary' : 'dark'}>
+            <ThemedText variant="body" color={!form.selectedCategoryId ? 'primary' : 'dark'}>
               {t('allCategories')}
             </ThemedText>
-            {!selectedCategoryId && <Ionicons name="checkmark" size={20} color={colors.primary} />}
+            {!form.selectedCategoryId && <Ionicons name="checkmark" size={20} color={colors.primary} />}
           </TouchableOpacity>
           {allCategories.map(cat => {
-            const selected = selectedCategoryId === cat.id
+            const selected = form.selectedCategoryId === cat.id
             return (
               <TouchableOpacity
                 key={cat.id}
                 style={[styles.categoryRow, selected && styles.categoryRowSelected]}
-                onPress={() => { setSelectedCategoryId(cat.id); setCategoryPickerVisible(false) }}
+                onPress={() => { form.setSelectedCategoryId(cat.id); form.setCategoryPickerVisible(false) }}
                 accessibilityRole="button"
                 accessibilityLabel={cat.label || cat.name}
                 accessibilityState={{ selected }}

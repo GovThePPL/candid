@@ -183,7 +183,7 @@ export default function ProfileSettings() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: [ImagePicker.MediaType.image],
       allowsEditing: false,
       quality: 1,
     })
@@ -379,8 +379,8 @@ export default function ProfileSettings() {
         <Pressable style={shared.modalOverlay} onPress={() => {
           setCroppedImagePreview(null)
           setAvatarModalOpen(false)
-        }} accessibilityRole="button" accessibilityLabel={t('common:dismissModal')}>
-          <Pressable style={styles.avatarModalContent} onPress={(e) => e.stopPropagation()}>
+        }} accessibilityLabel={t('common:dismissModal')}>
+          <Pressable style={styles.avatarModalContent} onPress={(e) => e.stopPropagation()} accessible={false}>
             {croppedImagePreview ? (
               <>
                 <ThemedText variant="h2" color="dark" style={styles.modalTitle}>{t('previewAvatar')}</ThemedText>

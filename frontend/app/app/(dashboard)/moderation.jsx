@@ -1,6 +1,5 @@
-import { StyleSheet, View, TouchableOpacity, ActivityIndicator, ScrollView, TextInput } from 'react-native'
-import { useState, useEffect, useCallback, useMemo } from 'react'
-import { useRouter } from 'expo-router'
+import { StyleSheet, View, TouchableOpacity, ActivityIndicator, ScrollView, TextInput, Platform } from 'react-native'
+import { useMemo } from 'react'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { SemanticColors } from '../../constants/Colors'
@@ -14,7 +13,7 @@ import ModerationHistoryModal from '../../components/ModerationHistoryModal'
 import BottomDrawerModal from '../../components/BottomDrawerModal'
 import Avatar from '../../components/Avatar'
 import { useTranslation } from 'react-i18next'
-import api, { translateError } from '../../lib/api'
+import useModerationQueue from '../../hooks/useModerationQueue'
 
 const getActionLabels = (t) => ({
   removed: t('actionRemoveContent'),
@@ -497,186 +496,24 @@ function AdminResponseNotificationCard({ item, onHistoryPress, onChatPress, colo
 
 export default function ModerationQueue() {
   const { t } = useTranslation('moderation')
-  const router = useRouter()
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
 
-  const [queue, setQueue] = useState([])
-  const [currentIndex, setCurrentIndex] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [actionModalVisible, setActionModalVisible] = useState(false)
-  const [dismissModalVisible, setDismissModalVisible] = useState(false)
-  const [appealResponseModalVisible, setAppealResponseModalVisible] = useState(false)
-  const [appealResponseType, setAppealResponseType] = useState(null) // 'approve' or 'deny'
-  const [modifyModalVisible, setModifyModalVisible] = useState(false)
-  const [responseText, setResponseText] = useState('')
-  const [processing, setProcessing] = useState(false)
-  const [historyModalVisible, setHistoryModalVisible] = useState(false)
-  const [historyUserId, setHistoryUserId] = useState(null)
-  const [historyUser, setHistoryUser] = useState(null)
-
-  const handleChatPress = useCallback((chatId, reporterId) => {
-    if (chatId) {
-      router.push(`/chat/${chatId}?from=moderation${reporterId ? `&reporterId=${reporterId}` : ''}`)
-    }
-  }, [router])
-
-  const handleHistoryPress = useCallback((user) => {
-    setHistoryUserId(user.id)
-    setHistoryUser(user)
-    setHistoryModalVisible(true)
-  }, [])
-
-  const fetchQueue = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await api.moderation.getQueue()
-      setQueue(data || [])
-      setCurrentIndex(0)
-    } catch (err) {
-      console.error('Failed to fetch mod queue:', err)
-      setError(translateError(err.message, t) || t('failedLoadQueue'))
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchQueue()
-  }, [fetchQueue])
-
-  const currentItem = queue[currentIndex]
-
-  // Auto-claim reports when they become the current item
-  const currentReportId = currentItem?.type === 'report' ? currentItem.data.id : null
-  useEffect(() => {
-    if (currentReportId) {
-      api.moderation.claimReport(currentReportId).catch(err => {
-        console.error('Failed to claim report:', err)
-      })
-    }
-  }, [currentReportId])
-
-  const advanceQueue = useCallback(() => {
-    if (currentIndex < queue.length - 1) {
-      setCurrentIndex(prev => prev + 1)
-    } else {
-      // Re-fetch when we reach the end
-      fetchQueue()
-    }
-  }, [currentIndex, queue.length, fetchQueue])
-
-  // Report actions
-  const handlePass = useCallback(async () => {
-    if (currentItem?.type === 'report') {
-      try {
-        await api.moderation.releaseReport(currentItem.data.id)
-      } catch (err) {
-        console.error('Failed to release report:', err)
-      }
-    }
-    advanceQueue()
-  }, [currentItem, advanceQueue])
-
-  const handleDismiss = useCallback(async () => {
-    if (!currentItem || processing) return
-    setProcessing(true)
-    try {
-      await api.moderation.takeAction(currentItem.data.id, {
-        modResponse: 'dismiss',
-        modResponseText: responseText || undefined,
-      })
-      setDismissModalVisible(false)
-      setResponseText('')
-      advanceQueue()
-    } catch (err) {
-      console.error('Failed to dismiss report:', err)
-    } finally {
-      setProcessing(false)
-    }
-  }, [currentItem, responseText, advanceQueue, processing])
-
-  const handleMarkSpurious = useCallback(async () => {
-    if (!currentItem || processing) return
-    setProcessing(true)
-    try {
-      await api.moderation.takeAction(currentItem.data.id, {
-        modResponse: 'mark_spurious',
-      })
-      advanceQueue()
-    } catch (err) {
-      console.error('Failed to mark spurious:', err)
-    } finally {
-      setProcessing(false)
-    }
-  }, [currentItem, advanceQueue, processing])
-
-  const handleTakeAction = useCallback(async (actionRequest) => {
-    if (!currentItem || processing) return
-    setProcessing(true)
-    try {
-      await api.moderation.takeAction(currentItem.data.id, actionRequest)
-      setActionModalVisible(false)
-      advanceQueue()
-    } catch (err) {
-      console.error('Failed to take action:', err)
-    } finally {
-      setProcessing(false)
-    }
-  }, [currentItem, advanceQueue, processing])
-
-  // Appeal actions
-  const handleAppealResponse = useCallback(async () => {
-    if (!currentItem || !appealResponseType || processing) return
-    setProcessing(true)
-    try {
-      await api.moderation.respondToAppeal(currentItem.data.id, {
-        response: appealResponseType,
-        responseText: responseText,
-      })
-      setAppealResponseModalVisible(false)
-      setResponseText('')
-      setAppealResponseType(null)
-      advanceQueue()
-    } catch (err) {
-      console.error('Failed to respond to appeal:', err)
-    } finally {
-      setProcessing(false)
-    }
-  }, [currentItem, appealResponseType, responseText, advanceQueue, processing])
-
-  const handleDismissAdminResponse = useCallback(async () => {
-    if (!currentItem || currentItem.type !== 'admin_response_notification' || processing) return
-    setProcessing(true)
-    try {
-      await api.moderation.dismissAdminResponseNotification(currentItem.data.modActionAppealId)
-      advanceQueue()
-    } catch (err) {
-      console.error('Failed to dismiss admin response notification:', err)
-    } finally {
-      setProcessing(false)
-    }
-  }, [currentItem, advanceQueue, processing])
-
-  const handleModifyAction = useCallback(async (actionRequest) => {
-    if (!currentItem || processing) return
-    setProcessing(true)
-    try {
-      await api.moderation.respondToAppeal(currentItem.data.id, {
-        response: 'modify',
-        responseText: actionRequest.modResponseText || '',
-        actions: actionRequest.actions,
-      })
-      setModifyModalVisible(false)
-      advanceQueue()
-    } catch (err) {
-      console.error('Failed to modify action:', err)
-    } finally {
-      setProcessing(false)
-    }
-  }, [currentItem, advanceQueue, processing])
+  const {
+    queue, currentItem, loading, error, processing,
+    responseText, setResponseText,
+    appealResponseType, setAppealResponseType,
+    actionModalVisible, setActionModalVisible,
+    dismissModalVisible, setDismissModalVisible,
+    appealResponseModalVisible, setAppealResponseModalVisible,
+    modifyModalVisible, setModifyModalVisible,
+    historyModalVisible, setHistoryModalVisible,
+    historyUserId, historyUser,
+    fetchQueue,
+    handleChatPress, handleHistoryPress,
+    handlePass, handleDismiss, handleMarkSpurious, handleTakeAction,
+    handleAppealResponse, handleDismissAdminResponse, handleModifyAction,
+  } = useModerationQueue()
 
   if (loading) {
     return (
@@ -704,7 +541,7 @@ export default function ModerationQueue() {
     )
   }
 
-  if (queue.length === 0 || currentIndex >= queue.length) {
+  if (!currentItem) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <Header />
@@ -1048,11 +885,11 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: colors.primarySurface,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12 },
+      android: { elevation: 6 },
+      default: { boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)' },
+    }),
   },
   reportHeader: {
     backgroundColor: colors.warningSurface,

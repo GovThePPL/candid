@@ -33,6 +33,11 @@ patch_card_item() {
 [ -f src/model/DemographicCardItem.js ] && patch_card_item src/model/DemographicCardItem.js "demographic"
 [ -f src/model/PairwiseCardItem.js ] && patch_card_item src/model/PairwiseCardItem.js "pairwise"
 
+# Remove User-Agent default header — browsers forbid setting it (causes
+# "Refused to set unsafe header" console errors on every API call)
+echo "Patching ApiClient.js to remove User-Agent default header..."
+sed -i "s|'User-Agent': 'OpenAPI-Generator/0.1.0/Javascript'||" src/ApiClient.js
+
 echo "Installing api dependencies..."
 cd "$API_DIR" && npm install
 cd "$API_DIR" && npm run build

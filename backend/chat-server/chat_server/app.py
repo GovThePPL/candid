@@ -34,6 +34,8 @@ def create_app() -> web.Application:
     from .services import initialize_services
 
     # Create Socket.IO server
+    # CORS is "*" because real security is token auth at the handshake level,
+    # not origin checking.  Every connect must pass a valid JWT in auth.token.
     sio = socketio.AsyncServer(
         async_mode="aiohttp",
         cors_allowed_origins="*",

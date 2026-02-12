@@ -203,7 +203,9 @@ export async function logout() {
   const storedRefreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY)
   await AsyncStorage.removeItem(REFRESH_TOKEN_KEY)
 
-  // Attempt to end the Keycloak session (best-effort)
+  // End the Keycloak session (best-effort)
+  // May return 400 if the refresh token is already expired — that's fine,
+  // the local cleanup is what matters.
   if (storedRefreshToken) {
     try {
       await fetch(discovery.endSessionEndpoint, {
@@ -215,7 +217,7 @@ export async function logout() {
         }).toString(),
       })
     } catch {
-      // Ignore errors - local cleanup is sufficient
+      // Ignore network errors - local cleanup is sufficient
     }
   }
 }

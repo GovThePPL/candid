@@ -1,7 +1,15 @@
 import os
+import logging
 import psycopg2
 import psycopg2.extras
 from psycopg2.pool import ThreadedConnectionPool
+
+logger = logging.getLogger(__name__)
+
+
+class DatabaseError(Exception):
+	"""Raised by execute_query when raise_on_error=True."""
+	pass
 
 
 class Database:
@@ -19,15 +27,21 @@ class Database:
 				maxconn=maxconn,
 				dsn=config['SQLALCHEMY_DATABASE_URI']
 			)
-			print(f"Database connection pool established (min={minconn}, max={maxconn}).")
+			logger.info(f"Database connection pool established (min={minconn}, max={maxconn}).")
 		except psycopg2.Error as e:
 			self.pool = None
-			print(f"Error creating database connection pool: {e}")
+			logger.error(f"Error creating database connection pool: {e}", exc_info=True)
 
-	def execute_query(self, query, params=None, fetchone=False, executemany=False):
-		"""Executes a SQL query using a connection from the pool."""
+	def execute_query(self, query, params=None, fetchone=False, executemany=False, raise_on_error=False):
+		"""Executes a SQL query using a connection from the pool.
+
+		Args:
+			raise_on_error: If True, raises DatabaseError instead of returning None.
+		"""
 		if self.pool is None:
-			print("Database connection pool not established. Call connect_to_db() first.")
+			logger.error("Database connection pool not established. Call connect_to_db() first.")
+			if raise_on_error:
+				raise DatabaseError("Database connection pool not established")
 			return None
 
 		conn = self.pool.getconn()
@@ -59,8 +73,10 @@ class Database:
 
 				return retval
 		except psycopg2.Error as e:
-			print(f"Error executing query: {e}", flush=True)
+			logger.error(f"Error executing query: {e}", exc_info=True)
 			conn.rollback()
+			if raise_on_error:
+				raise DatabaseError(str(e)) from e
 			return None
 		finally:
 			self.pool.putconn(conn)
@@ -69,5 +85,5 @@ class Database:
 		"""Closes all connections in the pool."""
 		if self.pool:
 			self.pool.closeall()
-			print("Database connection pool closed.")
+			logger.info("Database connection pool closed.")
 			self.pool = None

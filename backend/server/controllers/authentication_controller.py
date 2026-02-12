@@ -5,12 +5,19 @@ import requests as http_requests
 
 from candid.controllers.helpers import keycloak
 from candid.controllers import config  # initialized Config object
+from candid.controllers.helpers.rate_limiting import check_rate_limit_for
 
 logger = logging.getLogger(__name__)
 
 
 def get_token():
     """Proxy ROPC token request to Keycloak (avoids browser CORS issues)."""
+    # Rate limit by IP
+    client_ip = connexion.request.remote_addr or "unknown"
+    allowed, _ = check_rate_limit_for(client_ip, "login")
+    if not allowed:
+        return {"detail": "Too many login attempts. Please try again later."}, 429
+
     body = connexion.request.get_json()
     if not body:
         return {"detail": "Request body is required"}, 400
@@ -47,6 +54,12 @@ def get_token():
 
 def register_user():
     """Register a new user account via Keycloak Admin REST API."""
+    # Rate limit by IP
+    client_ip = connexion.request.remote_addr or "unknown"
+    allowed, _ = check_rate_limit_for(client_ip, "register")
+    if not allowed:
+        return {"detail": "Too many registration attempts. Please try again later."}, 429
+
     body = connexion.request.get_json()
     if not body:
         return {"detail": "Request body is required"}, 400

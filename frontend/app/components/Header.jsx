@@ -148,16 +148,15 @@ const createStyles = (colors, insets) => StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 12,
     backgroundColor: colors.cardBackground,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
     zIndex: 10,
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+      android: { elevation: 4 },
+      default: { boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)' },
+    }),
     ...Platform.select({
       web: {
         height: 54,
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
       },
       default: {
         // Extend header background behind the status bar on native

@@ -85,8 +85,8 @@ export default function LocationPicker({ visible, onClose, allLocations, current
       onRequestClose={onClose}
       onShow={handleOpen}
     >
-      <Pressable style={shared.modalOverlay} onPress={onClose} accessibilityRole="button" accessibilityLabel={t('dismissModal')}>
-        <Pressable style={styles.modalContent} onPress={e => e.stopPropagation()}>
+      <Pressable style={shared.modalOverlay} onPress={onClose} accessibilityLabel={t('dismissModal')}>
+        <Pressable style={styles.modalContent} onPress={e => e.stopPropagation()} accessible={false}>
           <ThemedText variant="h2" color="dark" style={styles.modalTitle}>{t('selectLocation')}</ThemedText>
 
           {/* Breadcrumb / Back navigation */}

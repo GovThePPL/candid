@@ -542,13 +542,21 @@ class CandidAPI:
             body["actions"] = actions
         if text:
             body["modResponseText"] = text
-        r = self.session.post(f"{self.base_url}/api/v1/moderation/reports/{report_id}/action",
+        r = self.session.post(f"{self.base_url}/api/v1/moderation/reports/{report_id}/response",
                               json=body, headers=self._headers())
         return r.json() if r.status_code in (200, 201) else None
 
     def create_appeal(self, action_id, text):
         r = self.session.post(f"{self.base_url}/api/v1/moderation/actions/{action_id}/appeal",
                               json={"appealText": text}, headers=self._headers())
+        return r.json() if r.status_code in (200, 201) else None
+
+    def respond_appeal(self, appeal_id, response, response_text, actions=None):
+        body = {"response": response, "responseText": response_text}
+        if actions:
+            body["actions"] = actions
+        r = self.session.post(f"{self.base_url}/api/v1/moderation/appeals/{appeal_id}/response",
+                              json=body, headers=self._headers())
         return r.json() if r.status_code in (200, 201) else None
 
     def respond_survey(self, survey_id, question_id, option_id):
@@ -943,6 +951,12 @@ def phase_4_votes(api, all_users, positions, dry_run=False):
     print("PHASE 4: Votes")
     print("=" * 60)
 
+    # Idempotency: skip if responses already exist beyond basic.sql seed data
+    existing = db_query_one("SELECT count(*) as cnt FROM response")
+    if existing and existing['cnt'] > 50:
+        print(f"  Responses already exist ({existing['cnt']}), skipping")
+        return
+
     # Include core users with their lean-appropriate vote patterns (from CORE_VOTE_MAP)
     voters = []
     for username, (vidx, vnoise) in CORE_VOTE_MAP.items():
@@ -996,6 +1010,13 @@ def phase_5_adoptions(api, all_users, positions, dry_run=False):
     print("\n" + "=" * 60)
     print("PHASE 5: Adoptions")
     print("=" * 60)
+
+    # Idempotency: skip if seed-generated adoptions already exist
+    # basic.sql creates ~10 user_positions; seed creates many more
+    existing = db_query_one("SELECT count(*) as cnt FROM user_position")
+    if existing and existing['cnt'] > 30:
+        print(f"  Adoptions already exist ({existing['cnt']}), skipping")
+        return
 
     adopters = list(all_users)
     # Add core users using CORE_VOTE_MAP for belief-coherent adoptions
@@ -1312,6 +1333,12 @@ def phase_7_kudos(api, dry_run=False):
     print("PHASE 7: Kudos")
     print("=" * 60)
 
+    # Idempotency: skip if kudos already exist
+    existing = db_query_one("SELECT count(*) as cnt FROM kudos")
+    if existing and existing['cnt'] > 0:
+        print(f"  Kudos already exist ({existing['cnt']}), skipping")
+        return
+
     # Find agreed_closure chats created by our seed (excluding test seed data)
     chats = db_query("""
         SELECT cl.id, cr.initiator_user_id, up.user_id as responder_user_id,
@@ -1399,7 +1426,15 @@ def phase_8_moderation(api, positions, dry_run=False):
         return
     report_a_id = report_a.get("id")
 
-    # moderator1 claims and takes action -> temporary_ban
+    # Find the username of the position's creator (the "submitter" target)
+    target_user = db_query_one("""
+        SELECT u.username FROM position p
+        JOIN users u ON p.creator_user_id = u.id
+        WHERE p.id = %s
+    """, (target_position_id,))
+    target_username = target_user["username"] if target_user else None
+
+    # moderator1 claims and takes action -> temporary_ban on the submitter
     print("  moderator1 takes action -> temporary_ban...")
     if not api.login("moderator1"):
         return
@@ -1408,18 +1443,26 @@ def phase_8_moderation(api, positions, dry_run=False):
                                      actions=[{"userClass": "submitter", "action": "temporary_ban",
                                               "duration": 14}],
                                      text="Hostile language violating community standards")
-    if action_result:
+    if action_result and target_username:
         mod_action_id = action_result.get("id")
         print(f"  Action taken (ID: {mod_action_id})")
 
-        # normal4 appeals
-        print("  normal4 appeals the ban...")
-        if api.login("normal4"):
+        # The banned user appeals
+        print(f"  {target_username} appeals the ban...")
+        if api.login(target_username):
             appeal = api.create_appeal(mod_action_id,
                                        "I believe my position was expressing a legitimate political viewpoint, "
                                        "not hate speech. I request a review of this decision.")
             if appeal:
-                print(f"  Appeal created (ID: {appeal.get('id')})")
+                appeal_id = appeal.get("id")
+                print(f"  Appeal created (ID: {appeal_id})")
+
+                # admin1 reviews and denies the appeal (upholds the action)
+                print("  admin1 denies the appeal...")
+                if api.login("admin1"):
+                    api.respond_appeal(appeal_id, "deny",
+                                       "The language in this position crosses community guidelines. "
+                                       "The temporary ban stands.")
 
     # Report B: spurious report dismissed by moderator1
     print("  Report B: spurious report (dismissed)...")
@@ -1433,7 +1476,7 @@ def phase_8_moderation(api, positions, dry_run=False):
                     api.take_action(report_b["id"], "mark_spurious",
                                     text="This is a legitimate political position")
 
-    # Report C: warning on a chat
+    # Report C: warning on a chat (with appeal that gets overturned)
     print("  Report C: warning on chat...")
     chat_for_report = db_query_one("""
         SELECT cl.id, cr.initiator_user_id, u.username
@@ -1458,16 +1501,56 @@ def phase_8_moderation(api, positions, dry_run=False):
             if report_c:
                 if api.login("moderator1"):
                     api.claim_report(report_c["id"])
-                    api.take_action(report_c["id"], "take_action",
+                    action_c = api.take_action(report_c["id"], "take_action",
                                     actions=[{"userClass": "submitter", "action": "warning"}],
                                     text="Warning for disruptive behavior")
+                    # The warned user appeals and gets it overturned
+                    if action_c:
+                        warned_username = chat_for_report["username"]
+                        print(f"  {warned_username} appeals the warning...")
+                        if api.login(warned_username):
+                            appeal_c = api.create_appeal(action_c["id"],
+                                                          "The chat was a misunderstanding; "
+                                                          "I was not being disruptive.")
+                            if appeal_c:
+                                appeal_c_id = appeal_c.get("id")
+                                print(f"  admin1 approves the appeal (overturns warning)...")
+                                if api.login("admin1"):
+                                    api.respond_appeal(appeal_c_id, "approve",
+                                                       "Reviewing the chat log, "
+                                                       "this appears to be a misunderstanding. Warning removed.")
 
-    # Report D: pending report (unclaimed, for moderator demo)
-    print("  Report D: pending report (unclaimed)...")
+    # Report D: dismissed report by moderator1
+    print("  Report D: dismissed report...")
     if positions and len(positions) > 10:
         if api.login("normal1"):
-            api.report_position(positions[10]["id"], RULE_NOT_POLITICAL,
+            report_d = api.report_position(positions[10]["id"], RULE_NOT_POLITICAL,
                                 "This doesn't seem like a normative political statement")
+            if report_d:
+                if api.login("moderator1"):
+                    api.claim_report(report_d["id"])
+                    api.take_action(report_d["id"], "dismiss",
+                                    text="This position meets the threshold for a normative political statement")
+
+    # Report E: position removed (content removal without ban)
+    print("  Report E: position removed...")
+    if positions and len(positions) > 15:
+        if api.login("normal3"):
+            report_e = api.report_position(positions[15]["id"], RULE_SPAM,
+                                            "This looks like spam or a test post")
+            if report_e:
+                if api.login("moderator1"):
+                    api.claim_report(report_e["id"])
+                    api.take_action(report_e["id"], "take_action",
+                                    actions=[{"userClass": "submitter", "action": "removed"}],
+                                    text="Position removed as low-quality content")
+
+    # Report F: pending report (unclaimed, for moderator queue demo)
+    print("  Report F: pending report (unclaimed)...")
+    if positions and len(positions) > 20:
+        if api.login("con_user_2"):
+            api.report_position(positions[20]["id"], RULE_VIOLENCE,
+                                "This position contains inflammatory language about healthcare policy")
 
     print("  Moderation scenarios complete")
 
@@ -1480,6 +1563,12 @@ def phase_9_surveys(api, dry_run=False):
     print("\n" + "=" * 60)
     print("PHASE 9: Surveys")
     print("=" * 60)
+
+    # Idempotency: skip if survey responses already exist
+    existing = db_query_one("SELECT count(*) as cnt FROM survey_question_response")
+    if existing and existing['cnt'] > 10:
+        print(f"  Survey responses already exist ({existing['cnt']}), skipping")
+        return
 
     SURVEY_ID = "aa111111-1111-1111-1111-111111111111"
     Q1_ID = "dd111111-1111-1111-1111-111111111111"  # Top healthcare priority
@@ -1563,6 +1652,12 @@ def phase_10_pairwise(api, dry_run=False):
     print("\n" + "=" * 60)
     print("PHASE 10: Pairwise")
     print("=" * 60)
+
+    # Idempotency: skip if pairwise responses already exist
+    existing = db_query_one("SELECT count(*) as cnt FROM pairwise_response")
+    if existing and existing['cnt'] > 10:
+        print(f"  Pairwise responses already exist ({existing['cnt']}), skipping")
+        return
 
     # Pairwise surveys are created by pairwise_surveys.sql — just check they exist
     pairwise_surveys = db_query("""
@@ -2716,7 +2811,21 @@ def main():
     def should_run(phase):
         return args.phase is None or args.phase == phase
 
-    # Phase 1: Users
+    errors = []
+
+    def run_phase(phase_num, name, fn, *fn_args):
+        """Run a phase with error handling. Continues on failure."""
+        if not should_run(phase_num):
+            return None
+        try:
+            return fn(*fn_args)
+        except Exception as e:
+            msg = f"Phase {phase_num} ({name}) failed: {e}"
+            print(f"\n  ERROR: {msg}")
+            errors.append(msg)
+            return None
+
+    # Phase 1: Users (must succeed — later phases depend on user list)
     if should_run(1):
         all_users = phase_1_users(api, location_id, args.dry_run)
     else:
@@ -2733,10 +2842,9 @@ def main():
                 })
 
     # Phase 2: Demographics
-    if should_run(2):
-        phase_2_demographics(api, affiliations, args.dry_run)
+    run_phase(2, "Demographics", phase_2_demographics, api, affiliations, args.dry_run)
 
-    # Phase 3: Positions
+    # Phase 3: Positions (must succeed — later phases depend on positions list)
     if should_run(3):
         positions = phase_3_positions(api, category_map, location_id, args.dry_run)
     else:
@@ -2747,41 +2855,16 @@ def main():
                 positions.append({"id": str(row["id"]), "statement": pos_data["statement"],
                                   "votes": pos_data["votes"]})
 
-    # Phase 4: Votes
-    if should_run(4):
-        phase_4_votes(api, all_users, positions, args.dry_run)
-
-    # Phase 5: Adoptions
-    if should_run(5):
-        phase_5_adoptions(api, all_users, positions, args.dry_run)
-
-    # Phase 6: Chats
-    if should_run(6):
-        phase_6_chats(api, all_users, positions, args.dry_run)
-
-    # Phase 7: Kudos
-    if should_run(7):
-        phase_7_kudos(api, args.dry_run)
-
-    # Phase 8: Moderation
-    if should_run(8):
-        phase_8_moderation(api, positions, args.dry_run)
-
-    # Phase 9: Surveys
-    if should_run(9):
-        phase_9_surveys(api, args.dry_run)
-
-    # Phase 10: Pairwise
-    if should_run(10):
-        phase_10_pairwise(api, args.dry_run)
-
-    # Phase 11: Admin
-    if should_run(11):
-        phase_11_admin(api, location_id, category_map, args.dry_run)
-
-    # Phase 12: Posts, Comments, Votes
-    if should_run(12):
-        phase_12_posts(location_id, category_map, args.dry_run)
+    # Phase 4-12: Independent phases (continue on failure)
+    run_phase(4, "Votes", phase_4_votes, api, all_users, positions, args.dry_run)
+    run_phase(5, "Adoptions", phase_5_adoptions, api, all_users, positions, args.dry_run)
+    run_phase(6, "Chats", phase_6_chats, api, all_users, positions, args.dry_run)
+    run_phase(7, "Kudos", phase_7_kudos, api, args.dry_run)
+    run_phase(8, "Moderation", phase_8_moderation, api, positions, args.dry_run)
+    run_phase(9, "Surveys", phase_9_surveys, api, args.dry_run)
+    run_phase(10, "Pairwise", phase_10_pairwise, api, args.dry_run)
+    run_phase(11, "Admin", phase_11_admin, api, location_id, category_map, args.dry_run)
+    run_phase(12, "Posts", phase_12_posts, location_id, category_map, args.dry_run)
 
     print("\n" + "=" * 60)
     print("SEED COMPLETE")
@@ -2806,6 +2889,11 @@ def main():
         """)
         for row in (counts or []):
             print(f"  {row['tbl']}: {row['cnt']}")
+
+    if errors:
+        print(f"\n  WARNINGS: {len(errors)} phase(s) had errors:")
+        for err in errors:
+            print(f"    - {err}")
 
 
 if __name__ == '__main__':

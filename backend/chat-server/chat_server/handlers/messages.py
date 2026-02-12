@@ -62,6 +62,22 @@ def register_message_handlers(sio: socketio.AsyncServer) -> None:
                 "message": "Missing content",
             }
 
+        # Validate message type
+        if message_type not in ("text", "system"):
+            return {
+                "status": "error",
+                "code": "INVALID_TYPE",
+                "message": "Invalid message type",
+            }
+
+        # Validate message length
+        if len(content) > 5000:
+            return {
+                "status": "error",
+                "code": "MESSAGE_TOO_LONG",
+                "message": "Message must be 5000 characters or less",
+            }
+
         redis_store = get_redis_store()
 
         # Verify user is a participant

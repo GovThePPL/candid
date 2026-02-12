@@ -52,6 +52,81 @@ import PositionInfoCard from '../../../components/PositionInfoCard'
 import ReportModal from '../../../components/ReportModal'
 import { useTranslation } from 'react-i18next'
 
+/**
+ * Parse a chat log into a sorted array of message/proposal objects.
+ * Used for historical view (from chat history), fallback on join failure,
+ * and when a joined chat turns out to be ended/archived.
+ */
+function parseHistoricalMessages(chatLog) {
+  const historicalMessages = []
+
+  // Load regular messages
+  if (chatLog.log?.messages && Array.isArray(chatLog.log.messages)) {
+    for (const msg of chatLog.log.messages) {
+      historicalMessages.push({
+        id: msg.id || `msg-${msg.timestamp || Date.now()}`,
+        content: msg.content,
+        sender_id: msg.sender_id || msg.senderId,
+        timestamp: msg.timestamp || msg.sendTime,
+        type: msg.type || 'text',
+        isProposal: msg.isProposal || ['proposed', 'accepted', 'rejected', 'modified'].includes(msg.type),
+        proposalId: msg.proposalId || msg.proposal_id,
+        isClosure: msg.isClosure || msg.is_closure,
+        parentId: msg.parentId || msg.parent_id,
+      })
+    }
+  }
+
+  // Load agreed positions as proposal messages
+  const positions = chatLog.log?.agreedPositions || []
+  if (Array.isArray(positions)) {
+    for (const pos of positions) {
+      let displayType = pos.status || 'proposed'
+      if (displayType === 'pending') displayType = 'proposed'
+
+      historicalMessages.push({
+        id: pos.id || `proposal-${pos.timestamp || Date.now()}`,
+        content: pos.content,
+        sender_id: pos.proposer_id || pos.proposerId,
+        timestamp: pos.timestamp,
+        type: displayType,
+        isProposal: true,
+        proposalId: pos.id,
+        isClosure: pos.is_closure || pos.isClosure || false,
+        parentId: pos.parent_id || pos.parentId || null,
+      })
+    }
+  }
+
+  // Load accepted closure if present and not already in positions
+  const closureData = chatLog.log?.agreedClosure
+  if (closureData && chatLog.endType === 'agreed_closure' && closureData.content) {
+    const alreadyHasClosure = positions.some(p => (p.isClosure) && p.status === 'accepted')
+    if (!alreadyHasClosure) {
+      historicalMessages.push({
+        id: closureData.id,
+        content: closureData.content,
+        sender_id: closureData.proposerId,
+        timestamp: closureData.timestamp || chatLog.endTime,
+        type: 'accepted',
+        isProposal: true,
+        proposalId: closureData.id,
+        isClosure: true,
+        parentId: null,
+      })
+    }
+  }
+
+  // Sort by timestamp
+  historicalMessages.sort((a, b) => {
+    const timeA = new Date(a.timestamp || 0).getTime()
+    const timeB = new Date(b.timestamp || 0).getTime()
+    return timeA - timeB
+  })
+
+  return historicalMessages
+}
+
 export default function ChatScreen() {
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
@@ -138,16 +213,16 @@ export default function ChatScreen() {
           Animated.sequence([
             Animated.stagger(150, [
               Animated.sequence([
-                Animated.timing(dot1Anim, { toValue: 1, duration: 300, useNativeDriver: true }),
-                Animated.timing(dot1Anim, { toValue: 0, duration: 300, useNativeDriver: true }),
+                Animated.timing(dot1Anim, { toValue: 1, duration: 300, useNativeDriver: Platform.OS !== 'web' }),
+                Animated.timing(dot1Anim, { toValue: 0, duration: 300, useNativeDriver: Platform.OS !== 'web' }),
               ]),
               Animated.sequence([
-                Animated.timing(dot2Anim, { toValue: 1, duration: 300, useNativeDriver: true }),
-                Animated.timing(dot2Anim, { toValue: 0, duration: 300, useNativeDriver: true }),
+                Animated.timing(dot2Anim, { toValue: 1, duration: 300, useNativeDriver: Platform.OS !== 'web' }),
+                Animated.timing(dot2Anim, { toValue: 0, duration: 300, useNativeDriver: Platform.OS !== 'web' }),
               ]),
               Animated.sequence([
-                Animated.timing(dot3Anim, { toValue: 1, duration: 300, useNativeDriver: true }),
-                Animated.timing(dot3Anim, { toValue: 0, duration: 300, useNativeDriver: true }),
+                Animated.timing(dot3Anim, { toValue: 1, duration: 300, useNativeDriver: Platform.OS !== 'web' }),
+                Animated.timing(dot3Anim, { toValue: 0, duration: 300, useNativeDriver: Platform.OS !== 'web' }),
               ]),
             ]),
           ])
@@ -267,76 +342,7 @@ export default function ChatScreen() {
               }
             }
 
-            // Load messages and proposals from the chat log
-            const historicalMessages = []
-
-            // Load regular messages
-            if (chatLog.log?.messages && Array.isArray(chatLog.log.messages)) {
-              for (const msg of chatLog.log.messages) {
-                historicalMessages.push({
-                  id: msg.id || `msg-${msg.timestamp || Date.now()}`,
-                  content: msg.content,
-                  sender_id: msg.sender_id || msg.senderId,
-                  timestamp: msg.timestamp || msg.sendTime,
-                  type: msg.type || 'text',
-                  isProposal: msg.isProposal || ['proposed', 'accepted', 'rejected', 'modified'].includes(msg.type),
-                  proposalId: msg.proposalId || msg.proposal_id,
-                  isClosure: msg.isClosure || msg.is_closure,
-                  parentId: msg.parentId || msg.parent_id,
-                })
-              }
-            }
-
-            // Load agreed positions as proposal messages
-            const positions = chatLog.log?.agreedPositions || []
-            if (Array.isArray(positions)) {
-              for (const pos of positions) {
-                // Map status to display type
-                let displayType = pos.status || 'proposed'
-                if (displayType === 'pending') displayType = 'proposed'
-
-                historicalMessages.push({
-                  id: pos.id || `proposal-${pos.timestamp || Date.now()}`,
-                  content: pos.content,
-                  sender_id: pos.proposer_id || pos.proposerId,
-                  timestamp: pos.timestamp,
-                  type: displayType,
-                  isProposal: true,
-                  proposalId: pos.id,
-                  isClosure: pos.is_closure || pos.isClosure || false,
-                  parentId: pos.parent_id || pos.parentId || null,
-                })
-              }
-            }
-
-            // Load accepted closure if present and not already in positions
-            const closureData = chatLog.log?.agreedClosure
-            if (closureData && chatLog.endType === 'agreed_closure' && closureData.content) {
-              const alreadyHasClosure = positions.some(p => (p.isClosure) && p.status === 'accepted')
-
-              if (!alreadyHasClosure) {
-                historicalMessages.push({
-                  id: closureData.id,
-                  content: closureData.content,
-                  sender_id: closureData.proposerId,
-                  timestamp: closureData.timestamp || chatLog.endTime,
-                  type: 'accepted',
-                  isProposal: true,
-                  proposalId: closureData.id,
-                  isClosure: true,
-                  parentId: null,
-                })
-              }
-            }
-
-            // Sort by timestamp
-            historicalMessages.sort((a, b) => {
-              const timeA = new Date(a.timestamp || 0).getTime()
-              const timeB = new Date(b.timestamp || 0).getTime()
-              return timeA - timeB
-            })
-
-            setMessages(historicalMessages)
+            setMessages(parseHistoricalMessages(chatLog))
             setLoading(false)
             return
           } catch (err) {
@@ -401,7 +407,7 @@ export default function ChatScreen() {
           setMessages(allMessages)
         } catch (joinErr) {
           // If join fails (e.g., chat already ended), check if it's archived in PostgreSQL
-          console.log('Join failed, checking if chat is archived:', joinErr.message)
+          console.debug('Join failed, checking if chat is archived:', joinErr.message)
           try {
             const chatLog = await api.chat.getChatLog(chatId)
             if (chatLog.status === 'ended' || chatLog.status === 'archived') {
@@ -410,51 +416,7 @@ export default function ChatScreen() {
               setChatEnded(true)
               setIsHistoricalView(true)
 
-              // Load messages and proposals from the chat log
-              const historicalMessages = []
-
-              // Load regular messages
-              if (chatLog.log?.messages && Array.isArray(chatLog.log.messages)) {
-                for (const msg of chatLog.log.messages) {
-                  historicalMessages.push({
-                    id: msg.id || `msg-${msg.timestamp || Date.now()}`,
-                    content: msg.content,
-                    sender_id: msg.sender_id || msg.senderId,
-                    timestamp: msg.timestamp || msg.sendTime,
-                    type: msg.type || 'text',
-                    isProposal: msg.isProposal || ['proposed', 'accepted', 'rejected', 'modified'].includes(msg.type),
-                    proposalId: msg.proposalId || msg.proposal_id,
-                    isClosure: msg.isClosure || msg.is_closure,
-                    parentId: msg.parentId || msg.parent_id,
-                  })
-                }
-              }
-
-              // Load agreed positions as proposal messages
-              if (chatLog.log?.agreedPositions && Array.isArray(chatLog.log.agreedPositions)) {
-                for (const pos of chatLog.log.agreedPositions) {
-                  historicalMessages.push({
-                    id: pos.id || `proposal-${pos.timestamp || Date.now()}`,
-                    content: pos.content,
-                    sender_id: pos.proposer_id || pos.proposerId,
-                    timestamp: pos.timestamp,
-                    type: pos.status || 'proposed',
-                    isProposal: true,
-                    proposalId: pos.id,
-                    isClosure: pos.is_closure || pos.isClosure || false,
-                    parentId: pos.parent_id || pos.parentId || null,
-                  })
-                }
-              }
-
-              // Sort by timestamp
-              historicalMessages.sort((a, b) => {
-                const timeA = new Date(a.timestamp || 0).getTime()
-                const timeB = new Date(b.timestamp || 0).getTime()
-                return timeA - timeB
-              })
-
-              setMessages(historicalMessages)
+              setMessages(parseHistoricalMessages(chatLog))
 
               setLoading(false)
               return
@@ -478,51 +440,7 @@ export default function ChatScreen() {
             setMessages(prevMessages => {
               // Only replace if current messages are empty
               if (prevMessages.length > 0) return prevMessages
-
-              const historicalMessages = []
-
-              // Load regular messages
-              if (chatLog.log?.messages && Array.isArray(chatLog.log.messages)) {
-                for (const msg of chatLog.log.messages) {
-                  historicalMessages.push({
-                    id: msg.id || `msg-${msg.timestamp || Date.now()}`,
-                    content: msg.content,
-                    sender_id: msg.sender_id || msg.senderId,
-                    timestamp: msg.timestamp || msg.sendTime,
-                    type: msg.type || 'text',
-                    isProposal: msg.isProposal || ['proposed', 'accepted', 'rejected', 'modified'].includes(msg.type),
-                    proposalId: msg.proposalId || msg.proposal_id,
-                    isClosure: msg.isClosure || msg.is_closure,
-                    parentId: msg.parentId || msg.parent_id,
-                  })
-                }
-              }
-
-              // Load agreed positions as proposal messages
-              if (chatLog.log?.agreedPositions && Array.isArray(chatLog.log.agreedPositions)) {
-                for (const pos of chatLog.log.agreedPositions) {
-                  historicalMessages.push({
-                    id: pos.id || `proposal-${pos.timestamp || Date.now()}`,
-                    content: pos.content,
-                    sender_id: pos.proposer_id || pos.proposerId,
-                    timestamp: pos.timestamp,
-                    type: pos.status || 'proposed', // 'pending', 'accepted', 'rejected', 'modified'
-                    isProposal: true,
-                    proposalId: pos.id,
-                    isClosure: pos.is_closure || pos.isClosure || false,
-                    parentId: pos.parent_id || pos.parentId || null,
-                  })
-                }
-              }
-
-              // Sort by timestamp
-              historicalMessages.sort((a, b) => {
-                const timeA = new Date(a.timestamp || 0).getTime()
-                const timeB = new Date(b.timestamp || 0).getTime()
-                return timeA - timeB
-              })
-
-              return historicalMessages
+              return parseHistoricalMessages(chatLog)
             })
           }
         } catch (err) {
@@ -574,7 +492,7 @@ export default function ChatScreen() {
 
         // Set up chat status listener
         cleanupStatus = onChatStatus((data) => {
-          console.log('[Chat] Status event:', data)
+          console.debug('[Chat] Status event:', data)
           if (data.chatId === chatId || String(data.chatId) === String(chatId)) {
             if (data.status === 'user_left') {
               // Other user left the chat
@@ -610,7 +528,7 @@ export default function ChatScreen() {
 
         // Set up agreed position listener
         cleanupAgreedPosition = onAgreedPosition((data) => {
-          console.log('[Chat] Agreed position event:', data)
+          console.debug('[Chat] Agreed position event:', data)
           const proposal = data.proposal || {}
           const action = data.action
           const proposerId = proposal.proposer_id || data.proposerId
@@ -819,7 +737,12 @@ export default function ChatScreen() {
       await api.chat.sendKudos(chatId)
       setKudosStatus('sent')
     } catch (err) {
-      console.error('Failed to send kudos:', err)
+      // 409 = already sent kudos to this user for this topic (from a previous chat)
+      if (err?.status === 409 || err?.message?.includes('409')) {
+        setKudosStatus('sent')
+      } else {
+        console.error('Failed to send kudos:', err)
+      }
     }
   }, [chatId])
 
@@ -1291,14 +1214,12 @@ export default function ChatScreen() {
       animationType="fade"
       onRequestClose={handleCancelLeave}
     >
-      <TouchableOpacity
+      <Pressable
         style={styles.modalOverlay}
-        activeOpacity={1}
         onPress={handleCancelLeave}
-        accessibilityRole="button"
         accessibilityLabel={t('leaveChatTitle')}
       >
-        <TouchableOpacity activeOpacity={1} style={styles.modalCard}>
+        <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()} accessible={false}>
           <ThemedText variant="h4" color="primary" style={styles.modalTitle}>{t('leaveChatTitle')}</ThemedText>
           <ThemedText variant="body" style={styles.modalMessage}>
             {t('leaveChatMessage')}
@@ -1321,8 +1242,8 @@ export default function ChatScreen() {
               <ThemedText variant="button" color="inverse">{t('leave')}</ThemedText>
             </TouchableOpacity>
           </View>
-        </TouchableOpacity>
-      </TouchableOpacity>
+        </Pressable>
+      </Pressable>
     </Modal>
   )
 
@@ -1334,14 +1255,12 @@ export default function ChatScreen() {
       animationType="fade"
       onRequestClose={handleCancelModify}
     >
-      <TouchableOpacity
+      <Pressable
         style={styles.modalOverlay}
-        activeOpacity={1}
         onPress={handleCancelModify}
-        accessibilityRole="button"
         accessibilityLabel={t('modifyProposal')}
       >
-        <TouchableOpacity activeOpacity={1} style={styles.modifyModalCard}>
+        <Pressable style={styles.modifyModalCard} onPress={(e) => e.stopPropagation()} accessible={false}>
           <View style={styles.modifyModalHeader}>
             <View style={[styles.proposalTypeBadge, { backgroundColor: modifyingProposal?.isClosure ? colors.chat : colors.agreeBubble }]}>
               <Ionicons
@@ -1384,8 +1303,8 @@ export default function ChatScreen() {
               <ThemedText variant="button" color="inverse">{t('send')}</ThemedText>
             </TouchableOpacity>
           </View>
-        </TouchableOpacity>
-      </TouchableOpacity>
+        </Pressable>
+      </Pressable>
     </Modal>
   )
 
@@ -1944,13 +1863,10 @@ const createStyles = (colors) => StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     backgroundColor: colors.navBackground,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
-    ...(Platform.OS === 'web' && {
-      boxShadow: '0 -2px 8px rgba(0, 0, 0, 0.1)',
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+      android: { elevation: 4 },
+      default: { boxShadow: '0 -2px 4px rgba(0, 0, 0, 0.1)' },
     }),
   },
   input: {

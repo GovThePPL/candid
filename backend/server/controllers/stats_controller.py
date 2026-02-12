@@ -28,6 +28,18 @@ from candid.controllers.helpers.pairwise_graph import (
     find_condorcet_winner,
     ranked_pairs_ordering,
 )
+from candid.controllers.helpers.geometry import (
+    compute_convex_hull as _compute_convex_hull,
+    compute_centroid as _compute_centroid,
+)
+from candid.controllers.helpers.stats import (
+    empty_demographics as _empty_demographics,
+    aggregate_demographics as _aggregate_demographics,
+    get_user_votes as _get_user_votes,
+    get_user_position_ids as _get_user_position_ids,
+    get_vote_dist_for_group as _get_vote_dist_for_group,
+    get_overall_vote_dist as _get_overall_vote_dist,
+)
 
 # Simple in-memory cache for group labels with TTL
 _label_cache = {}
@@ -205,67 +217,8 @@ def get_group_demographics(location_id: str, category_id: str, group_id: str, to
         return _empty_demographics(group_id)
 
 
-def _empty_demographics(group_id: str, group_label: str = "All", member_count: int = 0):
-    """Return empty demographics response."""
-    return {
-        "groupId": group_id,
-        "groupLabel": group_label,
-        "memberCount": member_count,
-        "respondentCount": 0,
-        "lean": {},
-        "education": {},
-        "geoLocale": {},
-        "sex": {},
-        "race": {},
-        "ageRange": {},
-        "incomeRange": {}
-    }
 
 
-def _aggregate_demographics(
-    demographics: List[Dict],
-    group_id: str,
-    group_label: str,
-    member_count: int
-) -> Dict[str, Any]:
-    """Aggregate demographic data into counts per category."""
-    lean_counts = {}
-    education_counts = {}
-    geo_locale_counts = {}
-    sex_counts = {}
-    race_counts = {}
-    age_range_counts = {}
-    income_range_counts = {}
-
-    for d in demographics:
-        if d.get("lean"):
-            lean_counts[d["lean"]] = lean_counts.get(d["lean"], 0) + 1
-        if d.get("education"):
-            education_counts[d["education"]] = education_counts.get(d["education"], 0) + 1
-        if d.get("geo_locale"):
-            geo_locale_counts[d["geo_locale"]] = geo_locale_counts.get(d["geo_locale"], 0) + 1
-        if d.get("sex"):
-            sex_counts[d["sex"]] = sex_counts.get(d["sex"], 0) + 1
-        if d.get("race"):
-            race_counts[d["race"]] = race_counts.get(d["race"], 0) + 1
-        if d.get("age_range"):
-            age_range_counts[d["age_range"]] = age_range_counts.get(d["age_range"], 0) + 1
-        if d.get("income_range"):
-            income_range_counts[d["income_range"]] = income_range_counts.get(d["income_range"], 0) + 1
-
-    return {
-        "groupId": group_id,
-        "groupLabel": group_label,
-        "memberCount": member_count,
-        "respondentCount": len(demographics),
-        "lean": lean_counts,
-        "education": education_counts,
-        "geoLocale": geo_locale_counts,
-        "sex": sex_counts,
-        "race": race_counts,
-        "ageRange": age_range_counts,
-        "incomeRange": income_range_counts
-    }
 
 
 def _get_cached_group_labels(polis_conv_id: str, math_data: Dict, location_id: str = None, category_id: str = None) -> Dict[str, Dict]:
@@ -719,68 +672,8 @@ def _get_fallback_stats(
     )
 
 
-def _get_user_votes(
-    user_id: str,
-    category_id: Optional[str],
-    location_id: str
-) -> Dict[str, str]:
-    """
-    Get the user's votes on positions for this location/category.
-
-    Returns a dict mapping position IDs to vote types (agree/disagree/pass).
-    """
-    if category_id:
-        votes = db.execute_query("""
-            SELECT r.position_id, r.response
-            FROM response r
-            JOIN position p ON r.position_id = p.id
-            WHERE r.user_id = %s
-              AND p.location_id = %s
-              AND p.category_id = %s
-        """, (user_id, location_id, category_id))
-    else:
-        votes = db.execute_query("""
-            SELECT r.position_id, r.response
-            FROM response r
-            JOIN position p ON r.position_id = p.id
-            WHERE r.user_id = %s
-              AND p.location_id = %s
-        """, (user_id, location_id))
-
-    result = {}
-    for vote in (votes or []):
-        result[str(vote["position_id"])] = vote["response"]
-
-    return result
 
 
-def _get_user_position_ids(
-    user_id: str,
-    category_id: Optional[str],
-    location_id: str
-) -> List[str]:
-    """
-    Get IDs of positions created by the user for this location/category.
-
-    Returns a list of position IDs.
-    """
-    if category_id:
-        positions = db.execute_query("""
-            SELECT id FROM position
-            WHERE creator_user_id = %s
-              AND location_id = %s
-              AND category_id = %s
-              AND status = 'active'
-        """, (user_id, location_id, category_id))
-    else:
-        positions = db.execute_query("""
-            SELECT id FROM position
-            WHERE creator_user_id = %s
-              AND location_id = %s
-              AND status = 'active'
-        """, (user_id, location_id))
-
-    return [str(p["id"]) for p in (positions or [])]
 
 
 def _extract_groups(math_data: Dict[str, Any], polis_conv_id: Optional[str] = None, location_id: str = None, category_id: str = None) -> List[OpinionGroup]:
@@ -1122,55 +1015,6 @@ def _extract_positions(
                 "isDefining": False,  # Not defining for a specific group
             }
 
-    # Helper to compute vote distribution for a tid in a specific group
-    # In Polis: A=Agree, D=Disagree, S=Saw (total who saw the comment)
-    # Pass/Skip = S - A - D (saw but didn't vote agree/disagree)
-    # Percentages are of those who voted (saw), not all members
-    def get_vote_dist_for_group(tid, gid):
-        gv_data = group_votes.get(gid, {})
-        vote_data = gv_data.get("votes", {}).get(str(tid), {})
-
-        agree_count = vote_data.get("A", 0)
-        disagree_count = vote_data.get("D", 0)
-        saw_count = vote_data.get("S", 0)
-        pass_count = max(0, saw_count - agree_count - disagree_count)
-
-        if saw_count > 0:
-            return {
-                "agree": round(agree_count / saw_count, 3),
-                "disagree": round(disagree_count / saw_count, 3),
-                "pass": round(pass_count / saw_count, 3)
-            }
-        return {"agree": 0, "disagree": 0, "pass": 0}
-
-    # Helper to compute overall vote distribution and total vote count across ALL participants
-    # Uses votes-base (all participants) rather than summing group-votes (only clustered users)
-    def get_overall_vote_dist_and_count(tid):
-        vb = votes_base.get(str(tid))
-        if vb:
-            total_a = sum(vb.get("A", []))
-            total_d = sum(vb.get("D", []))
-            total_saw = sum(vb.get("S", []))
-        else:
-            # Fallback to summing group-votes if votes-base is unavailable
-            total_a, total_d, total_saw = 0, 0, 0
-            for gid, gv_data in group_votes.items():
-                votes = gv_data.get("votes", {}).get(str(tid), {})
-                total_a += votes.get("A", 0)
-                total_d += votes.get("D", 0)
-                total_saw += votes.get("S", 0)
-
-        total_pass = max(0, total_saw - total_a - total_d)
-        total_votes = total_a + total_d + total_pass
-
-        if total_saw > 0:
-            return {
-                "agree": round(total_a / total_saw, 3),
-                "disagree": round(total_d / total_saw, 3),
-                "pass": round(total_pass / total_saw, 3)
-            }, total_votes
-        return {"agree": 0, "disagree": 0, "pass": 0}, total_votes
-
     # Build final positions list with groupVotes for all groups
     positions = []
     all_group_ids = list(group_votes.keys())
@@ -1181,7 +1025,7 @@ def _extract_positions(
         # Compute vote distributions for each group
         group_votes_dict = {}
         for gid in all_group_ids:
-            group_votes_dict[gid] = get_vote_dist_for_group(tid, gid)
+            group_votes_dict[gid] = _get_vote_dist_for_group(group_votes, tid, gid)
 
         # Check if this position has consensus (majority opinion)
         consensus_type = None
@@ -1193,7 +1037,7 @@ def _extract_positions(
             consensus_type = "disagree"
             consensus_score = consensus_disagree[tid]
 
-        vote_dist, total_votes = get_overall_vote_dist_and_count(tid)
+        vote_dist, total_votes = _get_overall_vote_dist(votes_base, group_votes, tid)
 
         positions.append({
             "id": pos_data["id"],
@@ -1271,9 +1115,9 @@ def _extract_positions(
                 total_votes = 0
                 group_votes_dict = {}
                 if tid is not None:
-                    vote_dist, total_votes = get_overall_vote_dist_and_count(tid)
+                    vote_dist, total_votes = _get_overall_vote_dist(votes_base, group_votes, tid)
                     for gid in all_group_ids:
-                        group_votes_dict[gid] = get_vote_dist_for_group(tid, gid)
+                        group_votes_dict[gid] = _get_vote_dist_for_group(group_votes, tid, gid)
 
                 positions.append({
                     "id": str(up["position_id"]),
@@ -1325,63 +1169,8 @@ def _extract_positions(
     return positions
 
 
-def _compute_convex_hull(points: List[Dict[str, float]]) -> List[Dict[str, float]]:
-    """
-    Compute the convex hull of a set of 2D points using Graham scan.
-
-    Returns points in counter-clockwise order.
-    """
-    if len(points) < 3:
-        return points
-
-    # Find the point with lowest y (and leftmost if tied)
-    def bottom_left(p):
-        return (p["y"], p["x"])
-
-    points = sorted(points, key=bottom_left)
-    start = points[0]
-
-    # Sort remaining points by polar angle from start point
-    def polar_angle(p):
-        dx = p["x"] - start["x"]
-        dy = p["y"] - start["y"]
-        return math.atan2(dy, dx)
-
-    rest = sorted(points[1:], key=polar_angle)
-
-    # Build hull using Graham scan
-    hull = [start]
-
-    for p in rest:
-        while len(hull) > 1:
-            # Check if we make a left turn
-            o = hull[-2]
-            a = hull[-1]
-            cross = (a["x"] - o["x"]) * (p["y"] - o["y"]) - (a["y"] - o["y"]) * (p["x"] - o["x"])
-            if cross <= 0:
-                hull.pop()
-            else:
-                break
-        hull.append(p)
-
-    return hull
 
 
-def _compute_centroid(points: List[Dict[str, float]]) -> Dict[str, float]:
-    """
-    Compute the centroid (center of mass) of a set of points.
-    """
-    if not points:
-        return {"x": 0, "y": 0}
-
-    x_sum = sum(p["x"] for p in points)
-    y_sum = sum(p["y"] for p in points)
-    n = len(points)
-
-    return {
-        "x": round(x_sum / n, 4),
-        "y": round(y_sum / n, 4)
-    }
 
 
 def get_polis_report(conversation_id: str, token_info=None):
@@ -1403,6 +1192,10 @@ def get_polis_report(conversation_id: str, token_info=None):
 
     if not config.POLIS_ENABLED:
         return ErrorModel(404, "Polis is not enabled"), 404
+
+    # Validate conversation_id to prevent XSS (injected into <script> tag below)
+    if not re.match(r'^[a-zA-Z0-9_-]+$', conversation_id):
+        return ErrorModel(400, "Invalid conversation ID format"), 400
 
     # Determine if this is a report_id (starts with 'r') or conversation_id
     if conversation_id.startswith('r'):

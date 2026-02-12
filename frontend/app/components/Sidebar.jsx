@@ -1,4 +1,4 @@
-import { StyleSheet, View, TouchableOpacity, Dimensions, Pressable } from 'react-native'
+import { StyleSheet, View, TouchableOpacity, Dimensions, Pressable, Platform } from 'react-native'
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useRouter, usePathname } from 'expo-router'
 import { useTranslation } from 'react-i18next'
@@ -71,7 +71,7 @@ export default function Sidebar({ visible, onClose, user, onLogout, onBugReport 
   return (
     <View style={styles.container}>
       {/* Overlay */}
-      <Pressable style={styles.overlayPressable} onPress={onClose} accessibilityLabel={t('closeMenu')} accessibilityRole="button">
+      <Pressable style={styles.overlayPressable} onPress={onClose} accessibilityLabel={t('closeMenu')}>
         <Animated.View style={[styles.overlay, overlayStyle]} />
       </Pressable>
 
@@ -151,11 +151,11 @@ const createStyles = (colors) => StyleSheet.create({
     width: SIDEBAR_WIDTH,
     backgroundColor: colors.cardBackground,
     paddingTop: 0,
-    shadowColor: '#000',
-    shadowOffset: { width: -2, height: 0 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 10,
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: -2, height: 0 }, shadowOpacity: 0.25, shadowRadius: 10 },
+      android: { elevation: 10 },
+      default: { boxShadow: '-2px 0 10px rgba(0, 0, 0, 0.25)' },
+    }),
   },
   userSection: {
     flexDirection: 'row',

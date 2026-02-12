@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { View, StyleSheet, TouchableOpacity, Modal, FlatList } from 'react-native'
+import { View, StyleSheet, TouchableOpacity, Pressable, Modal, FlatList } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
@@ -114,7 +114,7 @@ export default function LocationCategorySelector({
     labelKey = 'name'
   ) => (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <TouchableOpacity style={shared.modalOverlay} activeOpacity={1} onPress={onClose} accessibilityRole="button" accessibilityLabel={t('dismissModal')}>
+      <Pressable style={shared.modalOverlay} onPress={onClose} accessibilityLabel={t('dismissModal')}>
         <View style={shared.modalContent}>
           <ThemedText variant="h2" color="primary" style={shared.modalTitle}>{title}</ThemedText>
           <FlatList
@@ -150,7 +150,7 @@ export default function LocationCategorySelector({
             )}
           />
         </View>
-      </TouchableOpacity>
+      </Pressable>
     </Modal>
   )
 

@@ -32,36 +32,28 @@ export async function connectSocket(token = null) {
       reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
       reconnectionDelay: 1000,
       timeout: 10000,
+      auth: { token: authToken },  // Token validated at handshake — no unauthenticated sockets
     })
 
-    // Handle connection
-    socket.on('connect', () => {
-      console.log('[Socket] Connected, authenticating...')
+    // Server emits 'authenticated' with session data after accepting the connection
+    socket.on('authenticated', (data) => {
+      console.debug('[Socket] Authenticated as user:', data.userId)
       reconnectAttempts = 0
-      socket.emit('authenticate', { token: authToken }, (response) => {
-        if (response?.status === 'authenticated') {
-          console.log('[Socket] Authenticated as user:', response.userId)
-          resolve(socket)
-        } else {
-          console.error('[Socket] Authentication failed:', response)
-          socket.disconnect()
-          reject(new Error(response?.message || 'Authentication failed'))
-        }
-      })
+      resolve(socket)
     })
 
-    // Handle connection errors
+    // Handle connection errors (including auth rejection at handshake)
     socket.on('connect_error', (error) => {
       console.error('[Socket] Connection error:', error.message)
       reconnectAttempts++
       if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-        reject(new Error('Failed to connect to chat server'))
+        reject(new Error(error.message || 'Failed to connect to chat server'))
       }
     })
 
     // Handle disconnection
     socket.on('disconnect', (reason) => {
-      console.log('[Socket] Disconnected:', reason)
+      console.debug('[Socket] Disconnected:', reason)
     })
 
     // Connect
@@ -77,7 +69,7 @@ export function disconnectSocket() {
     socket.disconnect()
     socket = null
     reconnectAttempts = 0
-    console.log('[Socket] Disconnected and cleaned up')
+    console.debug('[Socket] Disconnected and cleaned up')
   }
 }
 

@@ -1,5 +1,15 @@
 import os
 
+def _require_secret(name, dev_default=None):
+	"""Require env var in production, allow dev default otherwise."""
+	value = os.environ.get(name)
+	if value:
+		return value
+	if os.environ.get('FLASK_ENV') != 'production':
+		if dev_default is not None:
+			return dev_default
+	raise RuntimeError(f"Required environment variable {name} is not set")
+
 class Config:
 	def __getitem__(self, item):
 		return getattr(self, item)
@@ -13,9 +23,13 @@ class Config:
 	KEYCLOAK_URL = os.environ.get('KEYCLOAK_URL', 'http://keycloak:8180')
 	KEYCLOAK_REALM = os.environ.get('KEYCLOAK_REALM', 'candid')
 	KEYCLOAK_BACKEND_CLIENT_ID = os.environ.get('KEYCLOAK_BACKEND_CLIENT_ID', 'candid-backend')
-	KEYCLOAK_BACKEND_CLIENT_SECRET = os.environ.get('KEYCLOAK_BACKEND_CLIENT_SECRET', 'candid-backend-secret')
+	KEYCLOAK_BACKEND_CLIENT_SECRET = _require_secret('KEYCLOAK_BACKEND_CLIENT_SECRET', 'candid-backend-secret')
 	# CORS
-	CORS_ORIGINS = os.environ.get('CORS_ORIGINS', 'http://localhost:3001,http://localhost:8081,http://localhost:8082,http://localhost:19006').split(',')
+	_cors_raw = os.environ.get('CORS_ORIGINS', '')
+	CORS_ORIGINS = [o for o in _cors_raw.split(',') if o] if _cors_raw else [
+		'http://localhost:3001', 'http://localhost:8081',
+		'http://localhost:8082', 'http://localhost:19006',
+	]
 	# Polis integration
 	POLIS_API_URL = os.environ.get('POLIS_API_URL', 'http://polis-server:5000/api/v3')
 	POLIS_BASE_URL = os.environ.get('POLIS_BASE_URL', 'http://polis-server:5000')
@@ -25,9 +39,9 @@ class Config:
 	POLIS_CONVERSATION_WINDOW_MONTHS = 6  # How long each conversation stays active
 
 	# Polis Admin Credentials (Keycloak ROPC via polis-admin client)
-	POLIS_ADMIN_CLIENT_SECRET = os.environ.get('POLIS_ADMIN_CLIENT_SECRET', 'polis-admin-secret')
+	POLIS_ADMIN_CLIENT_SECRET = _require_secret('POLIS_ADMIN_CLIENT_SECRET', 'polis-admin-secret')
 	POLIS_ADMIN_EMAIL = os.environ.get('POLIS_ADMIN_EMAIL', 'polis-admin@candid.dev')
-	POLIS_ADMIN_PASSWORD = os.environ.get('POLIS_ADMIN_PASSWORD', 'password')
+	POLIS_ADMIN_PASSWORD = _require_secret('POLIS_ADMIN_PASSWORD', 'password')
 
 	# NLP service
 	NLP_SERVICE_URL = os.environ.get('NLP_SERVICE_URL', 'http://nlp:5001')

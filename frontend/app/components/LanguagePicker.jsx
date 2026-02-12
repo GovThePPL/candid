@@ -1,4 +1,4 @@
-import { StyleSheet, View, TouchableOpacity, Modal, Pressable, Image } from 'react-native'
+import { StyleSheet, View, TouchableOpacity, Modal, Pressable, Image, Platform } from 'react-native'
 import { useState, useMemo } from 'react'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -299,11 +299,11 @@ const createDropdownStyles = (colors) => StyleSheet.create({
     borderColor: colors.cardBorder,
     paddingVertical: 6,
     minWidth: 180,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12 },
+      android: { elevation: 8 },
+      default: { boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)' },
+    }),
   },
   menuItem: {
     flexDirection: 'row',
@@ -386,11 +386,11 @@ const createInlineStyles = (colors) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.cardBorder,
     paddingVertical: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12 },
+      android: { elevation: 8 },
+      default: { boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)' },
+    }),
   },
   menuItem: {
     flexDirection: 'row',

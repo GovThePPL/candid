@@ -1,4 +1,4 @@
-import { StyleSheet, View, TouchableOpacity, Animated, Platform, Modal } from 'react-native'
+import { StyleSheet, View, TouchableOpacity, Pressable, Animated, Platform, Modal } from 'react-native'
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
@@ -105,12 +105,12 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
           Animated.timing(scaleAnim, {
             toValue: 1.2,
             duration: 150,
-            useNativeDriver: true,
+            useNativeDriver: Platform.OS !== 'web',
           }),
           Animated.timing(scaleAnim, {
             toValue: 1,
             duration: 150,
-            useNativeDriver: true,
+            useNativeDriver: Platform.OS !== 'web',
           }),
         ]),
       ]).start()
@@ -231,8 +231,8 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
 
       {/* Cancel confirmation modal */}
       <Modal visible={showCancelModal} transparent animationType="fade" onRequestClose={() => setShowCancelModal(false)}>
-        <TouchableOpacity style={shared.modalOverlay} activeOpacity={1} onPress={() => setShowCancelModal(false)} accessibilityRole="button" accessibilityLabel={t('dismissModal')}>
-          <TouchableOpacity activeOpacity={1} style={shared.modalContent}>
+        <Pressable style={shared.modalOverlay} onPress={() => setShowCancelModal(false)} accessibilityLabel={t('dismissModal')}>
+          <Pressable style={shared.modalContent} onPress={e => e.stopPropagation()} accessible={false}>
             {/* Card in stats page style: white on purple */}
             <CardShell
               style={styles.cardOuter}
@@ -275,8 +275,8 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
                 <ThemedText variant="buttonSmall" color="disagree">{t('cancelRequest')}</ThemedText>
               </TouchableOpacity>
             </View>
-          </TouchableOpacity>
-        </TouchableOpacity>
+          </Pressable>
+        </Pressable>
       </Modal>
     </>
   )

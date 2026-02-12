@@ -5,8 +5,9 @@ from unittest.mock import patch, MagicMock, call
 
 pytestmark = pytest.mark.unit
 
-# Module path for patching
+# Module paths for patching
 ADMIN = "candid.controllers.admin_controller"
+ADMIN_HELPERS = "candid.controllers.helpers.admin"
 AUTH = "candid.controllers.helpers.auth"
 
 # Test location UUIDs
@@ -36,7 +37,7 @@ def _clear_caches():
 
 
 # ---------------------------------------------------------------------------
-# _get_requester_authority_location
+# _get_requester_authority_location  (extracted to helpers/admin.py)
 # ---------------------------------------------------------------------------
 
 class TestGetRequesterAuthorityLocation:
@@ -47,8 +48,8 @@ class TestGetRequesterAuthorityLocation:
             {"location_id": OREGON}
         ])
 
-        with patch(f"{ADMIN}.db", mock_db), \
-             patch(f"{ADMIN}.get_location_ancestors", return_value=[OREGON, US_ROOT]):
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{ADMIN_HELPERS}.get_location_ancestors", return_value=[OREGON, US_ROOT]):
             from candid.controllers.admin_controller import _get_requester_authority_location
             result = _get_requester_authority_location(
                 ADMIN_USER, "admin", OREGON)
@@ -61,8 +62,8 @@ class TestGetRequesterAuthorityLocation:
             {"location_id": US_ROOT}
         ])
 
-        with patch(f"{ADMIN}.db", mock_db), \
-             patch(f"{ADMIN}.get_location_ancestors", return_value=[PORTLAND, OREGON, US_ROOT]):
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{ADMIN_HELPERS}.get_location_ancestors", return_value=[PORTLAND, OREGON, US_ROOT]):
             from candid.controllers.admin_controller import _get_requester_authority_location
             result = _get_requester_authority_location(
                 ADMIN_USER, "moderator", PORTLAND)
@@ -77,8 +78,8 @@ class TestGetRequesterAuthorityLocation:
             {"location_id": US_ROOT},
         ])
 
-        with patch(f"{ADMIN}.db", mock_db), \
-             patch(f"{ADMIN}.get_location_ancestors", return_value=[PORTLAND, OREGON, US_ROOT]):
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{ADMIN_HELPERS}.get_location_ancestors", return_value=[PORTLAND, OREGON, US_ROOT]):
             from candid.controllers.admin_controller import _get_requester_authority_location
             result = _get_requester_authority_location(
                 ADMIN_USER, "facilitator", PORTLAND)
@@ -90,8 +91,8 @@ class TestGetRequesterAuthorityLocation:
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value=[])
 
-        with patch(f"{ADMIN}.db", mock_db), \
-             patch(f"{ADMIN}.get_location_ancestors", return_value=[OREGON, US_ROOT]):
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{ADMIN_HELPERS}.get_location_ancestors", return_value=[OREGON, US_ROOT]):
             from candid.controllers.admin_controller import _get_requester_authority_location
             result = _get_requester_authority_location(
                 TARGET_USER, "admin", OREGON)
@@ -102,7 +103,7 @@ class TestGetRequesterAuthorityLocation:
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value={"exists": True})
 
-        with patch(f"{ADMIN}.db", mock_db):
+        with patch(f"{ADMIN_HELPERS}.db", mock_db):
             from candid.controllers.admin_controller import _get_requester_authority_location
             result = _get_requester_authority_location(
                 FACILITATOR_USER, "assistant_moderator", OREGON, HEALTHCARE_CAT)
@@ -120,7 +121,7 @@ class TestGetRequesterAuthorityLocation:
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value=None)
 
-        with patch(f"{ADMIN}.db", mock_db):
+        with patch(f"{ADMIN_HELPERS}.db", mock_db):
             from candid.controllers.admin_controller import _get_requester_authority_location
             result = _get_requester_authority_location(
                 FACILITATOR_USER, "liaison", PORTLAND, HEALTHCARE_CAT)
@@ -135,7 +136,7 @@ class TestGetRequesterAuthorityLocation:
 
     def test_empty_ancestors_returns_none(self):
         """If get_location_ancestors returns empty, no match possible."""
-        with patch(f"{ADMIN}.get_location_ancestors", return_value=[]):
+        with patch(f"{ADMIN_HELPERS}.get_location_ancestors", return_value=[]):
             from candid.controllers.admin_controller import _get_requester_authority_location
             result = _get_requester_authority_location(
                 ADMIN_USER, "admin", OREGON)
@@ -143,7 +144,7 @@ class TestGetRequesterAuthorityLocation:
 
 
 # ---------------------------------------------------------------------------
-# _find_approval_peer
+# _find_approval_peer  (extracted to helpers/admin.py)
 # ---------------------------------------------------------------------------
 
 class TestFindApprovalPeer:
@@ -154,7 +155,7 @@ class TestFindApprovalPeer:
             {"user_id": PEER_ADMIN}
         ])
 
-        with patch(f"{ADMIN}.db", mock_db):
+        with patch(f"{ADMIN_HELPERS}.db", mock_db):
             from candid.controllers.admin_controller import _find_approval_peer
             result = _find_approval_peer({
                 'requested_by': ADMIN_USER,
@@ -173,7 +174,7 @@ class TestFindApprovalPeer:
             [{"user_id": "portland-admin"}],  # admin at Portland (target)
         ])
 
-        with patch(f"{ADMIN}.db", mock_db):
+        with patch(f"{ADMIN_HELPERS}.db", mock_db):
             from candid.controllers.admin_controller import _find_approval_peer
             result = _find_approval_peer({
                 'requested_by': ADMIN_USER,
@@ -189,7 +190,7 @@ class TestFindApprovalPeer:
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value=[])
 
-        with patch(f"{ADMIN}.db", mock_db):
+        with patch(f"{ADMIN_HELPERS}.db", mock_db):
             from candid.controllers.admin_controller import _find_approval_peer
             result = _find_approval_peer({
                 'requested_by': ADMIN_USER,
@@ -205,7 +206,7 @@ class TestFindApprovalPeer:
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value=[])
 
-        with patch(f"{ADMIN}.db", mock_db):
+        with patch(f"{ADMIN_HELPERS}.db", mock_db):
             from candid.controllers.admin_controller import _find_approval_peer
             result = _find_approval_peer({
                 'requested_by': ADMIN_USER,
@@ -225,7 +226,7 @@ class TestFindApprovalPeer:
             {"user_id": PEER_FACILITATOR}
         ])
 
-        with patch(f"{ADMIN}.db", mock_db):
+        with patch(f"{ADMIN_HELPERS}.db", mock_db):
             from candid.controllers.admin_controller import _find_approval_peer
             result = _find_approval_peer({
                 'requested_by': FACILITATOR_USER,
@@ -244,8 +245,8 @@ class TestFindApprovalPeer:
             [{"user_id": MOD_USER}],  # moderator found
         ])
 
-        with patch(f"{ADMIN}.db", mock_db), \
-             patch(f"{ADMIN}.get_location_ancestors", return_value=[OREGON, US_ROOT]):
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{ADMIN_HELPERS}.get_location_ancestors", return_value=[OREGON, US_ROOT]):
             from candid.controllers.admin_controller import _find_approval_peer
             result = _find_approval_peer({
                 'requested_by': FACILITATOR_USER,
@@ -265,8 +266,8 @@ class TestFindApprovalPeer:
             [{"user_id": ADMIN_USER}],  # admin found
         ])
 
-        with patch(f"{ADMIN}.db", mock_db), \
-             patch(f"{ADMIN}.get_location_ancestors", return_value=[OREGON, US_ROOT]):
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{ADMIN_HELPERS}.get_location_ancestors", return_value=[OREGON, US_ROOT]):
             from candid.controllers.admin_controller import _find_approval_peer
             result = _find_approval_peer({
                 'requested_by': FACILITATOR_USER,
@@ -282,8 +283,8 @@ class TestFindApprovalPeer:
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value=[])
 
-        with patch(f"{ADMIN}.db", mock_db), \
-             patch(f"{ADMIN}.get_location_ancestors", return_value=[OREGON, US_ROOT]):
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{ADMIN_HELPERS}.get_location_ancestors", return_value=[OREGON, US_ROOT]):
             from candid.controllers.admin_controller import _find_approval_peer
             result = _find_approval_peer({
                 'requested_by': FACILITATOR_USER,
@@ -299,7 +300,7 @@ class TestFindApprovalPeer:
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value=[])
 
-        with patch(f"{ADMIN}.db", mock_db):
+        with patch(f"{ADMIN_HELPERS}.db", mock_db):
             from candid.controllers.admin_controller import _find_approval_peer
             result = _find_approval_peer({
                 'requested_by': FACILITATOR_USER,
@@ -328,7 +329,7 @@ class TestFindApprovalPeer:
         # Ghost peer exists in user_role but has no keycloak_id → JOIN filters it out
         mock_db.execute_query = MagicMock(return_value=[])
 
-        with patch(f"{ADMIN}.db", mock_db):
+        with patch(f"{ADMIN_HELPERS}.db", mock_db):
             from candid.controllers.admin_controller import _find_approval_peer
             result = _find_approval_peer({
                 'requested_by': ADMIN_USER,
@@ -348,8 +349,8 @@ class TestFindApprovalPeer:
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value=[])
 
-        with patch(f"{ADMIN}.db", mock_db), \
-             patch(f"{ADMIN}.get_location_ancestors", return_value=[OREGON, US_ROOT]):
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{ADMIN_HELPERS}.get_location_ancestors", return_value=[OREGON, US_ROOT]):
             from candid.controllers.admin_controller import _find_approval_peer
             result = _find_approval_peer({
                 'requested_by': FACILITATOR_USER,
@@ -367,7 +368,7 @@ class TestFindApprovalPeer:
 
 
 # ---------------------------------------------------------------------------
-# _apply_role_change
+# _apply_role_change  (extracted to helpers/admin.py)
 # ---------------------------------------------------------------------------
 
 class TestApplyRoleChange:
@@ -379,8 +380,8 @@ class TestApplyRoleChange:
             None,  # INSERT
         ])
 
-        with patch(f"{ADMIN}.db", mock_db), \
-             patch(f"{ADMIN}.uuid.uuid4", return_value="new-role-id"):
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{ADMIN_HELPERS}.uuid.uuid4", return_value="new-role-id"):
             from candid.controllers.admin_controller import _apply_role_change
             _apply_role_change({
                 'action': 'assign',
@@ -402,7 +403,7 @@ class TestApplyRoleChange:
             {"id": ROLE_ID},  # existing role found
         ])
 
-        with patch(f"{ADMIN}.db", mock_db):
+        with patch(f"{ADMIN_HELPERS}.db", mock_db):
             from candid.controllers.admin_controller import _apply_role_change
             _apply_role_change({
                 'action': 'assign',
@@ -420,7 +421,7 @@ class TestApplyRoleChange:
         """Removal deletes the user_role row."""
         mock_db = MagicMock()
 
-        with patch(f"{ADMIN}.db", mock_db):
+        with patch(f"{ADMIN_HELPERS}.db", mock_db):
             from candid.controllers.admin_controller import _apply_role_change
             _apply_role_change({
                 'action': 'remove',
@@ -440,7 +441,7 @@ class TestApplyRoleChange:
         """If user_role_id is missing on a removal, nothing happens."""
         mock_db = MagicMock()
 
-        with patch(f"{ADMIN}.db", mock_db):
+        with patch(f"{ADMIN_HELPERS}.db", mock_db):
             from candid.controllers.admin_controller import _apply_role_change
             _apply_role_change({
                 'action': 'remove',
@@ -462,8 +463,8 @@ class TestApplyRoleChange:
             None,  # INSERT
         ])
 
-        with patch(f"{ADMIN}.db", mock_db), \
-             patch(f"{ADMIN}.uuid.uuid4", return_value="new-role-id"):
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{ADMIN_HELPERS}.uuid.uuid4", return_value="new-role-id"):
             from candid.controllers.admin_controller import _apply_role_change
             _apply_role_change({
                 'action': 'assign',
@@ -480,7 +481,7 @@ class TestApplyRoleChange:
 
 
 # ---------------------------------------------------------------------------
-# _check_auto_approve_expired
+# _check_auto_approve_expired  (extracted to helpers/admin.py)
 # ---------------------------------------------------------------------------
 
 class TestCheckAutoApproveExpired:
@@ -488,7 +489,7 @@ class TestCheckAutoApproveExpired:
         """Calls UPDATE to auto-approve expired pending requests."""
         mock_db = MagicMock()
 
-        with patch(f"{ADMIN}.db", mock_db):
+        with patch(f"{ADMIN_HELPERS}.db", mock_db):
             from candid.controllers.admin_controller import _check_auto_approve_expired
             _check_auto_approve_expired()
 
@@ -502,7 +503,7 @@ class TestCheckAutoApproveExpired:
         """Calling multiple times just runs the same UPDATE (no side effects)."""
         mock_db = MagicMock()
 
-        with patch(f"{ADMIN}.db", mock_db):
+        with patch(f"{ADMIN_HELPERS}.db", mock_db):
             from candid.controllers.admin_controller import _check_auto_approve_expired
             _check_auto_approve_expired()
             _check_auto_approve_expired()
@@ -511,7 +512,7 @@ class TestCheckAutoApproveExpired:
 
 
 # ---------------------------------------------------------------------------
-# _format_role_request
+# _format_role_request  (extracted to helpers/admin.py — no db, pure logic)
 # ---------------------------------------------------------------------------
 
 class TestFormatRoleRequest:
@@ -590,7 +591,7 @@ class TestFormatRoleRequest:
 
 
 # ---------------------------------------------------------------------------
-# rescind_role_request
+# rescind_role_request  (still in admin_controller.py — patch ADMIN)
 # ---------------------------------------------------------------------------
 
 class TestRescindRoleRequest:
@@ -689,7 +690,7 @@ class TestRescindRoleRequest:
 
 
 # ---------------------------------------------------------------------------
-# get_role_requests
+# get_role_requests  (still in admin_controller.py — patch ADMIN)
 # ---------------------------------------------------------------------------
 
 class TestGetRoleRequests:
