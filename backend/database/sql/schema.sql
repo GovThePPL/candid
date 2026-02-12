@@ -296,7 +296,7 @@ CREATE TABLE rule (
 -- Reports
 CREATE TABLE report (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    target_object_type VARCHAR(50) NOT NULL CHECK (target_object_type IN ('position', 'chat_log')),
+    target_object_type VARCHAR(50) NOT NULL CHECK (target_object_type IN ('position', 'chat_log', 'post', 'comment')),
     target_object_id UUID NOT NULL,
     submitter_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     rule_id UUID REFERENCES rule(id) ON DELETE SET NULL,
@@ -533,6 +533,118 @@ CREATE TABLE notification_queue (
     created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
+-- ========== Posts ==========
+
+CREATE TABLE post (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    creator_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    location_id UUID NOT NULL REFERENCES location(id) ON DELETE CASCADE,
+    category_id UUID REFERENCES position_category(id) ON DELETE SET NULL,
+    post_type VARCHAR(20) NOT NULL DEFAULT 'discussion'
+        CHECK (post_type IN ('discussion', 'question')),
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'active'
+        CHECK (status IN ('active', 'deleted', 'removed', 'locked')),
+    deleted_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    upvote_count INTEGER NOT NULL DEFAULT 0,
+    downvote_count INTEGER NOT NULL DEFAULT 0,
+    weighted_upvotes DOUBLE PRECISION NOT NULL DEFAULT 0,
+    weighted_downvotes DOUBLE PRECISION NOT NULL DEFAULT 0,
+    score DOUBLE PRECISION NOT NULL DEFAULT 0,
+    comment_count INTEGER NOT NULL DEFAULT 0,
+    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_post_location ON post(location_id);
+CREATE INDEX idx_post_category ON post(location_id, category_id);
+CREATE INDEX idx_post_creator ON post(creator_user_id);
+CREATE INDEX idx_post_score ON post(location_id, score DESC);
+CREATE INDEX idx_post_created ON post(location_id, created_time DESC);
+
+-- ========== Comments ==========
+
+CREATE TABLE comment (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    post_id UUID NOT NULL REFERENCES post(id) ON DELETE CASCADE,
+    parent_comment_id UUID REFERENCES comment(id) ON DELETE RESTRICT,
+    creator_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    body TEXT NOT NULL,
+    path TEXT NOT NULL,
+    depth INTEGER NOT NULL DEFAULT 0,
+    status VARCHAR(50) NOT NULL DEFAULT 'active'
+        CHECK (status IN ('active', 'deleted', 'removed')),
+    deleted_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    upvote_count INTEGER NOT NULL DEFAULT 0,
+    downvote_count INTEGER NOT NULL DEFAULT 0,
+    weighted_upvotes DOUBLE PRECISION NOT NULL DEFAULT 0,
+    weighted_downvotes DOUBLE PRECISION NOT NULL DEFAULT 0,
+    score DOUBLE PRECISION NOT NULL DEFAULT 0,
+    child_count INTEGER NOT NULL DEFAULT 0,
+    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_comment_post ON comment(post_id);
+CREATE INDEX idx_comment_parent ON comment(parent_comment_id);
+CREATE INDEX idx_comment_creator ON comment(creator_user_id);
+CREATE INDEX idx_comment_path ON comment(post_id, path text_pattern_ops);
+CREATE INDEX idx_comment_post_score ON comment(post_id, score DESC);
+
+-- ========== Votes (for both posts and comments) ==========
+
+CREATE TABLE post_vote (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    post_id UUID NOT NULL REFERENCES post(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    vote_type VARCHAR(10) NOT NULL CHECK (vote_type IN ('upvote', 'downvote')),
+    weight DOUBLE PRECISION NOT NULL DEFAULT 1.0,
+    downvote_reason VARCHAR(50)
+        CHECK (downvote_reason IS NULL OR downvote_reason IN (
+            'offtopic', 'unkind', 'low_effort', 'spam', 'misinformation'
+        )),
+    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(post_id, user_id)
+);
+
+CREATE TABLE comment_vote (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    comment_id UUID NOT NULL REFERENCES comment(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    vote_type VARCHAR(10) NOT NULL CHECK (vote_type IN ('upvote', 'downvote')),
+    weight DOUBLE PRECISION NOT NULL DEFAULT 1.0,
+    downvote_reason VARCHAR(50)
+        CHECK (downvote_reason IS NULL OR downvote_reason IN (
+            'offtopic', 'unkind', 'low_effort', 'spam', 'misinformation'
+        )),
+    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(comment_id, user_id)
+);
+
+-- ========== Ideological Coordinates ==========
+
+CREATE TABLE user_ideological_coords (
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    polis_conversation_id VARCHAR(255) NOT NULL,
+    location_id UUID NOT NULL REFERENCES location(id) ON DELETE CASCADE,
+    category_id UUID REFERENCES position_category(id) ON DELETE SET NULL,
+    x DOUBLE PRECISION NOT NULL,
+    y DOUBLE PRECISION NOT NULL,
+    polis_group_id INTEGER,
+    n_position_votes INTEGER NOT NULL,
+    math_tick BIGINT,
+    mf_x DOUBLE PRECISION,
+    mf_y DOUBLE PRECISION,
+    n_comment_votes INTEGER NOT NULL DEFAULT 0,
+    mf_computed_at TIMESTAMPTZ,
+    computed_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, polis_conversation_id)
+);
+
+CREATE INDEX idx_ideological_coords_conversation
+    ON user_ideological_coords(polis_conversation_id);
+
 -- Create indexes for performance
 CREATE INDEX idx_users_username ON users(username);
 CREATE INDEX idx_users_email ON users(email);
@@ -590,3 +702,7 @@ CREATE INDEX idx_role_change_request_status ON role_change_request(status) WHERE
 CREATE INDEX idx_role_change_request_requested_by ON role_change_request(requested_by);
 CREATE INDEX idx_role_change_request_auto_approve ON role_change_request(auto_approve_at) WHERE status = 'pending';
 CREATE INDEX idx_notification_queue_user ON notification_queue(user_id);
+CREATE INDEX idx_post_vote_user ON post_vote(user_id);
+CREATE INDEX idx_post_vote_post ON post_vote(post_id);
+CREATE INDEX idx_comment_vote_user ON comment_vote(user_id);
+CREATE INDEX idx_comment_vote_comment ON comment_vote(comment_id);

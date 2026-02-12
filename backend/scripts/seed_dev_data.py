@@ -25,6 +25,7 @@ Phases (all run by default):
     9  surveys        Respond to healthcare survey
    10  pairwise       Respond to pairwise comparisons
    11  admin          Role requests, bans, admin surveys
+   12  posts          Posts, nested comments, and votes (direct SQL)
 """
 
 import argparse
@@ -34,6 +35,7 @@ import random
 import sys
 import time
 import threading
+import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -2214,6 +2216,458 @@ def phase_11_admin(api, location_id, category_map, dry_run=False):
 
 
 # ---------------------------------------------------------------------------
+# Phase 12: Posts, Comments, and Votes (direct SQL — no API endpoints yet)
+# ---------------------------------------------------------------------------
+
+# Post content for seeding
+SEED_POSTS = [
+    {
+        "type": "discussion",
+        "title": "Should Portland invest more in public transit or road infrastructure?",
+        "body": "I've been thinking about the transportation challenges we face in Portland. "
+                "With rising fuel costs and environmental concerns, public transit seems like "
+                "the way forward. But many neighborhoods are poorly served by buses and MAX. "
+                "Meanwhile, our roads and bridges need serious maintenance.\n\n"
+                "What do you think should be the priority?",
+        "category": "Transportation",
+    },
+    {
+        "type": "discussion",
+        "title": "The impact of remote work on Portland's downtown",
+        "body": "Downtown Portland has changed a lot since remote work became widespread. "
+                "Many offices sit half-empty, restaurants have closed, and foot traffic is down. "
+                "But some argue this is a chance to reimagine downtown — more housing, more "
+                "parks, more community spaces.\n\n"
+                "How has remote work affected your relationship with downtown Portland?",
+        "category": "Economy",
+    },
+    {
+        "type": "discussion",
+        "title": "Homelessness crisis: What approaches actually work?",
+        "body": "Portland has tried many approaches to address homelessness — from sanctioned "
+                "camps to housing-first programs to enforcement. Results have been mixed at best.\n\n"
+                "I'm interested in hearing from people across the political spectrum about what "
+                "evidence-based approaches they think could make a real difference. Let's try to "
+                "have a productive conversation about this difficult topic.",
+        "category": "Social Services",
+    },
+    {
+        "type": "discussion",
+        "title": "Supporting local businesses vs. big box stores",
+        "body": "Every time a local shop closes and gets replaced by a chain, it feels like we "
+                "lose a piece of Portland's character. But chains often offer lower prices, which "
+                "matters to families on tight budgets.\n\n"
+                "Is there a middle ground? How do you balance supporting local with affordability?",
+        "category": "Economy",
+    },
+    {
+        "type": "question",
+        "title": "How does Oregon's property tax system work?",
+        "body": "I'm relatively new to Oregon and confused by the property tax system. I've heard "
+                "it's different from most states because of Measure 5 and Measure 50. Can someone "
+                "explain how assessed value vs. real market value works, and why my neighbor's "
+                "identical house might have a very different tax bill?",
+        "category": "Taxes & Budget",
+    },
+    {
+        "type": "question",
+        "title": "What are the best ways to get involved in local government?",
+        "body": "I want to be more engaged in local politics beyond just voting. What are the "
+                "most effective ways for an average citizen to participate in Portland's "
+                "decision-making processes? Are neighborhood associations still relevant?",
+        "category": "Government & Democracy",
+    },
+    {
+        "type": "discussion",
+        "title": "Climate action: Individual responsibility vs. systemic change",
+        "body": "I keep hearing two narratives about climate change:\n\n"
+                "1. **Individual action matters** — reduce, reuse, recycle, drive less, eat less meat\n"
+                "2. **Systemic change is needed** — corporate regulation, infrastructure investment, "
+                "policy reform\n\n"
+                "These aren't mutually exclusive, but where should we focus our energy? Portland has "
+                "set ambitious climate goals. Are we on track?",
+        "category": "Environment",
+    },
+    {
+        "type": "discussion",
+        "title": "Portland's arts and culture scene: thriving or struggling?",
+        "body": "Portland has always had a vibrant arts scene — music venues, galleries, "
+                "independent theaters, street art. But rising costs and the pandemic hit hard. "
+                "Many venues closed permanently.\n\n"
+                "What's the state of Portland's cultural scene today? What should the city "
+                "be doing to support artists and cultural institutions?",
+        "category": "Education",
+    },
+    {
+        "type": "question",
+        "title": "What mental health resources are available in Portland?",
+        "body": "A friend is going through a tough time and I'm trying to help them find "
+                "affordable mental health care in Portland. The waitlists seem incredibly long. "
+                "Does anyone know of resources, especially sliding-scale or community clinics?",
+        "category": "Healthcare",
+    },
+    {
+        "type": "discussion",
+        "title": "Gun policy: Finding common ground in Oregon",
+        "body": "Oregon's Measure 114 was a lightning rod. Regardless of where you stand on "
+                "gun policy, most people agree we need to reduce gun violence. But we disagree "
+                "strongly on how.\n\n"
+                "Can we have a good-faith discussion about what gun policies might actually "
+                "reduce harm while respecting rights? What does the evidence say?",
+        "category": "Public Safety",
+    },
+]
+
+# Comment templates with nesting structure
+SEED_COMMENTS = {
+    # index into SEED_POSTS -> list of comment dicts
+    0: [  # Transit post
+        {"body": "Public transit all the way. A single MAX line removes hundreds of cars "
+                 "from the road. The environmental and equity benefits are enormous.",
+         "author_prefix": "prog", "replies": [
+            {"body": "I agree transit is important, but MAX doesn't serve many neighborhoods. "
+                     "We need better bus service before more rail.",
+             "author_prefix": "mod"},
+            {"body": "The issue is that transit requires density to be efficient. Portland's "
+                     "sprawl makes bus routes unprofitable in many areas.",
+             "author_prefix": "lib"},
+        ]},
+        {"body": "Our roads and bridges are literally crumbling. We can't ignore basic "
+                 "infrastructure maintenance in favor of expensive rail projects.",
+         "author_prefix": "con", "replies": [
+            {"body": "This is a false choice. We need both. But deferred road maintenance "
+                     "costs more in the long run.",
+             "author_prefix": "cen"},
+        ]},
+        {"body": "What about cycling infrastructure? Portland used to be a leader in "
+                 "bike-friendly design but we've stagnated.",
+         "author_prefix": "socdem"},
+    ],
+    2: [  # Homelessness post
+        {"body": "Housing First has the strongest evidence base. Give people stable "
+                 "housing, then address other issues. Finland's approach reduced "
+                 "homelessness by 35%.",
+         "author_prefix": "lib", "replies": [
+            {"body": "Housing First works for some populations but not all. Many people "
+                     "experiencing homelessness need treatment programs alongside housing.",
+             "author_prefix": "mod"},
+            {"body": "The cost per unit for Housing First is actually less than the cost "
+                     "of emergency services, jail, and hospitals for unhoused people.",
+             "author_prefix": "socdem", "replies": [
+                {"body": "Do you have a source for those cost comparisons? I'd like to "
+                         "see Portland-specific data.",
+                 "author_prefix": "libt"},
+            ]},
+        ]},
+        {"body": "We need to enforce existing laws. Camping on sidewalks is illegal and "
+                 "creates safety hazards. Compassion doesn't mean no rules.",
+         "author_prefix": "con", "replies": [
+            {"body": "Enforcement without alternatives just moves the problem around. "
+                     "Where are people supposed to go?",
+             "author_prefix": "prog"},
+        ]},
+        {"body": "Has anyone looked at what other cities our size have done successfully? "
+                 "Houston reportedly reduced homelessness significantly.",
+         "author_prefix": "cen"},
+    ],
+    3: [  # Local business post
+        {"body": "I try to shop local whenever possible. The extra cost is worth it for "
+                 "the character and community connection.",
+         "author_prefix": "lib"},
+        {"body": "Not everyone can afford to pay 30% more for groceries at a boutique "
+                 "store. Let's not shame people for being practical.",
+         "author_prefix": "pop", "replies": [
+            {"body": "Fair point. But there's a difference between groceries and buying "
+                     "everything from Amazon. We can be strategic.",
+             "author_prefix": "mod"},
+        ]},
+    ],
+    6: [  # Climate post
+        {"body": "Individual action is important but it's a drop in the bucket compared "
+                 "to what corporations produce. 100 companies cause 71% of emissions.",
+         "author_prefix": "soc", "replies": [
+            {"body": "That statistic is misleading — those companies produce fossil fuels "
+                     "that consumers demand. We're all part of the system.",
+             "author_prefix": "libt"},
+            {"body": "Both matter. Individual choices create market signals, while "
+                     "regulation addresses the structural issues.",
+             "author_prefix": "mod"},
+        ]},
+        {"body": "Portland's climate goals are admirable but we're not on track. We need "
+                 "accountability mechanisms, not just targets.",
+         "author_prefix": "cen"},
+    ],
+    9: [  # Gun policy post
+        {"body": "I'm a gun owner who supports universal background checks. Most gun "
+                 "owners do, according to polling. That's common ground.",
+         "author_prefix": "libt", "replies": [
+            {"body": "Background checks I can support. The issue with M114 was the permit "
+                     "requirement and magazine ban, which felt like overreach.",
+             "author_prefix": "con"},
+            {"body": "Thank you for this perspective. We need more gun owners in the "
+                     "conversation, not fewer.",
+             "author_prefix": "lib"},
+        ]},
+        {"body": "The evidence clearly shows that states with stricter gun laws have "
+                 "fewer gun deaths. This isn't really debatable.",
+         "author_prefix": "prog", "replies": [
+            {"body": "Correlation isn't causation. Many of those states also have higher "
+                     "incomes and less poverty. Need to control for confounders.",
+             "author_prefix": "cen"},
+        ]},
+    ],
+}
+
+
+def phase_12_posts(location_id, category_map, dry_run=False):
+    """Create posts, nested comments, and votes via direct SQL."""
+    print("\n" + "=" * 60)
+    print("PHASE 12: Posts, Comments, and Votes")
+    print("=" * 60)
+
+    # Check idempotency
+    existing = db_query_one("SELECT count(*) as cnt FROM post")
+    if existing and existing["cnt"] > 0:
+        print(f"  Skipping: {existing['cnt']} posts already exist")
+        return
+
+    if dry_run:
+        print(f"  Would create {len(SEED_POSTS)} posts with comments and votes")
+        return
+
+    # Get user IDs by prefix
+    all_users = db_query("SELECT id, username FROM users WHERE status = 'active'")
+    if not all_users:
+        print("  ERROR: No users found")
+        return
+
+    user_map = {}  # prefix -> list of user dicts
+    for u in all_users:
+        for prefix in ["prog", "lib", "socdem", "soc", "mod", "cen",
+                        "libt", "con", "pop", "trad", "normal", "admin"]:
+            if u["username"].startswith(prefix):
+                user_map.setdefault(prefix, []).append(u)
+                break
+
+    def pick_user(prefix):
+        """Pick a random user matching the prefix."""
+        users = user_map.get(prefix, user_map.get("mod", []))
+        return random.choice(users) if users else all_users[0]
+
+    # Resolve category IDs
+    def get_category_id(cat_name):
+        for name, cid in category_map.items():
+            if cat_name.lower() in name.lower():
+                return cid
+        return list(category_map.values())[0] if category_map else None
+
+    # --- Create Posts ---
+    post_ids = []
+    post_creators = []
+    post_types = []
+    for i, post_data in enumerate(SEED_POSTS):
+        # Rotate creators across belief groups
+        creator_prefixes = ["prog", "lib", "mod", "con", "cen", "libt",
+                            "socdem", "pop", "soc", "trad"]
+        creator = pick_user(creator_prefixes[i % len(creator_prefixes)])
+        category_id = get_category_id(post_data["category"])
+
+        # Vary creation times (spread over last 7 days)
+        hours_ago = random.randint(1, 168)
+        post_id = str(uuid.uuid4())
+
+        db_execute("""
+            INSERT INTO post (id, creator_user_id, location_id, category_id, post_type,
+                              title, body, created_time)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, NOW() - INTERVAL '%s hours')
+        """, (post_id, str(creator["id"]), location_id, category_id,
+              post_data["type"], post_data["title"], post_data["body"],
+              hours_ago))
+
+        post_ids.append(post_id)
+        post_creators.append(creator)
+        post_types.append(post_data["type"])
+        print(f"  Created post: {post_data['title'][:50]}...")
+
+    # --- Create Comments ---
+    all_comment_ids = []  # Track all comment IDs for voting
+    all_comment_creators = []
+
+    def insert_comment(post_id, parent_id, parent_path, parent_depth,
+                       body, author_prefix, hours_offset=0):
+        """Insert a comment and return its ID, path, depth."""
+        creator = pick_user(author_prefix)
+        cid = str(uuid.uuid4())
+        depth = parent_depth + 1 if parent_id else 0
+        path = f"{parent_path}/{cid}" if parent_path else cid
+
+        db_execute("""
+            INSERT INTO comment (id, post_id, parent_comment_id, creator_user_id, body,
+                                 path, depth, created_time)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, NOW() - INTERVAL '%s hours')
+        """, (cid, post_id, parent_id, str(creator["id"]), body,
+              path, depth, hours_offset))
+
+        # Update parent child_count
+        if parent_id:
+            db_execute(
+                "UPDATE comment SET child_count = child_count + 1 WHERE id = %s",
+                (parent_id,)
+            )
+
+        # Update post comment_count
+        db_execute(
+            "UPDATE post SET comment_count = comment_count + 1 WHERE id = %s",
+            (post_id,)
+        )
+
+        all_comment_ids.append(cid)
+        all_comment_creators.append(creator)
+        return cid, path, depth
+
+    def insert_comment_tree(post_id, comment_data, parent_id=None,
+                            parent_path=None, parent_depth=-1, base_hours=0):
+        """Recursively insert a comment and its replies."""
+        hours = base_hours + random.randint(0, 5)
+        result = insert_comment(
+            post_id, parent_id, parent_path, parent_depth,
+            comment_data["body"], comment_data["author_prefix"], hours
+        )
+        if not result:
+            return
+
+        cid, path, depth = result
+        for reply in comment_data.get("replies", []):
+            insert_comment_tree(post_id, reply, cid, path, depth, hours)
+
+    for post_idx, comments in SEED_COMMENTS.items():
+        if post_idx >= len(post_ids) or post_ids[post_idx] is None:
+            continue
+        post_id = post_ids[post_idx]
+        post_hours = random.randint(1, 48)
+        for comment_data in comments:
+            insert_comment_tree(post_id, comment_data, base_hours=post_hours)
+
+    print(f"  Created {len(all_comment_ids)} comments across {len(SEED_COMMENTS)} posts")
+
+    # --- Create Votes ---
+    # Vote on posts
+    vote_count = 0
+    voter_users = [u for users in user_map.values() for u in users]
+
+    for i, post_id in enumerate(post_ids):
+        if post_id is None:
+            continue
+
+        creator_id = str(post_creators[i]["id"])
+        # Each post gets 5-25 random voters
+        n_voters = random.randint(5, 25)
+        voters = random.sample(voter_users, min(n_voters, len(voter_users)))
+
+        for voter in voters:
+            if str(voter["id"]) == creator_id:
+                continue  # no self-votes
+
+            # Weighted toward upvotes (70/30)
+            vote_type = "upvote" if random.random() < 0.7 else "downvote"
+            downvote_reason = None
+            if vote_type == "downvote":
+                downvote_reason = random.choice([
+                    "offtopic", "unkind", "low_effort", "spam", "misinformation"
+                ])
+
+            db_execute("""
+                INSERT INTO post_vote (post_id, user_id, vote_type, weight, downvote_reason)
+                VALUES (%s, %s, %s, 1.0, %s)
+                ON CONFLICT (post_id, user_id) DO NOTHING
+            """, (post_id, str(voter["id"]), vote_type, downvote_reason))
+            vote_count += 1
+
+        # Update denormalized counts
+        db_execute("""
+            UPDATE post SET
+                upvote_count = (SELECT count(*) FROM post_vote WHERE post_id = %s AND vote_type = 'upvote'),
+                downvote_count = (SELECT count(*) FROM post_vote WHERE post_id = %s AND vote_type = 'downvote'),
+                weighted_upvotes = COALESCE((SELECT sum(weight) FROM post_vote WHERE post_id = %s AND vote_type = 'upvote'), 0),
+                weighted_downvotes = COALESCE((SELECT sum(weight) FROM post_vote WHERE post_id = %s AND vote_type = 'downvote'), 0)
+            WHERE id = %s
+        """, (post_id, post_id, post_id, post_id, post_id))
+
+    # Vote on comments
+    for i, comment_id in enumerate(all_comment_ids):
+        creator_id = str(all_comment_creators[i]["id"])
+        # Each comment gets 2-12 random voters
+        n_voters = random.randint(2, 12)
+        voters = random.sample(voter_users, min(n_voters, len(voter_users)))
+
+        for voter in voters:
+            if str(voter["id"]) == creator_id:
+                continue
+
+            vote_type = "upvote" if random.random() < 0.65 else "downvote"
+            downvote_reason = None
+            if vote_type == "downvote":
+                downvote_reason = random.choice([
+                    "offtopic", "unkind", "low_effort", "spam", "misinformation"
+                ])
+
+            db_execute("""
+                INSERT INTO comment_vote (comment_id, user_id, vote_type, weight, downvote_reason)
+                VALUES (%s, %s, %s, 1.0, %s)
+                ON CONFLICT (comment_id, user_id) DO NOTHING
+            """, (comment_id, str(voter["id"]), vote_type, downvote_reason))
+            vote_count += 1
+
+        # Update denormalized counts
+        db_execute("""
+            UPDATE comment SET
+                upvote_count = (SELECT count(*) FROM comment_vote WHERE comment_id = %s AND vote_type = 'upvote'),
+                downvote_count = (SELECT count(*) FROM comment_vote WHERE comment_id = %s AND vote_type = 'downvote'),
+                weighted_upvotes = COALESCE((SELECT sum(weight) FROM comment_vote WHERE comment_id = %s AND vote_type = 'upvote'), 0),
+                weighted_downvotes = COALESCE((SELECT sum(weight) FROM comment_vote WHERE comment_id = %s AND vote_type = 'downvote'), 0)
+            WHERE id = %s
+        """, (comment_id, comment_id, comment_id, comment_id, comment_id))
+
+    print(f"  Created {vote_count} votes on posts and comments")
+
+    # Compute Wilson scores for all posts and comments
+    db_execute("""
+        UPDATE post SET score = CASE
+            WHEN weighted_upvotes + weighted_downvotes = 0 THEN 0
+            ELSE (
+                (weighted_upvotes / (weighted_upvotes + weighted_downvotes)
+                 + 1.9208 / (weighted_upvotes + weighted_downvotes)
+                 - 1.96 * sqrt(
+                     (weighted_upvotes / (weighted_upvotes + weighted_downvotes)
+                      * (1 - weighted_upvotes / (weighted_upvotes + weighted_downvotes))
+                      + 0.9604 / (weighted_upvotes + weighted_downvotes))
+                     / (weighted_upvotes + weighted_downvotes)
+                 ))
+                / (1 + 3.8416 / (weighted_upvotes + weighted_downvotes))
+            )
+        END
+    """)
+    db_execute("""
+        UPDATE comment SET score = CASE
+            WHEN weighted_upvotes + weighted_downvotes = 0 THEN 0
+            ELSE (
+                (weighted_upvotes / (weighted_upvotes + weighted_downvotes)
+                 + 1.9208 / (weighted_upvotes + weighted_downvotes)
+                 - 1.96 * sqrt(
+                     (weighted_upvotes / (weighted_upvotes + weighted_downvotes)
+                      * (1 - weighted_upvotes / (weighted_upvotes + weighted_downvotes))
+                      + 0.9604 / (weighted_upvotes + weighted_downvotes))
+                     / (weighted_upvotes + weighted_downvotes)
+                 ))
+                / (1 + 3.8416 / (weighted_upvotes + weighted_downvotes))
+            )
+        END
+    """)
+
+    print("  Phase 12 complete")
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -2221,7 +2675,7 @@ def main():
     parser = argparse.ArgumentParser(description='Seed rich dev data for Candid')
     parser.add_argument('--api-url', default=API_URL, help='Candid API URL')
     parser.add_argument('--dry-run', action='store_true', help='Show what would be done')
-    parser.add_argument('--phase', type=int, help='Run only this phase (1-11)')
+    parser.add_argument('--phase', type=int, help='Run only this phase (1-12)')
     args = parser.parse_args()
 
     random.seed(42)  # Reproducible data
@@ -2325,6 +2779,10 @@ def main():
     if should_run(11):
         phase_11_admin(api, location_id, category_map, args.dry_run)
 
+    # Phase 12: Posts, Comments, Votes
+    if should_run(12):
+        phase_12_posts(location_id, category_map, args.dry_run)
+
     print("\n" + "=" * 60)
     print("SEED COMPLETE")
     print("=" * 60)
@@ -2340,6 +2798,10 @@ def main():
             UNION ALL SELECT 'role_requests', count(*) FROM role_change_request
             UNION ALL SELECT 'admin_actions', count(*) FROM admin_action_log
             UNION ALL SELECT 'surveys', count(*) FROM survey
+            UNION ALL SELECT 'posts', count(*) FROM post
+            UNION ALL SELECT 'comments', count(*) FROM comment
+            UNION ALL SELECT 'post_votes', count(*) FROM post_vote
+            UNION ALL SELECT 'comment_votes', count(*) FROM comment_vote
             ORDER BY tbl
         """)
         for row in (counts or []):

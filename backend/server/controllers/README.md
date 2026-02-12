@@ -23,7 +23,7 @@ Custom controller implementations for the Flask API. These files are copied over
 
 - `__init__.py` -- Flask app factory, database setup, CORS configuration
 - `__main__.py` -- WSGI entry point (also copied to `generated/candid/`)
-- `helpers/` -- Shared utilities (auth, database, Redis, Polis, etc.)
+- `helpers/` -- Shared utilities (see Helper Modules section below)
 
 ## Connexion First-Tag Routing
 
@@ -143,3 +143,27 @@ The frontend receives `user.roles[]` (array of `{role, locationId, positionCateg
 ### Ban System
 
 Separate from roles. `users.status = 'banned'` blocks all authorized endpoints except those using `authorization_allow_banned`. Temporary bans auto-expire via `mod_action_target.action_end_time`. Ban status is cached in Redis (60s TTL).
+
+## Helper Modules (`helpers/`)
+
+| Module | Purpose |
+|--------|---------|
+| `auth.py` | Role-based authorization, location-scoped role checks, hierarchy walking |
+| `cache_headers.py` | HTTP cache header utilities |
+| `chat_availability.py` | Chat partner matching and availability logic |
+| `chat_events.py` | WebSocket chat event handling |
+| `config.py` | Dev/prod configuration loader |
+| `database.py` | PostgreSQL connection pool wrapper (psycopg2, RealDictCursor) |
+| `ideological_coords.py` | PCA projection from Polis votes, lazy coord caching, blending with MF |
+| `keycloak.py` | Keycloak OIDC token validation (RS256 JWKS), auto-registration |
+| `matrix_factorization.py` | Stub for Community Notes-style MF on comment votes (Phase 4) |
+| `nlp.py` | NLP service client for embeddings |
+| `pairwise_graph.py` | Graph algorithms for pairwise survey ranking |
+| `polis_client.py` | Polis API client (XID auth for participants, OIDC for admin) |
+| `polis_scheduler.py` | Background scheduler for Polis sync jobs |
+| `polis_sync.py` | Queue-based async sync of positions and votes to Polis |
+| `polis_worker.py` | Worker thread for processing Polis sync queue |
+| `presence.py` | User presence and swiping state tracking via Redis |
+| `push_notifications.py` | Expo push notification delivery with quiet hours |
+| `redis_pool.py` | Shared Redis connection pool |
+| `scoring.py` | Wilson score, hot score, controversial score, vote weighting by ideological distance |
