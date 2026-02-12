@@ -7,6 +7,7 @@ import { useThemeColors } from '../../hooks/useThemeColors'
 import ThemedText from '../../components/ThemedText'
 import Header from '../../components/Header'
 import EmptyState from '../../components/EmptyState'
+import CardShell from '../../components/CardShell'
 import PositionInfoCard from '../../components/PositionInfoCard'
 import ModerationActionModal from '../../components/ModerationActionModal'
 import ModerationHistoryModal from '../../components/ModerationHistoryModal'
@@ -34,97 +35,95 @@ function ReportCard({ item, onHistoryPress, onChatPress, colors, styles }) {
   const { data } = item
   const target = data.targetContent
 
-  return (
-    <View style={styles.reportCard}>
-      {/* Red header with card type + rule */}
-      <View style={styles.reportHeader}>
-        <View style={styles.headerRow}>
-          <View style={styles.headerTypeTag}>
-            <Ionicons name="shield" size={28} color="#FFFFFF" />
-            <ThemedText variant="badgeLg" color="inverse" style={styles.headerTypeText}>{t('report')}</ThemedText>
-          </View>
-          <View style={styles.headerRuleContent}>
-            <ThemedText variant="buttonSmall" color="inverse" style={styles.reportRuleTitle}>{data.rule?.title || t('ruleViolation')}</ThemedText>
-            {data.rule?.text && (
-              <ThemedText variant="caption" color="inverse" style={styles.reportRuleText}>{data.rule.text}</ThemedText>
-            )}
-          </View>
-        </View>
+  const headerContent = (
+    <View style={styles.headerRow}>
+      <View style={styles.headerTypeTag}>
+        <Ionicons name="shield" size={28} color="#FFFFFF" />
+        <ThemedText variant="badgeLg" color="inverse" style={styles.headerTypeText}>{t('report')}</ThemedText>
       </View>
-
-      {/* White body section */}
-      <View style={styles.reportBodyWrapper}>
-        <View style={styles.reportBody}>
-          {target?.type === 'position' ? (
-            <PositionInfoCard
-              position={target}
-              authorSubtitle="username"
-            />
-          ) : target?.type === 'chat_log' ? (
-            <PositionInfoCard
-              position={{
-                statement: target.positionStatement,
-                creator: target.participants?.[0],
-              }}
-              authorSubtitle="username"
-              label={t('chatLabel', { names: target.participants?.map(p => p?.displayName).filter(Boolean).join(' & ') })}
-            />
-          ) : (
-            <View style={{ padding: 16 }}>
-              <ThemedText variant="bodySmall" color="secondary" style={{ fontStyle: 'italic' }}>{t('contentUnavailable')}</ThemedText>
-            </View>
-          )}
-        </View>
-      </View>
-
-      {/* White bottom curve over purple */}
-      <View style={styles.reportBodyBottomCurve} />
-
-      {/* Purple footer with reporter info */}
-      <View style={styles.reportFooter}>
-        {onChatPress && target?.type === 'chat_log' && (
-          <TouchableOpacity
-            style={styles.historyButton}
-            onPress={() => onChatPress(data.targetId, data.submitter?.id)}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel={t('viewChatLogA11y')}
-          >
-            <Ionicons name="chatbubbles-outline" size={16} color="#FFFFFF" />
-            <ThemedText variant="label" color="inverse">{t('viewChatLog')}</ThemedText>
-          </TouchableOpacity>
-        )}
-        {onHistoryPress && (target?.creator || target?.participants) && (() => {
-          const historyUser = target.creator
-            || target.participants?.find(p => p?.id !== data.submitter?.id)
-          return historyUser ? (
-            <TouchableOpacity
-              style={styles.historyButton}
-              onPress={() => onHistoryPress(historyUser)}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={t('viewHistoryA11y')}
-            >
-              <Ionicons name="time-outline" size={16} color="#FFFFFF" />
-              <ThemedText variant="label" color="inverse">{t('userModerationHistory')}</ThemedText>
-            </TouchableOpacity>
-          ) : null
-        })()}
-        <View style={styles.reporterRow}>
-          <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>{t('reportedBy')}</ThemedText>
-          <Avatar user={data.submitter} size="sm" showKudosCount badgePosition="bottom-left" />
-          <View style={styles.userInfoColumn}>
-            <ThemedText variant="buttonSmall" color="inverse">{data.submitter?.displayName || t('common:anonymous')}</ThemedText>
-            <ThemedText variant="caption" style={styles.reporterUsername}>@{data.submitter?.username || t('unknown')}</ThemedText>
-          </View>
-        </View>
-        {data.submitterComment && (
-          <View style={styles.commentShell}>
-            <ThemedText variant="label" style={styles.commentShellText}>"{data.submitterComment}"</ThemedText>
-          </View>
+      <View style={styles.headerRuleContent}>
+        <ThemedText variant="buttonSmall" color="inverse" style={styles.reportRuleTitle}>{data.rule?.title || t('ruleViolation')}</ThemedText>
+        {data.rule?.text && (
+          <ThemedText variant="caption" color="inverse" style={styles.reportRuleText}>{data.rule.text}</ThemedText>
         )}
       </View>
     </View>
+  )
+
+  const footerContent = (
+    <View style={styles.footerInner}>
+      {onChatPress && target?.type === 'chat_log' && (
+        <TouchableOpacity
+          style={styles.historyButton}
+          onPress={() => onChatPress(data.targetId, data.submitter?.id)}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={t('viewChatLogA11y')}
+        >
+          <Ionicons name="chatbubbles-outline" size={16} color="#FFFFFF" />
+          <ThemedText variant="label" color="inverse">{t('viewChatLog')}</ThemedText>
+        </TouchableOpacity>
+      )}
+      {onHistoryPress && (target?.creator || target?.participants) && (() => {
+        const historyUser = target.creator
+          || target.participants?.find(p => p?.id !== data.submitter?.id)
+        return historyUser ? (
+          <TouchableOpacity
+            style={styles.historyButton}
+            onPress={() => onHistoryPress(historyUser)}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={t('viewHistoryA11y')}
+          >
+            <Ionicons name="time-outline" size={16} color="#FFFFFF" />
+            <ThemedText variant="label" color="inverse">{t('userModerationHistory')}</ThemedText>
+          </TouchableOpacity>
+        ) : null
+      })()}
+      <View style={styles.reporterRow}>
+        <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>{t('reportedBy')}</ThemedText>
+        <Avatar user={data.submitter} size="sm" showKudosCount badgePosition="bottom-left" />
+        <View style={styles.userInfoColumn}>
+          <ThemedText variant="buttonSmall" color="inverse">{data.submitter?.displayName || t('common:anonymous')}</ThemedText>
+          <ThemedText variant="caption" style={styles.reporterUsername}>@{data.submitter?.username || t('unknown')}</ThemedText>
+        </View>
+      </View>
+      {data.submitterComment && (
+        <View style={styles.commentShell}>
+          <ThemedText variant="label" style={styles.commentShellText}>"{data.submitterComment}"</ThemedText>
+        </View>
+      )}
+    </View>
+  )
+
+  return (
+    <CardShell
+      header={headerContent}
+      headerColor={colors.warningSurface}
+      footer={footerContent}
+      footerColor={colors.primarySurface}
+      style={styles.reportCard}
+    >
+      {target?.type === 'position' ? (
+        <PositionInfoCard
+          position={target}
+          authorSubtitle="username"
+        />
+      ) : target?.type === 'chat_log' ? (
+        <PositionInfoCard
+          position={{
+            statement: target.positionStatement,
+            creator: target.participants?.[0],
+          }}
+          authorSubtitle="username"
+          label={t('chatLabel', { names: target.participants?.map(p => p?.displayName).filter(Boolean).join(' & ') })}
+        />
+      ) : (
+        <View style={{ padding: 16 }}>
+          <ThemedText variant="bodySmall" color="secondary" style={{ fontStyle: 'italic' }}>{t('contentUnavailable')}</ThemedText>
+        </View>
+      )}
+    </CardShell>
   )
 }
 
@@ -139,162 +138,160 @@ function AppealCard({ item, onHistoryPress, onChatPress, colors, styles }) {
   const isEscalated = data.appealState === 'escalated'
   const isOverruled = data.appealState === 'overruled'
 
-  return (
-    <View style={styles.reportCard}>
-      {/* Red header with card type + rule */}
-      <View style={styles.reportHeader}>
-        <View style={styles.headerRow}>
-          <View style={styles.headerTypeTag}>
-            <Ionicons name={isEscalated ? 'arrow-up-circle' : isOverruled ? 'swap-horizontal' : 'megaphone'} size={28} color="#FFFFFF" />
-            <ThemedText variant="badgeLg" color="inverse" style={styles.headerTypeText}>{isEscalated ? t('escalatedLabel') : isOverruled ? t('overruledLabel') : t('appeal')}</ThemedText>
-          </View>
-          <View style={styles.headerRuleContent}>
-            <ThemedText variant="buttonSmall" color="inverse" style={styles.reportRuleTitle}>{rule?.title || t('ruleViolation')}</ThemedText>
-            {rule?.text && (
-              <ThemedText variant="caption" color="inverse" style={styles.reportRuleText}>{rule.text}</ThemedText>
-            )}
-          </View>
-        </View>
+  const headerContent = (
+    <View style={styles.headerRow}>
+      <View style={styles.headerTypeTag}>
+        <Ionicons name={isEscalated ? 'arrow-up-circle' : isOverruled ? 'swap-horizontal' : 'megaphone'} size={28} color="#FFFFFF" />
+        <ThemedText variant="badgeLg" color="inverse" style={styles.headerTypeText}>{isEscalated ? t('escalatedLabel') : isOverruled ? t('overruledLabel') : t('appeal')}</ThemedText>
       </View>
-
-      {/* White body section */}
-      <View style={styles.reportBodyWrapper}>
-        <View style={styles.reportBody}>
-          {target?.type === 'position' ? (
-            <PositionInfoCard
-              position={target}
-              authorSubtitle="username"
-            />
-          ) : target?.type === 'chat_log' ? (
-            <PositionInfoCard
-              position={{
-                statement: target.positionStatement,
-                creator: target.participants?.[0],
-              }}
-              authorSubtitle="username"
-              label={t('chatLabel', { names: target.participants?.map(p => p?.displayName).filter(Boolean).join(' & ') })}
-            />
-          ) : (
-            <View style={{ padding: 16 }}>
-              <ThemedText variant="bodySmall" color="secondary" style={{ fontStyle: 'italic' }}>{t('contentUnavailable')}</ThemedText>
-            </View>
-          )}
-        </View>
-      </View>
-
-      {/* White bottom curve over purple */}
-      <View style={styles.reportBodyBottomCurve} />
-
-      {/* Purple footer with reporter, moderator action, and appeal as distinct shells */}
-      <View style={styles.reportFooter}>
-        {onChatPress && target?.type === 'chat_log' && (
-          <TouchableOpacity
-            style={styles.historyButton}
-            onPress={() => onChatPress(data.originalReport?.targetId, data.originalReport?.submitter?.id)}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel={t('viewChatLogA11y')}
-          >
-            <Ionicons name="chatbubbles-outline" size={16} color="#FFFFFF" />
-            <ThemedText variant="label" color="inverse">{t('viewChatLog')}</ThemedText>
-          </TouchableOpacity>
+      <View style={styles.headerRuleContent}>
+        <ThemedText variant="buttonSmall" color="inverse" style={styles.reportRuleTitle}>{rule?.title || t('ruleViolation')}</ThemedText>
+        {rule?.text && (
+          <ThemedText variant="caption" color="inverse" style={styles.reportRuleText}>{rule.text}</ThemedText>
         )}
-        {onHistoryPress && data.user && (
-          <TouchableOpacity
-            style={styles.historyButton}
-            onPress={() => onHistoryPress(data.user)}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel={t('viewHistoryA11y')}
-          >
-            <Ionicons name="time-outline" size={16} color="#FFFFFF" />
-            <ThemedText variant="label" color="inverse">{t('userModerationHistory')}</ThemedText>
-          </TouchableOpacity>
-        )}
-        {/* Original reporter shell */}
-        <View style={styles.sectionShell}>
-          <View style={styles.reporterRow}>
-            <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>{t('reportedBy')}</ThemedText>
-            <Avatar user={submitter} size="sm" showKudosCount badgePosition="bottom-left" />
-            <View style={styles.userInfoColumn}>
-              <ThemedText variant="buttonSmall" color="inverse">{submitter?.displayName || t('common:anonymous')}</ThemedText>
-              <ThemedText variant="caption" style={styles.reporterUsername}>@{submitter?.username || t('unknown')}</ThemedText>
-            </View>
-          </View>
-          {data.originalReport?.submitterComment && (
-            <ThemedText variant="label" style={styles.sectionShellComment}>"{data.originalReport.submitterComment}"</ThemedText>
-          )}
-        </View>
-
-        {/* Moderator action shell */}
-        {data.originalAction && (
-          <View style={styles.modActionShell}>
-            <View style={styles.reporterRow}>
-              <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>{t('modAction')}</ThemedText>
-              <Avatar user={data.originalAction.responder} size="sm" showKudosCount badgePosition="bottom-left" />
-              <View style={styles.userInfoColumn}>
-                <ThemedText variant="buttonSmall" color="inverse">{data.originalAction.responder?.displayName || t('moderator')}</ThemedText>
-                <ThemedText variant="caption" style={styles.reporterUsername}>@{data.originalAction.responder?.username || t('unknown')}</ThemedText>
-              </View>
-            </View>
-            {data.originalAction.actions?.length > 0 && (
-              <View style={styles.modActionDetails}>
-                {data.originalAction.actions.map((a, i) => (
-                  <ThemedText key={i} variant="caption" style={styles.modActionDetailText}>
-                    {CLASS_LABELS[a.userClass] || a.userClass}: {ACTION_LABELS[a.action] || a.action}{a.action === 'temporary_ban' && a.durationDays ? ` ${t('durationDays', { days: a.durationDays })}` : ''}
-                  </ThemedText>
-                ))}
-              </View>
-            )}
-            {data.originalAction.modResponseText && (
-              <ThemedText variant="label" style={styles.sectionShellComment}>"{data.originalAction.modResponseText}"</ThemedText>
-            )}
-          </View>
-        )}
-
-        {/* Appeal shell */}
-        <View style={styles.sectionShell}>
-          <View style={styles.reporterRow}>
-            <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>
-              {t('appealBy')}{data.userClass ? ` (${CLASS_LABELS[data.userClass] || data.userClass})` : ''}
-            </ThemedText>
-            <Avatar user={data.user} size="sm" showKudosCount badgePosition="bottom-left" />
-            <View style={styles.userInfoColumn}>
-              <ThemedText variant="buttonSmall" color="inverse">{data.user?.displayName || t('common:anonymous')}</ThemedText>
-              <ThemedText variant="caption" style={styles.reporterUsername}>@{data.user?.username || t('unknown')}</ThemedText>
-            </View>
-          </View>
-          {data.appealText && (
-            <ThemedText variant="label" style={styles.sectionShellComment}>"{data.appealText}"</ThemedText>
-          )}
-        </View>
-
-        {/* Prior moderator reviews (e.g. second mod who overruled, or original mod who escalated) */}
-        {data.priorResponses?.map((pr, i) => (
-          <View key={i} style={pr.outcome === 'escalated' ? styles.sectionShell : styles.modActionShell}>
-            <View style={styles.reporterRow}>
-              <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>
-                {pr.outcome === 'overruled' ? t('overruledBy') : pr.outcome === 'escalated' ? t('escalatedBy') : t('reviewedBy')}
-              </ThemedText>
-              <Avatar user={pr.responder} size="sm" showKudosCount badgePosition="bottom-left" />
-              <View style={styles.userInfoColumn}>
-                <ThemedText variant="buttonSmall" color="inverse">{pr.responder?.displayName || t('moderator')}</ThemedText>
-                <ThemedText variant="caption" style={styles.reporterUsername}>@{pr.responder?.username || t('unknown')}</ThemedText>
-              </View>
-            </View>
-            {pr.outcome === 'overruled' && (
-              <ThemedText variant="caption" style={styles.modActionDetailText}>{t('approvedAppealOverruled')}</ThemedText>
-            )}
-            {pr.outcome === 'escalated' && (
-              <ThemedText variant="caption" style={styles.modActionDetailText}>{t('escalatedToAdmin')}</ThemedText>
-            )}
-            {pr.responseText && (
-              <ThemedText variant="label" style={styles.sectionShellComment}>"{pr.responseText}"</ThemedText>
-            )}
-          </View>
-        ))}
       </View>
     </View>
+  )
+
+  const footerContent = (
+    <View style={styles.footerInner}>
+      {onChatPress && target?.type === 'chat_log' && (
+        <TouchableOpacity
+          style={styles.historyButton}
+          onPress={() => onChatPress(data.originalReport?.targetId, data.originalReport?.submitter?.id)}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={t('viewChatLogA11y')}
+        >
+          <Ionicons name="chatbubbles-outline" size={16} color="#FFFFFF" />
+          <ThemedText variant="label" color="inverse">{t('viewChatLog')}</ThemedText>
+        </TouchableOpacity>
+      )}
+      {onHistoryPress && data.user && (
+        <TouchableOpacity
+          style={styles.historyButton}
+          onPress={() => onHistoryPress(data.user)}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={t('viewHistoryA11y')}
+        >
+          <Ionicons name="time-outline" size={16} color="#FFFFFF" />
+          <ThemedText variant="label" color="inverse">{t('userModerationHistory')}</ThemedText>
+        </TouchableOpacity>
+      )}
+      {/* Original reporter shell */}
+      <View style={styles.sectionShell}>
+        <View style={styles.reporterRow}>
+          <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>{t('reportedBy')}</ThemedText>
+          <Avatar user={submitter} size="sm" showKudosCount badgePosition="bottom-left" />
+          <View style={styles.userInfoColumn}>
+            <ThemedText variant="buttonSmall" color="inverse">{submitter?.displayName || t('common:anonymous')}</ThemedText>
+            <ThemedText variant="caption" style={styles.reporterUsername}>@{submitter?.username || t('unknown')}</ThemedText>
+          </View>
+        </View>
+        {data.originalReport?.submitterComment && (
+          <ThemedText variant="label" style={styles.sectionShellComment}>"{data.originalReport.submitterComment}"</ThemedText>
+        )}
+      </View>
+
+      {/* Moderator action shell */}
+      {data.originalAction && (
+        <View style={styles.modActionShell}>
+          <View style={styles.reporterRow}>
+            <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>{t('modAction')}</ThemedText>
+            <Avatar user={data.originalAction.responder} size="sm" showKudosCount badgePosition="bottom-left" />
+            <View style={styles.userInfoColumn}>
+              <ThemedText variant="buttonSmall" color="inverse">{data.originalAction.responder?.displayName || t('moderator')}</ThemedText>
+              <ThemedText variant="caption" style={styles.reporterUsername}>@{data.originalAction.responder?.username || t('unknown')}</ThemedText>
+            </View>
+          </View>
+          {data.originalAction.actions?.length > 0 && (
+            <View style={styles.modActionDetails}>
+              {data.originalAction.actions.map((a, i) => (
+                <ThemedText key={i} variant="caption" style={styles.modActionDetailText}>
+                  {CLASS_LABELS[a.userClass] || a.userClass}: {ACTION_LABELS[a.action] || a.action}{a.action === 'temporary_ban' && a.durationDays ? ` ${t('durationDays', { days: a.durationDays })}` : ''}
+                </ThemedText>
+              ))}
+            </View>
+          )}
+          {data.originalAction.modResponseText && (
+            <ThemedText variant="label" style={styles.sectionShellComment}>"{data.originalAction.modResponseText}"</ThemedText>
+          )}
+        </View>
+      )}
+
+      {/* Appeal shell */}
+      <View style={styles.sectionShell}>
+        <View style={styles.reporterRow}>
+          <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>
+            {t('appealBy')}{data.userClass ? ` (${CLASS_LABELS[data.userClass] || data.userClass})` : ''}
+          </ThemedText>
+          <Avatar user={data.user} size="sm" showKudosCount badgePosition="bottom-left" />
+          <View style={styles.userInfoColumn}>
+            <ThemedText variant="buttonSmall" color="inverse">{data.user?.displayName || t('common:anonymous')}</ThemedText>
+            <ThemedText variant="caption" style={styles.reporterUsername}>@{data.user?.username || t('unknown')}</ThemedText>
+          </View>
+        </View>
+        {data.appealText && (
+          <ThemedText variant="label" style={styles.sectionShellComment}>"{data.appealText}"</ThemedText>
+        )}
+      </View>
+
+      {/* Prior moderator reviews */}
+      {data.priorResponses?.map((pr, i) => (
+        <View key={i} style={pr.outcome === 'escalated' ? styles.sectionShell : styles.modActionShell}>
+          <View style={styles.reporterRow}>
+            <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>
+              {pr.outcome === 'overruled' ? t('overruledBy') : pr.outcome === 'escalated' ? t('escalatedBy') : t('reviewedBy')}
+            </ThemedText>
+            <Avatar user={pr.responder} size="sm" showKudosCount badgePosition="bottom-left" />
+            <View style={styles.userInfoColumn}>
+              <ThemedText variant="buttonSmall" color="inverse">{pr.responder?.displayName || t('moderator')}</ThemedText>
+              <ThemedText variant="caption" style={styles.reporterUsername}>@{pr.responder?.username || t('unknown')}</ThemedText>
+            </View>
+          </View>
+          {pr.outcome === 'overruled' && (
+            <ThemedText variant="caption" style={styles.modActionDetailText}>{t('approvedAppealOverruled')}</ThemedText>
+          )}
+          {pr.outcome === 'escalated' && (
+            <ThemedText variant="caption" style={styles.modActionDetailText}>{t('escalatedToAdmin')}</ThemedText>
+          )}
+          {pr.responseText && (
+            <ThemedText variant="label" style={styles.sectionShellComment}>"{pr.responseText}"</ThemedText>
+          )}
+        </View>
+      ))}
+    </View>
+  )
+
+  return (
+    <CardShell
+      header={headerContent}
+      headerColor={colors.warningSurface}
+      footer={footerContent}
+      footerColor={colors.primarySurface}
+      style={styles.reportCard}
+    >
+      {target?.type === 'position' ? (
+        <PositionInfoCard
+          position={target}
+          authorSubtitle="username"
+        />
+      ) : target?.type === 'chat_log' ? (
+        <PositionInfoCard
+          position={{
+            statement: target.positionStatement,
+            creator: target.participants?.[0],
+          }}
+          authorSubtitle="username"
+          label={t('chatLabel', { names: target.participants?.map(p => p?.displayName).filter(Boolean).join(' & ') })}
+        />
+      ) : (
+        <View style={{ padding: 16 }}>
+          <ThemedText variant="bodySmall" color="secondary" style={{ fontStyle: 'italic' }}>{t('contentUnavailable')}</ThemedText>
+        </View>
+      )}
+    </CardShell>
   )
 }
 
@@ -318,179 +315,177 @@ function AdminResponseNotificationCard({ item, onHistoryPress, onChatPress, colo
   const target = data.originalReport?.targetContent
   const rule = data.originalReport?.rule
 
-  return (
-    <View style={styles.reportCard}>
-      {/* Header with type tag + outcome */}
-      <View style={styles.reportHeader}>
-        <View style={styles.headerRow}>
-          <View style={styles.headerTypeTag}>
-            <Ionicons name="shield-checkmark" size={28} color="#FFFFFF" />
-            <ThemedText variant="badgeLg" color="inverse" style={styles.headerTypeText}>{t('response')}</ThemedText>
-          </View>
-          <View style={styles.headerRuleContent}>
-            <View style={[styles.outcomeBadge, { backgroundColor: getStateColors(colors)[data.appealState] || colors.primary }]}>
-              <ThemedText variant="badge" color="inverse" style={styles.outcomeBadgeText}>{STATE_LABELS[data.appealState] || data.appealState}</ThemedText>
-            </View>
-            {rule?.title && <ThemedText variant="buttonSmall" color="inverse" style={styles.reportRuleTitle}>{rule.title}</ThemedText>}
-            {rule?.text && <ThemedText variant="caption" color="inverse" style={styles.reportRuleText}>{rule.text}</ThemedText>}
-          </View>
-        </View>
+  const headerContent = (
+    <View style={styles.headerRow}>
+      <View style={styles.headerTypeTag}>
+        <Ionicons name="shield-checkmark" size={28} color="#FFFFFF" />
+        <ThemedText variant="badgeLg" color="inverse" style={styles.headerTypeText}>{t('response')}</ThemedText>
       </View>
-
-      {/* White body section */}
-      <View style={styles.reportBodyWrapper}>
-        <View style={styles.reportBody}>
-          {target?.type === 'position' ? (
-            <PositionInfoCard
-              position={target}
-              authorSubtitle="username"
-            />
-          ) : target?.type === 'chat_log' ? (
-            <PositionInfoCard
-              position={{
-                statement: target.positionStatement,
-                creator: target.participants?.[0],
-              }}
-              authorSubtitle="username"
-              label={t('chatLabel', { names: target.participants?.map(p => p?.displayName).filter(Boolean).join(' & ') })}
-            />
-          ) : (
-            <View style={{ padding: 16 }}>
-              <ThemedText variant="bodySmall" color="secondary" style={{ fontStyle: 'italic' }}>{t('contentUnavailable')}</ThemedText>
-            </View>
-          )}
+      <View style={styles.headerRuleContent}>
+        <View style={[styles.outcomeBadge, { backgroundColor: getStateColors(colors)[data.appealState] || colors.primary }]}>
+          <ThemedText variant="badge" color="inverse" style={styles.outcomeBadgeText}>{STATE_LABELS[data.appealState] || data.appealState}</ThemedText>
         </View>
-      </View>
-
-      {/* White bottom curve over purple */}
-      <View style={styles.reportBodyBottomCurve} />
-
-      {/* Purple footer — chronological order: mod action → reviews → admin decision */}
-      <View style={styles.reportFooter}>
-        {onChatPress && target?.type === 'chat_log' && (
-          <TouchableOpacity
-            style={styles.historyButton}
-            onPress={() => onChatPress(data.originalReport?.targetId, data.originalReport?.submitter?.id)}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel={t('viewChatLogA11y')}
-          >
-            <Ionicons name="chatbubbles-outline" size={16} color="#FFFFFF" />
-            <ThemedText variant="label" color="inverse">{t('viewChatLog')}</ThemedText>
-          </TouchableOpacity>
-        )}
-        {onHistoryPress && data.appealUser && (
-          <TouchableOpacity
-            style={styles.historyButton}
-            onPress={() => onHistoryPress(data.appealUser)}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel={t('viewHistoryA11y')}
-          >
-            <Ionicons name="time-outline" size={16} color="#FFFFFF" />
-            <ThemedText variant="label" color="inverse">{t('userModerationHistory')}</ThemedText>
-          </TouchableOpacity>
-        )}
-
-        {/* Original reporter */}
-        {data.originalReport?.submitter && (
-          <View style={styles.sectionShell}>
-            <View style={styles.reporterRow}>
-              <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>{t('reportedBy')}</ThemedText>
-              <Avatar user={data.originalReport.submitter} size="sm" showKudosCount badgePosition="bottom-left" />
-              <View style={styles.userInfoColumn}>
-                <ThemedText variant="buttonSmall" color="inverse">{data.originalReport.submitter?.displayName || t('common:anonymous')}</ThemedText>
-                <ThemedText variant="caption" style={styles.reporterUsername}>@{data.originalReport.submitter?.username || t('unknown')}</ThemedText>
-              </View>
-            </View>
-            {data.originalReport.submitterComment && (
-              <ThemedText variant="label" style={styles.sectionShellComment}>"{data.originalReport.submitterComment}"</ThemedText>
-            )}
-          </View>
-        )}
-
-        {/* 1. Original moderator action */}
-        {data.originalAction && (
-          <View style={styles.modActionShell}>
-            <View style={styles.reporterRow}>
-              <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>{t('modAction')}</ThemedText>
-              <Avatar user={data.originalAction.responder} size="sm" showKudosCount badgePosition="bottom-left" />
-              <View style={styles.userInfoColumn}>
-                <ThemedText variant="buttonSmall" color="inverse">{data.originalAction.responder?.displayName || t('moderator')}</ThemedText>
-                <ThemedText variant="caption" style={styles.reporterUsername}>@{data.originalAction.responder?.username || t('unknown')}</ThemedText>
-              </View>
-            </View>
-            {data.originalAction.actions?.length > 0 && (
-              <View style={styles.modActionDetails}>
-                {data.originalAction.actions.map((a, i) => (
-                  <ThemedText key={i} variant="caption" style={styles.modActionDetailText}>
-                    {CLASS_LABELS[a.userClass] || a.userClass}: {ACTION_LABELS[a.action] || a.action}{a.action === 'temporary_ban' && a.durationDays ? ` ${t('durationDays', { days: a.durationDays })}` : ''}
-                  </ThemedText>
-                ))}
-              </View>
-            )}
-            {data.originalAction.modResponseText && (
-              <ThemedText variant="label" style={styles.sectionShellComment}>"{data.originalAction.modResponseText}"</ThemedText>
-            )}
-          </View>
-        )}
-
-        {/* 2. Appeal by user */}
-        {data.appealText && (
-          <View style={styles.sectionShell}>
-            <View style={styles.reporterRow}>
-              <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>{t('appealBy')}</ThemedText>
-              <Avatar user={data.appealUser} size="sm" showKudosCount badgePosition="bottom-left" />
-              <View style={styles.userInfoColumn}>
-                <ThemedText variant="buttonSmall" color="inverse">{data.appealUser?.displayName || t('userFallback')}</ThemedText>
-                <ThemedText variant="caption" style={styles.reporterUsername}>@{data.appealUser?.username || t('unknown')}</ThemedText>
-              </View>
-            </View>
-            <ThemedText variant="label" style={styles.sectionShellComment}>"{data.appealText}"</ThemedText>
-          </View>
-        )}
-
-        {/* 3. Prior moderator reviews (overruled, escalated, etc.) */}
-        {data.priorResponses?.map((pr, i) => (
-          <View key={i} style={i === 1 ? styles.sectionShell : styles.modActionShell}>
-            <View style={styles.reporterRow}>
-              <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>
-                {i === 0 ? t('overruledBy') : i === 1 ? t('escalatedBy') : t('reviewedBy')}
-              </ThemedText>
-              <Avatar user={pr.responder} size="sm" showKudosCount badgePosition="bottom-left" />
-              <View style={styles.userInfoColumn}>
-                <ThemedText variant="buttonSmall" color="inverse">{pr.responder?.displayName || t('moderator')}</ThemedText>
-                <ThemedText variant="caption" style={styles.reporterUsername}>@{pr.responder?.username || t('unknown')}</ThemedText>
-              </View>
-            </View>
-            {i === 0 && (
-              <ThemedText variant="caption" style={styles.modActionDetailText}>{t('approvedAppealOverruled')}</ThemedText>
-            )}
-            {i === 1 && (
-              <ThemedText variant="caption" style={styles.modActionDetailText}>{t('escalatedToAdmin')}</ThemedText>
-            )}
-            {pr.responseText && (
-              <ThemedText variant="label" style={styles.sectionShellComment}>"{pr.responseText}"</ThemedText>
-            )}
-          </View>
-        ))}
-
-        {/* 3. Admin decision (most recent — at bottom) */}
-        <View style={styles.modActionShell}>
-          <View style={styles.reporterRow}>
-            <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>{t('adminDecision')}</ThemedText>
-            <Avatar user={data.adminResponder} size="sm" showKudosCount badgePosition="bottom-left" />
-            <View style={styles.userInfoColumn}>
-              <ThemedText variant="buttonSmall" color="inverse">{data.adminResponder?.displayName || t('admin')}</ThemedText>
-              <ThemedText variant="caption" style={styles.reporterUsername}>@{data.adminResponder?.username || t('unknown')}</ThemedText>
-            </View>
-          </View>
-          {data.adminResponseText && (
-            <ThemedText variant="label" style={styles.sectionShellComment}>"{data.adminResponseText}"</ThemedText>
-          )}
-        </View>
+        {rule?.title && <ThemedText variant="buttonSmall" color="inverse" style={styles.reportRuleTitle}>{rule.title}</ThemedText>}
+        {rule?.text && <ThemedText variant="caption" color="inverse" style={styles.reportRuleText}>{rule.text}</ThemedText>}
       </View>
     </View>
+  )
+
+  const footerContent = (
+    <View style={styles.footerInner}>
+      {onChatPress && target?.type === 'chat_log' && (
+        <TouchableOpacity
+          style={styles.historyButton}
+          onPress={() => onChatPress(data.originalReport?.targetId, data.originalReport?.submitter?.id)}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={t('viewChatLogA11y')}
+        >
+          <Ionicons name="chatbubbles-outline" size={16} color="#FFFFFF" />
+          <ThemedText variant="label" color="inverse">{t('viewChatLog')}</ThemedText>
+        </TouchableOpacity>
+      )}
+      {onHistoryPress && data.appealUser && (
+        <TouchableOpacity
+          style={styles.historyButton}
+          onPress={() => onHistoryPress(data.appealUser)}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={t('viewHistoryA11y')}
+        >
+          <Ionicons name="time-outline" size={16} color="#FFFFFF" />
+          <ThemedText variant="label" color="inverse">{t('userModerationHistory')}</ThemedText>
+        </TouchableOpacity>
+      )}
+
+      {/* Original reporter */}
+      {data.originalReport?.submitter && (
+        <View style={styles.sectionShell}>
+          <View style={styles.reporterRow}>
+            <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>{t('reportedBy')}</ThemedText>
+            <Avatar user={data.originalReport.submitter} size="sm" showKudosCount badgePosition="bottom-left" />
+            <View style={styles.userInfoColumn}>
+              <ThemedText variant="buttonSmall" color="inverse">{data.originalReport.submitter?.displayName || t('common:anonymous')}</ThemedText>
+              <ThemedText variant="caption" style={styles.reporterUsername}>@{data.originalReport.submitter?.username || t('unknown')}</ThemedText>
+            </View>
+          </View>
+          {data.originalReport.submitterComment && (
+            <ThemedText variant="label" style={styles.sectionShellComment}>"{data.originalReport.submitterComment}"</ThemedText>
+          )}
+        </View>
+      )}
+
+      {/* 1. Original moderator action */}
+      {data.originalAction && (
+        <View style={styles.modActionShell}>
+          <View style={styles.reporterRow}>
+            <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>{t('modAction')}</ThemedText>
+            <Avatar user={data.originalAction.responder} size="sm" showKudosCount badgePosition="bottom-left" />
+            <View style={styles.userInfoColumn}>
+              <ThemedText variant="buttonSmall" color="inverse">{data.originalAction.responder?.displayName || t('moderator')}</ThemedText>
+              <ThemedText variant="caption" style={styles.reporterUsername}>@{data.originalAction.responder?.username || t('unknown')}</ThemedText>
+            </View>
+          </View>
+          {data.originalAction.actions?.length > 0 && (
+            <View style={styles.modActionDetails}>
+              {data.originalAction.actions.map((a, i) => (
+                <ThemedText key={i} variant="caption" style={styles.modActionDetailText}>
+                  {CLASS_LABELS[a.userClass] || a.userClass}: {ACTION_LABELS[a.action] || a.action}{a.action === 'temporary_ban' && a.durationDays ? ` ${t('durationDays', { days: a.durationDays })}` : ''}
+                </ThemedText>
+              ))}
+            </View>
+          )}
+          {data.originalAction.modResponseText && (
+            <ThemedText variant="label" style={styles.sectionShellComment}>"{data.originalAction.modResponseText}"</ThemedText>
+          )}
+        </View>
+      )}
+
+      {/* 2. Appeal by user */}
+      {data.appealText && (
+        <View style={styles.sectionShell}>
+          <View style={styles.reporterRow}>
+            <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>{t('appealBy')}</ThemedText>
+            <Avatar user={data.appealUser} size="sm" showKudosCount badgePosition="bottom-left" />
+            <View style={styles.userInfoColumn}>
+              <ThemedText variant="buttonSmall" color="inverse">{data.appealUser?.displayName || t('userFallback')}</ThemedText>
+              <ThemedText variant="caption" style={styles.reporterUsername}>@{data.appealUser?.username || t('unknown')}</ThemedText>
+            </View>
+          </View>
+          <ThemedText variant="label" style={styles.sectionShellComment}>"{data.appealText}"</ThemedText>
+        </View>
+      )}
+
+      {/* 3. Prior moderator reviews */}
+      {data.priorResponses?.map((pr, i) => (
+        <View key={i} style={i === 1 ? styles.sectionShell : styles.modActionShell}>
+          <View style={styles.reporterRow}>
+            <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>
+              {i === 0 ? t('overruledBy') : i === 1 ? t('escalatedBy') : t('reviewedBy')}
+            </ThemedText>
+            <Avatar user={pr.responder} size="sm" showKudosCount badgePosition="bottom-left" />
+            <View style={styles.userInfoColumn}>
+              <ThemedText variant="buttonSmall" color="inverse">{pr.responder?.displayName || t('moderator')}</ThemedText>
+              <ThemedText variant="caption" style={styles.reporterUsername}>@{pr.responder?.username || t('unknown')}</ThemedText>
+            </View>
+          </View>
+          {i === 0 && (
+            <ThemedText variant="caption" style={styles.modActionDetailText}>{t('approvedAppealOverruled')}</ThemedText>
+          )}
+          {i === 1 && (
+            <ThemedText variant="caption" style={styles.modActionDetailText}>{t('escalatedToAdmin')}</ThemedText>
+          )}
+          {pr.responseText && (
+            <ThemedText variant="label" style={styles.sectionShellComment}>"{pr.responseText}"</ThemedText>
+          )}
+        </View>
+      ))}
+
+      {/* 4. Admin decision */}
+      <View style={styles.modActionShell}>
+        <View style={styles.reporterRow}>
+          <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>{t('adminDecision')}</ThemedText>
+          <Avatar user={data.adminResponder} size="sm" showKudosCount badgePosition="bottom-left" />
+          <View style={styles.userInfoColumn}>
+            <ThemedText variant="buttonSmall" color="inverse">{data.adminResponder?.displayName || t('admin')}</ThemedText>
+            <ThemedText variant="caption" style={styles.reporterUsername}>@{data.adminResponder?.username || t('unknown')}</ThemedText>
+          </View>
+        </View>
+        {data.adminResponseText && (
+          <ThemedText variant="label" style={styles.sectionShellComment}>"{data.adminResponseText}"</ThemedText>
+        )}
+      </View>
+    </View>
+  )
+
+  return (
+    <CardShell
+      header={headerContent}
+      headerColor={colors.warningSurface}
+      footer={footerContent}
+      footerColor={colors.primarySurface}
+      style={styles.reportCard}
+    >
+      {target?.type === 'position' ? (
+        <PositionInfoCard
+          position={target}
+          authorSubtitle="username"
+        />
+      ) : target?.type === 'chat_log' ? (
+        <PositionInfoCard
+          position={{
+            statement: target.positionStatement,
+            creator: target.participants?.[0],
+          }}
+          authorSubtitle="username"
+          label={t('chatLabel', { names: target.participants?.map(p => p?.displayName).filter(Boolean).join(' & ') })}
+        />
+      ) : (
+        <View style={{ padding: 16 }}>
+          <ThemedText variant="bodySmall" color="secondary" style={{ fontStyle: 'italic' }}>{t('contentUnavailable')}</ThemedText>
+        </View>
+      )}
+    </CardShell>
   )
 }
 
@@ -883,18 +878,11 @@ const createStyles = (colors) => StyleSheet.create({
   },
   reportCard: {
     borderRadius: 16,
-    overflow: 'hidden',
-    backgroundColor: colors.primarySurface,
     ...Platform.select({
       ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12 },
       android: { elevation: 6 },
       default: { boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)' },
     }),
-  },
-  reportHeader: {
-    backgroundColor: colors.warningSurface,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
   },
   headerRow: {
     flexDirection: 'row',
@@ -939,26 +927,7 @@ const createStyles = (colors) => StyleSheet.create({
     marginTop: 1,
     lineHeight: 16,
   },
-  reportBodyWrapper: {
-    backgroundColor: colors.warningSurface,
-  },
-  reportBody: {
-    backgroundColor: colors.cardBackground,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    overflow: 'hidden',
-  },
-  reportBodyBottomCurve: {
-    height: 16,
-    backgroundColor: colors.cardBackground,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
-  },
-  reportFooter: {
-    backgroundColor: colors.primarySurface,
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 12,
+  footerInner: {
     gap: 8,
   },
   reporterRow: {

@@ -59,21 +59,29 @@ export default memo(function CardShell({
           {header}
         </View>
 
-        {/* Body with curved top over header color */}
+        {/* Body with curved top over header color; when footer exists, a
+             colored strip behind the bottom 16px creates the swoop into the
+             footer color (same technique as the no-header layout). */}
         <View style={[styles.bodyWrapper, { backgroundColor: headerColor || BrandColor }, isFullSize && styles.bodyWrapperFull]}>
-          <View style={[styles.body, bodyStyle]}>
-            {children}
-          </View>
+          {resolvedFooter ? (
+            <View style={styles.bodyFooterTransition}>
+              <View style={[styles.footerCurveFill, { backgroundColor: footerBg }]} />
+              <View style={[styles.body, styles.bodyWithFooter, bodyStyle]}>
+                {children}
+              </View>
+            </View>
+          ) : (
+            <View style={[styles.body, bodyStyle]}>
+              {children}
+            </View>
+          )}
         </View>
 
-        {/* Optional footer with curved bottom body edge */}
+        {/* Optional footer */}
         {resolvedFooter && (
-          <>
-            <View style={[styles.bodyBottomCurve, { backgroundColor: colors.cardBackground }]} />
-            <View style={[styles.footerSection, { backgroundColor: resolvedFooterColor || footerBg }, bottomStyle]}>
-              {resolvedFooter}
-            </View>
-          </>
+          <View style={[styles.footerSection, { backgroundColor: resolvedFooterColor || footerBg }, bottomStyle]}>
+            {resolvedFooter}
+          </View>
         )}
       </View>
     )
@@ -90,10 +98,21 @@ export default memo(function CardShell({
       { backgroundColor: colors.cardBackground },
       style,
     ]}>
-      {/* White content section */}
-      <View style={[styles.whiteSection, isFullSize && styles.whiteSectionFull, bodyStyle]}>
-        {children}
-      </View>
+      {/* White content section — when footer exists, a colored strip behind
+           the bottom 16px lets the white section's border radius reveal the
+           footer color as curved corners ("swoop") above the footer. */}
+      {resolvedFooter ? (
+        <View style={[styles.whiteSectionOuter, isFullSize && styles.whiteSectionOuterFull]}>
+          <View style={[styles.footerCurveFill, { backgroundColor: noHeaderFooterBg }]} />
+          <View style={[styles.whiteSection, isFullSize && styles.whiteSectionFull, bodyStyle]}>
+            {children}
+          </View>
+        </View>
+      ) : (
+        <View style={[styles.whiteSection, isFullSize && styles.whiteSectionFull, bodyStyle]}>
+          {children}
+        </View>
+      )}
 
       {/* Optional colored bottom section */}
       {resolvedFooter && (
@@ -135,8 +154,11 @@ const createStyles = (colors) => StyleSheet.create({
     overflow: 'hidden',
     flex: 1,
   },
-  bodyBottomCurve: {
-    height: 16,
+  bodyFooterTransition: {
+    position: 'relative',
+    flex: 1,
+  },
+  bodyWithFooter: {
     borderBottomLeftRadius: 16,
     borderBottomRightRadius: 16,
   },
@@ -161,6 +183,19 @@ const createStyles = (colors) => StyleSheet.create({
   whiteSectionFull: {
     flex: 1,
     borderRadius: 0,
+  },
+  whiteSectionOuter: {
+    position: 'relative',
+  },
+  whiteSectionOuterFull: {
+    flex: 1,
+  },
+  footerCurveFill: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 16,
   },
   bottomSection: {
     padding: 16,
