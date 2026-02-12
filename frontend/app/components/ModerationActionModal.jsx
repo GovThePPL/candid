@@ -195,7 +195,6 @@ export default function ModerationActionModal({ visible, onClose, onSubmit, repo
       visible={visible}
       onClose={onClose}
       title={t('takeModeratorAction')}
-      maxHeight="85%"
     >
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         {rule && (

@@ -194,7 +194,7 @@ describe('Request Log screen', () => {
   it('tabs have correct accessibility roles', () => {
     render(<RequestLogScreen />)
     const tabs = screen.getAllByRole('tab')
-    expect(tabs.length).toBe(3)
+    expect(tabs.length).toBe(4)
   })
 
   it('action buttons have correct accessibility roles', async () => {

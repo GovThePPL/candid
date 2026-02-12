@@ -348,7 +348,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   keepButton: {
     flex: 1,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
     borderRadius: 24,
     paddingVertical: 14,
     alignItems: 'center',

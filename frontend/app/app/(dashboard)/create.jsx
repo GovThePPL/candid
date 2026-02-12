@@ -537,7 +537,7 @@ export default function Create() {
   if (isBanned) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <Header />
+        <Header onBack={() => router.back()} />
         <EmptyState
           icon="ban-outline"
           title={t('bannedTitle')}
@@ -549,7 +549,7 @@ export default function Create() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <Header />
+      <Header onBack={() => router.back()} />
         <ScrollView ref={scrollViewRef} contentContainerStyle={[
           styles.scrollContent,
           keyboardHeight > 0 && { paddingBottom: keyboardHeight },
@@ -848,7 +848,6 @@ export default function Create() {
         visible={showRules}
         onClose={() => setShowRules(false)}
         title={t('communityRules')}
-        maxHeight="70%"
       >
         {rulesLoading ? (
           <ActivityIndicator size="large" color={colors.primary} style={{ paddingVertical: 32 }} />

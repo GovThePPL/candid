@@ -148,7 +148,7 @@ function ChatHistoryCard({ chat, onPress, onSendKudos, onReport, currentUserId, 
 
       <TouchableOpacity onPress={onPress} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t('viewChatA11y')}>
         <CardShell
-          accentColor={agreedClosure ? SemanticColors.agree : colors.cardBackground}
+          accentColor={agreedClosure ? colors.agreeSurface : colors.cardBackground}
           bottomSection={closureBottomSection}
           bottomStyle={styles.closureBottom}
         >
@@ -327,7 +327,7 @@ export default function Chats() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <Header />
+      <Header onBack={() => router.back()} />
       <View style={styles.sectionHeader}>
         <ThemedText variant="h1" color="primary">{t('chatHistory')}</ThemedText>
         <ThemedText variant="bodySmall" color="secondary" style={styles.subtitle}>{chats.length === 1 ? t('conversationCountOne', { count: chats.length }) : t('conversationCount', { count: chats.length })}</ThemedText>

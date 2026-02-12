@@ -122,7 +122,6 @@ export default function AgreedStatementsModal({ visible, onClose, chatLogId, clo
       visible={visible}
       onClose={onClose}
       title={t('agreedStatements')}
-      maxHeight="80%"
     >
       <View style={styles.contentWrapper}>
         {renderContent()}
@@ -154,7 +153,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   retryButton: {
     marginTop: 16,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 8,
@@ -195,7 +194,7 @@ const createStyles = (colors) => StyleSheet.create({
     fontStyle: 'italic',
   },
   doneButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
     borderRadius: 8,
     paddingVertical: 14,
     alignItems: 'center',

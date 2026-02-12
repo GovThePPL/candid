@@ -1,4 +1,4 @@
-import { useEffect, useContext, useMemo } from "react"
+import { useEffect, useContext, useMemo, useState, useCallback } from "react"
 import { Tabs, useRouter } from "expo-router"
 import { Platform, useWindowDimensions, View, StyleSheet } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next"
 import { useThemeColors } from "../../hooks/useThemeColors"
 import ThemedText from "../../components/ThemedText"
 import { canModerate } from "../../lib/roles"
+import api from "../../lib/api"
 
 // Screen width threshold for showing labels beside icons
 const WIDE_SCREEN_THRESHOLD = 768
@@ -25,6 +26,19 @@ export default function DashboardLayout() {
   const colors = useThemeColors()
   const insets = useSafeAreaInsets()
   const styles = useMemo(() => createStyles(colors), [colors])
+  const [modQueueCount, setModQueueCount] = useState(0)
+
+  // Fetch mod queue count for badge
+  const fetchModQueueCount = useCallback(() => {
+    if (!isModerator) return
+    api.moderation.getQueue()
+      .then(data => setModQueueCount(Array.isArray(data) ? data.length : 0))
+      .catch(() => {})
+  }, [isModerator])
+
+  useEffect(() => {
+    fetchModQueueCount()
+  }, [fetchModQueueCount])
 
   // Handle navigation when a chat starts (via socket event) - works from any tab
   useEffect(() => {
@@ -102,19 +116,14 @@ export default function DashboardLayout() {
             tabBarIcon: renderTabIcon(MaterialCommunityIcons, 'cards-outline', 'cards', t('tabCards')),
           }}
         />
+        {/* Create and Chats - hidden from tab bar, accessed via FAB and Sidebar */}
         <Tabs.Screen
           name="create"
-          options={{
-            title: t('tabAdd'),
-            tabBarIcon: renderTabIcon(Ionicons, 'add-circle-outline', 'add-circle', t('tabAdd')),
-          }}
+          options={{ href: null }}
         />
         <Tabs.Screen
           name="chats"
-          options={{
-            title: t('tabChats'),
-            tabBarIcon: renderTabIcon(Ionicons, 'chatbubbles-outline', 'chatbubbles', t('tabChats')),
-          }}
+          options={{ href: null }}
         />
         <Tabs.Screen
           name="stats"
@@ -123,12 +132,14 @@ export default function DashboardLayout() {
             tabBarIcon: renderTabIcon(Ionicons, 'stats-chart-outline', 'stats-chart', t('tabStats')),
           }}
         />
-        {/* Moderation queue - only visible to moderators and admins */}
+        {/* Moderation queue - only visible to moderators, facilitators, and admins */}
         <Tabs.Screen
           name="moderation"
           options={isModerator ? {
             title: t('tabMod'),
             tabBarIcon: renderTabIcon(Ionicons, 'shield-outline', 'shield', t('tabMod')),
+            tabBarBadge: modQueueCount > 0 ? modQueueCount : undefined,
+            tabBarBadgeStyle: { backgroundColor: colors.primary, fontSize: 11 },
           } : { href: null }}
         />
         {/* Hide chat folder - requires chat ID, accessed via direct navigation */}

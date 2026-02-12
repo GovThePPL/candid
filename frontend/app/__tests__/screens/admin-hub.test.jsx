@@ -12,9 +12,10 @@ jest.mock('../../hooks/useUser', () => ({
     user: {
       id: 'u1',
       username: 'admin1',
+      displayName: 'Admin 1',
       roles: [
-        { role: 'admin', locationId: 'loc1', positionCategoryId: null },
-        { role: 'moderator', locationId: 'loc2', positionCategoryId: 'cat1' },
+        { role: 'moderator', locationId: 'loc2', positionCategoryId: 'cat1', locationName: 'Oregon', categoryLabel: 'Healthcare' },
+        { role: 'admin', locationId: 'loc1', positionCategoryId: null, locationName: 'United States', categoryLabel: null },
       ],
     },
   }),
@@ -47,6 +48,13 @@ jest.mock('../../components/Header', () => {
   }
 })
 
+jest.mock('../../components/Avatar', () => {
+  const { View } = require('react-native')
+  return function MockAvatar() {
+    return <View testID="avatar" />
+  }
+})
+
 const mockPush = jest.fn()
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush, back: jest.fn(), navigate: jest.fn() }),
@@ -72,17 +80,33 @@ describe('Admin Hub screen', () => {
     expect(screen.getByText('yourRoles')).toBeTruthy()
   })
 
-  it('displays user role badges', () => {
+  it('displays user card with avatar and name', () => {
     render(<AdminHub />)
-    expect(screen.getByText('roleAdmin')).toBeTruthy()
-    expect(screen.getByText('roleModerator')).toBeTruthy()
+    expect(screen.getByTestId('avatar')).toBeTruthy()
+    expect(screen.getByText('Admin 1')).toBeTruthy()
+    expect(screen.getByText('@admin1')).toBeTruthy()
   })
 
-  it('shows menu items for roles, request log, locations', () => {
+  it('displays role badges sorted most powerful first', () => {
     render(<AdminHub />)
-    expect(screen.getByText('menuRoles')).toBeTruthy()
+    const admin = screen.getByText('roleAdmin')
+    const mod = screen.getByText('roleModerator')
+    expect(admin).toBeTruthy()
+    expect(mod).toBeTruthy()
+  })
+
+  it('shows location and category for roles', () => {
+    render(<AdminHub />)
+    // mockT appends interpolation values: t('atLocation', { location: 'Oregon' }) → 'atLocation Oregon'
+    expect(screen.getByText('atLocation Oregon')).toBeTruthy()
+    expect(screen.getByText('inCategory Healthcare')).toBeTruthy()
+  })
+
+  it('shows menu items for organization, request log, users', () => {
+    render(<AdminHub />)
+    expect(screen.getByText('menuOrganization')).toBeTruthy()
     expect(screen.getByText('menuRequestLog')).toBeTruthy()
-    expect(screen.getByText('menuLocations')).toBeTruthy()
+    expect(screen.getByText('menuUsers')).toBeTruthy()
   })
 
   it('fetches pending count on mount', async () => {

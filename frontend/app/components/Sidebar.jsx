@@ -4,11 +4,12 @@ import { useRouter, usePathname } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useThemeColors } from '../hooks/useThemeColors'
-import { SemanticColors, BadgeColors } from '../constants/Colors'
+import { SemanticColors } from '../constants/Colors'
 import ThemedText from './ThemedText'
 import Avatar from './Avatar'
-import { canAccessAdmin, canModerate } from '../lib/roles'
+import { canAccessAdmin } from '../lib/roles'
 import api from '../lib/api'
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window')
@@ -19,14 +20,13 @@ export default function Sidebar({ visible, onClose, user, onLogout, onBugReport 
   const router = useRouter()
   const pathname = usePathname()
   const colors = useThemeColors()
+  const insets = useSafeAreaInsets()
   const styles = useMemo(() => createStyles(colors), [colors])
   const slideX = useSharedValue(SIDEBAR_WIDTH)
   const overlayOpacity = useSharedValue(0)
   const [pendingCount, setPendingCount] = useState(0)
-  const [modQueueCount, setModQueueCount] = useState(0)
 
   const showAdmin = canAccessAdmin(user)
-  const showModQueue = canModerate(user)
 
   // Fetch badge counts when sidebar becomes visible
   useEffect(() => {
@@ -36,12 +36,7 @@ export default function Sidebar({ visible, onClose, user, onLogout, onBugReport 
         .then(data => setPendingCount(Array.isArray(data) ? data.length : 0))
         .catch(() => {})
     }
-    if (showModQueue) {
-      api.moderation.getQueue()
-        .then(data => setModQueueCount(Array.isArray(data) ? data.length : 0))
-        .catch(() => {})
-    }
-  }, [visible, showAdmin, showModQueue])
+  }, [visible, showAdmin])
 
   useEffect(() => {
     if (visible) {
@@ -83,14 +78,12 @@ export default function Sidebar({ visible, onClose, user, onLogout, onBugReport 
       {/* Sidebar */}
       <Animated.View style={[styles.sidebar, sidebarStyle]}>
         {/* User Info */}
-        <View style={styles.userSection}>
-          <Avatar user={user} size="lg" showKudosBadge={false} />
-          <View style={styles.kudosBadge}>
-            <Ionicons name="star" size={14} color={colors.primary} />
-            <ThemedText variant="buttonSmall" color="primary">{user?.kudosCount || 0}</ThemedText>
+        <View style={[styles.userSection, { paddingTop: insets.top + 16 }]}>
+          <Avatar user={user} size={64} showKudosBadge showKudosCount />
+          <View style={styles.userInfo}>
+            <ThemedText variant="h3" color="dark" numberOfLines={1}>{user?.displayName || t('guest')}</ThemedText>
+            <ThemedText variant="bodySmall" color="secondary" numberOfLines={1}>@{user?.username || 'guest'}</ThemedText>
           </View>
-          <ThemedText variant="h2" color="dark">{user?.displayName || t('guest')}</ThemedText>
-          <ThemedText variant="bodySmall" color="secondary">@{user?.username || 'guest'}</ThemedText>
         </View>
 
         {/* Menu Items */}
@@ -98,11 +91,11 @@ export default function Sidebar({ visible, onClose, user, onLogout, onBugReport 
           <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/settings')} accessibilityRole="button" accessibilityLabel={t('settings')}>
             <ThemedText variant="button" color="inverse" style={styles.menuText}>{t('settings')}</ThemedText>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/support')} accessibilityRole="button" accessibilityLabel={t('supportUs')}>
-            <ThemedText variant="button" color="inverse" style={styles.menuText}>{t('supportUs')}</ThemedText>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/reports')} accessibilityRole="button" accessibilityLabel={t('communityReports')}>
-            <ThemedText variant="button" color="inverse" style={styles.menuText}>{t('communityReports')}</ThemedText>
+          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/chats')} accessibilityRole="button" accessibilityLabel={t('chatHistory')}>
+            <View style={styles.menuItemRow}>
+              <ThemedText variant="button" color="inverse" style={styles.menuText}>{t('chatHistory')}</ThemedText>
+              <Ionicons name="chatbubbles-outline" size={18} color="#FFFFFF" />
+            </View>
           </TouchableOpacity>
           {showAdmin && (
             <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/admin')} accessibilityRole="button" accessibilityLabel={t('admin:adminPanelA11y')}>
@@ -111,18 +104,6 @@ export default function Sidebar({ visible, onClose, user, onLogout, onBugReport 
                 {pendingCount > 0 && (
                   <View style={styles.badge}>
                     <ThemedText variant="caption" color="inverse" style={styles.badgeText}>{pendingCount}</ThemedText>
-                  </View>
-                )}
-              </View>
-            </TouchableOpacity>
-          )}
-          {showModQueue && (
-            <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/moderation')} accessibilityRole="button" accessibilityLabel={t('admin:modQueue')}>
-              <View style={styles.menuItemRow}>
-                <ThemedText variant="button" color="inverse" style={styles.menuText}>{t('admin:modQueue')}</ThemedText>
-                {modQueueCount > 0 && (
-                  <View style={styles.badge}>
-                    <ThemedText variant="caption" color="inverse" style={styles.badgeText}>{modQueueCount}</ThemedText>
                   </View>
                 )}
               </View>
@@ -169,7 +150,7 @@ const createStyles = (colors) => StyleSheet.create({
     bottom: 0,
     width: SIDEBAR_WIDTH,
     backgroundColor: colors.cardBackground,
-    paddingTop: 60,
+    paddingTop: 0,
     shadowColor: '#000',
     shadowOffset: { width: -2, height: 0 },
     shadowOpacity: 0.25,
@@ -177,26 +158,23 @@ const createStyles = (colors) => StyleSheet.create({
     elevation: 10,
   },
   userSection: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 20,
+    gap: 12,
+    paddingTop: 16,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: colors.cardBorder,
   },
-  kudosBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: BadgeColors.kudosBadge,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
-    marginBottom: 8,
+  userInfo: {
+    flex: 1,
   },
   menuSection: {
     paddingTop: 8,
   },
   menuItem: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
     marginHorizontal: 16,
     marginVertical: 6,
     paddingVertical: 12,

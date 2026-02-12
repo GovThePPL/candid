@@ -197,9 +197,9 @@ class TestAdminGetSurveys:
         survey_ids = [s['id'] for s in surveys]
         assert SURVEY_INACTIVE_ID in survey_ids
 
-    def test_admin_get_surveys_forbidden_for_normal_user(self, normal_headers):
-        """Normal user gets 403 for admin endpoint"""
-        resp = requests.get(f"{BASE_URL}/admin/surveys", headers=normal_headers)
+    def test_admin_get_surveys_forbidden_for_normal_user(self, normal2_headers):
+        """Normal user (no roles) gets 403 for admin endpoint"""
+        resp = requests.get(f"{BASE_URL}/admin/surveys", headers=normal2_headers)
         assert resp.status_code == 403
 
 

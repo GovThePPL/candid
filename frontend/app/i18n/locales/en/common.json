@@ -23,8 +23,6 @@
   "characters_remaining_other": "{{count}} characters remaining",
 
   "settings": "Settings",
-  "supportUs": "Support Us",
-  "communityReports": "Community Reports",
   "reportBug": "Report Bug",
   "logOut": "Log Out",
   "closeMenu": "Close menu",
@@ -110,5 +108,8 @@
   "systemLanguage": "System",
   "languageA11y": "Language: {{language}}",
   "languageHintA11y": "Opens language selector",
-  "systemLanguageA11y": "System language"
+  "systemLanguageA11y": "System language",
+
+  "chatHistory": "Chat History",
+  "createPositionA11y": "Create position"
 }

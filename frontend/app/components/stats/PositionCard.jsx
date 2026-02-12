@@ -313,7 +313,7 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 10,
   },
   labelCellActive: {
-    backgroundColor: colors.uiBackground,
+    backgroundColor: '#FFFFFF',
   },
   barCell: {
     height: 20,

@@ -122,5 +122,14 @@
   "banAppealError": "Failed to submit appeal",
   "banTemporaryDuration": "Temporary ({{days}} days)",
   "banChatLabel": "Chat: {{participants}}",
-  "surveyDefaultCategory": "General"
+  "surveyDefaultCategory": "General",
+
+  "emptyTitle": "No more cards",
+  "emptyText": "Check back later for more positions, or create your own!",
+  "createPosition": "Create Position",
+
+  "addedToChattingList": "Added to chatting list \u2014 you'll be matched when someone is online",
+  "unknownCardType": "Unknown card type: {{type}}",
+  "loadingCards": "Loading cards...",
+  "failedLoadCards": "Failed to load cards"
 }

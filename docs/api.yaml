@@ -79,9 +79,15 @@ components:
           type: string
           format: uuid
           nullable: true
+        locationName:
+          type: string
+          nullable: true
         positionCategoryId:
           type: string
           format: uuid
+          nullable: true
+        categoryLabel:
+          type: string
           nullable: true
     User:
       type: object
@@ -1313,6 +1319,14 @@ components:
       properties:
         surveyTitle:
           type: string
+        locationId:
+          type: string
+          format: uuid
+          nullable: true
+        positionCategoryId:
+          type: string
+          format: uuid
+          nullable: true
         items:
           type: array
           minItems: 2
@@ -1326,6 +1340,10 @@ components:
         polisConversationId:
           type: string
           description: Link to Polis conversation for group labeling
+        isGroupLabeling:
+          type: boolean
+          default: false
+          description: Whether this survey is for group identity labeling
         startTime:
           type: string
           format: date-time
@@ -1410,6 +1428,15 @@ components:
               type: string
             displayName:
               type: string
+            avatarIconUrl:
+              type: string
+              nullable: true
+            trustScore:
+              type: number
+              format: float
+              nullable: true
+            kudosCount:
+              type: integer
         role:
           type: string
           enum: [admin, moderator, facilitator, assistant_moderator, expert, liaison]
@@ -1653,6 +1680,9 @@ components:
         categoryName:
           type: string
           nullable: true
+        isGroupLabeling:
+          type: boolean
+          default: false
         items:
           type: array
           items:
@@ -1832,6 +1862,10 @@ components:
         positionCategoryId:
           type: string
           format: uuid
+        locationId:
+          type: string
+          format: uuid
+          nullable: true
         surveyTitle:
           type: string
         startTime:
@@ -5255,6 +5289,12 @@ paths:
             type: string
             format: date-time
           description: Filter surveys created before this timestamp
+        - name: locationId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter surveys by location
       responses:
         '200':
           description: List of surveys
@@ -5969,6 +6009,275 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
+
+  /admin/categories:
+    post:
+      operationId: createCategory
+      summary: Create a new position category
+      tags:
+        - Admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - label
+              properties:
+                label:
+                  type: string
+                parentPositionCategoryId:
+                  type: string
+                  format: uuid
+                createLabelSurvey:
+                  type: boolean
+                  default: false
+                labelSurveyItems:
+                  type: array
+                  items:
+                    type: string
+                labelSurveyComparisonQuestion:
+                  type: string
+      responses:
+        '201':
+          description: Category created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  label:
+                    type: string
+                  parentPositionCategoryId:
+                    type: string
+                    format: uuid
+        '400':
+          description: Invalid request (empty label or duplicate)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+      security:
+        - BearerAuth: []
+
+  /admin/users/{userId}/ban:
+    post:
+      operationId: banUser
+      summary: Ban a user
+      tags:
+        - Admin
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: User banned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+        '400':
+          description: Invalid request (already banned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+      security:
+        - BearerAuth: []
+
+  /admin/users/{userId}/unban:
+    post:
+      operationId: unbanUser
+      summary: Unban a user
+      tags:
+        - Admin
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: User unbanned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+        '400':
+          description: Invalid request (not banned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+      security:
+        - BearerAuth: []
+
+  /admin/actions:
+    get:
+      operationId: getAdminActions
+      summary: Get admin action log (ban/unban audit trail)
+      tags:
+        - Admin
+      responses:
+        '200':
+          description: List of admin actions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      format: uuid
+                    action:
+                      type: string
+                      enum: [ban, unban]
+                    targetUser:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        username:
+                          type: string
+                        displayName:
+                          type: string
+                        avatarIconUrl:
+                          type: string
+                          nullable: true
+                    performedBy:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        username:
+                          type: string
+                        displayName:
+                          type: string
+                    reason:
+                      type: string
+                    createdTime:
+                      type: string
+                      format: date-time
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+      security:
+        - BearerAuth: []
+
+  /admin/categories/{categoryId}/label-survey:
+    get:
+      operationId: getCategoryLabelSurvey
+      summary: Get the label survey for a category
+      tags:
+        - Admin
+      parameters:
+        - name: categoryId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Label survey (or null if none)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  labelSurvey:
+                    nullable: true
+                    allOf:
+                      - $ref: '#/components/schemas/PairwiseSurvey'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+      security:
+        - BearerAuth: []
 
   /pairwise/{surveyId}/respond:
     post:

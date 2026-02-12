@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react-native'
 // Mock useThemeColors to return light theme colors
 jest.mock('../../hooks/useThemeColors', () => ({
   useThemeColors: () => ({
-    primary: '#5C005C',
+    primary: '#5C005C', primarySurface: '#5C005C',
     text: '#2C3842',
     title: '#5C005C',
     secondaryText: '#666666',
@@ -20,7 +20,7 @@ jest.mock('../../hooks/useThemeColors', () => ({
 jest.mock('../../contexts/ThemeContext', () => ({
   useTheme: () => ({
     colors: {
-      primary: '#5C005C',
+      primary: '#5C005C', primarySurface: '#5C005C',
       text: '#2C3842',
       title: '#5C005C',
       secondaryText: '#666666',

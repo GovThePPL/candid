@@ -93,7 +93,7 @@ const KudosCard = forwardRef(function KudosCard({
         size="full"
         headerColor={BrandColor}
         header={headerContent}
-        footerColor={SemanticColors.agree}
+        footerColor={colors.agreeSurface}
         footer={footerContent}
       >
         <PositionInfoCard

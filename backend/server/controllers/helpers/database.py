@@ -33,7 +33,12 @@ class Database:
 		conn = self.pool.getconn()
 		try:
 			query_upper = query.strip().upper()
-			is_select = query_upper.startswith("SELECT") or query_upper.startswith("WITH")
+			is_select = query_upper.startswith("SELECT")
+			if query_upper.startswith("WITH"):
+				# CTE: check if the main statement (after CTEs) is a SELECT or DML
+				is_select = not any(
+					kw in query_upper for kw in ("UPDATE ", "INSERT ", "DELETE ")
+				)
 			has_returning = "RETURNING" in query_upper
 			with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
 				if executemany:
@@ -42,10 +47,13 @@ class Database:
 					cur.execute(query, params)
 				retval = None
 				if is_select or has_returning:
-					if fetchone:
-						retval = cur.fetchone()
-					else:
-						retval = cur.fetchall()
+					try:
+						if fetchone:
+							retval = cur.fetchone()
+						else:
+							retval = cur.fetchall()
+					except psycopg2.ProgrammingError:
+						retval = None
 				if not is_select:
 					conn.commit()
 

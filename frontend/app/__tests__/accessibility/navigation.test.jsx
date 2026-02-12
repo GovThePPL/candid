@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react-native'
 // Mock theme
 jest.mock('../../hooks/useThemeColors', () => ({
   useThemeColors: () => ({
-    primary: '#5C005C',
+    primary: '#5C005C', primarySurface: '#5C005C',
     text: '#2C3842',
     title: '#5C005C',
     secondaryText: '#666666',
@@ -87,16 +87,6 @@ describe('Sidebar accessibility', () => {
     expect(screen.getByRole('button', { name: /settings/i })).toBeTruthy()
   })
 
-  test('Support Us menu item has button role and label', () => {
-    render(<Sidebar {...defaultProps} />)
-    expect(screen.getByRole('button', { name: /supportUs/i })).toBeTruthy()
-  })
-
-  test('Community Reports menu item has button role and label', () => {
-    render(<Sidebar {...defaultProps} />)
-    expect(screen.getByRole('button', { name: /communityReports/i })).toBeTruthy()
-  })
-
   test('Report Bug menu item has button role and label', () => {
     render(<Sidebar {...defaultProps} />)
     expect(screen.getByRole('button', { name: /reportBug/i })).toBeTruthy()
@@ -106,14 +96,14 @@ describe('Sidebar accessibility', () => {
     render(<Sidebar {...defaultProps} />)
     expect(screen.getByRole('button', { name: /logOut/i })).toBeTruthy()
   })
+
+  test('Chat History menu item has button role and label', () => {
+    render(<Sidebar {...defaultProps} />)
+    expect(screen.getByRole('button', { name: /chatHistory/i })).toBeTruthy()
+  })
 })
 
 describe('Header accessibility', () => {
-  test('kudos badge has accessible label', () => {
-    render(<Header />)
-    expect(screen.getByLabelText(/kudosCount/i)).toBeTruthy()
-  })
-
   test('menu button has accessible label', () => {
     render(<Header />)
     expect(screen.getByRole('button', { name: /openMenu/i })).toBeTruthy()

@@ -421,7 +421,7 @@ const createStyles = (colors) => StyleSheet.create({
     height: 40,
   },
   acceptButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
     paddingVertical: 14,
     borderRadius: 8,
     alignItems: 'center',

@@ -458,7 +458,7 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 6,
   },
   likelihoodOptionSelected: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
   },
   likelihoodOptionLabel: {
     fontWeight: '500',

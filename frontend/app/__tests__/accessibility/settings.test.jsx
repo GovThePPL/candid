@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react-native'
 
 // Mock theme and user hooks
 const mockColors = {
-  primary: '#5C005C', text: '#2C3842', title: '#5C005C',
+  primary: '#5C005C', primarySurface: '#5C005C', text: '#2C3842', title: '#5C005C',
   secondaryText: '#666666', placeholderText: '#999999', pass: '#CCCCCC',
   cardBackground: '#FFFFFF', cardBorder: '#E0E0E0', background: '#F5F5F5',
   badgeText: '#FFFFFF', buttonDefault: '#E0E0E0', buttonSelected: '#5C005C',

@@ -445,7 +445,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   saveButton: {
     flex: 1,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',

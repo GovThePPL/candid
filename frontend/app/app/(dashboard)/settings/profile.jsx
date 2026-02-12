@@ -17,7 +17,7 @@ import Header from '../../../components/Header'
 import ImageCropModal from '../../../components/ImageCropModal'
 import Avatar from '../../../components/Avatar'
 import LoadingView from '../../../components/LoadingView'
-import LocationPicker from '../../../components/LocationPicker'
+import LocationFilterButton from '../../../components/LocationFilterButton'
 
 export default function ProfileSettings() {
   const { t } = useTranslation('settings')
@@ -45,7 +45,6 @@ export default function ProfileSettings() {
   // Location state
   const [locations, setLocations] = useState([])
   const [allLocations, setAllLocations] = useState([])
-  const [locationPickerOpen, setLocationPickerOpen] = useState(false)
   const [savingLocation, setSavingLocation] = useState(false)
 
   // Modal state
@@ -164,7 +163,6 @@ export default function ProfileSettings() {
       setError(null)
       const updatedLocations = await api.users.setLocation(locationId)
       setLocations(updatedLocations || [])
-      setLocationPickerOpen(false)
       if (user?.id) await CacheManager.invalidate(CacheKeys.profile(user.id))
     } catch (err) {
       console.error('Failed to set location:', err)
@@ -357,21 +355,14 @@ export default function ProfileSettings() {
             <Ionicons name="location-outline" size={22} color={colors.primary} />
             <ThemedText variant="h2" color="dark">{t('location')}</ThemedText>
           </View>
-          <TouchableOpacity
-            style={styles.locationSelector}
-            onPress={() => setLocationPickerOpen(true)}
-            accessibilityRole="button"
+          <LocationFilterButton
+            allLocations={allLocations}
+            selectedLocationId={locations.length > 0 ? locations[locations.length - 1].id : null}
+            onSelect={handleSetLocation}
+            placeholder={t('tapSetLocation')}
+            saving={savingLocation}
             accessibilityLabel={t('locationA11y', { location: locations.length > 0 ? locations.map(loc => loc.name).join(', ') : t('notSet') })}
-          >
-            {locations.length > 0 ? (
-              <ThemedText variant="body" color="badge" style={styles.locationBreadcrumb} numberOfLines={2}>
-                {locations.map(loc => loc.name).join(' \u203A ')}
-              </ThemedText>
-            ) : (
-              <ThemedText variant="body" color="secondary" style={styles.locationPlaceholder}>{t('tapSetLocation')}</ThemedText>
-            )}
-            <Ionicons name="chevron-forward" size={18} color={colors.secondaryText} />
-          </TouchableOpacity>
+          />
         </View>
       </ScrollView>
 
@@ -477,15 +468,6 @@ export default function ProfileSettings() {
         onConfirm={handleCropConfirm}
       />
 
-      {/* Location Picker Modal */}
-      <LocationPicker
-        visible={locationPickerOpen}
-        onClose={() => setLocationPickerOpen(false)}
-        allLocations={allLocations}
-        currentLocationId={locations.length > 0 ? locations[locations.length - 1].id : null}
-        onSelect={handleSetLocation}
-        saving={savingLocation}
-      />
     </SafeAreaView>
   )
 }
@@ -543,7 +525,7 @@ const createStyles = (colors) => StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     right: 0,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
     width: 32,
     height: 32,
     borderRadius: 16,
@@ -576,7 +558,7 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 12,
   },
   saveProfileButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
@@ -585,20 +567,6 @@ const createStyles = (colors) => StyleSheet.create({
   // saveProfileButtonText removed - handled by ThemedText variant="button" color="inverse"
   buttonDisabled: {
     opacity: 0.6,
-  },
-  locationSelector: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    gap: 8,
-  },
-  locationBreadcrumb: {
-    flex: 1,
-  },
-  locationPlaceholder: {
-    flex: 1,
-    fontStyle: 'italic',
   },
   // Avatar modal styles
   avatarModalContent: {
@@ -617,7 +585,7 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 8,
@@ -679,7 +647,7 @@ const createStyles = (colors) => StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     borderRadius: 8,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
     alignItems: 'center',
   },
   // previewAcceptButtonText removed - handled by ThemedText variant="button" color="inverse"

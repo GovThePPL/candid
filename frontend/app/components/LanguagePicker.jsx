@@ -1,4 +1,4 @@
-import { StyleSheet, View, TouchableOpacity, Modal, Pressable, Text } from 'react-native'
+import { StyleSheet, View, TouchableOpacity, Modal, Pressable, Image } from 'react-native'
 import { useState, useMemo } from 'react'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -8,8 +8,8 @@ import { useI18n, SUPPORTED_LANGUAGES, systemLanguageAvailable } from '../contex
 import ThemedText from './ThemedText'
 
 const LANGUAGE_META = {
-  en: { label: 'English', flag: '\u{1F1FA}\u{1F1F8}', code: 'EN' },
-  es: { label: 'Espa\u00f1ol', flag: '\u{1F1EA}\u{1F1F8}', code: 'ES' },
+  en: { label: 'English', flagUri: 'https://flagcdn.com/w40/us.png', code: 'EN' },
+  es: { label: 'Espa\u00f1ol', flagUri: 'https://flagcdn.com/w40/es.png', code: 'ES' },
 }
 
 const LANGUAGE_OPTIONS = SUPPORTED_LANGUAGES.map((code) => ({ value: code, label: LANGUAGE_META[code]?.label || code }))
@@ -47,7 +47,7 @@ function DropdownPicker() {
         accessibilityLabel={t('languageA11y', { language: currentMeta.label })}
         accessibilityHint={t('languageHintA11y')}
       >
-        <Text style={styles.flag}>{currentMeta.flag}</Text>
+        <Image source={{ uri: currentMeta.flagUri }} style={styles.flag} />
         <ThemedText variant="label" style={styles.triggerCode}>{currentMeta.code}</ThemedText>
         <Ionicons name="chevron-down" size={14} color={colors.secondaryText} />
       </TouchableOpacity>
@@ -73,7 +73,7 @@ function DropdownPicker() {
                     accessibilityState={{ selected: isSelected }}
                     accessibilityLabel={meta.label}
                   >
-                    <Text style={styles.menuFlag}>{meta.flag}</Text>
+                    <Image source={{ uri: meta.flagUri }} style={styles.menuFlag} />
                     <ThemedText variant="label" style={[
                       styles.menuCode,
                       isSelected && styles.menuCodeSelected,
@@ -134,7 +134,7 @@ function InlinePicker() {
         accessibilityRole="button"
         accessibilityLabel={t('selectLanguageA11y')}
       >
-        <Text style={styles.flag}>{currentMeta.flag}</Text>
+        <Image source={{ uri: currentMeta.flagUri }} style={styles.flag} />
         <ThemedText variant="button" color="primary" style={styles.label}>{currentMeta.label}</ThemedText>
         <Ionicons name="chevron-forward" size={18} color={colors.secondaryText} />
       </TouchableOpacity>
@@ -160,7 +160,7 @@ function InlinePicker() {
                     accessibilityState={{ selected: isSelected }}
                     accessibilityLabel={meta.label}
                   >
-                    <Text style={styles.menuFlag}>{meta.flag}</Text>
+                    <Image source={{ uri: meta.flagUri }} style={styles.menuFlag} />
                     <ThemedText variant="bodySmall" style={[
                       styles.menuLabel,
                       isSelected && styles.menuLabelSelected,
@@ -275,7 +275,9 @@ const createDropdownStyles = (colors) => StyleSheet.create({
     borderColor: colors.cardBorder,
   },
   flag: {
-    fontSize: 18,
+    width: 20,
+    height: 14,
+    borderRadius: 2,
   },
   triggerCode: {
     fontWeight: '600',
@@ -314,7 +316,9 @@ const createDropdownStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.primary + '18',
   },
   menuFlag: {
-    fontSize: 18,
+    width: 22,
+    height: 16,
+    borderRadius: 2,
   },
   menuCode: {
     fontWeight: '700',
@@ -357,7 +361,9 @@ const createInlineStyles = (colors) => StyleSheet.create({
     padding: 16,
   },
   flag: {
-    fontSize: 18,
+    width: 22,
+    height: 16,
+    borderRadius: 2,
     marginRight: 10,
   },
   label: {
@@ -397,7 +403,9 @@ const createInlineStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.primary + '18',
   },
   menuFlag: {
-    fontSize: 18,
+    width: 22,
+    height: 16,
+    borderRadius: 2,
   },
   menuLabel: {
     flex: 1,
@@ -445,7 +453,7 @@ const createPillStyles = (colors) => StyleSheet.create({
     borderRadius: 8,
   },
   optionSelected: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
   },
   optionLabel: {
     fontWeight: '500',

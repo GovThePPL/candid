@@ -1,4 +1,4 @@
-import { StyleSheet, View, TouchableOpacity, FlatList, ActivityIndicator, TextInput, Alert } from 'react-native'
+import { StyleSheet, View, TouchableOpacity, FlatList, ActivityIndicator, TextInput, Alert, Platform } from 'react-native'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -10,13 +10,14 @@ import { SemanticColors } from '../../../constants/Colors'
 import { Typography } from '../../../constants/Theme'
 import { ROLE_LABEL_KEYS } from '../../../lib/roles'
 import api, { translateError } from '../../../lib/api'
+import Avatar from '../../../components/Avatar'
 import ThemedText from '../../../components/ThemedText'
 import Header from '../../../components/Header'
 import EmptyState from '../../../components/EmptyState'
 import BottomDrawerModal from '../../../components/BottomDrawerModal'
 import { useToast } from '../../../components/Toast'
 
-const TABS = ['pending', 'all', 'mine']
+const TABS = ['pending', 'all', 'mine', 'actions']
 
 const STATUS_COLORS = {
   pending: SemanticColors.pending,
@@ -66,6 +67,7 @@ export default function RequestLogScreen() {
 
   const [activeTab, setActiveTab] = useState('pending')
   const [requests, setRequests] = useState([])
+  const [adminActions, setAdminActions] = useState([])
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(null)
 
@@ -86,7 +88,25 @@ export default function RequestLogScreen() {
     }
   }, [t, toast])
 
-  useEffect(() => { fetchRequests(activeTab) }, [activeTab, fetchRequests])
+  const fetchAdminActions = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await api.admin.getAdminActions()
+      setAdminActions(data || [])
+    } catch (err) {
+      toast?.(translateError(err.message, t) || t('loadError'), 'error')
+    } finally {
+      setLoading(false)
+    }
+  }, [t, toast])
+
+  useEffect(() => {
+    if (activeTab === 'actions') {
+      fetchAdminActions()
+    } else {
+      fetchRequests(activeTab)
+    }
+  }, [activeTab, fetchRequests, fetchAdminActions])
 
   const handleTabChange = useCallback((tab) => {
     setActiveTab(tab)
@@ -122,30 +142,29 @@ export default function RequestLogScreen() {
     }
   }, [denyTargetId, denyReason, activeTab, fetchRequests, t, toast])
 
-  const handleRescind = useCallback((requestId) => {
-    Alert.alert(
-      t('rescindConfirm'),
-      t('rescindMessage'),
-      [
-        { text: t('cancel'), style: 'cancel' },
-        {
-          text: t('rescind'),
-          style: 'destructive',
-          onPress: async () => {
-            setProcessing(requestId)
-            try {
-              await api.admin.rescindRoleRequest(requestId)
-              toast?.(t('roleRescinded'), 'success')
-              fetchRequests(activeTab)
-            } catch (err) {
-              toast?.(translateError(err.message, t) || t('error'), 'error')
-            } finally {
-              setProcessing(null)
-            }
-          },
-        },
-      ]
-    )
+  const handleRescind = useCallback(async (requestId) => {
+    const confirmed = Platform.OS === 'web'
+      ? window.confirm(`${t('rescindConfirm')}\n${t('rescindMessage')}`)
+      : await new Promise(resolve => Alert.alert(
+          t('rescindConfirm'),
+          t('rescindMessage'),
+          [
+            { text: t('cancel'), style: 'cancel', onPress: () => resolve(false) },
+            { text: t('rescind'), style: 'destructive', onPress: () => resolve(true) },
+          ],
+          { cancelable: true, onDismiss: () => resolve(false) }
+        ))
+    if (!confirmed) return
+    setProcessing(requestId)
+    try {
+      await api.admin.rescindRoleRequest(requestId)
+      toast?.(t('roleRescinded'), 'success')
+      fetchRequests(activeTab)
+    } catch (err) {
+      toast?.(translateError(err.message, t) || t('error'), 'error')
+    } finally {
+      setProcessing(null)
+    }
   }, [activeTab, fetchRequests, t, toast])
 
   const pendingCount = useMemo(() => {
@@ -156,7 +175,8 @@ export default function RequestLogScreen() {
   const getEmptySubtitle = () => {
     if (activeTab === 'pending') return t('noRequestsReviewSubtitle')
     if (activeTab === 'all') return t('noRequestsAllSubtitle')
-    return t('noRequestsMineSubtitle')
+    if (activeTab === 'mine') return t('noRequestsMineSubtitle')
+    return t('noAdminActionsSubtitle')
   }
 
   const renderRequest = useCallback(({ item }) => {
@@ -282,8 +302,8 @@ export default function RequestLogScreen() {
               accessibilityLabel={t('denyA11y')}
               accessibilityState={{ disabled: processing === item.id }}
             >
-              <Ionicons name="close" size={18} color="#FFFFFF" />
-              <ThemedText variant="buttonSmall" color="inverse">{t('deny')}</ThemedText>
+              <Ionicons name="close" size={18} color={SemanticColors.warning} />
+              <ThemedText variant="buttonSmall" color="error">{t('deny')}</ThemedText>
             </TouchableOpacity>
           </View>
         )}
@@ -302,8 +322,8 @@ export default function RequestLogScreen() {
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
                 <>
-                  <Ionicons name="arrow-undo" size={18} color="#FFFFFF" />
-                  <ThemedText variant="buttonSmall" color="inverse">{t('rescind')}</ThemedText>
+                  <Ionicons name="arrow-undo" size={18} color={colors.buttonDefaultText} />
+                  <ThemedText variant="buttonSmall" style={{ color: colors.buttonDefaultText }}>{t('rescind')}</ThemedText>
                 </>
               )}
             </TouchableOpacity>
@@ -312,6 +332,43 @@ export default function RequestLogScreen() {
       </View>
     )
   }, [styles, t, activeTab, handleApprove, handleRescind, processing, colors])
+
+  const renderAdminAction = useCallback(({ item }) => {
+    const isBan = item.action === 'ban'
+    return (
+      <View style={styles.requestCard}>
+        <View style={styles.badgeRow}>
+          <View style={[styles.actionBadge, isBan ? styles.actionBadgeRemove : styles.actionBadgeAssign]}>
+            <ThemedText variant="badge" color="inverse" style={styles.actionBadgeText}>
+              {isBan ? t('actionBan') : t('actionUnban')}
+            </ThemedText>
+          </View>
+        </View>
+        <View style={styles.requestInfo}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Avatar user={item.targetUser} size="sm" />
+            <View>
+              <ThemedText variant="button" color="dark">{item.targetUser?.displayName}</ThemedText>
+              <ThemedText variant="caption" color="secondary">@{item.targetUser?.username}</ThemedText>
+            </View>
+          </View>
+        </View>
+        <ThemedText variant="caption" color="secondary">
+          {t('performedBy', { name: `${item.performedBy?.displayName} (@${item.performedBy?.username})` })}
+        </ThemedText>
+        {item.reason && (
+          <ThemedText variant="caption" color="secondary" style={styles.reasonText}>
+            {t('reason')}: {item.reason}
+          </ThemedText>
+        )}
+        {item.createdTime && (
+          <ThemedText variant="caption" color="secondary">
+            {t('createdAt')}: {new Date(item.createdTime).toLocaleDateString()}
+          </ThemedText>
+        )}
+      </View>
+    )
+  }, [styles, t])
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -323,7 +380,7 @@ export default function RequestLogScreen() {
         <View style={styles.tabRow}>
           {TABS.map((tab) => {
             const isActive = activeTab === tab
-            const tabKey = tab === 'pending' ? 'tabNeedsReview' : tab === 'all' ? 'tabAllRequests' : 'tabMyRequests'
+            const tabKey = tab === 'pending' ? 'tabNeedsReview' : tab === 'all' ? 'tabAllRequests' : tab === 'mine' ? 'tabMyRequests' : 'tabAdminActions'
             const a11yKey = tabKey + 'A11y'
             return (
               <TouchableOpacity
@@ -349,6 +406,22 @@ export default function RequestLogScreen() {
           <View style={styles.center}>
             <ActivityIndicator size="large" color={colors.primary} />
           </View>
+        ) : activeTab === 'actions' ? (
+          adminActions.length === 0 ? (
+            <EmptyState
+              icon="shield-outline"
+              title={t('noAdminActions')}
+              subtitle={getEmptySubtitle()}
+              style={styles.emptyContainer}
+            />
+          ) : (
+            <FlatList
+              data={adminActions}
+              keyExtractor={(item) => item.id}
+              renderItem={renderAdminAction}
+              contentContainerStyle={styles.listContent}
+            />
+          )
         ) : requests.length === 0 ? (
           <EmptyState
             icon="document-text-outline"
@@ -371,7 +444,8 @@ export default function RequestLogScreen() {
         visible={denyModalVisible}
         onClose={() => { setDenyModalVisible(false); setDenyReason(''); setDenyTargetId(null) }}
         title={t('denyReason')}
-        maxHeight="40%"
+        shrink
+
       >
         <View style={styles.modalContent}>
           <TextInput
@@ -425,18 +499,18 @@ const createStyles = (colors) => StyleSheet.create({
   tab: {
     flex: 1,
     paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: 16,
     backgroundColor: colors.buttonDefault,
     alignItems: 'center',
   },
   tabActive: {
-    backgroundColor: colors.buttonSelected,
+    backgroundColor: colors.primarySurface,
   },
   tabText: {
-    color: colors.secondaryText,
+    color: colors.buttonDefaultText,
   },
   tabTextActive: {
-    color: colors.text,
+    color: '#FFFFFF',
     fontWeight: '700',
   },
   center: {
@@ -529,10 +603,10 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: SemanticColors.success,
+    backgroundColor: colors.primarySurface,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: 12,
     flex: 1,
     justifyContent: 'center',
   },
@@ -540,10 +614,12 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: SemanticColors.warning,
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: SemanticColors.warning,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: 12,
     flex: 1,
     justifyContent: 'center',
   },
@@ -551,10 +627,10 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: SemanticColors.neutral,
+    backgroundColor: colors.buttonDefault,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: 12,
     flex: 1,
     justifyContent: 'center',
   },
@@ -575,7 +651,7 @@ const createStyles = (colors) => StyleSheet.create({
     maxHeight: 120,
   },
   denySubmitButton: {
-    backgroundColor: SemanticColors.warning,
+    backgroundColor: colors.primarySurface,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',

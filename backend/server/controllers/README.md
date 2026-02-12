@@ -72,7 +72,7 @@ Location ancestry is resolved with recursive CTEs (`get_location_ancestors`, `ge
 |----------|---------|
 | `authorization(level, token_info)` | Basic `user_type` check (`'normal'` vs `'guest'`). No role awareness. |
 | `authorization_scoped(role, token_info, location_id, category_id)` | Primary role check. Walks hierarchy + location ancestors. If no `location_id`, checks any role anywhere. |
-| `authorization_site_admin(token_info)` | Root admin only. For global operations (surveys). |
+| `authorization_site_admin(token_info)` | Root admin only. For global operations (e.g. creating categories). |
 | `authorization_allow_banned(level, token_info)` | Like `authorization()` but skips ban check. For profile, card queue, appeals. |
 | `is_admin_at_location(user_id, location_id)` | Admin at this location or any ancestor. |
 | `is_moderator_at_location(user_id, location_id)` | Moderator or admin at this location or any ancestor. |

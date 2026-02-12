@@ -282,7 +282,7 @@ const createStyles = (colors) => StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     right: 0,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
     width: 36,
     height: 36,
     borderRadius: 18,

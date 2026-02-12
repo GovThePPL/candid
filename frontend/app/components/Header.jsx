@@ -1,11 +1,10 @@
 import { StyleSheet, View, TouchableOpacity, Platform } from 'react-native'
-import { useContext, useState, useCallback, useRef, useMemo } from 'react'
-import { useRouter } from 'expo-router'
+import { useContext, useState, useCallback, useRef, useMemo, useEffect } from 'react'
+import { useRouter, usePathname } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
-import { BadgeColors } from '../constants/Colors'
 import { UserContext } from '../contexts/UserContext'
 import Sidebar from './Sidebar'
 import ChatRequestIndicator from './ChatRequestIndicator'
@@ -13,29 +12,37 @@ import Avatar from './Avatar'
 import ThemedText from './ThemedText'
 import BugReportModal from './BugReportModal'
 import api from '../lib/api'
-import { getTrustBadgeColor } from '../lib/avatarUtils'
 
-export default function Header({ onBack }) {
+export default function Header({ onBack, showCreateButton }) {
   const { t } = useTranslation()
   const router = useRouter()
   const colors = useThemeColors()
   const insets = useSafeAreaInsets()
   const styles = useMemo(() => createStyles(colors, insets), [colors, insets])
   const { user, logout, pendingChatRequest, clearPendingChatRequest } = useContext(UserContext)
+  const pathname = usePathname()
   const [sidebarVisible, setSidebarVisible] = useState(false)
   const [bugReportVisible, setBugReportVisible] = useState(false)
   const [headerWidth, setHeaderWidth] = useState(0)
+
+  // Close sidebar and modals when navigating away
+  useEffect(() => {
+    setSidebarVisible(false)
+    setBugReportVisible(false)
+  }, [pathname])
   const [rightWidth, setRightWidth] = useState(0)
   const logoWidthRef = useRef(0)
 
   // Dynamically show logo if there's room for both logo + full indicator
   // Full indicator: avatar(40) + name(~60) + bubble(40) + gaps(16) + border+padding(12) ≈ 170px
-  const COMFORTABLE_INDICATOR_WIDTH = 180
+  // Add generous spacing so elements don't feel cramped
+  const COMFORTABLE_INDICATOR_WIDTH = 210
   const HEADER_PADDING = 24 // paddingHorizontal(12) * 2
-  const SECTION_GAPS = 26 // headerLeft gap(10) + headerCenter marginHorizontal(8*2)
+  const SECTION_GAPS = 40 // minimum breathing room between logo, indicator, and right section
   const availableWidth = headerWidth - rightWidth - HEADER_PADDING
+  // On sub-pages (onBack), always hide logo when indicator is active — back arrow is enough context
   const showLogo = !pendingChatRequest ||
-    availableWidth >= logoWidthRef.current + SECTION_GAPS + COMFORTABLE_INDICATOR_WIDTH
+    (!onBack && availableWidth >= logoWidthRef.current + SECTION_GAPS + COMFORTABLE_INDICATOR_WIDTH)
 
   const handleLogout = async () => {
     await logout()
@@ -79,8 +86,7 @@ export default function Header({ onBack }) {
           {showLogo && (
             <ThemedText
               variant="brandCompact"
-              color="primary"
-              style={styles.logo}
+              style={[styles.logo, { color: colors.logoText }]}
               onLayout={e => { logoWidthRef.current = e.nativeEvent.layout.width }}
             >
               Candid{Platform.OS !== 'web' ? ' ' : ''}
@@ -109,12 +115,14 @@ export default function Header({ onBack }) {
 
         {/* Right section */}
         <View style={styles.headerRight} onLayout={e => setRightWidth(e.nativeEvent.layout.width)}>
-          <View style={[styles.kudosBadge, { backgroundColor: getTrustBadgeColor(user?.trustScore) }]} accessibilityLabel={t('kudosCount', { count: user?.kudosCount || 0 })}>
-            <Ionicons name="star" size={16} color={colors.primary} />
-            <ThemedText variant="label" color="primary">{user?.kudosCount || 0}</ThemedText>
-          </View>
+          {showCreateButton && (
+            <TouchableOpacity onPress={() => router.push('/create')} style={styles.createButton} accessibilityLabel={t('createPositionA11y')} accessibilityRole="button">
+              <ThemedText variant="bodySmall" color="secondary" style={styles.createButtonText}>{t('tabAdd')}</ThemedText>
+              <Ionicons name="add" size={18} color={colors.secondaryText} />
+            </TouchableOpacity>
+          )}
           <TouchableOpacity onPress={() => setSidebarVisible(true)} accessibilityLabel={t('openMenu')} accessibilityRole="button">
-            <Avatar user={user} size={32} showKudosBadge={false} />
+            <Avatar user={user} size={36} showKudosBadge showKudosCount />
           </TouchableOpacity>
         </View>
       </View>
@@ -139,8 +147,6 @@ const createStyles = (colors, insets) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    minHeight: 66,
     backgroundColor: colors.cardBackground,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -150,6 +156,7 @@ const createStyles = (colors, insets) => StyleSheet.create({
     zIndex: 10,
     ...Platform.select({
       web: {
+        height: 54,
         boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
       },
       default: {
@@ -159,7 +166,6 @@ const createStyles = (colors, insets) => StyleSheet.create({
         paddingTop: insets.top,
         paddingBottom: 4,
         height: insets.top + 58,
-        minHeight: undefined,
       },
     }),
   },
@@ -190,21 +196,22 @@ const createStyles = (colors, insets) => StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: 8,
+    marginHorizontal: 14,
     overflow: 'hidden',
   },
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
   },
-  kudosBadge: {
+  createButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: BadgeColors.kudosBadge,
+    gap: 2,
+    paddingVertical: 4,
     paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-    gap: 3,
+  },
+  createButtonText: {
+    fontWeight: '500',
   },
 })

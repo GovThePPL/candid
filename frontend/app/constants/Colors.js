@@ -45,6 +45,8 @@ export const BadgeColors = {
 export const LightTheme = {
   // Brand
   primary: "#5C005C",
+  primarySurface: "#5C005C",
+  logoText: "#5C005C",
   primaryLight: "#FFB8FF",
   primaryMuted: "#F0A3FD",
   chat: "#9B59B6",
@@ -106,14 +108,22 @@ export const LightTheme = {
   severityMediumText: "#9E2B00",
   severityHighBg: "#FFEBEE",
 
+  // Card shell and bubble surfaces (agree/warning — same as SemanticColors in light)
+  agreeSurface: "#008800",
+  agreeBubble: "#008800",
+  warningSurface: "#EF4C45",
+  warningBubble: "#EF4C45",
+
   // Chatting list button backgrounds
   chattingListBg: BrandColor + '20',
   chattingListSelectedBg: "#5C005C",
 }
 
 export const DarkTheme = {
-  // Brand — light enough for readable small text on dark backgrounds
-  primary: "#B878B8",
+  // Brand — muted purple, just above AA 4.5:1 on cardBackground (#242424)
+  primary: "#A67EA6",
+  primarySurface: "#6E206E",
+  logoText: "#915091",
   primaryLight: "#FFB8FF",
   primaryMuted: "#E0A0E0",
   chat: "#C88FE0",
@@ -141,7 +151,7 @@ export const DarkTheme = {
   tabInactive: "#777777",
 
   // Chat
-  messageYou: "#D070D0",
+  messageYou: "#6E206E",
   messageOther: "#2A2A2A",
   agreedPosition: "#7A4D7A",
 
@@ -174,6 +184,12 @@ export const DarkTheme = {
   severityMediumBg: "#2D1A00",
   severityMediumText: "#FFB74D",
   severityHighBg: "#2D0D0D",
+
+  // Card shell surfaces — deeply muted to reduce contrast with dark scene
+  agreeSurface: "#004B00",
+  agreeBubble: "#007700",
+  warningSurface: "#6E2020",
+  warningBubble: "#993333",
 
   // Chatting list button backgrounds
   chattingListBg: BrandColor + '45',

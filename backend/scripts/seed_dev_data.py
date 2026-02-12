@@ -24,6 +24,7 @@ Phases (all run by default):
     8  moderation     Reports, actions, bans (normal4), appeals
     9  surveys        Respond to healthcare survey
    10  pairwise       Respond to pairwise comparisons
+   11  admin          Role requests, bans, admin surveys
 """
 
 import argparse
@@ -565,6 +566,105 @@ class CandidAPI:
         r = self.session.post(f"{self.base_url}/api/v1/users/me/chatting-list",
                               json={"positionId": position_id}, headers=self._headers())
         return r.status_code in (200, 201)
+
+    # --- Admin: Roles ---
+
+    def request_role_assignment(self, target_user_id, role, location_id,
+                                category_id=None, reason=None):
+        body = {"targetUserId": target_user_id, "role": role, "locationId": location_id}
+        if category_id:
+            body["positionCategoryId"] = category_id
+        if reason:
+            body["reason"] = reason
+        r = self.session.post(f"{self.base_url}/api/v1/admin/roles",
+                              json=body, headers=self._headers())
+        return r.json() if r.status_code in (200, 201) else None
+
+    def request_role_removal(self, user_role_id, reason=None):
+        body = {"userRoleId": user_role_id}
+        if reason:
+            body["reason"] = reason
+        r = self.session.post(f"{self.base_url}/api/v1/admin/roles/remove",
+                              json=body, headers=self._headers())
+        return r.json() if r.status_code in (200, 201) else None
+
+    def approve_role_request(self, request_id):
+        r = self.session.post(
+            f"{self.base_url}/api/v1/admin/roles/requests/{request_id}/approve",
+            headers=self._headers())
+        return r.json() if r.status_code == 200 else None
+
+    def deny_role_request(self, request_id, reason=None):
+        body = {"reason": reason} if reason else {}
+        r = self.session.post(
+            f"{self.base_url}/api/v1/admin/roles/requests/{request_id}/deny",
+            json=body, headers=self._headers())
+        return r.json() if r.status_code == 200 else None
+
+    def rescind_role_request(self, request_id):
+        r = self.session.post(
+            f"{self.base_url}/api/v1/admin/roles/requests/{request_id}/rescind",
+            headers=self._headers())
+        return r.json() if r.status_code == 200 else None
+
+    def get_role_requests(self, view='all'):
+        r = self.session.get(f"{self.base_url}/api/v1/admin/roles/requests",
+                             params={"view": view}, headers=self._headers())
+        return r.json() if r.status_code == 200 else []
+
+    # --- Admin: Users ---
+
+    def search_users(self, query):
+        r = self.session.get(f"{self.base_url}/api/v1/admin/users",
+                             params={"search": query}, headers=self._headers())
+        return r.json() if r.status_code == 200 else []
+
+    def ban_user(self, user_id, reason):
+        r = self.session.post(f"{self.base_url}/api/v1/admin/users/{user_id}/ban",
+                              json={"reason": reason}, headers=self._headers())
+        return r.json() if r.status_code == 200 else None
+
+    def unban_user(self, user_id, reason):
+        r = self.session.post(f"{self.base_url}/api/v1/admin/users/{user_id}/unban",
+                              json={"reason": reason}, headers=self._headers())
+        return r.json() if r.status_code == 200 else None
+
+    # --- Admin: Surveys ---
+
+    def create_admin_survey(self, title, start_time, end_time, questions,
+                            location_id=None, category_id=None):
+        body = {
+            "surveyTitle": title,
+            "startTime": start_time,
+            "endTime": end_time,
+            "questions": questions,
+        }
+        if location_id:
+            body["locationId"] = location_id
+        if category_id:
+            body["positionCategoryId"] = category_id
+        r = self.session.post(f"{self.base_url}/api/v1/admin/surveys",
+                              json=body, headers=self._headers())
+        return r.json() if r.status_code in (200, 201) else None
+
+    def create_admin_pairwise_survey(self, title, start_time, end_time, items,
+                                     comparison_question=None, location_id=None,
+                                     category_id=None):
+        body = {
+            "surveyTitle": title,
+            "startTime": start_time,
+            "endTime": end_time,
+            "items": items,
+        }
+        if comparison_question:
+            body["comparisonQuestion"] = comparison_question
+        if location_id:
+            body["locationId"] = location_id
+        if category_id:
+            body["positionCategoryId"] = category_id
+        r = self.session.post(f"{self.base_url}/api/v1/admin/surveys/pairwise",
+                              json=body, headers=self._headers())
+        return r.json() if r.status_code in (200, 201) else None
 
 
 def get_vote_response(expected_vote, noise_level):
@@ -1693,6 +1793,427 @@ def phase_10_pairwise(api, dry_run=False):
 
 
 # ---------------------------------------------------------------------------
+# Phase 11: Admin (role requests, bans, admin surveys)
+# ---------------------------------------------------------------------------
+
+def phase_11_admin(api, location_id, category_map, dry_run=False):
+    print("\n" + "=" * 60)
+    print("PHASE 11: Admin")
+    print("=" * 60)
+
+    oregon_id = location_id
+    healthcare_cat = category_map.get("Healthcare")
+    education_cat = category_map.get("Education")
+    criminal_justice_cat = category_map.get("Criminal Justice")
+    environment_cat = category_map.get("Environment & Climate")
+
+    def lookup_user_id(username):
+        row = db_query_one("SELECT id FROM users WHERE username = %s", (username,))
+        return str(row['id']) if row else None
+
+    # ---- 11a: Role Change Requests ----
+    existing_rcr = db_query_one("SELECT count(*) as cnt FROM role_change_request")
+    if existing_rcr and existing_rcr['cnt'] > 0:
+        print(f"  Role change requests already exist ({existing_rcr['cnt']}), skipping")
+    elif dry_run:
+        print("  Would create 6 role change requests")
+    else:
+        print("  Creating role change requests...")
+
+        # Scenario 1: admin1 → admin for lib_user_2 at Oregon → auto_approved
+        # admin1 is the only admin, no peer at US or Oregon → auto-approves.
+        # This gives Oregon its own administrator for realistic hierarchy.
+        if api.login("admin1"):
+            target_id = lookup_user_id("lib_user_2")
+            if target_id:
+                result = api.request_role_assignment(
+                    target_id, "admin", oregon_id,
+                    reason="Trusted community leader to administer Oregon")
+                if result:
+                    print(f"    1. admin for lib_user_2 at Oregon"
+                          f" → {result.get('status')}")
+
+        # Scenario 2: admin1 → moderator for mod_user_1 at Oregon
+        # → pending (lib_user_2 is now admin at Oregon = peer), then approved
+        if api.login("admin1"):
+            target_id = lookup_user_id("mod_user_1")
+            if target_id:
+                result = api.request_role_assignment(
+                    target_id, "moderator", oregon_id,
+                    reason="Active community member with balanced perspective")
+                if result:
+                    req_id = result.get('id')
+                    status = result.get('status')
+                    print(f"    2. moderator for mod_user_1 → {status}")
+                    if req_id and status == 'pending':
+                        if api.login("lib_user_2"):
+                            approve_result = api.approve_role_request(req_id)
+                            if approve_result:
+                                print(f"       → approved by lib_user_2")
+
+        # Scenario 3: normal1 → assistant_moderator for cen_user_1 at Oregon+Healthcare
+        # → pending (moderator1 is a location moderator peer), then moderator1 approves
+        if api.login("normal1"):
+            target_id = lookup_user_id("cen_user_1")
+            if target_id:
+                result = api.request_role_assignment(
+                    target_id, "assistant_moderator", oregon_id,
+                    category_id=healthcare_cat,
+                    reason="Reliable community member, helps maintain discussion quality")
+                if result:
+                    req_id = result.get('id')
+                    status = result.get('status')
+                    print(f"    3. assistant_moderator for cen_user_1 → {status}")
+                    if req_id and status == 'pending':
+                        if api.login("moderator1"):
+                            approve_result = api.approve_role_request(req_id)
+                            if approve_result:
+                                print(f"       → approved by moderator1")
+
+        # Scenario 4: normal1 → expert for con_user_1 at Oregon+Healthcare
+        # → pending, then moderator1 denies with reason
+        if api.login("normal1"):
+            target_id = lookup_user_id("con_user_1")
+            if target_id:
+                result = api.request_role_assignment(
+                    target_id, "expert", oregon_id, category_id=healthcare_cat,
+                    reason="Would bring diverse perspective to healthcare discussions")
+                if result:
+                    req_id = result.get('id')
+                    status = result.get('status')
+                    print(f"    4. expert for con_user_1 → {status}")
+                    if req_id and status == 'pending':
+                        if api.login("moderator1"):
+                            deny_result = api.deny_role_request(
+                                req_id,
+                                reason="Insufficient experience with the Healthcare category")
+                            if deny_result:
+                                print(f"       → denied by moderator1")
+
+        # Scenario 5: normal1 → liaison for socdem_user_1 at Oregon+Healthcare
+        # → pending, then normal1 rescinds
+        if api.login("normal1"):
+            target_id = lookup_user_id("socdem_user_1")
+            if target_id:
+                result = api.request_role_assignment(
+                    target_id, "liaison", oregon_id, category_id=healthcare_cat,
+                    reason="Healthcare policy researcher with community connections")
+                if result:
+                    req_id = result.get('id')
+                    status = result.get('status')
+                    print(f"    5. liaison for socdem_user_1 → {status}")
+                    if req_id and status == 'pending':
+                        rescind_result = api.rescind_role_request(req_id)
+                        if rescind_result:
+                            print(f"       → rescinded by normal1")
+
+        # Scenario 6: normal1 → expert for prog_user_1 at Oregon+Healthcare
+        # → stays pending (no action taken)
+        if api.login("normal1"):
+            target_id = lookup_user_id("prog_user_1")
+            if target_id:
+                result = api.request_role_assignment(
+                    target_id, "expert", oregon_id, category_id=healthcare_cat,
+                    reason="Active participant in healthcare policy discussions")
+                if result:
+                    print(f"    6. expert for prog_user_1 → {result.get('status')}")
+
+    # ---- 11b: Admin Action Log (ban/unban) ----
+    existing_aal = db_query_one("SELECT count(*) as cnt FROM admin_action_log")
+    if existing_aal and existing_aal['cnt'] > 0:
+        print(f"  Admin action log already has entries ({existing_aal['cnt']}), skipping")
+    elif dry_run:
+        print("  Would create 4 admin action log entries (2 ban + 2 unban)")
+    else:
+        print("  Creating admin action log entries...")
+
+        # Ban/unban pop_user_1 by moderator1
+        if api.login("moderator1"):
+            pop_id = lookup_user_id("pop_user_1")
+            if pop_id:
+                ban_result = api.ban_user(pop_id, "Repeated hate speech violations")
+                if ban_result:
+                    print(f"    Ban: moderator1 banned pop_user_1")
+                    unban_result = api.unban_user(pop_id,
+                                                  "Appeal reviewed \u2014 user warned")
+                    if unban_result:
+                        print(f"    Unban: moderator1 unbanned pop_user_1")
+
+        # Ban/unban trad_user_1 by admin1
+        if api.login("admin1"):
+            trad_id = lookup_user_id("trad_user_1")
+            if trad_id:
+                ban_result = api.ban_user(trad_id, "Spam and harassment")
+                if ban_result:
+                    print(f"    Ban: admin1 banned trad_user_1")
+                    unban_result = api.unban_user(trad_id,
+                                                  "Account reclaimed by owner")
+                    if unban_result:
+                        print(f"    Unban: admin1 unbanned trad_user_1")
+
+    # ---- 11c: Admin-Created Surveys ----
+    now = datetime.now(timezone.utc)
+
+    ADMIN_SURVEYS = [
+        {
+            "title": "Community Safety Priorities",
+            "category": "Criminal Justice",
+            "start_offset_days": -7,
+            "end_offset_days": 23,
+            "questions": [
+                {
+                    "question": "What should be the top priority for improving "
+                                "community safety?",
+                    "options": [
+                        "Increased police presence and response times",
+                        "Community-based violence prevention programs",
+                        "Better street lighting and infrastructure",
+                        "Mental health crisis response teams",
+                    ],
+                },
+                {
+                    "question": "How should community safety funding be allocated?",
+                    "options": [
+                        "Primarily to law enforcement",
+                        "Split equally between police and community programs",
+                        "Primarily to prevention and social services",
+                        "Let each neighborhood decide its own priorities",
+                    ],
+                },
+            ],
+        },
+        {
+            "title": "Education Funding Preferences",
+            "category": "Education",
+            "start_offset_days": 7,
+            "end_offset_days": 37,
+            "questions": [
+                {
+                    "question": "Which education initiative should receive the most "
+                                "additional funding?",
+                    "options": [
+                        "Teacher salary increases and retention programs",
+                        "School infrastructure and technology upgrades",
+                        "Student mental health and counseling services",
+                    ],
+                },
+                {
+                    "question": "How should education funding decisions be made?",
+                    "options": [
+                        "Centralized state-level planning",
+                        "Local school district control",
+                        "A hybrid approach with state guidelines and local flexibility",
+                    ],
+                },
+            ],
+        },
+    ]
+
+    PAIRWISE_SURVEY = {
+        "title": "Top Environmental Concern",
+        "category": "Environment & Climate",
+        "start_offset_days": -14,
+        "end_offset_days": 16,
+        "items": [
+            "Air quality and emissions reduction",
+            "Water pollution and clean water access",
+            "Forest conservation and wildfire prevention",
+            "Renewable energy transition",
+            "Waste reduction and recycling programs",
+        ],
+        "comparison_question": "Which environmental issue should Oregon prioritize?",
+    }
+
+    all_survey_titles = [s["title"] for s in ADMIN_SURVEYS] + [PAIRWISE_SURVEY["title"]]
+    existing_titles = set()
+    for title in all_survey_titles:
+        row = db_query_one("SELECT id FROM survey WHERE survey_title = %s", (title,))
+        if row:
+            existing_titles.add(title)
+
+    if len(existing_titles) == len(all_survey_titles):
+        print(f"  Admin surveys already exist, skipping creation")
+    elif dry_run:
+        print("  Would create 3 admin surveys (2 standard + 1 pairwise)")
+    else:
+        print("  Creating admin surveys...")
+        if not api.login("admin1"):
+            print("  ERROR: Could not login as admin1 for survey creation")
+        else:
+            for s in ADMIN_SURVEYS:
+                if s["title"] in existing_titles:
+                    print(f"    Exists: {s['title']}")
+                    continue
+
+                cat_id = category_map.get(s["category"])
+                start_time = (now + timedelta(days=s["start_offset_days"])).isoformat()
+                end_time = (now + timedelta(days=s["end_offset_days"])).isoformat()
+                result = api.create_admin_survey(
+                    s["title"], start_time, end_time, s["questions"],
+                    location_id=oregon_id, category_id=cat_id)
+                if result:
+                    print(f"    Created: {s['title']}")
+                else:
+                    print(f"    FAILED: {s['title']}")
+
+            if PAIRWISE_SURVEY["title"] not in existing_titles:
+                cat_id = category_map.get(PAIRWISE_SURVEY["category"])
+                start_time = (now + timedelta(
+                    days=PAIRWISE_SURVEY["start_offset_days"])).isoformat()
+                end_time = (now + timedelta(
+                    days=PAIRWISE_SURVEY["end_offset_days"])).isoformat()
+                result = api.create_admin_pairwise_survey(
+                    PAIRWISE_SURVEY["title"], start_time, end_time,
+                    PAIRWISE_SURVEY["items"],
+                    comparison_question=PAIRWISE_SURVEY["comparison_question"],
+                    location_id=oregon_id, category_id=cat_id)
+                if result:
+                    print(f"    Created: {PAIRWISE_SURVEY['title']}")
+                else:
+                    print(f"    FAILED: {PAIRWISE_SURVEY['title']}")
+
+    # ---- 11d: Survey Responses (for active admin surveys) ----
+    # 15 diverse users respond to the two active surveys
+    respondents = [
+        "prog_user_1", "lib_user_1", "lib_user_2", "socdem_user_1",
+        "mod_user_1", "mod_user_2", "cen_user_1", "cen_user_2",
+        "libt_user_1", "con_user_1", "con_user_2", "pop_user_2",
+        "trad_user_2", "normal2", "normal3",
+    ]
+
+    # Standard survey: Community Safety Priorities
+    safety_survey = db_query_one("""
+        SELECT id FROM survey
+        WHERE survey_title = 'Community Safety Priorities'
+        AND start_time <= NOW() AND end_time > NOW()
+    """)
+    if safety_survey and not dry_run:
+        survey_id = str(safety_survey['id'])
+        questions = db_query("""
+            SELECT id, survey_question FROM survey_question
+            WHERE survey_id = %s
+        """, (survey_id,))
+        if questions:
+            q_options = {}
+            for q in questions:
+                options = db_query("""
+                    SELECT id FROM survey_question_option
+                    WHERE survey_question_id = %s
+                """, (str(q['id']),))
+                q_options[str(q['id'])] = [str(o['id']) for o in (options or [])]
+
+            existing_resp = db_query_one("""
+                SELECT count(*) as cnt FROM survey_question_response
+                WHERE survey_question_option_id IN (
+                    SELECT id FROM survey_question_option
+                    WHERE survey_question_id IN (
+                        SELECT id FROM survey_question WHERE survey_id = %s
+                    )
+                )
+            """, (survey_id,))
+            if existing_resp and existing_resp['cnt'] > 0:
+                print(f"  Safety survey responses already exist "
+                      f"({existing_resp['cnt']}), skipping")
+            else:
+                print("  Responding to Community Safety Priorities...")
+                count = 0
+                for username in respondents:
+                    if api.login(username):
+                        for q_id, opts in q_options.items():
+                            if opts:
+                                if api.respond_survey(survey_id, q_id,
+                                                      random.choice(opts)):
+                                    count += 1
+                print(f"    Standard survey responses: {count}")
+
+    # Pairwise survey: Top Environmental Concern
+    env_survey = db_query_one("""
+        SELECT id FROM survey
+        WHERE survey_title = 'Top Environmental Concern'
+        AND survey_type = 'pairwise'
+        AND start_time <= NOW() AND end_time > NOW()
+    """)
+    if env_survey and not dry_run:
+        survey_id = str(env_survey['id'])
+        items = db_query("""
+            SELECT id, item_text FROM pairwise_item
+            WHERE survey_id = %s ORDER BY item_order
+        """, (survey_id,))
+        if items:
+            item_ids = [str(it['id']) for it in items]
+            existing_pw = db_query_one("""
+                SELECT count(*) as cnt FROM pairwise_response
+                WHERE survey_id = %s
+            """, (survey_id,))
+            if existing_pw and existing_pw['cnt'] > 0:
+                print(f"  Pairwise survey responses already exist "
+                      f"({existing_pw['cnt']}), skipping")
+            else:
+                print("  Responding to Top Environmental Concern...")
+                count = 0
+                for username in respondents:
+                    if api.login(username):
+                        n_comparisons = random.randint(3, 4)
+                        pairs_used = set()
+                        for _ in range(n_comparisons):
+                            a, b = random.sample(item_ids, 2)
+                            pair_key = tuple(sorted([a, b]))
+                            if pair_key in pairs_used:
+                                continue
+                            pairs_used.add(pair_key)
+                            if api.respond_pairwise(survey_id, a, b):
+                                count += 1
+                print(f"    Pairwise survey responses: {count}")
+
+    if dry_run:
+        print("  Would create survey responses for active admin surveys")
+
+    # ---- 11e: Pending report on Healthcare position (for normal1 mod queue) ----
+    # normal1 is facilitator at Oregon+Healthcare — give them a pending report to review
+    healthcare_pending = db_query_one("""
+        SELECT r.id FROM report r
+        JOIN position p ON r.target_object_id::uuid = p.id
+        WHERE p.category_id = %s AND r.status = 'pending'
+        LIMIT 1
+    """, (healthcare_cat,))
+
+    if healthcare_pending:
+        print(f"  Healthcare pending report already exists, skipping")
+    elif dry_run:
+        print("  Would create a pending report on a Healthcare position")
+    else:
+        # Find a Healthcare position at Oregon by a non-privileged user
+        target = db_query_one("""
+            SELECT p.id FROM position p
+            JOIN users u ON p.creator_user_id = u.id
+            WHERE p.category_id = %s
+              AND p.location_id = %s
+              AND p.status = 'active'
+              AND u.id NOT IN (
+                  SELECT user_id FROM user_role
+                  WHERE role IN ('admin', 'moderator', 'facilitator')
+              )
+            LIMIT 1
+        """, (healthcare_cat, oregon_id))
+
+        if target:
+            RULE_VIOLENCE = "b8a7c6d5-e4f3-4a2b-1c0d-9e8f7a6b5c4d"
+            if api.login("con_user_2"):
+                report = api.report_position(
+                    str(target['id']), RULE_VIOLENCE,
+                    "This position contains inflammatory language about healthcare policy")
+                if report:
+                    print(f"    Created pending Healthcare report"
+                          f" (ID: {report.get('id')})")
+                else:
+                    print("    Failed to create Healthcare report")
+        else:
+            print("    No eligible Healthcare position found for report")
+
+    print("  Phase 11 complete")
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -1700,7 +2221,7 @@ def main():
     parser = argparse.ArgumentParser(description='Seed rich dev data for Candid')
     parser.add_argument('--api-url', default=API_URL, help='Candid API URL')
     parser.add_argument('--dry-run', action='store_true', help='Show what would be done')
-    parser.add_argument('--phase', type=int, help='Run only this phase (1-10)')
+    parser.add_argument('--phase', type=int, help='Run only this phase (1-11)')
     args = parser.parse_args()
 
     random.seed(42)  # Reproducible data
@@ -1800,6 +2321,10 @@ def main():
     if should_run(10):
         phase_10_pairwise(api, args.dry_run)
 
+    # Phase 11: Admin
+    if should_run(11):
+        phase_11_admin(api, location_id, category_map, args.dry_run)
+
     print("\n" + "=" * 60)
     print("SEED COMPLETE")
     print("=" * 60)
@@ -1812,6 +2337,9 @@ def main():
             UNION ALL SELECT 'chat_logs', count(*) FROM chat_log
             UNION ALL SELECT 'reports', count(*) FROM report
             UNION ALL SELECT 'kudos', count(*) FROM kudos
+            UNION ALL SELECT 'role_requests', count(*) FROM role_change_request
+            UNION ALL SELECT 'admin_actions', count(*) FROM admin_action_log
+            UNION ALL SELECT 'surveys', count(*) FROM survey
             ORDER BY tbl
         """)
         for row in (counts or []):

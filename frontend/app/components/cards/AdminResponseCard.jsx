@@ -204,7 +204,7 @@ const createStyles = (colors) => StyleSheet.create({
     marginLeft: 40,
   },
   dismissButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
     paddingHorizontal: 32,
     paddingVertical: 12,
     borderRadius: 25,

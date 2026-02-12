@@ -347,6 +347,8 @@ def get_current_user(token_info=None):  # noqa: E501
             "role": r["role"],
             "locationId": r["location_id"],
             "positionCategoryId": r["position_category_id"],
+            "locationName": r.get("location_name"),
+            "categoryLabel": r.get("category_label"),
         }
         for r in roles
     ]

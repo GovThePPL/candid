@@ -193,7 +193,7 @@ const createStyles = (colors) => StyleSheet.create({
     flex: 1,
   },
   button: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
     paddingHorizontal: 32,
     paddingVertical: 14,
     borderRadius: 25,

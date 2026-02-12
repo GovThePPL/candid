@@ -18,7 +18,7 @@ from candid.controllers.helpers.auth import (
     authorization_site_admin, authorization_scoped, token_to_user,
     is_admin_at_location, is_moderator_at_location, is_facilitator_for,
     get_location_descendants, get_location_ancestors, get_user_roles,
-    invalidate_location_cache,
+    invalidate_location_cache, invalidate_ban_cache,
 )
 def _get_user_card(user_id):
     """Helper to fetch and return a User model for API responses."""
@@ -39,9 +39,14 @@ def _get_user_card(user_id):
 def _build_survey_with_nested_data(survey_id):
     """Fetch survey with creator User, questions, and options nested."""
     survey_row = db.execute_query("""
-        SELECT id, creator_user_id, position_category_id, survey_title,
-               created_time, start_time, end_time, status
-        FROM survey WHERE id = %s
+        SELECT s.id, s.creator_user_id, s.position_category_id, s.location_id,
+               s.survey_title, s.survey_type, s.created_time, s.start_time, s.end_time, s.status,
+               l.name AS location_name, l.code AS location_code,
+               pc.label AS category_name
+        FROM survey s
+        LEFT JOIN location l ON s.location_id = l.id
+        LEFT JOIN position_category pc ON s.position_category_id = pc.id
+        WHERE s.id = %s
     """, (survey_id,), fetchone=True)
 
     if survey_row is None:
@@ -88,6 +93,12 @@ def _build_survey_with_nested_data(survey_id):
         creator=creator,
         position_category_id=str(survey_row['position_category_id']) if survey_row['position_category_id'] else None,
         survey_title=survey_row['survey_title'],
+        survey_type=survey_row['survey_type'],
+        location_id=str(survey_row['location_id']) if survey_row['location_id'] else None,
+        location_code=survey_row['location_code'],
+        location_name=survey_row['location_name'],
+        category_id=str(survey_row['position_category_id']) if survey_row['position_category_id'] else None,
+        category_name=survey_row['category_name'],
         created_time=survey_row['created_time'],
         start_time=survey_row['start_time'],
         end_time=survey_row['end_time'],
@@ -124,12 +135,13 @@ def create_survey(body, token_info=None):  # noqa: E501
 
     # Insert survey
     db.execute_query("""
-        INSERT INTO survey (id, creator_user_id, position_category_id, survey_title, start_time, end_time, status)
-        VALUES (%s, %s, %s, %s, %s, %s, 'active')
+        INSERT INTO survey (id, creator_user_id, position_category_id, location_id, survey_title, start_time, end_time, status)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, 'active')
     """, (
         survey_id,
         user.id,
         create_survey_request.position_category_id,
+        create_survey_request.location_id,
         create_survey_request.survey_title,
         create_survey_request.start_time,
         create_survey_request.end_time
@@ -211,7 +223,7 @@ def get_survey_by_id_admin(survey_id, token_info=None):  # noqa: E501
     return survey
 
 
-def get_surveys(title=None, status=None, created_after=None, created_before=None, token_info=None):  # noqa: E501
+def get_surveys(title=None, status=None, created_after=None, created_before=None, location_id=None, token_info=None):  # noqa: E501
     """Get a list of surveys
 
      # noqa: E501
@@ -227,7 +239,7 @@ def get_surveys(title=None, status=None, created_after=None, created_before=None
 
     :rtype: Union[List[Survey], Tuple[List[Survey], int], Tuple[List[Survey], int, Dict[str, str]]
     """
-    authorized, auth_err = authorization_site_admin(token_info)
+    authorized, auth_err = authorization_scoped("facilitator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -251,6 +263,11 @@ def get_surveys(title=None, status=None, created_after=None, created_before=None
         conditions.append("LOWER(survey_title) LIKE LOWER(%s)")
         params.append(f'%{title}%')
 
+    # Location filter
+    if location_id:
+        conditions.append("location_id = %s")
+        params.append(location_id)
+
     # Date filters
     if created_after:
         conditions.append("created_time >= %s")
@@ -261,7 +278,7 @@ def get_surveys(title=None, status=None, created_after=None, created_before=None
         params.append(created_before)
 
     # Build query
-    query = "SELECT id FROM survey"
+    query = "SELECT id, survey_type FROM survey"
     if conditions:
         query += " WHERE " + " AND ".join(conditions)
     query += " ORDER BY created_time DESC"
@@ -273,7 +290,10 @@ def get_surveys(title=None, status=None, created_after=None, created_before=None
 
     surveys = []
     for row in survey_rows:
-        survey = _build_survey_with_nested_data(row['id'])
+        if row['survey_type'] == 'pairwise':
+            survey = _build_pairwise_survey(row['id'])
+        else:
+            survey = _build_survey_with_nested_data(row['id'])
         if survey:
             surveys.append(survey)
 
@@ -368,8 +388,11 @@ def create_pairwise_survey(body, token_info=None):  # noqa: E501
     items = body.get('items', [])
     comparison_question = body.get('comparisonQuestion', "Which better describes this group's views?")
     polis_conversation_id = body.get('polisConversationId')
+    location_id = body.get('locationId')
+    position_category_id = body.get('positionCategoryId')
     start_time = body.get('startTime')
     end_time = body.get('endTime')
+    is_group_labeling = body.get('isGroupLabeling', False)
 
     # Validate items
     if not items or len(items) < 2:
@@ -384,16 +407,20 @@ def create_pairwise_survey(body, token_info=None):  # noqa: E501
     # Insert survey with survey_type='pairwise'
     db.execute_query("""
         INSERT INTO survey (id, creator_user_id, survey_title, survey_type, comparison_question,
-                           polis_conversation_id, start_time, end_time, status)
-        VALUES (%s, %s, %s, 'pairwise', %s, %s, %s, %s, 'active')
+                           polis_conversation_id, location_id, position_category_id, start_time, end_time,
+                           is_group_labeling, status)
+        VALUES (%s, %s, %s, 'pairwise', %s, %s, %s, %s, %s, %s, %s, 'active')
     """, (
         survey_id,
         user.id,
         survey_title,
         comparison_question,
         polis_conversation_id,
+        location_id,
+        position_category_id,
         start_time,
-        end_time
+        end_time,
+        is_group_labeling,
     ))
 
     # Insert pairwise items
@@ -411,9 +438,17 @@ def create_pairwise_survey(body, token_info=None):  # noqa: E501
 def _build_pairwise_survey(survey_id):
     """Build a pairwise survey response object."""
     survey_row = db.execute_query("""
-        SELECT id, survey_title, comparison_question, polis_conversation_id,
-               start_time, end_time, status, created_time
-        FROM survey WHERE id = %s
+        SELECT s.id, s.creator_user_id, s.survey_title, s.survey_type,
+               s.comparison_question, s.polis_conversation_id,
+               s.location_id, s.position_category_id,
+               s.start_time, s.end_time, s.status, s.created_time,
+               s.is_group_labeling,
+               l.name AS location_name, l.code AS location_code,
+               pc.label AS category_name
+        FROM survey s
+        LEFT JOIN location l ON s.location_id = l.id
+        LEFT JOIN position_category pc ON s.position_category_id = pc.id
+        WHERE s.id = %s
     """, (survey_id,), fetchone=True)
 
     if survey_row is None:
@@ -437,8 +472,15 @@ def _build_pairwise_survey(survey_id):
     return {
         "id": str(survey_row['id']),
         "surveyTitle": survey_row['survey_title'],
+        "surveyType": survey_row['survey_type'] or 'pairwise',
         "comparisonQuestion": survey_row['comparison_question'],
         "polisConversationId": survey_row['polis_conversation_id'],
+        "locationId": str(survey_row['location_id']) if survey_row['location_id'] else None,
+        "locationCode": survey_row['location_code'],
+        "locationName": survey_row['location_name'],
+        "categoryId": str(survey_row['position_category_id']) if survey_row['position_category_id'] else None,
+        "categoryName": survey_row['category_name'],
+        "isGroupLabeling": bool(survey_row.get('is_group_labeling')),
         "items": items,
         "startTime": survey_row['start_time'].isoformat() if survey_row['start_time'] else None,
         "endTime": survey_row['end_time'].isoformat() if survey_row['end_time'] else None,
@@ -1400,7 +1442,9 @@ def list_roles(user_id=None, location_id=None, role=None, token_info=None):  # n
     rows = db.execute_query(f"""
         SELECT ur.id, ur.user_id, ur.role, ur.location_id, ur.position_category_id,
                ur.assigned_by, ur.created_time,
-               u.username, u.display_name,
+               u.username, u.display_name, u.avatar_icon_url, u.trust_score,
+               COALESCE((SELECT COUNT(*) FROM kudos k
+                         WHERE k.receiver_user_id = u.id AND k.status = 'sent'), 0) AS kudos_count,
                l.name AS location_name, l.code AS location_code,
                pc.label AS category_label
         FROM user_role ur
@@ -1419,6 +1463,9 @@ def list_roles(user_id=None, location_id=None, role=None, token_info=None):  # n
                 'id': str(r['user_id']),
                 'username': r['username'],
                 'displayName': r['display_name'],
+                'avatarIconUrl': r.get('avatar_icon_url'),
+                'trustScore': float(r['trust_score']) if r.get('trust_score') is not None else None,
+                'kudosCount': r['kudos_count'],
             },
             'role': r['role'],
             'location': {
@@ -1576,16 +1623,14 @@ def delete_location(location_id, token_info=None):  # noqa: E501
     if not is_admin_at_location(str(user.id), location_id):
         return ErrorModel(403, "Admin authority at this location is required"), 403
 
-    # Reparent children + soft-delete atomically
+    # Reparent children + soft-delete
     parent_id = loc['parent_location_id']
-    db.execute_query("""
-        WITH reparent AS (
-            UPDATE location SET parent_location_id = %s
-            WHERE parent_location_id = %s AND deleted_at IS NULL
-            RETURNING id
-        )
-        UPDATE location SET deleted_at = NOW() WHERE id = %s
-    """, (parent_id, location_id, location_id))
+    db.execute_query(
+        "UPDATE location SET parent_location_id = %s WHERE parent_location_id = %s AND deleted_at IS NULL",
+        (parent_id, location_id))
+    db.execute_query(
+        "UPDATE location SET deleted_at = NOW() WHERE id = %s",
+        (location_id,))
 
     invalidate_location_cache()
 
@@ -1695,3 +1740,232 @@ def remove_location_category(location_id, category_id, token_info=None):  # noqa
     """, (location_id, category_id))
 
     return '', 204
+
+
+# ---------------------------------------------------------------------------
+# Category Management API
+# ---------------------------------------------------------------------------
+
+def create_category(body, token_info=None):  # noqa: E501
+    """Create a new position category.
+
+    POST /admin/categories
+    Auth: site admin.
+    """
+    authorized, auth_err = authorization_site_admin(token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    if connexion.request.is_json:
+        body = connexion.request.get_json()
+
+    label = (body.get('label') or '').strip()
+    parent_id = body.get('parentPositionCategoryId')
+
+    if not label:
+        return ErrorModel(400, "Category label is required"), 400
+
+    # Check for duplicate (case-insensitive)
+    existing = db.execute_query("""
+        SELECT id FROM position_category WHERE LOWER(label) = LOWER(%s)
+    """, (label,), fetchone=True)
+    if existing:
+        return ErrorModel(400, "A category with this label already exists"), 400
+
+    if parent_id:
+        parent = db.execute_query(
+            "SELECT id FROM position_category WHERE id = %s", (parent_id,), fetchone=True)
+        if not parent:
+            return ErrorModel(400, "Parent category not found"), 400
+
+    category_id = str(uuid.uuid4())
+    db.execute_query("""
+        INSERT INTO position_category (id, label, parent_position_category_id)
+        VALUES (%s, %s, %s)
+    """, (category_id, label, parent_id))
+
+    result = {
+        'id': category_id,
+        'label': label,
+        'parentPositionCategoryId': parent_id,
+    }
+
+    # Optionally create a label survey at category creation time
+    create_label_survey = body.get('createLabelSurvey', False)
+    if create_label_survey:
+        label_items = body.get('labelSurveyItems', [])
+        label_items = [i.strip() for i in label_items if i.strip()]
+        if len(label_items) >= 2:
+            user = token_to_user(token_info)
+            comp_question = (body.get('labelSurveyComparisonQuestion') or '').strip() or "Which better describes this group's views?"
+            survey_id = str(uuid.uuid4())
+            db.execute_query("""
+                INSERT INTO survey (id, creator_user_id, survey_title, survey_type, comparison_question,
+                                   position_category_id, is_group_labeling, status)
+                VALUES (%s, %s, %s, 'pairwise', %s, %s, true, 'active')
+            """, (survey_id, user.id, f"Label Survey: {label}", comp_question, category_id))
+            for i, item_text in enumerate(label_items):
+                item_id = str(uuid.uuid4())
+                db.execute_query("""
+                    INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
+                    VALUES (%s, %s, %s, %s)
+                """, (item_id, survey_id, item_text, i))
+            result['labelSurvey'] = _build_pairwise_survey(survey_id)
+
+    return result, 201
+
+
+def get_category_label_survey(category_id, token_info=None):  # noqa: E501
+    """Get the label survey for a category.
+
+    GET /admin/categories/{categoryId}/label-survey
+    Auth: facilitator+ (scoped).
+    """
+    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    row = db.execute_query("""
+        SELECT id FROM survey
+        WHERE position_category_id = %s AND is_group_labeling = true AND status != 'deleted'
+        ORDER BY created_time DESC LIMIT 1
+    """, (category_id,), fetchone=True)
+
+    if row:
+        return {"labelSurvey": _build_pairwise_survey(row['id'])}
+    return {"labelSurvey": None}
+
+
+# ---------------------------------------------------------------------------
+# User Ban/Unban API
+# ---------------------------------------------------------------------------
+
+def ban_user(user_id, body=None, token_info=None):  # noqa: E501
+    """Ban a user.
+
+    POST /admin/users/{userId}/ban
+    Auth: facilitator+ (scoped).
+    """
+    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    acting_user = token_to_user(token_info)
+
+    if connexion.request.is_json:
+        body = connexion.request.get_json()
+
+    reason = (body.get('reason') or '').strip() if body else ''
+    if not reason:
+        return ErrorModel(400, "Reason is required for banning a user"), 400
+
+    user = db.execute_query("""
+        SELECT id, status FROM users WHERE id = %s
+    """, (user_id,), fetchone=True)
+
+    if not user:
+        return ErrorModel(404, "User not found"), 404
+
+    if user['status'] == 'banned':
+        return ErrorModel(400, "User is already banned"), 400
+
+    if user['status'] == 'deleted':
+        return ErrorModel(400, "Cannot ban a deleted user"), 400
+
+    db.execute_query("""
+        UPDATE users SET status = 'banned' WHERE id = %s
+    """, (user_id,))
+    invalidate_ban_cache(user_id)
+
+    db.execute_query("""
+        INSERT INTO admin_action_log (id, action, target_user_id, performed_by, reason)
+        VALUES (%s, 'ban', %s, %s, %s)
+    """, (str(uuid.uuid4()), user_id, acting_user.id, reason))
+
+    return {'id': str(user_id), 'status': 'banned'}
+
+
+def unban_user(user_id, body=None, token_info=None):  # noqa: E501
+    """Unban a user.
+
+    POST /admin/users/{userId}/unban
+    Auth: facilitator+ (scoped).
+    """
+    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    acting_user = token_to_user(token_info)
+
+    if connexion.request.is_json:
+        body = connexion.request.get_json()
+
+    reason = (body.get('reason') or '').strip() if body else ''
+    if not reason:
+        return ErrorModel(400, "Reason is required for unbanning a user"), 400
+
+    user = db.execute_query("""
+        SELECT id, status FROM users WHERE id = %s
+    """, (user_id,), fetchone=True)
+
+    if not user:
+        return ErrorModel(404, "User not found"), 404
+
+    if user['status'] != 'banned':
+        return ErrorModel(400, "User is not banned"), 400
+
+    db.execute_query("""
+        UPDATE users SET status = 'active' WHERE id = %s
+    """, (user_id,))
+    invalidate_ban_cache(user_id)
+
+    db.execute_query("""
+        INSERT INTO admin_action_log (id, action, target_user_id, performed_by, reason)
+        VALUES (%s, 'unban', %s, %s, %s)
+    """, (str(uuid.uuid4()), user_id, acting_user.id, reason))
+
+    return {'id': str(user_id), 'status': 'active'}
+
+
+def get_admin_actions(token_info=None):  # noqa: E501
+    """Get admin action log (ban/unban audit trail).
+
+    GET /admin/actions
+    Auth: facilitator+ (scoped).
+    """
+    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    rows = db.execute_query("""
+        SELECT aal.id, aal.action, aal.target_user_id, aal.performed_by, aal.reason, aal.created_time,
+               u_target.username AS target_username, u_target.display_name AS target_display_name,
+               u_target.avatar_icon_url AS target_avatar_icon_url,
+               u_performer.username AS performer_username, u_performer.display_name AS performer_display_name
+        FROM admin_action_log aal
+        JOIN users u_target ON aal.target_user_id = u_target.id
+        JOIN users u_performer ON aal.performed_by = u_performer.id
+        ORDER BY aal.created_time DESC
+        LIMIT 200
+    """)
+
+    return [
+        {
+            'id': str(r['id']),
+            'action': r['action'],
+            'targetUser': {
+                'id': str(r['target_user_id']),
+                'username': r['target_username'],
+                'displayName': r['target_display_name'],
+                'avatarIconUrl': r.get('target_avatar_icon_url'),
+            },
+            'performedBy': {
+                'id': str(r['performed_by']),
+                'username': r['performer_username'],
+                'displayName': r['performer_display_name'],
+            },
+            'reason': r['reason'],
+            'createdTime': r['created_time'].isoformat() if r.get('created_time') else None,
+        }
+        for r in (rows or [])
+    ]

@@ -71,7 +71,6 @@ export default function ReportModal({ visible, onClose, onSubmit }) {
       onClose={onClose}
       title={t('reportContent')}
       subtitle={t('selectRuleViolation')}
-      maxHeight="75%"
     >
       {success ? (
         <View style={styles.successContainer}>
@@ -196,7 +195,7 @@ const createStyles = (colors) => StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
   },
   ruleTextContainer: {
     flex: 1,

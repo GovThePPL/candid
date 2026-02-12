@@ -10,11 +10,15 @@ import { ROLE_LABEL_KEYS } from '../../../lib/roles'
 import api from '../../../lib/api'
 import ThemedText from '../../../components/ThemedText'
 import Header from '../../../components/Header'
+import Avatar from '../../../components/Avatar'
+
+const ROLE_RANK = ['admin', 'moderator', 'facilitator', 'assistant_moderator', 'expert', 'liaison']
 
 const getMenuItems = (t, pendingCount) => [
-  { label: t('menuRoles'), icon: 'people-outline', route: '/admin/roles' },
+  { label: t('menuOrganization'), icon: 'business-outline', route: '/admin/organization' },
   { label: t('menuRequestLog'), icon: 'document-text-outline', route: '/admin/request-log', badge: pendingCount },
-  { label: t('menuLocations'), icon: 'location-outline', route: '/admin/locations' },
+  { label: t('menuUsers'), icon: 'person-outline', route: '/admin/users' },
+  { label: t('menuSurveys'), icon: 'clipboard-outline', route: '/admin/surveys' },
 ]
 
 export default function AdminHub() {
@@ -53,7 +57,12 @@ export default function AdminHub() {
     }
   }
 
-  const userRoles = user?.roles || []
+  const sortedRoles = useMemo(() => {
+    const roles = user?.roles || []
+    return [...roles].sort((a, b) =>
+      ROLE_RANK.indexOf(a.role) - ROLE_RANK.indexOf(b.role)
+    )
+  }, [user?.roles])
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -70,18 +79,35 @@ export default function AdminHub() {
           <ThemedText variant="label" color="secondary" style={styles.sectionLabel}>
             {t('yourRoles')}
           </ThemedText>
-          {userRoles.length === 0 ? (
+          {sortedRoles.length === 0 ? (
             <ThemedText variant="bodySmall" color="secondary">{t('noRoles')}</ThemedText>
           ) : (
-            <View style={styles.roleBadges}>
-              {userRoles.map((r, i) => (
-                <View key={i} style={styles.roleBadge}>
-                  <ThemedText variant="badge" style={styles.roleBadgeText}>
-                    {t(ROLE_LABEL_KEYS[r.role] || r.role)}
-                  </ThemedText>
+            <>
+              <View style={styles.userCardRow}>
+                <Avatar user={user} size={40} showKudosBadge={true} />
+                <View style={styles.userCardInfo}>
+                  <ThemedText variant="button" color="dark" numberOfLines={1}>{user?.displayName}</ThemedText>
+                  <ThemedText variant="caption" color="secondary">@{user?.username}</ThemedText>
                 </View>
-              ))}
-            </View>
+              </View>
+              <View style={styles.rolesList}>
+                {sortedRoles.map((r, i) => (
+                  <View key={i} style={styles.roleRow}>
+                    <View style={styles.roleBadge}>
+                      <ThemedText variant="badge" style={styles.roleBadgeText}>
+                        {t(ROLE_LABEL_KEYS[r.role] || r.role)}
+                      </ThemedText>
+                    </View>
+                    {r.locationName && (
+                      <ThemedText variant="caption" color="secondary">{t('atLocation', { location: r.locationName })}</ThemedText>
+                    )}
+                    {r.categoryLabel && (
+                      <ThemedText variant="caption" color="secondary">{t('inCategory', { category: r.categoryLabel })}</ThemedText>
+                    )}
+                  </View>
+                ))}
+              </View>
+            </>
           )}
         </View>
 
@@ -143,16 +169,29 @@ const createStyles = (colors) => StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: 8,
   },
-  roleBadges: {
+  userCardRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  userCardInfo: {
+    flex: 1,
+  },
+  rolesList: {
+    gap: 8,
+  },
+  roleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     flexWrap: 'wrap',
     gap: 8,
   },
   roleBadge: {
     backgroundColor: colors.badgeBg,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   roleBadgeText: {
     color: colors.badgeText,

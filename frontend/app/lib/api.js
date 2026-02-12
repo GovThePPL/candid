@@ -957,6 +957,63 @@ export const adminApiWrapper = {
       method: 'DELETE',
     })
   },
+
+  async createCategory(label, parentPositionCategoryId, opts = {}) {
+    return this._fetch('/admin/categories', {
+      method: 'POST',
+      body: JSON.stringify({ label, parentPositionCategoryId, ...opts }),
+    })
+  },
+
+  async getCategoryLabelSurvey(categoryId) {
+    return this._fetch(`/admin/categories/${categoryId}/label-survey`)
+  },
+
+  async banUser(userId, reason) {
+    return this._fetch(`/admin/users/${userId}/ban`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    })
+  },
+
+  async unbanUser(userId, reason) {
+    return this._fetch(`/admin/users/${userId}/unban`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    })
+  },
+
+  async getSurveys({ title, status, locationId } = {}) {
+    const params = new URLSearchParams()
+    if (title) params.set('title', title)
+    if (status) params.set('status', status)
+    if (locationId) params.set('locationId', locationId)
+    return this._fetch(`/admin/surveys?${params}`)
+  },
+
+  async createSurvey(body) {
+    return this._fetch('/admin/surveys', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    })
+  },
+
+  async createPairwiseSurvey(body) {
+    return this._fetch('/admin/surveys/pairwise', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    })
+  },
+
+  async deleteSurvey(surveyId) {
+    return this._fetch(`/admin/surveys/${surveyId}`, {
+      method: 'DELETE',
+    })
+  },
+
+  async getAdminActions() {
+    return this._fetch('/admin/actions')
+  },
 }
 
 // Bug Reports API

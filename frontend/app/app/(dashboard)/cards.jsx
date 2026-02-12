@@ -4,6 +4,7 @@ import Animated, { useSharedValue, useAnimatedStyle, withTiming, interpolate, ru
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { useTranslation } from 'react-i18next'
 import { SemanticColors } from '../../constants/Colors'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import api from '../../lib/api'
@@ -50,6 +51,7 @@ const SCREEN_HEIGHT = Dimensions.get('window').height
 export default function CardQueue() {
   const router = useRouter()
   const showToast = useToast()
+  const { t } = useTranslation('cards')
   const { user, logout, invalidatePositions, pendingChatRequest, setPendingChatRequest, incomingChatRequest, clearIncomingChatRequest } = useContext(UserContext)
   const [cards, setCards] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -251,7 +253,7 @@ export default function CardQueue() {
     } catch (err) {
       console.error('Card fetch error:', err)
       if (isInitial) {
-        setError(err.message || 'Failed to load cards')
+        setError(err.message || t('failedLoadCards'))
       }
     } finally {
       isFetchingRef.current = false
@@ -552,7 +554,7 @@ export default function CardQueue() {
           console.error('Failed to add to chatting list:', err)
         }
       }
-      showToast("Added to chatting list \u2014 you'll be matched when someone is online")
+      showToast(t('addedToChattingList'))
       goToNextCard()
       return
     }
@@ -1057,7 +1059,7 @@ export default function CardQueue() {
       default:
         return (
           <View style={styles.unknownCard}>
-            <ThemedText variant="body">Unknown card type: {card.type}</ThemedText>
+            <ThemedText variant="body">{t('unknownCardType', { type: card.type })}</ThemedText>
           </View>
         )
     }
@@ -1075,10 +1077,10 @@ export default function CardQueue() {
   if (initialLoading && cards.length === 0) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <Header />
+        <Header showCreateButton />
         <View style={styles.centerContent}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <ThemedText variant="button" color="secondary" style={styles.loadingText}>Loading cards...</ThemedText>
+          <ThemedText variant="button" color="secondary" style={styles.loadingText}>{t('loadingCards')}</ThemedText>
         </View>
       </SafeAreaView>
     )
@@ -1087,11 +1089,11 @@ export default function CardQueue() {
   if (error && cards.length === 0) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <Header />
+        <Header showCreateButton />
         <View style={styles.centerContent}>
           <ThemedText variant="button" style={styles.errorText}>{error}</ThemedText>
           <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
-            <ThemedText variant="button" color="inverse">Retry</ThemedText>
+            <ThemedText variant="button" color="inverse">{t('common:retry')}</ThemedText>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -1103,17 +1105,19 @@ export default function CardQueue() {
   if (!initialLoading && (cards.length === 0 || currentIndex >= cards.length)) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <Header />
+        <Header showCreateButton />
         <View style={styles.centerContent}>
-          <ThemedText variant="statement" color="primary" style={styles.emptyTitle}>No more cards</ThemedText>
+          <ThemedText variant="statement" color="primary" style={styles.emptyTitle}>{t('emptyTitle')}</ThemedText>
           <ThemedText variant="button" color="secondary" style={styles.emptyText}>
-            Check back later for more positions, or create your own!
+            {t('emptyText')}
           </ThemedText>
           <TouchableOpacity
             style={styles.createButton}
             onPress={() => router.push('/create')}
+            accessibilityRole="button"
+            accessibilityLabel={t('createPosition')}
           >
-            <ThemedText variant="button" color="inverse">Create Position</ThemedText>
+            <ThemedText variant="button" color="inverse">{t('createPosition')}</ThemedText>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -1122,7 +1126,7 @@ export default function CardQueue() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <Header />
+      <Header showCreateButton />
 
       <View style={styles.cardContainer}>
         {/* Card stack wrapper */}
@@ -1233,7 +1237,7 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: 16,
   },
   retryButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
@@ -1248,7 +1252,7 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: 24,
   },
   createButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
     paddingHorizontal: 24,
     paddingVertical: 14,
     borderRadius: 25,

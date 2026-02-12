@@ -953,12 +953,12 @@ export default function ChatScreen() {
       const isRejected = item.type === 'rejected'
       const isPending = item.type === 'proposed'
       const proposalLabel = item.isClosure ? t('proposeClosure') : t('proposeStatement')
-      const proposalColor = item.isClosure ? colors.chat : SemanticColors.agree
+      const proposalColor = item.isClosure ? colors.chat : colors.agreeBubble
 
       // Color for the main (latest) proposal
       const bubbleColor = isAccepted
         ? colors.messageYou
-        : (isOwnMessage ? colors.messageYou : SemanticColors.agree)
+        : (isOwnMessage ? colors.messageYou : colors.agreeBubble)
 
       // Helper to render a single proposal card
       // skipOffset: when true, offset styles are applied to wrapper instead
@@ -973,10 +973,10 @@ export default function ChatScreen() {
         const pIsPending = proposal.type === 'proposed'
         const pIsInactive = pIsRejected || pIsModified
         const pProposalLabel = proposal.isClosure ? t('proposeClosure') : t('proposeStatement')
-        const pProposalColor = proposal.isClosure ? colors.chat : SemanticColors.agree
+        const pProposalColor = proposal.isClosure ? colors.chat : colors.agreeBubble
         const pBubbleColor = pIsAccepted
           ? colors.messageYou
-          : (pIsOwn ? colors.messageYou : SemanticColors.agree)
+          : (pIsOwn ? colors.messageYou : colors.agreeBubble)
 
         return (
           <View
@@ -1203,9 +1203,13 @@ export default function ChatScreen() {
       const isLastRead = item.id === otherUserLastRead
 
       // In moderation view, check if this is the first message in a group from this sender
-      const prevMessage = index > 0 ? messages[index - 1] : null
+      const isVisible = (msg) => !msg.isProposal || !messages.some(m => m.isProposal && m.parentId === msg.proposalId)
+      let prevMessage = null
+      for (let i = index - 1; i >= 0; i--) {
+        if (isVisible(messages[i])) { prevMessage = messages[i]; break }
+      }
       const prevSenderId = prevMessage ? String(prevMessage.sender_id || prevMessage.sender || prevMessage.senderId || '') : null
-      const isFirstInGroup = !prevMessage || prevSenderId !== senderId
+      const isFirstInGroup = !prevMessage || prevSenderId !== senderId || prevMessage.isProposal
 
       return (
         <View style={styles.ownMessageRow}>
@@ -1231,16 +1235,26 @@ export default function ChatScreen() {
       )
     }
 
+    // Find next/prev visible message (skip superseded proposals that render as null)
+    const isVisible = (msg) => !msg.isProposal || !messages.some(m => m.isProposal && m.parentId === msg.proposalId)
+    let nextMessage = null
+    for (let i = index + 1; i < messages.length; i++) {
+      if (isVisible(messages[i])) { nextMessage = messages[i]; break }
+    }
+    let prevMessage = null
+    for (let i = index - 1; i >= 0; i--) {
+      if (isVisible(messages[i])) { prevMessage = messages[i]; break }
+    }
+
     // Check if this is the last message in a group from the other user
     // Avatar shows only on the last consecutive message from the other user
-    const nextMessage = messages[index + 1]
+    // Proposals (agreed statements, etc.) break the chain since they render as separate cards
     const nextSenderId = nextMessage ? String(nextMessage.sender_id || nextMessage.sender || nextMessage.senderId || '') : null
-    const isLastInGroup = !nextMessage || nextSenderId !== senderId
+    const isLastInGroup = !nextMessage || nextSenderId !== senderId || nextMessage.isProposal
 
     // In moderation view, check if first in group to show name label
-    const prevMessage = index > 0 ? messages[index - 1] : null
     const prevSenderId = prevMessage ? String(prevMessage.sender_id || prevMessage.sender || prevMessage.senderId || '') : null
-    const isFirstInGroup = !prevMessage || prevSenderId !== senderId
+    const isFirstInGroup = !prevMessage || prevSenderId !== senderId || prevMessage.isProposal
 
     // Use correct user for avatar: in moderation view, use the sender participant
     const messageUser = isModerationView ? moderationSender : otherUser
@@ -1253,7 +1267,7 @@ export default function ChatScreen() {
         ) : (
           <View style={styles.messageAvatarSpacer} />
         )}
-        <View>
+        <View style={styles.otherMessageContainer}>
           <View style={[styles.messageBubble, styles.otherMessage]}>
             <ThemedText variant="body" color="inverse" style={styles.messageText}>
               {item.content}
@@ -1329,7 +1343,7 @@ export default function ChatScreen() {
       >
         <TouchableOpacity activeOpacity={1} style={styles.modifyModalCard}>
           <View style={styles.modifyModalHeader}>
-            <View style={[styles.proposalTypeBadge, { backgroundColor: modifyingProposal?.isClosure ? colors.chat : SemanticColors.agree }]}>
+            <View style={[styles.proposalTypeBadge, { backgroundColor: modifyingProposal?.isClosure ? colors.chat : colors.agreeBubble }]}>
               <Ionicons
                 name={modifyingProposal?.isClosure ? 'checkmark-done' : 'document-text'}
                 size={12}
@@ -1664,7 +1678,7 @@ export default function ChatScreen() {
                     accessibilityLabel={t('menuProposeStatement')}
                     accessibilityState={{ selected: messageType === 'position_proposal' }}
                   >
-                    <View style={[styles.specialMenuIcon, { backgroundColor: SemanticColors.agree }]}>
+                    <View style={[styles.specialMenuIcon, { backgroundColor: colors.agreeBubble }]}>
                       <Ionicons name="document-text" size={20} color="#fff" />
                     </View>
                     <View style={styles.specialMenuItemText}>
@@ -1849,6 +1863,10 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: 8,
     gap: 8,
   },
+  otherMessageContainer: {
+    flexShrink: 1,
+    maxWidth: '75%',
+  },
   messageAvatarSpacer: {
     width: 28,
     height: 28,
@@ -1865,8 +1883,9 @@ const createStyles = (colors) => StyleSheet.create({
     maxWidth: '100%', // Override messageBubble maxWidth since container handles it
   },
   otherMessage: {
-    backgroundColor: SemanticColors.agree,
+    backgroundColor: colors.agreeBubble,
     borderBottomLeftRadius: 4,
+    maxWidth: '100%', // Container handles width constraint
   },
   messageText: {
     lineHeight: 20,
@@ -1896,7 +1915,7 @@ const createStyles = (colors) => StyleSheet.create({
   typingBubble: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: SemanticColors.agree,
+    backgroundColor: colors.agreeBubble,
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderRadius: 18,
@@ -1950,7 +1969,7 @@ const createStyles = (colors) => StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 8,
@@ -1961,10 +1980,10 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.cardBorder,
   },
   sendButtonStatement: {
-    backgroundColor: SemanticColors.agree,
+    backgroundColor: colors.agreeBubble,
   },
   sendButtonStatementDisabled: {
-    backgroundColor: SemanticColors.agree + '40', // Light green (40% opacity)
+    backgroundColor: colors.agreeBubble + '40', // Light green (40% opacity)
   },
   sendButtonClosure: {
     backgroundColor: colors.chat,
@@ -1983,7 +2002,7 @@ const createStyles = (colors) => StyleSheet.create({
     alignSelf: 'flex-end',
   },
   specialMenuButtonActive: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
   },
   specialMenuBackdrop: {
     position: 'absolute',
@@ -2051,7 +2070,7 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: 16,
   },
   retryButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
@@ -2083,10 +2102,10 @@ const createStyles = (colors) => StyleSheet.create({
     justifyContent: 'center',
   },
   endedBannerClosure: {
-    backgroundColor: SemanticColors.agree,
+    backgroundColor: colors.agreeBubble,
   },
   endedBannerModeration: {
-    backgroundColor: SemanticColors.warning,
+    backgroundColor: colors.warningBubble,
   },
   endedText: {
     flex: 1,
@@ -2373,7 +2392,7 @@ const createStyles = (colors) => StyleSheet.create({
   modifySubmitButton: {
     paddingVertical: 14,
     borderRadius: 25,
-    backgroundColor: SemanticColors.agree,
+    backgroundColor: colors.agreeBubble,
     alignItems: 'center',
   },
   modifySubmitButtonDisabled: {

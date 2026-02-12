@@ -10,15 +10,16 @@ import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS } from 
 import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
-import useKeyboardHeight from '../hooks/useKeyboardHeight'
 import { SemanticColors } from '../constants/Colors'
-import { Typography } from '../constants/Theme'
 import ThemedText from './ThemedText'
 
 const SCREEN_HEIGHT = Dimensions.get('window').height
 
+export const MAX_HEIGHT_FRACTION = 0.85
+
 /**
  * Animated bottom drawer modal with overlay fade and slide-up transition.
+ * By default fills to 85% of screen height. Pass `shrink` to size to content instead.
  *
  * @param {Object} props
  * @param {boolean} props.visible - Whether the drawer should be shown
@@ -28,7 +29,7 @@ const SCREEN_HEIGHT = Dimensions.get('window').height
  * @param {ReactNode} [props.headerRight] - Custom element on the right side of the header (replaces default close button)
  * @param {ReactNode} [props.headerLeft] - Custom element on the left side of the header (e.g. back button)
  * @param {ReactNode} props.children - Drawer content
- * @param {string} [props.maxHeight='85%'] - Maximum height of the drawer
+ * @param {boolean} [props.shrink=false] - When true, drawer shrinks to fit content (capped at 85%). Use for small dialogs with fixed content.
  */
 export default function BottomDrawerModal({
   visible,
@@ -38,7 +39,7 @@ export default function BottomDrawerModal({
   headerRight,
   headerLeft,
   children,
-  maxHeight = '85%',
+  shrink = false,
 }) {
   const { t } = useTranslation()
   const colors = useThemeColors()
@@ -46,16 +47,7 @@ export default function BottomDrawerModal({
   const [modalVisible, setModalVisible] = useState(false)
   const overlayOpacity = useSharedValue(0)
   const slideY = useSharedValue(SCREEN_HEIGHT)
-  const { keyboardHeight } = useKeyboardHeight()
-
-  // Resolve percentage to pixels for native compatibility.
-  // When keyboard is open, cap height so the drawer doesn't overflow off-screen.
-  const baseMaxHeight = typeof maxHeight === 'string' && maxHeight.endsWith('%')
-    ? (parseFloat(maxHeight) / 100) * SCREEN_HEIGHT
-    : maxHeight
-  const resolvedMaxHeight = keyboardHeight > 0
-    ? Math.min(baseMaxHeight, SCREEN_HEIGHT - keyboardHeight - 40)
-    : baseMaxHeight
+  const maxHeight = MAX_HEIGHT_FRACTION * SCREEN_HEIGHT
 
   const hideModal = useCallback(() => {
     setModalVisible(false)
@@ -95,9 +87,10 @@ export default function BottomDrawerModal({
         </Animated.View>
 
         <Animated.View
+          testID="drawer-content"
           style={[
             styles.content,
-            { height: resolvedMaxHeight },
+            shrink ? { maxHeight: maxHeight } : { height: maxHeight },
             contentStyle,
           ]}
         >

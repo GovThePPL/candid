@@ -122,5 +122,14 @@
   "banAppealError": "No se pudo enviar la apelación",
   "banTemporaryDuration": "Temporal ({{days}} días)",
   "banChatLabel": "Chat: {{participants}}",
-  "surveyDefaultCategory": "General"
+  "surveyDefaultCategory": "General",
+
+  "emptyTitle": "No hay más tarjetas",
+  "emptyText": "Vuelve más tarde para más posiciones, ¡o crea la tuya!",
+  "createPosition": "Crear Posición",
+
+  "addedToChattingList": "Agregado a la lista de chat \u2014 te conectaremos cuando alguien esté en línea",
+  "unknownCardType": "Tipo de tarjeta desconocido: {{type}}",
+  "loadingCards": "Cargando tarjetas...",
+  "failedLoadCards": "No se pudieron cargar las tarjetas"
 }

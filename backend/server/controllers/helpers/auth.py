@@ -135,11 +135,15 @@ def get_location_descendants(location_id):
 def get_user_roles(user_id):
     """Get all roles for a user from user_role table.
 
-    Returns list of dicts: [{'role', 'location_id', 'position_category_id'}, ...]
+    Returns list of dicts with role, location, and category info.
     """
     rows = db.execute_query("""
-        SELECT role, location_id, position_category_id
-        FROM user_role WHERE user_id = %s
+        SELECT ur.role, ur.location_id, ur.position_category_id,
+               l.name AS location_name, pc.label AS category_label
+        FROM user_role ur
+        LEFT JOIN location l ON ur.location_id = l.id
+        LEFT JOIN position_category pc ON ur.position_category_id = pc.id
+        WHERE ur.user_id = %s
     """, (str(user_id),))
     if not rows:
         return []
@@ -148,6 +152,8 @@ def get_user_roles(user_id):
             "role": r["role"],
             "location_id": str(r["location_id"]) if r["location_id"] else None,
             "position_category_id": str(r["position_category_id"]) if r["position_category_id"] else None,
+            "location_name": r.get("location_name"),
+            "category_label": r.get("category_label"),
         }
         for r in rows
     ]
@@ -178,6 +184,22 @@ def is_moderator_anywhere(user_id):
         (str(user_id),), fetchone=True,
     )
     return row is not None
+
+
+def get_facilitator_scopes(user_id):
+    """All (location_id, category_id) pairs where user is a facilitator.
+
+    Returns list of (location_id_str, category_id_str) tuples.
+    Only includes rows where both location_id and position_category_id are non-null.
+    """
+    rows = db.execute_query("""
+        SELECT location_id, position_category_id FROM user_role
+        WHERE user_id = %s AND role = 'facilitator'
+        AND location_id IS NOT NULL AND position_category_id IS NOT NULL
+    """, (str(user_id),))
+    if not rows:
+        return []
+    return [(str(r['location_id']), str(r['position_category_id'])) for r in rows]
 
 
 def get_user_type(user_id):

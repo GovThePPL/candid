@@ -228,7 +228,6 @@ export default function BanNotificationCard({ banData }) {
         visible={historyModalVisible}
         onClose={() => setHistoryModalVisible(false)}
         title={t('banActionDetails')}
-        maxHeight="85%"
       >
         {actionChain && (
           <ScrollView
@@ -427,7 +426,7 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
     paddingHorizontal: 18,
     paddingVertical: 8,
     borderRadius: 20,
@@ -481,7 +480,7 @@ const createStyles = (colors) => StyleSheet.create({
     marginTop: 8,
   },
   submitAppealButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
     paddingVertical: 14,
     borderRadius: 25,
     alignItems: 'center',

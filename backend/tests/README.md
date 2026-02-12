@@ -48,6 +48,8 @@ python3 -m pytest backend/tests/unit/ --benchmark-only -v
 | `test_polis_integration.py` | Pol.is API integration |
 | `test_bug_reports.py` | Bug report submission and diagnostics consent |
 | `test_avatars.py` | Avatar serving endpoint |
+| `test_admin_locations.py` | Admin location management, soft-delete, reparenting |
+| `test_admin_categories_users.py` | Admin category creation, user ban/unban |
 | `test_auth_required.py` | Consolidated 401 checks for all protected endpoints (parametrized) |
 
 ## Unit Tests (`unit/`)

@@ -53,6 +53,10 @@ POSITION1_ID = "772d04ed-b2ad-4f95-a630-c739811fa615"
 POSITION2_ID = "4d0b2198-414e-4cf9-93a9-83033b81ce76"
 # Third healthcare position by normal1
 POSITION3_ID = "f7aeb957-a41a-4b1e-9482-6297f5f07743"
+# Healthcare position by normal2 (no roles)
+POSITION_NORMAL2_HEALTHCARE_ID = "28028e9a-90b5-4b2a-9054-d3d446180df7"
+# Immigration position by normal3 (no roles)
+POSITION_NORMAL3_IMMIGRATION_ID = "20fabff1-a37a-4941-8bc8-4f082da6a189"
 
 # Locations
 US_LOCATION_ID = "f1a2b3c4-d5e6-7890-abcd-ef1234567890"

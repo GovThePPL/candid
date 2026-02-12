@@ -199,7 +199,7 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 8,
   },
   themeOptionSelected: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
   },
   themeOptionLabel: {
     fontWeight: '500',

@@ -33,18 +33,23 @@ export default function useKeyboardHeight() {
         setKeyboardHeight(isOpen ? kbHeight : 0)
       }
 
-      // Resize events work on Chrome/Safari (not Firefox Mobile)
+      // visualViewport resize fires reliably on Chrome/Safari when keyboard opens.
+      // Do NOT listen on window 'resize' — it fires during navigation transitions,
+      // address bar changes, and layout shifts, causing false keyboard detection.
       vv.addEventListener('resize', detectKeyboard)
-      window.addEventListener('resize', detectKeyboard)
 
-      // Focus-based handling for Firefox (where resize events don't fire).
-      // On first keyboard open, Firefox may not update vv.height at all,
-      // so we immediately estimate keyboard height, then poll to refine
-      // if vv.height eventually changes.
+      // Focus-based handling ONLY for Firefox Mobile, where visualViewport resize
+      // events don't fire on keyboard open. Firefox may not update vv.height at all
+      // on first open, so we estimate then poll to refine.
+      // Chrome (including DevTools responsive mode) sets a mobile user agent but
+      // handles keyboard via visualViewport resize — focusin would cause false positives.
+      const isFirefoxMobile = /Firefox/.test(navigator.userAgent) &&
+        /Mobi|Android/.test(navigator.userAgent)
       let pollTimer = null
       let focusOutTimer = null
 
       const handleFocusIn = () => {
+        if (!isFirefoxMobile) return
         clearTimeout(focusOutTimer)
         clearTimeout(pollTimer)
 
@@ -76,6 +81,7 @@ export default function useKeyboardHeight() {
       }
 
       const handleFocusOut = () => {
+        if (!isFirefoxMobile) return
         clearTimeout(pollTimer)
         focusOutTimer = setTimeout(() => {
           const kb = initialHeight - vv.height
@@ -90,7 +96,6 @@ export default function useKeyboardHeight() {
 
       return () => {
         vv.removeEventListener('resize', detectKeyboard)
-        window.removeEventListener('resize', detectKeyboard)
         document.removeEventListener('focusin', handleFocusIn)
         document.removeEventListener('focusout', handleFocusOut)
         clearTimeout(pollTimer)

@@ -81,8 +81,12 @@ describe('roles utilities', () => {
       expect(canModerate(makeUser([role('moderator')]))).toBe(true)
     })
 
-    it('returns false for facilitator', () => {
-      expect(canModerate(makeUser([role('facilitator')]))).toBe(false)
+    it('returns true for facilitator', () => {
+      expect(canModerate(makeUser([role('facilitator', 'loc1', 'cat1')]))).toBe(true)
+    })
+
+    it('returns false for assistant_moderator', () => {
+      expect(canModerate(makeUser([role('assistant_moderator', 'loc1', 'cat1')]))).toBe(false)
     })
 
     it('returns false for normal user', () => {
@@ -151,9 +155,9 @@ describe('roles utilities', () => {
   ]
 
   describe('getAssignableRoles', () => {
-    it('returns admin-assignable roles for admin user', () => {
+    it('returns all roles for admin user', () => {
       const u = makeUser([role('admin', 'loc1')])
-      expect(getAssignableRoles(u)).toEqual(['admin', 'moderator', 'facilitator'])
+      expect(getAssignableRoles(u)).toEqual(['admin', 'moderator', 'facilitator', 'assistant_moderator', 'expert', 'liaison'])
     })
 
     it('returns facilitator-assignable roles for facilitator user', () => {

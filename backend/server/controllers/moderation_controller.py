@@ -18,7 +18,7 @@ from candid.controllers import db
 from candid.controllers.helpers.auth import (
     authorization, authorization_allow_banned, authorization_scoped,
     token_to_user, invalidate_ban_cache,
-    is_admin_anywhere, is_moderator_anywhere,
+    is_admin_anywhere, is_moderator_anywhere, get_facilitator_scopes,
     is_admin_at_location, is_moderator_at_location,
     get_highest_role_at_location, get_location_ancestors,
 )
@@ -34,7 +34,7 @@ def get_user_moderation_history(user_id, token_info=None):  # noqa: E501
 
     :rtype: Union[List[ModerationHistoryEvent], Tuple[List[ModerationHistoryEvent], int]]
     """
-    authorized, auth_err = authorization_scoped("moderator", token_info)
+    authorized, auth_err = authorization_scoped("facilitator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -258,17 +258,17 @@ def _get_user_info(user_id):
 def _get_reported_user_role(target_object_type, target_object_id):
     """Determine the highest scoped role among the 'reported' users for a report.
 
-    Returns a role string: 'admin', 'moderator', or 'normal'.
+    Returns a role string: 'admin', 'moderator', 'facilitator', or 'normal'.
     Checks the user_role table (not user_type, which is only 'normal'/'guest').
     """
-    role_hierarchy = {'normal': 0, 'moderator': 1, 'admin': 2}
+    role_hierarchy = {'normal': 0, 'facilitator': 1, 'moderator': 2, 'admin': 3}
 
     def _highest_role_for_user(user_id):
         """Get the highest scoped role for a single user."""
         row = db.execute_query("""
             SELECT role FROM user_role
-            WHERE user_id = %s AND role IN ('admin', 'moderator')
-            ORDER BY CASE role WHEN 'admin' THEN 1 WHEN 'moderator' THEN 2 END
+            WHERE user_id = %s AND role IN ('admin', 'moderator', 'facilitator')
+            ORDER BY CASE role WHEN 'admin' THEN 1 WHEN 'moderator' THEN 2 WHEN 'facilitator' THEN 3 END
             LIMIT 1
         """, (str(user_id),), fetchone=True)
         return row['role'] if row else 'normal'
@@ -941,7 +941,7 @@ def _get_admin_response_notifications(user_id):
 
 def dismiss_admin_response_notification(appeal_id, token_info=None):
     """Dismiss an admin response notification."""
-    authorized, auth_err = authorization_scoped("moderator", token_info)
+    authorized, auth_err = authorization_scoped("facilitator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -962,11 +962,20 @@ def claim_report(report_id, token_info=None):  # noqa: E501
 
     :rtype: Union[dict, Tuple[dict, int]]
     """
-    authorized, auth_err = authorization_scoped("moderator", token_info)
+    authorized, auth_err = authorization_scoped("facilitator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
     user = token_to_user(token_info)
+
+    # Facilitator scope check: verify report is within their scope
+    if not is_admin_anywhere(user.id) and not is_moderator_anywhere(user.id):
+        scopes = get_facilitator_scopes(user.id)
+        if not scopes:
+            return ErrorModel(403, "Unauthorized"), 403
+        content_loc, content_cat = _get_content_scope(report_id)
+        if not content_loc or not content_cat or (content_loc, content_cat) not in scopes:
+            return ErrorModel(403, "Report is outside your facilitator scope"), 403
 
     # Check report exists
     report = db.execute_query("""
@@ -1003,11 +1012,20 @@ def release_report(report_id, token_info=None):  # noqa: E501
 
     :rtype: Union[dict, Tuple[dict, int]]
     """
-    authorized, auth_err = authorization_scoped("moderator", token_info)
+    authorized, auth_err = authorization_scoped("facilitator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
     user = token_to_user(token_info)
+
+    # Facilitator scope check
+    if not is_admin_anywhere(user.id) and not is_moderator_anywhere(user.id):
+        scopes = get_facilitator_scopes(user.id)
+        if not scopes:
+            return ErrorModel(403, "Unauthorized"), 403
+        content_loc, content_cat = _get_content_scope(report_id)
+        if not content_loc or not content_cat or (content_loc, content_cat) not in scopes:
+            return ErrorModel(403, "Report is outside your facilitator scope"), 403
 
     # Check report exists
     report = db.execute_query("""
@@ -1034,12 +1052,20 @@ def get_moderation_queue(token_info=None):  # noqa: E501
 
     :rtype: Union[List[GetModerationQueue200ResponseInner], Tuple[List[GetModerationQueue200ResponseInner], int], Tuple[List[GetModerationQueue200ResponseInner], int, Dict[str, str]]
     """
-    authorized, auth_err = authorization_scoped("moderator", token_info)
+    authorized, auth_err = authorization_scoped("facilitator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
     user = token_to_user(token_info)
     is_admin = is_admin_anywhere(user.id)
+    is_mod = is_moderator_anywhere(user.id)
+
+    # Determine facilitator scopes (None = no facilitator filtering for admin/mod)
+    facilitator_scopes = None
+    if not is_admin and not is_mod:
+        facilitator_scopes = get_facilitator_scopes(user.id)
+        if not facilitator_scopes:
+            return []
 
     # Get pending reports (exclude those claimed by other users with active claims)
     reports = db.execute_query("""
@@ -1073,22 +1099,34 @@ def get_moderation_queue(token_info=None):  # noqa: E501
     queue.extend(admin_notifications)
 
     # Add enriched reports to queue (with role-based routing)
-    role_hierarchy = {'normal': 0, 'moderator': 1, 'admin': 2}
+    role_hierarchy = {'normal': 0, 'facilitator': 1, 'moderator': 2, 'admin': 3}
     if reports:
         for r in reports:
             # Role-based routing: determine reported user's role
             reported_role = _get_reported_user_role(r['target_object_type'], r['target_object_id'])
             reported_role_level = role_hierarchy.get(reported_role, 0)
 
-            # Moderators cannot see reports against moderators or admins
-            if not is_admin and reported_role_level >= role_hierarchy['moderator']:
-                continue
-
-            # Admins cannot see reports against themselves
-            if is_admin and reported_role_level >= role_hierarchy['admin']:
-                reported_ids = _get_reported_user_ids(r['target_object_type'], r['target_object_id'])
-                if str(user.id) in reported_ids:
+            # Facilitator scope filtering
+            if facilitator_scopes is not None:
+                # Facilitators cannot moderate facilitator+ users
+                if reported_role_level >= role_hierarchy['facilitator']:
                     continue
+                # Must match exact location+category scope
+                content_loc, content_cat = _get_content_scope(r['id'])
+                if not content_loc or not content_cat:
+                    continue
+                if (content_loc, content_cat) not in facilitator_scopes:
+                    continue
+            else:
+                # Moderators cannot see reports against moderators or admins
+                if not is_admin and reported_role_level >= role_hierarchy['moderator']:
+                    continue
+
+                # Admins cannot see reports against themselves
+                if is_admin and reported_role_level >= role_hierarchy['admin']:
+                    reported_ids = _get_reported_user_ids(r['target_object_type'], r['target_object_id'])
+                    if str(user.id) in reported_ids:
+                        continue
 
             rule = _get_rule_info(r['rule_id'])
             submitter = _get_user_info(r['submitter_user_id'])
@@ -1391,7 +1429,7 @@ def respond_to_appeal(appeal_id, body, token_info=None):  # noqa: E501
 
     :rtype: Union[ModActionAppealResponse, Tuple[ModActionAppealResponse, int], Tuple[ModActionAppealResponse, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization_scoped("moderator", token_info)
+    authorized, auth_err = authorization_scoped("facilitator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -1632,7 +1670,7 @@ def take_moderator_action(report_id, body, token_info=None):  # noqa: E501
 
     :rtype: Union[ModAction, Tuple[ModAction, int], Tuple[ModAction, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization_scoped("moderator", token_info)
+    authorized, auth_err = authorization_scoped("facilitator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -1655,12 +1693,26 @@ def take_moderator_action(report_id, body, token_info=None):  # noqa: E501
     if report['status'] != 'pending':
         return ErrorModel(400, "Report has already been processed"), 400
 
-    # Role-based check: moderators cannot action reports against moderators+
+    # Role-based check with 4-tier hierarchy
     is_admin = is_admin_anywhere(user.id)
+    is_mod = is_moderator_anywhere(user.id)
     reported_role = _get_reported_user_role(report['target_object_type'], report['target_object_id'])
-    role_hierarchy = {'normal': 0, 'moderator': 1, 'admin': 2}
-    if not is_admin and role_hierarchy.get(reported_role, 0) >= role_hierarchy['moderator']:
+    role_hierarchy = {'normal': 0, 'facilitator': 1, 'moderator': 2, 'admin': 3}
+
+    # Facilitator scope check
+    if not is_admin and not is_mod:
+        scopes = get_facilitator_scopes(user.id)
+        if not scopes:
+            return ErrorModel(403, "Unauthorized"), 403
+        content_loc, content_cat = _get_content_scope(report_id)
+        if not content_loc or not content_cat or (content_loc, content_cat) not in scopes:
+            return ErrorModel(403, "Report is outside your facilitator scope"), 403
+        # Facilitators cannot action reports against facilitator+ users
+        if role_hierarchy.get(reported_role, 0) >= role_hierarchy['facilitator']:
+            return ErrorModel(403, "Reports against facilitators or above require higher privileges"), 403
+    elif not is_admin and role_hierarchy.get(reported_role, 0) >= role_hierarchy['moderator']:
         return ErrorModel(403, "Reports against moderators or admins require admin privileges"), 403
+
     if is_admin and role_hierarchy.get(reported_role, 0) >= role_hierarchy['admin']:
         reported_ids = _get_reported_user_ids(report['target_object_type'], report['target_object_id'])
         if str(user.id) in reported_ids:

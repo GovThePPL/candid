@@ -116,10 +116,12 @@ describe('useKeyboardHeight - web', () => {
     expect(result.current.webInitialHeight).toBe(800)
   })
 
-  it('registers resize listeners on visualViewport and window', () => {
+  it('registers resize listener on visualViewport only (not window)', () => {
     renderHook(() => useKeyboardHeight())
     expect(mockVV.addEventListener).toHaveBeenCalledWith('resize', expect.any(Function))
-    expect(window.addEventListener).toHaveBeenCalledWith('resize', expect.any(Function))
+    // window.resize is intentionally NOT used — it fires during navigation
+    // transitions and address bar changes, causing false keyboard detection
+    expect(window.addEventListener).not.toHaveBeenCalledWith('resize', expect.any(Function))
   })
 
   it('registers focusin/focusout listeners on document', () => {
@@ -167,7 +169,9 @@ describe('useKeyboardHeight - web', () => {
     expect(result.current.keyboardHeight).toBe(0)
   })
 
-  it('estimates keyboard height on focusin when vv.height unchanged (Firefox)', () => {
+  it('estimates keyboard height on focusin when vv.height unchanged (Firefox Mobile)', () => {
+    // Simulate mobile Firefox user agent
+    Object.defineProperty(navigator, 'userAgent', { value: 'Mozilla/5.0 (Android 13; Mobile; rv:109.0) Gecko/109.0 Firefox/109.0', configurable: true })
     const { result } = renderHook(() => useKeyboardHeight())
 
     // Firefox: vv.height stays at 800 (unchanged)
@@ -179,7 +183,20 @@ describe('useKeyboardHeight - web', () => {
     expect(result.current.keyboardHeight).toBe(320)
   })
 
-  it('refines estimate when vv.height eventually changes (Firefox poll)', () => {
+  it('skips focusin estimate on desktop browsers', () => {
+    Object.defineProperty(navigator, 'userAgent', { value: 'Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/109.0', configurable: true })
+    const { result } = renderHook(() => useKeyboardHeight())
+
+    act(() => {
+      documentListeners['focusin']()
+    })
+
+    // Desktop: should NOT estimate keyboard height
+    expect(result.current.keyboardHeight).toBe(0)
+  })
+
+  it('refines estimate when vv.height eventually changes (Firefox Mobile poll)', () => {
+    Object.defineProperty(navigator, 'userAgent', { value: 'Mozilla/5.0 (Android 13; Mobile; rv:109.0) Gecko/109.0 Firefox/109.0', configurable: true })
     const { result } = renderHook(() => useKeyboardHeight())
 
     act(() => {
@@ -198,6 +215,7 @@ describe('useKeyboardHeight - web', () => {
   })
 
   it('resets on focusout after delay', () => {
+    Object.defineProperty(navigator, 'userAgent', { value: 'Mozilla/5.0 (Android 13; Mobile; rv:109.0) Gecko/109.0 Firefox/109.0', configurable: true })
     const { result } = renderHook(() => useKeyboardHeight())
 
     act(() => {
@@ -221,6 +239,7 @@ describe('useKeyboardHeight - web', () => {
   })
 
   it('cancels focusout timer when focusin fires again', () => {
+    Object.defineProperty(navigator, 'userAgent', { value: 'Mozilla/5.0 (Android 13; Mobile; rv:109.0) Gecko/109.0 Firefox/109.0', configurable: true })
     const { result } = renderHook(() => useKeyboardHeight())
 
     act(() => {
@@ -253,7 +272,6 @@ describe('useKeyboardHeight - web', () => {
     unmount()
 
     expect(mockVV.removeEventListener).toHaveBeenCalledWith('resize', expect.any(Function))
-    expect(window.removeEventListener).toHaveBeenCalledWith('resize', expect.any(Function))
     expect(document.removeEventListener).toHaveBeenCalledWith('focusin', expect.any(Function))
     expect(document.removeEventListener).toHaveBeenCalledWith('focusout', expect.any(Function))
   })

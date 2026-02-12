@@ -230,7 +230,6 @@ export default function ModerationHistoryModal({ visible, onClose, userId, user 
       visible={visible}
       onClose={onClose}
       title={t('moderationHistory')}
-      maxHeight="85%"
     >
       {loading ? (
         <View style={styles.centerContainer}>
@@ -300,7 +299,7 @@ const createStyles = (colors) => StyleSheet.create({
     textAlign: 'center',
   },
   retryButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
     paddingHorizontal: 20,
     paddingVertical: 8,
     borderRadius: 8,

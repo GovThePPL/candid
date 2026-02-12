@@ -53,7 +53,7 @@ export function hasRole(user, requiredRole) {
  * True for admin, moderator, or facilitator — the roles that can moderate content.
  */
 export function canModerate(user) {
-  return hasRole(user, 'moderator')
+  return hasRole(user, 'facilitator')
 }
 
 /**
@@ -84,7 +84,7 @@ const FACILITATOR_ASSIGNABLE = ['assistant_moderator', 'expert', 'liaison']
 
 /**
  * Return the list of role names this user is allowed to assign.
- * - Admin → admin, moderator, facilitator
+ * - Admin → all roles (admin, moderator, facilitator, assistant_moderator, expert, liaison)
  * - Facilitator → assistant_moderator, expert, liaison
  * - Others → [] (empty)
  */
@@ -93,12 +93,10 @@ export function getAssignableRoles(user) {
   const roleNames = new Set(user.roles.map(r => r.role))
   const result = []
   if (roleNames.has('admin')) {
-    result.push(...ADMIN_ASSIGNABLE)
-  }
-  if (roleNames.has('facilitator')) {
+    result.push(...ADMIN_ASSIGNABLE, ...FACILITATOR_ASSIGNABLE)
+  } else if (roleNames.has('facilitator')) {
     result.push(...FACILITATOR_ASSIGNABLE)
   }
-  // Deduplicate in case of overlap (shouldn't happen, but safe)
   return [...new Set(result)]
 }
 
@@ -126,7 +124,7 @@ export function getDescendantLocationIds(locationId, allLocations) {
 /**
  * Return locations the user can assign the given role at.
  * - For admin-assignable roles: locations at/below each of user's admin locations
- * - For facilitator-assignable roles: exact locations from user's facilitator roles
+ * - For facilitator-assignable roles: admin locations (all descendants) + exact facilitator locations
  * @param {object} user
  * @param {string} role - the role being assigned
  * @param {Array} allLocations
@@ -138,7 +136,6 @@ export function getAssignableLocations(user, role, allLocations) {
   const allowedIds = new Set()
 
   if (ADMIN_ASSIGNABLE.includes(role)) {
-    // Admin roles: locations at/below each admin assignment
     for (const r of user.roles) {
       if (r.role === 'admin' && r.locationId) {
         for (const id of getDescendantLocationIds(r.locationId, allLocations)) {
@@ -147,8 +144,13 @@ export function getAssignableLocations(user, role, allLocations) {
       }
     }
   } else if (FACILITATOR_ASSIGNABLE.includes(role)) {
-    // Facilitator roles: exact locations from facilitator assignments
+    // Admins can assign facilitator-assignable roles at their locations too
     for (const r of user.roles) {
+      if (r.role === 'admin' && r.locationId) {
+        for (const id of getDescendantLocationIds(r.locationId, allLocations)) {
+          allowedIds.add(id)
+        }
+      }
       if (r.role === 'facilitator' && r.locationId) {
         allowedIds.add(r.locationId)
       }
@@ -161,7 +163,7 @@ export function getAssignableLocations(user, role, allLocations) {
 /**
  * Return category IDs the user can assign for a given role + location.
  * - For admin-assignable roles: null (categories not applicable)
- * - For facilitator-assignable roles: category IDs from matching facilitator roles
+ * - For facilitator-assignable roles: null if admin (all categories), otherwise category IDs from facilitator roles
  * @param {object} user
  * @param {string} role
  * @param {number} locationId
@@ -175,6 +177,10 @@ export function getAssignableCategories(user, role, locationId) {
   }
 
   if (FACILITATOR_ASSIGNABLE.includes(role)) {
+    // Admins can assign any category at their locations
+    const isAdmin = user.roles.some(r => r.role === 'admin')
+    if (isAdmin) return null
+
     const ids = new Set()
     for (const r of user.roles) {
       if (r.role === 'facilitator' && r.locationId === locationId && r.positionCategoryId) {
@@ -238,8 +244,16 @@ export function canManageRoleAssignment(user, roleAssignment, allLocations) {
   }
 
   if (FACILITATOR_ASSIGNABLE.includes(role)) {
-    const categoryId = roleAssignment.category?.id
+    // Admins can manage facilitator-assignable roles at their locations
+    for (const r of user.roles) {
+      if (r.role === 'admin' && r.locationId) {
+        if (getDescendantLocationIds(r.locationId, allLocations).has(locationId)) {
+          return true
+        }
+      }
+    }
     // Facilitator must match exact location + category
+    const categoryId = roleAssignment.category?.id
     return user.roles.some(
       r => r.role === 'facilitator' &&
            r.locationId === locationId &&

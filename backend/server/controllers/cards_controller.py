@@ -572,15 +572,33 @@ def invalidate_user_context_cache(user_id: str):
     _user_context_cache.pop(str(user_id), None)
 
 
+def _get_chatting_list_likelihood(user_id: str) -> int:
+    """Read chatting_list_likelihood fresh from DB (not cached).
+
+    This is always read fresh because it can change frequently via settings
+    and the per-worker in-memory cache can't be reliably invalidated across
+    gunicorn workers.
+    """
+    user_row = db.execute_query(
+        "SELECT chatting_list_likelihood FROM users WHERE id = %s",
+        (user_id,), fetchone=True)
+    if user_row and user_row.get("chatting_list_likelihood") is not None:
+        return user_row["chatting_list_likelihood"]
+    return 3
+
+
 def _get_user_context(user_id: str):
-    """Get user's location, category priorities, and chatting list likelihood (cached per-user).
+    """Get user's location, category priorities, and chatting list likelihood.
+
+    Location and priorities are cached (change rarely). Chatting list likelihood
+    is always read fresh from DB.
 
     Returns (location_id, priorities, chatting_list_likelihood).
     """
     uid = str(user_id)
     cached = _user_context_cache.get(uid)
     if cached and (time.time() - cached["time"]) < USER_CONTEXT_TTL:
-        return cached["location_id"], cached["priorities"], cached["chatting_list_likelihood"]
+        return cached["location_id"], cached["priorities"], _get_chatting_list_likelihood(uid)
 
     # Fetch location
     location = db.execute_query("""
@@ -605,19 +623,12 @@ def _get_user_context(user_id: str):
         for c in (categories or []):
             priorities[str(c["id"])] = 3
 
-    # Fetch chatting list likelihood from users table
-    user_row = db.execute_query("""
-        SELECT chatting_list_likelihood FROM users WHERE id = %s
-    """, (user_id,), fetchone=True)
-    chatting_list_likelihood = user_row["chatting_list_likelihood"] if user_row and user_row.get("chatting_list_likelihood") is not None else 3
-
     _user_context_cache[uid] = {
         "location_id": location_id,
         "priorities": priorities,
-        "chatting_list_likelihood": chatting_list_likelihood,
         "time": time.time()
     }
-    return location_id, priorities, chatting_list_likelihood
+    return location_id, priorities, _get_chatting_list_likelihood(uid)
 
 
 def _get_unvoted_positions_fallback(user_id: str, location_id: str, limit: int = 10) -> List[dict]:

@@ -511,6 +511,18 @@ CREATE TABLE role_change_request (
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Admin action log (ban/unban audit trail)
+CREATE TABLE admin_action_log (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    action VARCHAR(50) NOT NULL CHECK (action IN ('ban', 'unban')),
+    target_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    performed_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    reason TEXT NOT NULL,
+    created_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_admin_action_log_target ON admin_action_log(target_user_id);
+CREATE INDEX idx_admin_action_log_created ON admin_action_log(created_time DESC);
+
 -- Notification queue (for quiet-hours delayed delivery)
 CREATE TABLE notification_queue (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

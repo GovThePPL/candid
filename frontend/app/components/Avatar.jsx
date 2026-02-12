@@ -37,7 +37,7 @@ export default memo(function Avatar({
 
   // Scale font, badge, and star icon relative to avatar size
   const fontSize = px <= 20 ? px * 0.55 : px <= 32 ? px * 0.45 : px * 0.4
-  const badgeSize = Math.max(14, Math.round(px * 0.4))
+  const badgeSize = Math.min(20, Math.max(14, Math.round(px * 0.4)))
   const starSize = Math.max(8, Math.round(badgeSize * 0.55))
 
   return (
@@ -77,7 +77,7 @@ export default memo(function Avatar({
             {
               minWidth: badgeSize,
               height: badgeSize,
-              borderRadius: showKudosCount ? 10 : badgeSize / 2,
+              borderRadius: badgeSize / 2,
               backgroundColor: getTrustBadgeColor(user.trustScore),
             },
             showKudosCount && styles.kudosBadgePill,
@@ -100,8 +100,6 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     gap: 1,
-    borderWidth: 1.5,
-    borderColor: colors.cardBackground,
   },
   kudosBadgeRight: {
     bottom: -2,

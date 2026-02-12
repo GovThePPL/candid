@@ -916,7 +916,8 @@ export default function ModerationQueue() {
         visible={dismissModalVisible}
         onClose={() => setDismissModalVisible(false)}
         title={t('dismissReport')}
-        maxHeight="40%"
+        shrink
+
       >
         <View style={styles.responseModalContent}>
           <TextInput
@@ -966,7 +967,7 @@ export default function ModerationQueue() {
               ? t('sideWithName', { name: currentItem?.data?.originalAction?.responder?.displayName || t('moderator') })
               : appealResponseType === 'approve' ? t('approveAppeal') : t('denyAppeal')
         }
-        maxHeight="40%"
+        shrink
       >
         <View style={styles.responseModalContent}>
           <TextInput
@@ -1025,7 +1026,7 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: 16,
   },
   retryButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
@@ -1046,7 +1047,7 @@ const createStyles = (colors) => StyleSheet.create({
   reportCard: {
     borderRadius: 16,
     overflow: 'hidden',
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
@@ -1054,7 +1055,7 @@ const createStyles = (colors) => StyleSheet.create({
     elevation: 6,
   },
   reportHeader: {
-    backgroundColor: SemanticColors.warning,
+    backgroundColor: colors.warningSurface,
     paddingVertical: 10,
     paddingHorizontal: 12,
   },
@@ -1068,10 +1069,8 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,
-    backgroundColor: 'rgba(0,0,0,0.2)',
     paddingHorizontal: 10,
     paddingVertical: 8,
-    borderRadius: 8,
     minWidth: 64,
   },
   headerTypeText: {
@@ -1104,7 +1103,7 @@ const createStyles = (colors) => StyleSheet.create({
     lineHeight: 16,
   },
   reportBodyWrapper: {
-    backgroundColor: SemanticColors.warning,
+    backgroundColor: colors.warningSurface,
   },
   reportBody: {
     backgroundColor: colors.cardBackground,
@@ -1119,7 +1118,7 @@ const createStyles = (colors) => StyleSheet.create({
     borderBottomRightRadius: 16,
   },
   reportFooter: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
     paddingHorizontal: 12,
     paddingTop: 8,
     paddingBottom: 12,
@@ -1202,7 +1201,7 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 12,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
     borderWidth: 1,
     borderColor: colors.primary,
     gap: 4,
@@ -1220,7 +1219,7 @@ const createStyles = (colors) => StyleSheet.create({
     flex: 1,
   },
   actionButtonModify: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
     borderColor: colors.primary,
     flex: 1,
   },
@@ -1230,7 +1229,7 @@ const createStyles = (colors) => StyleSheet.create({
     flex: 1,
   },
   actionButtonEscalated: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
     borderColor: colors.primary,
     flex: 1,
   },
@@ -1269,7 +1268,7 @@ const createStyles = (colors) => StyleSheet.create({
     maxHeight: 120,
   },
   responseSubmitButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
@@ -1297,7 +1296,7 @@ const createStyles = (colors) => StyleSheet.create({
   outcomeBadgeText: {
   },
   actionButtonDismissNotification: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
     borderColor: colors.primary,
     flex: 1,
   },

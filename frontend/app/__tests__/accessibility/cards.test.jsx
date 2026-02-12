@@ -5,7 +5,7 @@ import { render, screen, fireEvent } from '@testing-library/react-native'
 // ---------------------------------------------------------------------------
 
 const mockColors = {
-  primary: '#5C005C',
+  primary: '#5C005C', primarySurface: '#5C005C',
   text: '#2C3842',
   title: '#5C005C',
   secondaryText: '#666666',

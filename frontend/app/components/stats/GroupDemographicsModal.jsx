@@ -476,7 +476,7 @@ const createStyles = (colors) => StyleSheet.create({
     marginTop: 16,
     paddingHorizontal: 24,
     paddingVertical: 10,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
     borderRadius: 8,
   },
   section: {

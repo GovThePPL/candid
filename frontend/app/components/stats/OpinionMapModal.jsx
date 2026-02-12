@@ -453,7 +453,7 @@ const createStyles = (colors) => StyleSheet.create({
     marginTop: 4,
   },
   doneButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
     borderRadius: 8,
     paddingVertical: 12,
     alignItems: 'center',

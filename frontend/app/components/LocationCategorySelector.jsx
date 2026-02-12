@@ -62,8 +62,9 @@ export default function LocationCategorySelector({
         setCategories(catData || [])
       }
 
-      // Auto-select location if not already selected
-      if (!selectedLocation && locData?.length > 0) {
+      // Auto-select location if not set or stale (e.g. DB was reset)
+      const locIds = (locData || []).map(l => l.id)
+      if (locData?.length > 0 && (!selectedLocation || !locIds.includes(selectedLocation))) {
         if (defaultLocation === 'last') {
           onLocationChange(locData[locData.length - 1].id)
         } else {
@@ -71,9 +72,12 @@ export default function LocationCategorySelector({
         }
       }
 
-      // Default to "All Categories" when showAllCategories is enabled
-      if (showAllCategories && !selectedCategory) {
+      // Default to "All Categories" when showAllCategories is enabled, or if stored ID is stale
+      const catIds = (catData || []).map(c => c.id)
+      if (showAllCategories && (!selectedCategory || (selectedCategory !== 'all' && !catIds.includes(selectedCategory)))) {
         onCategoryChange('all')
+      } else if (!showAllCategories && selectedCategory && !catIds.includes(selectedCategory)) {
+        if (catData?.length > 0) onCategoryChange(catData[0].id)
       }
     } catch (error) {
       console.error('Error loading selector data:', error)
@@ -85,6 +89,11 @@ export default function LocationCategorySelector({
   const getSelectedLocationName = () => {
     const loc = locations.find((l) => l.id === selectedLocation)
     return loc?.name || t('selectLocation')
+  }
+
+  const getSelectedLocationDisplay = () => {
+    const loc = locations.find((l) => l.id === selectedLocation)
+    return loc?.code || loc?.name || t('selectLocation')
   }
 
   const getSelectedCategoryName = () => {
@@ -156,7 +165,7 @@ export default function LocationCategorySelector({
   return (
     <View style={[styles.container, style]}>
       {/* Location selector */}
-      <View style={styles.selectorWrapper}>
+      <View style={styles.locationWrapper}>
         {showLabels && (
           <View style={styles.labelRow}>
             <ThemedText variant="label" color="dark">{t('locationLabel')}</ThemedText>
@@ -171,15 +180,15 @@ export default function LocationCategorySelector({
           {!showLabels && (
             <Ionicons name="location-outline" size={18} color={colors.primary} />
           )}
-          <ThemedText variant="bodySmall" style={styles.selectorText} numberOfLines={1}>
-            {getSelectedLocationName()}
+          <ThemedText variant="bodySmall" numberOfLines={1}>
+            {getSelectedLocationDisplay()}
           </ThemedText>
           <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
         </TouchableOpacity>
       </View>
 
       {/* Category selector */}
-      <View style={styles.selectorWrapper}>
+      <View style={styles.categoryWrapper}>
         {showLabels && (
           <View style={styles.labelRow}>
             <ThemedText variant="label" color="dark">{t('categoryLabel')}</ThemedText>
@@ -237,7 +246,10 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 8,
     gap: 12,
   },
-  selectorWrapper: {
+  locationWrapper: {
+    flexShrink: 0,
+  },
+  categoryWrapper: {
     flex: 1,
   },
   labelRow: {

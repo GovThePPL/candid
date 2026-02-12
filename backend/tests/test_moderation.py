@@ -8,6 +8,8 @@ from conftest import (
     POSITION1_ID,
     POSITION2_ID,
     POSITION3_ID,
+    POSITION_NORMAL2_HEALTHCARE_ID,
+    POSITION_NORMAL3_IMMIGRATION_ID,
     NONEXISTENT_UUID,
     RULE_VIOLENCE_ID,
     RULE_SPAM_ID,
@@ -219,11 +221,11 @@ class TestModerationQueue:
         )
         assert resp.status_code == 200
 
-    def test_normal_user_cannot_access_queue(self, normal_headers):
-        """Normal user cannot access the moderation queue (403)."""
+    def test_normal_user_cannot_access_queue(self, normal2_headers):
+        """Normal user (no roles) cannot access the moderation queue (403)."""
         resp = requests.get(
             f"{MODERATION_URL}/queue",
-            headers=normal_headers,
+            headers=normal2_headers,
         )
         assert resp.status_code == 403
 
@@ -432,14 +434,14 @@ class TestTakeModeratorAction:
         )
         assert resp.status_code == 400
 
-    def test_normal_user_cannot_take_action(self, normal_headers, pending_report_id):
-        """Normal user cannot take moderator action (403)."""
+    def test_normal_user_cannot_take_action(self, normal2_headers, pending_report_id):
+        """Normal user (no roles) cannot take moderator action (403)."""
         payload = {
             "modResponse": "dismiss",
         }
         resp = requests.post(
             f"{MODERATION_URL}/reports/{pending_report_id}/response",
-            headers=normal_headers,
+            headers=normal2_headers,
             json=payload,
         )
         assert resp.status_code == 403
@@ -453,15 +455,15 @@ class TestRespondToAppeal:
     Since we don't have seed data for appeals, we test authorization and error cases.
     """
 
-    def test_normal_user_cannot_respond_to_appeal(self, normal_headers):
-        """Normal user cannot respond to appeals (403)."""
+    def test_normal_user_cannot_respond_to_appeal(self, normal2_headers):
+        """Normal user (no roles) cannot respond to appeals (403)."""
         payload = {
             "response": "approve",
             "responseText": "Appeal approved.",
         }
         resp = requests.post(
             f"{MODERATION_URL}/appeals/{NONEXISTENT_UUID}/response",
-            headers=normal_headers,
+            headers=normal2_headers,
             json=payload,
         )
         assert resp.status_code == 403
@@ -1020,11 +1022,11 @@ class TestDefaultActionsAndGuidelines:
 class TestDismissAdminResponseNotification:
     """POST /moderation/notifications/{appealId}/dismiss-admin-response"""
 
-    def test_normal_user_forbidden(self, normal_headers):
-        """Normal user cannot dismiss admin response notifications (403)."""
+    def test_normal_user_forbidden(self, normal2_headers):
+        """Normal user (no roles) cannot dismiss admin response notifications (403)."""
         resp = requests.post(
             f"{MODERATION_URL}/notifications/{NONEXISTENT_UUID}/dismiss-admin-response",
-            headers=normal_headers,
+            headers=normal2_headers,
         )
         assert resp.status_code == 403
 
@@ -1196,5 +1198,120 @@ class TestAppealResponseLifecycle:
             f"{MODERATION_URL}/appeals/{appeal_id}/response",
             headers=mod2_headers,
             json={"response": "deny", "responseText": "Trying to deny."},
+        )
+        assert resp.status_code == 403
+
+
+class TestFacilitatorModerationQueue:
+    """Tests for facilitator access to the moderation queue (location+category scoped).
+
+    normal1 is facilitator at Oregon+Healthcare. Reports in that scope should be
+    visible; reports outside that scope (different category, or against facilitator+
+    users) should not.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _cleanup(self):
+        """Clean up reports before and after each test."""
+        _cleanup_pending_reports()
+        yield
+        _cleanup_pending_reports()
+
+    @pytest.fixture
+    def facilitator_headers(self):
+        """Headers for normal1 (facilitator at Oregon+Healthcare)."""
+        token = login("normal1")
+        return auth_header(token)
+
+    def test_facilitator_can_access_queue(self, facilitator_headers):
+        """Facilitator gets 200 from the moderation queue."""
+        resp = requests.get(f"{MODERATION_URL}/queue", headers=facilitator_headers)
+        assert resp.status_code == 200
+        assert isinstance(resp.json(), list)
+
+    def test_facilitator_sees_reports_in_scope(self, facilitator_headers):
+        """Facilitator sees reports against normal users in their scope (Oregon+Healthcare)."""
+        # Report normal2's Healthcare position at Oregon (in scope)
+        normal3_headers = auth_header(login("normal3"))
+        report_id = _create_report(normal3_headers, POSITION_NORMAL2_HEALTHCARE_ID)
+
+        resp = requests.get(f"{MODERATION_URL}/queue", headers=facilitator_headers)
+        assert resp.status_code == 200
+        report_ids = [item["data"]["id"] for item in resp.json() if item["type"] == "report"]
+        assert report_id in report_ids
+
+    def test_facilitator_does_not_see_reports_outside_scope(self, facilitator_headers):
+        """Facilitator does NOT see reports in a different category (Immigration)."""
+        # Report normal3's Immigration position at Oregon (wrong category)
+        normal2_headers = auth_header(login("normal2"))
+        report_id = _create_report(normal2_headers, POSITION_NORMAL3_IMMIGRATION_ID)
+
+        resp = requests.get(f"{MODERATION_URL}/queue", headers=facilitator_headers)
+        assert resp.status_code == 200
+        report_ids = [item["data"]["id"] for item in resp.json() if item["type"] == "report"]
+        assert report_id not in report_ids
+
+    def test_facilitator_does_not_see_reports_against_moderator(self, facilitator_headers):
+        """Facilitator does NOT see reports against moderator-level users (even in scope)."""
+        # Report moderator1's Healthcare position (moderator = too high for facilitator)
+        normal2_headers = auth_header(login("normal2"))
+        report_id = _create_report(normal2_headers, POSITION2_ID)
+
+        resp = requests.get(f"{MODERATION_URL}/queue", headers=facilitator_headers)
+        assert resp.status_code == 200
+        report_ids = [item["data"]["id"] for item in resp.json() if item["type"] == "report"]
+        assert report_id not in report_ids
+
+    @pytest.mark.mutation
+    def test_facilitator_can_action_report_in_scope(self, facilitator_headers):
+        """Facilitator can dismiss a report within their scope."""
+        normal3_headers = auth_header(login("normal3"))
+        report_id = _create_report(normal3_headers, POSITION_NORMAL2_HEALTHCARE_ID)
+
+        payload = {"modResponse": "dismiss"}
+        resp = requests.post(
+            f"{MODERATION_URL}/reports/{report_id}/response",
+            headers=facilitator_headers,
+            json=payload,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["modResponse"] == "dismiss"
+
+    @pytest.mark.mutation
+    def test_facilitator_cannot_action_report_outside_scope(self, facilitator_headers):
+        """Facilitator cannot action reports outside their scope (403)."""
+        normal2_headers = auth_header(login("normal2"))
+        report_id = _create_report(normal2_headers, POSITION_NORMAL3_IMMIGRATION_ID)
+
+        payload = {"modResponse": "dismiss"}
+        resp = requests.post(
+            f"{MODERATION_URL}/reports/{report_id}/response",
+            headers=facilitator_headers,
+            json=payload,
+        )
+        assert resp.status_code == 403
+
+    @pytest.mark.mutation
+    def test_facilitator_can_claim_report_in_scope(self, facilitator_headers):
+        """Facilitator can claim a report in their scope."""
+        normal3_headers = auth_header(login("normal3"))
+        report_id = _create_report(normal3_headers, POSITION_NORMAL2_HEALTHCARE_ID)
+
+        resp = requests.post(
+            f"{MODERATION_URL}/reports/{report_id}/claim",
+            headers=facilitator_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "claimed"
+
+    @pytest.mark.mutation
+    def test_facilitator_cannot_claim_report_outside_scope(self, facilitator_headers):
+        """Facilitator cannot claim reports outside their scope (403)."""
+        normal2_headers = auth_header(login("normal2"))
+        report_id = _create_report(normal2_headers, POSITION_NORMAL3_IMMIGRATION_ID)
+
+        resp = requests.post(
+            f"{MODERATION_URL}/reports/{report_id}/claim",
+            headers=facilitator_headers,
         )
         assert resp.status_code == 403

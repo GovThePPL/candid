@@ -38,7 +38,7 @@ function ThemedButton({ style, disabled, children, onPress, accessibilityRole = 
 
 const createStyles = (colors) => StyleSheet.create({
   btn: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primarySurface,
     paddingVertical: 16,
     paddingHorizontal: 18,
     borderRadius: 12,

@@ -79,9 +79,9 @@ describe('Admin Hub accessibility', () => {
     render(<AdminHub />)
     const buttons = screen.getAllByRole('button')
     expect(buttons.length).toBeGreaterThanOrEqual(3)
-    expect(screen.getByRole('button', { name: /menuRoles/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /menuOrganization/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /menuRequestLog/i })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /menuLocations/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /menuUsers/i })).toBeTruthy()
   })
 
   test('role badges are readable', () => {
