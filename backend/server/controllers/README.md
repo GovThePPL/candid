@@ -16,7 +16,9 @@ Custom controller implementations for the Flask API. These files are copied over
 | `categories_controller.py` | Categories | Position categories, NLP-suggested categories |
 | `stats_controller.py` | Statistics | Location-based stats, demographic breakdowns |
 | `admin_controller.py` | Admin | Role management, approval workflow, locations, surveys |
-| `moderation_controller.py` | Moderation | Report queue, claims, actions, appeals, user history |
+| `posts_controller.py` | Posts | Create/list/update/delete posts, voting, locking |
+| `comments_controller.py` | Comments | Create/list/update/delete comments, voting, Q&A auth |
+| `moderation_controller.py` | Moderation | Report queue, claims, actions, appeals, user history, post/comment reports |
 | `security_controller.py` | Security | JWT token validation for Connexion |
 
 ## Special Files
@@ -78,6 +80,7 @@ Location ancestry is resolved with recursive CTEs (`get_location_ancestors`, `ge
 | `is_moderator_at_location(user_id, location_id)` | Moderator or admin at this location or any ancestor. |
 | `is_facilitator_for(user_id, location_id, category_id)` | Facilitator at exact location+category. |
 | `get_highest_role_at_location(user_id, location_id, category_id)` | User's most powerful role at a location. |
+| `has_qa_authority(user_id, location_id, category_id)` | Check if user has a qualifying role for Q&A answers. |
 
 ### Role Assignment & Approval Workflow (`admin_controller.py`)
 
@@ -148,7 +151,7 @@ Separate from roles. `users.status = 'banned'` blocks all authorized endpoints e
 
 | Module | Purpose |
 |--------|---------|
-| `auth.py` | Role-based authorization, location-scoped role checks, hierarchy walking |
+| `auth.py` | Role-based authorization, location-scoped role checks, hierarchy walking, Q&A authority |
 | `cache_headers.py` | HTTP cache header utilities |
 | `chat_availability.py` | Chat partner matching and availability logic |
 | `chat_events.py` | WebSocket chat event handling |
@@ -165,5 +168,6 @@ Separate from roles. `users.status = 'banned'` blocks all authorized endpoints e
 | `polis_worker.py` | Worker thread for processing Polis sync queue |
 | `presence.py` | User presence and swiping state tracking via Redis |
 | `push_notifications.py` | Expo push notification delivery with quiet hours |
+| `rate_limiting.py` | Sliding-window rate limiting using Redis sorted sets |
 | `redis_pool.py` | Shared Redis connection pool |
 | `scoring.py` | Wilson score, hot score, controversial score, vote weighting by ideological distance |

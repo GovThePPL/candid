@@ -1416,6 +1416,102 @@ def report_position(position_id, body, token_info=None):  # noqa: E501
     return _map_db_report_to_model(report_row), 201
 
 
+def report_post(post_id, body, token_info=None):  # noqa: E501
+    """Report a post."""
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    user = token_to_user(token_info)
+
+    report_request = body
+    if connexion.request.is_json:
+        report_request = ReportPositionRequest.from_dict(connexion.request.get_json())
+
+    # Validate post exists
+    post = db.execute_query(
+        "SELECT id FROM post WHERE id = %s AND status IN ('active', 'locked')",
+        (post_id,), fetchone=True,
+    )
+    if post is None:
+        return ErrorModel(400, "Post not found"), 400
+
+    # Validate rule exists and is active
+    rule = db.execute_query(
+        "SELECT id FROM rule WHERE id = %s AND status = 'active'",
+        (report_request.rule_id,), fetchone=True,
+    )
+    if rule is None:
+        return ErrorModel(400, "Rule not found or inactive"), 400
+
+    report_id = str(uuid.uuid4())
+    db.execute_query("""
+        INSERT INTO report (id, target_object_type, target_object_id, submitter_user_id, rule_id, submitter_comment)
+        VALUES (%s, 'post', %s, %s, %s, %s)
+    """, (
+        report_id,
+        post_id,
+        user.id,
+        report_request.rule_id,
+        report_request.comment,
+    ))
+
+    report_row = db.execute_query("""
+        SELECT id, target_object_type, target_object_id, submitter_user_id, rule_id, status, submitter_comment
+        FROM report WHERE id = %s
+    """, (report_id,), fetchone=True)
+
+    return _map_db_report_to_model(report_row), 201
+
+
+def report_comment(comment_id, body, token_info=None):  # noqa: E501
+    """Report a comment."""
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    user = token_to_user(token_info)
+
+    report_request = body
+    if connexion.request.is_json:
+        report_request = ReportPositionRequest.from_dict(connexion.request.get_json())
+
+    # Validate comment exists
+    comment = db.execute_query(
+        "SELECT id FROM comment WHERE id = %s AND status = 'active'",
+        (comment_id,), fetchone=True,
+    )
+    if comment is None:
+        return ErrorModel(400, "Comment not found"), 400
+
+    # Validate rule exists and is active
+    rule = db.execute_query(
+        "SELECT id FROM rule WHERE id = %s AND status = 'active'",
+        (report_request.rule_id,), fetchone=True,
+    )
+    if rule is None:
+        return ErrorModel(400, "Rule not found or inactive"), 400
+
+    report_id = str(uuid.uuid4())
+    db.execute_query("""
+        INSERT INTO report (id, target_object_type, target_object_id, submitter_user_id, rule_id, submitter_comment)
+        VALUES (%s, 'comment', %s, %s, %s, %s)
+    """, (
+        report_id,
+        comment_id,
+        user.id,
+        report_request.rule_id,
+        report_request.comment,
+    ))
+
+    report_row = db.execute_query("""
+        SELECT id, target_object_type, target_object_id, submitter_user_id, rule_id, status, submitter_comment
+        FROM report WHERE id = %s
+    """, (report_id,), fetchone=True)
+
+    return _map_db_report_to_model(report_row), 201
+
+
 def respond_to_appeal(appeal_id, body, token_info=None):  # noqa: E501
     """Respond to a moderation appeal
 

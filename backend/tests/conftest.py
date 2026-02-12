@@ -14,7 +14,7 @@ BASE_URL = "http://127.0.0.1:8000/api/v1"
 CHAT_SERVER_URL = "http://127.0.0.1:8002"
 DEFAULT_PASSWORD = "password"
 DB_URL = "postgresql://user:postgres@localhost:5432/candid"
-REDIS_URL = "redis://localhost:6379"
+REDIS_URL = os.environ.get("REDIS_URL", "redis://:candid-redis-dev@localhost:6379")
 KEYCLOAK_URL = os.environ.get("KEYCLOAK_URL", "http://localhost:8180")
 KEYCLOAK_REALM = os.environ.get("KEYCLOAK_REALM", "candid")
 
@@ -448,3 +448,15 @@ def normal3_token():
 @pytest.fixture(scope="session")
 def normal3_headers(normal3_token):
     return auth_header(normal3_token)
+
+
+def clear_rate_limits():
+    """Clear all rate limit keys from Redis."""
+    try:
+        r = redis.from_url(REDIS_URL, encoding="utf-8", decode_responses=True)
+        keys = r.keys("rate:*")
+        if keys:
+            r.delete(*keys)
+        r.close()
+    except Exception:
+        pass

@@ -50,6 +50,8 @@ python3 -m pytest backend/tests/unit/ --benchmark-only -v
 | `test_avatars.py` | Avatar serving endpoint |
 | `test_admin_locations.py` | Admin location management, soft-delete, reparenting |
 | `test_admin_categories_users.py` | Admin category creation, user ban/unban |
+| `test_posts.py` | Post CRUD, voting, locking, pagination, reporting |
+| `test_comments.py` | Comment CRUD, voting, Q&A authorization, nested replies |
 | `test_auth_required.py` | Consolidated 401 checks for all protected endpoints (parametrized) |
 
 ## Unit Tests (`unit/`)
@@ -75,6 +77,10 @@ python3 -m pytest backend/tests/unit/ --benchmark-only -v
 | `test_redis_pool.py` | `redis_pool.py` | Shared Redis connection pool singleton behavior |
 | `test_admin_helpers.py` | `admin_controller.py` | Role management helpers: authority location, approval peers, role changes, auto-approve |
 | `test_moderation_helpers.py` | `moderation_controller.py` | Hierarchical appeal routing: content scope, actioner level, peer/escalation reviewers |
+| `test_scoring.py` | `scoring.py` | Wilson score, hot score, controversial score, vote weight, ideological distance |
+| `test_ideological_coords.py` | `ideological_coords.py` | PCA projection, coordinate caching, blending, conversation lookup |
+| `test_auth_qa.py` | `auth.py` | Q&A authority checks for posts/comments |
+| `test_rate_limiting.py` | `rate_limiting.py` | Redis sliding-window rate limiter |
 
 ## Key Files
 

@@ -475,6 +475,15 @@ def authorization_scoped(required_role, token_info=None, location_id=None, categ
 # User model helper
 # ---------------------------------------------------------------------------
 
+QA_QUALIFYING_ROLES = {'admin', 'moderator', 'facilitator', 'expert', 'liaison'}
+
+
+def has_qa_authority(user_id, location_id, category_id):
+    """Check if user has any qualifying role for Q&A at this location+category."""
+    role = get_highest_role_at_location(user_id, location_id, category_id)
+    return role in QA_QUALIFYING_ROLES
+
+
 def token_to_user(token_info):
     res = db.execute_query("""
         SELECT *

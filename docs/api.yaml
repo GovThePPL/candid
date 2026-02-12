@@ -2657,6 +2657,286 @@ components:
           type: integer
           description: Number of pending chat requests for this position
 
+    Post:
+      type: object
+      required:
+        - id
+        - title
+        - body
+        - postType
+        - status
+        - creator
+        - locationId
+        - upvoteCount
+        - downvoteCount
+        - weightedUpvotes
+        - weightedDownvotes
+        - score
+        - commentCount
+        - createdTime
+        - updatedTime
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        body:
+          type: string
+        postType:
+          type: string
+          enum: [discussion, question]
+        status:
+          type: string
+          enum: [active, deleted, removed, locked]
+        creator:
+          $ref: '#/components/schemas/User'
+        locationId:
+          type: string
+          format: uuid
+        categoryId:
+          type: string
+          format: uuid
+          nullable: true
+        category:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            label:
+              type: string
+        location:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            code:
+              type: string
+            name:
+              type: string
+        upvoteCount:
+          type: integer
+        downvoteCount:
+          type: integer
+        weightedUpvotes:
+          type: number
+          format: double
+        weightedDownvotes:
+          type: number
+          format: double
+        score:
+          type: number
+          format: double
+        commentCount:
+          type: integer
+        userVote:
+          type: object
+          nullable: true
+          properties:
+            voteType:
+              type: string
+              enum: [upvote, downvote]
+            downvoteReason:
+              type: string
+              nullable: true
+        createdTime:
+          type: string
+          format: date-time
+        updatedTime:
+          type: string
+          format: date-time
+
+    PostList:
+      type: object
+      required:
+        - posts
+        - hasMore
+      properties:
+        posts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Post'
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
+
+    CreatePostRequest:
+      type: object
+      required:
+        - title
+        - body
+        - locationId
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        body:
+          type: string
+          maxLength: 10000
+        locationId:
+          type: string
+          format: uuid
+        categoryId:
+          type: string
+          format: uuid
+          nullable: true
+        postType:
+          type: string
+          enum: [discussion, question]
+          default: discussion
+
+    UpdatePostRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        body:
+          type: string
+          maxLength: 10000
+
+    Comment:
+      type: object
+      required:
+        - id
+        - postId
+        - body
+        - path
+        - depth
+        - status
+        - creator
+        - upvoteCount
+        - downvoteCount
+        - weightedUpvotes
+        - weightedDownvotes
+        - score
+        - childCount
+        - createdTime
+        - updatedTime
+      properties:
+        id:
+          type: string
+          format: uuid
+        postId:
+          type: string
+          format: uuid
+        parentCommentId:
+          type: string
+          format: uuid
+          nullable: true
+        body:
+          type: string
+        path:
+          type: string
+        depth:
+          type: integer
+        status:
+          type: string
+          enum: [active, deleted, removed]
+        creator:
+          $ref: '#/components/schemas/User'
+        creatorRole:
+          type: string
+          nullable: true
+          description: Highest role at post location for Q&A badge display
+        upvoteCount:
+          type: integer
+        downvoteCount:
+          type: integer
+        weightedUpvotes:
+          type: number
+          format: double
+        weightedDownvotes:
+          type: number
+          format: double
+        score:
+          type: number
+          format: double
+        childCount:
+          type: integer
+        userVote:
+          type: object
+          nullable: true
+          properties:
+            voteType:
+              type: string
+              enum: [upvote, downvote]
+            downvoteReason:
+              type: string
+              nullable: true
+        createdTime:
+          type: string
+          format: date-time
+        updatedTime:
+          type: string
+          format: date-time
+
+    CreateCommentRequest:
+      type: object
+      required:
+        - body
+      properties:
+        body:
+          type: string
+          maxLength: 2000
+        parentCommentId:
+          type: string
+          format: uuid
+          nullable: true
+
+    UpdateCommentRequest:
+      type: object
+      required:
+        - body
+      properties:
+        body:
+          type: string
+          maxLength: 2000
+
+    VoteRequest:
+      type: object
+      required:
+        - voteType
+      properties:
+        voteType:
+          type: string
+          enum: [upvote, downvote]
+        downvoteReason:
+          type: string
+          enum: [offtopic, unkind, low_effort, spam, misinformation]
+          nullable: true
+
+    VoteResponse:
+      type: object
+      required:
+        - upvoteCount
+        - downvoteCount
+        - score
+      properties:
+        userVote:
+          type: object
+          nullable: true
+          properties:
+            voteType:
+              type: string
+              enum: [upvote, downvote]
+            downvoteReason:
+              type: string
+              nullable: true
+        upvoteCount:
+          type: integer
+        downvoteCount:
+          type: integer
+        score:
+          type: number
+          format: double
+
 security:
   - BearerAuth: []
 
@@ -6613,6 +6893,568 @@ paths:
                     type: boolean
         '401':
           description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  # ========== Posts ==========
+
+  /posts:
+    post:
+      operationId: createPost
+      summary: Create a new post
+      tags:
+        - Posts
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePostRequest'
+      responses:
+        '201':
+          description: Post created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Post'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+    get:
+      operationId: getPosts
+      summary: List posts for a location
+      tags:
+        - Posts
+      security:
+        - BearerAuth: []
+        - {}
+      parameters:
+        - name: locationId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: categoryId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: postType
+          in: query
+          schema:
+            type: string
+            enum: [discussion, question]
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [hot, new, top, controversial]
+            default: hot
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 25
+            maximum: 50
+      responses:
+        '200':
+          description: Post list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostList'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /posts/{postId}:
+    get:
+      operationId: getPost
+      summary: Get a single post
+      tags:
+        - Posts
+      security:
+        - BearerAuth: []
+        - {}
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Post details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Post'
+        '404':
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+    put:
+      operationId: updatePost
+      summary: Update a post
+      tags:
+        - Posts
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePostRequest'
+      responses:
+        '200':
+          description: Post updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Post'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+    delete:
+      operationId: deletePost
+      summary: Delete a post
+      tags:
+        - Posts
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Post deleted
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /posts/{postId}/lock:
+    post:
+      operationId: lockPost
+      summary: Lock or unlock a post (moderator)
+      tags:
+        - Posts
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Post lock toggled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Post'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /posts/{postId}/vote:
+    post:
+      operationId: voteOnPost
+      summary: Vote on a post
+      tags:
+        - Posts
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VoteRequest'
+      responses:
+        '200':
+          description: Vote recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoteResponse'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  # ========== Comments ==========
+
+  /posts/{postId}/comments:
+    get:
+      operationId: getComments
+      summary: Get comments for a post
+      tags:
+        - Comments
+      security:
+        - BearerAuth: []
+        - {}
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Comment list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Comment'
+        '404':
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+    post:
+      operationId: createComment
+      summary: Create a comment on a post
+      tags:
+        - Comments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCommentRequest'
+      responses:
+        '201':
+          description: Comment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /comments/{commentId}:
+    put:
+      operationId: updateComment
+      summary: Update a comment
+      tags:
+        - Comments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: commentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCommentRequest'
+      responses:
+        '200':
+          description: Comment updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: Comment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+    delete:
+      operationId: deleteComment
+      summary: Delete a comment
+      tags:
+        - Comments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: commentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Comment deleted
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: Comment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /comments/{commentId}/vote:
+    post:
+      operationId: voteOnComment
+      summary: Vote on a comment
+      tags:
+        - Comments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: commentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VoteRequest'
+      responses:
+        '200':
+          description: Vote recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoteResponse'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: Comment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  # ========== Post/Comment Reporting ==========
+
+  /posts/{postId}/report:
+    post:
+      operationId: reportPost
+      summary: Report a post
+      tags:
+        - Moderation
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - ruleId
+              properties:
+                ruleId:
+                  type: string
+                  format: uuid
+                comment:
+                  type: string
+                  maxLength: 255
+      responses:
+        '201':
+          description: Report submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Report'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /comments/{commentId}/report:
+    post:
+      operationId: reportComment
+      summary: Report a comment
+      tags:
+        - Moderation
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: commentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - ruleId
+              properties:
+                ruleId:
+                  type: string
+                  format: uuid
+                comment:
+                  type: string
+                  maxLength: 255
+      responses:
+        '201':
+          description: Report submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Report'
+        '400':
+          description: Invalid input
           content:
             application/json:
               schema:
