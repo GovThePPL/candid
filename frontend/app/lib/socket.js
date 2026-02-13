@@ -1,4 +1,5 @@
 import { io } from 'socket.io-client'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { getToken } from './api'
 
 // Socket.IO configuration
@@ -32,7 +33,10 @@ export async function connectSocket(token = null) {
       reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
       reconnectionDelay: 1000,
       timeout: 10000,
-      auth: { token: authToken },  // Token validated at handshake — no unauthenticated sockets
+      auth: (cb) => {
+        // Dynamic callback: fetches fresh token on each reconnect attempt
+        AsyncStorage.getItem('access_token').then(t => cb({ token: t || authToken }))
+      },
     })
 
     // Server emits 'authenticated' with session data after accepting the connection
@@ -276,12 +280,10 @@ export function onChatStatus(handler) {
 
   // Backend emits 'status' events for chat lifecycle changes
   socket.on('status', handler)
-  socket.on('chat_status', handler)
   socket.on('chat_ended', handler)
   return () => {
     if (socket) {
       socket.off('status', handler)
-      socket.off('chat_status', handler)
       socket.off('chat_ended', handler)
     }
   }

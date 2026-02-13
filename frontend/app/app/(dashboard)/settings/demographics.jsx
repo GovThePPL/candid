@@ -119,6 +119,7 @@ export default function DemographicsSettings() {
   // Auto-save debounce timer
   const saveTimeoutRef = useRef(null)
   const isInitialLoadRef = useRef(true)
+  const errorTimerRef = useRef(null)
 
   const applyDemographicsData = useCallback((demographicsData) => {
     if (demographicsData) {
@@ -199,7 +200,7 @@ export default function DemographicsSettings() {
     } catch (err) {
       console.error('Failed to auto-save demographics:', err)
       setError(translateError(err.message, t) || t('failedSaveChanges'))
-      setTimeout(() => setError(null), 3000)
+      errorTimerRef.current = setTimeout(() => setError(null), 3000)
     } finally {
       setSaving(false)
     }
@@ -220,12 +221,11 @@ export default function DemographicsSettings() {
     }, 500)
   }
 
-  // Cleanup timeout on unmount
+  // Cleanup timeouts on unmount
   useEffect(() => {
     return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current)
-      }
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
+      if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
     }
   }, [])
 

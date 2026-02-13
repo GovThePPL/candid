@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { getLocales } from 'expo-localization'
 import i18n from '../i18n'
@@ -63,11 +63,15 @@ export function I18nProvider({ children }) {
     ? getDeviceLanguage()
     : languagePreference
 
+  const providerValue = useMemo(() => ({
+    language, languagePreference, setLanguagePreference,
+  }), [language, languagePreference, setLanguagePreference])
+
   // Don't render until preference is loaded to avoid flash
   if (!loaded) return null
 
   return (
-    <I18nContext.Provider value={{ language, languagePreference, setLanguagePreference }}>
+    <I18nContext.Provider value={providerValue}>
       {children}
     </I18nContext.Provider>
   )

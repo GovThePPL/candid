@@ -208,27 +208,27 @@ export default function ChatScreen() {
       // Play subtle typing sound
       playTypingSound()
 
-      const animateDots = () => {
-        Animated.loop(
-          Animated.sequence([
-            Animated.stagger(150, [
-              Animated.sequence([
-                Animated.timing(dot1Anim, { toValue: 1, duration: 300, useNativeDriver: Platform.OS !== 'web' }),
-                Animated.timing(dot1Anim, { toValue: 0, duration: 300, useNativeDriver: Platform.OS !== 'web' }),
-              ]),
-              Animated.sequence([
-                Animated.timing(dot2Anim, { toValue: 1, duration: 300, useNativeDriver: Platform.OS !== 'web' }),
-                Animated.timing(dot2Anim, { toValue: 0, duration: 300, useNativeDriver: Platform.OS !== 'web' }),
-              ]),
-              Animated.sequence([
-                Animated.timing(dot3Anim, { toValue: 1, duration: 300, useNativeDriver: Platform.OS !== 'web' }),
-                Animated.timing(dot3Anim, { toValue: 0, duration: 300, useNativeDriver: Platform.OS !== 'web' }),
-              ]),
+      const anim = Animated.loop(
+        Animated.sequence([
+          Animated.stagger(150, [
+            Animated.sequence([
+              Animated.timing(dot1Anim, { toValue: 1, duration: 300, useNativeDriver: Platform.OS !== 'web' }),
+              Animated.timing(dot1Anim, { toValue: 0, duration: 300, useNativeDriver: Platform.OS !== 'web' }),
             ]),
-          ])
-        ).start()
-      }
-      animateDots()
+            Animated.sequence([
+              Animated.timing(dot2Anim, { toValue: 1, duration: 300, useNativeDriver: Platform.OS !== 'web' }),
+              Animated.timing(dot2Anim, { toValue: 0, duration: 300, useNativeDriver: Platform.OS !== 'web' }),
+            ]),
+            Animated.sequence([
+              Animated.timing(dot3Anim, { toValue: 1, duration: 300, useNativeDriver: Platform.OS !== 'web' }),
+              Animated.timing(dot3Anim, { toValue: 0, duration: 300, useNativeDriver: Platform.OS !== 'web' }),
+            ]),
+          ]),
+        ])
+      )
+      anim.start()
+
+      return () => anim.stop()
     } else {
       dot1Anim.setValue(0)
       dot2Anim.setValue(0)
@@ -1506,6 +1506,10 @@ export default function ChatScreen() {
           scrollEventThrottle={100}
           onViewableItemsChanged={onViewableItemsChanged}
           viewabilityConfig={viewabilityConfig}
+          removeClippedSubviews={Platform.OS !== 'web'}
+          maxToRenderPerBatch={15}
+          windowSize={11}
+          initialNumToRender={20}
           ListHeaderComponent={
             chatInfo?.position ? (
               <PositionInfoCard

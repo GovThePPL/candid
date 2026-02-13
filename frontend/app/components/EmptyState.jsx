@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import { View, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
@@ -13,7 +13,7 @@ import ThemedText from './ThemedText'
  * @param {string} [props.subtitle] - Secondary message
  * @param {Object} [props.style] - Additional container style
  */
-export default function EmptyState({ icon, title, subtitle, style }) {
+export default memo(function EmptyState({ icon, title, subtitle, style }) {
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
 
@@ -24,7 +24,7 @@ export default function EmptyState({ icon, title, subtitle, style }) {
       {subtitle && <ThemedText variant="bodySmall" color="placeholder" style={styles.subtitle}>{subtitle}</ThemedText>}
     </View>
   )
-}
+})
 
 const createStyles = (colors) => StyleSheet.create({
   container: {

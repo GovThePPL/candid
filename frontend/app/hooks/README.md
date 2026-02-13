@@ -12,5 +12,6 @@ Custom React hooks used across the app.
 | `usePositionManagement.js` | Position list management with search and pagination |
 | `useRoleAssignment.js` | Admin role assignment and approval workflows |
 | `useSurveyForm.js` | Survey creation/editing form state and validation |
+| `usePostsFeed.js` | Paginated post feed with sort, filter, and optimistic upvote |
 | `useThemeColors.js` | Theme-aware color tokens from `ThemeContext` |
 | `useUser.js` | Current user state, refresh, and auth status from `UserContext` |

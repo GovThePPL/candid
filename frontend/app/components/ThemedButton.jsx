@@ -1,9 +1,9 @@
-import { useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
 import { useThemeColors } from '../hooks/useThemeColors'
 import ThemedText from './ThemedText'
 
-function ThemedButton({ style, disabled, children, onPress, accessibilityRole = 'button', accessibilityLabel, ...props }) {
+const ThemedButton = memo(function ThemedButton({ style, disabled, children, onPress, accessibilityRole = 'button', accessibilityLabel, ...props }) {
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
 
@@ -34,7 +34,7 @@ function ThemedButton({ style, disabled, children, onPress, accessibilityRole = 
       </View>
     </Pressable>
   )
-}
+})
 
 const createStyles = (colors) => StyleSheet.create({
   btn: {

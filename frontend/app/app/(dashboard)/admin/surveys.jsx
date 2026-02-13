@@ -92,7 +92,7 @@ export default function SurveysScreen() {
   const form = useSurveyForm({ user, locations, allCategories, defaultLocationId, fetchSurveys })
 
   const handleDelete = useCallback(async (survey) => {
-    const title = survey.surveyTitle || survey.survey_title || ''
+    const title = survey.surveyTitle || ''
     const confirmed = Platform.OS === 'web'
       ? window.confirm(`${t('deleteSurveyConfirm')}\n${t('deleteSurveyMessage')}`)
       : await new Promise(resolve => Alert.alert(
@@ -122,19 +122,16 @@ export default function SurveysScreen() {
     setViewVisible(true)
   }, [])
 
-  const getSurveyTitle = (survey) => survey.surveyTitle || survey.survey_title || ''
-  const getSurveyType = (survey) => {
-    if (survey.surveyType === 'pairwise' || survey.survey_type === 'pairwise') return 'pairwise'
-    return 'standard'
-  }
-  const getLocationName = (survey) => survey.locationName || survey.location_name
-  const getCategoryName = (survey) => survey.categoryName || survey.category_name
+  const getSurveyTitle = (survey) => survey.surveyTitle || ''
+  const getSurveyType = (survey) => survey.surveyType === 'pairwise' ? 'pairwise' : 'standard'
+  const getLocationName = (survey) => survey.locationName
+  const getCategoryName = (survey) => survey.categoryName
 
   const renderSurvey = useCallback(({ item }) => {
     const title = getSurveyTitle(item)
     const type = getSurveyType(item)
-    const start = item.startTime || item.start_time
-    const end = item.endTime || item.end_time
+    const start = item.startTime
+    const end = item.endTime
     const locName = getLocationName(item)
     const catName = getCategoryName(item)
 
@@ -207,8 +204,8 @@ export default function SurveysScreen() {
   const renderViewContent = () => {
     if (!viewSurvey) return null
     const type = getSurveyType(viewSurvey)
-    const start = viewSurvey.startTime || viewSurvey.start_time
-    const end = viewSurvey.endTime || viewSurvey.end_time
+    const start = viewSurvey.startTime
+    const end = viewSurvey.endTime
     const locName = getLocationName(viewSurvey)
     const catName = getCategoryName(viewSurvey)
 
@@ -257,11 +254,11 @@ export default function SurveysScreen() {
             {viewSurvey.questions.map((q, qi) => (
               <View key={q.id || qi} style={styles.questionBlock}>
                 <ThemedText variant="bodySmall" color="dark">
-                  {qi + 1}. {q.question || q.survey_question}
+                  {qi + 1}. {q.question}
                 </ThemedText>
                 {(q.options || []).map((opt, oi) => (
                   <ThemedText key={opt.id || oi} variant="caption" color="secondary" style={styles.viewOption}>
-                    {'\u2022'} {opt.option || opt.survey_question_option || opt}
+                    {'\u2022'} {opt.option || opt}
                   </ThemedText>
                 ))}
               </View>

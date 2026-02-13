@@ -50,6 +50,9 @@
 ## Tutorial
 - Card-based tutorial that walks user through each swipe action
 
+## Moderation
+- Fetch moderation queue one item at a time instead of the full queue — claimed reports are locked for 15 minutes and hidden from other moderators, so bulk-fetching unnecessarily locks items that may not be reviewed in time
+
 ## Frontend Improvements
 - UGC Translation — runtime translation of user-generated content (positions, chat messages, surveys). See [plan](.claude-plans/2026-02-10_ugc-translation.md)
 

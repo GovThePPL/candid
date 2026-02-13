@@ -12,6 +12,7 @@ import {
   getAssignableCategories,
   canManageRoleAssignment,
   isAdminAtLocation,
+  hasQAAuthority,
 } from '../../lib/roles'
 
 const makeUser = (roles) => ({ id: '1', roles })
@@ -137,6 +138,44 @@ describe('roles utilities', () => {
   describe('ROLE_LABEL_KEYS', () => {
     it('has keys for all 6 roles', () => {
       expect(Object.keys(ROLE_LABEL_KEYS)).toHaveLength(6)
+    })
+  })
+
+  describe('hasQAAuthority', () => {
+    it('returns true for admin', () => {
+      expect(hasQAAuthority(makeUser([role('admin')]))).toBe(true)
+    })
+
+    it('returns true for moderator', () => {
+      expect(hasQAAuthority(makeUser([role('moderator')]))).toBe(true)
+    })
+
+    it('returns true for facilitator', () => {
+      expect(hasQAAuthority(makeUser([role('facilitator')]))).toBe(true)
+    })
+
+    it('returns true for expert', () => {
+      expect(hasQAAuthority(makeUser([role('expert')]))).toBe(true)
+    })
+
+    it('returns true for liaison', () => {
+      expect(hasQAAuthority(makeUser([role('liaison')]))).toBe(true)
+    })
+
+    it('returns false for assistant_moderator (not QA authority)', () => {
+      expect(hasQAAuthority(makeUser([role('assistant_moderator')]))).toBe(false)
+    })
+
+    it('returns false for user with no roles', () => {
+      expect(hasQAAuthority(makeUser([]))).toBe(false)
+    })
+
+    it('returns false for null user', () => {
+      expect(hasQAAuthority(null)).toBe(false)
+    })
+
+    it('returns false for user with undefined roles', () => {
+      expect(hasQAAuthority(makeUser(undefined))).toBe(false)
     })
   })
 

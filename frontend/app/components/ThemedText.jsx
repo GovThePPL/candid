@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Text } from 'react-native'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { Typography, TypographyScaleCaps } from '../constants/Theme'
@@ -24,7 +25,7 @@ function resolveColor(colorName, colors) {
 
 const HEADING_VARIANTS = new Set(['h1', 'h2', 'h3', 'h4'])
 
-const ThemedText = ({ style, variant, color, title = false, maxFontSizeMultiplier, accessibilityRole, ...props }) => {
+const ThemedText = memo(({ style, variant, color, title = false, maxFontSizeMultiplier, accessibilityRole, ...props }) => {
   const colors = useThemeColors()
 
   // Resolve text color: explicit color prop > title prop > default text
@@ -53,6 +54,6 @@ const ThemedText = ({ style, variant, color, title = false, maxFontSizeMultiplie
       {...props}
     />
   )
-}
+})
 
 export default ThemedText

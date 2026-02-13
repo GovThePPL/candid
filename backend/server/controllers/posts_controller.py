@@ -77,6 +77,15 @@ def _row_to_post(row, user_vote_row=None):
     else:
         post["location"] = None
 
+    # Creator role (highest approved role at post location, if badge visible)
+    post["creatorRole"] = row.get("creator_role")
+
+    # isAnswered (Q&A posts only — true if any authority user has replied)
+    if row.get("post_type") == "question":
+        post["isAnswered"] = bool(row.get("is_answered"))
+    else:
+        post["isAnswered"] = None
+
     # User vote
     if user_vote_row and user_vote_row.get("user_vote_type"):
         post["userVote"] = {
@@ -194,7 +203,8 @@ def create_post(body, token_info=None):  # noqa: E501
 
 
 def get_posts(location_id, category_id=None, post_type=None, sort=None,
-              cursor=None, limit=None, token_info=None):  # noqa: E501
+              cursor=None, limit=None, answered=None,
+              token_info=None):  # noqa: E501
     """List posts for a location."""
     if not location_id:
         return ErrorModel(400, "locationId is required"), 400
@@ -216,6 +226,18 @@ def get_posts(location_id, category_id=None, post_type=None, sort=None,
     if post_type:
         conditions.append("p.post_type = %s")
         params.append(post_type)
+
+    # Answered filter (only meaningful for Q&A posts)
+    if answered is not None:
+        answered_subquery = """(SELECT 1 FROM comment c_ans
+            JOIN user_role ur_ans ON ur_ans.user_id = c_ans.creator_user_id
+                AND ur_ans.location_id = p.location_id AND ur_ans.status = 'approved'
+            WHERE c_ans.post_id = p.id AND c_ans.parent_comment_id IS NULL
+                AND c_ans.status = 'active')"""
+        if answered == 'true':
+            conditions.append(f"EXISTS{answered_subquery}")
+        elif answered == 'false':
+            conditions.append(f"NOT EXISTS{answered_subquery}")
 
     where = " AND ".join(conditions)
 
@@ -263,13 +285,35 @@ def get_posts(location_id, category_id=None, post_type=None, sort=None,
     else:
         vote_select = ", NULL AS user_vote_type, NULL AS user_vote_reason"
 
+    # Subqueries for creator role and is_answered
+    creator_role_subquery = """(SELECT ur_cr.role FROM user_role ur_cr
+        JOIN users u_cr ON u_cr.id = ur_cr.user_id
+        WHERE ur_cr.user_id = p.creator_user_id
+          AND ur_cr.location_id = p.location_id AND ur_cr.status = 'approved'
+          AND u_cr.show_role_badge = true
+        ORDER BY CASE ur_cr.role
+          WHEN 'admin' THEN 1 WHEN 'moderator' THEN 2 WHEN 'facilitator' THEN 3
+          WHEN 'assistant_moderator' THEN 4 WHEN 'expert' THEN 5 WHEN 'liaison' THEN 6
+        END LIMIT 1
+    ) AS creator_role"""
+
+    is_answered_subquery = """EXISTS(
+        SELECT 1 FROM comment c2
+        JOIN user_role ur2 ON ur2.user_id = c2.creator_user_id
+          AND ur2.location_id = p.location_id AND ur2.status = 'approved'
+        WHERE c2.post_id = p.id AND c2.parent_comment_id IS NULL
+          AND c2.status = 'active'
+    ) AS is_answered"""
+
     sql = f"""
         SELECT p.*,
                u.username AS creator_username, u.display_name AS creator_display_name,
                u.avatar_icon_url AS creator_avatar_icon_url, u.status AS creator_status,
                pc.label AS category_label,
                l.code AS location_code, l.name AS location_name,
-               ({sort_expr}) AS sort_value
+               ({sort_expr}) AS sort_value,
+               {creator_role_subquery},
+               {is_answered_subquery}
                {vote_select}
         FROM post p
         JOIN users u ON p.creator_user_id = u.id
@@ -341,7 +385,24 @@ def get_post(post_id, token_info=None):  # noqa: E501
                u.username AS creator_username, u.display_name AS creator_display_name,
                u.avatar_icon_url AS creator_avatar_icon_url, u.status AS creator_status,
                pc.label AS category_label,
-               l.code AS location_code, l.name AS location_name
+               l.code AS location_code, l.name AS location_name,
+               (SELECT ur_cr.role FROM user_role ur_cr
+                JOIN users u_cr ON u_cr.id = ur_cr.user_id
+                WHERE ur_cr.user_id = p.creator_user_id
+                  AND ur_cr.location_id = p.location_id AND ur_cr.status = 'approved'
+                  AND u_cr.show_role_badge = true
+                ORDER BY CASE ur_cr.role
+                  WHEN 'admin' THEN 1 WHEN 'moderator' THEN 2 WHEN 'facilitator' THEN 3
+                  WHEN 'assistant_moderator' THEN 4 WHEN 'expert' THEN 5 WHEN 'liaison' THEN 6
+                END LIMIT 1
+               ) AS creator_role,
+               EXISTS(
+                 SELECT 1 FROM comment c2
+                 JOIN user_role ur2 ON ur2.user_id = c2.creator_user_id
+                   AND ur2.location_id = p.location_id AND ur2.status = 'approved'
+                 WHERE c2.post_id = p.id AND c2.parent_comment_id IS NULL
+                   AND c2.status = 'active'
+               ) AS is_answered
                {vote_select}
         FROM post p
         JOIN users u ON p.creator_user_id = u.id

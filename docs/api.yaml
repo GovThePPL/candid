@@ -201,6 +201,9 @@ components:
         timezone:
           type: string
           description: User timezone (e.g. America/New_York)
+        showRoleBadge:
+          type: boolean
+          description: Whether to display role badge on posts and comments
 
     UserDemographics:
       type: object
@@ -2733,6 +2736,14 @@ components:
           format: double
         commentCount:
           type: integer
+        creatorRole:
+          type: string
+          nullable: true
+          description: Highest approved role at post location (null if no role or badge hidden)
+        isAnswered:
+          type: boolean
+          nullable: true
+          description: Whether a Q&A post has been answered by an authority user (null for discussion posts)
         userVote:
           type: object
           nullable: true
@@ -6980,6 +6991,12 @@ paths:
             type: integer
             default: 25
             maximum: 50
+        - name: answered
+          in: query
+          schema:
+            type: string
+            enum: ['true', 'false']
+          description: Filter Q&A posts by answered status
       responses:
         '200':
           description: Post list

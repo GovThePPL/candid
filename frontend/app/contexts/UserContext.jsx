@@ -1,4 +1,4 @@
-import { createContext, useEffect, useState, useCallback, useRef } from "react"
+import { createContext, useEffect, useState, useCallback, useRef, useMemo } from "react"
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import api, { getStoredUser, initializeAuth, getToken, setToken, setStoredUser, bugReportsApiWrapper } from "../lib/api"
 import * as keycloak from "../lib/keycloak"
@@ -72,9 +72,9 @@ export function UserProvider({ children }) {
   }, [])
 
   // Call this when positions change (adopt, create, delete, etc.)
-  function invalidatePositions() {
+  const invalidatePositions = useCallback(() => {
     setPositionsVersion(v => v + 1)
-  }
+  }, [])
 
   // Set a new pending chat request (persisted to storage)
   const setPendingChatRequest = useCallback((request) => {
@@ -231,7 +231,7 @@ export function UserProvider({ children }) {
     }
   }, [])
 
-  async function login(username, password) {
+  const login = useCallback(async (username, password) => {
     try {
       const { accessToken } = await keycloak.loginWithCredentials(username, password)
       await setToken(accessToken)
@@ -247,9 +247,9 @@ export function UserProvider({ children }) {
     } catch (error) {
       throw Error(error.message || 'Login failed')
     }
-  }
+  }, [initializeSocket, startDiagnosticsTimer, checkForActiveChat])
 
-  async function register({ username, email, password }) {
+  const register = useCallback(async ({ username, email, password }) => {
     try {
       // Create account via backend API (Keycloak Admin REST API)
       await api.auth.registerAccount({ username, email, password })
@@ -269,22 +269,22 @@ export function UserProvider({ children }) {
     } catch (error) {
       throw Error(error.message || 'Registration failed')
     }
-  }
+  }, [initializeSocket, startDiagnosticsTimer])
 
-  function clearNewUser() {
+  const clearNewUser = useCallback(() => {
     setIsNewUser(false)
-  }
+  }, [])
 
-  async function logout() {
+  const logout = useCallback(async () => {
     stopDiagnosticsTimer()
     cleanupSocket()
     await keycloak.logout()
     await api.auth.logout()
     setUser(null)
-  }
+  }, [stopDiagnosticsTimer, cleanupSocket])
 
   // Refresh user data from API (used after profile updates)
-  async function refreshUser() {
+  const refreshUser = useCallback(async () => {
     try {
       const currentUser = await api.auth.getCurrentUser()
       setUser(currentUser)
@@ -293,7 +293,7 @@ export function UserProvider({ children }) {
       console.error('[UserContext] Failed to refresh user:', error)
       throw error
     }
-  }
+  }, [])
 
   async function getInitialUserValue() {
     try {
@@ -359,18 +359,32 @@ export function UserProvider({ children }) {
     return () => stopDiagnosticsTimer()
   }, [])
 
+  const isBanned = user?.status === 'banned'
+
+  const providerValue = useMemo(() => ({
+    user, login, logout, register, authChecked, refreshUser,
+    isBanned,
+    isNewUser, clearNewUser,
+    positionsVersion, invalidatePositions,
+    pendingChatRequest, setPendingChatRequest, clearPendingChatRequest, updateChatRequestStatus,
+    incomingChatRequest, clearIncomingChatRequest,
+    activeChatNavigation, clearActiveChatNavigation,
+    activeChat, clearActiveChat,
+    pendingDeepLink, clearPendingDeepLink,
+  }), [
+    user, login, logout, register, authChecked, refreshUser,
+    isBanned,
+    isNewUser, clearNewUser,
+    positionsVersion, invalidatePositions,
+    pendingChatRequest, setPendingChatRequest, clearPendingChatRequest, updateChatRequestStatus,
+    incomingChatRequest, clearIncomingChatRequest,
+    activeChatNavigation, clearActiveChatNavigation,
+    activeChat, clearActiveChat,
+    pendingDeepLink, clearPendingDeepLink,
+  ])
+
   return (
-    <UserContext.Provider value={{
-      user, login, logout, register, authChecked, refreshUser,
-      isBanned: user?.status === 'banned',
-      isNewUser, clearNewUser,
-      positionsVersion, invalidatePositions,
-      pendingChatRequest, setPendingChatRequest, clearPendingChatRequest, updateChatRequestStatus,
-      incomingChatRequest, clearIncomingChatRequest,
-      activeChatNavigation, clearActiveChatNavigation,
-      activeChat, clearActiveChat,
-      pendingDeepLink, clearPendingDeepLink,
-    }}>
+    <UserContext.Provider value={providerValue}>
       {children}
     </UserContext.Provider>
   )

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react'
 import { useColorScheme } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { LightTheme, DarkTheme } from '../constants/Colors'
@@ -37,11 +37,15 @@ export function ThemeProvider({ children }) {
   const isDark = effectiveTheme === 'dark'
   const colors = isDark ? DarkTheme : LightTheme
 
+  const providerValue = useMemo(() => ({
+    colors, themePreference, setThemePreference, isDark,
+  }), [colors, themePreference, setThemePreference, isDark])
+
   // Don't render until preference is loaded to avoid flash
   if (!loaded) return null
 
   return (
-    <ThemeContext.Provider value={{ colors, themePreference, setThemePreference, isDark }}>
+    <ThemeContext.Provider value={providerValue}>
       {children}
     </ThemeContext.Provider>
   )

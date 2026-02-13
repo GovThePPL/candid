@@ -503,7 +503,8 @@ def get_user_settings(token_info=None):  # noqa: E501
     user_row = db.execute_query("""
         SELECT chat_request_likelihood, chatting_list_likelihood,
                notifications_enabled, notification_frequency,
-               quiet_hours_start, quiet_hours_end, timezone
+               quiet_hours_start, quiet_hours_end, timezone,
+               show_role_badge
         FROM users
         WHERE id = %s
         """,
@@ -522,6 +523,8 @@ def get_user_settings(token_info=None):  # noqa: E501
     quiet_hours_end = user_row.get('quiet_hours_end') if user_row else None
     timezone = user_row.get('timezone', 'America/New_York') if user_row else 'America/New_York'
 
+    show_role_badge = user_row.get('show_role_badge', True) if user_row else True
+
     return {
         "categoryWeights": [{"categoryId": cw.category_id, "weight": cw.weight} for cw in category_weights],
         "chatRequestLikelihood": chat_request_likelihood,
@@ -531,6 +534,7 @@ def get_user_settings(token_info=None):  # noqa: E501
         "quietHoursStart": quiet_hours_start,
         "quietHoursEnd": quiet_hours_end,
         "timezone": timezone,
+        "showRoleBadge": show_role_badge,
     }
 
 
@@ -822,6 +826,10 @@ def update_user_settings(body, token_info=None):  # noqa: E501
     if 'timezone' in raw:
         set_clauses.append("timezone = %s")
         params.append(raw['timezone'])
+
+    if 'showRoleBadge' in raw:
+        set_clauses.append("show_role_badge = %s")
+        params.append(bool(raw['showRoleBadge']))
 
     if set_clauses:
         set_clauses.append("updated_time = CURRENT_TIMESTAMP")

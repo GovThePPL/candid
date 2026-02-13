@@ -64,11 +64,15 @@ describe('connectSocket', () => {
 
     const result = await socketModule.connectSocket()
     expect(result).toBe(mockSocket)
-    // Verify token passed in auth option
-    expect(io).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({ auth: { token: 'test-token' } }),
-    )
+    // Verify auth is a dynamic callback that resolves to the token
+    const authArg = io.mock.calls[0][1].auth
+    expect(typeof authArg).toBe('function')
+    // Call the auth callback and verify it provides the token
+    const AsyncStorage = require('@react-native-async-storage/async-storage')
+    AsyncStorage.getItem.mockResolvedValueOnce('fresh-token')
+    const cb = jest.fn()
+    await authArg(cb)
+    expect(cb).toHaveBeenCalledWith({ token: 'fresh-token' })
   })
 
   it('reuses existing connected socket', async () => {

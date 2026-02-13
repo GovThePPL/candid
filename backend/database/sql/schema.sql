@@ -40,7 +40,9 @@ CREATE TABLE users (
     response_rate_in_app DECIMAL(3,2) DEFAULT 1.00,
     response_rate_notification DECIMAL(3,2) DEFAULT 1.00,
     -- Diagnostics consent: NULL = never asked, true = opted in, false = opted out
-    diagnostics_consent BOOLEAN DEFAULT NULL
+    diagnostics_consent BOOLEAN DEFAULT NULL,
+    -- Role badge visibility: whether to display role badge on posts and comments
+    show_role_badge BOOLEAN NOT NULL DEFAULT true
 );
 
 COMMENT ON COLUMN users.chat_request_likelihood IS '0=off, 1=rarely, 2=less, 3=normal, 4=more, 5=often';

@@ -11,6 +11,10 @@ import {
   StatsApi,
   ModerationApi,
   BugReportsApi,
+  AdminApi,
+  AuthenticationApi,
+  PostsApi,
+  CommentsApi,
 } from 'candid_api'
 import { CacheManager } from './cache'
 import { recordApiError } from './errorCollector'
@@ -56,6 +60,10 @@ const chattingListApi = new ChattingListApi(apiClient)
 const statsApi = new StatsApi(apiClient)
 const moderationApi = new ModerationApi(apiClient)
 const bugReportsApi = new BugReportsApi(apiClient)
+const adminApi = new AdminApi(apiClient)
+const authenticationApi = new AuthenticationApi(apiClient)
+const postsApi = new PostsApi(apiClient)
+const commentsApi = new CommentsApi(apiClient)
 
 // Token management
 export async function getToken() {
@@ -157,16 +165,10 @@ export const authApi = {
   },
 
   async registerAccount({ username, email, password }) {
-    const response = await fetch(`${API_BASE_URL}/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, email, password }),
-    })
-    const data = await response.json()
-    if (!response.ok) {
-      throw new Error(data.detail || 'Registration failed')
-    }
-    return data
+    return await promisify(
+      authenticationApi.registerUser.bind(authenticationApi),
+      { username, email, password }
+    )
   },
 }
 
@@ -838,181 +840,184 @@ export const moderationApiWrapper = {
   },
 }
 
-// Admin API (direct fetch — no generated client available)
+// Admin API
 export const adminApiWrapper = {
-  async _fetch(path, options = {}) {
-    const token = await getToken()
-    const res = await fetch(`${API_BASE_URL}${path}`, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...options.headers,
-      },
-    })
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}))
-      throw new Error(body.detail || `Request failed: ${res.status}`)
-    }
-    if (res.status === 204) return null
-    return res.json()
-  },
-
   async searchUsers(query, { limit = 20, offset = 0 } = {}) {
-    const params = new URLSearchParams()
-    if (query) params.set('search', query)
-    params.set('limit', limit)
-    params.set('offset', offset)
-    return this._fetch(`/admin/users?${params}`)
+    return await promisify(
+      adminApi.searchUsers.bind(adminApi),
+      { search: query, limit, offset }
+    )
   },
 
   async listRoles({ userId, locationId, role } = {}) {
-    const params = new URLSearchParams()
-    if (userId) params.set('userId', userId)
-    if (locationId) params.set('locationId', locationId)
-    if (role) params.set('role', role)
-    return this._fetch(`/admin/roles?${params}`)
+    return await promisify(
+      adminApi.listRoles.bind(adminApi),
+      { userId, locationId, role }
+    )
   },
 
   async requestRoleAssignment(body) {
-    return this._fetch('/admin/roles', {
-      method: 'POST',
-      body: JSON.stringify(body),
-    })
+    return await promisify(
+      adminApi.requestRoleAssignment.bind(adminApi),
+      body
+    )
   },
 
   async requestRoleRemoval(userRoleId, reason) {
-    return this._fetch('/admin/roles/remove', {
-      method: 'POST',
-      body: JSON.stringify({ userRoleId, reason }),
-    })
+    return await promisify(
+      adminApi.requestRoleRemoval.bind(adminApi),
+      { userRoleId, reason }
+    )
   },
 
   async getPendingRequests() {
-    return this._fetch('/admin/roles/pending')
+    return await promisify(
+      adminApi.getPendingRoleRequests.bind(adminApi)
+    )
   },
 
   async getRoleRequests(view = 'pending') {
-    const params = new URLSearchParams()
-    if (view) params.set('view', view)
-    return this._fetch(`/admin/roles/requests?${params}`)
+    return await promisify(
+      adminApi.getRoleRequests.bind(adminApi),
+      { view }
+    )
   },
 
   async rescindRoleRequest(requestId) {
-    return this._fetch(`/admin/roles/requests/${requestId}/rescind`, {
-      method: 'POST',
-    })
+    return await promisify(
+      adminApi.rescindRoleRequest.bind(adminApi),
+      requestId
+    )
   },
 
   async approveRoleRequest(requestId) {
-    return this._fetch(`/admin/roles/requests/${requestId}/approve`, {
-      method: 'POST',
-    })
+    return await promisify(
+      adminApi.approveRoleRequest.bind(adminApi),
+      requestId
+    )
   },
 
   async denyRoleRequest(requestId, reason) {
-    return this._fetch(`/admin/roles/requests/${requestId}/deny`, {
-      method: 'POST',
-      body: JSON.stringify({ reason }),
-    })
+    return await promisify(
+      adminApi.denyRoleRequest.bind(adminApi),
+      requestId,
+      { denyRoleRequestRequest: { reason } }
+    )
   },
 
   async createLocation(parentLocationId, name, code) {
-    return this._fetch('/admin/locations', {
-      method: 'POST',
-      body: JSON.stringify({ parentLocationId, name, code }),
-    })
+    return await promisify(
+      adminApi.createLocation.bind(adminApi),
+      { parentLocationId, name, code }
+    )
   },
 
   async updateLocation(locationId, updates) {
-    return this._fetch(`/admin/locations/${locationId}`, {
-      method: 'PUT',
-      body: JSON.stringify(updates),
-    })
+    return await promisify(
+      adminApi.updateLocation.bind(adminApi),
+      locationId,
+      updates
+    )
   },
 
   async deleteLocation(locationId) {
-    return this._fetch(`/admin/locations/${locationId}`, {
-      method: 'DELETE',
-    })
+    return await promisify(
+      adminApi.deleteLocation.bind(adminApi),
+      locationId
+    )
   },
 
   async getAllCategories() {
-    return this._fetch('/categories')
+    return await promisify(
+      categoriesApi.getAllCategories.bind(categoriesApi)
+    )
   },
 
   async getLocationCategories(locationId) {
-    return this._fetch(`/admin/locations/${locationId}/categories`)
+    return await promisify(
+      adminApi.getLocationCategories.bind(adminApi),
+      locationId
+    )
   },
 
   async assignLocationCategory(locationId, categoryId) {
-    return this._fetch(`/admin/locations/${locationId}/categories`, {
-      method: 'POST',
-      body: JSON.stringify({ positionCategoryId: categoryId }),
-    })
+    return await promisify(
+      adminApi.assignLocationCategory.bind(adminApi),
+      locationId,
+      { positionCategoryId: categoryId }
+    )
   },
 
   async removeLocationCategory(locationId, categoryId) {
-    return this._fetch(`/admin/locations/${locationId}/categories/${categoryId}`, {
-      method: 'DELETE',
-    })
+    return await promisify(
+      adminApi.removeLocationCategory.bind(adminApi),
+      locationId,
+      categoryId
+    )
   },
 
   async createCategory(label, parentPositionCategoryId, opts = {}) {
-    return this._fetch('/admin/categories', {
-      method: 'POST',
-      body: JSON.stringify({ label, parentPositionCategoryId, ...opts }),
-    })
+    return await promisify(
+      adminApi.createCategory.bind(adminApi),
+      { label, parentPositionCategoryId, ...opts }
+    )
   },
 
   async getCategoryLabelSurvey(categoryId) {
-    return this._fetch(`/admin/categories/${categoryId}/label-survey`)
+    return await promisify(
+      adminApi.getCategoryLabelSurvey.bind(adminApi),
+      categoryId
+    )
   },
 
   async banUser(userId, reason) {
-    return this._fetch(`/admin/users/${userId}/ban`, {
-      method: 'POST',
-      body: JSON.stringify({ reason }),
-    })
+    return await promisify(
+      adminApi.banUser.bind(adminApi),
+      userId,
+      { reason }
+    )
   },
 
   async unbanUser(userId, reason) {
-    return this._fetch(`/admin/users/${userId}/unban`, {
-      method: 'POST',
-      body: JSON.stringify({ reason }),
-    })
+    return await promisify(
+      adminApi.unbanUser.bind(adminApi),
+      userId,
+      { reason }
+    )
   },
 
   async getSurveys({ title, status, locationId } = {}) {
-    const params = new URLSearchParams()
-    if (title) params.set('title', title)
-    if (status) params.set('status', status)
-    if (locationId) params.set('locationId', locationId)
-    return this._fetch(`/admin/surveys?${params}`)
+    return await promisify(
+      adminApi.getSurveys.bind(adminApi),
+      { title, status, locationId }
+    )
   },
 
   async createSurvey(body) {
-    return this._fetch('/admin/surveys', {
-      method: 'POST',
-      body: JSON.stringify(body),
-    })
+    return await promisify(
+      adminApi.createSurvey.bind(adminApi),
+      body
+    )
   },
 
   async createPairwiseSurvey(body) {
-    return this._fetch('/admin/surveys/pairwise', {
-      method: 'POST',
-      body: JSON.stringify(body),
-    })
+    return await promisify(
+      adminApi.createPairwiseSurvey.bind(adminApi),
+      body
+    )
   },
 
   async deleteSurvey(surveyId) {
-    return this._fetch(`/admin/surveys/${surveyId}`, {
-      method: 'DELETE',
-    })
+    return await promisify(
+      adminApi.deleteSurvey.bind(adminApi),
+      surveyId
+    )
   },
 
   async getAdminActions() {
-    return this._fetch('/admin/actions')
+    return await promisify(
+      adminApi.getAdminActions.bind(adminApi)
+    )
   },
 }
 
@@ -1023,6 +1028,67 @@ export const bugReportsApiWrapper = {
       bugReportsApi.createBugReport.bind(bugReportsApi),
       body
     )
+  },
+}
+
+// Posts API
+export const postsApiWrapper = {
+  async getPosts(locationId, { categoryId, postType, sort, cursor, limit, answered } = {}) {
+    const opts = {}
+    if (categoryId && categoryId !== 'all') opts.categoryId = categoryId
+    if (postType) opts.postType = postType
+    if (sort) opts.sort = sort
+    if (cursor) opts.cursor = cursor
+    if (limit) opts.limit = limit
+    if (answered != null) opts.answered = answered
+    return await promisify(postsApi.getPosts.bind(postsApi), locationId, opts)
+  },
+
+  async getPost(postId) {
+    return await promisify(postsApi.getPost.bind(postsApi), postId)
+  },
+
+  async createPost(body) {
+    return await promisify(postsApi.createPost.bind(postsApi), body)
+  },
+
+  async updatePost(postId, body) {
+    return await promisify(postsApi.updatePost.bind(postsApi), postId, body)
+  },
+
+  async deletePost(postId) {
+    return await promisify(postsApi.deletePost.bind(postsApi), postId)
+  },
+
+  async voteOnPost(postId, body) {
+    return await promisify(postsApi.voteOnPost.bind(postsApi), postId, body)
+  },
+
+  async lockPost(postId) {
+    return await promisify(postsApi.lockPost.bind(postsApi), postId)
+  },
+}
+
+// Comments API
+export const commentsApiWrapper = {
+  async getComments(postId) {
+    return await promisify(commentsApi.getComments.bind(commentsApi), postId)
+  },
+
+  async createComment(postId, body) {
+    return await promisify(commentsApi.createComment.bind(commentsApi), postId, body)
+  },
+
+  async updateComment(commentId, body) {
+    return await promisify(commentsApi.updateComment.bind(commentsApi), commentId, body)
+  },
+
+  async deleteComment(commentId) {
+    return await promisify(commentsApi.deleteComment.bind(commentsApi), commentId)
+  },
+
+  async voteOnComment(commentId, body) {
+    return await promisify(commentsApi.voteOnComment.bind(commentsApi), commentId, body)
   },
 }
 
@@ -1039,5 +1105,7 @@ export default {
   moderation: moderationApiWrapper,
   admin: adminApiWrapper,
   bugReports: bugReportsApiWrapper,
+  posts: postsApiWrapper,
+  comments: commentsApiWrapper,
   initializeAuth,
 }

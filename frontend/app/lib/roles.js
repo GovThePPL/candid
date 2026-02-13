@@ -75,6 +75,17 @@ export function getHighestRole(user) {
   return null
 }
 
+/**
+ * True for roles that have Q&A authority — can mark questions as answered.
+ * Admin, moderator, facilitator, expert, and liaison.
+ */
+const QA_ROLES = new Set(['admin', 'moderator', 'facilitator', 'expert', 'liaison'])
+
+export function hasQAAuthority(user) {
+  if (!Array.isArray(user?.roles)) return false
+  return user.roles.some(r => QA_ROLES.has(r.role))
+}
+
 // --- Assignment scope utilities ---
 
 // Roles that an admin can assign

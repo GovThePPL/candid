@@ -120,6 +120,13 @@ export default function DashboardLayout() {
             tabBarIcon: renderTabIcon(MaterialCommunityIcons, 'cards-outline', 'cards', t('tabCards')),
           }}
         />
+        <Tabs.Screen
+          name="discuss"
+          options={{
+            title: t('discuss:tabDiscuss'),
+            tabBarIcon: renderTabIcon(Ionicons, 'chatbubbles-outline', 'chatbubbles', t('discuss:tabDiscuss')),
+          }}
+        />
         {/* Create and Chats - hidden from tab bar, accessed via FAB and Sidebar */}
         <Tabs.Screen
           name="create"

@@ -33,6 +33,7 @@ export default function AccountSettings() {
   const [hasEmailChanges, setHasEmailChanges] = useState(false)
   const [savingEmail, setSavingEmail] = useState(false)
   const isInitialLoadRef = useRef(true)
+  const errorTimerRef = useRef(null)
 
   // Delete account state
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
@@ -76,6 +77,9 @@ export default function AccountSettings() {
 
   useEffect(() => {
     fetchData()
+    return () => {
+      if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
+    }
   }, [fetchData])
 
   useFocusEffect(
@@ -108,7 +112,7 @@ export default function AccountSettings() {
     } catch (err) {
       console.error('Failed to save email:', err)
       setError(translateError(err.message, t) || t('failedSaveEmail'))
-      setTimeout(() => setError(null), 3000)
+      errorTimerRef.current = setTimeout(() => setError(null), 3000)
     } finally {
       setSavingEmail(false)
     }
