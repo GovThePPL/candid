@@ -4,6 +4,7 @@ import { Platform, useWindowDimensions, View, StyleSheet } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons"
 
+import { getFocusedRouteNameFromRoute } from "@react-navigation/core"
 import UserOnly from "../../components/auth/UserOnly"
 import { UserContext } from "../../contexts/UserContext"
 import { ToastProvider } from "../../components/Toast"
@@ -122,9 +123,13 @@ export default function DashboardLayout() {
         />
         <Tabs.Screen
           name="discuss"
-          options={{
-            title: t('discuss:tabDiscuss'),
-            tabBarIcon: renderTabIcon(Ionicons, 'chatbubbles-outline', 'chatbubbles', t('discuss:tabDiscuss')),
+          options={({ route }) => {
+            const focusedRoute = getFocusedRouteNameFromRoute(route) ?? 'index'
+            return {
+              title: t('discuss:tabDiscuss'),
+              tabBarIcon: renderTabIcon(Ionicons, 'chatbubbles-outline', 'chatbubbles', t('discuss:tabDiscuss')),
+              ...(focusedRoute !== 'index' ? { tabBarStyle: { display: 'none' } } : {}),
+            }
           }}
         />
         {/* Create and Chats - hidden from tab bar, accessed via FAB and Sidebar */}

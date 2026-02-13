@@ -3,8 +3,9 @@ require('@testing-library/react-native/build/matchers/extend-expect')
 
 // Mock expo-router
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: () => true }),
   useLocalSearchParams: () => ({}),
+  useNavigation: () => ({ getParent: () => ({ setOptions: jest.fn() }), getState: () => ({ routes: [{ name: 'index' }, { name: '[id]' }] }), goBack: jest.fn(), push: jest.fn(), replace: jest.fn(), navigate: jest.fn() }),
   useSegments: () => [],
   Link: 'Link',
   Stack: { Screen: 'Screen' },

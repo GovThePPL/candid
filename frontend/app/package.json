@@ -41,6 +41,7 @@
     "react-native-svg": "~15.11.2",
     "react-native-web": "^0.21.0",
     "react-native-worklets": "^0.5.1",
+    "react-native-markdown-display": "^7.0.2",
     "socket.io-client": "^4.8.1"
   },
   "devDependencies": {

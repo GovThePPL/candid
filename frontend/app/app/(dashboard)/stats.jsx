@@ -28,15 +28,13 @@ import PositionCard from '../../components/stats/PositionCard'
 import GroupDemographicsModal from '../../components/stats/GroupDemographicsModal'
 import SurveyResultsModal from '../../components/stats/SurveyResultsModal'
 import InfoModal from '../../components/InfoModal'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 import api, { statsApiWrapper, surveysApiWrapper, API_BASE_URL, translateError } from '../../lib/api'
 import { UserContext } from '../../contexts/UserContext'
+import { useLocationCategory } from '../../contexts/LocationCategoryContext'
 
 const CARD_MIN_WIDTH = 340
 const SEARCH_DEBOUNCE_MS = 800
 const SEARCH_PAGE_SIZE = 20
-const STATS_LOCATION_KEY = '@stats:lastLocation'
-const STATS_CATEGORY_KEY = '@stats:lastCategory'
 
 export default function Stats() {
   const { user } = useContext(UserContext)
@@ -44,8 +42,7 @@ export default function Stats() {
   const styles = useMemo(() => createStyles(colors), [colors])
   const { t } = useTranslation('stats')
 
-  const [selectedLocation, setSelectedLocationRaw] = useState(null)
-  const [selectedCategory, setSelectedCategoryRaw] = useState(null)
+  const { selectedLocation, selectedCategory, setSelectedLocation, setSelectedCategory, loaded: prefsLoaded } = useLocationCategory()
   const [statsData, setStatsData] = useState(null)
   const [activeTab, setActiveTab] = useState('majority')
   const [loading, setLoading] = useState(false)
@@ -55,29 +52,6 @@ export default function Stats() {
   const [showDemographicsModal, setShowDemographicsModal] = useState(false)
   const [showLabelHelpModal, setShowLabelHelpModal] = useState(false)
   const [showSurveyResultsModal, setShowSurveyResultsModal] = useState(false)
-
-  // Persist location/category selection
-  const setSelectedLocation = useCallback((id) => {
-    setSelectedLocationRaw(id)
-    if (id) AsyncStorage.setItem(STATS_LOCATION_KEY, id).catch(() => {})
-  }, [])
-  const setSelectedCategory = useCallback((id) => {
-    setSelectedCategoryRaw(id)
-    if (id) AsyncStorage.setItem(STATS_CATEGORY_KEY, id).catch(() => {})
-  }, [])
-
-  // Restore last selection on mount (must complete before LocationCategorySelector renders)
-  const [prefsLoaded, setPrefsLoaded] = useState(false)
-  useEffect(() => {
-    (async () => {
-      try {
-        const [loc, cat] = await AsyncStorage.multiGet([STATS_LOCATION_KEY, STATS_CATEGORY_KEY])
-        if (loc[1]) setSelectedLocationRaw(loc[1])
-        if (cat[1]) setSelectedCategoryRaw(cat[1])
-      } catch {}
-      setPrefsLoaded(true)
-    })()
-  }, [])
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('')

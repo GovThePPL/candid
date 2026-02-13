@@ -793,17 +793,29 @@ CREATE TRIGGER trg_response_position_counts
     AFTER INSERT OR UPDATE OR DELETE ON response
     FOR EACH ROW EXECUTE FUNCTION update_position_response_counts();
 
--- Trigger: comment insert/delete → update post.comment_count and parent comment.child_count
+-- Trigger: comment insert/delete/status-change → update post.comment_count and parent comment.child_count
+-- Only active comments are counted. Soft-deletes (status → deleted/removed) decrement the count.
 CREATE OR REPLACE FUNCTION update_comment_counts() RETURNS TRIGGER AS $$
 BEGIN
     IF TG_OP = 'INSERT' THEN
-        UPDATE post SET comment_count = comment_count + 1 WHERE id = NEW.post_id;
+        IF NEW.status = 'active' THEN
+            UPDATE post SET comment_count = comment_count + 1 WHERE id = NEW.post_id;
+        END IF;
         IF NEW.parent_comment_id IS NOT NULL THEN
             UPDATE comment SET child_count = child_count + 1 WHERE id = NEW.parent_comment_id;
         END IF;
         RETURN NEW;
+    ELSIF TG_OP = 'UPDATE' AND OLD.status IS DISTINCT FROM NEW.status THEN
+        IF OLD.status = 'active' AND NEW.status <> 'active' THEN
+            UPDATE post SET comment_count = GREATEST(comment_count - 1, 0) WHERE id = NEW.post_id;
+        ELSIF OLD.status <> 'active' AND NEW.status = 'active' THEN
+            UPDATE post SET comment_count = comment_count + 1 WHERE id = NEW.post_id;
+        END IF;
+        RETURN NEW;
     ELSIF TG_OP = 'DELETE' THEN
-        UPDATE post SET comment_count = GREATEST(comment_count - 1, 0) WHERE id = OLD.post_id;
+        IF OLD.status = 'active' THEN
+            UPDATE post SET comment_count = GREATEST(comment_count - 1, 0) WHERE id = OLD.post_id;
+        END IF;
         IF OLD.parent_comment_id IS NOT NULL THEN
             UPDATE comment SET child_count = GREATEST(child_count - 1, 0) WHERE id = OLD.parent_comment_id;
         END IF;
@@ -814,7 +826,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trg_comment_counts
-    AFTER INSERT OR DELETE ON comment
+    AFTER INSERT OR UPDATE OF status OR DELETE ON comment
     FOR EACH ROW EXECUTE FUNCTION update_comment_counts();
 
 -- ========== Counter Reconciliation ==========
@@ -856,9 +868,9 @@ BEGIN
     rows_fixed := fixed_count;
     RETURN NEXT;
 
-    -- 2. Post comment counts (from comment table)
+    -- 2. Post comment counts (only active comments)
     WITH counts AS (
-        SELECT post_id, COUNT(*) AS cnt FROM comment GROUP BY post_id
+        SELECT post_id, COUNT(*) AS cnt FROM comment WHERE status = 'active' GROUP BY post_id
     ), updated AS (
         UPDATE post p SET comment_count = COALESCE(c.cnt, 0)
         FROM counts c

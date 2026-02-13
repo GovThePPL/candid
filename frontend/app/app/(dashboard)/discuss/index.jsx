@@ -2,10 +2,12 @@ import { useState, useMemo, useContext, useCallback } from 'react'
 import { View, FlatList, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
+import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../../hooks/useThemeColors'
 import { Spacing } from '../../../constants/Theme'
 import { UserContext } from '../../../contexts/UserContext'
+import { useLocationCategory } from '../../../contexts/LocationCategoryContext'
 import { hasQAAuthority } from '../../../lib/roles'
 import usePostsFeed from '../../../hooks/usePostsFeed'
 import Header from '../../../components/Header'
@@ -23,9 +25,8 @@ export default function DiscussFeed() {
   const insets = useSafeAreaInsets()
   const router = useRouter()
   const { user } = useContext(UserContext)
+  const { selectedLocation, selectedCategory, setSelectedLocation, setSelectedCategory } = useLocationCategory()
 
-  const [selectedLocation, setSelectedLocation] = useState(null)
-  const [selectedCategory, setSelectedCategory] = useState('all')
   const [postType, setPostType] = useState('discussion')
 
   const isQAAuthority = hasQAAuthority(user)
@@ -54,7 +55,7 @@ export default function DiscussFeed() {
   }, [setAnsweredFilter])
 
   const handlePostPress = useCallback((post) => {
-    router.push(`/discuss/${post.id}`)
+    router.push({ pathname: '/discuss/[id]', params: { id: post.id } })
   }, [router])
 
   const renderPostCard = useCallback(({ item }) => (
@@ -177,6 +178,17 @@ export default function DiscussFeed() {
         }
         contentContainerStyle={posts.length === 0 && !loading ? styles.emptyContainer : styles.listContent}
       />
+
+      {/* Floating action button */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => router.push({ pathname: '/discuss/create', params: { type: postType } })}
+        activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel={t('fabA11y')}
+      >
+        <Ionicons name="add" size={28} color="#FFFFFF" />
+      </TouchableOpacity>
     </View>
   )
 }
@@ -231,5 +243,21 @@ const createStyles = (colors) => StyleSheet.create({
   footer: {
     paddingVertical: Spacing.lg,
     alignItems: 'center',
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
 })

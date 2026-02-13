@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { View, TouchableOpacity, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
@@ -8,9 +8,10 @@ import { SemanticColors } from '../../constants/Colors'
 import { formatRelativeTime } from '../../lib/timeUtils'
 import ThemedText from '../ThemedText'
 import RoleBadge from './RoleBadge'
+import MarkdownRenderer from './MarkdownRenderer'
 
 /**
- * Post card for the feed list.
+ * Post card for the feed list. Supports expanding the body inline.
  *
  * @param {Object} props
  * @param {Object} props.post - Post object from API
@@ -21,11 +22,18 @@ export default function PostCard({ post, onPress, onUpvote }) {
   const { t } = useTranslation('discuss')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
+  const [expanded, setExpanded] = useState(false)
 
   const isUpvoted = post.userVote?.voteType === 'upvote'
   const isLocked = post.status === 'locked'
-  const authorName = post.creator?.displayName || post.creator?.username || '?'
+  const displayName = post.creator?.displayName || post.creator?.username || '?'
+  const username = post.creator?.username
   const relativeTime = formatRelativeTime(post.createdTime, t)
+  const hasBody = !!post.body
+
+  const handleExpand = () => {
+    setExpanded(prev => !prev)
+  }
 
   return (
     <TouchableOpacity
@@ -33,11 +41,11 @@ export default function PostCard({ post, onPress, onUpvote }) {
       onPress={onPress}
       activeOpacity={0.7}
       accessibilityRole="button"
-      accessibilityLabel={t('postCardA11y', { author: authorName, title: post.title })}
+      accessibilityLabel={t('postCardA11y', { author: displayName, title: post.title })}
     >
-      {/* Top row: category, locked, answered */}
-      {(post.category || isLocked || post.isAnswered) && (
-        <View style={styles.topRow}>
+      {/* Top row: badges left, age right */}
+      <View style={styles.topRow}>
+        <View style={styles.topRowLeft}>
           {post.category && (
             <ThemedText variant="caption" color="secondary">{post.category.label}</ThemedText>
           )}
@@ -54,15 +62,45 @@ export default function PostCard({ post, onPress, onUpvote }) {
             </View>
           )}
         </View>
-      )}
+        <ThemedText variant="caption" color="secondary">{relativeTime}</ThemedText>
+      </View>
 
       {/* Title */}
       <ThemedText variant="h3" numberOfLines={2} style={styles.title}>{post.title}</ThemedText>
 
-      {/* Body preview */}
-      <ThemedText variant="bodySmall" color="secondary" numberOfLines={3} style={styles.body}>
-        {post.body}
-      </ThemedText>
+      {/* Body: collapsed preview or expanded markdown */}
+      {hasBody && (
+        expanded ? (
+          <View style={styles.body}>
+            <MarkdownRenderer content={post.body} variant="post" />
+          </View>
+        ) : (
+          <ThemedText variant="body" color="secondary" numberOfLines={3} style={styles.body}>
+            {post.body}
+          </ThemedText>
+        )
+      )}
+
+      {/* Expand/collapse toggle */}
+      {hasBody && (
+        <TouchableOpacity
+          style={styles.expandButton}
+          onPress={handleExpand}
+          activeOpacity={0.6}
+          accessibilityRole="button"
+          accessibilityLabel={expanded ? t('collapsePostA11y') : t('expandPostA11y')}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+        >
+          <ThemedText variant="caption" color="primary" style={styles.expandText}>
+            {expanded ? t('collapsePost') : t('expandPost')}
+          </ThemedText>
+          <Ionicons
+            name={expanded ? 'chevron-up' : 'chevron-down'}
+            size={14}
+            color={colors.primary}
+          />
+        </TouchableOpacity>
+      )}
 
       {/* Bottom row: upvote, comments, role badge, author, time */}
       <View style={styles.bottomRow}>
@@ -96,11 +134,14 @@ export default function PostCard({ post, onPress, onUpvote }) {
         <View style={styles.authorSection}>
           {post.creatorRole && <RoleBadge role={post.creatorRole} />}
           <ThemedText variant="caption" color="secondary" numberOfLines={1} style={styles.authorName}>
-            {authorName}
+            {displayName}
           </ThemedText>
+          {username && (
+            <ThemedText variant="caption" color="secondary" numberOfLines={1}>
+              @{username}
+            </ThemedText>
+          )}
         </View>
-
-        <ThemedText variant="caption" color="secondary" style={styles.time}>{relativeTime}</ThemedText>
       </View>
     </TouchableOpacity>
   )
@@ -120,9 +161,15 @@ const createStyles = (colors) => StyleSheet.create({
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    justifyContent: 'space-between',
     marginBottom: Spacing.xs,
+  },
+  topRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
     flexWrap: 'wrap',
+    flex: 1,
   },
   statusBadge: {
     flexDirection: 'row',
@@ -146,7 +193,16 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: Spacing.xs,
   },
   body: {
+    marginBottom: Spacing.sm,
+  },
+  expandButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     marginBottom: Spacing.md,
+  },
+  expandText: {
+    fontWeight: '600',
   },
   bottomRow: {
     flexDirection: 'row',
@@ -179,8 +235,5 @@ const createStyles = (colors) => StyleSheet.create({
   },
   authorName: {
     maxWidth: 120,
-  },
-  time: {
-    marginLeft: Spacing.xs,
   },
 })

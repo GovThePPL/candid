@@ -2316,6 +2316,7 @@ def phase_11_admin(api, location_id, category_map, dry_run=False):
 
 # Post content for seeding
 SEED_POSTS = [
+    # 0 - Discussion: transit (high engagement)
     {
         "type": "discussion",
         "title": "Should Portland invest more in public transit or road infrastructure?",
@@ -2324,8 +2325,9 @@ SEED_POSTS = [
                 "the way forward. But many neighborhoods are poorly served by buses and MAX. "
                 "Meanwhile, our roads and bridges need serious maintenance.\n\n"
                 "What do you think should be the priority?",
-        "category": "Transportation",
+        "category": "Economy & Taxation",
     },
+    # 1 - Discussion: remote work
     {
         "type": "discussion",
         "title": "The impact of remote work on Portland's downtown",
@@ -2334,8 +2336,9 @@ SEED_POSTS = [
                 "But some argue this is a chance to reimagine downtown — more housing, more "
                 "parks, more community spaces.\n\n"
                 "How has remote work affected your relationship with downtown Portland?",
-        "category": "Economy",
+        "category": "Economy & Taxation",
     },
+    # 2 - Discussion: homelessness (deep threads)
     {
         "type": "discussion",
         "title": "Homelessness crisis: What approaches actually work?",
@@ -2344,8 +2347,9 @@ SEED_POSTS = [
                 "I'm interested in hearing from people across the political spectrum about what "
                 "evidence-based approaches they think could make a real difference. Let's try to "
                 "have a productive conversation about this difficult topic.",
-        "category": "Social Services",
+        "category": "Social Issues",
     },
+    # 3 - Discussion: local business
     {
         "type": "discussion",
         "title": "Supporting local businesses vs. big box stores",
@@ -2353,8 +2357,9 @@ SEED_POSTS = [
                 "lose a piece of Portland's character. But chains often offer lower prices, which "
                 "matters to families on tight budgets.\n\n"
                 "Is there a middle ground? How do you balance supporting local with affordability?",
-        "category": "Economy",
+        "category": "Economy & Taxation",
     },
+    # 4 - Q&A: property tax (answered)
     {
         "type": "question",
         "title": "How does Oregon's property tax system work?",
@@ -2362,8 +2367,9 @@ SEED_POSTS = [
                 "it's different from most states because of Measure 5 and Measure 50. Can someone "
                 "explain how assessed value vs. real market value works, and why my neighbor's "
                 "identical house might have a very different tax bill?",
-        "category": "Taxes & Budget",
+        "category": "Economy & Taxation",
     },
+    # 5 - Q&A: local government (unanswered)
     {
         "type": "question",
         "title": "What are the best ways to get involved in local government?",
@@ -2372,6 +2378,7 @@ SEED_POSTS = [
                 "decision-making processes? Are neighborhood associations still relevant?",
         "category": "Government & Democracy",
     },
+    # 6 - Discussion: climate
     {
         "type": "discussion",
         "title": "Climate action: Individual responsibility vs. systemic change",
@@ -2381,8 +2388,9 @@ SEED_POSTS = [
                 "policy reform\n\n"
                 "These aren't mutually exclusive, but where should we focus our energy? Portland has "
                 "set ambitious climate goals. Are we on track?",
-        "category": "Environment",
+        "category": "Environment & Climate",
     },
+    # 7 - Discussion: arts
     {
         "type": "discussion",
         "title": "Portland's arts and culture scene: thriving or struggling?",
@@ -2393,6 +2401,7 @@ SEED_POSTS = [
                 "be doing to support artists and cultural institutions?",
         "category": "Education",
     },
+    # 8 - Q&A: mental health (answered)
     {
         "type": "question",
         "title": "What mental health resources are available in Portland?",
@@ -2401,6 +2410,7 @@ SEED_POSTS = [
                 "Does anyone know of resources, especially sliding-scale or community clinics?",
         "category": "Healthcare",
     },
+    # 9 - Discussion: gun policy
     {
         "type": "discussion",
         "title": "Gun policy: Finding common ground in Oregon",
@@ -2409,7 +2419,78 @@ SEED_POSTS = [
                 "strongly on how.\n\n"
                 "Can we have a good-faith discussion about what gun policies might actually "
                 "reduce harm while respecting rights? What does the evidence say?",
-        "category": "Public Safety",
+        "category": "Criminal Justice",
+    },
+    # 10 - Discussion: immigration (hot topic, many comments)
+    {
+        "type": "discussion",
+        "title": "Oregon's role in the national immigration debate",
+        "body": "Oregon has declared itself a sanctuary state, but opinions are divided on what "
+                "that should mean in practice. Some see it as a moral imperative to protect "
+                "immigrant communities. Others worry about the strain on public services.\n\n"
+                "There's also the economic angle — many Oregon industries (agriculture, "
+                "hospitality, construction) depend heavily on immigrant labor. How do we balance "
+                "compassion, rule of law, and economic reality?\n\n"
+                "I genuinely want to hear perspectives from all sides on this.",
+        "category": "Immigration",
+    },
+    # 11 - Discussion: locked post (housing, mod locked it)
+    {
+        "type": "discussion",
+        "title": "Rent control: Has it helped or hurt Portland?",
+        "body": "Oregon passed statewide rent control in 2019, capping annual increases. "
+                "Landlords say it discourages investment in rental housing. Tenants say it's "
+                "the only thing preventing displacement.\n\n"
+                "What's been your experience? Has rent control made housing more or less "
+                "available in your neighborhood?",
+        "category": "Economy & Taxation",
+        "status": "locked",
+    },
+    # 12 - Discussion: markdown-heavy post with links
+    {
+        "type": "discussion",
+        "title": "Resources for understanding Oregon ballot measures",
+        "body": "I put together some resources for anyone trying to make sense of upcoming "
+                "ballot measures. Feel free to add your own!\n\n"
+                "## Official Sources\n"
+                "- **Oregon Blue Book** — the official state almanac\n"
+                "- **Oregon Secretary of State** — initiative and referendum info\n\n"
+                "## Independent Analysis\n"
+                "- **Oregon Legislative Revenue Office** — nonpartisan fiscal impact reports\n"
+                "- **Ballotpedia** — comprehensive ballot measure tracking\n\n"
+                "## Tips for Evaluating Measures\n"
+                "1. Always read the actual measure text, not just the summary\n"
+                "2. Look at who funded the signature gathering\n"
+                "3. Check for unintended consequences in the legal language\n"
+                "4. Compare analyses from *multiple* sources\n\n"
+                "> \"An informed citizenry is the best defense against tyranny.\"\n\n"
+                "What other resources do people find helpful?",
+        "category": "Government & Democracy",
+    },
+    # 13 - Q&A: civil rights (unanswered)
+    {
+        "type": "question",
+        "title": "How do citizen oversight boards for police actually work?",
+        "body": "Portland has had various forms of police oversight over the years. I keep "
+                "hearing about the new Community Board for Police Accountability but I'm confused "
+                "about what power it actually has.\n\n"
+                "Can someone explain:\n"
+                "- What can the board investigate?\n"
+                "- Can they compel officer testimony?\n"
+                "- How are board members selected?\n"
+                "- How does this compare to oversight in other cities?",
+        "category": "Criminal Justice",
+    },
+    # 14 - Discussion: education (recent, few comments)
+    {
+        "type": "discussion",
+        "title": "Should schools teach financial literacy as a required course?",
+        "body": "I graduated from a Portland public school without ever learning how to do "
+                "my taxes, understand a mortgage, or budget effectively. Meanwhile, I can "
+                "still recite the quadratic formula.\n\n"
+                "Some states are starting to require personal finance courses. Should Oregon "
+                "do the same? What should the curriculum include?",
+        "category": "Education",
     },
 ]
 
@@ -2438,6 +2519,30 @@ SEED_COMMENTS = {
                  "bike-friendly design but we've stagnated.",
          "author_prefix": "socdem"},
     ],
+    1: [  # Remote work post
+        {"body": "I used to commute downtown every day. Now I go in twice a week and "
+                 "honestly, the vibes are different. A lot of my favorite lunch spots closed.",
+         "author_prefix": "mod", "replies": [
+            {"body": "Same here. But I also discovered some great spots in my own neighborhood "
+                     "that I never had time to visit before. Mixed feelings.",
+             "author_prefix": "lib"},
+        ]},
+        {"body": "Converting empty office space to housing is the obvious answer. Cities "
+                 "like Calgary are already doing this successfully.",
+         "author_prefix": "prog", "replies": [
+            {"body": "It's not that simple — office buildings and residential have very "
+                     "different plumbing, HVAC, and floor plate requirements. Conversion is "
+                     "expensive and sometimes not feasible.",
+             "author_prefix": "cen", "replies": [
+                {"body": "Expensive, yes. Not feasible? That's a stretch. It's being done all "
+                         "over the country. The question is whether incentives make the math work.",
+                 "author_prefix": "socdem"},
+            ]},
+        ]},
+        {"body": "The real question is whether downtown *should* go back to what it was. "
+                 "Maybe a mixed-use neighborhood is better than a 9-to-5 business district.",
+         "author_prefix": "libt"},
+    ],
     2: [  # Homelessness post
         {"body": "Housing First has the strongest evidence base. Give people stable "
                  "housing, then address other issues. Finland's approach reduced "
@@ -2451,7 +2556,13 @@ SEED_COMMENTS = {
              "author_prefix": "socdem", "replies": [
                 {"body": "Do you have a source for those cost comparisons? I'd like to "
                          "see Portland-specific data.",
-                 "author_prefix": "libt"},
+                 "author_prefix": "libt", "replies": [
+                    {"body": "The Central City Concern annual report breaks this down. Also "
+                             "check the Joint Office of Homeless Services dashboard. Portland-"
+                             "specific data shows ~$40k/year per person for ER+jail vs ~$20k "
+                             "for supportive housing.",
+                     "author_prefix": "socdem"},
+                ]},
             ]},
         ]},
         {"body": "We need to enforce existing laws. Camping on sidewalks is illegal and "
@@ -2460,10 +2571,18 @@ SEED_COMMENTS = {
             {"body": "Enforcement without alternatives just moves the problem around. "
                      "Where are people supposed to go?",
              "author_prefix": "prog"},
+            {"body": "I think the point is that both enforcement AND alternatives are "
+                     "needed. One without the other doesn't work.",
+             "author_prefix": "cen"},
         ]},
         {"body": "Has anyone looked at what other cities our size have done successfully? "
                  "Houston reportedly reduced homelessness significantly.",
-         "author_prefix": "cen"},
+         "author_prefix": "cen", "replies": [
+            {"body": "Houston's approach is interesting — they focused heavily on rapid "
+                     "rehousing with federal funding. Key difference: they had relatively "
+                     "cheap housing stock to work with. Portland doesn't.",
+             "author_prefix": "mod"},
+        ]},
     ],
     3: [  # Local business post
         {"body": "I try to shop local whenever possible. The extra cost is worth it for "
@@ -2476,6 +2595,47 @@ SEED_COMMENTS = {
                      "everything from Amazon. We can be strategic.",
              "author_prefix": "mod"},
         ]},
+        {"body": "The city should offer tax breaks or reduced permit fees for independent "
+                 "businesses. That would help level the playing field without asking consumers "
+                 "to subsidize higher prices out of pocket.",
+         "author_prefix": "cen"},
+    ],
+    4: [  # Property tax question (Q&A — answered by moderator)
+        {"body": "Great question! Oregon's property tax system is unique because of two ballot "
+                 "measures. **Measure 5** (1990) capped tax rates, and **Measure 50** (1997) "
+                 "froze assessed values at 1995-96 levels with a max 3% annual increase.\n\n"
+                 "This means your assessed value (what you're taxed on) can be far below real "
+                 "market value. Neighbors who bought at different times can have wildly different "
+                 "assessed values — and therefore different tax bills — for identical houses.\n\n"
+                 "It's controversial because long-time owners benefit while new buyers pay more, "
+                 "and it reduces revenue for schools and services over time.",
+         "author_prefix": "mod", "replies": [
+            {"body": "This is a really clear explanation, thank you! So if I bought my house "
+                     "recently, I'm probably paying more than my neighbor who's been there 20 years?",
+             "author_prefix": "normal"},
+            {"body": "One thing to add: you can look up your property's assessed vs. market "
+                     "value on the county assessor's website. The gap can be eye-opening.",
+             "author_prefix": "cen"},
+        ]},
+        {"body": "I moved from California which has a similar system (Prop 13). The main "
+                 "difference is Oregon's rate cap on top of the assessment freeze.",
+         "author_prefix": "lib", "replies": [
+            {"body": "Prop 13 is even more extreme — no 3% cap on increases in California, "
+                     "it's 2%. Oregon's system is actually more moderate.",
+             "author_prefix": "mod"},
+        ]},
+    ],
+    5: [  # Local government question (Q&A — NOT answered, only normal users)
+        {"body": "Neighborhood associations are definitely still a thing! I attend mine monthly. "
+                 "It's a great way to hear about development proposals in your area.",
+         "author_prefix": "normal", "replies": [
+            {"body": "I tried going to mine but it felt dominated by retirees who oppose "
+                     "everything. Is that common?",
+             "author_prefix": "prog"},
+        ]},
+        {"body": "Budget committee meetings are open to the public and you'd be surprised "
+                 "how few people show up. Your voice carries a lot of weight there.",
+         "author_prefix": "cen"},
     ],
     6: [  # Climate post
         {"body": "Individual action is important but it's a drop in the bucket compared "
@@ -2491,6 +2651,57 @@ SEED_COMMENTS = {
         {"body": "Portland's climate goals are admirable but we're not on track. We need "
                  "accountability mechanisms, not just targets.",
          "author_prefix": "cen"},
+        {"body": "I installed solar panels last year and the payback period is about 7 years "
+                 "with the current tax credits. Individual action + policy incentives = real impact.",
+         "author_prefix": "lib", "replies": [
+            {"body": "Not everyone can afford the upfront cost of solar panels. This is "
+                     "exactly why systemic solutions matter — they can reach everyone.",
+             "author_prefix": "pop"},
+        ]},
+    ],
+    7: [  # Arts and culture post
+        {"body": "The DIY music scene is actually thriving if you know where to look. "
+                 "House shows, pop-up galleries, and small venues are doing amazing work. "
+                 "It's the mid-size venues that are struggling.",
+         "author_prefix": "prog", "replies": [
+            {"body": "True, but DIY spaces operate in legal gray areas. One code violation "
+                     "and they're gone. The city should create a cultural spaces protection program.",
+             "author_prefix": "socdem"},
+        ]},
+        {"body": "I'm an artist and honestly, I've been thinking about leaving Portland. "
+                 "The cost of studio space has nearly doubled in 5 years.",
+         "author_prefix": "lib", "replies": [
+            {"body": "This is heartbreaking but real. I know three artists who moved to "
+                     "Bend or Ashland in the last year alone.",
+             "author_prefix": "normal"},
+            {"body": "The Portland Arts Tax was supposed to help with this. Where is that "
+                     "money actually going?",
+             "author_prefix": "con"},
+        ]},
+        {"body": "Public art funding should be reallocated toward community art centers "
+                 "in underserved neighborhoods, not expensive downtown installations.",
+         "author_prefix": "pop"},
+    ],
+    8: [  # Mental health Q&A (answered by moderator)
+        {"body": "A few resources that might help:\n\n"
+                 "- **Cascadia Behavioral Healthcare** — sliding scale, walk-in crisis services\n"
+                 "- **Outside In** — free/low-cost for young adults under 25\n"
+                 "- **Multnomah County Crisis Line** — 503-988-4888, 24/7\n"
+                 "- **NAMI Multnomah** — free support groups and peer mentoring\n\n"
+                 "For the waitlist issue, ask specifically about *cancellation lists* — "
+                 "providers often can fit you in sooner if you're flexible with scheduling.",
+         "author_prefix": "mod", "replies": [
+            {"body": "Thank you for this list! The cancellation list tip is really helpful. "
+                     "I'll pass this along.",
+             "author_prefix": "normal"},
+        ]},
+        {"body": "Also worth looking into Open Path Collective — it's a network of therapists "
+                 "who offer sessions at $30-$80. Not Portland-specific but many local providers "
+                 "are on there.",
+         "author_prefix": "lib"},
+        {"body": "If your friend is a veteran, the VA Portland has expanded their mental "
+                 "health services significantly. No referral needed for the crisis line.",
+         "author_prefix": "con"},
     ],
     9: [  # Gun policy post
         {"body": "I'm a gun owner who supports universal background checks. Most gun "
@@ -2508,10 +2719,128 @@ SEED_COMMENTS = {
          "author_prefix": "prog", "replies": [
             {"body": "Correlation isn't causation. Many of those states also have higher "
                      "incomes and less poverty. Need to control for confounders.",
-             "author_prefix": "cen"},
+             "author_prefix": "cen", "replies": [
+                {"body": "Fair — but when you DO control for income and poverty, the "
+                         "correlation still holds. Check the RAND Corporation's review.",
+                 "author_prefix": "prog"},
+                {"body": "The problem with this whole debate is that the CDC was blocked "
+                         "from studying gun violence for decades. We're playing catch-up on data.",
+                 "author_prefix": "mod"},
+            ]},
         ]},
     ],
+    10: [  # Immigration post (hot topic — many comments, deep threads)
+        {"body": "As someone who works in agriculture, I can tell you that without immigrant "
+                 "labor, Oregon's farms would collapse. This isn't hypothetical — we've seen "
+                 "crops rot in the fields when labor shortages hit.",
+         "author_prefix": "mod", "replies": [
+            {"body": "This is exactly right. The economy argument for immigration is "
+                     "overwhelming. We should be making it *easier* for people to work here legally.",
+             "author_prefix": "lib"},
+            {"body": "So the argument is we need immigrants to do jobs at wages Americans "
+                     "won't accept? That sounds like an argument for better wages, not more immigration.",
+             "author_prefix": "pop", "replies": [
+                {"body": "It's not just about wages — these are physically demanding seasonal "
+                         "jobs in rural areas. Even at higher wages, you can't fill them locally.",
+                 "author_prefix": "mod", "replies": [
+                    {"body": "Then mechanize. Other industries adapted to labor shortages through "
+                             "technology. Agriculture can too.",
+                     "author_prefix": "libt"},
+                    {"body": "Mechanization works for some crops but not others. Try mechanically "
+                             "harvesting strawberries or wine grapes without destroying them.",
+                     "author_prefix": "cen"},
+                ]},
+            ]},
+        ]},
+        {"body": "The sanctuary state policy doesn't mean ignoring crime. It means local "
+                 "police aren't doing ICE's job. There's a difference.",
+         "author_prefix": "prog", "replies": [
+            {"body": "I understand the distinction, but if someone commits a serious crime "
+                     "and their immigration status is relevant, shouldn't there be cooperation?",
+             "author_prefix": "con", "replies": [
+                {"body": "For serious crimes, there IS cooperation. The sanctuary policy is about "
+                         "not asking immigration status during routine traffic stops or "
+                         "when people report crimes as victims.",
+                 "author_prefix": "prog"},
+            ]},
+        ]},
+        {"body": "I'm an immigrant myself (came legally from Vietnam as a child). The process "
+                 "took my family 8 years. The system is broken, but the solution isn't open "
+                 "borders — it's fixing the legal immigration process.",
+         "author_prefix": "cen", "replies": [
+            {"body": "Thank you for sharing your experience. I think most people agree the "
+                     "legal process is broken. The disagreement is over what to do in the meantime.",
+             "author_prefix": "socdem"},
+            {"body": "8 years is insane. No wonder people choose to come without authorization "
+                     "when the legal path is that long.",
+             "author_prefix": "lib"},
+        ]},
+        {"body": "Can we talk about the impact on schools? My kid's school added ESL classes "
+                 "but the funding hasn't kept up. Teachers are stretched thin.",
+         "author_prefix": "normal", "replies": [
+            {"body": "ESL funding is a state and federal responsibility. Blaming immigrants "
+                     "for underfunded schools is misdirected — blame the legislature.",
+             "author_prefix": "soc"},
+        ]},
+    ],
+    11: [  # Rent control post (locked — comments pre-lock)
+        {"body": "Our rent went up 9.9% last year (the maximum allowed). That's not exactly "
+                 "'controlled.' And the law doesn't apply to buildings less than 15 years old, "
+                 "which is most new construction.",
+         "author_prefix": "prog", "replies": [
+            {"body": "The 15-year exemption is there specifically to encourage new construction. "
+                     "Without it, developers wouldn't build rental units at all.",
+             "author_prefix": "libt"},
+        ]},
+        {"body": "Rent control is basic economics 101 — it reduces supply. Every economist "
+                 "agrees on this. The evidence is clear.",
+         "author_prefix": "con", "replies": [
+            {"body": "Saying 'every economist agrees' is an exaggeration. Plenty of economists "
+                     "support well-designed rent stabilization. The key word is 'well-designed.'",
+             "author_prefix": "socdem"},
+            {"body": "Even if it reduces supply at the margins, it prevents mass displacement "
+                     "of existing tenants. That has value too.",
+             "author_prefix": "prog"},
+        ]},
+        {"body": "As a landlord, the rent cap hasn't changed my behavior at all. I charge "
+                 "fair rents and my tenants stay for years. The cap only hurts bad actors.",
+         "author_prefix": "mod"},
+    ],
+    12: [  # Ballot measures resource post
+        {"body": "Great compilation! I'd also recommend following Oregon Public Broadcasting's "
+                 "coverage. They do deep dives into ballot measures every election cycle.",
+         "author_prefix": "lib"},
+        {"body": "Tip number 2 is the most important one. Follow the money and you'll "
+                 "understand who actually benefits from a measure.",
+         "author_prefix": "con", "replies": [
+            {"body": "ORESTAR (the Oregon campaign finance database) is the tool for this. "
+                     "Every contribution is public record.",
+             "author_prefix": "cen"},
+        ]},
+        {"body": "I'd add: talk to people who disagree with you about a measure. If you can't "
+                 "steelman the opposing position, you don't understand the measure well enough.",
+         "author_prefix": "mod"},
+    ],
+    13: [  # Police oversight Q&A (unanswered — no mod/admin comments)
+        {"body": "From what I understand, the new board can investigate complaints and recommend "
+                 "discipline, but the Police Bureau still makes the final call on punishment. "
+                 "So it's oversight in name but limited in practice.",
+         "author_prefix": "prog", "replies": [
+            {"body": "That's the key issue. Without binding authority, it's just an advisory "
+                     "board with extra steps.",
+             "author_prefix": "soc"},
+        ]},
+        {"body": "Board members are selected through an application process — a mix of "
+                 "community members. They're supposed to reflect the city's demographics.",
+         "author_prefix": "cen"},
+        {"body": "I served on a similar board in another city. The biggest challenge isn't "
+                 "the structure — it's access to information. Police unions fight transparency "
+                 "at every turn.",
+         "author_prefix": "normal"},
+    ],
+    # Post 14 (financial literacy) intentionally has NO comments — tests empty state
 }
+
 
 
 def phase_12_posts(location_id, category_map, dry_run=False):
@@ -2570,19 +2899,21 @@ def phase_12_posts(location_id, category_map, dry_run=False):
         # Vary creation times (spread over last 7 days)
         hours_ago = random.randint(1, 168)
         post_id = str(uuid.uuid4())
+        status = post_data.get("status", "active")
 
         db_execute("""
             INSERT INTO post (id, creator_user_id, location_id, category_id, post_type,
-                              title, body, created_time)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, NOW() - INTERVAL '%s hours')
+                              title, body, status, created_time)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW() - INTERVAL '%s hours')
         """, (post_id, str(creator["id"]), location_id, category_id,
               post_data["type"], post_data["title"], post_data["body"],
-              hours_ago))
+              status, hours_ago))
 
         post_ids.append(post_id)
         post_creators.append(creator)
         post_types.append(post_data["type"])
-        print(f"  Created post: {post_data['title'][:50]}...")
+        tag = f" [{status}]" if status != "active" else ""
+        print(f"  Created post: {post_data['title'][:50]}...{tag}")
 
     # --- Create Comments ---
     all_comment_ids = []  # Track all comment IDs for voting

@@ -231,7 +231,7 @@ def get_posts(location_id, category_id=None, post_type=None, sort=None,
     if answered is not None:
         answered_subquery = """(SELECT 1 FROM comment c_ans
             JOIN user_role ur_ans ON ur_ans.user_id = c_ans.creator_user_id
-                AND ur_ans.location_id = p.location_id AND ur_ans.status = 'approved'
+                AND ur_ans.location_id = p.location_id
             WHERE c_ans.post_id = p.id AND c_ans.parent_comment_id IS NULL
                 AND c_ans.status = 'active')"""
         if answered == 'true':
@@ -289,7 +289,7 @@ def get_posts(location_id, category_id=None, post_type=None, sort=None,
     creator_role_subquery = """(SELECT ur_cr.role FROM user_role ur_cr
         JOIN users u_cr ON u_cr.id = ur_cr.user_id
         WHERE ur_cr.user_id = p.creator_user_id
-          AND ur_cr.location_id = p.location_id AND ur_cr.status = 'approved'
+          AND ur_cr.location_id = p.location_id
           AND u_cr.show_role_badge = true
         ORDER BY CASE ur_cr.role
           WHEN 'admin' THEN 1 WHEN 'moderator' THEN 2 WHEN 'facilitator' THEN 3
@@ -300,7 +300,7 @@ def get_posts(location_id, category_id=None, post_type=None, sort=None,
     is_answered_subquery = """EXISTS(
         SELECT 1 FROM comment c2
         JOIN user_role ur2 ON ur2.user_id = c2.creator_user_id
-          AND ur2.location_id = p.location_id AND ur2.status = 'approved'
+          AND ur2.location_id = p.location_id
         WHERE c2.post_id = p.id AND c2.parent_comment_id IS NULL
           AND c2.status = 'active'
     ) AS is_answered"""
@@ -389,7 +389,7 @@ def get_post(post_id, token_info=None):  # noqa: E501
                (SELECT ur_cr.role FROM user_role ur_cr
                 JOIN users u_cr ON u_cr.id = ur_cr.user_id
                 WHERE ur_cr.user_id = p.creator_user_id
-                  AND ur_cr.location_id = p.location_id AND ur_cr.status = 'approved'
+                  AND ur_cr.location_id = p.location_id
                   AND u_cr.show_role_badge = true
                 ORDER BY CASE ur_cr.role
                   WHEN 'admin' THEN 1 WHEN 'moderator' THEN 2 WHEN 'facilitator' THEN 3
@@ -399,7 +399,7 @@ def get_post(post_id, token_info=None):  # noqa: E501
                EXISTS(
                  SELECT 1 FROM comment c2
                  JOIN user_role ur2 ON ur2.user_id = c2.creator_user_id
-                   AND ur2.location_id = p.location_id AND ur2.status = 'approved'
+                   AND ur2.location_id = p.location_id
                  WHERE c2.post_id = p.id AND c2.parent_comment_id IS NULL
                    AND c2.status = 'active'
                ) AS is_answered

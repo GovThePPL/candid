@@ -12,6 +12,7 @@ import { UserProvider } from "../contexts/UserContext"
 import { ThemeProvider, useTheme } from "../contexts/ThemeContext"
 import { useTranslation } from "react-i18next"
 import { I18nProvider } from "../contexts/I18nContext"
+import { LocationCategoryProvider } from "../contexts/LocationCategoryContext"
 import { CacheManager } from "../lib/cache"
 
 
@@ -90,7 +91,9 @@ export default function RootLayout() {
       <UserProvider>
         <I18nProvider>
           <ThemeProvider>
-            <InnerLayout />
+            <LocationCategoryProvider>
+              <InnerLayout />
+            </LocationCategoryProvider>
           </ThemeProvider>
         </I18nProvider>
       </UserProvider>
