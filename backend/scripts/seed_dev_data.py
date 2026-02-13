@@ -2918,6 +2918,7 @@ def phase_12_posts(location_id, category_map, dry_run=False):
     # --- Create Comments ---
     all_comment_ids = []  # Track all comment IDs for voting
     all_comment_creators = []
+    all_comment_prefixes = []  # Track author prefix for ideological voting
 
     def insert_comment(post_id, parent_id, parent_path, parent_depth,
                        body, author_prefix, hours_offset=0):
@@ -2949,6 +2950,7 @@ def phase_12_posts(location_id, category_map, dry_run=False):
 
         all_comment_ids.append(cid)
         all_comment_creators.append(creator)
+        all_comment_prefixes.append(author_prefix)
         return cid, path, depth
 
     def insert_comment_tree(post_id, comment_data, parent_id=None,
@@ -3019,18 +3021,44 @@ def phase_12_posts(location_id, category_map, dry_run=False):
             WHERE id = %s
         """, (post_id, post_id, post_id, post_id, post_id))
 
-    # Vote on comments
+    # Vote on comments — ideologically coherent for MF training signal
+    # Map prefixes to a left-right lean score (-1 = left, 0 = center, 1 = right)
+    prefix_lean = {
+        "prog": -1.0, "lib": -0.7, "socdem": -0.6, "soc": -0.9,
+        "mod": 0.0, "cen": 0.1, "normal": 0.0, "admin": 0.0,
+        "libt": 0.5, "con": 0.8, "pop": 0.9, "trad": 1.0,
+    }
+
+    def get_voter_lean(voter):
+        """Get lean score for a voter from their username prefix."""
+        uname = voter["username"]
+        for pfx, lean in prefix_lean.items():
+            if uname.startswith(pfx):
+                return lean
+        return 0.0
+
     for i, comment_id in enumerate(all_comment_ids):
         creator_id = str(all_comment_creators[i]["id"])
-        # Each comment gets 2-12 random voters
-        n_voters = random.randint(2, 12)
+        author_lean = prefix_lean.get(all_comment_prefixes[i], 0.0)
+
+        # Each comment gets 8-25 random voters (higher min for MF thresholds)
+        n_voters = random.randint(8, 25)
         voters = random.sample(voter_users, min(n_voters, len(voter_users)))
 
         for voter in voters:
             if str(voter["id"]) == creator_id:
                 continue
 
-            vote_type = "upvote" if random.random() < 0.65 else "downvote"
+            voter_lean = get_voter_lean(voter)
+            # Same-lean voters upvote more; opposite-lean downvote more
+            lean_diff = abs(voter_lean - author_lean)
+            # Base upvote prob 0.75, drops to 0.25 for max ideological distance
+            upvote_prob = 0.75 - 0.5 * min(lean_diff / 2.0, 1.0)
+            # Add jitter
+            upvote_prob += random.gauss(0, 0.08)
+            upvote_prob = max(0.1, min(0.9, upvote_prob))
+
+            vote_type = "upvote" if random.random() < upvote_prob else "downvote"
             downvote_reason = None
             if vote_type == "downvote":
                 downvote_reason = random.choice([

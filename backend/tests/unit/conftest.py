@@ -66,8 +66,9 @@ with patch.dict("sys.modules", {
 }):
     pass  # Module is now in sys.modules cache
 
-# Disable Polis worker auto-start by setting POLIS_ENABLED=false in env
+# Disable Polis and MF worker auto-start
 os.environ.setdefault("POLIS_ENABLED", "false")
+os.environ.setdefault("MF_ENABLED", "false")
 
 # Now add generated to path so 'candid' resolves
 if _GENERATED not in sys.path:

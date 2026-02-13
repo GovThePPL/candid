@@ -87,6 +87,8 @@ python3 -m pytest backend/tests/unit/ --benchmark-only -v
 | `test_rate_limiting.py` | `rate_limiting.py` | Redis sliding-window rate limiter |
 | `test_stats_helpers.py` | `stats.py` | Opinion group computation, vote distribution helpers |
 | `test_user_mappers.py` | `user_mappers.py` | User serialization: profile, public view, admin view |
+| `test_matrix_factorization.py` | `matrix_factorization.py` | MF SGD algorithm, convergence, group recovery, Polis regularization, DB interactions |
+| `test_mf_worker.py` | `mf_worker.py` | MF worker lifecycle, advisory locks, training trigger logic |
 
 ## Key Files
 

@@ -584,6 +584,7 @@ CREATE TABLE comment (
     weighted_downvotes DOUBLE PRECISION NOT NULL DEFAULT 0,
     score DOUBLE PRECISION NOT NULL DEFAULT 0,
     child_count INTEGER NOT NULL DEFAULT 0,
+    mf_intercept DOUBLE PRECISION,
     created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
@@ -646,6 +647,26 @@ CREATE TABLE user_ideological_coords (
 
 CREATE INDEX idx_ideological_coords_conversation
     ON user_ideological_coords(polis_conversation_id);
+
+-- ========== MF Training Log ==========
+
+CREATE TABLE mf_training_log (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    polis_conversation_id VARCHAR(255) NOT NULL,
+    location_id UUID NOT NULL REFERENCES location(id) ON DELETE CASCADE,
+    category_id UUID REFERENCES position_category(id) ON DELETE SET NULL,
+    n_users INTEGER NOT NULL,
+    n_comments INTEGER NOT NULL,
+    n_votes INTEGER NOT NULL,
+    final_loss DOUBLE PRECISION,
+    epochs_run INTEGER,
+    duration_seconds DOUBLE PRECISION,
+    error_message TEXT,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_mf_training_log_conversation ON mf_training_log(polis_conversation_id);
+CREATE INDEX idx_mf_training_log_created ON mf_training_log(created_time DESC);
 
 -- Create indexes for performance
 CREATE INDEX idx_users_username ON users(username);

@@ -50,6 +50,18 @@ class Config:
 	# Role management
 	ROLE_APPROVAL_TIMEOUT_DAYS = int(os.environ.get('ROLE_APPROVAL_TIMEOUT_DAYS', '7'))
 
+	# Matrix Factorization (comment vote ideological coordinates)
+	MF_ENABLED = os.environ.get('MF_ENABLED', os.environ.get('POLIS_ENABLED', 'true')).lower() == 'true'
+	MF_TRAIN_INTERVAL = int(os.environ.get('MF_TRAIN_INTERVAL', '1800'))  # 30 min
+	MF_MIN_VOTERS = int(os.environ.get('MF_MIN_VOTERS', '20'))
+	MF_MIN_VOTES = int(os.environ.get('MF_MIN_VOTES', '50'))
+	MF_LATENT_DIM = 2          # matches 2D coord system
+	MF_LEARNING_RATE = 0.005
+	MF_LAMBDA_REG = 0.02       # L2 on all parameters
+	MF_LAMBDA_POLIS = 0.1      # pulls f_u toward PCA coords
+	MF_MAX_EPOCHS = 300
+	MF_CONVERGENCE_TOL = 1e-5
+
 class DevelopmentConfig(Config):
 	DEV = True
 

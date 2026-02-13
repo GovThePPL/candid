@@ -163,7 +163,8 @@ Separate from roles. `users.status = 'banned'` blocks all authorized endpoints e
 | `geometry.py` | Geometric helpers (convex hull, centroid, coordinate transforms) |
 | `ideological_coords.py` | PCA projection from Polis votes, lazy coord caching, blending with MF |
 | `keycloak.py` | Keycloak OIDC token validation (RS256 JWKS), auto-registration |
-| `matrix_factorization.py` | Stub for Community Notes-style MF on comment votes (Phase 4) |
+| `matrix_factorization.py` | Community Notes-style MF on comment votes: SGD fitting, Polis regularization, DB I/O |
+| `mf_worker.py` | Background daemon for periodic MF training with advisory-lock concurrency control |
 | `moderation.py` | Moderation queue helpers (report aggregation, action resolution) |
 | `nlp.py` | NLP service client for embeddings |
 | `pairwise_graph.py` | Graph algorithms for pairwise survey ranking |
