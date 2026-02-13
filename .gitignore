@@ -16,6 +16,7 @@ backend/server/openapitools.json
 .pytest_cache/
 htmlcov/
 backend/coverage_html/
+coverage/
 
 # Debug artifacts
 docs/debug/
