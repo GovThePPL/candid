@@ -6,10 +6,10 @@ import { useThemeColors } from '../../hooks/useThemeColors'
 import { BrandColor, OnBrandColors, SemanticColors } from '../../constants/Colors'
 import ThemedText from '../ThemedText'
 import SwipeableCard from './SwipeableCard'
-import Avatar from '../Avatar'
 import CardShell from '../CardShell'
 import PositionInfoCard from '../PositionInfoCard'
 import KudosMedallion from '../KudosMedallion'
+import UserCard from '../UserCard'
 
 const KudosCard = forwardRef(function KudosCard({
   kudos,
@@ -55,14 +55,11 @@ const KudosCard = forwardRef(function KudosCard({
     <View style={styles.footerInner}>
       {/* Sender info */}
       <View style={styles.senderRow}>
-        <ThemedText variant="badgeLg" style={styles.footerLabel}>
-          {userAlreadySentKudos ? t('kudosFrom') : t('kudosSentBy')}
-        </ThemedText>
-        <Avatar user={otherParticipant} size="sm" showKudosCount badgePosition="bottom-left" />
-        <View style={styles.senderInfo}>
-          <ThemedText variant="buttonSmall" color="inverse">{otherParticipant?.displayName || t('anonymous')}</ThemedText>
-          <ThemedText variant="caption" style={styles.senderUsername}>@{otherParticipant?.username || t('anonymousUsername')}</ThemedText>
-        </View>
+        <UserCard
+          user={otherParticipant}
+          colorScheme="onBrand"
+          label={userAlreadySentKudos ? t('kudosFrom') : t('kudosSentBy')}
+        />
       </View>
 
       {/* Agreed closure */}

@@ -24,6 +24,7 @@ from candid.controllers.helpers.auth import (
     is_admin_at_location, is_moderator_at_location,
     get_highest_role_at_location, get_location_ancestors,
 )
+from candid.controllers.helpers.user_summary import build_user_summary as _build_user_summary
 from candid.controllers.helpers.moderation import (
     get_user_card as _get_user_card,
     map_db_report_to_model as _map_db_report_to_model,
@@ -82,17 +83,6 @@ def get_user_moderation_history(user_id, token_info=None):  # noqa: E501
         ORDER BY ma.created_time DESC
     """, (user_id,))
 
-    def _user_brief(uid):
-        """Fetch displayName + username for a user ID."""
-        if not uid:
-            return None
-        u = db.execute_query("""
-            SELECT display_name, username FROM users WHERE id = %s
-        """, (uid,), fetchone=True)
-        if u:
-            return {'displayName': u['display_name'], 'username': u['username']}
-        return None
-
     # Deduplicate by mod_action_id (a user may appear in multiple action classes)
     seen_actions = set()
     events = []
@@ -122,10 +112,10 @@ def get_user_moderation_history(user_id, token_info=None):  # noqa: E501
                 target_text = pos['statement']
 
         # Reporter info
-        reporter = _user_brief(row.get('submitter_user_id'))
+        reporter = _build_user_summary(row.get('submitter_user_id'))
 
         # Moderator info
-        moderator = _user_brief(row['responder_user_id'])
+        moderator = _build_user_summary(row['responder_user_id'])
 
         # Get appeal info if any
         appeal = db.execute_query("""
@@ -138,7 +128,7 @@ def get_user_moderation_history(user_id, token_info=None):  # noqa: E501
         appeal_user = None
         appeal_responses = []
         if appeal:
-            appeal_user = _user_brief(appeal['user_id'])
+            appeal_user = _build_user_summary(appeal['user_id'])
 
             # Get all appeal responses
             responses = db.execute_query("""
@@ -164,7 +154,7 @@ def get_user_moderation_history(user_id, token_info=None):  # noqa: E501
                 else:
                     outcome = None
                 appeal_responses.append({
-                    'responder': _user_brief(resp['responder_user_id']),
+                    'responder': _build_user_summary(resp['responder_user_id']),
                     'responseText': resp.get('appeal_response_text'),
                     'outcome': outcome,
                 })

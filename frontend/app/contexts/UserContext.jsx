@@ -182,6 +182,8 @@ export function UserProvider({ children }) {
           setActiveChatNavigation(null) // Clear any stale navigation
         } else if (data?.action === 'open_admin_pending') {
           setPendingDeepLink('/admin/request-log')
+        } else if (data?.action === 'open_post' && data?.postId) {
+          setPendingDeepLink(`/discuss/${data.postId}`)
         }
       })
     } catch (error) {

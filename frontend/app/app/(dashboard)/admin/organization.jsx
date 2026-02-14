@@ -14,6 +14,7 @@ import api, { translateError } from '../../../lib/api'
 import ThemedText from '../../../components/ThemedText'
 import Header from '../../../components/Header'
 import Avatar from '../../../components/Avatar'
+import UserCard from '../../../components/UserCard'
 import EmptyState from '../../../components/EmptyState'
 import BottomDrawerModal from '../../../components/BottomDrawerModal'
 import LocationPicker from '../../../components/LocationPicker'
@@ -27,11 +28,7 @@ function RoleUserCard({ item, user, locations, onRemove, colors, styles, t }) {
 
   return (
     <View style={styles.roleCard}>
-      <Avatar user={item.user} size={32} showKudosBadge={true} />
-      <View style={styles.roleCardInfo}>
-        <ThemedText variant="label" color="dark" numberOfLines={1}>{item.user?.displayName}</ThemedText>
-        <ThemedText variant="caption" color="secondary">@{item.user?.username}</ThemedText>
-      </View>
+      <UserCard user={item.user} avatarSize={32} nameVariant="label" />
       <View style={styles.roleCardBadges}>
         <View style={styles.roleBadge}>
           <ThemedText variant="badge" style={styles.roleBadgeText}>
@@ -906,16 +903,12 @@ export default function OrganizationScreen() {
                   style={styles.searchResultItem}
                   onPress={() => { roleAssign.setSelectedUser(u); roleAssign.setSearchQuery(''); }}
                   accessibilityRole="button"
-                  accessibilityLabel={`${u.displayName} @${u.username}`}
+                  accessibilityLabel={t('userSearchResultA11y', { displayName: u.displayName, username: u.username })}
                 >
-                  <Avatar user={u} size="sm" showKudosBadge={false} />
-                  <View style={styles.searchResultText}>
-                    <ThemedText variant="bodySmall" color="dark">{u.displayName}</ThemedText>
-                    <ThemedText variant="caption" color="secondary">@{u.username}</ThemedText>
-                  </View>
+                  <UserCard user={u} />
                   {u.status && u.status !== 'active' && (
                     <View style={[styles.statusBadge, u.status === 'banned' && styles.statusBadgeBanned]}>
-                      <ThemedText variant="micro" style={styles.statusBadgeText}>{u.status}</ThemedText>
+                      <ThemedText variant="micro" style={styles.statusBadgeText}>{t(u.status === 'banned' ? 'userStatusBanned' : 'userStatusActive')}</ThemedText>
                     </View>
                   )}
                 </TouchableOpacity>

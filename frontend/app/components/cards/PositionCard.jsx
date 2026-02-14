@@ -6,8 +6,9 @@ import { useThemeColors } from '../../hooks/useThemeColors'
 import { SemanticColors } from '../../constants/Colors'
 import ThemedText from '../ThemedText'
 import SwipeableCard from './SwipeableCard'
-import Avatar from '../Avatar'
 import CardShell from '../CardShell'
+import UserCard from '../UserCard'
+import LocationCategoryBadge from '../LocationCategoryBadge'
 
 const PositionCard = forwardRef(function PositionCard({
   position,
@@ -44,16 +45,7 @@ const PositionCard = forwardRef(function PositionCard({
       <CardShell size="full" bodyStyle={styles.card}>
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.categoryRow}>
-            {location?.code && (
-              <View style={styles.locationBadge}>
-                <ThemedText variant="buttonSmall" color="badge">{location.code}</ThemedText>
-              </View>
-            )}
-            {category?.label && (
-              <ThemedText variant="bodySmall" color="badge">{category.label}</ThemedText>
-            )}
-          </View>
+          <LocationCategoryBadge location={location} category={category} size="lg" />
           <View style={styles.headerRight}>
             {author?.fastResponder && (
               <View style={styles.fastResponderBadge}>
@@ -95,11 +87,9 @@ const PositionCard = forwardRef(function PositionCard({
             <Ionicons name="flag-outline" size={22} color="#E57373" />
           </TouchableOpacity>
 
-          <View style={styles.authorInfo}>
-            <Avatar user={author} size="md" showKudosCount badgePosition="bottom-left" />
-            <View style={styles.authorText}>
-              <ThemedText variant="buttonSmall" color="dark">{author?.displayName || t('anonymous')}</ThemedText>
-              <ThemedText variant="caption" color="secondary">@{author?.username || t('anonymousUsername')}</ThemedText>
+          <View style={styles.footerCenter}>
+            <View style={styles.footerCenterInner}>
+              <UserCard user={author} avatarSize="md" />
             </View>
           </View>
 
@@ -127,18 +117,6 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-  },
-  categoryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-  },
-  locationBadge: {
-    backgroundColor: colors.badgeBg,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
   },
   chattingListButton: {
     width: 42,
@@ -188,6 +166,14 @@ const createStyles = (colors) => StyleSheet.create({
     paddingTop: 16,
     borderTopWidth: 1,
     borderTopColor: colors.cardBorder,
+  },
+  footerCenter: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  footerCenterInner: {
+    alignItems: 'center',
   },
   iconButton: {
     width: 42,

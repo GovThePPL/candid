@@ -1,12 +1,15 @@
 """
-Matrix factorization for comment-vote ideological coordinates.
+Matrix factorization for post+comment vote ideological coordinates.
 
-Community Notes-style factorization on the comment vote matrix:
-  r_uc = mu + i_u + i_c + f_u . f_c
+Community Notes-style factorization on the unified vote matrix:
+  r_ui = mu + i_u + i_i + f_u . f_i
 
-- f_u = user's latent ideological factor (discovered from comment votes)
-- i_c = comment's "genuine quality" intercept (bridging score)
+- f_u = user's latent ideological factor (discovered from post+comment votes)
+- i_i = item's "genuine quality" intercept (bridging score)
 - Polis regularization anchors f_u toward PCA coords
+
+Items are posts and comments pooled into one matrix. Item IDs are prefixed
+with 'p:' or 'c:' to keep namespaces separate.
 """
 
 import logging
@@ -24,20 +27,20 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 def _load_vote_matrix(conversation_id):
-    """Load comment votes for a conversation as a sparse list.
+    """Load post+comment votes for a conversation as a sparse list.
 
-    Joins comment_vote -> comment -> post -> polis_conversation to scope
-    votes to the given conversation.
+    UNIONs comment_vote and post_vote, prefixing item IDs with 'c:' or 'p:'
+    to keep namespaces separate.
 
     Returns:
-        Dict with keys: votes (list of (user_idx, comment_idx, rating)),
-        user_id_to_idx, idx_to_user_id, comment_id_to_idx, idx_to_comment_id,
-        n_users, n_comments.
+        Dict with keys: votes (list of (user_idx, item_idx, rating)),
+        user_id_to_idx, idx_to_user_id, item_id_to_idx, idx_to_item_id,
+        n_users, n_items.
         Returns None if below MF_MIN_VOTERS or MF_MIN_VOTES thresholds.
     """
     rows = db.execute_query("""
         SELECT cv.user_id::text AS user_id,
-               cv.comment_id::text AS comment_id,
+               ('c:' || cv.comment_id::text) AS item_id,
                CASE cv.vote_type
                    WHEN 'upvote' THEN 1
                    WHEN 'downvote' THEN -1
@@ -50,23 +53,39 @@ def _load_vote_matrix(conversation_id):
         WHERE pc.polis_conversation_id = %s
           AND pc.status = 'active'
           AND c.status = 'active'
-    """, (conversation_id,))
+
+        UNION ALL
+
+        SELECT pv.user_id::text AS user_id,
+               ('p:' || pv.post_id::text) AS item_id,
+               CASE pv.vote_type
+                   WHEN 'upvote' THEN 1
+                   WHEN 'downvote' THEN -1
+               END AS rating
+        FROM post_vote pv
+        JOIN post p ON pv.post_id = p.id
+        JOIN polis_conversation pc ON p.location_id = pc.location_id
+             AND COALESCE(p.category_id::text, '') = COALESCE(pc.category_id::text, '')
+        WHERE pc.polis_conversation_id = %s
+          AND pc.status = 'active'
+          AND p.status = 'active'
+    """, (conversation_id, conversation_id))
 
     if not rows:
         return None
 
     # Build index maps
     user_ids = sorted(set(r["user_id"] for r in rows))
-    comment_ids = sorted(set(r["comment_id"] for r in rows))
+    item_ids = sorted(set(r["item_id"] for r in rows))
 
     if len(user_ids) < config.MF_MIN_VOTERS or len(rows) < config.MF_MIN_VOTES:
         return None
 
     user_id_to_idx = {uid: i for i, uid in enumerate(user_ids)}
-    comment_id_to_idx = {cid: i for i, cid in enumerate(comment_ids)}
+    item_id_to_idx = {iid: i for i, iid in enumerate(item_ids)}
 
     votes = [
-        (user_id_to_idx[r["user_id"]], comment_id_to_idx[r["comment_id"]], r["rating"])
+        (user_id_to_idx[r["user_id"]], item_id_to_idx[r["item_id"]], r["rating"])
         for r in rows
     ]
 
@@ -74,10 +93,10 @@ def _load_vote_matrix(conversation_id):
         "votes": votes,
         "user_id_to_idx": user_id_to_idx,
         "idx_to_user_id": {i: uid for uid, i in user_id_to_idx.items()},
-        "comment_id_to_idx": comment_id_to_idx,
-        "idx_to_comment_id": {i: cid for cid, i in comment_id_to_idx.items()},
+        "item_id_to_idx": item_id_to_idx,
+        "idx_to_item_id": {i: iid for iid, i in item_id_to_idx.items()},
         "n_users": len(user_ids),
-        "n_comments": len(comment_ids),
+        "n_items": len(item_ids),
     }
 
 
@@ -130,23 +149,23 @@ def _load_polis_coords(user_id_to_idx, conversation_id):
 # Internal: SGD fitting
 # ---------------------------------------------------------------------------
 
-def _fit_mf_model(votes, n_users, n_comments, polis_coords, cfg=None):
+def _fit_mf_model(votes, n_users, n_items, polis_coords, cfg=None):
     """Fit the MF model via SGD.
 
-    Model: r_uc = mu + i_u + i_c + f_u . f_c
+    Model: r_ui = mu + i_u + i_i + f_u . f_i
 
     Args:
-        votes: List of (user_idx, comment_idx, rating) tuples.
+        votes: List of (user_idx, item_idx, rating) tuples.
         n_users: Number of unique users.
-        n_comments: Number of unique comments.
+        n_items: Number of unique items (posts + comments).
         polis_coords: Dict mapping user_idx -> np.array([x, y]).
         cfg: Config dict overrides (for testing). Keys: latent_dim,
              learning_rate, lambda_reg, lambda_polis, max_epochs,
              convergence_tol.
 
     Returns:
-        Dict with: mu, user_intercepts, comment_intercepts,
-        user_factors, comment_factors, final_loss, epochs.
+        Dict with: mu, user_intercepts, item_intercepts,
+        user_factors, item_factors, final_loss, epochs.
     """
     if cfg is None:
         cfg = {}
@@ -166,7 +185,7 @@ def _fit_mf_model(votes, n_users, n_comments, polis_coords, cfg=None):
     ratings = vote_arr[:, 2]
     mu = float(np.mean(ratings))
     i_u = np.zeros(n_users)
-    i_c = np.zeros(n_comments)
+    i_c = np.zeros(n_items)
 
     # User factors: init from Polis coords where available, else small random
     rng = np.random.RandomState(42)
@@ -174,7 +193,7 @@ def _fit_mf_model(votes, n_users, n_comments, polis_coords, cfg=None):
     for u_idx, polis_xy in polis_coords.items():
         f_u[u_idx] = polis_xy
 
-    f_c = rng.randn(n_comments, dim) * 0.01
+    f_c = rng.randn(n_items, dim) * 0.01
 
     prev_loss = float("inf")
     indices = np.arange(n_votes)
@@ -226,9 +245,9 @@ def _fit_mf_model(votes, n_users, n_comments, polis_coords, cfg=None):
             return {
                 "mu": mu,
                 "user_intercepts": i_u,
-                "comment_intercepts": i_c,
+                "item_intercepts": i_c,
                 "user_factors": f_u,
-                "comment_factors": f_c,
+                "item_factors": f_c,
                 "final_loss": loss,
                 "epochs": epoch + 1,
             }
@@ -238,9 +257,9 @@ def _fit_mf_model(votes, n_users, n_comments, polis_coords, cfg=None):
     return {
         "mu": mu,
         "user_intercepts": i_u,
-        "comment_intercepts": i_c,
+        "item_intercepts": i_c,
         "user_factors": f_u,
-        "comment_factors": f_c,
+        "item_factors": f_c,
         "final_loss": prev_loss,
         "epochs": max_epochs,
     }
@@ -254,13 +273,14 @@ def _store_mf_results(conversation_id, model, idx_maps):
     """Write MF results to database.
 
     Updates user_ideological_coords.mf_x/mf_y/mf_computed_at,
-    comment.mf_intercept, and user_ideological_coords.n_comment_votes.
+    comment.mf_intercept and post.mf_intercept, and
+    user_ideological_coords.n_comment_votes.
     Logs to mf_training_log.
     """
     idx_to_user_id = idx_maps["idx_to_user_id"]
-    idx_to_comment_id = idx_maps["idx_to_comment_id"]
+    idx_to_item_id = idx_maps["idx_to_item_id"]
     user_factors = model["user_factors"]
-    comment_intercepts = model["comment_intercepts"]
+    item_intercepts = model["item_intercepts"]
 
     # Update user MF coordinates
     for u_idx, user_id in idx_to_user_id.items():
@@ -271,30 +291,50 @@ def _store_mf_results(conversation_id, model, idx_maps):
         """, (float(user_factors[u_idx, 0]), float(user_factors[u_idx, 1]),
               user_id, conversation_id))
 
-    # Update comment MF intercepts
-    for c_idx, comment_id in idx_to_comment_id.items():
-        db.execute_query("""
-            UPDATE comment SET mf_intercept = %s WHERE id = %s
-        """, (float(comment_intercepts[c_idx]), comment_id))
+    # Update item MF intercepts (comments and posts)
+    for i_idx, item_id in idx_to_item_id.items():
+        intercept = float(item_intercepts[i_idx])
+        if item_id.startswith("c:"):
+            db.execute_query("""
+                UPDATE comment SET mf_intercept = %s WHERE id = %s
+            """, (intercept, item_id[2:]))
+        elif item_id.startswith("p:"):
+            db.execute_query("""
+                UPDATE post SET mf_intercept = %s WHERE id = %s
+            """, (intercept, item_id[2:]))
 
-    # Bulk update n_comment_votes from actual vote counts
+    # Bulk update n_comment_votes from actual vote counts (comment + post votes)
     db.execute_query("""
         UPDATE user_ideological_coords uic
         SET n_comment_votes = sub.vote_count
         FROM (
-            SELECT cv.user_id, COUNT(*) AS vote_count
-            FROM comment_vote cv
-            JOIN comment c ON cv.comment_id = c.id
-            JOIN post p ON c.post_id = p.id
-            JOIN polis_conversation pc ON p.location_id = pc.location_id
-                 AND COALESCE(p.category_id::text, '') = COALESCE(pc.category_id::text, '')
-            WHERE pc.polis_conversation_id = %s
-              AND pc.status = 'active'
-            GROUP BY cv.user_id
+            SELECT user_id, SUM(cnt) AS vote_count FROM (
+                SELECT cv.user_id, COUNT(*) AS cnt
+                FROM comment_vote cv
+                JOIN comment c ON cv.comment_id = c.id
+                JOIN post p ON c.post_id = p.id
+                JOIN polis_conversation pc ON p.location_id = pc.location_id
+                     AND COALESCE(p.category_id::text, '') = COALESCE(pc.category_id::text, '')
+                WHERE pc.polis_conversation_id = %s
+                  AND pc.status = 'active'
+                GROUP BY cv.user_id
+
+                UNION ALL
+
+                SELECT pv.user_id, COUNT(*) AS cnt
+                FROM post_vote pv
+                JOIN post p ON pv.post_id = p.id
+                JOIN polis_conversation pc ON p.location_id = pc.location_id
+                     AND COALESCE(p.category_id::text, '') = COALESCE(pc.category_id::text, '')
+                WHERE pc.polis_conversation_id = %s
+                  AND pc.status = 'active'
+                GROUP BY pv.user_id
+            ) combined
+            GROUP BY user_id
         ) sub
         WHERE uic.user_id = sub.user_id
           AND uic.polis_conversation_id = %s
-    """, (conversation_id, conversation_id))
+    """, (conversation_id, conversation_id, conversation_id))
 
     # Log training
     conv_row = db.execute_query("""
@@ -313,7 +353,7 @@ def _store_mf_results(conversation_id, model, idx_maps):
              duration_seconds)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
     """, (conversation_id, location_id, category_id,
-          len(idx_to_user_id), len(idx_to_comment_id),
+          len(idx_to_user_id), len(idx_to_item_id),
           idx_maps["n_votes"],
           model["final_loss"], model["epochs"],
           idx_maps.get("duration_seconds")))
@@ -324,7 +364,7 @@ def _store_mf_results(conversation_id, model, idx_maps):
 # ---------------------------------------------------------------------------
 
 def run_factorization(conversation_id):
-    """Fit MF model on comment vote matrix for a conversation.
+    """Fit MF model on post+comment vote matrix for a conversation.
 
     Orchestrates: load vote matrix -> load Polis coords -> fit -> store.
 
@@ -345,7 +385,7 @@ def run_factorization(conversation_id):
     model = _fit_mf_model(
         vote_data["votes"],
         vote_data["n_users"],
-        vote_data["n_comments"],
+        vote_data["n_items"],
         polis_coords,
     )
 
@@ -353,7 +393,7 @@ def run_factorization(conversation_id):
 
     idx_maps = {
         "idx_to_user_id": vote_data["idx_to_user_id"],
-        "idx_to_comment_id": vote_data["idx_to_comment_id"],
+        "idx_to_item_id": vote_data["idx_to_item_id"],
         "n_votes": len(vote_data["votes"]),
         "duration_seconds": duration,
     }
@@ -363,7 +403,7 @@ def run_factorization(conversation_id):
     stats = {
         "conversation_id": conversation_id,
         "n_users": vote_data["n_users"],
-        "n_comments": vote_data["n_comments"],
+        "n_items": vote_data["n_items"],
         "n_votes": len(vote_data["votes"]),
         "final_loss": model["final_loss"],
         "epochs": model["epochs"],
@@ -371,9 +411,9 @@ def run_factorization(conversation_id):
     }
 
     logger.info(
-        "MF training completed for conversation %s: %d users, %d comments, "
+        "MF training completed for conversation %s: %d users, %d items, "
         "%d votes, loss=%.4f, epochs=%d, %.1fs",
-        conversation_id, stats["n_users"], stats["n_comments"],
+        conversation_id, stats["n_users"], stats["n_items"],
         stats["n_votes"], stats["final_loss"], stats["epochs"],
         stats["duration_seconds"],
     )

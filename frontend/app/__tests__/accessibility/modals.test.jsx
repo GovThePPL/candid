@@ -89,7 +89,7 @@ jest.mock('../../components/BugReportModal', () => {
   return () => <View testID="bug-modal" />
 })
 jest.mock('../../lib/avatarUtils', () => ({
-  getTrustBadgeColor: () => '#FFD700',
+  getTrustBadgeInfo: () => ({ color: '#FFD700', tier: 'gold' }),
 }))
 // ChatRequestIndicator is tested directly - not mocked
 jest.mock('../../components/Sidebar', () => {

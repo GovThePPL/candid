@@ -62,6 +62,13 @@ class Config:
 	MF_MAX_EPOCHS = 300
 	MF_CONVERGENCE_TOL = 1e-5
 
+	# Scoring parameters (tunable via env vars)
+	SCORING_WILSON_Z = float(os.environ.get('SCORING_WILSON_Z', '1.96'))
+	SCORING_HOT_GRAVITY = float(os.environ.get('SCORING_HOT_GRAVITY', '1.5'))
+	SCORING_WEIGHT_MIN = float(os.environ.get('SCORING_WEIGHT_MIN', '1.0'))
+	SCORING_WEIGHT_MAX = float(os.environ.get('SCORING_WEIGHT_MAX', '2.0'))
+	SCORING_BRIDGING_THRESHOLD = float(os.environ.get('SCORING_BRIDGING_THRESHOLD', '0.3'))
+
 class DevelopmentConfig(Config):
 	DEV = True
 

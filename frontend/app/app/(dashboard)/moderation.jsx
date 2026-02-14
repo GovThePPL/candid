@@ -13,6 +13,7 @@ import ModerationActionModal from '../../components/ModerationActionModal'
 import ModerationHistoryModal from '../../components/ModerationHistoryModal'
 import BottomDrawerModal from '../../components/BottomDrawerModal'
 import Avatar from '../../components/Avatar'
+import UserCard from '../../components/UserCard'
 import { useTranslation } from 'react-i18next'
 import useModerationQueue from '../../hooks/useModerationQueue'
 
@@ -82,11 +83,7 @@ function ReportCard({ item, onHistoryPress, onChatPress, colors, styles }) {
       })()}
       <View style={styles.reporterRow}>
         <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>{t('reportedBy')}</ThemedText>
-        <Avatar user={data.submitter} size="sm" showKudosCount badgePosition="bottom-left" />
-        <View style={styles.userInfoColumn}>
-          <ThemedText variant="buttonSmall" color="inverse">{data.submitter?.displayName || t('common:anonymous')}</ThemedText>
-          <ThemedText variant="caption" style={styles.reporterUsername}>@{data.submitter?.username || t('unknown')}</ThemedText>
-        </View>
+        <UserCard user={data.submitter} colorScheme="onBrand" />
       </View>
       {data.submitterComment && (
         <View style={styles.commentShell}>
@@ -182,12 +179,7 @@ function AppealCard({ item, onHistoryPress, onChatPress, colors, styles }) {
       {/* Original reporter shell */}
       <View style={styles.sectionShell}>
         <View style={styles.reporterRow}>
-          <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>{t('reportedBy')}</ThemedText>
-          <Avatar user={submitter} size="sm" showKudosCount badgePosition="bottom-left" />
-          <View style={styles.userInfoColumn}>
-            <ThemedText variant="buttonSmall" color="inverse">{submitter?.displayName || t('common:anonymous')}</ThemedText>
-            <ThemedText variant="caption" style={styles.reporterUsername}>@{submitter?.username || t('unknown')}</ThemedText>
-          </View>
+          <UserCard user={submitter} colorScheme="onBrand" label={t('reportedBy')} />
         </View>
         {data.originalReport?.submitterComment && (
           <ThemedText variant="label" style={styles.sectionShellComment}>"{data.originalReport.submitterComment}"</ThemedText>
@@ -198,12 +190,7 @@ function AppealCard({ item, onHistoryPress, onChatPress, colors, styles }) {
       {data.originalAction && (
         <View style={styles.modActionShell}>
           <View style={styles.reporterRow}>
-            <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>{t('modAction')}</ThemedText>
-            <Avatar user={data.originalAction.responder} size="sm" showKudosCount badgePosition="bottom-left" />
-            <View style={styles.userInfoColumn}>
-              <ThemedText variant="buttonSmall" color="inverse">{data.originalAction.responder?.displayName || t('moderator')}</ThemedText>
-              <ThemedText variant="caption" style={styles.reporterUsername}>@{data.originalAction.responder?.username || t('unknown')}</ThemedText>
-            </View>
+            <UserCard user={data.originalAction.responder} colorScheme="onBrand" label={t('modAction')} />
           </View>
           {data.originalAction.actions?.length > 0 && (
             <View style={styles.modActionDetails}>
@@ -223,14 +210,11 @@ function AppealCard({ item, onHistoryPress, onChatPress, colors, styles }) {
       {/* Appeal shell */}
       <View style={styles.sectionShell}>
         <View style={styles.reporterRow}>
-          <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>
-            {t('appealBy')}{data.userClass ? ` (${CLASS_LABELS[data.userClass] || data.userClass})` : ''}
-          </ThemedText>
-          <Avatar user={data.user} size="sm" showKudosCount badgePosition="bottom-left" />
-          <View style={styles.userInfoColumn}>
-            <ThemedText variant="buttonSmall" color="inverse">{data.user?.displayName || t('common:anonymous')}</ThemedText>
-            <ThemedText variant="caption" style={styles.reporterUsername}>@{data.user?.username || t('unknown')}</ThemedText>
-          </View>
+          <UserCard
+            user={data.user}
+            colorScheme="onBrand"
+            label={`${t('appealBy')}${data.userClass ? ` (${CLASS_LABELS[data.userClass] || data.userClass})` : ''}`}
+          />
         </View>
         {data.appealText && (
           <ThemedText variant="label" style={styles.sectionShellComment}>"{data.appealText}"</ThemedText>
@@ -241,14 +225,11 @@ function AppealCard({ item, onHistoryPress, onChatPress, colors, styles }) {
       {data.priorResponses?.map((pr, i) => (
         <View key={i} style={pr.outcome === 'escalated' ? styles.sectionShell : styles.modActionShell}>
           <View style={styles.reporterRow}>
-            <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>
-              {pr.outcome === 'overruled' ? t('overruledBy') : pr.outcome === 'escalated' ? t('escalatedBy') : t('reviewedBy')}
-            </ThemedText>
-            <Avatar user={pr.responder} size="sm" showKudosCount badgePosition="bottom-left" />
-            <View style={styles.userInfoColumn}>
-              <ThemedText variant="buttonSmall" color="inverse">{pr.responder?.displayName || t('moderator')}</ThemedText>
-              <ThemedText variant="caption" style={styles.reporterUsername}>@{pr.responder?.username || t('unknown')}</ThemedText>
-            </View>
+            <UserCard
+              user={pr.responder}
+              colorScheme="onBrand"
+              label={pr.outcome === 'overruled' ? t('overruledBy') : pr.outcome === 'escalated' ? t('escalatedBy') : t('reviewedBy')}
+            />
           </View>
           {pr.outcome === 'overruled' && (
             <ThemedText variant="caption" style={styles.modActionDetailText}>{t('approvedAppealOverruled')}</ThemedText>
@@ -362,12 +343,7 @@ function AdminResponseNotificationCard({ item, onHistoryPress, onChatPress, colo
       {data.originalReport?.submitter && (
         <View style={styles.sectionShell}>
           <View style={styles.reporterRow}>
-            <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>{t('reportedBy')}</ThemedText>
-            <Avatar user={data.originalReport.submitter} size="sm" showKudosCount badgePosition="bottom-left" />
-            <View style={styles.userInfoColumn}>
-              <ThemedText variant="buttonSmall" color="inverse">{data.originalReport.submitter?.displayName || t('common:anonymous')}</ThemedText>
-              <ThemedText variant="caption" style={styles.reporterUsername}>@{data.originalReport.submitter?.username || t('unknown')}</ThemedText>
-            </View>
+            <UserCard user={data.originalReport.submitter} colorScheme="onBrand" label={t('reportedBy')} />
           </View>
           {data.originalReport.submitterComment && (
             <ThemedText variant="label" style={styles.sectionShellComment}>"{data.originalReport.submitterComment}"</ThemedText>
@@ -379,12 +355,7 @@ function AdminResponseNotificationCard({ item, onHistoryPress, onChatPress, colo
       {data.originalAction && (
         <View style={styles.modActionShell}>
           <View style={styles.reporterRow}>
-            <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>{t('modAction')}</ThemedText>
-            <Avatar user={data.originalAction.responder} size="sm" showKudosCount badgePosition="bottom-left" />
-            <View style={styles.userInfoColumn}>
-              <ThemedText variant="buttonSmall" color="inverse">{data.originalAction.responder?.displayName || t('moderator')}</ThemedText>
-              <ThemedText variant="caption" style={styles.reporterUsername}>@{data.originalAction.responder?.username || t('unknown')}</ThemedText>
-            </View>
+            <UserCard user={data.originalAction.responder} colorScheme="onBrand" label={t('modAction')} />
           </View>
           {data.originalAction.actions?.length > 0 && (
             <View style={styles.modActionDetails}>
@@ -405,12 +376,7 @@ function AdminResponseNotificationCard({ item, onHistoryPress, onChatPress, colo
       {data.appealText && (
         <View style={styles.sectionShell}>
           <View style={styles.reporterRow}>
-            <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>{t('appealBy')}</ThemedText>
-            <Avatar user={data.appealUser} size="sm" showKudosCount badgePosition="bottom-left" />
-            <View style={styles.userInfoColumn}>
-              <ThemedText variant="buttonSmall" color="inverse">{data.appealUser?.displayName || t('userFallback')}</ThemedText>
-              <ThemedText variant="caption" style={styles.reporterUsername}>@{data.appealUser?.username || t('unknown')}</ThemedText>
-            </View>
+            <UserCard user={data.appealUser} colorScheme="onBrand" label={t('appealBy')} />
           </View>
           <ThemedText variant="label" style={styles.sectionShellComment}>"{data.appealText}"</ThemedText>
         </View>
@@ -420,14 +386,11 @@ function AdminResponseNotificationCard({ item, onHistoryPress, onChatPress, colo
       {data.priorResponses?.map((pr, i) => (
         <View key={i} style={i === 1 ? styles.sectionShell : styles.modActionShell}>
           <View style={styles.reporterRow}>
-            <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>
-              {i === 0 ? t('overruledBy') : i === 1 ? t('escalatedBy') : t('reviewedBy')}
-            </ThemedText>
-            <Avatar user={pr.responder} size="sm" showKudosCount badgePosition="bottom-left" />
-            <View style={styles.userInfoColumn}>
-              <ThemedText variant="buttonSmall" color="inverse">{pr.responder?.displayName || t('moderator')}</ThemedText>
-              <ThemedText variant="caption" style={styles.reporterUsername}>@{pr.responder?.username || t('unknown')}</ThemedText>
-            </View>
+            <UserCard
+              user={pr.responder}
+              colorScheme="onBrand"
+              label={i === 0 ? t('overruledBy') : i === 1 ? t('escalatedBy') : t('reviewedBy')}
+            />
           </View>
           {i === 0 && (
             <ThemedText variant="caption" style={styles.modActionDetailText}>{t('approvedAppealOverruled')}</ThemedText>
@@ -444,12 +407,7 @@ function AdminResponseNotificationCard({ item, onHistoryPress, onChatPress, colo
       {/* 4. Admin decision */}
       <View style={styles.modActionShell}>
         <View style={styles.reporterRow}>
-          <ThemedText variant="badgeLg" style={styles.reportFooterLabel}>{t('adminDecision')}</ThemedText>
-          <Avatar user={data.adminResponder} size="sm" showKudosCount badgePosition="bottom-left" />
-          <View style={styles.userInfoColumn}>
-            <ThemedText variant="buttonSmall" color="inverse">{data.adminResponder?.displayName || t('admin')}</ThemedText>
-            <ThemedText variant="caption" style={styles.reporterUsername}>@{data.adminResponder?.username || t('unknown')}</ThemedText>
-          </View>
+          <UserCard user={data.adminResponder} colorScheme="onBrand" label={t('adminDecision')} />
         </View>
         {data.adminResponseText && (
           <ThemedText variant="label" style={styles.sectionShellComment}>"{data.adminResponseText}"</ThemedText>

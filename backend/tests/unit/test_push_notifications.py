@@ -467,3 +467,117 @@ class TestDrainNotificationQueue:
             self._call(USER_ID, mock_db)
 
         mock_open.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# _is_notification_type_enabled
+# ---------------------------------------------------------------------------
+
+class TestIsNotificationTypeEnabled:
+    def _call(self, *args, **kwargs):
+        from candid.controllers.helpers.push_notifications import _is_notification_type_enabled
+        return _is_notification_type_enabled(*args, **kwargs)
+
+    def test_enabled_when_no_preference_row(self):
+        """Absent row defaults to enabled."""
+        mock_db = MagicMock()
+        mock_db.execute_query.return_value = None
+        assert self._call(USER_ID, 'comment_reply', mock_db) is True
+
+    def test_enabled_when_preference_true(self):
+        mock_db = MagicMock()
+        mock_db.execute_query.return_value = {"enabled": True}
+        assert self._call(USER_ID, 'comment_reply', mock_db) is True
+
+    def test_disabled_when_preference_false(self):
+        mock_db = MagicMock()
+        mock_db.execute_query.return_value = {"enabled": False}
+        assert self._call(USER_ID, 'comment_reply', mock_db) is False
+
+
+# ---------------------------------------------------------------------------
+# send_comment_reply_notification
+# ---------------------------------------------------------------------------
+
+class TestSendCommentReplyNotification:
+    def _call(self, *args, **kwargs):
+        from candid.controllers.helpers.push_notifications import send_comment_reply_notification
+        return send_comment_reply_notification(*args, **kwargs)
+
+    def test_sends_when_type_enabled(self):
+        mock_db = MagicMock()
+        # _is_notification_type_enabled query returns None (absent = enabled)
+        # send_or_queue_notification queries
+        user_row = {
+            "push_token": PUSH_TOKEN,
+            "notifications_enabled": True,
+            "quiet_hours_start": None,
+            "quiet_hours_end": None,
+            "timezone": "UTC",
+            "notification_frequency": 3,
+            "notifications_sent_today": 0,
+            "notifications_sent_date": None,
+        }
+        mock_db.execute_query.side_effect = [
+            None,       # type pref query (absent = enabled)
+            user_row,   # send_or_queue user lookup
+        ]
+
+        with patch("candid.controllers.helpers.push_notifications.urllib.request.urlopen") as mock_open:
+            mock_response = MagicMock()
+            mock_response.read.return_value = b'{"data": {"status": "ok"}}'
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_open.return_value = mock_response
+
+            self._call(USER_ID, "Alice", "Great comment!", "post-123", mock_db)
+
+        mock_open.assert_called_once()
+        req = mock_open.call_args[0][0]
+        payload = json.loads(req.data.decode("utf-8"))
+        assert "Alice" in payload["title"]
+        assert payload["data"]["action"] == "open_post"
+        assert payload["data"]["postId"] == "post-123"
+
+    def test_skipped_when_type_disabled(self):
+        mock_db = MagicMock()
+        mock_db.execute_query.return_value = {"enabled": False}
+
+        with patch("candid.controllers.helpers.push_notifications.send_or_queue_notification") as mock_send:
+            self._call(USER_ID, "Alice", "Great comment!", "post-123", mock_db)
+
+        mock_send.assert_not_called()
+
+    def test_truncates_long_snippet(self):
+        mock_db = MagicMock()
+        user_row = {
+            "push_token": PUSH_TOKEN,
+            "notifications_enabled": True,
+            "quiet_hours_start": None,
+            "quiet_hours_end": None,
+            "timezone": "UTC",
+            "notification_frequency": 3,
+            "notifications_sent_today": 0,
+            "notifications_sent_date": None,
+        }
+        mock_db.execute_query.side_effect = [
+            None,       # type pref (absent = enabled)
+            user_row,   # send_or_queue user lookup
+        ]
+
+        long_text = "A" * 200
+
+        with patch("candid.controllers.helpers.push_notifications.urllib.request.urlopen") as mock_open:
+            mock_response = MagicMock()
+            mock_response.read.return_value = b'{"data": {"status": "ok"}}'
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_open.return_value = mock_response
+
+            self._call(USER_ID, "Alice", long_text, "post-123", mock_db)
+
+        req = mock_open.call_args[0][0]
+        payload = json.loads(req.data.decode("utf-8"))
+        # The snippet is truncated at 80 chars + "..." in send_comment_reply_notification,
+        # then further truncated at 120 in send_push_notification
+        assert len(payload["body"]) <= 123  # 120 + "..."

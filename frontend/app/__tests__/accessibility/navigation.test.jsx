@@ -46,7 +46,7 @@ jest.mock('../../lib/api', () => ({
 }))
 
 jest.mock('../../lib/avatarUtils', () => ({
-  getTrustBadgeColor: () => '#FFD700',
+  getTrustBadgeInfo: () => ({ color: '#FFD700', tier: 'gold' }),
 }))
 
 jest.mock('../../contexts/UserContext', () => ({

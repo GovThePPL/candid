@@ -351,6 +351,12 @@ if [[ "$SKIP_SEED" == "false" ]]; then
         ok "Seed script complete"
         echo ""
 
+        # Seed large discussion thread (200 comments, deep nesting)
+        log "Seeding large discussion thread..."
+        python3 backend/scripts/seed_large_thread.py && \
+            ok "Large thread seeded" || warn "Large thread seed failed (non-fatal)"
+        echo ""
+
         # Run embedding backfill
         log "Running embedding backfill..."
         NLP_SERVICE_URL=http://localhost:5001 python3 backend/scripts/backfill_embeddings.py 2>/dev/null && \

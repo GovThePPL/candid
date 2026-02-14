@@ -1,4 +1,4 @@
-import { getInitials, getInitialsColor, getTrustBadgeColor, getAvatarImageUrl } from '../../lib/avatarUtils'
+import { getInitials, getInitialsColor, getTrustBadgeInfo, getAvatarImageUrl } from '../../lib/avatarUtils'
 import { BadgeColors, LightTheme } from '../../constants/Colors'
 
 describe('getInitials', () => {
@@ -47,30 +47,30 @@ describe('getInitialsColor', () => {
   })
 })
 
-describe('getTrustBadgeColor', () => {
-  it('returns gray for null/undefined', () => {
-    expect(getTrustBadgeColor(null)).toBe(BadgeColors.trustBadgeGray)
-    expect(getTrustBadgeColor(undefined)).toBe(BadgeColors.trustBadgeGray)
+describe('getTrustBadgeInfo', () => {
+  it('returns purple for null/undefined', () => {
+    expect(getTrustBadgeInfo(null)).toEqual({ color: BadgeColors.trustBadgePurple, tier: 'purple' })
+    expect(getTrustBadgeInfo(undefined)).toEqual({ color: BadgeColors.trustBadgePurple, tier: 'purple' })
   })
 
-  it('returns gray for scores below 0.35', () => {
-    expect(getTrustBadgeColor(0)).toBe(BadgeColors.trustBadgeGray)
-    expect(getTrustBadgeColor(0.34)).toBe(BadgeColors.trustBadgeGray)
+  it('returns purple for scores below 0.35', () => {
+    expect(getTrustBadgeInfo(0)).toEqual({ color: BadgeColors.trustBadgePurple, tier: 'purple' })
+    expect(getTrustBadgeInfo(0.34)).toEqual({ color: BadgeColors.trustBadgePurple, tier: 'purple' })
   })
 
   it('returns bronze for scores 0.35–0.6', () => {
-    expect(getTrustBadgeColor(0.35)).toBe(BadgeColors.trustBadgeBronze)
-    expect(getTrustBadgeColor(0.59)).toBe(BadgeColors.trustBadgeBronze)
+    expect(getTrustBadgeInfo(0.35).color).toBe(BadgeColors.trustBadgeBronze)
+    expect(getTrustBadgeInfo(0.59).tier).toBe('bronze')
   })
 
   it('returns silver for scores 0.6–0.9', () => {
-    expect(getTrustBadgeColor(0.6)).toBe(BadgeColors.trustBadgeSilver)
-    expect(getTrustBadgeColor(0.89)).toBe(BadgeColors.trustBadgeSilver)
+    expect(getTrustBadgeInfo(0.6).color).toBe(BadgeColors.trustBadgeSilver)
+    expect(getTrustBadgeInfo(0.89).tier).toBe('silver')
   })
 
   it('returns gold for scores >= 0.9', () => {
-    expect(getTrustBadgeColor(0.9)).toBe(BadgeColors.trustBadgeGold)
-    expect(getTrustBadgeColor(1.0)).toBe(BadgeColors.trustBadgeGold)
+    expect(getTrustBadgeInfo(0.9).color).toBe(BadgeColors.trustBadgeGold)
+    expect(getTrustBadgeInfo(1.0).tier).toBe('gold')
   })
 })
 

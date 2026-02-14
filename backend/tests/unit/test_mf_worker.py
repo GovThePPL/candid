@@ -107,7 +107,7 @@ class TestMFWorkerMaybeTrain:
                 return {"acquired": True}
             if "mf_training_log" in sql and "ORDER BY" in sql:
                 return {"created_time": last_time}
-            if "MAX(cv.created_time)" in sql:
+            if "MAX(latest)" in sql:
                 return {"latest": vote_time}
             if "pg_advisory_unlock" in sql:
                 return None
@@ -143,7 +143,7 @@ class TestMFWorkerMaybeTrain:
                 return {"acquired": True}
             if "mf_training_log" in sql and "ORDER BY" in sql:
                 return {"created_time": last_time}
-            if "MAX(cv.created_time)" in sql:
+            if "MAX(latest)" in sql:
                 return {"latest": vote_time}
             if "pg_advisory_unlock" in sql:
                 return None

@@ -257,6 +257,8 @@
   "actionBan": "BAN",
   "actionUnban": "UNBAN",
   "performedBy": "by {{name}}",
+  "performedByLabel": "Performed by",
+  "reviewedByLabel": "Reviewed by",
   "noAdminActions": "No Admin Actions",
   "noAdminActionsSubtitle": "No ban or unban actions have been recorded.",
 
@@ -280,5 +282,7 @@
   "actionAddChildLocation": "Add Child Location",
   "actionEditLocation": "Edit Location",
   "actionDeleteLocation": "Delete Location",
-  "actionAssignRole": "Assign Role"
+  "actionAssignRole": "Assign Role",
+
+  "userSearchResultA11y": "{{displayName}} @{{username}}"
 }

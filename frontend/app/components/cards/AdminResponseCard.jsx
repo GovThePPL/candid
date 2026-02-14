@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { SemanticColors } from '../../constants/Colors'
 import ThemedText from '../ThemedText'
-import Avatar from '../Avatar'
+import UserCard from '../UserCard'
 
 const getActionLabels = (t) => ({
   removed: t('adminResponseActionRemove'),
@@ -68,26 +68,14 @@ export default function AdminResponseCard({ data, onDismiss }) {
       {adminResponder && (
         <View style={styles.userRow}>
           <ThemedText variant="badgeLg" color="secondary" style={styles.sectionLabel}>{t('adminResponseDecidedBy')}</ThemedText>
-          <View style={styles.userInfo}>
-            <Avatar user={adminResponder} size="sm" />
-            <View>
-              <ThemedText variant="buttonSmall">{adminResponder.displayName || t('admin')}</ThemedText>
-              <ThemedText variant="caption" color="secondary">@{adminResponder.username || 'unknown'}</ThemedText>
-            </View>
-          </View>
+          <UserCard user={adminResponder} />
         </View>
       )}
 
       {originalAction && (
         <View style={styles.contextContainer}>
           <ThemedText variant="badgeLg" color="secondary" style={styles.sectionLabel}>{t('adminResponseOriginalAction')}</ThemedText>
-          <View style={styles.userInfo}>
-            <Avatar user={originalAction.responder} size="sm" />
-            <View>
-              <ThemedText variant="buttonSmall">{originalAction.responder?.displayName || t('moderator')}</ThemedText>
-              <ThemedText variant="caption" color="secondary">@{originalAction.responder?.username || 'unknown'}</ThemedText>
-            </View>
-          </View>
+          <UserCard user={originalAction.responder} />
           {originalAction.actions?.length > 0 && (
             <View style={styles.actionDetails}>
               {originalAction.actions.map((a, i) => (
@@ -105,13 +93,7 @@ export default function AdminResponseCard({ data, onDismiss }) {
           <ThemedText variant="badgeLg" color="secondary" style={styles.sectionLabel}>{t('adminResponseModeratorReviews')}</ThemedText>
           {priorResponses.map((pr, i) => (
             <View key={i} style={styles.priorResponse}>
-              <View style={styles.userInfo}>
-                <Avatar user={pr.responder} size="sm" />
-                <View>
-                  <ThemedText variant="buttonSmall">{pr.responder?.displayName || t('moderator')}</ThemedText>
-                  <ThemedText variant="caption" color="secondary">@{pr.responder?.username || 'unknown'}</ThemedText>
-                </View>
-              </View>
+              <UserCard user={pr.responder} />
               {pr.responseText && (
                 <ThemedText variant="label" color="secondary" style={styles.priorResponseText}>"{pr.responseText}"</ThemedText>
               )}

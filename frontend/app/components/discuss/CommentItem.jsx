@@ -3,14 +3,14 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
-import { Spacing, Typography } from '../../constants/Theme'
-import { SemanticColors } from '../../constants/Colors'
-import { formatRelativeTime } from '../../lib/timeUtils'
+import { Spacing } from '../../constants/Theme'
 import ThemedText from '../ThemedText'
-import Avatar from '../Avatar'
-import RoleBadge from './RoleBadge'
+import UserCard from '../UserCard'
+import VoteControl from './VoteControl'
+import BridgingBadge from './BridgingBadge'
 import MarkdownRenderer from './MarkdownRenderer'
 import BottomDrawerModal from '../BottomDrawerModal'
+import { formatRelativeTime } from '../../lib/timeUtils'
 
 const INDENT_PX = 8
 
@@ -27,6 +27,7 @@ const INDENT_PX = 8
  * @param {Function} props.onDownvote - Called with comment id
  * @param {Function} props.onReply - Called with comment object
  * @param {Function} props.onToggleCollapse - Called with comment id
+ * @param {Function} props.onToggleRole - Called with (commentId, showCreatorRole)
  */
 export default memo(function CommentItem({
   comment,
@@ -38,6 +39,7 @@ export default memo(function CommentItem({
   onDownvote,
   onReply,
   onToggleCollapse,
+  onToggleRole,
 }) {
   const { t } = useTranslation('discuss')
   const colors = useThemeColors()
@@ -45,12 +47,8 @@ export default memo(function CommentItem({
   const [optionsVisible, setOptionsVisible] = useState(false)
 
   const isDeleted = comment.isDeleted || comment.deletedByModerator
+  const isOwnComment = currentUserId && comment.creator?.id === currentUserId
   const authorName = comment.creator?.displayName || comment.creator?.username || '?'
-  const username = comment.creator?.username
-  const relativeTime = formatRelativeTime(comment.createdTime, t)
-  const isUpvoted = comment.userVote?.voteType === 'upvote'
-  const isDownvoted = comment.userVote?.voteType === 'downvote'
-  const netScore = (comment.upvoteCount || 0) - (comment.downvoteCount || 0)
   const hasChildren = (comment.children?.length || 0) > 0
   const isEdited = comment.updatedTime && comment.createdTime &&
     new Date(comment.updatedTime).getTime() - new Date(comment.createdTime).getTime() > 1000
@@ -94,45 +92,36 @@ export default memo(function CommentItem({
       <View style={styles.content}>
         {/* Header row: avatar, author, role, time, depth badge */}
         <View style={styles.headerRow}>
-          {!isDeleted && (
-            <Avatar user={comment.creator} size="sm" showKudosBadge={false} />
-          )}
-          <View style={styles.authorInfo}>
+          <View style={styles.headerLeft}>
             {!isDeleted ? (
-              <>
-                <ThemedText variant="caption" style={styles.authorName}>
-                  {authorName}
-                </ThemedText>
-                {username && (
-                  <ThemedText variant="caption" color="secondary">
-                    @{username}
-                  </ThemedText>
-                )}
-                {comment.creatorRole && <RoleBadge role={comment.creatorRole} />}
-              </>
+              <UserCard
+                variant="inline"
+                user={comment.creator}
+                discussRole={comment.showCreatorRole !== false ? comment.creatorRole : null}
+              />
             ) : (
               <ThemedText variant="caption" color="secondary">
                 {comment.deletedByModerator ? t('removedComment') : t('deletedComment')}
               </ThemedText>
             )}
+            {comment.depth > 5 && (
+              <ThemedText
+                variant="caption"
+                color="secondary"
+                accessibilityLabel={t('depthIndicatorA11y', { depth: comment.depth })}
+              >
+                {'↳ ' + comment.depth}
+              </ThemedText>
+            )}
           </View>
-          {!isDeleted && (
-            <View style={styles.headerRight}>
-              {isEdited && (
-                <ThemedText variant="caption" color="secondary">{t('edited')}</ThemedText>
-              )}
-              <ThemedText variant="caption" color="secondary">{relativeTime}</ThemedText>
-            </View>
-          )}
-          {comment.depth > 5 && (
-            <ThemedText
-              variant="caption"
-              color="secondary"
-              accessibilityLabel={t('depthIndicatorA11y', { depth: comment.depth })}
-            >
-              {'↳ ' + comment.depth}
-            </ThemedText>
-          )}
+          <View style={styles.headerRight}>
+            <BridgingBadge item={comment} />
+            {comment.createdTime && (
+              <ThemedText variant="caption" color="secondary">
+                {formatRelativeTime(comment.createdTime, t)}
+              </ThemedText>
+            )}
+          </View>
         </View>
 
         {/* Body — tappable to collapse children */}
@@ -163,7 +152,7 @@ export default memo(function CommentItem({
         {/* Action row: collapsed indicator, spacer, options, reply pill, vote pill */}
         {!isDeleted && (
           <View style={styles.actionRow}>
-            {/* Collapsed summary — left-aligned */}
+            {/* Left side: collapsed summary + edited indicator */}
             {comment.isCollapsed && comment.collapsedCount > 0 && (
               <TouchableOpacity
                 onPress={() => onToggleCollapse(comment.id)}
@@ -177,6 +166,9 @@ export default memo(function CommentItem({
                   {t('nReplies', { count: comment.collapsedCount })}
                 </ThemedText>
               </TouchableOpacity>
+            )}
+            {isEdited && (
+              <ThemedText variant="caption" color="secondary">{t('edited')}</ThemedText>
             )}
 
             <View style={styles.actionSpacer} />
@@ -207,51 +199,17 @@ export default memo(function CommentItem({
             )}
 
             {/* Vote pill */}
-            <View style={[
-              styles.votePill,
-              isUpvoted && styles.votePillUpvoted,
-              isDownvoted && styles.votePillDownvoted,
-            ]}>
-              <TouchableOpacity
-                onPress={() => onUpvote(comment.id)}
-                activeOpacity={0.6}
-                accessibilityRole="button"
-                accessibilityLabel={t('upvoteCommentA11y', { author: authorName })}
-                accessibilityState={{ selected: isUpvoted }}
-                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-              >
-                <Ionicons
-                  name="chevron-up"
-                  size={16}
-                  color={(isUpvoted || isDownvoted) ? '#FFFFFF' : colors.secondaryText}
-                />
-              </TouchableOpacity>
-
-              <ThemedText
-                variant="caption"
-                style={[
-                  styles.score,
-                  (isUpvoted || isDownvoted) && styles.scoreActive,
-                ]}
-              >
-                {netScore}
-              </ThemedText>
-
-              <TouchableOpacity
-                onPress={() => onDownvote(comment.id)}
-                activeOpacity={0.6}
-                accessibilityRole="button"
-                accessibilityLabel={t('downvoteCommentA11y', { author: authorName })}
-                accessibilityState={{ selected: isDownvoted }}
-                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-              >
-                <Ionicons
-                  name="chevron-down"
-                  size={16}
-                  color={(isUpvoted || isDownvoted) ? '#FFFFFF' : colors.secondaryText}
-                />
-              </TouchableOpacity>
-            </View>
+            <VoteControl
+              size="sm"
+              upvoteCount={comment.upvoteCount || 0}
+              downvoteCount={comment.downvoteCount || 0}
+              userVote={comment.userVote}
+              onUpvote={() => onUpvote(comment.id)}
+              onDownvote={() => onDownvote(comment.id)}
+              authorName={authorName}
+              targetType="comment"
+              disabled={isOwnComment}
+            />
           </View>
         )}
 
@@ -263,6 +221,28 @@ export default memo(function CommentItem({
           shrink
         >
           <View style={styles.optionsList}>
+            {isOwnComment && comment.creatorRole != null && (
+              <TouchableOpacity
+                style={styles.optionRow}
+                onPress={() => {
+                  const newShow = comment.showCreatorRole === false
+                  onToggleRole?.(comment.id, newShow)
+                  setOptionsVisible(false)
+                }}
+                activeOpacity={0.7}
+                accessibilityRole="menuitem"
+                accessibilityLabel={t('toggleRoleA11y')}
+              >
+                <Ionicons
+                  name={comment.showCreatorRole !== false ? 'eye-off-outline' : 'eye-outline'}
+                  size={20}
+                  color={colors.secondaryText}
+                />
+                <ThemedText variant="body">
+                  {comment.showCreatorRole !== false ? t('hideRoleBadge') : t('showRoleBadge')}
+                </ThemedText>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               style={styles.optionRow}
               onPress={() => setOptionsVisible(false)}
@@ -319,19 +299,18 @@ const createStyles = (colors) => StyleSheet.create({
     gap: Spacing.xs,
     marginBottom: Spacing.xs,
   },
-  authorInfo: {
+  headerLeft: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
-    flex: 1,
-  },
-  authorName: {
-    fontWeight: '600',
+    minWidth: 0,
   },
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xs,
+    gap: Spacing.sm,
+    flexShrink: 0,
   },
   body: {
     marginBottom: 2,
@@ -343,35 +322,6 @@ const createStyles = (colors) => StyleSheet.create({
   },
   actionSpacer: {
     flex: 1,
-  },
-  votePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    backgroundColor: colors.cardBackground,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    borderRadius: 14,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  votePillUpvoted: {
-    backgroundColor: SemanticColors.agree,
-    borderColor: SemanticColors.agree,
-  },
-  votePillDownvoted: {
-    backgroundColor: SemanticColors.disagree,
-    borderColor: SemanticColors.disagree,
-  },
-  score: {
-    ...Typography.caption,
-    color: colors.secondaryText,
-    minWidth: 16,
-    textAlign: 'center',
-    fontWeight: '600',
-  },
-  scoreActive: {
-    color: '#FFFFFF',
   },
   replyPill: {
     flexDirection: 'row',

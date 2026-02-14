@@ -11,6 +11,7 @@ import ThemedText from '../../../components/ThemedText'
 import Header from '../../../components/Header'
 import EmptyState from '../../../components/EmptyState'
 import Avatar from '../../../components/Avatar'
+import UserCard from '../../../components/UserCard'
 import ModerationHistoryModal from '../../../components/ModerationHistoryModal'
 import BottomDrawerModal from '../../../components/BottomDrawerModal'
 import LocationPicker from '../../../components/LocationPicker'
@@ -189,11 +190,7 @@ export default function UsersScreen() {
     return (
       <View style={styles.userCard}>
         <View style={styles.userInfo}>
-          <Avatar user={item} size="sm" />
-          <View style={styles.userText}>
-            <ThemedText variant="button" color="dark">{item.displayName}</ThemedText>
-            <ThemedText variant="caption" color="secondary">@{item.username}</ThemedText>
-          </View>
+          <UserCard user={item} nameVariant="button" />
           <View style={[styles.statusBadge, { backgroundColor: isBanned ? SemanticColors.warning : SemanticColors.success }]}>
             <ThemedText variant="badge" color="inverse" style={styles.statusBadgeText}>
               {isBanned ? t('userStatusBanned') : t('userStatusActive')}

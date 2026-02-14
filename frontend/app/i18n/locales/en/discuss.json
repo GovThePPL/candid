@@ -67,6 +67,7 @@
   "commentsHeader": "Comments ({{count}})",
   "noComments": "No comments yet",
   "beFirstToComment": "Be the first to share your thoughts",
+  "loadingMoreComments": "Loading more comments...",
   "postLocked": "This post is locked",
   "qaOnlyExperts": "Only experts can answer this question",
   "qaReplyRestriction": "You can only reply to expert answers",
@@ -85,6 +86,7 @@
   "expandButtonA11y": "Expand {{count}} replies",
   "upvoteCommentA11y": "Upvote comment by {{author}}",
   "downvoteCommentA11y": "Downvote comment by {{author}}",
+  "upvotePostA11y": "Upvote post by {{author}}",
   "downvotePostA11y": "Downvote this post",
   "depthIndicatorA11y": "Nested {{depth}} levels deep",
   "nReplies": "{{count}} replies",
@@ -136,9 +138,19 @@
   "linkPromptInsert": "Insert",
   "linkPromptCancel": "Cancel",
 
+  "bridgingBadge": "Bridges Divides",
+  "bridgingBadgeA11y": "This comment bridges ideological divides",
+
   "commentOptions": "Options",
   "report": "Report",
   "reportComment": "Report this comment",
   "commentOptionsA11y": "Comment options for {{author}}",
-  "reportA11y": "Report comment by {{author}}"
+  "reportA11y": "Report comment by {{author}}",
+  "roleOverlayA11y": "{{role}} role",
+
+  "showRoleBadge": "Show role badge",
+  "hideRoleBadge": "Hide role badge",
+  "postOptions": "Post options",
+  "postOptionsA11y": "Options for post by {{author}}",
+  "toggleRoleA11y": "Toggle role badge visibility"
 }

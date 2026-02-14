@@ -51,6 +51,15 @@ export default function NotificationSettings() {
   const [quietHoursStart, setQuietHoursStart] = useState(22)
   const [quietHoursEnd, setQuietHoursEnd] = useState(7)
 
+  // Per-type notification preferences (absent = enabled)
+  const [notifTypePrefs, setNotifTypePrefs] = useState({
+    comment_reply: true,
+    post_comment: true,
+    chat_request: true,
+    role_change: true,
+    moderation: true,
+  })
+
   // Quiet hours modal state
   const [quietHoursModalOpen, setQuietHoursModalOpen] = useState(false)
   const [quietHoursModalField, setQuietHoursModalField] = useState(null)
@@ -64,6 +73,7 @@ export default function NotificationSettings() {
   const quietHoursEnabledRef = useRef(quietHoursEnabled)
   const quietHoursStartRef = useRef(quietHoursStart)
   const quietHoursEndRef = useRef(quietHoursEnd)
+  const notifTypePrefsRef = useRef(notifTypePrefs)
 
   // Keep refs in sync with state
   notificationsEnabledRef.current = notificationsEnabled
@@ -71,6 +81,7 @@ export default function NotificationSettings() {
   quietHoursEnabledRef.current = quietHoursEnabled
   quietHoursStartRef.current = quietHoursStart
   quietHoursEndRef.current = quietHoursEnd
+  notifTypePrefsRef.current = notifTypePrefs
 
   const applySettingsData = useCallback((settingsData) => {
     setNotificationsEnabled(settingsData?.notificationsEnabled || false)
@@ -80,6 +91,9 @@ export default function NotificationSettings() {
     if (hasQuietHours) {
       setQuietHoursStart(settingsData.quietHoursStart)
       setQuietHoursEnd(settingsData.quietHoursEnd)
+    }
+    if (settingsData?.notificationTypePrefs) {
+      setNotifTypePrefs(prev => ({ ...prev, ...settingsData.notificationTypePrefs }))
     }
   }, [])
 
@@ -148,6 +162,7 @@ export default function NotificationSettings() {
           notificationFrequency: notificationFrequencyRef.current,
           quietHoursStart: quietHoursEnabledRef.current ? quietHoursStartRef.current : null,
           quietHoursEnd: quietHoursEnabledRef.current ? quietHoursEndRef.current : null,
+          notificationTypePrefs: notifTypePrefsRef.current,
         }
 
         await api.users.updateSettings(settingsPayload)
@@ -183,6 +198,12 @@ export default function NotificationSettings() {
   const handleQuietHoursEnabledChange = (value) => {
     setQuietHoursEnabled(value)
     quietHoursEnabledRef.current = value
+    performAutoSave()
+  }
+
+  const handleNotifTypePrefChange = (type, value) => {
+    setNotifTypePrefs(prev => ({ ...prev, [type]: value }))
+    notifTypePrefsRef.current = { ...notifTypePrefsRef.current, [type]: value }
     performAutoSave()
   }
 
@@ -321,6 +342,36 @@ export default function NotificationSettings() {
                   </TouchableOpacity>
                 </View>
               )}
+
+              {/* Per-type notification preferences */}
+              <ThemedText variant="bodySmall" color="dark" style={[styles.notifSubLabel, { marginTop: 16 }]}>{t('notificationTypes')}</ThemedText>
+              <ThemedText variant="bodySmall" color="secondary" style={styles.sectionDescription}>
+                {t('notificationTypesDesc')}
+              </ThemedText>
+              {[
+                { key: 'comment_reply', label: t('notifTypeCommentReply'), desc: t('notifTypeCommentReplyDesc') },
+                { key: 'post_comment', label: t('notifTypePostComment'), desc: t('notifTypePostCommentDesc') },
+                { key: 'chat_request', label: t('notifTypeChatRequest'), desc: t('notifTypeChatRequestDesc') },
+                { key: 'role_change', label: t('notifTypeRoleChange'), desc: t('notifTypeRoleChangeDesc') },
+                { key: 'moderation', label: t('notifTypeModeration'), desc: t('notifTypeModerationDesc') },
+              ].map((item) => (
+                <View key={item.key} style={styles.notifTypeRow}>
+                  <View style={styles.notifTypeInfo}>
+                    <ThemedText variant="body" color="dark" style={styles.notifToggleLabel}>{item.label}</ThemedText>
+                    <ThemedText variant="caption" color="secondary">{item.desc}</ThemedText>
+                  </View>
+                  <Switch
+                    value={notifTypePrefs[item.key] !== false}
+                    onValueChange={(value) => handleNotifTypePrefChange(item.key, value)}
+                    trackColor={{ false: colors.cardBorder, true: colors.primaryMuted }}
+                    thumbColor={notifTypePrefs[item.key] !== false ? colors.primary : colors.pass}
+                    accessibilityLabel={t('notifTypeToggleA11y', {
+                      type: item.label,
+                      state: notifTypePrefs[item.key] !== false ? 'enabled' : 'disabled',
+                    })}
+                  />
+                </View>
+              ))}
             </>
           )}
         </View>
@@ -491,6 +542,16 @@ const createStyles = (colors) => StyleSheet.create({
     fontWeight: '500',
   },
   quietHoursSeparator: {
+  },
+  notifTypeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    gap: 12,
+  },
+  notifTypeInfo: {
+    flex: 1,
   },
   savingContainer: {
     flexDirection: 'row',

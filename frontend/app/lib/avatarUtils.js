@@ -28,14 +28,16 @@ export const getInitialsColor = (name) => {
 }
 
 /**
- * Return a badge color based on trust score tier.
- *   < 0.35 → Gray, 0.35–0.6 → Bronze, 0.6–0.9 → Silver, ≥ 0.9 → Gold
+ * Return badge info based on trust score tier.
+ *   < 0.35 (or null) → Purple (lowest), 0.35–0.6 → Bronze, 0.6–0.9 → Silver, ≥ 0.9 → Gold
+ *
+ * @returns {{ color: string, tier: 'purple'|'bronze'|'silver'|'gold' }}
  */
-export const getTrustBadgeColor = (trustScore) => {
-  if (trustScore == null || trustScore < 0.35) return BadgeColors.trustBadgeGray
-  if (trustScore < 0.6) return BadgeColors.trustBadgeBronze
-  if (trustScore < 0.9) return BadgeColors.trustBadgeSilver
-  return BadgeColors.trustBadgeGold
+export const getTrustBadgeInfo = (trustScore) => {
+  if (trustScore == null || trustScore < 0.35) return { color: BadgeColors.trustBadgePurple, tier: 'purple' }
+  if (trustScore < 0.6) return { color: BadgeColors.trustBadgeBronze, tier: 'bronze' }
+  if (trustScore < 0.9) return { color: BadgeColors.trustBadgeSilver, tier: 'silver' }
+  return { color: BadgeColors.trustBadgeGold, tier: 'gold' }
 }
 
 /**

@@ -1,5 +1,7 @@
 """Comments controller — CRUD and voting for nested comments."""
 
+import base64
+import logging
 import re
 import uuid
 from datetime import datetime, timezone, timedelta
@@ -17,6 +19,7 @@ from candid.controllers.helpers.scoring import wilson_score, vote_weight
 from candid.controllers.helpers.ideological_coords import (
     get_effective_coords, get_conversation_for_post,
 )
+from candid.controllers.helpers.push_notifications import send_comment_reply_notification
 
 
 def _strip_html(text):
@@ -39,6 +42,7 @@ def _row_to_comment(row, post_type=None, post_location_id=None, post_category_id
         "weightedUpvotes": float(row.get("weighted_upvotes", 0)),
         "weightedDownvotes": float(row.get("weighted_downvotes", 0)),
         "score": float(row.get("score", 0)),
+        "bridgingScore": float(row["mf_intercept"]) if row.get("mf_intercept") is not None else None,
         "childCount": row.get("child_count", 0),
         "createdTime": row["created_time"].isoformat() if row.get("created_time") else None,
         "updatedTime": row["updated_time"].isoformat() if row.get("updated_time") else None,
@@ -52,12 +56,15 @@ def _row_to_comment(row, post_type=None, post_location_id=None, post_category_id
             "displayName": row.get("creator_display_name"),
             "avatarIconUrl": row.get("creator_avatar_icon_url"),
             "status": row.get("creator_status"),
+            "trustScore": float(row["creator_trust_score"]) if row.get("creator_trust_score") is not None else None,
+            "kudosCount": row.get("creator_kudos_count", 0),
         }
     elif row.get("creator_user_id"):
         comment["creator"] = {"id": str(row["creator_user_id"])}
 
     # Creator role (for Q&A badge)
     comment["creatorRole"] = row.get("creator_role")
+    comment["showCreatorRole"] = row.get("show_creator_role")
 
     # User vote
     if row.get("user_vote_type"):
@@ -75,9 +82,22 @@ def _row_to_comment(row, post_type=None, post_location_id=None, post_category_id
 # Endpoints
 # ---------------------------------------------------------------------------
 
-def get_comments(post_id, token_info=None):  # noqa: E501
-    """Get comments for a post (path-ordered tree)."""
+def get_comments(post_id, cursor=None, limit=None, token_info=None):  # noqa: E501
+    """Get comments for a post (path-ordered tree, paginated by root comments)."""
     user_id = token_info["sub"] if token_info else None
+
+    # Clamp limit
+    if limit is None:
+        limit = 20
+    limit = max(1, min(limit, 100))
+
+    # Decode cursor (base64-encoded path of last root comment)
+    cursor_path = None
+    if cursor:
+        try:
+            cursor_path = base64.urlsafe_b64decode(cursor).decode("utf-8")
+        except Exception:
+            return ErrorModel(400, "Invalid cursor"), 400
 
     # Verify post exists
     post = db.execute_query(
@@ -87,26 +107,83 @@ def get_comments(post_id, token_info=None):  # noqa: E501
     if not post:
         return ErrorModel(404, "Post not found"), 404
 
+    # Count total root comments
+    total_root = db.execute_query(
+        "SELECT COUNT(*) AS cnt FROM comment WHERE post_id = %s AND parent_comment_id IS NULL AND status != 'removed'",
+        (post_id,), fetchone=True,
+    )
+    total_root_count = total_root["cnt"] if total_root else 0
+
+    # Fetch N+1 root IDs for has_more detection
+    root_params = [post_id]
+    cursor_condition = ""
+    if cursor_path:
+        cursor_condition = "AND path > %s"
+        root_params.append(cursor_path)
+    root_params.append(limit + 1)
+
+    root_rows = db.execute_query(f"""
+        SELECT id, path FROM comment
+        WHERE post_id = %s AND parent_comment_id IS NULL AND status != 'removed'
+        {cursor_condition}
+        ORDER BY path
+        LIMIT %s
+    """, tuple(root_params))
+
+    if root_rows is None:
+        root_rows = []
+
+    has_more = len(root_rows) > limit
+    if has_more:
+        root_rows = root_rows[:limit]
+
+    if not root_rows:
+        return {
+            "comments": [],
+            "nextCursor": None,
+            "hasMore": False,
+            "totalRootCount": total_root_count,
+        }, 200
+
+    root_ids = [str(r["id"]) for r in root_rows]
+    last_root_path = root_rows[-1]["path"]
+    next_cursor = base64.urlsafe_b64encode(last_root_path.encode("utf-8")).decode("ascii") if has_more else None
+
+    # Build query for roots + all descendants
     vote_join = ""
     vote_select = ", NULL AS user_vote_type, NULL AS user_vote_reason"
-    params = [post_id]
+
+    # Build LIKE patterns for descendant matching
+    like_patterns = [r["path"] + "/%" for r in root_rows]
+
+    # Construct the IN clause and LIKE ANY clause
+    root_placeholders = ",".join(["%s"] * len(root_ids))
+    like_placeholders = ",".join(["%s"] * len(like_patterns))
 
     if user_id:
         vote_join = "LEFT JOIN comment_vote cv ON cv.comment_id = c.id AND cv.user_id = %s"
         vote_select = ", cv.vote_type AS user_vote_type, cv.downvote_reason AS user_vote_reason"
-        params = [user_id, post_id]
+        query_params = [user_id, post_id] + root_ids + like_patterns
+    else:
+        query_params = [post_id] + root_ids + like_patterns
 
     rows = db.execute_query(f"""
         SELECT c.*,
                u.username AS creator_username, u.display_name AS creator_display_name,
-               u.avatar_icon_url AS creator_avatar_icon_url, u.status AS creator_status
+               u.avatar_icon_url AS creator_avatar_icon_url, u.status AS creator_status,
+               u.trust_score AS creator_trust_score,
+               u.show_role_badge AS creator_show_role_badge,
+               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u.id AND k.status = 'sent'), 0) AS creator_kudos_count
                {vote_select}
         FROM comment c
         JOIN users u ON c.creator_user_id = u.id
         {vote_join}
-        WHERE c.post_id = %s
+        WHERE c.post_id = %s AND (
+            c.id IN ({root_placeholders})
+            OR c.path LIKE ANY(ARRAY[{like_placeholders}])
+        )
         ORDER BY c.path
-    """, tuple(params))
+    """, tuple(query_params))
 
     if rows is None:
         rows = []
@@ -115,7 +192,7 @@ def get_comments(post_id, token_info=None):  # noqa: E501
     post_location_id = str(post["location_id"])
     post_category_id = str(post["category_id"]) if post.get("category_id") else None
 
-    # Post-process: handle deleted/removed, add role badges for Q&A
+    # Post-process: handle deleted/removed, add role badges
     result = []
     for row in rows:
         # Deleted/removed leaves are omitted entirely
@@ -130,18 +207,36 @@ def get_comments(post_id, token_info=None):  # noqa: E501
             row = dict(row)
             row["body"] = "[removed]"
 
-        # Q&A role badge
-        creator_role = None
-        if is_qa:
-            creator_role = get_highest_role_at_location(
-                str(row["creator_user_id"]), post_location_id, post_category_id
-            )
         row_dict = dict(row) if not isinstance(row, dict) else row
-        row_dict["creator_role"] = creator_role
+
+        # Role badge visibility: check both user-level and item-level flags
+        creator_role = get_highest_role_at_location(
+            str(row["creator_user_id"]), post_location_id, post_category_id
+        )
+        show_creator_role = row_dict.get("show_creator_role", False)
+        creator_show_role_badge = row_dict.get("creator_show_role_badge", True)
+        is_own = user_id and str(row["creator_user_id"]) == user_id
+
+        if is_own:
+            # Own comments: always return role + showCreatorRole so user can toggle
+            row_dict["creator_role"] = creator_role
+            row_dict["show_creator_role"] = show_creator_role
+        elif creator_role and show_creator_role and creator_show_role_badge:
+            # Others: only show role when both flags are true
+            row_dict["creator_role"] = creator_role
+            row_dict["show_creator_role"] = None
+        else:
+            row_dict["creator_role"] = None
+            row_dict["show_creator_role"] = None
 
         result.append(_row_to_comment(row_dict))
 
-    return result, 200
+    return {
+        "comments": result,
+        "nextCursor": next_cursor,
+        "hasMore": has_more,
+        "totalRootCount": total_root_count,
+    }, 200
 
 
 def create_comment(post_id, body, token_info=None):  # noqa: E501
@@ -216,31 +311,54 @@ def create_comment(post_id, body, token_info=None):  # noqa: E501
         path = comment_id
         depth = 0
 
+    # Q&A posts default to showing role badge; discussion posts default to hiding it
+    show_creator_role = post["post_type"] == "question"
+
     # Insert comment
     db.execute_query("""
-        INSERT INTO comment (id, post_id, parent_comment_id, creator_user_id, body, path, depth)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
-    """, (comment_id, post_id, parent_comment_id, user_id, body_text, path, depth))
+        INSERT INTO comment (id, post_id, parent_comment_id, creator_user_id, body, path, depth, show_creator_role)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+    """, (comment_id, post_id, parent_comment_id, user_id, body_text, path, depth, show_creator_role))
 
     # post.comment_count and comment.child_count are maintained by trg_comment_counts trigger
+
+    # Send reply notification to parent comment author
+    if parent_comment_id:
+        parent_row = db.execute_query(
+            "SELECT creator_user_id FROM comment WHERE id = %s",
+            (parent_comment_id,), fetchone=True)
+        if parent_row and str(parent_row["creator_user_id"]) != user_id:
+            try:
+                user_row = db.execute_query(
+                    "SELECT display_name FROM users WHERE id = %s",
+                    (user_id,), fetchone=True)
+                send_comment_reply_notification(
+                    str(parent_row["creator_user_id"]),
+                    user_row["display_name"] if user_row else "Someone",
+                    body_text, post_id, db)
+            except Exception as e:
+                logging.getLogger(__name__).error("Reply notification error: %s", e)
 
     # Fetch created comment
     row = db.execute_query("""
         SELECT c.*,
                u.username AS creator_username, u.display_name AS creator_display_name,
                u.avatar_icon_url AS creator_avatar_icon_url, u.status AS creator_status,
+               u.trust_score AS creator_trust_score,
+               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u.id AND k.status = 'sent'), 0) AS creator_kudos_count,
+               u.trust_score AS creator_trust_score,
+               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u.id AND k.status = 'sent'), 0) AS creator_kudos_count,
                NULL AS user_vote_type, NULL AS user_vote_reason
         FROM comment c
         JOIN users u ON c.creator_user_id = u.id
         WHERE c.id = %s
     """, (comment_id,), fetchone=True)
 
-    # Add creator role for Q&A
-    creator_role = None
-    if post["post_type"] == "question":
-        creator_role = get_highest_role_at_location(user_id, post_location_id, post_category_id)
+    # Add creator role — always compute for all post types
+    creator_role = get_highest_role_at_location(user_id, post_location_id, post_category_id)
     row_dict = dict(row)
     row_dict["creator_role"] = creator_role
+    row_dict["show_creator_role"] = show_creator_role
 
     return _row_to_comment(row_dict), 201
 
@@ -289,14 +407,27 @@ def update_comment(comment_id, body, token_info=None):  # noqa: E501
         SELECT c.*,
                u.username AS creator_username, u.display_name AS creator_display_name,
                u.avatar_icon_url AS creator_avatar_icon_url, u.status AS creator_status,
+               u.trust_score AS creator_trust_score,
+               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u.id AND k.status = 'sent'), 0) AS creator_kudos_count,
+               u.trust_score AS creator_trust_score,
+               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u.id AND k.status = 'sent'), 0) AS creator_kudos_count,
                NULL AS user_vote_type, NULL AS user_vote_reason
         FROM comment c
         JOIN users u ON c.creator_user_id = u.id
         WHERE c.id = %s
     """, (comment_id,), fetchone=True)
 
+    # Look up post for location context
+    post = db.execute_query(
+        "SELECT location_id, category_id FROM post WHERE id = %s",
+        (comment["post_id"],), fetchone=True,
+    )
+    post_location_id = str(post["location_id"]) if post else None
+    post_category_id = str(post["category_id"]) if post and post.get("category_id") else None
+
     row_dict = dict(row)
-    row_dict["creator_role"] = None
+    row_dict["creator_role"] = get_highest_role_at_location(user_id, post_location_id, post_category_id) if post_location_id else None
+    row_dict["show_creator_role"] = row_dict.get("show_creator_role", False)
     return _row_to_comment(row_dict), 200
 
 
@@ -442,3 +573,62 @@ def vote_on_comment(comment_id, body, token_info=None):  # noqa: E501
         "downvoteCount": down_count,
         "score": new_score,
     }, 200
+
+
+def patch_comment(comment_id, body, token_info=None):  # noqa: E501
+    """Patch a comment — toggle role badge visibility (author only)."""
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    user = token_to_user(token_info)
+    user_id = str(user.id)
+
+    # Fetch comment with post context
+    comment = db.execute_query("""
+        SELECT c.*, p.location_id AS post_location_id, p.category_id AS post_category_id
+        FROM comment c
+        JOIN post p ON c.post_id = p.id
+        WHERE c.id = %s AND c.status = 'active'
+    """, (comment_id,), fetchone=True)
+
+    if not comment:
+        return ErrorModel(404, "Comment not found"), 404
+
+    if str(comment["creator_user_id"]) != user_id:
+        return ErrorModel(403, "Only the author can toggle role visibility"), 403
+
+    # Verify user has a role at this location
+    post_location_id = str(comment["post_location_id"])
+    post_category_id = str(comment["post_category_id"]) if comment.get("post_category_id") else None
+    creator_role = get_highest_role_at_location(user_id, post_location_id, post_category_id)
+    if not creator_role:
+        return ErrorModel(403, "No role at this location"), 403
+
+    data = connexion.request.get_json()
+    show_creator_role = data.get("showCreatorRole")
+    if show_creator_role is None:
+        return ErrorModel(400, "showCreatorRole is required"), 400
+
+    db.execute_query(
+        "UPDATE comment SET show_creator_role = %s WHERE id = %s",
+        (show_creator_role, comment_id),
+    )
+
+    # Fetch updated comment
+    row = db.execute_query("""
+        SELECT c.*,
+               u.username AS creator_username, u.display_name AS creator_display_name,
+               u.avatar_icon_url AS creator_avatar_icon_url, u.status AS creator_status,
+               u.trust_score AS creator_trust_score,
+               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u.id AND k.status = 'sent'), 0) AS creator_kudos_count,
+               NULL AS user_vote_type, NULL AS user_vote_reason
+        FROM comment c
+        JOIN users u ON c.creator_user_id = u.id
+        WHERE c.id = %s
+    """, (comment_id,), fetchone=True)
+
+    row_dict = dict(row)
+    row_dict["creator_role"] = creator_role
+    row_dict["show_creator_role"] = show_creator_role
+    return _row_to_comment(row_dict), 200

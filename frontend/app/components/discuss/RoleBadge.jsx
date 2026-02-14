@@ -7,7 +7,16 @@ import { BrandColor, OnBrandColors } from '../../constants/Colors'
 
 // Role badge backgrounds are theme-invariant (same in light/dark) — each role
 // has a fixed brand color for instant recognition.  White text via OnBrandColors.
-const ROLE_COLORS = {
+export const ROLE_LETTERS = {
+  admin: 'A',
+  moderator: 'M',
+  facilitator: 'F',
+  assistant_moderator: 'M',
+  expert: 'E',
+  liaison: 'L',
+}
+
+export const ROLE_COLORS = {
   admin: BrandColor,
   moderator: '#1565C0',
   facilitator: '#2E7D32',

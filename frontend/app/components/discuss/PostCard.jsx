@@ -1,14 +1,16 @@
 import { useState, useMemo } from 'react'
-import { View, TouchableOpacity, StyleSheet } from 'react-native'
+import { View, TouchableOpacity, Pressable, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { Spacing, BorderRadius, Shadows, Typography } from '../../constants/Theme'
 import { SemanticColors } from '../../constants/Colors'
-import { formatRelativeTime } from '../../lib/timeUtils'
 import ThemedText from '../ThemedText'
-import RoleBadge from './RoleBadge'
+import UserCard from '../UserCard'
+import VoteControl from './VoteControl'
+import BridgingBadge from './BridgingBadge'
 import MarkdownRenderer from './MarkdownRenderer'
+import LocationCategoryBadge from '../LocationCategoryBadge'
 
 /**
  * Post card for the feed list. Supports expanding the body inline.
@@ -17,52 +19,54 @@ import MarkdownRenderer from './MarkdownRenderer'
  * @param {Object} props.post - Post object from API
  * @param {Function} props.onPress - Called when card is tapped
  * @param {Function} props.onUpvote - Called with postId when upvote is tapped
+ * @param {Function} props.onDownvote - Called with postId when downvote is tapped
+ * @param {string} [props.currentUserId] - Current user's ID (disables voting on own posts)
  */
-export default function PostCard({ post, onPress, onUpvote }) {
+export default function PostCard({ post, onPress, onUpvote, onDownvote, currentUserId }) {
   const { t } = useTranslation('discuss')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const [expanded, setExpanded] = useState(false)
 
-  const isUpvoted = post.userVote?.voteType === 'upvote'
   const isLocked = post.status === 'locked'
+  const isOwnPost = currentUserId && post.creator?.id === currentUserId
   const displayName = post.creator?.displayName || post.creator?.username || '?'
-  const username = post.creator?.username
-  const relativeTime = formatRelativeTime(post.createdTime, t)
+  const relativeTime = require('../../lib/timeUtils').formatRelativeTime(post.createdTime, t)
   const hasBody = !!post.body
 
-  const handleExpand = () => {
+  const handleExpand = (e) => {
+    e?.stopPropagation?.()
     setExpanded(prev => !prev)
   }
 
   return (
-    <TouchableOpacity
-      style={styles.card}
+    <Pressable
+      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
       onPress={onPress}
-      activeOpacity={0.7}
       accessibilityRole="button"
       accessibilityLabel={t('postCardA11y', { author: displayName, title: post.title })}
     >
       {/* Top row: badges left, age right */}
       <View style={styles.topRow}>
         <View style={styles.topRowLeft}>
-          {post.category && (
-            <ThemedText variant="caption" color="secondary">{post.category.label}</ThemedText>
-          )}
+          <LocationCategoryBadge location={post.location} category={post.category} size="md" />
           {isLocked && (
             <View style={styles.statusBadge}>
               <Ionicons name="lock-closed" size={12} color={colors.secondaryText} />
               <ThemedText variant="caption" color="secondary" style={styles.statusText}>{t('locked')}</ThemedText>
             </View>
           )}
+        </View>
+        <View style={styles.topRowRight}>
+          <BridgingBadge item={post} />
           {post.isAnswered && (
             <View style={styles.answeredBadge}>
-              <Ionicons name="checkmark-circle" size={13} color={SemanticColors.success} />
+              <Ionicons name="checkmark-circle" size={13} color="#FFFFFF" />
               <ThemedText style={styles.answeredText}>{t('answered')}</ThemedText>
             </View>
           )}
+          <ThemedText variant="caption" color="secondary">{relativeTime}</ThemedText>
         </View>
-        <ThemedText variant="caption" color="secondary">{relativeTime}</ThemedText>
       </View>
 
       {/* Title */}
@@ -102,48 +106,34 @@ export default function PostCard({ post, onPress, onUpvote }) {
         </TouchableOpacity>
       )}
 
-      {/* Bottom row: upvote, comments, role badge, author, time */}
+      {/* Bottom row: author left, actions right */}
       <View style={styles.bottomRow}>
-        <TouchableOpacity
-          style={styles.upvoteButton}
-          onPress={() => onUpvote?.(post.id)}
-          activeOpacity={0.6}
-          accessibilityRole="button"
-          accessibilityLabel={t('upvoteA11y')}
-          accessibilityState={{ selected: isUpvoted }}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Ionicons
-            name={isUpvoted ? 'chevron-up' : 'chevron-up-outline'}
-            size={18}
-            color={isUpvoted ? SemanticColors.agree : colors.secondaryText}
+        <UserCard
+          user={post.creator}
+          compact
+          discussRole={post.showCreatorRole !== false ? post.creatorRole : null}
+        />
+
+        <View style={styles.bottomActions}>
+          <View style={styles.commentCount}>
+            <Ionicons name="chatbubble-outline" size={14} color={colors.secondaryText} />
+            <ThemedText variant="caption" color="secondary">{post.commentCount || 0}</ThemedText>
+          </View>
+
+          <VoteControl
+            size="sm"
+            upvoteCount={post.upvoteCount || 0}
+            downvoteCount={post.downvoteCount || 0}
+            userVote={post.userVote}
+            onUpvote={() => onUpvote?.(post.id)}
+            onDownvote={() => onDownvote?.(post.id)}
+            authorName={displayName}
+            targetType="post"
+            disabled={isOwnPost}
           />
-          <ThemedText
-            variant="caption"
-            style={[styles.upvoteCount, isUpvoted && styles.upvoteCountActive]}
-          >
-            {post.upvoteCount || 0}
-          </ThemedText>
-        </TouchableOpacity>
-
-        <View style={styles.commentCount}>
-          <Ionicons name="chatbubble-outline" size={14} color={colors.secondaryText} />
-          <ThemedText variant="caption" color="secondary">{post.commentCount || 0}</ThemedText>
-        </View>
-
-        <View style={styles.authorSection}>
-          {post.creatorRole && <RoleBadge role={post.creatorRole} />}
-          <ThemedText variant="caption" color="secondary" numberOfLines={1} style={styles.authorName}>
-            {displayName}
-          </ThemedText>
-          {username && (
-            <ThemedText variant="caption" color="secondary" numberOfLines={1}>
-              @{username}
-            </ThemedText>
-          )}
         </View>
       </View>
-    </TouchableOpacity>
+    </Pressable>
   )
 }
 
@@ -158,6 +148,9 @@ const createStyles = (colors) => StyleSheet.create({
     borderColor: colors.cardBorder,
     ...Shadows.card,
   },
+  cardPressed: {
+    opacity: 0.7,
+  },
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -171,6 +164,12 @@ const createStyles = (colors) => StyleSheet.create({
     flexWrap: 'wrap',
     flex: 1,
   },
+  topRowRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    flexShrink: 0,
+  },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -183,10 +182,14 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
+    backgroundColor: SemanticColors.success,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
   },
   answeredText: {
     ...Typography.caption,
-    color: SemanticColors.success,
+    color: '#FFFFFF',
     fontWeight: '600',
   },
   title: {
@@ -198,6 +201,7 @@ const createStyles = (colors) => StyleSheet.create({
   expandButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 4,
     marginBottom: Spacing.md,
   },
@@ -207,33 +211,17 @@ const createStyles = (colors) => StyleSheet.create({
   bottomRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.md,
+    justifyContent: 'space-between',
   },
-  upvoteButton: {
+  bottomActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-  },
-  upvoteCount: {
-    color: colors.secondaryText,
-  },
-  upvoteCountActive: {
-    color: SemanticColors.agree,
-    fontWeight: '600',
+    gap: Spacing.sm,
+    flexShrink: 0,
   },
   commentCount: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-  },
-  authorSection: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    justifyContent: 'flex-end',
-  },
-  authorName: {
-    maxWidth: 120,
   },
 })

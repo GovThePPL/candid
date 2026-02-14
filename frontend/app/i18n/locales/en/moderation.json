@@ -94,6 +94,9 @@
   "responseBy": "Response by",
   "failedLoadHistory": "Failed to load history",
 
+  "userStatusActive": "Active",
+  "userStatusBanned": "Banned",
+
   "banDurationA11y": "Ban duration in days for {{userClass}}",
   "expandContentA11y": "Toggle content details",
   "retryA11y": "Retry loading",

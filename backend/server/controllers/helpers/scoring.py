@@ -3,13 +3,27 @@ Scoring and vote-weighting functions for posts and comments.
 
 Pure math — no DB, no network. All functions are deterministic
 (hot_score accepts an optional `now` for testability).
+
+Default parameters come from Config but can be overridden per-call
+for testing or future per-location tuning.
 """
 
 import math
 from datetime import datetime, timezone
 
+# Lazy-load config to avoid circular imports; tests can pass explicit values.
+_config = None
 
-def wilson_score(weighted_up, weighted_down):
+
+def _get_config():
+    global _config
+    if _config is None:
+        from candid.controllers.helpers.config import Config
+        _config = Config
+    return _config
+
+
+def wilson_score(weighted_up, weighted_down, z=None):
     """Lower bound of Wilson score confidence interval on weighted votes.
 
     Used as the "Best" sort for comments and posts. A comment upvoted by
@@ -19,6 +33,7 @@ def wilson_score(weighted_up, weighted_down):
     Args:
         weighted_up: Sum of vote weights for upvotes.
         weighted_down: Sum of vote weights for downvotes.
+        z: Z-score for confidence interval (default from config: 1.96).
 
     Returns:
         Wilson score lower bound (float in [0, 1]).
@@ -27,8 +42,10 @@ def wilson_score(weighted_up, weighted_down):
     if n == 0:
         return 0.0
 
+    if z is None:
+        z = _get_config().SCORING_WILSON_Z
+
     p = weighted_up / n
-    z = 1.96  # 95% confidence
 
     denominator = 1 + z * z / n
     center = p + z * z / (2 * n)
@@ -37,7 +54,7 @@ def wilson_score(weighted_up, weighted_down):
     return (center - spread) / denominator
 
 
-def hot_score(weighted_up, weighted_down, created_time, now=None):
+def hot_score(weighted_up, weighted_down, created_time, now=None, gravity=None):
     """Time-decaying score with bridging weighting.
 
     Used as the default feed sort for posts. Cross-ideology support
@@ -48,6 +65,7 @@ def hot_score(weighted_up, weighted_down, created_time, now=None):
         weighted_down: Sum of vote weights for downvotes.
         created_time: Post creation time (datetime, should be timezone-aware).
         now: Current time for testing (defaults to UTC now).
+        gravity: Time decay exponent (default from config: 1.5).
 
     Returns:
         Hot score (float). Higher = more prominent in feed.
@@ -66,7 +84,9 @@ def hot_score(weighted_up, weighted_down, created_time, now=None):
         now = now.replace(tzinfo=timezone.utc)
 
     hours = (now - created_time).total_seconds() / 3600
-    gravity = 1.5
+
+    if gravity is None:
+        gravity = _get_config().SCORING_HOT_GRAVITY
 
     return sign * order / (hours + 2) ** gravity
 
@@ -89,31 +109,39 @@ def controversial_score(weighted_up, weighted_down):
     return total * balance
 
 
-def vote_weight(voter_coords, author_coords, max_distance):
+def vote_weight(voter_coords, author_coords, max_distance,
+                weight_min=None, weight_max=None):
     """Weight a vote by ideological distance between voter and author.
 
-    Cross-ideology votes count more (up to 2x). Same-ideology votes
-    count at baseline (1x).
+    Cross-ideology votes count more (up to weight_max). Same-ideology
+    votes count at baseline (weight_min).
 
     Args:
         voter_coords: Dict with 'x', 'y' keys, or None (cold start).
         author_coords: Dict with 'x', 'y' keys, or None (cold start).
         max_distance: Max pairwise distance between cluster centroids,
                       or None if < 2 clusters.
+        weight_min: Minimum vote weight (default from config: 1.0).
+        weight_max: Maximum vote weight (default from config: 2.0).
 
     Returns:
-        Weight in [1.0, 2.0]. Returns 1.0 for cold start (missing coords
-        or max_distance).
+        Weight in [weight_min, weight_max]. Returns weight_min for cold
+        start (missing coords or max_distance).
     """
+    if weight_min is None:
+        weight_min = _get_config().SCORING_WEIGHT_MIN
+    if weight_max is None:
+        weight_max = _get_config().SCORING_WEIGHT_MAX
+
     if voter_coords is None or author_coords is None or max_distance is None:
-        return 1.0
+        return weight_min
     if max_distance <= 0:
-        return 1.0
+        return weight_min
 
     distance = ideological_distance(voter_coords, author_coords)
     normalized = min(distance / max_distance, 1.0)
 
-    return 1.0 + normalized
+    return weight_min + normalized * (weight_max - weight_min)
 
 
 def ideological_distance(coords_a, coords_b):

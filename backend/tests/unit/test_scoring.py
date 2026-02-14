@@ -66,6 +66,17 @@ class TestWilsonScore:
         # Single vote should have low confidence
         assert score < 0.5
 
+    def test_custom_z_score(self):
+        """Higher z (wider CI) produces lower Wilson score."""
+        score_default = wilson_score(7, 3, z=1.96)
+        score_wide = wilson_score(7, 3, z=2.576)  # 99% CI
+        assert score_wide < score_default
+
+    def test_custom_z_zero(self):
+        """z=0 should produce the raw proportion."""
+        score = wilson_score(7, 3, z=0.0)
+        assert abs(score - 0.7) < 1e-9
+
 
 # ---------------------------------------------------------------------------
 # hot_score
@@ -136,6 +147,24 @@ class TestHotScore:
         score = hot_score(10, 0, created, now=now)
         assert score > 0
 
+    def test_custom_gravity(self):
+        """Higher gravity -> faster time decay."""
+        now = self._now()
+        created = now - timedelta(hours=6)
+        score_low_g = hot_score(10, 0, created, now=now, gravity=1.0)
+        score_high_g = hot_score(10, 0, created, now=now, gravity=2.5)
+        assert score_low_g > score_high_g
+
+    def test_zero_gravity(self):
+        """Gravity=0 means no time decay (score stays constant)."""
+        now = self._now()
+        recent = now - timedelta(hours=1)
+        older = now - timedelta(hours=100)
+        score_recent = hot_score(10, 0, recent, now=now, gravity=0.0)
+        score_older = hot_score(10, 0, older, now=now, gravity=0.0)
+        # Without gravity, both have same sign*order; denominator is (h+2)^0 = 1
+        assert abs(score_recent - score_older) < 1e-9
+
 
 # ---------------------------------------------------------------------------
 # controversial_score
@@ -177,20 +206,20 @@ class TestVoteWeight:
         """Same position -> minimum weight (1.0)."""
         a = {"x": 1.0, "y": 2.0}
         b = {"x": 1.0, "y": 2.0}
-        assert vote_weight(a, b, 5.0) == 1.0
+        assert vote_weight(a, b, 5.0, weight_min=1.0, weight_max=2.0) == 1.0
 
     def test_max_distance(self):
         """At max distance -> weight 2.0."""
         a = {"x": 0.0, "y": 0.0}
         b = {"x": 3.0, "y": 4.0}  # distance = 5.0
-        w = vote_weight(a, b, 5.0)
+        w = vote_weight(a, b, 5.0, weight_min=1.0, weight_max=2.0)
         assert abs(w - 2.0) < 1e-9
 
     def test_partial_distance(self):
         """Partial distance -> weight between 1.0 and 2.0."""
         a = {"x": 0.0, "y": 0.0}
         b = {"x": 1.5, "y": 2.0}  # distance = 2.5, max_distance = 5.0
-        w = vote_weight(a, b, 5.0)
+        w = vote_weight(a, b, 5.0, weight_min=1.0, weight_max=2.0)
         assert 1.0 < w < 2.0
         assert abs(w - 1.5) < 1e-9
 
@@ -198,28 +227,46 @@ class TestVoteWeight:
         """Distance exceeding max_distance is capped at 2.0."""
         a = {"x": 0.0, "y": 0.0}
         b = {"x": 10.0, "y": 0.0}  # distance = 10, max = 5
-        w = vote_weight(a, b, 5.0)
+        w = vote_weight(a, b, 5.0, weight_min=1.0, weight_max=2.0)
         assert abs(w - 2.0) < 1e-9
 
     def test_no_voter_coords_fallback(self):
-        """None voter coords -> 1.0 (cold start)."""
-        assert vote_weight(None, {"x": 1, "y": 2}, 5.0) == 1.0
+        """None voter coords -> weight_min (cold start)."""
+        assert vote_weight(None, {"x": 1, "y": 2}, 5.0, weight_min=1.0, weight_max=2.0) == 1.0
 
     def test_no_author_coords_fallback(self):
-        """None author coords -> 1.0 (cold start)."""
-        assert vote_weight({"x": 1, "y": 2}, None, 5.0) == 1.0
+        """None author coords -> weight_min (cold start)."""
+        assert vote_weight({"x": 1, "y": 2}, None, 5.0, weight_min=1.0, weight_max=2.0) == 1.0
 
     def test_no_max_distance_fallback(self):
-        """None max_distance -> 1.0 (< 2 clusters)."""
+        """None max_distance -> weight_min (< 2 clusters)."""
         a = {"x": 0.0, "y": 0.0}
         b = {"x": 3.0, "y": 4.0}
-        assert vote_weight(a, b, None) == 1.0
+        assert vote_weight(a, b, None, weight_min=1.0, weight_max=2.0) == 1.0
 
     def test_zero_max_distance_fallback(self):
-        """Zero max_distance -> 1.0 (degenerate)."""
+        """Zero max_distance -> weight_min (degenerate)."""
         a = {"x": 0.0, "y": 0.0}
         b = {"x": 3.0, "y": 4.0}
-        assert vote_weight(a, b, 0) == 1.0
+        assert vote_weight(a, b, 0, weight_min=1.0, weight_max=2.0) == 1.0
+
+    def test_custom_weight_range(self):
+        """Custom min/max range (0.5 to 3.0)."""
+        a = {"x": 0.0, "y": 0.0}
+        b = {"x": 3.0, "y": 4.0}  # distance = 5.0 = max_distance
+        w = vote_weight(a, b, 5.0, weight_min=0.5, weight_max=3.0)
+        assert abs(w - 3.0) < 1e-9
+
+    def test_custom_weight_range_partial(self):
+        """Custom range, partial distance: 50% of (0.5 -> 3.0) = 1.75."""
+        a = {"x": 0.0, "y": 0.0}
+        b = {"x": 1.5, "y": 2.0}  # distance = 2.5, max = 5.0 => 50%
+        w = vote_weight(a, b, 5.0, weight_min=0.5, weight_max=3.0)
+        assert abs(w - 1.75) < 1e-9
+
+    def test_cold_start_custom_min(self):
+        """Cold start returns custom weight_min."""
+        assert vote_weight(None, None, None, weight_min=0.5, weight_max=3.0) == 0.5
 
 
 # ---------------------------------------------------------------------------

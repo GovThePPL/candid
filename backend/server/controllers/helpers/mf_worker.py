@@ -119,15 +119,27 @@ class MFWorker:
             """, (conversation_id,), fetchone=True)
 
             newest_vote = db.execute_query("""
-                SELECT MAX(cv.created_time) AS latest
-                FROM comment_vote cv
-                JOIN comment c ON cv.comment_id = c.id
-                JOIN post p ON c.post_id = p.id
-                JOIN polis_conversation pc ON p.location_id = pc.location_id
-                     AND COALESCE(p.category_id::text, '') = COALESCE(pc.category_id::text, '')
-                WHERE pc.polis_conversation_id = %s
-                  AND pc.status = 'active'
-            """, (conversation_id,), fetchone=True)
+                SELECT MAX(latest) AS latest FROM (
+                    SELECT MAX(cv.created_time) AS latest
+                    FROM comment_vote cv
+                    JOIN comment c ON cv.comment_id = c.id
+                    JOIN post p ON c.post_id = p.id
+                    JOIN polis_conversation pc ON p.location_id = pc.location_id
+                         AND COALESCE(p.category_id::text, '') = COALESCE(pc.category_id::text, '')
+                    WHERE pc.polis_conversation_id = %s
+                      AND pc.status = 'active'
+
+                    UNION ALL
+
+                    SELECT MAX(pv.created_time) AS latest
+                    FROM post_vote pv
+                    JOIN post p ON pv.post_id = p.id
+                    JOIN polis_conversation pc ON p.location_id = pc.location_id
+                         AND COALESCE(p.category_id::text, '') = COALESCE(pc.category_id::text, '')
+                    WHERE pc.polis_conversation_id = %s
+                      AND pc.status = 'active'
+                ) sub
+            """, (conversation_id, conversation_id), fetchone=True)
 
             if not newest_vote or newest_vote["latest"] is None:
                 return

@@ -52,12 +52,17 @@ export default function PostDetail() {
   const {
     flatList,
     loading: commentsLoading,
+    loadingMore,
     error: commentsError,
     sort,
     setSort,
     toggleCollapse,
     handleVote: handleCommentVote,
+    handleToggleRole: handleCommentToggleRole,
     handleCreateComment,
+    loadMore,
+    hasMore,
+    totalRootCount,
     commentCount,
   } = useCommentThread(postId)
 
@@ -170,6 +175,19 @@ export default function PostDetail() {
     }
     setDownvoteTarget({ type: 'post', id: post.id })
   }, [post, postId])
+
+  // Post role toggle
+  const handleTogglePostRole = useCallback(async (postId, show) => {
+    // Optimistic update
+    setPost(prev => prev ? { ...prev, showCreatorRole: show } : prev)
+    try {
+      await api.posts.patchPost(postId, { showCreatorRole: show })
+    } catch {
+      // Revert by re-fetching
+      const data = await api.posts.getPost(postId).catch(() => null)
+      if (data) setPost(data)
+    }
+  }, [])
 
   // Comment voting handlers
   const handleCommentUpvote = useCallback((commentId) => {
@@ -298,10 +316,11 @@ export default function PostDetail() {
           onDownvote={handleCommentDownvote}
           onReply={handleReply}
           onToggleCollapse={toggleCollapse}
+          onToggleRole={handleCommentToggleRole}
         />
       ))}
     </View>
-  ), [user?.id, isQAPost, isPostLocked, userHasQAAuthority, handleCommentUpvote, handleCommentDownvote, handleReply, toggleCollapse, styles.chainBlock])
+  ), [user?.id, isQAPost, isPostLocked, userHasQAAuthority, handleCommentUpvote, handleCommentDownvote, handleReply, toggleCollapse, handleCommentToggleRole, styles.chainBlock])
 
   const chainKeyExtractor = useCallback((item) => item[0].id, [])
 
@@ -338,8 +357,10 @@ export default function PostDetail() {
       <View style={styles.postHeaderShadow}>
         <PostHeader
           post={post}
+          currentUserId={user?.id}
           onUpvote={handlePostUpvote}
           onDownvote={handlePostDownvote}
+          onToggleRole={handleTogglePostRole}
         />
       </View>
       <View style={styles.commentSection}>
@@ -389,10 +410,18 @@ export default function PostDetail() {
         renderItem={renderChain}
         keyExtractor={chainKeyExtractor}
         ListHeaderComponent={ListHeader}
-        ListFooterComponent={<View style={{ height: 20 }} />}
+        ListFooterComponent={
+          <View style={styles.listFooter}>
+            {loadingMore && (
+              <ActivityIndicator size="small" color={colors.primary} style={styles.loadingMore} />
+            )}
+          </View>
+        }
         contentContainerStyle={styles.listContent}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
+        onEndReached={hasMore ? loadMore : undefined}
+        onEndReachedThreshold={0.5}
       />
 
       {/* Reply banner */}
@@ -576,6 +605,12 @@ const createStyles = (colors) => StyleSheet.create({
   emptyComments: {
     flex: 0,
     paddingVertical: Spacing.xxl,
+  },
+  listFooter: {
+    height: 20,
+  },
+  loadingMore: {
+    paddingVertical: Spacing.md,
   },
   replyBanner: {
     flexDirection: 'row',

@@ -7,6 +7,7 @@ import { BrandColor, OnBrandColors } from '../../constants/Colors'
 import ThemedText from '../ThemedText'
 import SwipeableCard from './SwipeableCard'
 import CardShell from '../CardShell'
+import LocationCategoryBadge from '../LocationCategoryBadge'
 
 const PairwiseCard = forwardRef(function PairwiseCard({
   pairwise,
@@ -131,14 +132,11 @@ const PairwiseCard = forwardRef(function PairwiseCard({
       >
         {/* Location & Category Header */}
         <View style={styles.contentHeader}>
-          {location?.code && (
-            <View style={styles.locationBadge}>
-              <ThemedText variant="buttonSmall" color="badge">{location.code}</ThemedText>
-            </View>
-          )}
-          <ThemedText variant="bodySmall" color="badge">
-            {category?.label || t('pairwiseDefaultCategory')}
-          </ThemedText>
+          <LocationCategoryBadge
+            location={location}
+            category={category || { label: t('pairwiseDefaultCategory') }}
+            size="lg"
+          />
         </View>
 
         {/* Question */}
@@ -228,12 +226,6 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginBottom: 16,
-  },
-  locationBadge: {
-    backgroundColor: colors.badgeBg,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
   },
   questionContainer: {
     flex: 1,

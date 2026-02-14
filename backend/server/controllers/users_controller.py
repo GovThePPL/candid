@@ -525,6 +525,14 @@ def get_user_settings(token_info=None):  # noqa: E501
 
     show_role_badge = user_row.get('show_role_badge', True) if user_row else True
 
+    # Per-type notification preferences
+    notif_type_rows = db.execute_query(
+        "SELECT notification_type, enabled FROM notification_type_preferences WHERE user_id = %s",
+        (user.id,))
+    notification_type_prefs = {}
+    for row in (notif_type_rows or []):
+        notification_type_prefs[row['notification_type']] = row['enabled']
+
     return {
         "categoryWeights": [{"categoryId": cw.category_id, "weight": cw.weight} for cw in category_weights],
         "chatRequestLikelihood": chat_request_likelihood,
@@ -535,6 +543,7 @@ def get_user_settings(token_info=None):  # noqa: E501
         "quietHoursEnd": quiet_hours_end,
         "timezone": timezone,
         "showRoleBadge": show_role_badge,
+        "notificationTypePrefs": notification_type_prefs,
     }
 
 
@@ -830,6 +839,17 @@ def update_user_settings(body, token_info=None):  # noqa: E501
     if 'showRoleBadge' in raw:
         set_clauses.append("show_role_badge = %s")
         params.append(bool(raw['showRoleBadge']))
+
+    # Per-type notification preferences
+    VALID_NOTIF_TYPES = ('comment_reply', 'post_comment', 'chat_request', 'role_change', 'moderation')
+    if 'notificationTypePrefs' in raw and isinstance(raw['notificationTypePrefs'], dict):
+        for notif_type, enabled in raw['notificationTypePrefs'].items():
+            if notif_type in VALID_NOTIF_TYPES:
+                db.execute_query("""
+                    INSERT INTO notification_type_preferences (user_id, notification_type, enabled)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (user_id, notification_type) DO UPDATE SET enabled = EXCLUDED.enabled
+                """, (user.id, notif_type, bool(enabled)))
 
     if set_clauses:
         set_clauses.append("updated_time = CURRENT_TIMESTAMP")

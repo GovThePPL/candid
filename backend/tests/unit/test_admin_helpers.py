@@ -550,6 +550,15 @@ class TestFormatRoleRequest:
         assert result['id'] == REQUEST_ID
         assert result['status'] == 'pending'
         assert result['targetUser']['username'] == 'target1'
+        # New fields fall back to defaults when not present in row
+        assert result['targetUser']['status'] == 'active'
+        assert result['targetUser']['avatarIconUrl'] is None
+        assert result['targetUser']['trustScore'] is None
+        assert result['targetUser']['kudosCount'] == 0
+        assert result['requester']['status'] == 'active'
+        assert result['requester']['avatarIconUrl'] is None
+        assert result['requester']['trustScore'] is None
+        assert result['requester']['kudosCount'] == 0
         assert result['reviewer'] is None
         assert result['denialReason'] is None
 
@@ -588,6 +597,65 @@ class TestFormatRoleRequest:
         assert result['denialReason'] == 'Not qualified'
         assert result['reviewer']['id'] == PEER_ADMIN
         assert result['reviewer']['username'] == 'peer_admin'
+        # Reviewer also gets default values for new fields
+        assert result['reviewer']['status'] == 'active'
+        assert result['reviewer']['avatarIconUrl'] is None
+        assert result['reviewer']['trustScore'] is None
+        assert result['reviewer']['kudosCount'] == 0
+
+    def test_formats_request_with_explicit_user_fields(self):
+        """New user fields (status, avatarIconUrl, trustScore, kudosCount) are serialized."""
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        from candid.controllers.admin_controller import _format_role_request
+        row = {
+            'id': REQUEST_ID,
+            'action': 'assign',
+            'target_user_id': TARGET_USER,
+            'target_username': 'target1',
+            'target_display_name': 'Target One',
+            'target_status': 'banned',
+            'target_avatar_icon_url': 'https://example.com/avatar.png',
+            'target_trust_score': 3.5,
+            'target_kudos_count': 12,
+            'role': 'moderator',
+            'location_id': OREGON,
+            'location_name': 'Oregon',
+            'location_code': 'OR',
+            'position_category_id': None,
+            'category_label': None,
+            'requested_by': ADMIN_USER,
+            'requester_username': 'admin1',
+            'requester_display_name': 'Admin One',
+            'requester_status': 'active',
+            'requester_avatar_icon_url': 'https://example.com/admin.png',
+            'requester_trust_score': 8.0,
+            'requester_kudos_count': 25,
+            'request_reason': 'Good candidate',
+            'auto_approve_at': now,
+            'created_time': now,
+            'status': 'approved',
+            'denial_reason': None,
+            'reviewer_id': PEER_ADMIN,
+            'reviewer_username': 'peer_admin',
+            'reviewer_display_name': 'Peer Admin',
+            'reviewer_status': 'active',
+            'reviewer_avatar_icon_url': None,
+            'reviewer_trust_score': 5.0,
+            'reviewer_kudos_count': 7,
+            'updated_time': now,
+        }
+        result = _format_role_request(row)
+        assert result['targetUser']['status'] == 'banned'
+        assert result['targetUser']['avatarIconUrl'] == 'https://example.com/avatar.png'
+        assert result['targetUser']['trustScore'] == 3.5
+        assert result['targetUser']['kudosCount'] == 12
+        assert result['requester']['status'] == 'active'
+        assert result['requester']['avatarIconUrl'] == 'https://example.com/admin.png'
+        assert result['requester']['trustScore'] == 8.0
+        assert result['requester']['kudosCount'] == 25
+        assert result['reviewer']['trustScore'] == 5.0
+        assert result['reviewer']['kudosCount'] == 7
 
 
 # ---------------------------------------------------------------------------

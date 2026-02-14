@@ -134,18 +134,18 @@ class TestFitMfModel:
 
         assert dist_with < dist_without
 
-    def test_comment_intercept_captures_quality(self):
-        """An all-upvote comment should have higher intercept than a split comment."""
+    def test_item_intercept_captures_quality(self):
+        """An all-upvote item should have higher intercept than a split item."""
         fit = self._get_fit()
 
-        # 20 users, 3 comments:
-        # comment 0: all upvote (universal quality)
-        # comment 1: left up, right down (polarizing)
-        # comment 2: all downvote
+        # 20 users, 3 items:
+        # item 0: all upvote (universal quality)
+        # item 1: left up, right down (polarizing)
+        # item 2: all downvote
         votes = []
         for u in range(20):
-            votes.append((u, 0, 1))   # all upvote comment 0
-            votes.append((u, 2, -1))  # all downvote comment 2
+            votes.append((u, 0, 1))   # all upvote item 0
+            votes.append((u, 2, -1))  # all downvote item 2
             if u < 10:
                 votes.append((u, 1, 1))
             else:
@@ -153,8 +153,8 @@ class TestFitMfModel:
 
         model = fit(votes, 20, 3, polis_coords={})
 
-        i_c = model["comment_intercepts"]
-        # Comment 0 (universal quality) > Comment 1 (polarizing) > Comment 2 (universal dislike)
+        i_c = model["item_intercepts"]
+        # Item 0 (universal quality) > Item 1 (polarizing) > Item 2 (universal dislike)
         assert i_c[0] > i_c[1]
         assert i_c[1] > i_c[2]
 
@@ -196,14 +196,14 @@ class TestFitMfModel:
         assert model is not None
         assert model["user_factors"].shape == (1, 2)
 
-    def test_single_comment_degenerate(self):
-        """Multiple users voting on a single comment."""
+    def test_single_item_degenerate(self):
+        """Multiple users voting on a single item."""
         fit = self._get_fit()
         votes = [(u, 0, 1 if u < 5 else -1) for u in range(10)]
 
         model = fit(votes, 10, 1, polis_coords={})
         assert model is not None
-        assert model["comment_factors"].shape == (1, 2)
+        assert model["item_factors"].shape == (1, 2)
 
 
 # ---------------------------------------------------------------------------
@@ -296,10 +296,10 @@ class TestLoadVoteMatrix:
         mock_config.MF_MIN_VOTES = 3
 
         mock_db.execute_query.return_value = [
-            {"user_id": "u1", "comment_id": "c1", "rating": 1},
-            {"user_id": "u1", "comment_id": "c2", "rating": -1},
-            {"user_id": "u2", "comment_id": "c1", "rating": -1},
-            {"user_id": "u2", "comment_id": "c2", "rating": 1},
+            {"user_id": "u1", "item_id": "c:c1", "rating": 1},
+            {"user_id": "u1", "item_id": "c:c2", "rating": -1},
+            {"user_id": "u2", "item_id": "c:c1", "rating": -1},
+            {"user_id": "u2", "item_id": "p:p1", "rating": 1},
         ]
 
         with patch(f"{MF}.db", mock_db), \
@@ -309,8 +309,12 @@ class TestLoadVoteMatrix:
 
         assert result is not None
         assert result["n_users"] == 2
-        assert result["n_comments"] == 2
+        assert result["n_items"] == 3
         assert len(result["votes"]) == 4
+        # Verify item IDs have c:/p: prefixes
+        assert "c:c1" in result["item_id_to_idx"]
+        assert "c:c2" in result["item_id_to_idx"]
+        assert "p:p1" in result["item_id_to_idx"]
 
     def test_returns_none_below_min_voters(self):
         mock_db = MagicMock()
@@ -319,7 +323,7 @@ class TestLoadVoteMatrix:
         mock_config.MF_MIN_VOTES = 50
 
         mock_db.execute_query.return_value = [
-            {"user_id": "u1", "comment_id": "c1", "rating": 1},
+            {"user_id": "u1", "item_id": "c:c1", "rating": 1},
         ]
 
         with patch(f"{MF}.db", mock_db), \
@@ -457,13 +461,13 @@ class TestStoreMfResults:
 
         model = {
             "user_factors": np.array([[0.1, 0.2], [0.3, 0.4]]),
-            "comment_intercepts": np.array([0.5, -0.3]),
+            "item_intercepts": np.array([0.5, -0.3, 0.1]),
             "final_loss": 0.01,
             "epochs": 50,
         }
         idx_maps = {
             "idx_to_user_id": {0: "u1", 1: "u2"},
-            "idx_to_comment_id": {0: "c1", 1: "c2"},
+            "idx_to_item_id": {0: "c:c1", 1: "c:c2", 2: "p:p1"},
             "n_votes": 100,
             "duration_seconds": 1.5,
         }
@@ -474,17 +478,21 @@ class TestStoreMfResults:
             _store_mf_results("conv1", model, idx_maps)
 
         # Should have called execute_query multiple times:
-        # 2 user updates + 2 comment updates + 1 bulk vote count + 1 conv lookup + 1 log insert
+        # 2 user updates + 3 item updates (2 comment + 1 post) + 1 bulk vote count + 1 conv lookup + 1 log insert
         calls = mock_db.execute_query.call_args_list
-        assert len(calls) >= 5
+        assert len(calls) >= 6
 
         # Check user coordinate updates
         user_update_calls = [c for c in calls if "mf_x" in str(c) and "UPDATE user_ideological" in str(c)]
         assert len(user_update_calls) == 2
 
-        # Check comment intercept updates
-        comment_update_calls = [c for c in calls if "mf_intercept" in str(c)]
+        # Check comment intercept updates (UPDATE comment)
+        comment_update_calls = [c for c in calls if "UPDATE comment" in str(c) and "mf_intercept" in str(c)]
         assert len(comment_update_calls) == 2
+
+        # Check post intercept updates (UPDATE post)
+        post_update_calls = [c for c in calls if "UPDATE post" in str(c) and "mf_intercept" in str(c)]
+        assert len(post_update_calls) == 1
 
         # Check training log insert
         log_calls = [c for c in calls if "mf_training_log" in str(c)]

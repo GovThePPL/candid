@@ -1330,40 +1330,63 @@ def phase_6_chats(api, all_users, positions, dry_run=False):
 
 def phase_7_kudos(api, dry_run=False):
     print("\n" + "=" * 60)
-    print("PHASE 7: Kudos")
+    print("PHASE 7: Kudos & Trust Scores")
     print("=" * 60)
 
     # Idempotency: skip if kudos already exist
     existing = db_query_one("SELECT count(*) as cnt FROM kudos")
     if existing and existing['cnt'] > 0:
         print(f"  Kudos already exist ({existing['cnt']}), skipping")
-        return
+    else:
+        # Find agreed_closure chats created by our seed (excluding test seed data)
+        chats = db_query("""
+            SELECT cl.id, cr.initiator_user_id, up.user_id as responder_user_id,
+                   u1.username as initiator_name, u2.username as responder_name
+            FROM chat_log cl
+            JOIN chat_request cr ON cl.chat_request_id = cr.id
+            JOIN user_position up ON cr.user_position_id = up.id
+            JOIN users u1 ON cr.initiator_user_id = u1.id
+            JOIN users u2 ON up.user_id = u2.id
+            WHERE cl.end_type = 'agreed_closure'
+            AND cl.id NOT IN ('b2222222-2222-2222-2222-222222222222', '1d06bf99-4d87-4700-8806-63de8c905eca')
+        """)
 
-    # Find agreed_closure chats created by our seed (excluding test seed data)
-    chats = db_query("""
-        SELECT cl.id, cr.initiator_user_id, up.user_id as responder_user_id,
-               u1.username as initiator_name, u2.username as responder_name
-        FROM chat_log cl
-        JOIN chat_request cr ON cl.chat_request_id = cr.id
-        JOIN user_position up ON cr.user_position_id = up.id
-        JOIN users u1 ON cr.initiator_user_id = u1.id
-        JOIN users u2 ON up.user_id = u2.id
-        WHERE cl.end_type = 'agreed_closure'
-        AND cl.id NOT IN ('b2222222-2222-2222-2222-222222222222', '1d06bf99-4d87-4700-8806-63de8c905eca')
-    """)
+        count = 0
+        for chat in (chats or []):
+            if dry_run:
+                count += 2
+                continue
+            chat_id = str(chat["id"])
+            # Initiator sends kudos to responder
+            if api.login(chat["initiator_name"]):
+                if api.send_kudos(chat_id):
+                    count += 1
+                    print(f"  Kudos: {chat['initiator_name']} -> {chat['responder_name']}")
+            # Responder sends kudos to initiator
+            if api.login(chat["responder_name"]):
+                if api.send_kudos(chat_id):
+                    count += 1
+                    print(f"  Kudos: {chat['responder_name']} -> {chat['initiator_name']}")
 
-    count = 0
-    for chat in (chats or []):
-        if dry_run:
-            count += 1
-            continue
-        # Initiator sends kudos
-        if api.login(chat["initiator_name"]):
-            if api.send_kudos(str(chat["id"])):
-                count += 1
-                print(f"  Kudos: {chat['initiator_name']} -> {chat['responder_name']}")
+        print(f"  Total kudos: {count}")
 
-    print(f"  Total kudos: {count}")
+    # Assign trust scores to all generated users that don't have one yet.
+    # Deterministic from username so re-runs are stable. Spread across the
+    # full range so all badge tiers (gray/bronze/silver/gold) are represented.
+    existing_ts = db_query_one("SELECT count(*) as cnt FROM users WHERE trust_score IS NOT NULL AND username LIKE '%%_user_%%'")
+    if existing_ts and existing_ts['cnt'] > 0:
+        print(f"  Trust scores already set for {existing_ts['cnt']} generated users, skipping")
+    else:
+        db_execute("""
+            UPDATE users SET trust_score = (
+                abs(('x' || substring(md5(username) from 1 for 8))::bit(32)::int)
+                % 90 + 10
+            )::decimal / 100
+            WHERE trust_score IS NULL
+            AND username NOT LIKE 'guest%%'
+        """)
+        count = db_query_one("SELECT count(*) as cnt FROM users WHERE trust_score IS NOT NULL AND username LIKE '%%_user_%%'")
+        print(f"  Trust scores assigned to {count['cnt'] if count else 0} generated users")
 
 
 # ---------------------------------------------------------------------------
@@ -2601,6 +2624,7 @@ SEED_COMMENTS = {
          "author_prefix": "cen"},
     ],
     4: [  # Property tax question (Q&A — answered by moderator)
+        # Top-level answers must be from users with QA authority (moderator/admin)
         {"body": "Great question! Oregon's property tax system is unique because of two ballot "
                  "measures. **Measure 5** (1990) capped tax rates, and **Measure 50** (1997) "
                  "froze assessed values at 1995-96 levels with a max 3% annual increase.\n\n"
@@ -2609,7 +2633,8 @@ SEED_COMMENTS = {
                  "assessed values — and therefore different tax bills — for identical houses.\n\n"
                  "It's controversial because long-time owners benefit while new buyers pay more, "
                  "and it reduces revenue for schools and services over time.",
-         "author_prefix": "mod", "replies": [
+         "author_prefix": "moderator", "replies": [
+            # Normal users can reply to moderator answers
             {"body": "This is a really clear explanation, thank you! So if I bought my house "
                      "recently, I'm probably paying more than my neighbor who's been there 20 years?",
              "author_prefix": "normal"},
@@ -2617,26 +2642,18 @@ SEED_COMMENTS = {
                      "value on the county assessor's website. The gap can be eye-opening.",
              "author_prefix": "cen"},
         ]},
-        {"body": "I moved from California which has a similar system (Prop 13). The main "
-                 "difference is Oregon's rate cap on top of the assessment freeze.",
-         "author_prefix": "lib", "replies": [
-            {"body": "Prop 13 is even more extreme — no 3% cap on increases in California, "
-                     "it's 2%. Oregon's system is actually more moderate.",
-             "author_prefix": "mod"},
+        {"body": "To add to the other answer — I moved from California which has a similar "
+                 "system (Prop 13). The main difference is Oregon's rate cap on top of the "
+                 "assessment freeze. Prop 13 is even more extreme — 2% cap vs. Oregon's 3%.",
+         "author_prefix": "moderator", "replies": [
+            {"body": "Interesting comparison. Does Oregon have any ballot measures in the "
+                     "works to reform property taxes?",
+             "author_prefix": "lib"},
         ]},
     ],
-    5: [  # Local government question (Q&A — NOT answered, only normal users)
-        {"body": "Neighborhood associations are definitely still a thing! I attend mine monthly. "
-                 "It's a great way to hear about development proposals in your area.",
-         "author_prefix": "normal", "replies": [
-            {"body": "I tried going to mine but it felt dominated by retirees who oppose "
-                     "everything. Is that common?",
-             "author_prefix": "prog"},
-        ]},
-        {"body": "Budget committee meetings are open to the public and you'd be surprised "
-                 "how few people show up. Your voice carries a lot of weight there.",
-         "author_prefix": "cen"},
-    ],
+    # Post 5: Q&A — unanswered. No elevated user has answered yet, so normal
+    # users cannot comment (backend enforces top-level = QA authority only).
+    # 5: [],
     6: [  # Climate post
         {"body": "Individual action is important but it's a drop in the bucket compared "
                  "to what corporations produce. 100 companies cause 71% of emissions.",
@@ -2683,6 +2700,7 @@ SEED_COMMENTS = {
          "author_prefix": "pop"},
     ],
     8: [  # Mental health Q&A (answered by moderator)
+        # Top-level answers from users with QA authority
         {"body": "A few resources that might help:\n\n"
                  "- **Cascadia Behavioral Healthcare** — sliding scale, walk-in crisis services\n"
                  "- **Outside In** — free/low-cost for young adults under 25\n"
@@ -2690,18 +2708,19 @@ SEED_COMMENTS = {
                  "- **NAMI Multnomah** — free support groups and peer mentoring\n\n"
                  "For the waitlist issue, ask specifically about *cancellation lists* — "
                  "providers often can fit you in sooner if you're flexible with scheduling.",
-         "author_prefix": "mod", "replies": [
+         "author_prefix": "moderator", "replies": [
+            # Normal users can reply to moderator answers
             {"body": "Thank you for this list! The cancellation list tip is really helpful. "
                      "I'll pass this along.",
              "author_prefix": "normal"},
+            {"body": "Also worth looking into Open Path Collective — it's a network of therapists "
+                     "who offer sessions at $30-$80. Not Portland-specific but many local providers "
+                     "are on there.",
+             "author_prefix": "lib"},
+            {"body": "If your friend is a veteran, the VA Portland has expanded their mental "
+                     "health services significantly. No referral needed for the crisis line.",
+             "author_prefix": "con"},
         ]},
-        {"body": "Also worth looking into Open Path Collective — it's a network of therapists "
-                 "who offer sessions at $30-$80. Not Portland-specific but many local providers "
-                 "are on there.",
-         "author_prefix": "lib"},
-        {"body": "If your friend is a veteran, the VA Portland has expanded their mental "
-                 "health services significantly. No referral needed for the crisis line.",
-         "author_prefix": "con"},
     ],
     9: [  # Gun policy post
         {"body": "I'm a gun owner who supports universal background checks. Most gun "
@@ -2821,23 +2840,9 @@ SEED_COMMENTS = {
                  "steelman the opposing position, you don't understand the measure well enough.",
          "author_prefix": "mod"},
     ],
-    13: [  # Police oversight Q&A (unanswered — no mod/admin comments)
-        {"body": "From what I understand, the new board can investigate complaints and recommend "
-                 "discipline, but the Police Bureau still makes the final call on punishment. "
-                 "So it's oversight in name but limited in practice.",
-         "author_prefix": "prog", "replies": [
-            {"body": "That's the key issue. Without binding authority, it's just an advisory "
-                     "board with extra steps.",
-             "author_prefix": "soc"},
-        ]},
-        {"body": "Board members are selected through an application process — a mix of "
-                 "community members. They're supposed to reflect the city's demographics.",
-         "author_prefix": "cen"},
-        {"body": "I served on a similar board in another city. The biggest challenge isn't "
-                 "the structure — it's access to information. Police unions fight transparency "
-                 "at every turn.",
-         "author_prefix": "normal"},
-    ],
+    # Post 13: Q&A — unanswered. No elevated user has answered yet, so normal
+    # users cannot comment (backend enforces top-level = QA authority only).
+    # 13: [],
     # Post 14 (financial literacy) intentionally has NO comments — tests empty state
 }
 
@@ -2867,8 +2872,10 @@ def phase_12_posts(location_id, category_map, dry_run=False):
 
     user_map = {}  # prefix -> list of user dicts
     for u in all_users:
-        for prefix in ["prog", "lib", "socdem", "soc", "mod", "cen",
-                        "libt", "con", "pop", "trad", "normal", "admin"]:
+        # "moderator" must come before "mod" so moderator1/moderator2 don't
+        # get lumped with mod_user_* (moderate political leaning) users.
+        for prefix in ["prog", "lib", "socdem", "soc", "moderator", "mod",
+                        "cen", "libt", "con", "pop", "trad", "normal", "admin"]:
             if u["username"].startswith(prefix):
                 user_map.setdefault(prefix, []).append(u)
                 break

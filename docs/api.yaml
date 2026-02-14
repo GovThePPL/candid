@@ -204,6 +204,17 @@ components:
         showRoleBadge:
           type: boolean
           description: Whether to display role badge on posts and comments
+        notificationTypePrefs:
+          type: object
+          description: Per-type notification preferences. Absent keys default to enabled.
+          additionalProperties:
+            type: boolean
+          example:
+            comment_reply: true
+            post_comment: true
+            chat_request: true
+            role_change: true
+            moderation: true
 
     UserDemographics:
       type: object
@@ -759,23 +770,14 @@ components:
           type: string
           nullable: true
         reporter:
-          type: object
           nullable: true
-          properties:
-            displayName:
-              type: string
-            username:
-              type: string
+          allOf:
+            - $ref: '#/components/schemas/User'
         reportReason:
           type: string
           nullable: true
         moderator:
-          type: object
-          properties:
-            displayName:
-              type: string
-            username:
-              type: string
+          $ref: '#/components/schemas/User'
         moderatorComment:
           type: string
           nullable: true
@@ -784,13 +786,9 @@ components:
           nullable: true
           enum: [pending, approved, denied, escalated, modified, overruled]
         appealUser:
-          type: object
           nullable: true
-          properties:
-            displayName:
-              type: string
-            username:
-              type: string
+          allOf:
+            - $ref: '#/components/schemas/User'
         appealText:
           type: string
           nullable: true
@@ -801,12 +799,7 @@ components:
             type: object
             properties:
               responder:
-                type: object
-                properties:
-                  displayName:
-                    type: string
-                  username:
-                    type: string
+                $ref: '#/components/schemas/User'
               responseText:
                 type: string
               outcome:
@@ -1577,15 +1570,7 @@ components:
           type: string
           enum: [assign, remove]
         targetUser:
-          type: object
-          properties:
-            id:
-              type: string
-              format: uuid
-            username:
-              type: string
-            displayName:
-              type: string
+          $ref: '#/components/schemas/User'
         role:
           type: string
           enum: [admin, moderator, facilitator, assistant_moderator, expert, liaison]
@@ -1610,15 +1595,7 @@ components:
             label:
               type: string
         requester:
-          type: object
-          properties:
-            id:
-              type: string
-              format: uuid
-            username:
-              type: string
-            displayName:
-              type: string
+          $ref: '#/components/schemas/User'
         reason:
           type: string
           nullable: true
@@ -1636,16 +1613,9 @@ components:
           type: string
           nullable: true
         reviewer:
-          type: object
           nullable: true
-          properties:
-            id:
-              type: string
-              format: uuid
-            username:
-              type: string
-            displayName:
-              type: string
+          allOf:
+            - $ref: '#/components/schemas/User'
         updatedTime:
           type: string
           format: date-time
@@ -2231,6 +2201,8 @@ components:
                   format: uuid
                 displayName:
                   type: string
+                username:
+                  type: string
                 userType:
                   type: string
                 trustScore:
@@ -2740,6 +2712,15 @@ components:
           type: string
           nullable: true
           description: Highest approved role at post location (null if no role or badge hidden)
+        showCreatorRole:
+          type: boolean
+          nullable: true
+          description: Whether creator role badge is shown on this post (only returned for own posts)
+        bridgingScore:
+          type: number
+          format: double
+          nullable: true
+          description: MF intercept measuring cross-ideology approval. Null until MF trains.
         isAnswered:
           type: boolean
           nullable: true
@@ -2856,6 +2837,10 @@ components:
           type: string
           nullable: true
           description: Highest role at post location for Q&A badge display
+        showCreatorRole:
+          type: boolean
+          nullable: true
+          description: Whether creator role badge is shown on this comment (only returned for own comments)
         upvoteCount:
           type: integer
         downvoteCount:
@@ -2869,6 +2854,11 @@ components:
         score:
           type: number
           format: double
+        bridgingScore:
+          type: number
+          format: double
+          nullable: true
+          description: MF intercept measuring cross-ideology approval. Null until MF trains.
         childCount:
           type: integer
         userVote:
@@ -2887,6 +2877,27 @@ components:
         updatedTime:
           type: string
           format: date-time
+
+    CommentPage:
+      type: object
+      required:
+        - comments
+        - hasMore
+      properties:
+        comments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Comment'
+        nextCursor:
+          type: string
+          nullable: true
+          description: Opaque cursor for fetching the next page. Null if no more pages.
+        hasMore:
+          type: boolean
+          description: Whether more root comments exist beyond this page.
+        totalRootCount:
+          type: integer
+          description: Total number of root-level comments on the post.
 
     CreateCommentRequest:
       type: object
@@ -6500,28 +6511,9 @@ paths:
                       type: string
                       enum: [ban, unban]
                     targetUser:
-                      type: object
-                      properties:
-                        id:
-                          type: string
-                          format: uuid
-                        username:
-                          type: string
-                        displayName:
-                          type: string
-                        avatarIconUrl:
-                          type: string
-                          nullable: true
+                      $ref: '#/components/schemas/User'
                     performedBy:
-                      type: object
-                      properties:
-                        id:
-                          type: string
-                          format: uuid
-                        username:
-                          type: string
-                        displayName:
-                          type: string
+                      $ref: '#/components/schemas/User'
                     reason:
                       type: string
                     createdTime:
@@ -7108,6 +7100,54 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
+    patch:
+      operationId: patchPost
+      summary: Patch a post (toggle role badge visibility)
+      tags:
+        - Posts
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                showCreatorRole:
+                  type: boolean
+      responses:
+        '200':
+          description: Post patched
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Post'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '403':
+          description: Not author or no role
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
 
   /posts/{postId}/lock:
     post:
@@ -7209,15 +7249,26 @@ paths:
           schema:
             type: string
             format: uuid
+        - name: cursor
+          in: query
+          schema:
+            type: string
+          description: Opaque cursor for pagination (base64-encoded path of last root comment)
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+          description: Max number of root comments per page (descendants always included)
       responses:
         '200':
-          description: Comment list
+          description: Paginated comment list
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Comment'
+                $ref: '#/components/schemas/CommentPage'
         '404':
           description: Post not found
           content:
@@ -7329,6 +7380,54 @@ paths:
           description: Comment deleted
         '403':
           description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: Comment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+    patch:
+      operationId: patchComment
+      summary: Patch a comment (toggle role badge visibility)
+      tags:
+        - Comments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: commentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                showCreatorRole:
+                  type: boolean
+      responses:
+        '200':
+          description: Comment patched
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '403':
+          description: Not author or no role
           content:
             application/json:
               schema:

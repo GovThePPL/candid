@@ -119,6 +119,36 @@ export default function usePostsFeed(locationId, categoryId, postType) {
     }
   }, [fetchPosts])
 
+  const handleDownvote = useCallback(async (postId, reason) => {
+    // Optimistic update
+    setPosts(prev => prev.map(p => {
+      if (p.id !== postId) return p
+      const wasDownvoted = p.userVote?.voteType === 'downvote'
+      return {
+        ...p,
+        userVote: wasDownvoted ? null : { voteType: 'downvote', downvoteReason: reason },
+        downvoteCount: wasDownvoted ? p.downvoteCount - 1 : p.downvoteCount + 1,
+        upvoteCount: p.userVote?.voteType === 'upvote' ? p.upvoteCount - 1 : p.upvoteCount,
+      }
+    }))
+
+    try {
+      const result = await api.posts.voteOnPost(postId, { voteType: 'downvote', downvoteReason: reason })
+      setPosts(prev => prev.map(p => {
+        if (p.id !== postId) return p
+        return {
+          ...p,
+          userVote: result.userVote,
+          upvoteCount: result.upvoteCount,
+          downvoteCount: result.downvoteCount,
+          score: result.score,
+        }
+      }))
+    } catch (err) {
+      fetchPosts()
+    }
+  }, [fetchPosts])
+
   // Refetch when dependencies change
   useEffect(() => {
     fetchPosts()
@@ -139,5 +169,6 @@ export default function usePostsFeed(locationId, categoryId, postType) {
     loadMore,
     handleRefresh,
     handleUpvote,
+    handleDownvote,
   }
 }

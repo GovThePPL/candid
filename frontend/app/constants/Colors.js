@@ -23,6 +23,7 @@ export const SemanticColors = {
   pending: "#B58900",
   neutral: "#757575",
   overlay: "rgba(0, 0, 0, 0.5)",
+  bridging: "#00796B",
 }
 
 // Text/icon colors for content placed on BrandColor surfaces (card headers/footers)
@@ -35,7 +36,7 @@ export const OnBrandColors = {
 
 // Badge colors (same in both themes)
 export const BadgeColors = {
-  trustBadgeGray: "#CCCCCC",
+  trustBadgePurple: "#5C005C",
   trustBadgeBronze: "#E8B887",
   trustBadgeSilver: "#D8D8D8",
   trustBadgeGold: "#FFD966",

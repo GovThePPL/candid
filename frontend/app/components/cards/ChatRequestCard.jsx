@@ -6,9 +6,9 @@ import { useThemeColors } from '../../hooks/useThemeColors'
 import { BrandColor, OnBrandColors } from '../../constants/Colors'
 import ThemedText from '../ThemedText'
 import SwipeableCard from './SwipeableCard'
-import Avatar from '../Avatar'
 import CardShell from '../CardShell'
 import PositionInfoCard from '../PositionInfoCard'
+import UserCard from '../UserCard'
 
 const ChatRequestCard = forwardRef(function ChatRequestCard({
   chatRequest,
@@ -35,11 +35,7 @@ const ChatRequestCard = forwardRef(function ChatRequestCard({
 
         {/* User Info Pill */}
         <View style={styles.userPill}>
-          <Avatar user={requester} size="md" showKudosCount badgePosition="bottom-left" />
-          <View style={styles.userTextContainer}>
-            <ThemedText variant="label" color="dark">{requester?.displayName || t('anonymous')}</ThemedText>
-            <ThemedText variant="caption" color="secondary">@{requester?.username || t('anonymousUsername')}</ThemedText>
-          </View>
+          <UserCard user={requester} avatarSize="md" />
         </View>
       </View>
     </View>

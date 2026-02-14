@@ -15,6 +15,7 @@ import LocationCategorySelector from '../../../components/LocationCategorySelect
 import FeedTabBar from '../../../components/discuss/FeedTabBar'
 import SortDropdown from '../../../components/discuss/SortDropdown'
 import PostCard from '../../../components/discuss/PostCard'
+import DownvoteReasonPicker from '../../../components/discuss/DownvoteReasonPicker'
 import EmptyState from '../../../components/EmptyState'
 import ThemedText from '../../../components/ThemedText'
 
@@ -46,7 +47,11 @@ export default function DiscussFeed() {
     loadMore,
     handleRefresh,
     handleUpvote,
+    handleDownvote,
   } = usePostsFeed(selectedLocation, selectedCategory, postType)
+
+  // Downvote reason picker state
+  const [downvotePostId, setDownvotePostId] = useState(null)
 
   // Reset answered filter when switching tabs
   const handleTabChange = useCallback((tab) => {
@@ -58,13 +63,33 @@ export default function DiscussFeed() {
     router.push({ pathname: '/discuss/[id]', params: { id: post.id } })
   }, [router])
 
+  const handlePostDownvote = useCallback((postId) => {
+    const post = posts.find(p => p.id === postId)
+    if (post?.userVote?.voteType === 'downvote') {
+      // Already downvoted — toggle off
+      handleDownvote(postId, post.userVote.downvoteReason || 'disagree')
+    } else {
+      // Show reason picker
+      setDownvotePostId(postId)
+    }
+  }, [posts, handleDownvote])
+
+  const handleDownvoteReasonSelect = useCallback((reason) => {
+    if (downvotePostId) {
+      handleDownvote(downvotePostId, reason)
+      setDownvotePostId(null)
+    }
+  }, [downvotePostId, handleDownvote])
+
   const renderPostCard = useCallback(({ item }) => (
     <PostCard
       post={item}
       onPress={() => handlePostPress(item)}
       onUpvote={handleUpvote}
+      onDownvote={handlePostDownvote}
+      currentUserId={user?.id}
     />
-  ), [handlePostPress, handleUpvote])
+  ), [handlePostPress, handleUpvote, handlePostDownvote, user?.id])
 
   const keyExtractor = useCallback((item) => item.id, [])
 
@@ -189,6 +214,13 @@ export default function DiscussFeed() {
       >
         <Ionicons name="add" size={28} color="#FFFFFF" />
       </TouchableOpacity>
+
+      {/* Downvote reason picker */}
+      <DownvoteReasonPicker
+        visible={downvotePostId != null}
+        onClose={() => setDownvotePostId(null)}
+        onSelect={handleDownvoteReasonSelect}
+      />
     </View>
   )
 }

@@ -713,7 +713,13 @@ def get_pending_role_requests(token_info=None):  # noqa: E501
                rcr.requested_by, rcr.requester_authority_location_id,
                rcr.request_reason, rcr.auto_approve_at, rcr.created_time,
                u_target.username AS target_username, u_target.display_name AS target_display_name,
+               u_target.avatar_icon_url AS target_avatar_icon_url,
+               u_target.status AS target_status, u_target.trust_score AS target_trust_score,
+               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u_target.id AND k.status = 'sent'), 0) AS target_kudos_count,
                u_req.username AS requester_username, u_req.display_name AS requester_display_name,
+               u_req.avatar_icon_url AS requester_avatar_icon_url,
+               u_req.status AS requester_status, u_req.trust_score AS requester_trust_score,
+               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u_req.id AND k.status = 'sent'), 0) AS requester_kudos_count,
                l.name AS location_name, l.code AS location_code,
                pc.label AS category_label
         FROM role_change_request rcr
@@ -737,6 +743,10 @@ def get_pending_role_requests(token_info=None):  # noqa: E501
                     'id': str(r['target_user_id']),
                     'username': r['target_username'],
                     'displayName': r['target_display_name'],
+                    'status': r.get('target_status', 'active'),
+                    'avatarIconUrl': r.get('target_avatar_icon_url'),
+                    'trustScore': float(r['target_trust_score']) if r.get('target_trust_score') is not None else None,
+                    'kudosCount': r.get('target_kudos_count', 0),
                 },
                 'role': r['role'],
                 'location': {
@@ -752,6 +762,10 @@ def get_pending_role_requests(token_info=None):  # noqa: E501
                     'id': str(r['requested_by']),
                     'username': r['requester_username'],
                     'displayName': r['requester_display_name'],
+                    'status': r.get('requester_status', 'active'),
+                    'avatarIconUrl': r.get('requester_avatar_icon_url'),
+                    'trustScore': float(r['requester_trust_score']) if r.get('requester_trust_score') is not None else None,
+                    'kudosCount': r.get('requester_kudos_count', 0),
                 },
                 'reason': r.get('request_reason'),
                 'autoApproveAt': r['auto_approve_at'].isoformat() if r.get('auto_approve_at') else None,
@@ -851,11 +865,20 @@ _ROLE_REQUEST_SELECT = """
            rcr.request_reason, rcr.auto_approve_at, rcr.created_time,
            rcr.status, rcr.denial_reason, rcr.updated_time,
            u_target.username AS target_username, u_target.display_name AS target_display_name,
+           u_target.avatar_icon_url AS target_avatar_icon_url,
+           u_target.status AS target_status, u_target.trust_score AS target_trust_score,
+           COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u_target.id AND k.status = 'sent'), 0) AS target_kudos_count,
            u_req.username AS requester_username, u_req.display_name AS requester_display_name,
+           u_req.avatar_icon_url AS requester_avatar_icon_url,
+           u_req.status AS requester_status, u_req.trust_score AS requester_trust_score,
+           COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u_req.id AND k.status = 'sent'), 0) AS requester_kudos_count,
            l.name AS location_name, l.code AS location_code,
            pc.label AS category_label,
            u_rev.id AS reviewer_id, u_rev.username AS reviewer_username,
-           u_rev.display_name AS reviewer_display_name
+           u_rev.display_name AS reviewer_display_name,
+           u_rev.avatar_icon_url AS reviewer_avatar_icon_url,
+           u_rev.status AS reviewer_status, u_rev.trust_score AS reviewer_trust_score,
+           COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u_rev.id AND k.status = 'sent'), 0) AS reviewer_kudos_count
     FROM role_change_request rcr
     JOIN users u_target ON rcr.target_user_id = u_target.id
     JOIN users u_req ON rcr.requested_by = u_req.id
@@ -1490,7 +1513,12 @@ def get_admin_actions(token_info=None):  # noqa: E501
         SELECT aal.id, aal.action, aal.target_user_id, aal.performed_by, aal.reason, aal.created_time,
                u_target.username AS target_username, u_target.display_name AS target_display_name,
                u_target.avatar_icon_url AS target_avatar_icon_url,
-               u_performer.username AS performer_username, u_performer.display_name AS performer_display_name
+               u_target.status AS target_status, u_target.trust_score AS target_trust_score,
+               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u_target.id AND k.status = 'sent'), 0) AS target_kudos_count,
+               u_performer.username AS performer_username, u_performer.display_name AS performer_display_name,
+               u_performer.avatar_icon_url AS performer_avatar_icon_url,
+               u_performer.status AS performer_status, u_performer.trust_score AS performer_trust_score,
+               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u_performer.id AND k.status = 'sent'), 0) AS performer_kudos_count
         FROM admin_action_log aal
         JOIN users u_target ON aal.target_user_id = u_target.id
         JOIN users u_performer ON aal.performed_by = u_performer.id
@@ -1506,12 +1534,19 @@ def get_admin_actions(token_info=None):  # noqa: E501
                 'id': str(r['target_user_id']),
                 'username': r['target_username'],
                 'displayName': r['target_display_name'],
+                'status': r.get('target_status', 'active'),
                 'avatarIconUrl': r.get('target_avatar_icon_url'),
+                'trustScore': float(r['target_trust_score']) if r.get('target_trust_score') is not None else None,
+                'kudosCount': r.get('target_kudos_count', 0),
             },
             'performedBy': {
                 'id': str(r['performed_by']),
                 'username': r['performer_username'],
                 'displayName': r['performer_display_name'],
+                'status': r.get('performer_status', 'active'),
+                'avatarIconUrl': r.get('performer_avatar_icon_url'),
+                'trustScore': float(r['performer_trust_score']) if r.get('performer_trust_score') is not None else None,
+                'kudosCount': r.get('performer_kudos_count', 0),
             },
             'reason': r['reason'],
             'createdTime': r['created_time'].isoformat() if r.get('created_time') else None,

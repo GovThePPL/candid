@@ -80,15 +80,15 @@ describe('CommentItem', () => {
     expect(screen.getByText('5')).toBeTruthy()
   })
 
-  it('shows RoleBadge when creatorRole is present', () => {
+  it('shows role overlay when creatorRole is present', () => {
     const comment = { ...baseComment, creatorRole: 'moderator' }
     render(<CommentItem {...defaultProps} comment={comment} />)
-    expect(screen.getByText('roleModerator')).toBeTruthy()
+    expect(screen.getByTestId('role-overlay')).toBeTruthy()
   })
 
-  it('does not show RoleBadge when creatorRole is null', () => {
+  it('does not show role overlay when creatorRole is null', () => {
     render(<CommentItem {...defaultProps} />)
-    expect(screen.queryByText('roleModerator')).toBeNull()
+    expect(screen.queryByTestId('role-overlay')).toBeNull()
   })
 
   it('calls onUpvote when upvote button pressed', () => {
@@ -187,5 +187,53 @@ describe('CommentItem', () => {
     fireEvent.press(screen.getByLabelText('commentOptionsA11y TestUser'))
     expect(screen.getByText('commentOptions')).toBeTruthy()
     expect(screen.getByText('report')).toBeTruthy()
+  })
+
+  it('shows "Hide role badge" option when own comment has creatorRole', () => {
+    const comment = { ...baseComment, creatorRole: 'moderator', showCreatorRole: true }
+    render(<CommentItem {...defaultProps} comment={comment} currentUserId="u1" onToggleRole={jest.fn()} />)
+    fireEvent.press(screen.getByLabelText('commentOptionsA11y TestUser'))
+    expect(screen.getByText('hideRoleBadge')).toBeTruthy()
+  })
+
+  it('shows "Show role badge" option when own comment has creatorRole hidden', () => {
+    const comment = { ...baseComment, creatorRole: 'moderator', showCreatorRole: false }
+    render(<CommentItem {...defaultProps} comment={comment} currentUserId="u1" onToggleRole={jest.fn()} />)
+    fireEvent.press(screen.getByLabelText('commentOptionsA11y TestUser'))
+    expect(screen.getByText('showRoleBadge')).toBeTruthy()
+  })
+
+  it('does not show role toggle for other users comments', () => {
+    const comment = { ...baseComment, creatorRole: 'moderator' }
+    render(<CommentItem {...defaultProps} comment={comment} currentUserId="u2" />)
+    fireEvent.press(screen.getByLabelText('commentOptionsA11y TestUser'))
+    expect(screen.queryByText('hideRoleBadge')).toBeNull()
+    expect(screen.queryByText('showRoleBadge')).toBeNull()
+  })
+
+  it('does not show role toggle when user has no role', () => {
+    // creatorRole is null — no role at this location
+    render(<CommentItem {...defaultProps} currentUserId="u1" />)
+    fireEvent.press(screen.getByLabelText('commentOptionsA11y TestUser'))
+    expect(screen.queryByText('hideRoleBadge')).toBeNull()
+    expect(screen.queryByText('showRoleBadge')).toBeNull()
+  })
+
+  it('calls onToggleRole with correct args when toggling off', () => {
+    const onToggleRole = jest.fn()
+    const comment = { ...baseComment, creatorRole: 'moderator', showCreatorRole: true }
+    render(<CommentItem {...defaultProps} comment={comment} currentUserId="u1" onToggleRole={onToggleRole} />)
+    fireEvent.press(screen.getByLabelText('commentOptionsA11y TestUser'))
+    fireEvent.press(screen.getByText('hideRoleBadge'))
+    expect(onToggleRole).toHaveBeenCalledWith('c1', false)
+  })
+
+  it('calls onToggleRole with correct args when toggling on', () => {
+    const onToggleRole = jest.fn()
+    const comment = { ...baseComment, creatorRole: 'moderator', showCreatorRole: false }
+    render(<CommentItem {...defaultProps} comment={comment} currentUserId="u1" onToggleRole={onToggleRole} />)
+    fireEvent.press(screen.getByLabelText('commentOptionsA11y TestUser'))
+    fireEvent.press(screen.getByText('showRoleBadge'))
+    expect(onToggleRole).toHaveBeenCalledWith('c1', true)
   })
 })

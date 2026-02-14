@@ -94,6 +94,9 @@
   "responseBy": "Respuesta de",
   "failedLoadHistory": "No se pudo cargar el historial",
 
+  "userStatusActive": "Activo",
+  "userStatusBanned": "Baneado",
+
   "banDurationA11y": "Duración del ban en días para {{userClass}}",
   "expandContentA11y": "Alternar detalles del contenido",
   "retryA11y": "Reintentar carga",

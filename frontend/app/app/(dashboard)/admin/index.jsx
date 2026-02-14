@@ -11,6 +11,7 @@ import api from '../../../lib/api'
 import ThemedText from '../../../components/ThemedText'
 import Header from '../../../components/Header'
 import Avatar from '../../../components/Avatar'
+import UserCard from '../../../components/UserCard'
 
 const ROLE_RANK = ['admin', 'moderator', 'facilitator', 'assistant_moderator', 'expert', 'liaison']
 
@@ -84,11 +85,7 @@ export default function AdminHub() {
           ) : (
             <>
               <View style={styles.userCardRow}>
-                <Avatar user={user} size={40} showKudosBadge={true} />
-                <View style={styles.userCardInfo}>
-                  <ThemedText variant="button" color="dark" numberOfLines={1}>{user?.displayName}</ThemedText>
-                  <ThemedText variant="caption" color="secondary">@{user?.username}</ThemedText>
-                </View>
+                <UserCard user={user} avatarSize={40} nameVariant="button" />
               </View>
               <View style={styles.rolesList}>
                 {sortedRoles.map((r, i) => (

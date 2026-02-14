@@ -3,7 +3,8 @@ import { memo, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../hooks/useThemeColors'
 import ThemedText from './ThemedText'
-import Avatar from './Avatar'
+import UserCard from './UserCard'
+import LocationCategoryBadge from './LocationCategoryBadge'
 
 /**
  * Reusable card section displaying position info:
@@ -47,16 +48,7 @@ export default memo(function PositionInfoCard({
 
       {/* Header row: Category/Location on left, optional content on right */}
       <View style={styles.headerRow}>
-        <View style={styles.headerLeft}>
-          {location?.code && (
-            <View style={styles.locationBadge}>
-              <ThemedText variant={isFull ? 'buttonSmall' : 'caption'} color="badge" style={styles.locationText}>{location.code}</ThemedText>
-            </View>
-          )}
-          {category?.label && (
-            <ThemedText variant={isFull ? 'bodySmall' : 'caption'} color="badge">{category.label}</ThemedText>
-          )}
-        </View>
+        <LocationCategoryBadge location={location} category={category} size={isFull ? 'lg' : 'md'} />
         {headerRight}
       </View>
 
@@ -84,19 +76,12 @@ export default memo(function PositionInfoCard({
       {/* Creator info */}
       {creator && (
         <View style={styles.creatorRow}>
-          <Avatar
-            user={creator}
-            size={isFull ? 'md' : 32}
-            showKudosCount
-            badgePosition="bottom-left"
-          />
-          <View style={styles.creatorInfo}>
-            <ThemedText variant={isFull ? 'buttonSmall' : 'label'}>{creator.displayName || t('anonymous')}</ThemedText>
-            <ThemedText variant="caption" color="secondary" style={styles.creatorSubtitle}>
-              {authorSubtitle === 'username'
-                ? `@${creator.username || t('anonymousUsername')}`
-                : creator.userType || 'user'}
-            </ThemedText>
+          <View style={styles.creatorCenter}>
+            <UserCard
+              user={creator}
+              avatarSize={isFull ? 'md' : 32}
+              nameVariant={isFull ? 'buttonSmall' : 'label'}
+            />
           </View>
         </View>
       )}
@@ -121,21 +106,6 @@ const createStyles = (colors, isFull) => StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 8,
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-  },
-  locationBadge: {
-    backgroundColor: colors.badgeBg,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  locationText: {
-    fontWeight: '500',
-  },
   statementContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -153,6 +123,9 @@ const createStyles = (colors, isFull) => StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.cardBorder,
     gap: 10,
+  },
+  creatorCenter: {
+    alignItems: 'center',
   },
   creatorInfo: {},
   creatorSubtitle: {

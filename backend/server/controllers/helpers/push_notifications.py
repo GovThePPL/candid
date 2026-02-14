@@ -103,6 +103,46 @@ def send_chat_request_notification(push_token, initiator_display_name, position_
     )
 
 
+def _is_notification_type_enabled(user_id, notification_type, db):
+    """Check if a notification type is enabled for a user.
+
+    Absent rows default to enabled.
+    """
+    pref = db.execute_query(
+        "SELECT enabled FROM notification_type_preferences "
+        "WHERE user_id = %s AND notification_type = %s",
+        (str(user_id), notification_type), fetchone=True)
+    if pref and not pref["enabled"]:
+        return False
+    return True
+
+
+def send_comment_reply_notification(parent_author_id, replier_display_name,
+                                    comment_snippet, post_id, db):
+    """Send a push notification when someone replies to a comment.
+
+    Checks per-type preference before sending.
+
+    Args:
+        parent_author_id: User ID of the parent comment's author.
+        replier_display_name: Display name of the replier.
+        comment_snippet: Body text of the reply (truncated).
+        post_id: Post ID for deep linking.
+        db: Database module.
+    """
+    if not _is_notification_type_enabled(parent_author_id, 'comment_reply', db):
+        return
+
+    snippet = comment_snippet[:80] + "..." if len(comment_snippet) > 80 else comment_snippet
+    send_or_queue_notification(
+        title=f"{replier_display_name} replied to your comment",
+        body=snippet,
+        data={"action": "open_post", "postId": str(post_id)},
+        recipient_user_id=parent_author_id,
+        db=db,
+    )
+
+
 def _is_in_quiet_hours(user_row):
     """Check if a user is currently in their quiet hours.
 

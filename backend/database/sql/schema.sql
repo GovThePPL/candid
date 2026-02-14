@@ -535,6 +535,19 @@ CREATE TABLE notification_queue (
     created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Per-type notification preferences (absent row = enabled)
+CREATE TABLE notification_type_preferences (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    notification_type VARCHAR(50) NOT NULL CHECK (notification_type IN (
+        'comment_reply', 'post_comment', 'chat_request', 'role_change', 'moderation'
+    )),
+    enabled BOOLEAN NOT NULL DEFAULT true,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, notification_type)
+);
+CREATE INDEX idx_notif_type_pref_user ON notification_type_preferences(user_id);
+
 -- ========== Posts ==========
 
 CREATE TABLE post (
@@ -554,9 +567,11 @@ CREATE TABLE post (
     weighted_upvotes DOUBLE PRECISION NOT NULL DEFAULT 0,
     weighted_downvotes DOUBLE PRECISION NOT NULL DEFAULT 0,
     score DOUBLE PRECISION NOT NULL DEFAULT 0,
+    mf_intercept DOUBLE PRECISION,
     comment_count INTEGER NOT NULL DEFAULT 0,
     created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    show_creator_role BOOLEAN NOT NULL DEFAULT false
 );
 
 CREATE INDEX idx_post_location ON post(location_id);
@@ -586,7 +601,8 @@ CREATE TABLE comment (
     child_count INTEGER NOT NULL DEFAULT 0,
     mf_intercept DOUBLE PRECISION,
     created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    show_creator_role BOOLEAN NOT NULL DEFAULT false
 );
 
 CREATE INDEX idx_comment_post ON comment(post_id);

@@ -179,3 +179,4 @@ Separate from roles. `users.status = 'banned'` blocks all authorized endpoints e
 | `scoring.py` | Wilson score, hot score, controversial score, vote weighting by ideological distance |
 | `stats.py` | Stats computation helpers (opinion groups, vote distributions) |
 | `user_mappers.py` | User object serialization helpers (profile, public view, admin view) |
+| `user_summary.py` | Fetch user dict with fields needed for UserCard display (displayName, avatarIconUrl, trustScore, kudosCount) |

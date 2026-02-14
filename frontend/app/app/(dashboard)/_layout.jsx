@@ -95,6 +95,7 @@ export default function DashboardLayout() {
             }
           },
         }}
+        sceneStyle={{ backgroundColor: colors.background }}
         screenOptions={{
           headerShown: false,
           tabBarStyle: {

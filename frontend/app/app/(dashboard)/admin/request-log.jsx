@@ -10,7 +10,7 @@ import { SemanticColors } from '../../../constants/Colors'
 import { Typography } from '../../../constants/Theme'
 import { ROLE_LABEL_KEYS } from '../../../lib/roles'
 import api, { translateError } from '../../../lib/api'
-import Avatar from '../../../components/Avatar'
+import UserCard from '../../../components/UserCard'
 import ThemedText from '../../../components/ThemedText'
 import Header from '../../../components/Header'
 import EmptyState from '../../../components/EmptyState'
@@ -202,9 +202,7 @@ export default function RequestLogScreen() {
 
         {/* Target user + role */}
         <View style={styles.requestInfo}>
-          <ThemedText variant="button" color="dark">
-            {item.targetUser?.displayName} (@{item.targetUser?.username})
-          </ThemedText>
+          <UserCard user={item.targetUser} avatarSize="sm" nameVariant="label" />
           <View style={styles.roleBadge}>
             <ThemedText variant="badge" style={styles.roleBadgeText}>
               {t(ROLE_LABEL_KEYS[item.role] || item.role)}
@@ -227,9 +225,7 @@ export default function RequestLogScreen() {
         </View>
 
         {/* Requester */}
-        <ThemedText variant="caption" color="secondary">
-          {t('requestedBy')}: {item.requester?.displayName} (@{item.requester?.username})
-        </ThemedText>
+        <UserCard user={item.requester} avatarSize="sm" nameVariant="label" label={t('requestedBy')} />
 
         {/* Reason */}
         {item.reason ? (
@@ -240,9 +236,7 @@ export default function RequestLogScreen() {
 
         {/* Reviewer line (for resolved requests) */}
         {item.reviewer && (
-          <ThemedText variant="caption" color="secondary">
-            {t('reviewedBy', { name: `${item.reviewer.displayName} (@${item.reviewer.username})` })}
-          </ThemedText>
+          <UserCard user={item.reviewer} avatarSize="sm" nameVariant="label" label={t('reviewedByLabel')} />
         )}
 
         {/* Denial reason */}
@@ -345,17 +339,9 @@ export default function RequestLogScreen() {
           </View>
         </View>
         <View style={styles.requestInfo}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Avatar user={item.targetUser} size="sm" />
-            <View>
-              <ThemedText variant="button" color="dark">{item.targetUser?.displayName}</ThemedText>
-              <ThemedText variant="caption" color="secondary">@{item.targetUser?.username}</ThemedText>
-            </View>
-          </View>
+          <UserCard user={item.targetUser} avatarSize="sm" nameVariant="label" />
         </View>
-        <ThemedText variant="caption" color="secondary">
-          {t('performedBy', { name: `${item.performedBy?.displayName} (@${item.performedBy?.username})` })}
-        </ThemedText>
+        <UserCard user={item.performedBy} avatarSize="sm" nameVariant="label" label={t('performedByLabel')} />
         {item.reason && (
           <ThemedText variant="caption" color="secondary" style={styles.reasonText}>
             {t('reason')}: {item.reason}

@@ -12,9 +12,11 @@ from candid.models.error_model import ErrorModel
 from candid.controllers import db
 from candid.controllers.helpers.auth import (
     authorization, token_to_user, is_moderator_at_location,
+    get_highest_role_at_location,
 )
 from candid.controllers.helpers.rate_limiting import check_rate_limit_for
 from candid.controllers.helpers.scoring import wilson_score
+from candid.controllers.helpers.config import Config
 from candid.controllers.helpers.ideological_coords import (
     get_effective_coords, get_conversation_for_post,
 )
@@ -54,6 +56,8 @@ def _row_to_post(row, user_vote_row=None):
             "displayName": row.get("creator_display_name"),
             "avatarIconUrl": row.get("creator_avatar_icon_url"),
             "status": row.get("creator_status"),
+            "trustScore": float(row["creator_trust_score"]) if row.get("creator_trust_score") is not None else None,
+            "kudosCount": row.get("creator_kudos_count", 0),
         }
     elif row.get("creator_user_id"):
         post["creator"] = {"id": str(row["creator_user_id"])}
@@ -79,6 +83,10 @@ def _row_to_post(row, user_vote_row=None):
 
     # Creator role (highest approved role at post location, if badge visible)
     post["creatorRole"] = row.get("creator_role")
+    post["showCreatorRole"] = row.get("show_creator_role")
+
+    # Bridging score from MF
+    post["bridgingScore"] = float(row["mf_intercept"]) if row.get("mf_intercept") is not None else None
 
     # isAnswered (Q&A posts only — true if any authority user has replied)
     if row.get("post_type") == "question":
@@ -180,16 +188,20 @@ def create_post(body, token_info=None):  # noqa: E501
             return ErrorModel(400, "Category not found"), 400
 
     post_id = str(uuid.uuid4())
+    # Q&A posts default to showing role badge; discussion posts default to hiding it
+    show_creator_role = post_type == "question"
     db.execute_query("""
-        INSERT INTO post (id, creator_user_id, location_id, category_id, post_type, title, body)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
-    """, (post_id, user_id, location_id, category_id, post_type, title, body_text))
+        INSERT INTO post (id, creator_user_id, location_id, category_id, post_type, title, body, show_creator_role)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+    """, (post_id, user_id, location_id, category_id, post_type, title, body_text, show_creator_role))
 
     # Fetch the created post with joins
     row = db.execute_query("""
         SELECT p.*,
                u.username AS creator_username, u.display_name AS creator_display_name,
                u.avatar_icon_url AS creator_avatar_icon_url, u.status AS creator_status,
+               u.trust_score AS creator_trust_score,
+               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u.id AND k.status = 'sent'), 0) AS creator_kudos_count,
                pc.label AS category_label,
                l.code AS location_code, l.name AS location_name
         FROM post p
@@ -243,11 +255,11 @@ def get_posts(location_id, category_id=None, post_type=None, sort=None,
 
     # Sort expressions
     sort_exprs = {
-        "hot": """(CASE WHEN (p.weighted_upvotes - p.weighted_downvotes) > 0 THEN 1
+        "hot": f"""(CASE WHEN (p.weighted_upvotes - p.weighted_downvotes) > 0 THEN 1
                         WHEN (p.weighted_upvotes - p.weighted_downvotes) < 0 THEN -1
                         ELSE 0 END
                    * log(greatest(abs(p.weighted_upvotes - p.weighted_downvotes), 1) + 1))
-                  / power(extract(epoch from now() - p.created_time)/3600 + 2, 1.5)""",
+                  / power(extract(epoch from now() - p.created_time)/3600 + 2, {Config.SCORING_HOT_GRAVITY})""",
         "new": "extract(epoch from p.created_time)",
         "top": "p.score",
         "controversial": """(LEAST(p.weighted_upvotes, p.weighted_downvotes)
@@ -286,11 +298,10 @@ def get_posts(location_id, category_id=None, post_type=None, sort=None,
         vote_select = ", NULL AS user_vote_type, NULL AS user_vote_reason"
 
     # Subqueries for creator role and is_answered
+    # Raw role lookup (without badge filters — filtering is done in Python for own/other distinction)
     creator_role_subquery = """(SELECT ur_cr.role FROM user_role ur_cr
-        JOIN users u_cr ON u_cr.id = ur_cr.user_id
         WHERE ur_cr.user_id = p.creator_user_id
           AND ur_cr.location_id = p.location_id
-          AND u_cr.show_role_badge = true
         ORDER BY CASE ur_cr.role
           WHEN 'admin' THEN 1 WHEN 'moderator' THEN 2 WHEN 'facilitator' THEN 3
           WHEN 'assistant_moderator' THEN 4 WHEN 'expert' THEN 5 WHEN 'liaison' THEN 6
@@ -309,6 +320,9 @@ def get_posts(location_id, category_id=None, post_type=None, sort=None,
         SELECT p.*,
                u.username AS creator_username, u.display_name AS creator_display_name,
                u.avatar_icon_url AS creator_avatar_icon_url, u.status AS creator_status,
+               u.trust_score AS creator_trust_score,
+               u.show_role_badge AS creator_show_role_badge,
+               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u.id AND k.status = 'sent'), 0) AS creator_kudos_count,
                pc.label AS category_label,
                l.code AS location_code, l.name AS location_name,
                ({sort_expr}) AS sort_value,
@@ -353,7 +367,25 @@ def get_posts(location_id, category_id=None, post_type=None, sort=None,
     if has_more:
         rows = rows[:limit]
 
-    posts = [_row_to_post(r) for r in rows]
+    posts = []
+    for r in rows:
+        r_dict = dict(r)
+        is_own = user_id and str(r["creator_user_id"]) == user_id
+        creator_role = r_dict.get("creator_role")
+        show_creator_role = r_dict.get("show_creator_role", False)
+        creator_show_role_badge = r_dict.get("creator_show_role_badge", True)
+
+        if is_own:
+            # Own posts: always return role + showCreatorRole so user can toggle
+            r_dict["show_creator_role"] = show_creator_role
+        elif creator_role and show_creator_role and creator_show_role_badge:
+            # Others: show role only when both flags true
+            r_dict["show_creator_role"] = None
+        else:
+            r_dict["creator_role"] = None
+            r_dict["show_creator_role"] = None
+
+        posts.append(_row_to_post(r_dict))
 
     next_cursor = None
     if has_more and rows:
@@ -384,13 +416,14 @@ def get_post(post_id, token_info=None):  # noqa: E501
         SELECT p.*,
                u.username AS creator_username, u.display_name AS creator_display_name,
                u.avatar_icon_url AS creator_avatar_icon_url, u.status AS creator_status,
+               u.trust_score AS creator_trust_score,
+               u.show_role_badge AS creator_show_role_badge,
+               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u.id AND k.status = 'sent'), 0) AS creator_kudos_count,
                pc.label AS category_label,
                l.code AS location_code, l.name AS location_name,
                (SELECT ur_cr.role FROM user_role ur_cr
-                JOIN users u_cr ON u_cr.id = ur_cr.user_id
                 WHERE ur_cr.user_id = p.creator_user_id
                   AND ur_cr.location_id = p.location_id
-                  AND u_cr.show_role_badge = true
                 ORDER BY CASE ur_cr.role
                   WHEN 'admin' THEN 1 WHEN 'moderator' THEN 2 WHEN 'facilitator' THEN 3
                   WHEN 'assistant_moderator' THEN 4 WHEN 'expert' THEN 5 WHEN 'liaison' THEN 6
@@ -420,7 +453,22 @@ def get_post(post_id, token_info=None):  # noqa: E501
         if not user_id or str(row["creator_user_id"]) != user_id:
             return ErrorModel(404, "Post not found"), 404
 
-    return _row_to_post(row), 200
+    # Role visibility filtering for own vs other
+    row_dict = dict(row)
+    is_own = user_id and str(row["creator_user_id"]) == user_id
+    creator_role = row_dict.get("creator_role")
+    show_creator_role = row_dict.get("show_creator_role", False)
+    creator_show_role_badge = row_dict.get("creator_show_role_badge", True)
+
+    if is_own:
+        row_dict["show_creator_role"] = show_creator_role
+    elif creator_role and show_creator_role and creator_show_role_badge:
+        row_dict["show_creator_role"] = None
+    else:
+        row_dict["creator_role"] = None
+        row_dict["show_creator_role"] = None
+
+    return _row_to_post(row_dict), 200
 
 
 def update_post(post_id, body, token_info=None):  # noqa: E501
@@ -488,6 +536,8 @@ def update_post(post_id, body, token_info=None):  # noqa: E501
         SELECT p.*,
                u.username AS creator_username, u.display_name AS creator_display_name,
                u.avatar_icon_url AS creator_avatar_icon_url, u.status AS creator_status,
+               u.trust_score AS creator_trust_score,
+               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u.id AND k.status = 'sent'), 0) AS creator_kudos_count,
                pc.label AS category_label,
                l.code AS location_code, l.name AS location_name,
                NULL AS user_vote_type, NULL AS user_vote_reason
@@ -563,6 +613,8 @@ def lock_post(post_id, token_info=None):  # noqa: E501
         SELECT p.*,
                u.username AS creator_username, u.display_name AS creator_display_name,
                u.avatar_icon_url AS creator_avatar_icon_url, u.status AS creator_status,
+               u.trust_score AS creator_trust_score,
+               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u.id AND k.status = 'sent'), 0) AS creator_kudos_count,
                pc.label AS category_label,
                l.code AS location_code, l.name AS location_name,
                NULL AS user_vote_type, NULL AS user_vote_reason
@@ -685,3 +737,63 @@ def vote_on_post(post_id, body, token_info=None):  # noqa: E501
         "downvoteCount": down_count,
         "score": new_score,
     }, 200
+
+
+def patch_post(post_id, body, token_info=None):  # noqa: E501
+    """Patch a post — toggle role badge visibility (author only)."""
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    user = token_to_user(token_info)
+    user_id = str(user.id)
+
+    post = db.execute_query(
+        "SELECT * FROM post WHERE id = %s AND status NOT IN ('removed', 'deleted')",
+        (post_id,), fetchone=True,
+    )
+    if not post:
+        return ErrorModel(404, "Post not found"), 404
+
+    if str(post["creator_user_id"]) != user_id:
+        return ErrorModel(403, "Only the author can patch this post"), 403
+
+    data = connexion.request.get_json()
+    show_creator_role = data.get("showCreatorRole")
+
+    if show_creator_role is None:
+        return ErrorModel(400, "No patchable fields provided"), 400
+
+    # Verify user has a role at this location
+    post_location_id = str(post["location_id"])
+    post_category_id = str(post["category_id"]) if post.get("category_id") else None
+    creator_role = get_highest_role_at_location(user_id, post_location_id, post_category_id)
+    if not creator_role:
+        return ErrorModel(403, "No role at this location"), 403
+
+    db.execute_query(
+        "UPDATE post SET show_creator_role = %s WHERE id = %s",
+        (show_creator_role, post_id),
+    )
+
+    # Fetch updated post
+    row = db.execute_query("""
+        SELECT p.*,
+               u.username AS creator_username, u.display_name AS creator_display_name,
+               u.avatar_icon_url AS creator_avatar_icon_url, u.status AS creator_status,
+               u.trust_score AS creator_trust_score,
+               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u.id AND k.status = 'sent'), 0) AS creator_kudos_count,
+               pc.label AS category_label,
+               l.code AS location_code, l.name AS location_name,
+               NULL AS user_vote_type, NULL AS user_vote_reason
+        FROM post p
+        JOIN users u ON p.creator_user_id = u.id
+        LEFT JOIN position_category pc ON p.category_id = pc.id
+        LEFT JOIN location l ON p.location_id = l.id
+        WHERE p.id = %s
+    """, (post_id,), fetchone=True)
+
+    row_dict = dict(row)
+    row_dict["creator_role"] = creator_role
+    row_dict["show_creator_role"] = show_creator_role
+    return _row_to_post(row_dict), 200

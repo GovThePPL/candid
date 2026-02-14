@@ -12,7 +12,7 @@ import { useThemeColors } from '../hooks/useThemeColors'
 import { SemanticColors } from '../constants/Colors'
 import ThemedText from './ThemedText'
 import BottomDrawerModal from './BottomDrawerModal'
-import Avatar from './Avatar'
+import UserCard from './UserCard'
 import api from '../lib/api'
 
 function getActionColors(colors) {
@@ -58,10 +58,7 @@ function UserLine({ label, user, styles, t }) {
   return (
     <View style={styles.userLine}>
       <ThemedText variant="caption" color="secondary" style={styles.chainLabel}>{label}</ThemedText>
-      <ThemedText variant="label" style={styles.userName}>
-        {user.displayName || t('common:anonymous')}{' '}
-        <ThemedText variant="label" color="secondary" style={styles.userUsername}>@{user.username || t('unknown')}</ThemedText>
-      </ThemedText>
+      <UserCard user={user} avatarSize="sm" nameVariant="label" />
     </View>
   )
 }
@@ -251,16 +248,16 @@ export default function ModerationHistoryModal({ visible, onClose, userId, user 
           {/* Full user card */}
           {user && (
             <View style={styles.userCard}>
-              <Avatar user={user} size="md" showKudosCount badgePosition="bottom-left" />
-              <View style={styles.userCardInfo}>
-                <ThemedText variant="h3" style={styles.userCardName}>{user.displayName || t('common:anonymous')}</ThemedText>
-                <ThemedText variant="label" color="secondary">@{user.username || t('unknown')}</ThemedText>
-                {user.status && user.status !== 'active' && (
-                  <View style={[styles.statusBadge, user.status === 'banned' && styles.statusBadgeBanned]}>
-                    <ThemedText variant="caption" color="inverse" style={styles.statusBadgeText}>{user.status}</ThemedText>
-                  </View>
-                )}
-              </View>
+              <UserCard
+                user={user}
+                avatarSize="md"
+                nameVariant="h3"
+              />
+              {user.status && user.status !== 'active' && (
+                <View style={[styles.statusBadge, user.status === 'banned' && styles.statusBadgeBanned]}>
+                  <ThemedText variant="caption" color="inverse" style={styles.statusBadgeText}>{t(user.status === 'banned' ? 'userStatusBanned' : 'userStatusActive')}</ThemedText>
+                </View>
+              )}
             </View>
           )}
 

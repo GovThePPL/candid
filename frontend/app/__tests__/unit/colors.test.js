@@ -73,7 +73,7 @@ describe('GROUP_COLORS', () => {
 
 describe('BadgeColors', () => {
   it('has all trust badge tiers', () => {
-    expect(BadgeColors).toHaveProperty('trustBadgeGray')
+    expect(BadgeColors).toHaveProperty('trustBadgePurple')
     expect(BadgeColors).toHaveProperty('trustBadgeBronze')
     expect(BadgeColors).toHaveProperty('trustBadgeSilver')
     expect(BadgeColors).toHaveProperty('trustBadgeGold')

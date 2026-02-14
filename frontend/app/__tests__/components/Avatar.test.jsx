@@ -34,10 +34,25 @@ describe('Avatar', () => {
     expect(screen.queryByText('star')).toBeNull()
   })
 
-  it('hides kudos badge when kudosCount is 0', () => {
+  it('shows badge for bronze+ trust even with 0 kudos', () => {
     const user = { displayName: 'Jane', kudosCount: 0, trustScore: 0.5 }
     render(<Avatar user={user} />)
+    // Bronze/silver/gold badge always shows regardless of kudos
+    expect(screen.getByText('star')).toBeTruthy()
+    expect(screen.queryByText('0')).toBeNull()
+  })
+
+  it('hides badge for purple (lowest) tier when kudosCount is 0', () => {
+    const user = { displayName: 'Jane', kudosCount: 0, trustScore: 0.2 }
+    render(<Avatar user={user} />)
+    // Purple tier only shows when user has kudos
     expect(screen.queryByText('star')).toBeNull()
+  })
+
+  it('shows purple badge when user has kudos even with low trust', () => {
+    const user = { displayName: 'Jane', kudosCount: 3, trustScore: 0.1 }
+    render(<Avatar user={user} />)
+    expect(screen.getByText('star')).toBeTruthy()
   })
 
   it('handles size presets (sm, md, lg)', () => {
@@ -67,10 +82,30 @@ describe('Avatar', () => {
     )
   })
 
-  it('shows initials for anonymous/null user (defaults to "Anonymous")', () => {
+  it('shows initials for anonymous/null user (defaults to t("common:anonymous"))', () => {
     render(<Avatar user={null} />)
-    // user?.displayName || 'Anonymous' => getInitials('Anonymous') => 'A'
+    // user?.displayName || t('common:anonymous') => getInitials('common:anonymous') => 'C'
+    expect(screen.getByText('C')).toBeTruthy()
+  })
+
+  it('renders role overlay when role is set', () => {
+    const user = { displayName: 'Admin User' }
+    render(<Avatar user={user} role="admin" />)
+    expect(screen.getByTestId('role-overlay')).toBeTruthy()
     expect(screen.getByText('A')).toBeTruthy()
+  })
+
+  it('does not render role overlay when role is null', () => {
+    const user = { displayName: 'Regular User' }
+    render(<Avatar user={user} role={null} />)
+    expect(screen.queryByTestId('role-overlay')).toBeNull()
+  })
+
+  it('renders role circle inline when inlineBadge and role are set', () => {
+    const user = { displayName: 'Mod User' }
+    render(<Avatar user={user} role="moderator" inlineBadge />)
+    expect(screen.getByTestId('role-overlay')).toBeTruthy()
+    expect(screen.getByText('M')).toBeTruthy()
   })
 
 })

@@ -10,6 +10,7 @@ Development and operations scripts for data seeding, backfilling, and maintenanc
 | `backfill_embeddings.py` | Generate position embeddings for all positions missing them | Runs automatically after seeding via `./dev.sh` |
 | `backfill_polis_positions.py` | Sync positions and votes to Pol.is conversations | Runs automatically after seeding via `./dev.sh` (if Polis is available) |
 | `generate_polis_test_data.py` | Generate test data specifically for Pol.is integration testing | Manual: `docker compose exec api python3 /app/backend/scripts/generate_polis_test_data.py` |
+| `seed_large_thread.py` | Seed ~200 comments with depth 7+ thread for pagination, threading, and bridging demos | Manual: `docker compose exec api python3 /app/backend/scripts/seed_large_thread.py` |
 
 ## Execution Context
 

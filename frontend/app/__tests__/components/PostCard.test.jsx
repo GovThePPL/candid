@@ -86,6 +86,17 @@ describe('PostCard', () => {
     expect(screen.getByText('locked')).toBeTruthy()
   })
 
+  it('shows bridging badge when post has qualifying bridgingScore', () => {
+    const post = { ...basePost, bridgingScore: 0.5, upvoteCount: 10, downvoteCount: 2 }
+    render(<PostCard {...defaultProps} post={post} />)
+    expect(screen.getByText('bridgingBadge')).toBeTruthy()
+  })
+
+  it('does not show bridging badge when bridgingScore is null', () => {
+    render(<PostCard {...defaultProps} />)
+    expect(screen.queryByText('bridgingBadge')).toBeNull()
+  })
+
   it('shows answered badge for answered Q&A posts', () => {
     const post = { ...basePost, isAnswered: true }
     render(<PostCard {...defaultProps} post={post} />)
@@ -99,16 +110,10 @@ describe('PostCard', () => {
     expect(screen.queryByText('checkmark-circle')).toBeNull()
   })
 
-  it('shows role badge when creatorRole is present', () => {
-    const post = { ...basePost, creatorRole: 'moderator' }
-    render(<PostCard {...defaultProps} post={post} />)
-    expect(screen.getByText('roleModerator')).toBeTruthy()
-  })
-
-  it('does not show role badge when creatorRole is null', () => {
+  it('renders creator name in bottom bar', () => {
     render(<PostCard {...defaultProps} />)
-    expect(screen.queryByText('roleAdmin')).toBeNull()
-    expect(screen.queryByText('roleModerator')).toBeNull()
+    // Block variant renders display name
+    expect(screen.getByText('TestUser')).toBeTruthy()
   })
 
   it('calls onPress when card is tapped', () => {
@@ -121,35 +126,41 @@ describe('PostCard', () => {
   it('calls onUpvote with post id when upvote button tapped', () => {
     const onUpvote = jest.fn()
     render(<PostCard {...defaultProps} onUpvote={onUpvote} />)
-    fireEvent.press(screen.getByLabelText('upvoteA11y'))
+    fireEvent.press(screen.getByLabelText('upvotePostA11y TestUser'))
     expect(onUpvote).toHaveBeenCalledWith('p1')
   })
 
   it('shows active upvote style when user has upvoted', () => {
     const post = { ...basePost, userVote: { voteType: 'upvote' } }
     render(<PostCard {...defaultProps} post={post} />)
-    const upvoteBtn = screen.getByLabelText('upvoteA11y')
+    const upvoteBtn = screen.getByLabelText('upvotePostA11y TestUser')
     expect(upvoteBtn).toBeSelected()
-    expect(screen.getByText('chevron-up')).toBeTruthy()
-    expect(screen.queryByText('chevron-up-outline')).toBeNull()
   })
 
-  it('shows outline upvote icon when not upvoted', () => {
+  it('shows vote pill with net score', () => {
     render(<PostCard {...defaultProps} />)
-    expect(screen.getByText('chevron-up-outline')).toBeTruthy()
+    // VoteControl sm shows net score: 12 - 0 = 12
+    expect(screen.getByText('12')).toBeTruthy()
+  })
+
+  it('shows role indicator when creatorRole is present', () => {
+    const post = { ...basePost, creatorRole: 'moderator' }
+    render(<PostCard {...defaultProps} post={post} />)
+    expect(screen.getByTestId('role-overlay')).toBeTruthy()
   })
 
   it('falls back to username when displayName missing', () => {
     const post = { ...basePost, creator: { username: 'fallback_user' } }
     render(<PostCard {...defaultProps} post={post} />)
-    expect(screen.getByText('fallback_user')).toBeTruthy()
+    // Block variant shows @username
+    expect(screen.getByText('@fallback_user')).toBeTruthy()
   })
 
-  it('shows "?" when creator is null and no @username', () => {
+  it('shows anonymous fallback when creator is null', () => {
     const post = { ...basePost, creator: null }
     render(<PostCard {...defaultProps} post={post} />)
-    expect(screen.getByText('?')).toBeTruthy()
-    expect(screen.queryByText(/@/)).toBeNull()
+    // Block variant falls back to 'common:anonymous' for display name
+    expect(screen.getByText('common:anonymous')).toBeTruthy()
   })
 
   it('has correct accessibility label', () => {

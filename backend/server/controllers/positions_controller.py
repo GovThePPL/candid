@@ -710,6 +710,7 @@ def get_position_agreed_closures(position_id, token_info=None):  # noqa: E501
             l.name as location_name,
             p.creator_user_id,
             u.display_name as creator_display_name,
+            u.username as creator_username,
             u.user_type as creator_user_type,
             u.trust_score as creator_trust_score,
             u.avatar_url as creator_avatar_url,
@@ -931,6 +932,7 @@ def get_position_agreed_closures(position_id, token_info=None):  # noqa: E501
         creator = {
             'id': str(position['creator_user_id']),
             'displayName': position.get('creator_display_name', 'Anonymous'),
+            'username': position.get('creator_username'),
             'userType': position.get('creator_user_type', 'normal'),
             'trustScore': float(position.get('creator_trust_score', 0) or 0),
             'avatarUrl': position.get('creator_avatar_url'),

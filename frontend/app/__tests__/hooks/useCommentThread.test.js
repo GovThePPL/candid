@@ -8,6 +8,7 @@ jest.mock('../../hooks/useThemeColors', () => ({
 const mockGetComments = jest.fn()
 const mockVoteOnComment = jest.fn()
 const mockCreateComment = jest.fn()
+const mockPatchComment = jest.fn()
 
 jest.mock('../../lib/api', () => ({
   __esModule: true,
@@ -16,6 +17,7 @@ jest.mock('../../lib/api', () => ({
       getComments: (...args) => mockGetComments(...args),
       voteOnComment: (...args) => mockVoteOnComment(...args),
       createComment: (...args) => mockCreateComment(...args),
+      patchComment: (...args) => mockPatchComment(...args),
     },
   },
 }))
@@ -184,5 +186,105 @@ describe('useCommentThread', () => {
 
     expect(result.current.error).toBeTruthy()
     expect(result.current.flatList).toEqual([])
+  })
+
+  // Pagination tests
+  it('handles paginated response with hasMore', async () => {
+    mockGetComments.mockResolvedValue({
+      comments: [makeComment({ id: 'c1' })],
+      hasMore: true,
+      nextCursor: 'cursor123',
+      totalRootCount: 5,
+    })
+
+    const { result } = renderHook(() => useCommentThread('p1'))
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    expect(result.current.flatList).toHaveLength(1)
+    expect(result.current.hasMore).toBe(true)
+    expect(result.current.totalRootCount).toBe(5)
+  })
+
+  it('loadMore appends comments from next page', async () => {
+    mockGetComments
+      .mockResolvedValueOnce({
+        comments: [makeComment({ id: 'c1' })],
+        hasMore: true,
+        nextCursor: 'cursor1',
+        totalRootCount: 2,
+      })
+      .mockResolvedValueOnce({
+        comments: [makeComment({ id: 'c2' })],
+        hasMore: false,
+        nextCursor: null,
+        totalRootCount: 2,
+      })
+
+    const { result } = renderHook(() => useCommentThread('p1'))
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    expect(result.current.flatList).toHaveLength(1)
+
+    await act(async () => {
+      await result.current.loadMore()
+    })
+
+    expect(mockGetComments).toHaveBeenCalledTimes(2)
+    expect(mockGetComments).toHaveBeenLastCalledWith('p1', { cursor: 'cursor1' })
+    expect(result.current.flatList).toHaveLength(2)
+    expect(result.current.hasMore).toBe(false)
+  })
+
+  it('loadMore does nothing when hasMore is false', async () => {
+    mockGetComments.mockResolvedValue({
+      comments: [makeComment({ id: 'c1' })],
+      hasMore: false,
+      nextCursor: null,
+      totalRootCount: 1,
+    })
+
+    const { result } = renderHook(() => useCommentThread('p1'))
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    await act(async () => {
+      await result.current.loadMore()
+    })
+
+    // Should not have called getComments again
+    expect(mockGetComments).toHaveBeenCalledTimes(1)
+  })
+
+  it('handleToggleRole optimistically updates and calls API', async () => {
+    mockGetComments.mockResolvedValue([
+      makeComment({ id: 'c1', showCreatorRole: true, creatorRole: 'moderator' }),
+    ])
+    mockPatchComment.mockResolvedValue({})
+
+    const { result } = renderHook(() => useCommentThread('p1'))
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    await act(async () => {
+      await result.current.handleToggleRole('c1', false)
+    })
+
+    expect(mockPatchComment).toHaveBeenCalledWith('c1', { showCreatorRole: false })
+    expect(result.current.flatList[0].showCreatorRole).toBe(false)
+  })
+
+  it('handleToggleRole reverts on error', async () => {
+    mockGetComments.mockResolvedValue([
+      makeComment({ id: 'c1', showCreatorRole: true, creatorRole: 'moderator' }),
+    ])
+    mockPatchComment.mockRejectedValue(new Error('Network error'))
+
+    const { result } = renderHook(() => useCommentThread('p1'))
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    await act(async () => {
+      await result.current.handleToggleRole('c1', false)
+    })
+
+    // Should revert to original
+    expect(result.current.flatList[0].showCreatorRole).toBe(true)
   })
 })

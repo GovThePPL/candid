@@ -78,7 +78,7 @@ jest.mock('../../components/BugReportModal', () => {
   return () => <View testID="bug-modal" />
 })
 jest.mock('../../lib/avatarUtils', () => ({
-  getTrustBadgeColor: () => '#FFD700',
+  getTrustBadgeInfo: () => ({ color: '#FFD700', tier: 'gold' }),
 }))
 jest.mock('../../components/ChatRequestIndicator', () => {
   const { View } = require('react-native')

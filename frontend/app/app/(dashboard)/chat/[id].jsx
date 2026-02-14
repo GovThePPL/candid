@@ -23,7 +23,7 @@ import { useState, useEffect, useRef, useCallback, useContext, useMemo } from 'r
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
-import { SemanticColors } from '../../../constants/Colors'
+import { SemanticColors, OnBrandColors } from '../../../constants/Colors'
 import { Shadows } from '../../../constants/Theme'
 import { useThemeColors } from '../../../hooks/useThemeColors'
 import { UserContext } from '../../../contexts/UserContext'
@@ -45,7 +45,7 @@ import {
   onAgreedPosition,
 } from '../../../lib/socket'
 import { playTypingSound, playMessageSound } from '../../../lib/sounds'
-import { getTrustBadgeColor } from '../../../lib/avatarUtils'
+import { getTrustBadgeInfo } from '../../../lib/avatarUtils'
 import Avatar from '../../../components/Avatar'
 import ThemedText from '../../../components/ThemedText'
 import PositionInfoCard from '../../../components/PositionInfoCard'
@@ -1386,9 +1386,9 @@ export default function ChatScreen() {
             )}
           </View>
           <View style={styles.headerRight}>
-            <View style={[styles.headerKudosBadge, { backgroundColor: getTrustBadgeColor(user?.trustScore) }]}>
-              <Ionicons name="star" size={14} color={colors.primary} />
-              <ThemedText variant="badgeLg" color="primary">{user?.kudosCount || 0}</ThemedText>
+            <View style={[styles.headerKudosBadge, { backgroundColor: getTrustBadgeInfo(user?.trustScore).color }]}>
+              <Ionicons name="star" size={14} color={getTrustBadgeInfo(user?.trustScore).tier === 'purple' ? OnBrandColors.text : colors.primary} />
+              <ThemedText variant="badgeLg" style={{ color: getTrustBadgeInfo(user?.trustScore).tier === 'purple' ? OnBrandColors.text : colors.primary }}>{user?.kudosCount || 0}</ThemedText>
             </View>
             <Avatar user={user} size={32} showKudosBadge={false} />
           </View>

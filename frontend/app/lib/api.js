@@ -1067,12 +1067,17 @@ export const postsApiWrapper = {
   async lockPost(postId) {
     return await promisify(postsApi.lockPost.bind(postsApi), postId)
   },
+
+  async patchPost(postId, body) {
+    return await promisify(postsApi.patchPost.bind(postsApi), postId, body)
+  },
 }
 
 // Comments API
 export const commentsApiWrapper = {
-  async getComments(postId) {
-    return await promisify(commentsApi.getComments.bind(commentsApi), postId)
+  async getComments(postId, opts = {}) {
+    const { cursor, limit } = opts
+    return await promisify(commentsApi.getComments.bind(commentsApi), postId, { cursor, limit })
   },
 
   async createComment(postId, body) {
@@ -1089,6 +1094,10 @@ export const commentsApiWrapper = {
 
   async voteOnComment(commentId, body) {
     return await promisify(commentsApi.voteOnComment.bind(commentsApi), commentId, body)
+  },
+
+  async patchComment(commentId, body) {
+    return await promisify(commentsApi.patchComment.bind(commentsApi), commentId, body)
   },
 }
 

@@ -257,6 +257,8 @@
   "actionBan": "BANEO",
   "actionUnban": "DESBANEO",
   "performedBy": "por {{name}}",
+  "performedByLabel": "Realizado por",
+  "reviewedByLabel": "Revisado por",
   "noAdminActions": "Sin Acciones de Admin",
   "noAdminActionsSubtitle": "No se han registrado acciones de baneo o desbaneo.",
 
@@ -280,5 +282,7 @@
   "actionAddChildLocation": "Agregar Ubicación Hija",
   "actionEditLocation": "Editar Ubicación",
   "actionDeleteLocation": "Eliminar Ubicación",
-  "actionAssignRole": "Asignar Rol"
+  "actionAssignRole": "Asignar Rol",
+
+  "userSearchResultA11y": "{{displayName}} @{{username}}"
 }

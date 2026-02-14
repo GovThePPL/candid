@@ -1,7 +1,10 @@
 import { Stack } from 'expo-router'
 import { Platform } from 'react-native'
+import { useThemeColors } from '../../../hooks/useThemeColors'
 
 export default function SettingsLayout() {
+  const colors = useThemeColors()
+
   return (
     <Stack
       screenListeners={{
@@ -11,7 +14,10 @@ export default function SettingsLayout() {
           }
         },
       }}
-      screenOptions={{ headerShown: false }}
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: colors.background },
+      }}
     />
   )
 }

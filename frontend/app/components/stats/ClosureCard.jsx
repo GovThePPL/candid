@@ -6,7 +6,7 @@ import { SemanticColors, BrandColor } from '../../constants/Colors'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { Shadows, Typography } from '../../constants/Theme'
 import ThemedText from '../ThemedText'
-import UserMiniCard from './UserMiniCard'
+import UserCard from '../UserCard'
 
 /**
  * Card displaying an agreed closure with both users
@@ -57,14 +57,14 @@ export default function ClosureCard({ closure, onShowMap, onViewStatements }) {
 
         {/* Users row with handshake */}
         <View style={styles.usersRow}>
-          <UserMiniCard
+          <UserCard
             user={positionHolderUser?.mapPosition ? positionHolderUser : { ...positionHolderUser, opinionGroup: null }}
             role="PROPOSER"
           />
           <View style={styles.handshakeContainer}>
             <MaterialCommunityIcons name="handshake-outline" size={22} color={SemanticColors.agree} />
           </View>
-          <UserMiniCard
+          <UserCard
             user={initiatorUser?.mapPosition ? initiatorUser : { ...initiatorUser, opinionGroup: null }}
             role="OPPOSER"
             reverse

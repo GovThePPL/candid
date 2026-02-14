@@ -4,7 +4,7 @@ import { buildTree, sortTree, flattenTree } from '../lib/commentTree'
 
 /**
  * Hook for managing comment thread state: fetch, tree build, sort, collapse,
- * optimistic voting, and comment creation.
+ * optimistic voting, comment creation, and cursor-based pagination.
  *
  * @param {string} postId - Post ID to fetch comments for
  * @returns {Object} thread state and actions
@@ -12,9 +12,13 @@ import { buildTree, sortTree, flattenTree } from '../lib/commentTree'
 export default function useCommentThread(postId) {
   const [rawComments, setRawComments] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState(null)
   const [sort, setSort] = useState('best')
   const [collapsedIds, setCollapsedIds] = useState(new Set())
+  const [cursor, setCursor] = useState(null)
+  const [hasMore, setHasMore] = useState(false)
+  const [totalRootCount, setTotalRootCount] = useState(0)
   const mountedRef = useRef(true)
 
   useEffect(() => {
@@ -22,15 +26,19 @@ export default function useCommentThread(postId) {
     return () => { mountedRef.current = false }
   }, [])
 
-  // Fetch comments from API
+  // Fetch first page of comments from API
   const fetchComments = useCallback(async () => {
     if (!postId) return
     setLoading(true)
     setError(null)
     try {
-      const comments = await api.comments.getComments(postId)
+      const result = await api.comments.getComments(postId)
       if (mountedRef.current) {
-        setRawComments(Array.isArray(comments) ? comments : [])
+        const comments = result?.comments ?? (Array.isArray(result) ? result : [])
+        setRawComments(comments)
+        setCursor(result?.nextCursor ?? null)
+        setHasMore(result?.hasMore ?? false)
+        setTotalRootCount(result?.totalRootCount ?? comments.length)
       }
     } catch (err) {
       if (mountedRef.current) {
@@ -47,6 +55,29 @@ export default function useCommentThread(postId) {
   useEffect(() => {
     fetchComments()
   }, [fetchComments])
+
+  // Load more (next page)
+  const loadMore = useCallback(async () => {
+    if (!postId || !cursor || !hasMore || loadingMore) return
+    setLoadingMore(true)
+    try {
+      const result = await api.comments.getComments(postId, { cursor })
+      if (mountedRef.current) {
+        const newComments = result?.comments ?? []
+        setRawComments(prev => [...prev, ...newComments])
+        setCursor(result?.nextCursor ?? null)
+        setHasMore(result?.hasMore ?? false)
+      }
+    } catch (err) {
+      if (mountedRef.current) {
+        setError(err)
+      }
+    } finally {
+      if (mountedRef.current) {
+        setLoadingMore(false)
+      }
+    }
+  }, [postId, cursor, hasMore, loadingMore])
 
   // Build flattened list from raw comments
   const flatList = useMemo(() => {
@@ -138,6 +169,26 @@ export default function useCommentThread(postId) {
     }
   }, [rawComments])
 
+  // Toggle role badge visibility on a comment
+  const handleToggleRole = useCallback(async (commentId, show) => {
+    // Optimistic update
+    const prevComments = rawComments
+    setRawComments(prev => prev.map(c =>
+      c.id === commentId
+        ? { ...c, showCreatorRole: show }
+        : c
+    ))
+
+    try {
+      await api.comments.patchComment(commentId, { showCreatorRole: show })
+    } catch {
+      // Revert on error
+      if (mountedRef.current) {
+        setRawComments(prevComments)
+      }
+    }
+  }, [rawComments])
+
   // Create a new comment
   const handleCreateComment = useCallback(async (body, parentCommentId) => {
     const payload = { body }
@@ -150,13 +201,18 @@ export default function useCommentThread(postId) {
   return {
     flatList,
     loading,
+    loadingMore,
     error,
     sort,
     setSort,
     toggleCollapse,
     handleVote,
+    handleToggleRole,
     handleCreateComment,
     refetch: fetchComments,
+    loadMore,
+    hasMore,
+    totalRootCount,
     commentCount: rawComments.length,
   }
 }

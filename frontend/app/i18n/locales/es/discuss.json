@@ -67,6 +67,7 @@
   "commentsHeader": "Comentarios ({{count}})",
   "noComments": "Sin comentarios",
   "beFirstToComment": "Sé el primero en compartir tu opinión",
+  "loadingMoreComments": "Cargando más comentarios...",
   "postLocked": "Esta publicación está bloqueada",
   "qaOnlyExperts": "Solo los expertos pueden responder esta pregunta",
   "qaReplyRestriction": "Solo puedes responder a las respuestas de expertos",
@@ -85,6 +86,7 @@
   "expandButtonA11y": "Expandir {{count}} respuestas",
   "upvoteCommentA11y": "Votar a favor del comentario de {{author}}",
   "downvoteCommentA11y": "Votar en contra del comentario de {{author}}",
+  "upvotePostA11y": "Votar positivamente publicación de {{author}}",
   "downvotePostA11y": "Votar en contra de esta publicación",
   "depthIndicatorA11y": "Anidado {{depth}} niveles de profundidad",
   "nReplies": "{{count}} respuestas",
@@ -136,9 +138,19 @@
   "linkPromptInsert": "Insertar",
   "linkPromptCancel": "Cancelar",
 
+  "bridgingBadge": "Une Divisiones",
+  "bridgingBadgeA11y": "Este comentario une divisiones ideológicas",
+
   "commentOptions": "Opciones",
   "report": "Reportar",
   "reportComment": "Reportar este comentario",
   "commentOptionsA11y": "Opciones del comentario de {{author}}",
-  "reportA11y": "Reportar comentario de {{author}}"
+  "reportA11y": "Reportar comentario de {{author}}",
+  "roleOverlayA11y": "rol de {{role}}",
+
+  "showRoleBadge": "Mostrar insignia de rol",
+  "hideRoleBadge": "Ocultar insignia de rol",
+  "postOptions": "Opciones de publicación",
+  "postOptionsA11y": "Opciones para publicación de {{author}}",
+  "toggleRoleA11y": "Alternar visibilidad de insignia de rol"
 }
