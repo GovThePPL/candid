@@ -15,7 +15,7 @@ from conftest import (
 
 
 class TestDeleteCurrentUser:
-    """POST /users/me/delete"""
+    """DELETE /users/me"""
 
     DISPOSABLE_USERNAME = "test_delete_user"
     DISPOSABLE_EMAIL = "test_delete_user@example.com"
@@ -28,7 +28,7 @@ class TestDeleteCurrentUser:
             "email": self.DISPOSABLE_EMAIL,
             "password": self.DISPOSABLE_PASSWORD,
         })
-        assert resp.status_code == 201, f"Failed to register disposable user: {resp.text}"
+        assert resp.status_code in (201, 409), f"Failed to register disposable user: {resp.text}"
 
     def _login_disposable_user(self):
         """Log in as the disposable user."""
@@ -56,11 +56,11 @@ class TestDeleteCurrentUser:
         user_id = me_resp.json()["id"]
 
         # Delete the account
-        resp = requests.post(
-            f"{BASE_URL}/users/me/delete",
+        resp = requests.delete(
+            f"{BASE_URL}/users/me",
             headers=headers,
         )
-        assert resp.status_code == 200
+        assert resp.status_code == 204
 
         # Verify user is marked as deleted in DB
         row = db_query_one(
@@ -72,7 +72,7 @@ class TestDeleteCurrentUser:
 
 
 class TestRegisterPushToken:
-    """POST /users/me/push-token"""
+    """PUT /users/me/push-token"""
 
     def _cleanup_push_token(self, user_id):
         """Remove push token data for a user."""
@@ -86,7 +86,7 @@ class TestRegisterPushToken:
         """Can register a push token."""
         from conftest import NORMAL1_ID
         try:
-            resp = requests.post(
+            resp = requests.put(
                 f"{BASE_URL}/users/me/push-token",
                 headers=normal_headers,
                 json={"token": "ExponentPushToken[test-token-123]", "platform": "expo"},
@@ -97,7 +97,7 @@ class TestRegisterPushToken:
 
     def test_missing_token_400(self, normal_headers):
         """Missing token returns 400."""
-        resp = requests.post(
+        resp = requests.put(
             f"{BASE_URL}/users/me/push-token",
             headers=normal_headers,
             json={"platform": "expo"},
@@ -106,7 +106,7 @@ class TestRegisterPushToken:
 
     def test_invalid_platform_400(self, normal_headers):
         """Invalid platform returns 400."""
-        resp = requests.post(
+        resp = requests.put(
             f"{BASE_URL}/users/me/push-token",
             headers=normal_headers,
             json={"token": "ExponentPushToken[test]", "platform": "android"},

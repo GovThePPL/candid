@@ -352,7 +352,7 @@ def rescind_chat_request(request_id, token_info=None):
         DELETE FROM chat_request WHERE id = %s
     """, (request_id,))
 
-    return {"message": "Chat request rescinded"}, 200
+    return '', 204
 
 
 def get_chat_log(chat_id, token_info=None):
@@ -951,7 +951,7 @@ def send_kudos(chat_id, token_info=None):
     }, 201
 
 
-def dismiss_kudos(chat_id, token_info=None):
+def delete_kudos_prompt(chat_id, token_info=None):
     """Dismiss a kudos prompt without sending kudos
 
     Records that the user dismissed the kudos prompt, preventing the

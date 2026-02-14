@@ -685,7 +685,7 @@ class TestPolisEndToEndSync:
             ]
         }
         vote_resp = requests.post(
-            f"{POSITIONS_URL}/response",
+            f"{POSITIONS_URL}/responses",
             headers=user2_headers,
             json=vote_payload,
         )

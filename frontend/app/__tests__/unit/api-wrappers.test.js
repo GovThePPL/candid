@@ -19,15 +19,16 @@ jest.mock('candid_api', () => {
       getCurrentUser: jest.fn(),
       getCurrentUserPositions: jest.fn(),
       getCurrentUserPositionsMetadata: jest.fn(),
+      createUserPosition: jest.fn(),
+      updatePushToken: jest.fn(),
     })),
     CardsApi: jest.fn(() => ({
       getCardQueue: _mocks.getCardQueue,
-      dismissPositionRemovedNotification: jest.fn(),
+      deletePositionNotification: jest.fn(),
     })),
     PositionsApi: jest.fn(() => ({
-      respondToPositions: jest.fn(),
+      createPositionResponses: jest.fn(),
       createPosition: jest.fn(),
-      adoptPosition: jest.fn(),
       searchSimilarPositions: _mocks.searchSimilarPositions,
       searchStatsPositions: jest.fn(),
       getPositionAgreedClosures: jest.fn(),
@@ -40,7 +41,7 @@ jest.mock('candid_api', () => {
       rescindChatRequest: jest.fn(),
       getChatLog: jest.fn(),
       sendKudos: jest.fn(),
-      dismissKudos: jest.fn(),
+      deleteKudosPrompt: jest.fn(),
     })),
     SurveysApi: jest.fn(() => ({
       respondToSurveyQuestion: jest.fn(),
@@ -53,7 +54,7 @@ jest.mock('candid_api', () => {
     })),
     CategoriesApi: jest.fn(() => ({
       getAllCategories: jest.fn(),
-      suggestCategory: jest.fn(),
+      createCategorySuggestions: jest.fn(),
     })),
     ChattingListApi: jest.fn(() => ({
       getChattingList: jest.fn(),
@@ -62,7 +63,7 @@ jest.mock('candid_api', () => {
       updateChattingListItem: jest.fn(),
       removeFromChattingList: jest.fn(),
       markChattingListExplanationSeen: jest.fn(),
-      bulkRemoveFromChattingList: jest.fn(),
+      bulkDeleteChattingListItems: jest.fn(),
     })),
     StatsApi: jest.fn(() => ({
       getLocationStats: jest.fn(),
@@ -77,10 +78,9 @@ jest.mock('candid_api', () => {
       takeModeratorAction: jest.fn(),
       respondToAppeal: jest.fn(),
       createAppeal: jest.fn(),
-      dismissAdminResponseNotification: jest.fn(),
+      deleteAdminResponseNotification: jest.fn(),
       getUserModerationHistory: jest.fn(),
-      claimReport: jest.fn(),
-      releaseReport: jest.fn(),
+      updateReport: jest.fn(),
     })),
     BugReportsApi: jest.fn(() => ({
       createBugReport: jest.fn(),
@@ -88,13 +88,10 @@ jest.mock('candid_api', () => {
     AdminApi: jest.fn(() => ({
       searchUsers: _mocks.adminSearchUsers = jest.fn(),
       listRoles: _mocks.adminListRoles = jest.fn(),
-      requestRoleAssignment: _mocks.adminRequestRoleAssignment = jest.fn(),
-      requestRoleRemoval: _mocks.adminRequestRoleRemoval = jest.fn(),
+      createRoleRequest: _mocks.adminCreateRoleRequest = jest.fn(),
       getPendingRoleRequests: _mocks.adminGetPendingRoleRequests = jest.fn(),
       getRoleRequests: _mocks.adminGetRoleRequests = jest.fn(),
-      rescindRoleRequest: _mocks.adminRescindRoleRequest = jest.fn(),
-      approveRoleRequest: _mocks.adminApproveRoleRequest = jest.fn(),
-      denyRoleRequest: _mocks.adminDenyRoleRequest = jest.fn(),
+      updateRoleRequest: _mocks.adminUpdateRoleRequest = jest.fn(),
       createLocation: _mocks.adminCreateLocation = jest.fn(),
       updateLocation: _mocks.adminUpdateLocation = jest.fn(),
       deleteLocation: _mocks.adminDeleteLocation = jest.fn(),
@@ -103,8 +100,7 @@ jest.mock('candid_api', () => {
       removeLocationCategory: _mocks.adminRemoveLocationCategory = jest.fn(),
       createCategory: _mocks.adminCreateCategory = jest.fn(),
       getCategoryLabelSurvey: _mocks.adminGetCategoryLabelSurvey = jest.fn(),
-      banUser: _mocks.adminBanUser = jest.fn(),
-      unbanUser: _mocks.adminUnbanUser = jest.fn(),
+      updateUserStatus: _mocks.adminUpdateUserStatus = jest.fn(),
       getSurveys: _mocks.adminGetSurveys = jest.fn(),
       createSurvey: _mocks.adminCreateSurvey = jest.fn(),
       createPairwiseSurvey: _mocks.adminCreatePairwiseSurvey = jest.fn(),
@@ -121,7 +117,7 @@ jest.mock('candid_api', () => {
       updatePost: jest.fn(),
       deletePost: jest.fn(),
       voteOnPost: _mocks.voteOnPost = jest.fn(),
-      lockPost: jest.fn(),
+      patchPost: jest.fn(),
     })),
     CommentsApi: jest.fn(() => ({
       getComments: jest.fn(),
@@ -408,46 +404,46 @@ describe('adminApiWrapper', () => {
   })
 
   describe('requestRoleRemoval', () => {
-    it('wraps userRoleId and reason into body object', async () => {
-      mockSuccess(_mocks.adminRequestRoleRemoval)
+    it('wraps userRoleId and reason into body with action: remove', async () => {
+      mockSuccess(_mocks.adminCreateRoleRequest)
 
       await adminApiWrapper.requestRoleRemoval('ur1', 'No longer needed')
-      expect(_mocks.adminRequestRoleRemoval).toHaveBeenCalledWith(
-        { userRoleId: 'ur1', reason: 'No longer needed' },
+      expect(_mocks.adminCreateRoleRequest).toHaveBeenCalledWith(
+        { action: 'remove', userRoleId: 'ur1', reason: 'No longer needed' },
         expect.any(Function)
       )
     })
   })
 
   describe('denyRoleRequest', () => {
-    it('wraps reason in nested denyRoleRequestRequest', async () => {
-      mockSuccess(_mocks.adminDenyRoleRequest)
+    it('wraps reason into status body', async () => {
+      mockSuccess(_mocks.adminUpdateRoleRequest)
 
       await adminApiWrapper.denyRoleRequest('req1', 'Insufficient experience')
-      expect(_mocks.adminDenyRoleRequest).toHaveBeenCalledWith(
+      expect(_mocks.adminUpdateRoleRequest).toHaveBeenCalledWith(
         'req1',
-        { denyRoleRequestRequest: { reason: 'Insufficient experience' } },
+        { status: 'denied', reason: 'Insufficient experience' },
         expect.any(Function)
       )
     })
   })
 
   describe('role request actions', () => {
-    it('approveRoleRequest passes requestId', async () => {
-      mockSuccess(_mocks.adminApproveRoleRequest)
+    it('approveRoleRequest passes requestId with approved status', async () => {
+      mockSuccess(_mocks.adminUpdateRoleRequest)
 
       await adminApiWrapper.approveRoleRequest('req1')
-      expect(_mocks.adminApproveRoleRequest).toHaveBeenCalledWith(
-        'req1', expect.any(Function)
+      expect(_mocks.adminUpdateRoleRequest).toHaveBeenCalledWith(
+        'req1', { status: 'approved' }, expect.any(Function)
       )
     })
 
-    it('rescindRoleRequest passes requestId', async () => {
-      mockSuccess(_mocks.adminRescindRoleRequest)
+    it('rescindRoleRequest passes requestId with rescinded status', async () => {
+      mockSuccess(_mocks.adminUpdateRoleRequest)
 
       await adminApiWrapper.rescindRoleRequest('req1')
-      expect(_mocks.adminRescindRoleRequest).toHaveBeenCalledWith(
-        'req1', expect.any(Function)
+      expect(_mocks.adminUpdateRoleRequest).toHaveBeenCalledWith(
+        'req1', { status: 'rescinded' }, expect.any(Function)
       )
     })
 
@@ -533,21 +529,21 @@ describe('adminApiWrapper', () => {
   })
 
   describe('ban/unban', () => {
-    it('banUser wraps reason in body', async () => {
-      mockSuccess(_mocks.adminBanUser)
+    it('banUser sends status banned with reason', async () => {
+      mockSuccess(_mocks.adminUpdateUserStatus)
 
       await adminApiWrapper.banUser('u1', 'Spam')
-      expect(_mocks.adminBanUser).toHaveBeenCalledWith(
-        'u1', { reason: 'Spam' }, expect.any(Function)
+      expect(_mocks.adminUpdateUserStatus).toHaveBeenCalledWith(
+        'u1', { status: 'banned', reason: 'Spam' }, expect.any(Function)
       )
     })
 
-    it('unbanUser wraps reason in body', async () => {
-      mockSuccess(_mocks.adminUnbanUser)
+    it('unbanUser sends status active with reason', async () => {
+      mockSuccess(_mocks.adminUpdateUserStatus)
 
       await adminApiWrapper.unbanUser('u1', 'Reviewed')
-      expect(_mocks.adminUnbanUser).toHaveBeenCalledWith(
-        'u1', { reason: 'Reviewed' }, expect.any(Function)
+      expect(_mocks.adminUpdateUserStatus).toHaveBeenCalledWith(
+        'u1', { status: 'active', reason: 'Reviewed' }, expect.any(Function)
       )
     })
   })

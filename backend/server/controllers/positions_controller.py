@@ -200,7 +200,7 @@ def get_position_by_id(position_id, token_info=None):  # noqa: E501
     return ret
 
 
-def respond_to_positions(body, token_info=None):  # noqa: E501
+def create_position_responses(body, token_info=None):  # noqa: E501
     """Respond to one or more position statements
 
      # noqa: E501
@@ -259,103 +259,6 @@ def respond_to_positions(body, token_info=None):  # noqa: E501
         )
 
     # TODO: Update counts, change to have user respond to user_position rather than position
-
-
-def adopt_position(position_id, token_info=None):  # noqa: E501
-    """Adopt a position and register an agree response
-
-    Creates a user_position entry for the current user and registers an agree response.
-
-    :param position_id: ID of the position to adopt
-    :type position_id: str
-
-    :rtype: Union[UserPosition, Tuple[UserPosition, int], Tuple[UserPosition, int, Dict[str, str]]
-    """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-    user = token_to_user(token_info)
-
-    # Check if position exists
-    position = db.execute_query("""
-        SELECT id, category_id, location_id, statement
-        FROM position
-        WHERE id = %s AND status = 'active'
-    """, (position_id,), fetchone=True)
-
-    if not position:
-        return ErrorModel(404, "Position not found"), 404
-
-    # Check if user already adopted this position (active)
-    existing_active = db.execute_query("""
-        SELECT id FROM user_position
-        WHERE user_id = %s AND position_id = %s AND status = 'active'
-    """, (user.id, position_id), fetchone=True)
-
-    if existing_active:
-        return ErrorModel(400, "Position already adopted"), 400
-
-    # Check if user previously had this position (deleted) - reactivate it
-    existing_deleted = db.execute_query("""
-        SELECT id FROM user_position
-        WHERE user_id = %s AND position_id = %s AND status = 'deleted'
-    """, (user.id, position_id), fetchone=True)
-
-    if existing_deleted:
-        # Reactivate the deleted user_position
-        user_position_id = existing_deleted['id']
-        db.execute_query("""
-            UPDATE user_position SET status = 'active' WHERE id = %s
-        """, (user_position_id,))
-    else:
-        # Create new user_position entry
-        user_position_id = str(uuid.uuid4())
-        db.execute_query("""
-            INSERT INTO user_position (id, user_id, position_id, status)
-            VALUES (%s, %s, %s, 'active')
-        """, (user_position_id, user.id, position_id))
-
-    # Register agree response (upsert)
-    db.execute_query("""
-        INSERT INTO response (user_id, position_id, response)
-        VALUES (%s, %s, 'agree')
-        ON CONFLICT (user_id, position_id) DO UPDATE SET response = 'agree'
-    """, (user.id, position_id))
-
-    # Position agree_count is maintained by trg_response_position_counts trigger
-
-    # Queue vote for Polis sync
-    polis_sync.queue_vote_sync(
-        position_id=position_id,
-        user_id=user.id,
-        response='agree'
-    )
-
-    # Fetch and return the created user_position
-    ret = db.execute_query("""
-        SELECT
-            up.id,
-            up.user_id,
-            up.position_id,
-            up.status,
-            up.agree_count,
-            up.disagree_count,
-            up.pass_count,
-            up.chat_count,
-            p.statement,
-            p.category_id,
-            p.location_id,
-            c.label AS category_name,
-            l.name AS location_name,
-            l.code AS location_code
-        FROM user_position AS up
-        JOIN position AS p ON up.position_id = p.id
-        LEFT JOIN position_category AS c ON p.category_id = c.id
-        LEFT JOIN location AS l ON p.location_id = l.id
-        WHERE up.id = %s
-    """, (user_position_id,), fetchone=True)
-
-    return _row_to_user_position(ret), 201
 
 
 def search_similar_positions(body, token_info=None):  # noqa: E501

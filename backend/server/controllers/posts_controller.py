@@ -583,51 +583,6 @@ def delete_post(post_id, token_info=None):  # noqa: E501
         return ErrorModel(403, "Forbidden"), 403
 
 
-def lock_post(post_id, token_info=None):  # noqa: E501
-    """Lock or unlock a post (moderator toggle)."""
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
-    user = token_to_user(token_info)
-    user_id = str(user.id)
-
-    post = db.execute_query(
-        "SELECT * FROM post WHERE id = %s AND status IN ('active', 'locked')",
-        (post_id,), fetchone=True,
-    )
-    if not post:
-        return ErrorModel(404, "Post not found"), 404
-
-    if not is_moderator_at_location(user_id, str(post["location_id"])):
-        return ErrorModel(403, "Only moderators can lock posts"), 403
-
-    new_status = "locked" if post["status"] == "active" else "active"
-    db.execute_query(
-        "UPDATE post SET status = %s WHERE id = %s",
-        (new_status, post_id),
-    )
-
-    # Fetch updated
-    row = db.execute_query("""
-        SELECT p.*,
-               u.username AS creator_username, u.display_name AS creator_display_name,
-               u.avatar_icon_url AS creator_avatar_icon_url, u.status AS creator_status,
-               u.trust_score AS creator_trust_score,
-               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u.id AND k.status = 'sent'), 0) AS creator_kudos_count,
-               pc.label AS category_label,
-               l.code AS location_code, l.name AS location_name,
-               NULL AS user_vote_type, NULL AS user_vote_reason
-        FROM post p
-        JOIN users u ON p.creator_user_id = u.id
-        LEFT JOIN position_category pc ON p.category_id = pc.id
-        LEFT JOIN location l ON p.location_id = l.id
-        WHERE p.id = %s
-    """, (post_id,), fetchone=True)
-
-    return _row_to_post(row), 200
-
-
 def vote_on_post(post_id, body, token_info=None):  # noqa: E501
     """Vote on a post (upvote/downvote with toggle)."""
     authorized, auth_err = authorization("normal", token_info)
@@ -740,7 +695,7 @@ def vote_on_post(post_id, body, token_info=None):  # noqa: E501
 
 
 def patch_post(post_id, body, token_info=None):  # noqa: E501
-    """Patch a post — toggle role badge visibility (author only)."""
+    """Patch a post — toggle role badge visibility or lock/unlock."""
     authorized, auth_err = authorization("normal", token_info)
     if not authorized:
         return auth_err, auth_err.code
@@ -755,26 +710,41 @@ def patch_post(post_id, body, token_info=None):  # noqa: E501
     if not post:
         return ErrorModel(404, "Post not found"), 404
 
-    if str(post["creator_user_id"]) != user_id:
-        return ErrorModel(403, "Only the author can patch this post"), 403
-
     data = connexion.request.get_json()
     show_creator_role = data.get("showCreatorRole")
+    locked = data.get("locked")
 
-    if show_creator_role is None:
+    if show_creator_role is None and locked is None:
         return ErrorModel(400, "No patchable fields provided"), 400
 
-    # Verify user has a role at this location
-    post_location_id = str(post["location_id"])
-    post_category_id = str(post["category_id"]) if post.get("category_id") else None
-    creator_role = get_highest_role_at_location(user_id, post_location_id, post_category_id)
-    if not creator_role:
-        return ErrorModel(403, "No role at this location"), 403
+    creator_role = None
 
-    db.execute_query(
-        "UPDATE post SET show_creator_role = %s WHERE id = %s",
-        (show_creator_role, post_id),
-    )
+    # Handle showCreatorRole (author only)
+    if show_creator_role is not None:
+        if str(post["creator_user_id"]) != user_id:
+            return ErrorModel(403, "Only the author can toggle role badge"), 403
+
+        post_location_id = str(post["location_id"])
+        post_category_id = str(post["category_id"]) if post.get("category_id") else None
+        creator_role = get_highest_role_at_location(user_id, post_location_id, post_category_id)
+        if not creator_role:
+            return ErrorModel(403, "No role at this location"), 403
+
+        db.execute_query(
+            "UPDATE post SET show_creator_role = %s WHERE id = %s",
+            (show_creator_role, post_id),
+        )
+
+    # Handle locked (moderator only)
+    if locked is not None:
+        if not is_moderator_at_location(user_id, str(post["location_id"])):
+            return ErrorModel(403, "Only moderators can lock posts"), 403
+
+        new_status = "locked" if locked else "active"
+        db.execute_query(
+            "UPDATE post SET status = %s WHERE id = %s",
+            (new_status, post_id),
+        )
 
     # Fetch updated post
     row = db.execute_query("""
@@ -794,6 +764,8 @@ def patch_post(post_id, body, token_info=None):  # noqa: E501
     """, (post_id,), fetchone=True)
 
     row_dict = dict(row)
-    row_dict["creator_role"] = creator_role
-    row_dict["show_creator_role"] = show_creator_role
+    if creator_role:
+        row_dict["creator_role"] = creator_role
+    if show_creator_role is not None:
+        row_dict["show_creator_role"] = show_creator_role
     return _row_to_post(row_dict), 200

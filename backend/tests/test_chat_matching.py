@@ -32,7 +32,7 @@ from conftest import (
 # ---------------------------------------------------------------------------
 
 CARD_QUEUE_URL = f"{BASE_URL}/card-queue"
-CHAT_REQUESTS_URL = f"{BASE_URL}/chats/requests/"
+CHAT_REQUESTS_URL = f"{BASE_URL}/chats/requests"
 CHATTING_LIST_URL = f"{BASE_URL}/users/me/chatting-list"
 HEARTBEAT_URL = f"{BASE_URL}/users/me/heartbeat"
 
@@ -497,7 +497,7 @@ class TestDeliveryContext:
 # ---------------------------------------------------------------------------
 
 class TestChatRequestCreation:
-    """POST /chats/requests/ — creating chat requests."""
+    """POST /chats/requests — creating chat requests."""
 
     def setup_method(self):
         cleanup_chat_request(NORMAL2_ID, USER_POSITION_NORMAL1)
@@ -778,7 +778,7 @@ class TestChatRequestRescind:
             chat_request_url(req_id),
             headers=normal2_headers,
         )
-        assert resp.status_code == 200
+        assert resp.status_code == 204
 
     def test_only_initiator_can_rescind(self, normal1_headers, normal2_headers):
         """Recipient cannot rescind the request."""
@@ -1341,7 +1341,7 @@ class TestFullLifecycle:
             chat_request_url(req_id),
             headers=normal2_headers,
         )
-        assert resp.status_code == 200
+        assert resp.status_code == 204
 
         # Create again
         resp = requests.post(

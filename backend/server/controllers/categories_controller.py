@@ -53,7 +53,7 @@ def get_all_categories(token_info=None):  # noqa: E501
     return response
 
 
-def suggest_category(body, token_info=None):  # noqa: E501
+def create_category_suggestions(body, token_info=None):  # noqa: E501
     """Suggest categories based on a position statement
 
     Uses semantic similarity to rank categories by relevance to the given statement.

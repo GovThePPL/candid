@@ -24,7 +24,7 @@ from conftest import (
 # ---------------------------------------------------------------------------
 
 def chat_requests_url():
-    return f"{BASE_URL}/chats/requests/"
+    return f"{BASE_URL}/chats/requests"
 
 
 def chat_request_url(request_id):
@@ -69,7 +69,7 @@ class TestChatServerHealth:
 # ---------------------------------------------------------------------------
 
 class TestCreateChatRequest:
-    """POST /chats/requests/"""
+    """POST /chats/requests"""
 
     @pytest.fixture(autouse=True)
     def cleanup(self):
@@ -705,7 +705,7 @@ class TestSendKudos:
 # ---------------------------------------------------------------------------
 
 class TestDismissKudos:
-    """POST /chats/{chatId}/kudos/dismiss"""
+    """DELETE /chats/{chatId}/kudos/prompt"""
 
     @pytest.fixture(autouse=True)
     def cleanup(self):
@@ -717,8 +717,8 @@ class TestDismissKudos:
     @pytest.mark.smoke
     def test_dismiss_kudos_success(self, normal_headers):
         """Participant can dismiss kudos prompt."""
-        resp = requests.post(
-            f"{BASE_URL}/chats/{CHAT_LOG_1_ID}/kudos/dismiss",
+        resp = requests.delete(
+            f"{BASE_URL}/chats/{CHAT_LOG_1_ID}/kudos/prompt",
             headers=normal_headers,
         )
         assert resp.status_code == 204
@@ -726,15 +726,15 @@ class TestDismissKudos:
     def test_dismiss_kudos_is_idempotent(self, normal_headers):
         """Dismissing kudos twice is idempotent."""
         # Dismiss first time
-        resp1 = requests.post(
-            f"{BASE_URL}/chats/{CHAT_LOG_1_ID}/kudos/dismiss",
+        resp1 = requests.delete(
+            f"{BASE_URL}/chats/{CHAT_LOG_1_ID}/kudos/prompt",
             headers=normal_headers,
         )
         assert resp1.status_code == 204
 
         # Dismiss again - should still succeed
-        resp2 = requests.post(
-            f"{BASE_URL}/chats/{CHAT_LOG_1_ID}/kudos/dismiss",
+        resp2 = requests.delete(
+            f"{BASE_URL}/chats/{CHAT_LOG_1_ID}/kudos/prompt",
             headers=normal_headers,
         )
         assert resp2.status_code == 204
@@ -742,8 +742,8 @@ class TestDismissKudos:
     def test_dismiss_then_send_kudos(self, normal_headers):
         """User can send kudos after dismissing."""
         # First dismiss
-        dismiss_resp = requests.post(
-            f"{BASE_URL}/chats/{CHAT_LOG_1_ID}/kudos/dismiss",
+        dismiss_resp = requests.delete(
+            f"{BASE_URL}/chats/{CHAT_LOG_1_ID}/kudos/prompt",
             headers=normal_headers,
         )
         assert dismiss_resp.status_code == 204
@@ -757,16 +757,16 @@ class TestDismissKudos:
 
     def test_non_participant_cannot_dismiss_kudos(self, normal2_headers):
         """Non-participant cannot dismiss kudos."""
-        resp = requests.post(
-            f"{BASE_URL}/chats/{CHAT_LOG_1_ID}/kudos/dismiss",
+        resp = requests.delete(
+            f"{BASE_URL}/chats/{CHAT_LOG_1_ID}/kudos/prompt",
             headers=normal2_headers,
         )
         assert resp.status_code == 403
 
     def test_nonexistent_chat(self, normal_headers):
         """Dismissing kudos for nonexistent chat returns 404."""
-        resp = requests.post(
-            f"{BASE_URL}/chats/{NONEXISTENT_UUID}/kudos/dismiss",
+        resp = requests.delete(
+            f"{BASE_URL}/chats/{NONEXISTENT_UUID}/kudos/prompt",
             headers=normal_headers,
         )
         assert resp.status_code == 404

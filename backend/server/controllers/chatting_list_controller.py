@@ -360,7 +360,7 @@ def mark_chatting_list_explanation_seen(token_info=None):
     return None, 204
 
 
-def bulk_remove_from_chatting_list(body, token_info=None):
+def bulk_delete_chatting_list_items(body=None, token_info=None):
     """Remove multiple positions from chatting list
 
     Bulk remove by category, location, or specific item IDs.

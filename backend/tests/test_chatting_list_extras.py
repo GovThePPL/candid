@@ -29,12 +29,12 @@ class TestChattingListMetadata:
 
 
 class TestMarkExplanationSeen:
-    """POST /users/me/chatting-list/explanation-seen"""
+    """PUT /users/me/chatting-list/explanation-seen"""
 
     @pytest.mark.mutation
     def test_mark_seen_success(self, normal_headers):
         """Can mark the chatting list explanation as seen."""
-        resp = requests.post(
+        resp = requests.put(
             f"{CHATTING_LIST_URL}/explanation-seen",
             headers=normal_headers,
         )
@@ -43,13 +43,13 @@ class TestMarkExplanationSeen:
 
 
 class TestBulkRemove:
-    """POST /users/me/chatting-list/bulk-remove"""
+    """DELETE /users/me/chatting-list"""
 
     @pytest.mark.mutation
     def test_bulk_remove_by_item_ids(self, normal_headers):
         """Can bulk remove by item IDs (even if empty, should not error)."""
-        resp = requests.post(
-            f"{CHATTING_LIST_URL}/bulk-remove",
+        resp = requests.delete(
+            CHATTING_LIST_URL,
             headers=normal_headers,
             json={"itemIds": [NONEXISTENT_UUID]},
         )
@@ -59,8 +59,8 @@ class TestBulkRemove:
     @pytest.mark.mutation
     def test_bulk_remove_by_category(self, normal_headers):
         """Can bulk remove by category ID."""
-        resp = requests.post(
-            f"{CHATTING_LIST_URL}/bulk-remove",
+        resp = requests.delete(
+            CHATTING_LIST_URL,
             headers=normal_headers,
             json={"categoryId": HEALTHCARE_CAT_ID},
         )
@@ -68,8 +68,8 @@ class TestBulkRemove:
 
     def test_bulk_remove_empty_body_400(self, normal_headers):
         """Empty body returns 400."""
-        resp = requests.post(
-            f"{CHATTING_LIST_URL}/bulk-remove",
+        resp = requests.delete(
+            CHATTING_LIST_URL,
             headers=normal_headers,
             json={},
         )

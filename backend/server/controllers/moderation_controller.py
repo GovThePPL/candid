@@ -277,8 +277,8 @@ def create_appeal(action_id, body, token_info=None):  # noqa: E501
     }, 201
 
 
-def dismiss_admin_response_notification(appeal_id, token_info=None):
-    """Dismiss an admin response notification."""
+def delete_admin_response_notification(appeal_id, token_info=None):
+    """Delete an admin response notification."""
     authorized, auth_err = authorization_scoped("facilitator", token_info)
     if not authorized:
         return auth_err, auth_err.code
@@ -289,14 +289,16 @@ def dismiss_admin_response_notification(appeal_id, token_info=None):
         WHERE mod_action_appeal_id = %s AND user_id = %s
     """, (appeal_id, user.id))
 
-    return {'status': 'ok'}
+    return '', 204
 
 
-def claim_report(report_id, token_info=None):  # noqa: E501
-    """Claim a report for review
+def update_report(report_id, body, token_info=None):  # noqa: E501
+    """Update a report (claim or release)
 
     :param report_id:
     :type report_id: str
+    :param body: Request body with claimedBy field
+    :type body: dict
 
     :rtype: Union[dict, Tuple[dict, int]]
     """
@@ -305,6 +307,9 @@ def claim_report(report_id, token_info=None):  # noqa: E501
         return auth_err, auth_err.code
 
     user = token_to_user(token_info)
+
+    if connexion.request.is_json:
+        body = connexion.request.get_json()
 
     # Facilitator scope check: verify report is within their scope
     if not is_admin_anywhere(user.id) and not is_moderator_anywhere(user.id):
@@ -323,63 +328,33 @@ def claim_report(report_id, token_info=None):  # noqa: E501
     if report is None:
         return ErrorModel(400, "Report not found"), 400
 
-    # Check if already claimed by another user with an active claim
-    if (report['claimed_by_user_id'] is not None
-            and str(report['claimed_by_user_id']) != str(user.id)):
-        from datetime import datetime, timezone, timedelta
-        if report['claimed_at'] and report['claimed_at'].replace(tzinfo=timezone.utc) > datetime.now(timezone.utc) - timedelta(minutes=15):
-            return ErrorModel(409, "Report is already claimed by another moderator"), 409
+    claimed_by = body.get('claimedBy')
 
-    # Claim it
-    db.execute_query("""
-        UPDATE report SET claimed_by_user_id = %s, claimed_at = CURRENT_TIMESTAMP
-        WHERE id = %s
-    """, (str(user.id), report_id))
+    if claimed_by is not None:
+        # Claiming the report
+        if (report['claimed_by_user_id'] is not None
+                and str(report['claimed_by_user_id']) != str(claimed_by)):
+            from datetime import datetime, timezone, timedelta
+            if report['claimed_at'] and report['claimed_at'].replace(tzinfo=timezone.utc) > datetime.now(timezone.utc) - timedelta(minutes=15):
+                return ErrorModel(409, "Report is already claimed by another moderator"), 409
 
-    return {
-        'status': 'claimed',
-        'claimedBy': str(user.id),
-    }
+        db.execute_query("""
+            UPDATE report SET claimed_by_user_id = %s, claimed_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (str(claimed_by), report_id))
 
+        return {
+            'status': 'claimed',
+            'claimedBy': str(claimed_by),
+        }
+    else:
+        # Releasing the report
+        db.execute_query("""
+            UPDATE report SET claimed_by_user_id = NULL, claimed_at = NULL
+            WHERE id = %s
+        """, (report_id,))
 
-def release_report(report_id, token_info=None):  # noqa: E501
-    """Release a claimed report
-
-    :param report_id:
-    :type report_id: str
-
-    :rtype: Union[dict, Tuple[dict, int]]
-    """
-    authorized, auth_err = authorization_scoped("facilitator", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
-    user = token_to_user(token_info)
-
-    # Facilitator scope check
-    if not is_admin_anywhere(user.id) and not is_moderator_anywhere(user.id):
-        scopes = get_facilitator_scopes(user.id)
-        if not scopes:
-            return ErrorModel(403, "Unauthorized"), 403
-        content_loc, content_cat = _get_content_scope(report_id)
-        if not content_loc or not content_cat or (content_loc, content_cat) not in scopes:
-            return ErrorModel(403, "Report is outside your facilitator scope"), 403
-
-    # Check report exists
-    report = db.execute_query("""
-        SELECT id, claimed_by_user_id FROM report WHERE id = %s
-    """, (report_id,), fetchone=True)
-
-    if report is None:
-        return ErrorModel(400, "Report not found"), 400
-
-    # Clear the claim
-    db.execute_query("""
-        UPDATE report SET claimed_by_user_id = NULL, claimed_at = NULL
-        WHERE id = %s
-    """, (report_id,))
-
-    return {'status': 'released'}
+        return {'status': 'released', 'claimedBy': None}
 
 
 def get_moderation_queue(token_info=None):  # noqa: E501

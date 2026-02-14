@@ -472,13 +472,14 @@ def search_users(search=None, limit=20, offset=0, token_info=None):  # noqa: E50
 # Role Management API (Phase 6)
 # ---------------------------------------------------------------------------
 
-def request_role_assignment(body, token_info=None):  # noqa: E501
-    """Request a role assignment for a user.
+def create_role_request(body, token_info=None):  # noqa: E501
+    """Create a role change request (assign or remove).
 
-    POST /admin/roles
+    POST /admin/roles/requests
 
-    Admins can request: admin, moderator, facilitator (at their location or descendants).
+    For assign: Admins can request admin, moderator, facilitator (at their location or descendants).
     Facilitators can request: assistant_moderator, expert, liaison (at their location+category).
+    For remove: specify userRoleId of the role to remove.
     """
     authorized, auth_err = authorization_scoped("facilitator", token_info)
     if not authorized:
@@ -488,6 +489,14 @@ def request_role_assignment(body, token_info=None):  # noqa: E501
 
     if connexion.request.is_json:
         body = connexion.request.get_json()
+
+    action = body.get('action')
+    if action not in ('assign', 'remove'):
+        return ErrorModel(400, "action must be 'assign' or 'remove'"), 400
+
+    # Dispatch to remove handler
+    if action == 'remove':
+        return _handle_role_removal(body, user, token_info)
 
     target_user_id = body.get('targetUserId')
     role = body.get('role')
@@ -601,20 +610,8 @@ def request_role_assignment(body, token_info=None):  # noqa: E501
     return {'id': request_id, 'status': 'pending'}, 201
 
 
-def request_role_removal(body, token_info=None):  # noqa: E501
-    """Request removal of a user's role.
-
-    POST /admin/roles/remove
-    """
-    authorized, auth_err = authorization_scoped("facilitator", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
-    user = token_to_user(token_info)
-
-    if connexion.request.is_json:
-        body = connexion.request.get_json()
-
+def _handle_role_removal(body, user, token_info=None):
+    """Handle role removal request (internal helper called from create_role_request)."""
     user_role_id = body.get('userRoleId')
     reason = body.get('reason', '')
 
@@ -775,51 +772,10 @@ def get_pending_role_requests(token_info=None):  # noqa: E501
     return result
 
 
-def approve_role_request(request_id, token_info=None):  # noqa: E501
-    """Approve a pending role change request.
+def update_role_request(request_id, body, token_info=None):  # noqa: E501
+    """Update a role change request (approve, deny, or rescind).
 
-    POST /admin/roles/requests/{id}/approve
-    """
-    authorized, auth_err = authorization_scoped("facilitator", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
-    user = token_to_user(token_info)
-
-    # Auto-approve expired first
-    _check_auto_approve_expired()
-
-    req = db.execute_query("""
-        SELECT * FROM role_change_request WHERE id = %s
-    """, (request_id,), fetchone=True)
-
-    if not req:
-        return ErrorModel(404, "Request not found"), 404
-
-    if req['status'] != 'pending':
-        return ErrorModel(400, f"Request is already {req['status']}"), 400
-
-    # Verify this user can approve
-    peers = _find_approval_peer(req)
-    if not peers or str(user.id) not in peers:
-        return ErrorModel(403, "You are not authorized to approve this request"), 403
-
-    # Approve
-    db.execute_query("""
-        UPDATE role_change_request
-        SET status = 'approved', reviewed_by = %s, updated_time = CURRENT_TIMESTAMP
-        WHERE id = %s
-    """, (str(user.id), request_id))
-
-    _apply_role_change(req)
-
-    return {'id': str(req['id']), 'status': 'approved'}
-
-
-def deny_role_request(request_id, body=None, token_info=None):  # noqa: E501
-    """Deny a pending role change request.
-
-    POST /admin/roles/requests/{id}/deny
+    PATCH /admin/roles/requests/{requestId}
     """
     authorized, auth_err = authorization_scoped("facilitator", token_info)
     if not authorized:
@@ -829,7 +785,10 @@ def deny_role_request(request_id, body=None, token_info=None):  # noqa: E501
 
     if connexion.request.is_json:
         body = connexion.request.get_json()
-    denial_reason = (body or {}).get('reason', '')
+
+    new_status = body.get('status')
+    if new_status not in ('approved', 'denied', 'rescinded'):
+        return ErrorModel(400, "status must be 'approved', 'denied', or 'rescinded'"), 400
 
     # Auto-approve expired first
     _check_auto_approve_expired()
@@ -844,18 +803,44 @@ def deny_role_request(request_id, body=None, token_info=None):  # noqa: E501
     if req['status'] != 'pending':
         return ErrorModel(400, f"Request is already {req['status']}"), 400
 
-    # Verify this user can approve/deny
+    if new_status == 'rescinded':
+        # Only the original requester can rescind
+        if str(req['requested_by']) != str(user.id):
+            return ErrorModel(403, "Only the original requester can rescind"), 403
+
+        db.execute_query("""
+            UPDATE role_change_request
+            SET status = 'rescinded', updated_time = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (request_id,))
+
+        return {'id': str(req['id']), 'status': 'rescinded'}
+
+    # Approve or deny: verify this user can review
     peers = _find_approval_peer(req)
     if not peers or str(user.id) not in peers:
-        return ErrorModel(403, "You are not authorized to deny this request"), 403
+        return ErrorModel(403, "You are not authorized to review this request"), 403
 
-    db.execute_query("""
-        UPDATE role_change_request
-        SET status = 'denied', reviewed_by = %s, denial_reason = %s, updated_time = CURRENT_TIMESTAMP
-        WHERE id = %s
-    """, (str(user.id), denial_reason, request_id))
+    if new_status == 'approved':
+        db.execute_query("""
+            UPDATE role_change_request
+            SET status = 'approved', reviewed_by = %s, updated_time = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (str(user.id), request_id))
 
-    return {'id': str(req['id']), 'status': 'denied'}
+        _apply_role_change(req)
+
+        return {'id': str(req['id']), 'status': 'approved'}
+
+    else:  # denied
+        denial_reason = body.get('reason', '')
+        db.execute_query("""
+            UPDATE role_change_request
+            SET status = 'denied', reviewed_by = %s, denial_reason = %s, updated_time = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (str(user.id), denial_reason, request_id))
+
+        return {'id': str(req['id']), 'status': 'denied'}
 
 
 _ROLE_REQUEST_SELECT = """
@@ -950,39 +935,6 @@ def get_role_requests(view=None, token_info=None):  # noqa: E501
 
     else:
         return ErrorModel(400, f"Invalid view: {view}"), 400
-
-
-def rescind_role_request(request_id, token_info=None):  # noqa: E501
-    """Rescind a pending role change request (requester only).
-
-    POST /admin/roles/requests/{id}/rescind
-    """
-    authorized, auth_err = authorization_scoped("facilitator", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
-    user = token_to_user(token_info)
-
-    req = db.execute_query("""
-        SELECT id, requested_by, status FROM role_change_request WHERE id = %s
-    """, (request_id,), fetchone=True)
-
-    if not req:
-        return ErrorModel(404, "Request not found"), 404
-
-    if str(req['requested_by']) != str(user.id):
-        return ErrorModel(403, "Only the original requester can rescind"), 403
-
-    if req['status'] != 'pending':
-        return ErrorModel(400, f"Request is already {req['status']}"), 400
-
-    db.execute_query("""
-        UPDATE role_change_request
-        SET status = 'rescinded', updated_time = CURRENT_TIMESTAMP
-        WHERE id = %s
-    """, (request_id,))
-
-    return {'id': str(req['id']), 'status': 'rescinded'}
 
 
 def list_roles(user_id=None, location_id=None, role=None, token_info=None):  # noqa: E501
@@ -1412,10 +1364,10 @@ def get_category_label_survey(category_id, token_info=None):  # noqa: E501
 # User Ban/Unban API
 # ---------------------------------------------------------------------------
 
-def ban_user(user_id, body=None, token_info=None):  # noqa: E501
-    """Ban a user.
+def update_user_status(user_id, body, token_info=None):  # noqa: E501
+    """Update a user's status (ban/unban).
 
-    POST /admin/users/{userId}/ban
+    PATCH /admin/users/{userId}/status
     Auth: facilitator+ (scoped).
     """
     authorized, auth_err = authorization_scoped("facilitator", token_info)
@@ -1427,9 +1379,14 @@ def ban_user(user_id, body=None, token_info=None):  # noqa: E501
     if connexion.request.is_json:
         body = connexion.request.get_json()
 
-    reason = (body.get('reason') or '').strip() if body else ''
+    new_status = body.get('status')
+    reason = (body.get('reason') or '').strip()
+
+    if new_status not in ('banned', 'active'):
+        return ErrorModel(400, "status must be 'banned' or 'active'"), 400
+
     if not reason:
-        return ErrorModel(400, "Reason is required for banning a user"), 400
+        return ErrorModel(400, "Reason is required"), 400
 
     user = db.execute_query("""
         SELECT id, status FROM users WHERE id = %s
@@ -1438,65 +1395,28 @@ def ban_user(user_id, body=None, token_info=None):  # noqa: E501
     if not user:
         return ErrorModel(404, "User not found"), 404
 
-    if user['status'] == 'banned':
-        return ErrorModel(400, "User is already banned"), 400
-
-    if user['status'] == 'deleted':
-        return ErrorModel(400, "Cannot ban a deleted user"), 400
+    if new_status == 'banned':
+        if user['status'] == 'banned':
+            return ErrorModel(400, "User is already banned"), 400
+        if user['status'] == 'deleted':
+            return ErrorModel(400, "Cannot ban a deleted user"), 400
+        action = 'ban'
+    else:
+        if user['status'] != 'banned':
+            return ErrorModel(400, "User is not banned"), 400
+        action = 'unban'
 
     db.execute_query("""
-        UPDATE users SET status = 'banned' WHERE id = %s
-    """, (user_id,))
+        UPDATE users SET status = %s WHERE id = %s
+    """, (new_status, user_id))
     invalidate_ban_cache(user_id)
 
     db.execute_query("""
         INSERT INTO admin_action_log (id, action, target_user_id, performed_by, reason)
-        VALUES (%s, 'ban', %s, %s, %s)
-    """, (str(uuid.uuid4()), user_id, acting_user.id, reason))
+        VALUES (%s, %s, %s, %s, %s)
+    """, (str(uuid.uuid4()), action, user_id, acting_user.id, reason))
 
-    return {'id': str(user_id), 'status': 'banned'}
-
-
-def unban_user(user_id, body=None, token_info=None):  # noqa: E501
-    """Unban a user.
-
-    POST /admin/users/{userId}/unban
-    Auth: facilitator+ (scoped).
-    """
-    authorized, auth_err = authorization_scoped("facilitator", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
-    acting_user = token_to_user(token_info)
-
-    if connexion.request.is_json:
-        body = connexion.request.get_json()
-
-    reason = (body.get('reason') or '').strip() if body else ''
-    if not reason:
-        return ErrorModel(400, "Reason is required for unbanning a user"), 400
-
-    user = db.execute_query("""
-        SELECT id, status FROM users WHERE id = %s
-    """, (user_id,), fetchone=True)
-
-    if not user:
-        return ErrorModel(404, "User not found"), 404
-
-    if user['status'] != 'banned':
-        return ErrorModel(400, "User is not banned"), 400
-
-    db.execute_query("""
-        UPDATE users SET status = 'active' WHERE id = %s
-    """, (user_id,))
-    invalidate_ban_cache(user_id)
-
-    db.execute_query("""
-        INSERT INTO admin_action_log (id, action, target_user_id, performed_by, reason)
-        VALUES (%s, 'unban', %s, %s, %s)
-    """, (str(uuid.uuid4()), user_id, acting_user.id, reason))
-
-    return {'id': str(user_id), 'status': 'active'}
+    return {'id': str(user_id), 'status': new_status}
 
 
 def get_admin_actions(token_info=None):  # noqa: E501

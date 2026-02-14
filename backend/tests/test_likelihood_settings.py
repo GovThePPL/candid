@@ -29,7 +29,7 @@ from conftest import (
 
 SETTINGS_URL = f"{BASE_URL}/users/me/settings"
 CARD_QUEUE_URL = f"{BASE_URL}/card-queue"
-CHAT_REQUESTS_URL = f"{BASE_URL}/chats/requests/"
+CHAT_REQUESTS_URL = f"{BASE_URL}/chats/requests"
 CHATTING_LIST_URL = f"{BASE_URL}/users/me/chatting-list"
 
 SWIPING_PREFIX = "presence:swiping:"
@@ -184,8 +184,8 @@ class TestChatRequestLikelihoodRedisSync:
         set_chat_request_likelihood_db(NORMAL1_ID, 3)
 
     def test_settings_update_syncs_to_redis(self, normal1_headers):
-        """PUT /settings with chatRequestLikelihood syncs value to Redis."""
-        resp = requests.put(
+        """PATCH /settings with chatRequestLikelihood syncs value to Redis."""
+        resp = requests.patch(
             SETTINGS_URL,
             headers=normal1_headers,
             json={"chatRequestLikelihood": "off"},
@@ -198,8 +198,8 @@ class TestChatRequestLikelihoodRedisSync:
         assert redis_val == 0
 
     def test_settings_update_often_syncs_to_redis(self, normal1_headers):
-        """PUT /settings with chatRequestLikelihood=often syncs 5 to Redis."""
-        resp = requests.put(
+        """PATCH /settings with chatRequestLikelihood=often syncs 5 to Redis."""
+        resp = requests.patch(
             SETTINGS_URL,
             headers=normal1_headers,
             json={"chatRequestLikelihood": "often"},
@@ -210,8 +210,8 @@ class TestChatRequestLikelihoodRedisSync:
         assert redis_val == 5
 
     def test_settings_update_normal_syncs_to_redis(self, normal1_headers):
-        """PUT /settings with chatRequestLikelihood=normal syncs 3 to Redis."""
-        resp = requests.put(
+        """PATCH /settings with chatRequestLikelihood=normal syncs 3 to Redis."""
+        resp = requests.patch(
             SETTINGS_URL,
             headers=normal1_headers,
             json={"chatRequestLikelihood": "normal"},
@@ -258,7 +258,7 @@ class TestChattingListLikelihood:
         # Set likelihood to off
         set_chatting_list_likelihood_db(NORMAL2_ID, 0)
         # Invalidate cache by updating settings via API
-        resp = requests.put(
+        resp = requests.patch(
             SETTINGS_URL,
             headers=normal2_headers,
             json={"chattingListLikelihood": "off"},
@@ -283,7 +283,7 @@ class TestChattingListLikelihood:
         set_swiping(ADMIN1_ID)
 
         # Ensure likelihood is normal (3)
-        resp = requests.put(
+        resp = requests.patch(
             SETTINGS_URL,
             headers=normal2_headers,
             json={"chattingListLikelihood": "normal"},
@@ -327,7 +327,7 @@ class TestLikelihoodSettingsRoundtrip:
 
     def test_roundtrip_off(self, normal1_headers):
         """Setting both to 'off' reads back as 'off'."""
-        resp = requests.put(
+        resp = requests.patch(
             SETTINGS_URL,
             headers=normal1_headers,
             json={
@@ -349,7 +349,7 @@ class TestLikelihoodSettingsRoundtrip:
 
     def test_roundtrip_often(self, normal1_headers):
         """Setting both to 'often' reads back as 'often'."""
-        resp = requests.put(
+        resp = requests.patch(
             SETTINGS_URL,
             headers=normal1_headers,
             json={
@@ -365,7 +365,7 @@ class TestLikelihoodSettingsRoundtrip:
     def test_roundtrip_each_value(self, normal1_headers):
         """All six likelihood values round-trip correctly."""
         for label in ("off", "rarely", "less", "normal", "more", "often"):
-            resp = requests.put(
+            resp = requests.patch(
                 SETTINGS_URL,
                 headers=normal1_headers,
                 json={"chatRequestLikelihood": label},

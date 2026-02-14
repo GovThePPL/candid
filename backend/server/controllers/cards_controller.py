@@ -233,8 +233,8 @@ def _get_position_removed_notifications(user_id):
     return cards
 
 
-def dismiss_position_removed_notification(position_id, token_info=None):
-    """Dismiss a position removed notification."""
+def delete_position_notification(position_id, token_info=None):
+    """Delete a position removed notification."""
     authorized, auth_err = authorization_allow_banned("normal", token_info)
     if not authorized:
         return auth_err, auth_err.code
@@ -245,7 +245,7 @@ def dismiss_position_removed_notification(position_id, token_info=None):
         WHERE position_id = %s AND user_id = %s
     """, (position_id, user.id))
 
-    return {'status': 'ok'}
+    return '', 204
 
 
 

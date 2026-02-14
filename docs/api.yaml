@@ -3203,9 +3203,9 @@ paths:
                       position_removed_notification: '#/components/schemas/PositionRemovedCardItem'
                       diagnostics_consent: '#/components/schemas/DiagnosticsConsentCardItem'
 
-  /cards/notifications/{positionId}/dismiss:
-    post:
-      operationId: dismissPositionRemovedNotification
+  /cards/notifications/{positionId}:
+    delete:
+      operationId: deletePositionNotification
       summary: Dismiss a position removed notification
       tags:
         - Cards
@@ -3217,19 +3217,12 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        '204':
           description: Notification dismissed
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
 
-  /moderation/notifications/{appealId}/dismiss-admin-response:
-    post:
-      operationId: dismissAdminResponseNotification
+  /moderation/notifications/{appealId}:
+    delete:
+      operationId: deleteAdminResponseNotification
       summary: Dismiss an admin response notification
       tags:
         - Moderation
@@ -3241,15 +3234,8 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        '204':
           description: Notification dismissed
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
 
   /positions:
     post:
@@ -3319,39 +3305,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
-  /positions/{positionId}/adopt:
-    post:
-      operationId: adoptPosition
-      summary: Adopt a position and register an agree response
-      description: Creates a user_position entry for the current user and registers an agree response
-      tags:
-        - Positions
-      parameters:
-        - name: positionId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '201':
-          description: Position adopted successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UserPosition'
-        '400':
-          description: Position already adopted
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorModel'
-        '404':
-          description: Position not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorModel'
 
   /positions/{positionId}/agreed-closures:
     get:
@@ -3384,9 +3337,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
-  /positions/response:
+  /positions/responses:
     post:
-      operationId: respondToPositions
+      operationId: createPositionResponses
       summary: Respond to one or more position statements
       tags:
         - Positions
@@ -3630,6 +3583,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
+    delete:
+      operationId: deleteCurrentUser
+      summary: Soft delete current user account
+      tags:
+        - Users
+      responses:
+        '204':
+          description: Account deleted successfully
 
   /users/me/avatar:
     post:
@@ -3677,23 +3638,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
-  /users/me/delete:
-    post:
-      operationId: deleteCurrentUser
-      summary: Soft delete current user account
-      tags:
-        - Users
-      responses:
-        '200':
-          description: Account deleted successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-
   /users/me/heartbeat:
     post:
       operationId: heartbeat
@@ -3714,9 +3658,9 @@ paths:
                     type: string
 
   /users/me/push-token:
-    post:
-      operationId: registerPushToken
-      summary: Register a push notification token
+    put:
+      operationId: updatePushToken
+      summary: Register or update a push notification token
       tags:
         - Users
       security:
@@ -3761,7 +3705,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserSettings'
-    put:
+    patch:
       operationId: updateUserSettings
       summary: Update current user settings
       tags:
@@ -3799,30 +3743,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserDemographics'
-    put:
-      operationId: updateUserDemographics
-      summary: Replace user demographics
-      tags:
-        - Users
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UserDemographics'
-      responses:
-        '200':
-          description: Demographics updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UserDemographics'
-        '400':
-          description: Invalid input
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorModel'
     patch:
       operationId: updateUserDemographicsPartial
       summary: Update specific user demographics fields
@@ -3953,6 +3873,43 @@ paths:
                   $ref: '#/components/schemas/UserPosition'
         '304':
           description: Not Modified - cached version is still valid
+    post:
+      operationId: createUserPosition
+      summary: Adopt a position and register an agree response
+      description: Creates a user_position entry for the current user and registers an agree response
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - positionId
+              properties:
+                positionId:
+                  type: string
+                  format: uuid
+      responses:
+        '201':
+          description: Position adopted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPosition'
+        '400':
+          description: Position already adopted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: Position not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
 
   /users/me/positions/metadata:
     get:
@@ -4128,6 +4085,57 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
+    delete:
+      operationId: bulkDeleteChattingListItems
+      summary: Remove multiple positions from chatting list
+      description: |
+        Bulk remove chatting list items by category, location, or specific item IDs.
+        At least one of categoryId, locationCode, or itemIds must be provided.
+      tags:
+        - ChattingList
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                categoryId:
+                  type: string
+                  format: uuid
+                  description: Remove all items with positions in this category
+                locationCode:
+                  type: string
+                  description: Remove all items with positions in this location
+                itemIds:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                  description: Specific chatting list item IDs to remove
+      responses:
+        '200':
+          description: Items removed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  removedCount:
+                    type: integer
+                    description: Number of items removed
+        '400':
+          description: Invalid input - at least one filter required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
 
   /users/me/chatting-list/metadata:
     get:
@@ -4217,7 +4225,7 @@ paths:
                 $ref: '#/components/schemas/ErrorModel'
 
   /users/me/chatting-list/explanation-seen:
-    post:
+    put:
       operationId: markChattingListExplanationSeen
       summary: Mark the chatting list explanation as seen
       tags:
@@ -4232,60 +4240,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
-  /users/me/chatting-list/bulk-remove:
-    post:
-      operationId: bulkRemoveFromChattingList
-      summary: Remove multiple positions from chatting list
-      description: |
-        Bulk remove chatting list items by category, location, or specific item IDs.
-        At least one of categoryId, locationCode, or itemIds must be provided.
-      tags:
-        - ChattingList
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                categoryId:
-                  type: string
-                  format: uuid
-                  description: Remove all items with positions in this category
-                locationCode:
-                  type: string
-                  description: Remove all items with positions in this location
-                itemIds:
-                  type: array
-                  items:
-                    type: string
-                    format: uuid
-                  description: Specific chatting list item IDs to remove
-      responses:
-        '200':
-          description: Items removed successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  removedCount:
-                    type: integer
-                    description: Number of items removed
-        '400':
-          description: Invalid input - at least one filter required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorModel'
-        '401':
-          description: Not authenticated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorModel'
 
-  /chats/requests/:
+  /chats/requests:
     post:
       operationId: createChatRequest
       summary: Request to chat about a position statement
@@ -4375,12 +4331,8 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
-          description: Chat request updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ChatRequest'
+        '204':
+          description: Chat request rescinded
         '401':
           description: Unauthorized - authentication required
           content:
@@ -4539,9 +4491,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
-  /chats/{chatId}/kudos/dismiss:
-    post:
-      operationId: dismissKudos
+  /chats/{chatId}/kudos/prompt:
+    delete:
+      operationId: deleteKudosPrompt
       summary: Dismiss a kudos prompt without sending kudos
       description: Records that the user dismissed the kudos prompt, preventing the kudos card from appearing again.
       tags:
@@ -4736,9 +4688,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
-  /categories/suggest:
+  /categories/suggestions:
     post:
-      operationId: suggestCategory
+      operationId: createCategorySuggestions
       summary: Suggest categories based on a position statement
       description: Uses semantic similarity to rank categories by relevance to the given statement
       tags:
@@ -5240,11 +5192,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
-  /moderation/reports/{reportId}/claim:
-    post:
-      operationId: claimReport
-      summary: Claim a report for review
-      description: Claims a report so other moderators won't review it simultaneously. Claims expire after 15 minutes.
+  /moderation/reports/{reportId}:
+    patch:
+      operationId: updateReport
+      summary: Update a report (claim or release)
+      description: Set claimedBy to a userId to claim, or null to release. Claims expire after 15 minutes.
       tags:
         - Moderation
       parameters:
@@ -5254,9 +5206,21 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                claimedBy:
+                  type: string
+                  format: uuid
+                  nullable: true
+                  description: User ID to claim the report, or null to release
       responses:
         '200':
-          description: Report claimed successfully
+          description: Report updated successfully
           content:
             application/json:
               schema:
@@ -5267,9 +5231,7 @@ paths:
                   claimedBy:
                     type: string
                     format: uuid
-                  claimedAt:
-                    type: string
-                    format: date-time
+                    nullable: true
         '400':
           description: Report not found
           content:
@@ -5284,43 +5246,6 @@ paths:
                 $ref: '#/components/schemas/ErrorModel'
         '409':
           description: Report already claimed by another moderator
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorModel'
-
-  /moderation/reports/{reportId}/release:
-    post:
-      operationId: releaseReport
-      summary: Release a claimed report
-      description: Releases a claim on a report so other moderators can review it.
-      tags:
-        - Moderation
-      parameters:
-        - name: reportId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Report released successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-        '400':
-          description: Report not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorModel'
-        '403':
-          description: Forbidden - insufficient permissions
           content:
             application/json:
               schema:
@@ -5815,76 +5740,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
-    post:
-      operationId: requestRoleAssignment
-      summary: Request a role assignment for a user
-      tags:
-        - Admin
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RoleAssignmentRequest'
-      responses:
-        '201':
-          description: Request created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RoleChangeResult'
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorModel'
-        '403':
-          description: Forbidden
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorModel'
 
-  /admin/roles/remove:
-    post:
-      operationId: requestRoleRemoval
-      summary: Request removal of a user's role
-      tags:
-        - Admin
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - userRoleId
-              properties:
-                userRoleId:
-                  type: string
-                  format: uuid
-                reason:
-                  type: string
-      responses:
-        '201':
-          description: Request created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RoleChangeResult'
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorModel'
-        '403':
-          description: Forbidden
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorModel'
 
   /admin/roles/pending:
     get:
@@ -5908,43 +5764,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
-  /admin/roles/requests/{requestId}/approve:
-    post:
-      operationId: approveRoleRequest
-      summary: Approve a pending role change request
-      tags:
-        - Admin
-      parameters:
-        - name: requestId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Request approved
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RoleChangeResult'
-        '403':
-          description: Forbidden
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorModel'
-        '404':
-          description: Request not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorModel'
-
-  /admin/roles/requests/{requestId}/deny:
-    post:
-      operationId: denyRoleRequest
-      summary: Deny a pending role change request
+  /admin/roles/requests/{requestId}:
+    patch:
+      operationId: updateRoleRequest
+      summary: Update a role change request (approve, deny, or rescind)
       tags:
         - Admin
       parameters:
@@ -5955,20 +5778,33 @@ paths:
             type: string
             format: uuid
       requestBody:
+        required: true
         content:
           application/json:
             schema:
               type: object
+              required:
+                - status
               properties:
+                status:
+                  type: string
+                  enum: [approved, denied, rescinded]
                 reason:
                   type: string
+                  description: Required for denied status
       responses:
         '200':
-          description: Request denied
+          description: Request updated
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/RoleChangeResult'
+        '400':
+          description: Request is not pending
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
         '403':
           description: Forbidden
           content:
@@ -6010,41 +5846,61 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
-
-  /admin/roles/requests/{requestId}/rescind:
     post:
-      operationId: rescindRoleRequest
-      summary: Rescind a pending role change request (requester only)
+      operationId: createRoleRequest
+      summary: Create a role change request (assign or remove)
       tags:
         - Admin
-      parameters:
-        - name: requestId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - action
+              properties:
+                action:
+                  type: string
+                  enum: [assign, remove]
+                targetUserId:
+                  type: string
+                  format: uuid
+                  description: Required for assign action
+                role:
+                  type: string
+                  enum: [admin, moderator, facilitator, assistant_moderator, expert, liaison]
+                  description: Required for assign action
+                locationId:
+                  type: string
+                  format: uuid
+                  description: Required for assign action
+                positionCategoryId:
+                  type: string
+                  format: uuid
+                  nullable: true
+                  description: Required for facilitator-assignable roles
+                userRoleId:
+                  type: string
+                  format: uuid
+                  description: Required for remove action
+                reason:
+                  type: string
       responses:
-        '200':
-          description: Request rescinded
+        '201':
+          description: Request created
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/RoleChangeResult'
         '400':
-          description: Request is not pending
+          description: Invalid request
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
         '403':
-          description: Forbidden (not the original requester)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorModel'
-        '404':
-          description: Request not found
+          description: Forbidden
           content:
             application/json:
               schema:
@@ -6372,10 +6228,10 @@ paths:
       security:
         - BearerAuth: []
 
-  /admin/users/{userId}/ban:
-    post:
-      operationId: banUser
-      summary: Ban a user
+  /admin/users/{userId}/status:
+    patch:
+      operationId: updateUserStatus
+      summary: Update a user's status (ban/unban)
       tags:
         - Admin
       parameters:
@@ -6392,13 +6248,17 @@ paths:
             schema:
               type: object
               required:
+                - status
                 - reason
               properties:
+                status:
+                  type: string
+                  enum: [banned, active]
                 reason:
                   type: string
       responses:
         '200':
-          description: User banned
+          description: User status updated
           content:
             application/json:
               schema:
@@ -6410,65 +6270,7 @@ paths:
                   status:
                     type: string
         '400':
-          description: Invalid request (already banned)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorModel'
-        '403':
-          description: Forbidden
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorModel'
-        '404':
-          description: User not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorModel'
-      security:
-        - BearerAuth: []
-
-  /admin/users/{userId}/unban:
-    post:
-      operationId: unbanUser
-      summary: Unban a user
-      tags:
-        - Admin
-      parameters:
-        - name: userId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - reason
-              properties:
-                reason:
-                  type: string
-      responses:
-        '200':
-          description: User unbanned
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  id:
-                    type: string
-                    format: uuid
-                  status:
-                    type: string
-        '400':
-          description: Invalid request (not banned)
+          description: Invalid request
           content:
             application/json:
               schema:
@@ -7123,6 +6925,9 @@ paths:
               properties:
                 showCreatorRole:
                   type: boolean
+                locked:
+                  type: boolean
+                  description: Lock or unlock the post (moderator only)
       responses:
         '200':
           description: Post patched
@@ -7138,41 +6943,6 @@ paths:
                 $ref: '#/components/schemas/ErrorModel'
         '403':
           description: Not author or no role
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorModel'
-        '404':
-          description: Post not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorModel'
-
-  /posts/{postId}/lock:
-    post:
-      operationId: lockPost
-      summary: Lock or unlock a post (moderator)
-      tags:
-        - Posts
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: postId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Post lock toggled
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Post'
-        '403':
-          description: Forbidden
           content:
             application/json:
               schema:

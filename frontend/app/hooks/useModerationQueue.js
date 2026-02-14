@@ -5,10 +5,12 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import api, { translateError } from '../lib/api'
+import { useUser } from './useUser'
 
 export default function useModerationQueue() {
   const { t } = useTranslation('moderation')
   const router = useRouter()
+  const { user } = useUser()
 
   const [queue, setQueue] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -62,7 +64,7 @@ export default function useModerationQueue() {
   const currentReportId = currentItem?.type === 'report' ? currentItem.data.id : null
   useEffect(() => {
     if (currentReportId) {
-      api.moderation.claimReport(currentReportId).catch(err => {
+      api.moderation.claimReport(currentReportId, user?.id).catch(err => {
         console.error('Failed to claim report:', err)
       })
     }

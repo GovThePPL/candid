@@ -2,8 +2,8 @@
 
 Tests:
 - POST /admin/categories — create category, duplicate, empty label, unauthorized
-- POST /admin/users/{userId}/ban — ban active user, already banned, unauthorized
-- POST /admin/users/{userId}/unban — unban banned user, not banned, nonexistent, unauthorized
+- PATCH /admin/users/{userId}/status — ban active user, already banned, unauthorized
+- PATCH /admin/users/{userId}/status — unban banned user, not banned, nonexistent, unauthorized
 """
 
 import pytest
@@ -90,7 +90,7 @@ class TestCreateCategory:
 # ---------------------------------------------------------------------------
 
 class TestBanUser:
-    """POST /admin/users/{userId}/ban"""
+    """PATCH /admin/users/{userId}/status — ban"""
 
     @pytest.mark.mutation
     def test_ban_active_user(self, admin_headers):
@@ -98,10 +98,10 @@ class TestBanUser:
         # normal5 should be active
         db_execute("UPDATE users SET status = 'active' WHERE id = %s", (NORMAL5_ID,))
 
-        resp = requests.post(
-            f"{ADMIN_USERS_URL}/{NORMAL5_ID}/ban",
+        resp = requests.patch(
+            f"{ADMIN_USERS_URL}/{NORMAL5_ID}/status",
             headers=admin_headers,
-            json={"reason": "Test ban"},
+            json={"status": "banned", "reason": "Test ban"},
         )
         assert resp.status_code == 200
         assert resp.json()["status"] == "banned"
@@ -119,35 +119,35 @@ class TestBanUser:
         # normal4 is banned in seed data
         db_execute("UPDATE users SET status = 'banned' WHERE id = %s", (NORMAL4_ID,))
 
-        resp = requests.post(
-            f"{ADMIN_USERS_URL}/{NORMAL4_ID}/ban",
+        resp = requests.patch(
+            f"{ADMIN_USERS_URL}/{NORMAL4_ID}/status",
             headers=admin_headers,
-            json={"reason": "Test ban"},
+            json={"status": "banned", "reason": "Test ban"},
         )
         assert resp.status_code == 400
         assert "already banned" in resp.json()["message"]
 
     def test_ban_nonexistent_user(self, admin_headers):
         """Banning nonexistent user returns 404."""
-        resp = requests.post(
-            f"{ADMIN_USERS_URL}/{NONEXISTENT_UUID}/ban",
+        resp = requests.patch(
+            f"{ADMIN_USERS_URL}/{NONEXISTENT_UUID}/status",
             headers=admin_headers,
-            json={"reason": "Test ban"},
+            json={"status": "banned", "reason": "Test ban"},
         )
         assert resp.status_code == 404
 
     def test_ban_unauthorized(self, normal2_headers):
         """Normal user (no roles) cannot ban users."""
-        resp = requests.post(
-            f"{ADMIN_USERS_URL}/{NORMAL5_ID}/ban",
+        resp = requests.patch(
+            f"{ADMIN_USERS_URL}/{NORMAL5_ID}/status",
             headers=normal2_headers,
-            json={"reason": "Test ban"},
+            json={"status": "banned", "reason": "Test ban"},
         )
         assert resp.status_code in (401, 403)
 
 
 class TestUnbanUser:
-    """POST /admin/users/{userId}/unban"""
+    """PATCH /admin/users/{userId}/status — unban"""
 
     @pytest.mark.mutation
     def test_unban_banned_user(self, admin_headers):
@@ -155,10 +155,10 @@ class TestUnbanUser:
         # Ensure normal4 is banned
         db_execute("UPDATE users SET status = 'banned' WHERE id = %s", (NORMAL4_ID,))
 
-        resp = requests.post(
-            f"{ADMIN_USERS_URL}/{NORMAL4_ID}/unban",
+        resp = requests.patch(
+            f"{ADMIN_USERS_URL}/{NORMAL4_ID}/status",
             headers=admin_headers,
-            json={"reason": "Test unban"},
+            json={"status": "active", "reason": "Test unban"},
         )
         assert resp.status_code == 200
         assert resp.json()["status"] == "active"
@@ -175,28 +175,28 @@ class TestUnbanUser:
         """Unbanning an active user returns 400."""
         db_execute("UPDATE users SET status = 'active' WHERE id = %s", (NORMAL5_ID,))
 
-        resp = requests.post(
-            f"{ADMIN_USERS_URL}/{NORMAL5_ID}/unban",
+        resp = requests.patch(
+            f"{ADMIN_USERS_URL}/{NORMAL5_ID}/status",
             headers=admin_headers,
-            json={"reason": "Test unban"},
+            json={"status": "active", "reason": "Test unban"},
         )
         assert resp.status_code == 400
         assert "not banned" in resp.json()["message"]
 
     def test_unban_nonexistent_user(self, admin_headers):
         """Unbanning nonexistent user returns 404."""
-        resp = requests.post(
-            f"{ADMIN_USERS_URL}/{NONEXISTENT_UUID}/unban",
+        resp = requests.patch(
+            f"{ADMIN_USERS_URL}/{NONEXISTENT_UUID}/status",
             headers=admin_headers,
-            json={"reason": "Test unban"},
+            json={"status": "active", "reason": "Test unban"},
         )
         assert resp.status_code == 404
 
     def test_unban_unauthorized(self, normal2_headers):
         """Normal user (no roles) cannot unban users."""
-        resp = requests.post(
-            f"{ADMIN_USERS_URL}/{NORMAL4_ID}/unban",
+        resp = requests.patch(
+            f"{ADMIN_USERS_URL}/{NORMAL4_ID}/status",
             headers=normal2_headers,
-            json={"reason": "Test unban"},
+            json={"status": "active", "reason": "Test unban"},
         )
         assert resp.status_code in (401, 403)

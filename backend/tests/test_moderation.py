@@ -668,9 +668,10 @@ class TestQueueClaiming:
         """Moderator can claim a report."""
         report_id = _create_report(normal_headers, POSITION3_ID)
 
-        resp = requests.post(
-            f"{MODERATION_URL}/reports/{report_id}/claim",
+        resp = requests.patch(
+            f"{MODERATION_URL}/reports/{report_id}",
             headers=moderator_headers,
+            json={"claimedBy": MODERATOR1_ID},
         )
         assert resp.status_code == 200
         body = resp.json()
@@ -683,9 +684,10 @@ class TestQueueClaiming:
         report_id = _create_report(normal_headers, POSITION3_ID)
 
         # Moderator1 claims it
-        claim_resp = requests.post(
-            f"{MODERATION_URL}/reports/{report_id}/claim",
+        claim_resp = requests.patch(
+            f"{MODERATION_URL}/reports/{report_id}",
             headers=moderator_headers,
+            json={"claimedBy": MODERATOR1_ID},
         )
         assert claim_resp.status_code == 200
 
@@ -701,9 +703,10 @@ class TestQueueClaiming:
         report_id = _create_report(normal_headers, POSITION3_ID)
 
         # Moderator1 claims it
-        requests.post(
-            f"{MODERATION_URL}/reports/{report_id}/claim",
+        requests.patch(
+            f"{MODERATION_URL}/reports/{report_id}",
             headers=moderator_headers,
+            json={"claimedBy": MODERATOR1_ID},
         )
 
         # Moderator1's queue SHOULD still contain it
@@ -718,15 +721,17 @@ class TestQueueClaiming:
         report_id = _create_report(normal_headers, POSITION3_ID)
 
         # Moderator1 claims
-        requests.post(
-            f"{MODERATION_URL}/reports/{report_id}/claim",
+        requests.patch(
+            f"{MODERATION_URL}/reports/{report_id}",
             headers=moderator_headers,
+            json={"claimedBy": MODERATOR1_ID},
         )
 
         # Moderator2 tries to claim → 409
-        resp = requests.post(
-            f"{MODERATION_URL}/reports/{report_id}/claim",
+        resp = requests.patch(
+            f"{MODERATION_URL}/reports/{report_id}",
             headers=moderator2_headers,
+            json={"claimedBy": MODERATOR2_ID},
         )
         assert resp.status_code == 409
 
@@ -736,9 +741,10 @@ class TestQueueClaiming:
         report_id = _create_report(normal_headers, POSITION3_ID)
 
         # Moderator1 claims
-        requests.post(
-            f"{MODERATION_URL}/reports/{report_id}/claim",
+        requests.patch(
+            f"{MODERATION_URL}/reports/{report_id}",
             headers=moderator_headers,
+            json={"claimedBy": MODERATOR1_ID},
         )
 
         # Manually set claimed_at to 16 minutes ago
@@ -759,13 +765,15 @@ class TestQueueClaiming:
         report_id = _create_report(normal_headers, POSITION3_ID)
 
         # Claim then release
-        requests.post(
-            f"{MODERATION_URL}/reports/{report_id}/claim",
+        requests.patch(
+            f"{MODERATION_URL}/reports/{report_id}",
             headers=moderator_headers,
+            json={"claimedBy": MODERATOR1_ID},
         )
-        release_resp = requests.post(
-            f"{MODERATION_URL}/reports/{report_id}/release",
+        release_resp = requests.patch(
+            f"{MODERATION_URL}/reports/{report_id}",
             headers=moderator_headers,
+            json={"claimedBy": None},
         )
         assert release_resp.status_code == 200
         assert release_resp.json()["status"] == "released"
@@ -1020,23 +1028,23 @@ class TestDefaultActionsAndGuidelines:
 
 
 class TestDismissAdminResponseNotification:
-    """POST /moderation/notifications/{appealId}/dismiss-admin-response"""
+    """DELETE /moderation/notifications/{appealId}"""
 
     def test_normal_user_forbidden(self, normal2_headers):
         """Normal user (no roles) cannot dismiss admin response notifications (403)."""
-        resp = requests.post(
-            f"{MODERATION_URL}/notifications/{NONEXISTENT_UUID}/dismiss-admin-response",
+        resp = requests.delete(
+            f"{MODERATION_URL}/notifications/{NONEXISTENT_UUID}",
             headers=normal2_headers,
         )
         assert resp.status_code == 403
 
     def test_moderator_dismiss_nonexistent_ok(self, moderator_headers):
-        """Dismissing a nonexistent appeal notification is a silent no-op (200)."""
-        resp = requests.post(
-            f"{MODERATION_URL}/notifications/{NONEXISTENT_UUID}/dismiss-admin-response",
+        """Dismissing a nonexistent appeal notification is a silent no-op (204)."""
+        resp = requests.delete(
+            f"{MODERATION_URL}/notifications/{NONEXISTENT_UUID}",
             headers=moderator_headers,
         )
-        assert resp.status_code == 200
+        assert resp.status_code == 204
 
 
 class TestAppealResponseLifecycle:
@@ -1297,9 +1305,10 @@ class TestFacilitatorModerationQueue:
         normal3_headers = auth_header(login("normal3"))
         report_id = _create_report(normal3_headers, POSITION_NORMAL2_HEALTHCARE_ID)
 
-        resp = requests.post(
-            f"{MODERATION_URL}/reports/{report_id}/claim",
+        resp = requests.patch(
+            f"{MODERATION_URL}/reports/{report_id}",
             headers=facilitator_headers,
+            json={"claimedBy": NORMAL1_ID},
         )
         assert resp.status_code == 200
         assert resp.json()["status"] == "claimed"
@@ -1310,8 +1319,9 @@ class TestFacilitatorModerationQueue:
         normal2_headers = auth_header(login("normal2"))
         report_id = _create_report(normal2_headers, POSITION_NORMAL3_IMMIGRATION_ID)
 
-        resp = requests.post(
-            f"{MODERATION_URL}/reports/{report_id}/claim",
+        resp = requests.patch(
+            f"{MODERATION_URL}/reports/{report_id}",
             headers=facilitator_headers,
+            json={"claimedBy": NORMAL1_ID},
         )
         assert resp.status_code == 403

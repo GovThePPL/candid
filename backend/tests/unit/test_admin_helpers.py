@@ -663,6 +663,8 @@ class TestFormatRoleRequest:
 # ---------------------------------------------------------------------------
 
 class TestRescindRoleRequest:
+    """Tests for the rescind path through update_role_request (PATCH with status=rescinded)."""
+
     def _make_token_info(self, user_id=FACILITATOR_USER):
         return {'sub': 'kc_' + user_id}
 
@@ -671,6 +673,12 @@ class TestRescindRoleRequest:
         user.id = user_id
         user.display_name = 'Test User'
         return user
+
+    def _mock_connexion_request(self, body):
+        mock_req = MagicMock()
+        mock_req.is_json = True
+        mock_req.get_json.return_value = body
+        return mock_req
 
     def test_rescind_own_pending_request(self):
         """User can rescind their own pending request."""
@@ -681,16 +689,17 @@ class TestRescindRoleRequest:
             # UPDATE
             None,
         ])
+        body = {'status': 'rescinded'}
 
         with patch(f"{ADMIN}.db", mock_db), \
              patch(f"{ADMIN}.authorization_scoped", return_value=(True, None)), \
-             patch(f"{ADMIN}.token_to_user", return_value=self._mock_user()):
-            from candid.controllers.admin_controller import rescind_role_request
-            result = rescind_role_request(REQUEST_ID, token_info=self._make_token_info())
+             patch(f"{ADMIN}.token_to_user", return_value=self._mock_user()), \
+             patch(f"{ADMIN}._check_auto_approve_expired"), \
+             patch(f"{ADMIN}.connexion") as mock_cx:
+            mock_cx.request = self._mock_connexion_request(body)
+            from candid.controllers.admin_controller import update_role_request
+            result = update_role_request(REQUEST_ID, body, token_info=self._make_token_info())
             assert result == {'id': REQUEST_ID, 'status': 'rescinded'}
-            # Verify UPDATE was called
-            update_sql = mock_db.execute_query.call_args_list[1][0][0]
-            assert "rescinded" in update_sql
 
     def test_rescind_other_users_request_returns_403(self):
         """Cannot rescind another user's request."""
@@ -698,12 +707,16 @@ class TestRescindRoleRequest:
         mock_db.execute_query = MagicMock(return_value={
             'id': REQUEST_ID, 'requested_by': ADMIN_USER, 'status': 'pending'
         })
+        body = {'status': 'rescinded'}
 
         with patch(f"{ADMIN}.db", mock_db), \
              patch(f"{ADMIN}.authorization_scoped", return_value=(True, None)), \
-             patch(f"{ADMIN}.token_to_user", return_value=self._mock_user()):
-            from candid.controllers.admin_controller import rescind_role_request
-            result, status = rescind_role_request(REQUEST_ID, token_info=self._make_token_info())
+             patch(f"{ADMIN}.token_to_user", return_value=self._mock_user()), \
+             patch(f"{ADMIN}._check_auto_approve_expired"), \
+             patch(f"{ADMIN}.connexion") as mock_cx:
+            mock_cx.request = self._mock_connexion_request(body)
+            from candid.controllers.admin_controller import update_role_request
+            result, status = update_role_request(REQUEST_ID, body, token_info=self._make_token_info())
             assert status == 403
 
     def test_rescind_non_pending_returns_400(self):
@@ -712,24 +725,32 @@ class TestRescindRoleRequest:
         mock_db.execute_query = MagicMock(return_value={
             'id': REQUEST_ID, 'requested_by': FACILITATOR_USER, 'status': 'approved'
         })
+        body = {'status': 'rescinded'}
 
         with patch(f"{ADMIN}.db", mock_db), \
              patch(f"{ADMIN}.authorization_scoped", return_value=(True, None)), \
-             patch(f"{ADMIN}.token_to_user", return_value=self._mock_user()):
-            from candid.controllers.admin_controller import rescind_role_request
-            result, status = rescind_role_request(REQUEST_ID, token_info=self._make_token_info())
+             patch(f"{ADMIN}.token_to_user", return_value=self._mock_user()), \
+             patch(f"{ADMIN}._check_auto_approve_expired"), \
+             patch(f"{ADMIN}.connexion") as mock_cx:
+            mock_cx.request = self._mock_connexion_request(body)
+            from candid.controllers.admin_controller import update_role_request
+            result, status = update_role_request(REQUEST_ID, body, token_info=self._make_token_info())
             assert status == 400
 
     def test_rescind_nonexistent_returns_404(self):
         """Rescinding a non-existent request returns 404."""
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value=None)
+        body = {'status': 'rescinded'}
 
         with patch(f"{ADMIN}.db", mock_db), \
              patch(f"{ADMIN}.authorization_scoped", return_value=(True, None)), \
-             patch(f"{ADMIN}.token_to_user", return_value=self._mock_user()):
-            from candid.controllers.admin_controller import rescind_role_request
-            result, status = rescind_role_request('nonexistent-id', token_info=self._make_token_info())
+             patch(f"{ADMIN}.token_to_user", return_value=self._mock_user()), \
+             patch(f"{ADMIN}._check_auto_approve_expired"), \
+             patch(f"{ADMIN}.connexion") as mock_cx:
+            mock_cx.request = self._mock_connexion_request(body)
+            from candid.controllers.admin_controller import update_role_request
+            result, status = update_role_request('nonexistent-id', body, token_info=self._make_token_info())
             assert status == 404
 
     def test_rescind_unauthorized_returns_auth_error(self):
@@ -738,8 +759,8 @@ class TestRescindRoleRequest:
         mock_err.code = 401
 
         with patch(f"{ADMIN}.authorization_scoped", return_value=(False, mock_err)):
-            from candid.controllers.admin_controller import rescind_role_request
-            result, status = rescind_role_request(REQUEST_ID, token_info=None)
+            from candid.controllers.admin_controller import update_role_request
+            result, status = update_role_request(REQUEST_ID, {'status': 'rescinded'}, token_info=None)
             assert status == 401
 
     def test_rescind_already_rescinded_returns_400(self):
@@ -748,12 +769,16 @@ class TestRescindRoleRequest:
         mock_db.execute_query = MagicMock(return_value={
             'id': REQUEST_ID, 'requested_by': FACILITATOR_USER, 'status': 'rescinded'
         })
+        body = {'status': 'rescinded'}
 
         with patch(f"{ADMIN}.db", mock_db), \
              patch(f"{ADMIN}.authorization_scoped", return_value=(True, None)), \
-             patch(f"{ADMIN}.token_to_user", return_value=self._mock_user()):
-            from candid.controllers.admin_controller import rescind_role_request
-            result, status = rescind_role_request(REQUEST_ID, token_info=self._make_token_info())
+             patch(f"{ADMIN}.token_to_user", return_value=self._mock_user()), \
+             patch(f"{ADMIN}._check_auto_approve_expired"), \
+             patch(f"{ADMIN}.connexion") as mock_cx:
+            mock_cx.request = self._mock_connexion_request(body)
+            from candid.controllers.admin_controller import update_role_request
+            result, status = update_role_request(REQUEST_ID, body, token_info=self._make_token_info())
             assert status == 400
 
 

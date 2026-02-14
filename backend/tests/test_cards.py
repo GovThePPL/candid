@@ -169,7 +169,7 @@ class TestKudosCards:
         assert len(kudos_cards_before) > 0, "Should have kudos card before dismissing"
 
         # Dismiss kudos
-        resp = requests.post(f"{BASE_URL}/chats/{CHAT_LOG_2_ID}/kudos/dismiss", headers=normal5_headers)
+        resp = requests.delete(f"{BASE_URL}/chats/{CHAT_LOG_2_ID}/kudos/prompt", headers=normal5_headers)
         assert resp.status_code == 204
 
         # Now check the card queue again
@@ -197,23 +197,23 @@ class TestKudosCards:
 
 
 class TestDismissKudos:
-    """Tests for the dismiss kudos endpoint."""
+    """Tests for the dismiss kudos endpoint (DELETE /chats/{chatId}/kudos/prompt)."""
 
     def test_dismiss_kudos_unauthorized(self):
         """Dismiss kudos requires authentication."""
-        resp = requests.post(f"{BASE_URL}/chats/{CHAT_LOG_2_ID}/kudos/dismiss")
+        resp = requests.delete(f"{BASE_URL}/chats/{CHAT_LOG_2_ID}/kudos/prompt")
         assert resp.status_code == 401
 
     def test_dismiss_kudos_not_participant(self, normal_headers):
         """Can only dismiss kudos for chats you participated in."""
         # Normal1 was not a participant in chat_log_2
-        resp = requests.post(f"{BASE_URL}/chats/{CHAT_LOG_2_ID}/kudos/dismiss", headers=normal_headers)
+        resp = requests.delete(f"{BASE_URL}/chats/{CHAT_LOG_2_ID}/kudos/prompt", headers=normal_headers)
         assert resp.status_code == 403
 
     def test_dismiss_kudos_nonexistent_chat(self, normal5_headers):
         """Cannot dismiss kudos for nonexistent chat."""
-        resp = requests.post(
-            f"{BASE_URL}/chats/00000000-0000-0000-0000-000000000000/kudos/dismiss",
+        resp = requests.delete(
+            f"{BASE_URL}/chats/00000000-0000-0000-0000-000000000000/kudos/prompt",
             headers=normal5_headers
         )
         assert resp.status_code == 404
@@ -224,11 +224,11 @@ class TestDismissKudos:
         cleanup_kudos(NORMAL5_ID, CHAT_LOG_2_ID)
 
         # First dismiss
-        resp = requests.post(f"{BASE_URL}/chats/{CHAT_LOG_2_ID}/kudos/dismiss", headers=normal5_headers)
+        resp = requests.delete(f"{BASE_URL}/chats/{CHAT_LOG_2_ID}/kudos/prompt", headers=normal5_headers)
         assert resp.status_code == 204
 
         # Second dismiss should also succeed
-        resp = requests.post(f"{BASE_URL}/chats/{CHAT_LOG_2_ID}/kudos/dismiss", headers=normal5_headers)
+        resp = requests.delete(f"{BASE_URL}/chats/{CHAT_LOG_2_ID}/kudos/prompt", headers=normal5_headers)
         assert resp.status_code == 204
 
         # Cleanup
@@ -244,7 +244,7 @@ class TestSendKudosAfterDismiss:
         cleanup_kudos(NORMAL5_ID, CHAT_LOG_2_ID)
 
         # First dismiss
-        resp = requests.post(f"{BASE_URL}/chats/{CHAT_LOG_2_ID}/kudos/dismiss", headers=normal5_headers)
+        resp = requests.delete(f"{BASE_URL}/chats/{CHAT_LOG_2_ID}/kudos/prompt", headers=normal5_headers)
         assert resp.status_code == 204
 
         # Now try to send kudos - should succeed and override dismissed status
@@ -298,7 +298,7 @@ class TestDemographicCards:
 
 
 class TestDismissPositionRemovedNotification:
-    """POST /cards/notifications/{positionId}/dismiss"""
+    """DELETE /cards/notifications/{positionId}"""
 
     DISMISS_URL = f"{BASE_URL}/cards/notifications"
 
@@ -320,21 +320,21 @@ class TestDismissPositionRemovedNotification:
         )
 
     def test_dismiss_nonexistent_ok(self, normal_headers):
-        """Dismissing a nonexistent position is a silent no-op (200)."""
-        resp = requests.post(
-            f"{self.DISMISS_URL}/{NONEXISTENT_UUID}/dismiss",
+        """Dismissing a nonexistent position is a silent no-op (204)."""
+        resp = requests.delete(
+            f"{self.DISMISS_URL}/{NONEXISTENT_UUID}",
             headers=normal_headers,
         )
-        assert resp.status_code == 200
+        assert resp.status_code == 204
 
     @pytest.mark.mutation
     def test_dismiss_real_position(self, normal_headers):
         """Dismissing sets notified_removed=TRUE in the database."""
-        resp = requests.post(
-            f"{self.DISMISS_URL}/{POSITION3_ID}/dismiss",
+        resp = requests.delete(
+            f"{self.DISMISS_URL}/{POSITION3_ID}",
             headers=normal_headers,
         )
-        assert resp.status_code == 200
+        assert resp.status_code == 204
 
         row = db_query_one(
             "SELECT notified_removed FROM user_position "
@@ -346,18 +346,18 @@ class TestDismissPositionRemovedNotification:
 
     @pytest.mark.mutation
     def test_dismiss_idempotent(self, normal_headers):
-        """Calling dismiss twice both return 200."""
-        resp1 = requests.post(
-            f"{self.DISMISS_URL}/{POSITION3_ID}/dismiss",
+        """Calling dismiss twice both return 204."""
+        resp1 = requests.delete(
+            f"{self.DISMISS_URL}/{POSITION3_ID}",
             headers=normal_headers,
         )
-        assert resp1.status_code == 200
+        assert resp1.status_code == 204
 
-        resp2 = requests.post(
-            f"{self.DISMISS_URL}/{POSITION3_ID}/dismiss",
+        resp2 = requests.delete(
+            f"{self.DISMISS_URL}/{POSITION3_ID}",
             headers=normal_headers,
         )
-        assert resp2.status_code == 200
+        assert resp2.status_code == 204
 
 
 class TestCardQueueTypes:

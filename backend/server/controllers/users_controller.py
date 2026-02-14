@@ -37,6 +37,7 @@ from candid.controllers.helpers.user_mappers import (
     compute_location_levels as _compute_location_levels,
 )
 from candid.controllers.cards_controller import invalidate_user_context_cache
+from candid.controllers.helpers import polis_sync
 import uuid
 
 logger = logging.getLogger(__name__)
@@ -394,6 +395,108 @@ def delete_user_position(user_position_id, token_info=None):  # noqa: E501
     return None, 204
 
 
+def create_user_position(body, token_info=None):  # noqa: E501
+    """Adopt a position and register an agree response
+
+    Creates a user_position entry for the current user and registers an agree response.
+
+    :param body: Request body with positionId
+    :type body: dict
+
+    :rtype: Union[UserPosition, Tuple[UserPosition, int], Tuple[UserPosition, int, Dict[str, str]]
+    """
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+    user = token_to_user(token_info)
+
+    if connexion.request.is_json:
+        body = connexion.request.get_json()
+
+    position_id = body.get('positionId')
+    if not position_id:
+        return ErrorModel(400, "positionId is required"), 400
+
+    # Check if position exists
+    position = db.execute_query("""
+        SELECT id, category_id, location_id, statement
+        FROM position
+        WHERE id = %s AND status = 'active'
+    """, (position_id,), fetchone=True)
+
+    if not position:
+        return ErrorModel(404, "Position not found"), 404
+
+    # Check if user already adopted this position (active)
+    existing_active = db.execute_query("""
+        SELECT id FROM user_position
+        WHERE user_id = %s AND position_id = %s AND status = 'active'
+    """, (user.id, position_id), fetchone=True)
+
+    if existing_active:
+        return ErrorModel(400, "Position already adopted"), 400
+
+    # Check if user previously had this position (deleted) - reactivate it
+    existing_deleted = db.execute_query("""
+        SELECT id FROM user_position
+        WHERE user_id = %s AND position_id = %s AND status = 'deleted'
+    """, (user.id, position_id), fetchone=True)
+
+    if existing_deleted:
+        # Reactivate the deleted user_position
+        user_position_id = existing_deleted['id']
+        db.execute_query("""
+            UPDATE user_position SET status = 'active' WHERE id = %s
+        """, (user_position_id,))
+    else:
+        # Create new user_position entry
+        user_position_id = str(uuid.uuid4())
+        db.execute_query("""
+            INSERT INTO user_position (id, user_id, position_id, status)
+            VALUES (%s, %s, %s, 'active')
+        """, (user_position_id, user.id, position_id))
+
+    # Register agree response (upsert)
+    db.execute_query("""
+        INSERT INTO response (user_id, position_id, response)
+        VALUES (%s, %s, 'agree')
+        ON CONFLICT (user_id, position_id) DO UPDATE SET response = 'agree'
+    """, (user.id, position_id))
+
+    # Queue vote for Polis sync
+    polis_sync.queue_vote_sync(
+        position_id=position_id,
+        user_id=user.id,
+        response='agree'
+    )
+
+    # Fetch and return the created user_position
+    ret = db.execute_query("""
+        SELECT
+            up.id,
+            up.user_id,
+            up.position_id,
+            up.status,
+            up.agree_count,
+            up.disagree_count,
+            up.pass_count,
+            up.chat_count,
+            p.statement,
+            p.category_id,
+            p.location_id,
+            c.label AS category_name,
+            l.name AS location_name,
+            l.code AS location_code
+        FROM user_position AS up
+        JOIN position AS p ON up.position_id = p.id
+        LEFT JOIN position_category AS c ON p.category_id = c.id
+        LEFT JOIN location AS l ON p.location_id = l.id
+        WHERE up.id = %s
+    """, (user_position_id,), fetchone=True)
+
+    return _row_to_user_position(ret), 201
+
+
 def get_user_by_id(user_id, token_info=None):  # noqa: E501
     """Get a user by ID
 
@@ -545,73 +648,6 @@ def get_user_settings(token_info=None):  # noqa: E501
         "showRoleBadge": show_role_badge,
         "notificationTypePrefs": notification_type_prefs,
     }
-
-
-def update_user_demographics(body, token_info=None):  # noqa: E501
-    """Replace user demographics
-
-     # noqa: E501
-
-    :param user_demographics:
-    :type user_demographics: dict | bytes
-
-    :rtype: Union[UserDemographics, Tuple[UserDemographics, int], Tuple[UserDemographics, int, Dict[str, str]]
-    """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-    user = token_to_user(token_info)
-
-    user_demographics = body
-    if connexion.request.is_json:
-        user_demographics = UserDemographics.from_dict(connexion.request.get_json())
-
-    db.execute_query("""
-        INSERT INTO user_demographics (user_id, location_id, lean, affiliation_id, education, geo_locale, race, sex, age_range, income_range)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        ON CONFLICT (user_id) DO UPDATE SET
-            location_id = EXCLUDED.location_id,
-            lean = EXCLUDED.lean,
-            affiliation_id = EXCLUDED.affiliation_id,
-            education = EXCLUDED.education,
-            geo_locale = EXCLUDED.geo_locale,
-            race = EXCLUDED.race,
-            sex = EXCLUDED.sex,
-            age_range = EXCLUDED.age_range,
-            income_range = EXCLUDED.income_range,
-            updated_time = CURRENT_TIMESTAMP
-        """,
-    (user.id,
-     user_demographics.location_id,
-     user_demographics.lean,
-     user_demographics.affiliation,
-     user_demographics.education,
-     user_demographics.geo_locale,
-     user_demographics.race,
-     user_demographics.sex,
-     user_demographics.age_range,
-     user_demographics.income_range))
-
-    ret = db.execute_query("""
-        SELECT
-            location_id,
-            lean,
-            affiliation_id AS affiliation,
-            education,
-            geo_locale,
-            race,
-            sex,
-            age_range,
-            income_range,
-            created_time
-        FROM user_demographics
-        WHERE user_id = %s
-        """,
-    (user.id,), fetchone=True)
-
-    if ret is None:
-        return ErrorModel(500, "Internal Server Error"), 500
-    return _row_to_user_demographics(ret)
 
 
 def update_user_demographics_partial(body, token_info=None):  # noqa: E501
@@ -937,12 +973,12 @@ def upload_avatar(body, token_info=None):  # noqa: E501
     }
 
 
-def delete_current_user(body=None, token_info=None):  # noqa: E501
+def delete_current_user(token_info=None):  # noqa: E501
     """Soft delete current user account
 
      # noqa: E501
 
-    :rtype: Union[object, Tuple[object, int], Tuple[object, int, Dict[str, str]]
+    :rtype: Union[None, Tuple[None, int], Tuple[None, int, Dict[str, str]]
     """
     authorized, auth_err = authorization("normal", token_info)
     if not authorized:
@@ -975,7 +1011,7 @@ def delete_current_user(body=None, token_info=None):  # noqa: E501
         WHERE id = %s
     """, (user.id,))
 
-    return {'message': 'Account deleted successfully'}
+    return '', 204
 
 
 def heartbeat(token_info=None):  # noqa: E501
@@ -1000,7 +1036,7 @@ def heartbeat(token_info=None):  # noqa: E501
     return {"status": "ok"}
 
 
-def register_push_token(body, token_info=None):  # noqa: E501
+def update_push_token(body, token_info=None):  # noqa: E501
     """Register a push notification token
 
     :param body: Request body with token and platform

@@ -1,4 +1,4 @@
-"""Tests for GET/PUT/PATCH /users/me/demographics."""
+"""Tests for GET/PATCH /users/me/demographics."""
 # Auth tests (test_unauthenticated_returns_401) live in test_auth_required.py.
 
 import pytest
@@ -31,10 +31,10 @@ class TestGetUserDemographics:
 
 
 class TestUpdateUserDemographics:
-    """PUT /users/me/demographics (full replace)"""
+    """PATCH /users/me/demographics (full body update)"""
 
     @pytest.mark.mutation
-    def test_put_demographics_and_rollback(self, admin_headers):
+    def test_patch_full_demographics_and_rollback(self, admin_headers):
         # Set full demographics
         demographics = {
             "locationId": OREGON_LOCATION_ID,
@@ -45,7 +45,7 @@ class TestUpdateUserDemographics:
             "race": "white",
             "sex": "male",
         }
-        resp = requests.put(DEMOGRAPHICS_URL, headers=admin_headers, json=demographics)
+        resp = requests.patch(DEMOGRAPHICS_URL, headers=admin_headers, json=demographics)
         assert resp.status_code == 200
         body = resp.json()
         assert body["lean"] == "moderate"
@@ -58,7 +58,7 @@ class TestUpdateUserDemographics:
         assert resp.json()["lean"] == "moderate"
 
         # Rollback to baseline
-        resp = requests.put(DEMOGRAPHICS_URL, headers=admin_headers, json=_BASELINE)
+        resp = requests.patch(DEMOGRAPHICS_URL, headers=admin_headers, json=_BASELINE)
         assert resp.status_code == 200
 
 
@@ -68,7 +68,7 @@ class TestPartialUpdateDemographics:
 
     @pytest.mark.mutation
     def test_patch_single_field_and_rollback(self, admin_headers):
-        # Set a known starting state via PUT
+        # Set a known starting state via PATCH (all fields)
         base = {
             "locationId": OREGON_LOCATION_ID,
             "lean": "liberal",
@@ -78,7 +78,7 @@ class TestPartialUpdateDemographics:
             "race": "asian",
             "sex": "female",
         }
-        resp = requests.put(DEMOGRAPHICS_URL, headers=admin_headers, json=base)
+        resp = requests.patch(DEMOGRAPHICS_URL, headers=admin_headers, json=base)
         assert resp.status_code == 200
 
         # Patch just education
@@ -94,7 +94,7 @@ class TestPartialUpdateDemographics:
         assert body["lean"] == "liberal"
 
         # Rollback to baseline
-        resp = requests.put(DEMOGRAPHICS_URL, headers=admin_headers, json=_BASELINE)
+        resp = requests.patch(DEMOGRAPHICS_URL, headers=admin_headers, json=_BASELINE)
         assert resp.status_code == 200
 
     def test_patch_empty_body_returns_400(self, admin_headers):

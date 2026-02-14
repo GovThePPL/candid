@@ -281,7 +281,7 @@ export const usersApiWrapper = {
 
   async registerPushToken(token, platform) {
     return await promisify(
-      usersApi.registerPushToken.bind(usersApi),
+      usersApi.updatePushToken.bind(usersApi),
       { token, platform }
     )
   },
@@ -333,7 +333,7 @@ export const cardsApiWrapper = {
 
   async dismissPositionRemovedNotification(positionId) {
     return await promisify(
-      cardsApi.dismissPositionRemovedNotification.bind(cardsApi),
+      cardsApi.deletePositionNotification.bind(cardsApi),
       positionId
     )
   },
@@ -344,7 +344,7 @@ export const cardsApiWrapper = {
 export const positionsApiWrapper = {
   async respond(responses) {
     return await promisify(
-      positionsApi.respondToPositions.bind(positionsApi),
+      positionsApi.createPositionResponses.bind(positionsApi),
       { responses }
     )
   },
@@ -369,8 +369,8 @@ export const positionsApiWrapper = {
 
   async adopt(positionId) {
     return await promisify(
-      positionsApi.adoptPosition.bind(positionsApi),
-      positionId
+      usersApi.createUserPosition.bind(usersApi),
+      { positionId }
     )
   },
 
@@ -518,7 +518,7 @@ export const chatApiWrapper = {
 
   async dismissKudos(chatId) {
     return await promisify(
-      chatApi.dismissKudos.bind(chatApi),
+      chatApi.deleteKudosPrompt.bind(chatApi),
       chatId
     )
   },
@@ -526,7 +526,7 @@ export const chatApiWrapper = {
   async acknowledgeKudos(chatId) {
     // Acknowledge is the same as dismiss - just marks the kudos notification as seen
     return await promisify(
-      chatApi.dismissKudos.bind(chatApi),
+      chatApi.deleteKudosPrompt.bind(chatApi),
       chatId
     )
   },
@@ -643,7 +643,7 @@ export const categoriesApiWrapper = {
 
   async suggest(statement, limit = 3) {
     return await promisify(
-      categoriesApi.suggestCategory.bind(categoriesApi),
+      categoriesApi.createCategorySuggestions.bind(categoriesApi),
       { statement, limit }
     )
   },
@@ -722,7 +722,7 @@ export const chattingListApiWrapper = {
     if (itemIds) body.itemIds = itemIds
 
     return await promisify(
-      chattingListApi.bulkRemoveFromChattingList.bind(chattingListApi),
+      chattingListApi.bulkDeleteChattingListItems.bind(chattingListApi),
       body
     )
   },
@@ -813,7 +813,7 @@ export const moderationApiWrapper = {
 
   async dismissAdminResponseNotification(appealId) {
     return await promisify(
-      moderationApi.dismissAdminResponseNotification.bind(moderationApi),
+      moderationApi.deleteAdminResponseNotification.bind(moderationApi),
       appealId
     )
   },
@@ -825,17 +825,19 @@ export const moderationApiWrapper = {
     )
   },
 
-  async claimReport(reportId) {
+  async claimReport(reportId, userId) {
     return await promisify(
-      moderationApi.claimReport.bind(moderationApi),
-      reportId
+      moderationApi.updateReport.bind(moderationApi),
+      reportId,
+      { claimedBy: userId }
     )
   },
 
   async releaseReport(reportId) {
     return await promisify(
-      moderationApi.releaseReport.bind(moderationApi),
-      reportId
+      moderationApi.updateReport.bind(moderationApi),
+      reportId,
+      { claimedBy: null }
     )
   },
 }
@@ -858,15 +860,15 @@ export const adminApiWrapper = {
 
   async requestRoleAssignment(body) {
     return await promisify(
-      adminApi.requestRoleAssignment.bind(adminApi),
-      body
+      adminApi.createRoleRequest.bind(adminApi),
+      { action: 'assign', ...body }
     )
   },
 
   async requestRoleRemoval(userRoleId, reason) {
     return await promisify(
-      adminApi.requestRoleRemoval.bind(adminApi),
-      { userRoleId, reason }
+      adminApi.createRoleRequest.bind(adminApi),
+      { action: 'remove', userRoleId, reason }
     )
   },
 
@@ -885,23 +887,25 @@ export const adminApiWrapper = {
 
   async rescindRoleRequest(requestId) {
     return await promisify(
-      adminApi.rescindRoleRequest.bind(adminApi),
-      requestId
+      adminApi.updateRoleRequest.bind(adminApi),
+      requestId,
+      { status: 'rescinded' }
     )
   },
 
   async approveRoleRequest(requestId) {
     return await promisify(
-      adminApi.approveRoleRequest.bind(adminApi),
-      requestId
+      adminApi.updateRoleRequest.bind(adminApi),
+      requestId,
+      { status: 'approved' }
     )
   },
 
   async denyRoleRequest(requestId, reason) {
     return await promisify(
-      adminApi.denyRoleRequest.bind(adminApi),
+      adminApi.updateRoleRequest.bind(adminApi),
       requestId,
-      { denyRoleRequestRequest: { reason } }
+      { status: 'denied', reason }
     )
   },
 
@@ -972,17 +976,17 @@ export const adminApiWrapper = {
 
   async banUser(userId, reason) {
     return await promisify(
-      adminApi.banUser.bind(adminApi),
+      adminApi.updateUserStatus.bind(adminApi),
       userId,
-      { reason }
+      { status: 'banned', reason }
     )
   },
 
   async unbanUser(userId, reason) {
     return await promisify(
-      adminApi.unbanUser.bind(adminApi),
+      adminApi.updateUserStatus.bind(adminApi),
       userId,
-      { reason }
+      { status: 'active', reason }
     )
   },
 
@@ -1064,8 +1068,8 @@ export const postsApiWrapper = {
     return await promisify(postsApi.voteOnPost.bind(postsApi), postId, body)
   },
 
-  async lockPost(postId) {
-    return await promisify(postsApi.lockPost.bind(postsApi), postId)
+  async lockPost(postId, locked = true) {
+    return await promisify(postsApi.patchPost.bind(postsApi), postId, { locked })
   },
 
   async patchPost(postId, body) {

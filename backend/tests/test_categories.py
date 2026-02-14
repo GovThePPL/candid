@@ -63,12 +63,12 @@ class TestGetAllCategories:
 
 
 class TestSuggestCategory:
-    """POST /categories/suggest"""
+    """POST /categories/suggestions"""
 
     def test_suggest_too_short_400(self, normal_headers):
         """Statement shorter than 10 chars returns 400."""
         resp = requests.post(
-            f"{CATEGORIES_URL}/suggest",
+            f"{CATEGORIES_URL}/suggestions",
             headers=normal_headers,
             json={"statement": "short"},
         )
@@ -77,7 +77,7 @@ class TestSuggestCategory:
     def test_suggest_valid_statement(self, normal_headers):
         """Valid statement returns suggestions (or 503 if NLP unavailable)."""
         resp = requests.post(
-            f"{CATEGORIES_URL}/suggest",
+            f"{CATEGORIES_URL}/suggestions",
             headers=normal_headers,
             json={"statement": "Healthcare should be available to everyone regardless of income"},
         )

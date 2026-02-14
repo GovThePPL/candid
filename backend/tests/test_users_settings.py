@@ -1,4 +1,4 @@
-"""Tests for GET/PUT /users/me/settings."""
+"""Tests for GET/PATCH /users/me/settings."""
 # Auth tests (test_unauthenticated_returns_401) live in test_auth_required.py.
 
 import pytest
@@ -32,7 +32,7 @@ class TestGetUserSettings:
 
 
 class TestUpdateUserSettings:
-    """PUT /users/me/settings"""
+    """PATCH /users/me/settings"""
 
     @pytest.mark.mutation
     def test_set_weights_and_rollback(self, normal_headers):
@@ -43,7 +43,7 @@ class TestUpdateUserSettings:
                 {"categoryId": ECONOMY_CAT_ID, "weight": "less"},
             ]
         }
-        resp = requests.put(SETTINGS_URL, headers=normal_headers, json=new_settings)
+        resp = requests.patch(SETTINGS_URL, headers=normal_headers, json=new_settings)
         assert resp.status_code == 200
         body = resp.json()
         weights = body["categoryWeights"]
@@ -62,7 +62,7 @@ class TestUpdateUserSettings:
 
         # Rollback to empty (use camelCase keys as the API expects)
         rollback = {"categoryWeights": []}
-        resp = requests.put(SETTINGS_URL, headers=normal_headers, json=rollback)
+        resp = requests.patch(SETTINGS_URL, headers=normal_headers, json=rollback)
         assert resp.status_code == 200
         assert resp.json()["categoryWeights"] == []
 

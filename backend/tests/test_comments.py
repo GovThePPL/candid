@@ -117,7 +117,7 @@ class TestCreateComment:
 
     def test_comment_on_locked_post(self, normal_headers, moderator_headers, normal2_headers):
         post = _create_post(normal_headers, title="CTEST locked comment")
-        requests.post(f"{POSTS_URL}/{post['id']}/lock", headers=moderator_headers)
+        requests.patch(f"{POSTS_URL}/{post['id']}", headers=moderator_headers, json={"locked": True})
 
         resp = _create_comment(normal2_headers, post["id"])
         assert resp.status_code == 403
@@ -258,7 +258,7 @@ class TestGetComments:
 
         resp = requests.get(f"{POSTS_URL}/{post['id']}/comments", headers=normal_headers)
         assert resp.status_code == 200
-        comments = resp.json()
+        comments = resp.json()["comments"]
         # Should be: c1, c1_reply, c2 (path order)
         assert len(comments) == 3
         ids = [c["id"] for c in comments]
@@ -273,7 +273,7 @@ class TestGetComments:
 
         resp = requests.get(f"{POSTS_URL}/{post['id']}/comments", headers=normal_headers)
         assert resp.status_code == 200
-        ids = [x["id"] for x in resp.json()]
+        ids = [x["id"] for x in resp.json()["comments"]]
         assert c["id"] not in ids
 
     def test_deleted_parent_shows_placeholder(self, normal_headers, normal2_headers):
@@ -288,7 +288,7 @@ class TestGetComments:
         requests.delete(f"{COMMENTS_URL}/{parent['id']}", headers=normal_headers)
 
         resp = requests.get(f"{POSTS_URL}/{post['id']}/comments", headers=normal_headers)
-        comments = resp.json()
+        comments = resp.json()["comments"]
         parent_comment = next(c for c in comments if c["id"] == parent["id"])
         assert parent_comment["body"] == "[deleted]"
 
@@ -304,7 +304,7 @@ class TestGetComments:
         )
 
         resp = requests.get(f"{POSTS_URL}/{post['id']}/comments", headers=normal2_headers)
-        comments = resp.json()
+        comments = resp.json()["comments"]
         voted = next(x for x in comments if x["id"] == c["id"])
         assert voted["userVote"] is not None
         assert voted["userVote"]["voteType"] == "upvote"
@@ -320,7 +320,7 @@ class TestGetComments:
         _create_comment(normal_headers, post["id"], body="Facilitator answer")
 
         resp = requests.get(f"{POSTS_URL}/{post['id']}/comments", headers=normal_headers)
-        comments = resp.json()
+        comments = resp.json()["comments"]
         assert len(comments) >= 1
         # normal1 is facilitator at Oregon+Healthcare
         assert comments[0]["creatorRole"] == "facilitator"

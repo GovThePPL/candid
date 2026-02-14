@@ -1,5 +1,5 @@
-"""Tests for GET /positions/{positionId}, POST /positions, POST /positions/response,
-POST /positions/{positionId}/adopt, POST /positions/search,
+"""Tests for GET /positions/{positionId}, POST /positions, POST /positions/responses,
+POST /users/me/positions, POST /positions/search,
 GET /positions/{positionId}/agreed-closures, POST /positions/search-stats."""
 # Auth tests (test_unauthenticated_returns_401) live in test_auth_required.py.
 
@@ -124,7 +124,7 @@ class TestCreatePosition:
 
 
 class TestRespondToPositions:
-    """POST /positions/response"""
+    """POST /positions/responses"""
 
     @pytest.mark.mutation
     def test_respond_to_position(self, moderator_headers):
@@ -135,7 +135,7 @@ class TestRespondToPositions:
             ]
         }
         resp = requests.post(
-            f"{POSITIONS_URL}/response",
+            f"{POSITIONS_URL}/responses",
             headers=moderator_headers,
             json=payload,
         )
@@ -145,7 +145,7 @@ class TestRespondToPositions:
     def test_empty_responses_array_error(self, normal_headers):
         """Empty responses array returns an error (400 or 500)."""
         resp = requests.post(
-            f"{POSITIONS_URL}/response",
+            f"{POSITIONS_URL}/responses",
             headers=normal_headers,
             json={"responses": []},
         )
@@ -161,7 +161,7 @@ class TestRespondToPositions:
             ]
         }
         resp = requests.post(
-            f"{POSITIONS_URL}/response",
+            f"{POSITIONS_URL}/responses",
             headers=normal2_headers,
             json=payload,
         )
@@ -176,7 +176,7 @@ class TestRespondToPositions:
             ]
         }
         resp = requests.post(
-            f"{POSITIONS_URL}/response",
+            f"{POSITIONS_URL}/responses",
             headers=moderator_headers,
             json=payload,
         )
@@ -185,7 +185,7 @@ class TestRespondToPositions:
 
 
 class TestAdoptPosition:
-    """POST /positions/{positionId}/adopt"""
+    """POST /users/me/positions"""
 
     def _cleanup_adoption(self, user_id, position_id):
         """Remove user_position and response records for a user/position pair."""
@@ -206,7 +206,8 @@ class TestAdoptPosition:
         self._cleanup_adoption(NORMAL2_ID, POSITION1_ID)
         try:
             resp = requests.post(
-                f"{POSITIONS_URL}/{POSITION1_ID}/adopt",
+                f"{BASE_URL}/users/me/positions",
+                json={"positionId": POSITION1_ID},
                 headers=normal2_headers,
             )
             assert resp.status_code == 201
@@ -223,14 +224,16 @@ class TestAdoptPosition:
         try:
             # Adopt first
             resp1 = requests.post(
-                f"{POSITIONS_URL}/{POSITION1_ID}/adopt",
+                f"{BASE_URL}/users/me/positions",
+                json={"positionId": POSITION1_ID},
                 headers=normal2_headers,
             )
             assert resp1.status_code == 201
 
             # Try again
             resp2 = requests.post(
-                f"{POSITIONS_URL}/{POSITION1_ID}/adopt",
+                f"{BASE_URL}/users/me/positions",
+                json={"positionId": POSITION1_ID},
                 headers=normal2_headers,
             )
             assert resp2.status_code == 400
@@ -240,7 +243,8 @@ class TestAdoptPosition:
     def test_adopt_not_found_404(self, normal_headers):
         """Adopting a nonexistent position returns 404."""
         resp = requests.post(
-            f"{POSITIONS_URL}/{NONEXISTENT_UUID}/adopt",
+            f"{BASE_URL}/users/me/positions",
+            json={"positionId": NONEXISTENT_UUID},
             headers=normal_headers,
         )
         assert resp.status_code == 404

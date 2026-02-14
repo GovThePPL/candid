@@ -1,5 +1,6 @@
-"""Tests for GET /users/me/positions, PATCH /users/me/positions/{id},
-DELETE /users/me/positions/{id}, GET /users/me/positions/metadata."""
+"""Tests for GET /users/me/positions, POST /users/me/positions,
+PATCH /users/me/positions/{id}, DELETE /users/me/positions/{id},
+GET /users/me/positions/metadata."""
 # Auth tests (test_unauthenticated_returns_401) live in test_auth_required.py.
 
 import pytest
@@ -133,7 +134,8 @@ class TestDeleteUserPosition:
         )
         # Create adoption via API
         resp = requests.post(
-            f"{BASE_URL}/positions/{POSITION2_ID}/adopt",
+            f"{BASE_URL}/users/me/positions",
+            json={"positionId": POSITION2_ID},
             headers=normal2_headers,
         )
         if resp.status_code == 201:

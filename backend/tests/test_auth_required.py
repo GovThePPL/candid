@@ -28,21 +28,21 @@ PROTECTED_ENDPOINTS = [
     ("GET",    "/users/me"),
     ("PATCH",  "/users/me"),
     ("GET",    f"/users/{_UUID}"),
-    ("POST",   "/users/me/delete"),
-    ("POST",   "/users/me/push-token"),
+    ("DELETE", "/users/me"),
+    ("PUT",    "/users/me/push-token"),
     ("POST",   "/users/me/avatar"),
 
     # --- User demographics ---
     ("GET",    "/users/me/demographics"),
-    ("PUT",    "/users/me/demographics"),
     ("PATCH",  "/users/me/demographics"),
 
     # --- User settings ---
     ("GET",    "/users/me/settings"),
-    ("PUT",    "/users/me/settings"),
+    ("PATCH",  "/users/me/settings"),
 
     # --- User positions ---
     ("GET",    "/users/me/positions"),
+    ("POST",   "/users/me/positions"),
     ("PATCH",  f"/users/me/positions/{_UUID}"),
     ("DELETE", f"/users/me/positions/{_UUID}"),
     ("GET",    "/users/me/positions/metadata"),
@@ -56,13 +56,12 @@ PROTECTED_ENDPOINTS = [
 
     # --- Categories ---
     ("GET",    "/categories"),
-    ("POST",   "/categories/suggest"),
+    ("POST",   "/categories/suggestions"),
 
     # --- Positions ---
     ("GET",    f"/positions/{_UUID}"),
     ("POST",   "/positions"),
-    ("POST",   "/positions/response"),
-    ("POST",   f"/positions/{_UUID}/adopt"),
+    ("POST",   "/positions/responses"),
     ("POST",   "/positions/search"),
     ("GET",    f"/positions/{_UUID}/agreed-closures"),
     ("POST",   "/positions/search-stats"),
@@ -71,11 +70,12 @@ PROTECTED_ENDPOINTS = [
     ("GET",    "/card-queue"),
 
     # --- Chat requests ---
-    ("POST",   "/chats/requests/"),
+    ("POST",   "/chats/requests"),
+    ("DELETE", f"/chats/requests/{_UUID}"),
     ("GET",    f"/chats/{_UUID}/log"),
     ("GET",    f"/chats/user/{_UUID}"),
     ("POST",   f"/chats/{_UUID}/kudos"),
-    ("POST",   f"/chats/{_UUID}/kudos/dismiss"),
+    ("DELETE", f"/chats/{_UUID}/kudos/prompt"),
     ("GET",    f"/chats/user/{_UUID}/metadata"),
 
     # --- Chat matching ---
@@ -83,8 +83,8 @@ PROTECTED_ENDPOINTS = [
 
     # --- Chatting list ---
     ("GET",    "/users/me/chatting-list/metadata"),
-    ("POST",   "/users/me/chatting-list/explanation-seen"),
-    ("POST",   "/users/me/chatting-list/bulk-remove"),
+    ("PUT",    "/users/me/chatting-list/explanation-seen"),
+    ("DELETE", "/users/me/chatting-list"),
     ("PATCH",  f"/users/me/chatting-list/{_UUID}"),
     ("DELETE", f"/users/me/chatting-list/{_UUID}"),
 
@@ -112,21 +112,23 @@ PROTECTED_ENDPOINTS = [
     ("POST",   f"/chats/{_UUID}/report"),
     ("GET",    "/moderation/queue"),
     ("POST",   f"/moderation/reports/{_UUID}/response"),
+    ("PATCH",  f"/moderation/reports/{_UUID}"),
     ("POST",   f"/moderation/appeals/{_UUID}/response"),
     ("GET",    "/rules"),
-    ("POST",   f"/moderation/notifications/{_UUID}/dismiss-admin-response"),
+    ("DELETE", f"/moderation/notifications/{_UUID}"),
 
     # --- Bug reports ---
     ("POST",   "/bug-reports"),
     ("PUT",    "/users/me/diagnostics-consent"),
 
+    # --- Admin user management ---
+    ("PATCH",  f"/admin/users/{_UUID}/status"),
+
     # --- Admin role management ---
     ("GET",    "/admin/roles"),
-    ("POST",   "/admin/roles"),
-    ("POST",   "/admin/roles/remove"),
+    ("POST",   "/admin/roles/requests"),
     ("GET",    "/admin/roles/pending"),
-    ("POST",   f"/admin/roles/requests/{_UUID}/approve"),
-    ("POST",   f"/admin/roles/requests/{_UUID}/deny"),
+    ("PATCH",  f"/admin/roles/requests/{_UUID}"),
 
     # --- Admin location management ---
     ("POST",   "/admin/locations"),

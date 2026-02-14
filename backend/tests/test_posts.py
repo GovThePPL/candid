@@ -1,4 +1,4 @@
-"""Integration tests for Posts endpoints (CRUD, voting, locking)."""
+"""Integration tests for Posts endpoints (CRUD, voting, locking via PATCH)."""
 
 import pytest
 import requests
@@ -369,13 +369,13 @@ class TestDeletePost:
 
 
 class TestLockPost:
-    """POST /posts/{postId}/lock"""
+    """PATCH /posts/{postId} with {"locked": true/false}"""
 
     def test_moderator_can_lock(self, normal_headers, moderator_headers):
         create_resp = _create_post(normal_headers, title="TEST lock post")
         post_id = create_resp.json()["id"]
 
-        resp = requests.post(f"{POSTS_URL}/{post_id}/lock", headers=moderator_headers)
+        resp = requests.patch(f"{POSTS_URL}/{post_id}", headers=moderator_headers, json={"locked": True})
         assert resp.status_code == 200
         assert resp.json()["status"] == "locked"
 
@@ -384,9 +384,9 @@ class TestLockPost:
         post_id = create_resp.json()["id"]
 
         # Lock
-        requests.post(f"{POSTS_URL}/{post_id}/lock", headers=moderator_headers)
+        requests.patch(f"{POSTS_URL}/{post_id}", headers=moderator_headers, json={"locked": True})
         # Unlock
-        resp = requests.post(f"{POSTS_URL}/{post_id}/lock", headers=moderator_headers)
+        resp = requests.patch(f"{POSTS_URL}/{post_id}", headers=moderator_headers, json={"locked": False})
         assert resp.status_code == 200
         assert resp.json()["status"] == "active"
 
@@ -394,7 +394,7 @@ class TestLockPost:
         create_resp = _create_post(normal_headers, title="TEST lock blocked")
         post_id = create_resp.json()["id"]
 
-        resp = requests.post(f"{POSTS_URL}/{post_id}/lock", headers=normal_headers)
+        resp = requests.patch(f"{POSTS_URL}/{post_id}", headers=normal_headers, json={"locked": True})
         assert resp.status_code == 403
 
     def test_comment_on_locked_post_blocked(self, normal_headers, moderator_headers, normal2_headers):
@@ -402,7 +402,7 @@ class TestLockPost:
         post_id = create_resp.json()["id"]
 
         # Lock it
-        requests.post(f"{POSTS_URL}/{post_id}/lock", headers=moderator_headers)
+        requests.patch(f"{POSTS_URL}/{post_id}", headers=moderator_headers, json={"locked": True})
 
         # Try to comment
         resp = requests.post(
