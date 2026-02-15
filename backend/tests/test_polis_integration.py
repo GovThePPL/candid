@@ -46,6 +46,16 @@ POSITIONS_URL = f"{BASE_URL}/positions"
 # Polis-specific helpers
 # ---------------------------------------------------------------------------
 
+def is_polis_reachable():
+    """Check if Polis server is reachable."""
+    try:
+        resp = requests.get(f"{POLIS_API_URL}/conversations", timeout=5)
+        # Any response (even 401) means it's reachable
+        return True
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+        return False
+
+
 def get_polis_oidc_token():
     """Get an OIDC token from Keycloak for Polis admin operations."""
     try:
@@ -174,6 +184,7 @@ class TestPolisOIDCAuthentication:
         assert "exp" in claims, "Token should have expiration claim"
 
 
+@pytest.mark.skipif(not is_polis_reachable(), reason="Polis server not reachable")
 class TestPolisConversationCreation:
     """Test Polis conversation creation via Keycloak OIDC-authenticated API.
 
@@ -224,20 +235,24 @@ class TestPolisConversationCreation:
     @pytest.mark.polis
     def test_conversation_creation_without_token_fails(self):
         """Test that conversation creation fails without authentication."""
-        resp = requests.post(
-            f"{POLIS_API_URL}/conversations",
-            headers={"Content-Type": "application/json"},
-            json={
-                "topic": "Should Fail",
-                "description": "No auth",
-                "is_active": True
-            },
-            timeout=15
-        )
+        try:
+            resp = requests.post(
+                f"{POLIS_API_URL}/conversations",
+                headers={"Content-Type": "application/json"},
+                json={
+                    "topic": "Should Fail",
+                    "description": "No auth",
+                    "is_active": True
+                },
+                timeout=15
+            )
+        except requests.exceptions.ConnectionError:
+            pytest.skip("Polis server not reachable")
         # Should fail with 401 or 403
         assert resp.status_code in (401, 403), f"Expected auth error, got {resp.status_code}"
 
 
+@pytest.mark.skipif(not is_polis_reachable(), reason="Polis server not reachable")
 class TestPolisParticipantXID:
     """Test XID-based participant initialization."""
 
@@ -312,6 +327,7 @@ class TestPolisParticipantXID:
         assert data1["user"]["uid"] == data2["user"]["uid"], "Same XID should return same user"
 
 
+@pytest.mark.skipif(not is_polis_reachable(), reason="Polis server not reachable")
 class TestPolisCommentOperations:
     """Test comment creation and retrieval in Polis."""
 
@@ -401,6 +417,7 @@ class TestPolisCommentOperations:
         assert len(comments) >= 1, "Should have at least one comment"
 
 
+@pytest.mark.skipif(not is_polis_reachable(), reason="Polis server not reachable")
 class TestPolisVoteOperations:
     """Test vote submission in Polis."""
 
@@ -577,6 +594,7 @@ class TestPolisSyncQueue:
             pytest.skip(f"Sync did not complete within timeout (Polis may not be running). Stats: {stats}")
 
 
+@pytest.mark.skipif(not is_polis_reachable(), reason="Polis server not reachable")
 class TestPolisEndToEndSync:
     """End-to-end tests for Polis sync functionality."""
 
@@ -699,6 +717,7 @@ class TestPolisEndToEndSync:
         assert stats["failed"] == 0, "No sync items should have failed"
 
 
+@pytest.mark.skipif(not is_polis_reachable(), reason="Polis server not reachable")
 class TestPolisConversationLifecycle:
     """Test Polis conversation creation and management."""
 

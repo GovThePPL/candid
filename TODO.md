@@ -7,6 +7,7 @@
 - Make email required?
 - Require phone number for sign-up -- explore other user de-duplication options, consider cost of sending messages
 - Captcha on sign-up
+- Send user back to login screen when token expires and refresh fails
 
 ## Security
 - Implement bot detection system

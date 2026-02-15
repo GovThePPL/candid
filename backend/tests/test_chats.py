@@ -353,7 +353,7 @@ class TestRescindChatRequest:
             chat_request_url(request_id),
             headers=normal_headers,
         )
-        assert resp.status_code == 200
+        assert resp.status_code == 204
 
         # Verify deleted from database
         result = db_query_one(
@@ -666,8 +666,8 @@ class TestSendKudos:
         assert "receiverUserId" in body
         assert "createdTime" in body
 
-    def test_send_kudos_is_idempotent(self, normal_headers):
-        """Sending kudos twice is idempotent (succeeds both times)."""
+    def test_send_kudos_duplicate_returns_conflict(self, normal_headers):
+        """Sending kudos twice returns 409 (anti-gaming: one kudos per user per topic)."""
         # Send first kudos
         resp1 = requests.post(
             kudos_url(CHAT_LOG_1_ID),
@@ -675,12 +675,12 @@ class TestSendKudos:
         )
         assert resp1.status_code == 201
 
-        # Send again - should succeed (idempotent)
+        # Send again - should return conflict (duplicate for same position)
         resp2 = requests.post(
             kudos_url(CHAT_LOG_1_ID),
             headers=normal_headers,
         )
-        assert resp2.status_code == 201
+        assert resp2.status_code == 409
 
     def test_non_participant_cannot_send_kudos(self, normal2_headers):
         """Non-participant cannot send kudos."""
@@ -900,9 +900,14 @@ class TestChatRequestNotifications:
         Test that the initiator receives a real-time notification
         when their chat request is accepted.
         """
-        # Connect initiator to Socket.IO
+        # Connect initiator to Socket.IO (auth on handshake)
         sio = socketio.Client()
         received_events = []
+        authenticated_data = []
+
+        @sio.on("authenticated")
+        def on_authenticated(data):
+            authenticated_data.append(data)
 
         @sio.on("chat_request_accepted")
         def on_accepted(data):
@@ -913,9 +918,10 @@ class TestChatRequestNotifications:
             received_events.append(("started", data))
 
         try:
-            sio.connect(CHAT_SERVER_URL)
-            auth_response = sio.call("authenticate", {"token": normal_token})
-            assert auth_response["status"] == "authenticated"
+            sio.connect(CHAT_SERVER_URL, auth={"token": normal_token}, wait_timeout=5)
+            # Wait for authenticated event from server
+            time.sleep(0.5)
+            assert len(authenticated_data) >= 1, "Should receive authenticated event"
 
             # Create chat request (as initiator - normal1)
             create_resp = requests.post(
@@ -971,9 +977,8 @@ class TestChatRequestNotifications:
             received_events.append(data)
 
         try:
-            sio.connect(CHAT_SERVER_URL)
-            auth_response = sio.call("authenticate", {"token": normal_token})
-            assert auth_response["status"] == "authenticated"
+            sio.connect(CHAT_SERVER_URL, auth={"token": normal_token}, wait_timeout=5)
+            time.sleep(0.5)
 
             # Create chat request
             create_resp = requests.post(
@@ -1018,12 +1023,10 @@ class TestChatRequestNotifications:
             responder_events.append(data)
 
         try:
-            # Connect both users
-            sio_initiator.connect(CHAT_SERVER_URL)
-            sio_responder.connect(CHAT_SERVER_URL)
-
-            sio_initiator.call("authenticate", {"token": normal_token})
-            sio_responder.call("authenticate", {"token": normal2_token})
+            # Connect both users (auth on handshake)
+            sio_initiator.connect(CHAT_SERVER_URL, auth={"token": normal_token}, wait_timeout=5)
+            sio_responder.connect(CHAT_SERVER_URL, auth={"token": normal2_token}, wait_timeout=5)
+            time.sleep(0.5)
 
             # Create and accept chat request
             create_resp = requests.post(
@@ -1084,8 +1087,8 @@ class TestChatRequestNotifications:
             bystander_events.append(("started", data))
 
         try:
-            sio_bystander.connect(CHAT_SERVER_URL)
-            sio_bystander.call("authenticate", {"token": normal3_token})
+            sio_bystander.connect(CHAT_SERVER_URL, auth={"token": normal3_token}, wait_timeout=5)
+            time.sleep(0.5)
 
             # Create and accept chat request between normal1 and normal2
             create_resp = requests.post(
@@ -1150,8 +1153,8 @@ class TestChatRequestNotificationTiming:
             event_timestamp.append(time.time())
 
         try:
-            sio.connect(CHAT_SERVER_URL)
-            sio.call("authenticate", {"token": normal_token})
+            sio.connect(CHAT_SERVER_URL, auth={"token": normal_token}, wait_timeout=5)
+            time.sleep(0.5)
 
             # Create request
             create_resp = requests.post(

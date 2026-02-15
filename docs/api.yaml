@@ -2898,6 +2898,92 @@ components:
         totalRootCount:
           type: integer
           description: Total number of root-level comments on the post.
+        truncatedRoots:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Root comment IDs whose descendants were truncated due to maxDescendants limit.
+
+    CommentThread:
+      type: object
+      required:
+        - comments
+        - truncated
+      properties:
+        comments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Comment'
+        truncated:
+          type: boolean
+          description: Whether the thread was truncated due to maxDescendants limit.
+
+    ActivityItem:
+      type: object
+      required:
+        - id
+        - type
+        - body
+        - createdTime
+        - upvoteCount
+        - downvoteCount
+        - score
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [post, comment]
+        title:
+          type: string
+          nullable: true
+          description: Post title (present for posts, null for comments)
+        body:
+          type: string
+        postId:
+          type: string
+          format: uuid
+          nullable: true
+          description: The post this activity belongs to (same as id for posts)
+        postTitle:
+          type: string
+          nullable: true
+          description: Title of the post (for comments, the parent post's title)
+        upvoteCount:
+          type: integer
+        downvoteCount:
+          type: integer
+        score:
+          type: number
+          format: double
+        commentCount:
+          type: integer
+          nullable: true
+          description: Number of comments (posts only)
+        createdTime:
+          type: string
+          format: date-time
+        status:
+          type: string
+          description: Status of the item (active, deleted, removed, locked)
+
+    ActivityPage:
+      type: object
+      required:
+        - items
+        - hasMore
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivityItem'
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
 
     CreateCommentRequest:
       type: object
@@ -6703,6 +6789,171 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
+  # ========== User Activity ==========
+
+  /users/me/activity:
+    get:
+      operationId: getUserActivity
+      summary: Get current user's recent posts and comments
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [posts, comments, all]
+            default: all
+          description: Filter by activity type
+        - name: cursor
+          in: query
+          schema:
+            type: string
+          description: Opaque cursor for pagination
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 50
+          description: Number of items per page
+      responses:
+        '200':
+          description: Activity list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityPage'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  # ========== Notification Muting ==========
+
+  /notifications/mute:
+    post:
+      operationId: muteNotifications
+      summary: Mute notifications for a specific post or comment
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - targetType
+                - targetId
+              properties:
+                targetType:
+                  type: string
+                  enum: [post, comment]
+                targetId:
+                  type: string
+                  format: uuid
+      responses:
+        '201':
+          description: Mute created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  muted:
+                    type: boolean
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '403':
+          description: Not the content owner
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+    delete:
+      operationId: unmuteNotifications
+      summary: Unmute notifications for a specific post or comment
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - targetType
+                - targetId
+              properties:
+                targetType:
+                  type: string
+                  enum: [post, comment]
+                targetId:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Mute removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  muted:
+                    type: boolean
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /notifications/mutes:
+    get:
+      operationId: getNotificationMuteStatus
+      summary: Check if a post or comment is muted
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: targetType
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [post, comment]
+        - name: targetId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Mute status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  muted:
+                    type: boolean
+
   # ========== Posts ==========
 
   /posts:
@@ -7032,6 +7283,14 @@ paths:
             minimum: 1
             maximum: 100
           description: Max number of root comments per page (descendants always included)
+        - name: maxDescendants
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 500
+          description: Max descendants per root comment. Roots exceeding this are listed in truncatedRoots.
       responses:
         '200':
           description: Paginated comment list
@@ -7086,6 +7345,50 @@ paths:
                 $ref: '#/components/schemas/ErrorModel'
         '429':
           description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /posts/{postId}/comments/{commentId}/thread:
+    get:
+      operationId: getCommentThread
+      summary: Get a comment and its descendants (for "Continue this thread")
+      tags:
+        - Comments
+      security:
+        - BearerAuth: []
+        - {}
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: commentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: maxDescendants
+          in: query
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 500
+          description: Maximum number of descendants to return
+      responses:
+        '200':
+          description: Comment thread
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommentThread'
+        '404':
+          description: Post or comment not found
           content:
             application/json:
               schema:

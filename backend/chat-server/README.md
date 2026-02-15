@@ -26,7 +26,7 @@ chat-server/
 │   ├── app.py           # aiohttp app setup, Socket.IO initialization
 │   ├── auth.py          # JWT token validation
 │   ├── config.py        # Environment configuration
-│   ├── handlers/        # Socket.IO event handlers
+│   ├── handlers/        # Socket.IO event handlers (chat, discuss)
 │   ├── services/        # Business logic and data access
 │   └── tests/           # Unit tests
 ├── Dockerfile           # Python 3.12-slim container

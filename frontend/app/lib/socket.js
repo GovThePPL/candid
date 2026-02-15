@@ -393,6 +393,69 @@ export function onAgreedPosition(handler) {
   }
 }
 
+/**
+ * Join a post room to receive real-time comment/vote events.
+ * @param {string} postId - Post ID
+ * @returns {Promise<Object>} - Join response
+ */
+export async function joinPost(postId) {
+  if (!socket?.connected) {
+    throw new Error('Not connected to chat server')
+  }
+
+  return new Promise((resolve, reject) => {
+    socket.emit('join_post', { postId }, (response) => {
+      if (response?.status === 'joined') {
+        resolve(response)
+      } else {
+        reject(new Error(response?.message || 'Failed to join post room'))
+      }
+    })
+  })
+}
+
+/**
+ * Leave a post room.
+ * @param {string} postId - Post ID
+ */
+export function leavePost(postId) {
+  if (socket?.connected) {
+    socket.emit('leave_post', { postId })
+  }
+}
+
+/**
+ * Set up listener for new comment events on a post.
+ * @param {Function} handler - Called with comment data
+ * @returns {Function} - Cleanup function
+ */
+export function onNewComment(handler) {
+  if (!socket) {
+    return () => {}
+  }
+
+  socket.on('new_comment', handler)
+  return () => {
+    if (socket) socket.off('new_comment', handler)
+  }
+}
+
+/**
+ * Set up listener for vote update events on a post.
+ * @param {Function} handler - Called with { commentId, upvoteCount, downvoteCount, score }
+ * @returns {Function} - Cleanup function
+ */
+export function onVoteUpdate(handler) {
+  if (!socket) {
+    return () => {}
+  }
+
+  socket.on('vote_update', handler)
+  return () => {
+    if (socket) socket.off('vote_update', handler)
+  }
+}
+
 export default {
   connect: connectSocket,
   disconnect: disconnectSocket,
@@ -413,4 +476,8 @@ export default {
   proposeAgreedPosition,
   respondToAgreedPosition,
   onAgreedPosition,
+  joinPost,
+  leavePost,
+  onNewComment,
+  onVoteUpdate,
 }

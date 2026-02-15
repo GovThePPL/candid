@@ -39,7 +39,7 @@ import ThemedText from '../../../components/ThemedText'
 const screenHeight = Dimensions.get('window').height
 
 export default function PostDetail() {
-  const { id: postId } = useLocalSearchParams()
+  const { id: postId, threadRoot } = useLocalSearchParams()
   const router = useRouter()
   const navigation = useNavigation()
   const insets = useSafeAreaInsets()
@@ -67,16 +67,21 @@ export default function PostDetail() {
     handleToggleRole: handleCommentToggleRole,
     handleCreateComment,
     loadMore,
+    loadMoreReplies,
     hasMore,
     totalRootCount,
+    truncatedRoots,
     commentCount,
-  } = useCommentThread(postId)
+  } = useCommentThread(postId, { threadRootId: threadRoot || undefined })
 
   // Input state
   const [inputText, setInputText] = useState('')
   const [inputHeight, setInputHeight] = useState(40)
   const [replyingTo, setReplyingTo] = useState(null)
   const [posting, setPosting] = useState(false)
+
+  // Mute state
+  const [postMuted, setPostMuted] = useState(false)
 
   // Downvote picker
   const [downvoteTarget, setDownvoteTarget] = useState(null)
@@ -144,6 +149,16 @@ export default function PostDetail() {
     }
   }, [navigation, router])
 
+  // Navigate to a subtree view for deeply nested threads
+  const handleContinueThread = useCallback((commentId) => {
+    router.push(`/discuss/${postId}?threadRoot=${commentId}`)
+  }, [router, postId])
+
+  // Navigate back to full thread from subtree view
+  const handleBackToFullThread = useCallback(() => {
+    router.push(`/discuss/${postId}`)
+  }, [router, postId])
+
   // Fetch post
   useEffect(() => {
     let cancelled = false
@@ -162,6 +177,41 @@ export default function PostDetail() {
     fetchPost()
     return () => { cancelled = true }
   }, [postId])
+
+  // Fetch mute status for own posts
+  useEffect(() => {
+    if (!post || !user || post.creator?.id !== user.id) return
+    api.users.getNotificationMuteStatus({ targetType: 'post', targetId: postId })
+      .then(res => { if (res) setPostMuted(res.muted) })
+      .catch(() => {})
+  }, [post, user, postId])
+
+  // Toggle post mute
+  const handleTogglePostMute = useCallback(async (mute) => {
+    setPostMuted(mute)
+    try {
+      if (mute) {
+        await api.users.muteNotifications({ targetType: 'post', targetId: postId })
+      } else {
+        await api.users.unmuteNotifications({ targetType: 'post', targetId: postId })
+      }
+    } catch {
+      setPostMuted(!mute)
+    }
+  }, [postId])
+
+  // Toggle comment mute
+  const handleToggleMuteComment = useCallback(async (commentId, mute) => {
+    try {
+      if (mute) {
+        await api.users.muteNotifications({ targetType: 'comment', targetId: commentId })
+      } else {
+        await api.users.unmuteNotifications({ targetType: 'comment', targetId: commentId })
+      }
+    } catch {
+      showToast(t('errorVoteFailed'))
+    }
+  }, [showToast, t])
 
   // Post voting
   const handlePostUpvote = useCallback(async () => {
@@ -366,10 +416,14 @@ export default function PostDetail() {
           onReply={handleReply}
           onToggleCollapse={toggleCollapse}
           onToggleRole={handleCommentToggleRole}
+          onToggleMuteComment={handleToggleMuteComment}
+          onContinueThread={handleContinueThread}
+          isTruncatedRoot={truncatedRoots.has(comment.id)}
+          onLoadMoreReplies={loadMoreReplies}
         />
       ))}
     </View>
-  ), [user?.id, isQAPost, isPostLocked, userHasQAAuthority, handleCommentUpvote, handleCommentDownvote, handleReply, toggleCollapse, handleCommentToggleRole, styles.chainBlock])
+  ), [user?.id, isQAPost, isPostLocked, userHasQAAuthority, handleCommentUpvote, handleCommentDownvote, handleReply, toggleCollapse, handleCommentToggleRole, handleToggleMuteComment, handleContinueThread, truncatedRoots, loadMoreReplies, styles.chainBlock])
 
   const chainKeyExtractor = useCallback((item) => item[0].id, [])
 
@@ -403,6 +457,20 @@ export default function PostDetail() {
   // List header: post + comment header
   const ListHeader = (
     <>
+      {threadRoot && (
+        <TouchableOpacity
+          style={styles.threadBanner}
+          onPress={handleBackToFullThread}
+          activeOpacity={0.6}
+          accessibilityRole="link"
+          accessibilityLabel={t('backToFullThreadA11y')}
+        >
+          <Ionicons name="arrow-back" size={16} color={colors.primary} />
+          <ThemedText variant="body" color="primary">
+            {t('backToFullThread')}
+          </ThemedText>
+        </TouchableOpacity>
+      )}
       <View style={styles.postHeaderShadow}>
         <PostHeader
           post={post}
@@ -410,6 +478,8 @@ export default function PostDetail() {
           onUpvote={handlePostUpvote}
           onDownvote={handlePostDownvote}
           onToggleRole={handleTogglePostRole}
+          onToggleMute={handleTogglePostMute}
+          isMuted={postMuted}
         />
       </View>
       <View style={styles.commentSection}>
@@ -642,6 +712,16 @@ const createStyles = (colors) => StyleSheet.create({
       android: { elevation: 2 },
       default: { boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)' },
     }),
+  },
+  threadBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    backgroundColor: colors.cardBackground,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.cardBorder,
   },
   commentSection: {
     paddingHorizontal: Spacing.lg,

@@ -506,8 +506,6 @@ class TestSendCommentReplyNotification:
 
     def test_sends_when_type_enabled(self):
         mock_db = MagicMock()
-        # _is_notification_type_enabled query returns None (absent = enabled)
-        # send_or_queue_notification queries
         user_row = {
             "push_token": PUSH_TOKEN,
             "notifications_enabled": True,
@@ -520,6 +518,8 @@ class TestSendCommentReplyNotification:
         }
         mock_db.execute_query.side_effect = [
             None,       # type pref query (absent = enabled)
+            None,       # comment mute check (not muted)
+            None,       # post mute check (not muted)
             user_row,   # send_or_queue user lookup
         ]
 
@@ -530,7 +530,8 @@ class TestSendCommentReplyNotification:
             mock_response.__exit__ = MagicMock(return_value=False)
             mock_open.return_value = mock_response
 
-            self._call(USER_ID, "Alice", "Great comment!", "post-123", mock_db)
+            self._call(USER_ID, "Alice", "Great comment!", "post-123", mock_db,
+                       parent_comment_id="comment-789")
 
         mock_open.assert_called_once()
         req = mock_open.call_args[0][0]
@@ -562,6 +563,8 @@ class TestSendCommentReplyNotification:
         }
         mock_db.execute_query.side_effect = [
             None,       # type pref (absent = enabled)
+            None,       # comment mute check (not muted)
+            None,       # post mute check (not muted)
             user_row,   # send_or_queue user lookup
         ]
 
@@ -574,10 +577,174 @@ class TestSendCommentReplyNotification:
             mock_response.__exit__ = MagicMock(return_value=False)
             mock_open.return_value = mock_response
 
-            self._call(USER_ID, "Alice", long_text, "post-123", mock_db)
+            self._call(USER_ID, "Alice", long_text, "post-123", mock_db,
+                       parent_comment_id="comment-789")
 
         req = mock_open.call_args[0][0]
         payload = json.loads(req.data.decode("utf-8"))
         # The snippet is truncated at 80 chars + "..." in send_comment_reply_notification,
         # then further truncated at 120 in send_push_notification
         assert len(payload["body"]) <= 123  # 120 + "..."
+
+
+# ---------------------------------------------------------------------------
+# send_post_comment_notification
+# ---------------------------------------------------------------------------
+
+class TestSendPostCommentNotification:
+    def _call(self, *args, **kwargs):
+        from candid.controllers.helpers.push_notifications import send_post_comment_notification
+        return send_post_comment_notification(*args, **kwargs)
+
+    def test_sends_when_type_enabled(self):
+        mock_db = MagicMock()
+        user_row = {
+            "push_token": PUSH_TOKEN,
+            "notifications_enabled": True,
+            "quiet_hours_start": None,
+            "quiet_hours_end": None,
+            "timezone": "UTC",
+            "notification_frequency": 3,
+            "notifications_sent_today": 0,
+            "notifications_sent_date": None,
+        }
+        mock_db.execute_query.side_effect = [
+            None,       # type pref query (absent = enabled)
+            None,       # post mute check (not muted)
+            user_row,   # send_or_queue user lookup
+        ]
+
+        with patch("candid.controllers.helpers.push_notifications.urllib.request.urlopen") as mock_open:
+            mock_response = MagicMock()
+            mock_response.read.return_value = b'{"data": {"status": "ok"}}'
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_open.return_value = mock_response
+
+            self._call(USER_ID, "Bob", "I agree with this post!", "post-456", mock_db)
+
+        mock_open.assert_called_once()
+        req = mock_open.call_args[0][0]
+        payload = json.loads(req.data.decode("utf-8"))
+        assert "Bob" in payload["title"]
+        assert "commented on your post" in payload["title"]
+        assert payload["data"]["action"] == "open_post"
+        assert payload["data"]["postId"] == "post-456"
+
+    def test_skipped_when_type_disabled(self):
+        mock_db = MagicMock()
+        mock_db.execute_query.return_value = {"enabled": False}
+
+        with patch("candid.controllers.helpers.push_notifications.send_or_queue_notification") as mock_send:
+            self._call(USER_ID, "Bob", "I agree!", "post-456", mock_db)
+
+        mock_send.assert_not_called()
+
+    def test_truncates_long_snippet(self):
+        mock_db = MagicMock()
+        user_row = {
+            "push_token": PUSH_TOKEN,
+            "notifications_enabled": True,
+            "quiet_hours_start": None,
+            "quiet_hours_end": None,
+            "timezone": "UTC",
+            "notification_frequency": 3,
+            "notifications_sent_today": 0,
+            "notifications_sent_date": None,
+        }
+        mock_db.execute_query.side_effect = [
+            None,       # type pref (absent = enabled)
+            None,       # post mute check (not muted)
+            user_row,   # send_or_queue user lookup
+        ]
+
+        long_text = "B" * 200
+
+        with patch("candid.controllers.helpers.push_notifications.urllib.request.urlopen") as mock_open:
+            mock_response = MagicMock()
+            mock_response.read.return_value = b'{"data": {"status": "ok"}}'
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_open.return_value = mock_response
+
+            self._call(USER_ID, "Bob", long_text, "post-456", mock_db)
+
+        req = mock_open.call_args[0][0]
+        payload = json.loads(req.data.decode("utf-8"))
+        # Truncated at 80 + "..." in send_post_comment_notification
+        assert len(payload["body"]) <= 123
+
+
+# ---------------------------------------------------------------------------
+# _is_notification_muted
+# ---------------------------------------------------------------------------
+
+class TestIsNotificationMuted:
+    def _call(self, *args, **kwargs):
+        from candid.controllers.helpers.push_notifications import _is_notification_muted
+        return _is_notification_muted(*args, **kwargs)
+
+    def test_returns_false_when_not_muted(self):
+        mock_db = MagicMock()
+        mock_db.execute_query.return_value = None
+        assert self._call(USER_ID, 'post', 'post-123', mock_db) is False
+
+    def test_returns_true_when_muted(self):
+        mock_db = MagicMock()
+        mock_db.execute_query.return_value = {1: 1}
+        assert self._call(USER_ID, 'post', 'post-123', mock_db) is True
+
+    def test_queries_correct_table_and_params(self):
+        mock_db = MagicMock()
+        mock_db.execute_query.return_value = None
+        self._call(USER_ID, 'comment', 'comment-456', mock_db)
+        sql, params = mock_db.execute_query.call_args[0]
+        assert "notification_mute" in sql
+        assert params == (USER_ID, 'comment', 'comment-456')
+
+    def test_post_comment_notification_respects_mute(self):
+        """send_post_comment_notification should not send when post is muted."""
+        from candid.controllers.helpers.push_notifications import send_post_comment_notification
+        mock_db = MagicMock()
+        mock_db.execute_query.side_effect = [
+            None,       # type pref (enabled)
+            {1: 1},     # mute check returns a row (muted)
+        ]
+
+        with patch("candid.controllers.helpers.push_notifications.send_or_queue_notification") as mock_send:
+            send_post_comment_notification(USER_ID, "Bob", "test", "post-123", mock_db)
+
+        mock_send.assert_not_called()
+
+    def test_comment_reply_notification_respects_comment_mute(self):
+        """send_comment_reply_notification should not send when comment is muted."""
+        from candid.controllers.helpers.push_notifications import send_comment_reply_notification
+        mock_db = MagicMock()
+        mock_db.execute_query.side_effect = [
+            None,       # type pref (enabled)
+            {1: 1},     # comment mute check returns a row (muted)
+        ]
+
+        with patch("candid.controllers.helpers.push_notifications.send_or_queue_notification") as mock_send:
+            send_comment_reply_notification(
+                USER_ID, "Alice", "test", "post-123", mock_db,
+                parent_comment_id="comment-456")
+
+        mock_send.assert_not_called()
+
+    def test_comment_reply_notification_respects_post_mute(self):
+        """send_comment_reply_notification should not send when the post is muted."""
+        from candid.controllers.helpers.push_notifications import send_comment_reply_notification
+        mock_db = MagicMock()
+        mock_db.execute_query.side_effect = [
+            None,       # type pref (enabled)
+            None,       # comment mute check (not muted)
+            {1: 1},     # post mute check returns a row (muted)
+        ]
+
+        with patch("candid.controllers.helpers.push_notifications.send_or_queue_notification") as mock_send:
+            send_comment_reply_notification(
+                USER_ID, "Alice", "test", "post-123", mock_db,
+                parent_comment_id="comment-456")
+
+        mock_send.assert_not_called()

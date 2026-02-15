@@ -24,7 +24,7 @@ import LocationCategoryBadge from '../LocationCategoryBadge'
  * @param {Function} props.onDownvote - Called when downvote is tapped
  * @param {Function} props.onToggleRole - Called with (postId, showCreatorRole)
  */
-export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, onToggleRole }) {
+export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, onToggleRole, onToggleMute, isMuted }) {
   const { t } = useTranslation('discuss')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
@@ -149,6 +149,27 @@ export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, 
               />
               <ThemedText variant="body">
                 {post.showCreatorRole !== false ? t('hideRoleBadge') : t('showRoleBadge')}
+              </ThemedText>
+            </TouchableOpacity>
+          )}
+          {isOwnPost && (
+            <TouchableOpacity
+              style={styles.optionRow}
+              onPress={() => {
+                onToggleMute?.(!isMuted)
+                setOptionsVisible(false)
+              }}
+              activeOpacity={0.7}
+              accessibilityRole="menuitem"
+              accessibilityLabel={t('mutePostNotificationsA11y')}
+            >
+              <Ionicons
+                name={isMuted ? 'notifications-outline' : 'notifications-off-outline'}
+                size={20}
+                color={colors.secondaryText}
+              />
+              <ThemedText variant="body">
+                {isMuted ? t('unmutePostNotifications') : t('mutePostNotifications')}
               </ThemedText>
             </TouchableOpacity>
           )}

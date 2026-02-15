@@ -185,7 +185,7 @@ describe('CommentItem', () => {
   })
 
   it('collapses children when body is tapped', () => {
-    const comment = { ...baseComment, children: [{ id: 'child1' }] }
+    const comment = { ...baseComment, hasChildren: true }
     render(<CommentItem {...defaultProps} comment={comment} />)
     fireEvent.press(screen.getByText('This is a test comment body.'))
     expect(defaultProps.onToggleCollapse).toHaveBeenCalledWith('c1')

@@ -16,6 +16,35 @@ export function controversyScore(up, down) {
 }
 
 /**
+ * Auto-collapse threshold on weighted net votes. Comments whose weighted
+ * net (weightedUpvotes − weightedDownvotes) falls below this are
+ * automatically collapsed unless the user explicitly expands them.
+ */
+export const AUTO_COLLAPSE_THRESHOLD = -3
+
+/**
+ * Compute the set of comment IDs that should be auto-collapsed due to
+ * low weighted net votes. Only considers active (non-deleted) comments.
+ *
+ * Uses weightedUpvotes/weightedDownvotes (which incorporate ideological
+ * distance weighting) rather than the Wilson `score` field (always 0-1).
+ *
+ * @param {Array} flatComments - flat array of comments from the API
+ * @param {number} threshold - weighted net threshold (exclusive, default: -3)
+ * @returns {Set} set of comment IDs below threshold
+ */
+export function getAutoCollapsedIds(flatComments, threshold = AUTO_COLLAPSE_THRESHOLD) {
+  const ids = new Set()
+  for (const c of flatComments) {
+    const weightedNet = (c.weightedUpvotes || 0) - (c.weightedDownvotes || 0)
+    if (weightedNet < threshold && c.status !== 'deleted' && c.status !== 'removed') {
+      ids.add(c.id)
+    }
+  }
+  return ids
+}
+
+/**
  * Build a tree from a flat array of comments.
  * Each comment must have `id` and `parentCommentId` (null for root).
  * Returns an array of root nodes, each with a `children` array.

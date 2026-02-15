@@ -548,6 +548,17 @@ CREATE TABLE notification_type_preferences (
 );
 CREATE INDEX idx_notif_type_pref_user ON notification_type_preferences(user_id);
 
+-- Per-content notification muting (owner can mute their own posts/comments)
+CREATE TABLE notification_mute (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    target_type VARCHAR(20) NOT NULL CHECK (target_type IN ('post', 'comment')),
+    target_id UUID NOT NULL,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, target_type, target_id)
+);
+CREATE INDEX idx_notif_mute_user ON notification_mute(user_id, target_type, target_id);
+
 -- ========== Posts ==========
 
 CREATE TABLE post (

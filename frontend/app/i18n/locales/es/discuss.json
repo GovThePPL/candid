@@ -155,7 +155,26 @@
   "toggleRoleA11y": "Alternar visibilidad de insignia de rol",
   "reportPostA11y": "Reportar publicación de {{author}}",
 
+  "belowThreshold": "Comentario por debajo del umbral de puntuación",
+  "belowThresholdA11y": "Comentario de {{author}} está por debajo del umbral de puntuación. Toca para expandir.",
+
+  "mutePostNotifications": "Silenciar notificaciones de comentarios",
+  "unmutePostNotifications": "Activar notificaciones de comentarios",
+  "mutePostNotificationsA11y": "Alternar notificaciones de comentarios para esta publicación",
+  "muteCommentNotifications": "Silenciar notificaciones de respuestas",
+  "unmuteCommentNotifications": "Activar notificaciones de respuestas",
+  "muteCommentNotificationsA11y": "Alternar notificaciones de respuestas para este comentario",
+
   "errorVoteFailed": "No se pudo guardar el voto",
   "errorCommentFailed": "No se pudo publicar el comentario",
-  "errorToggleRoleFailed": "No se pudo actualizar la insignia de rol"
+  "errorToggleRoleFailed": "No se pudo actualizar la insignia de rol",
+
+  "loadMoreReplies": "Cargar más respuestas",
+  "loadMoreRepliesA11y": "Cargar más respuestas para este hilo de comentarios",
+
+  "continueThread": "Continuar este hilo",
+  "continueThreadA11y": "Continuar leyendo este hilo de comentarios",
+  "backToFullThread": "Volver al hilo completo",
+  "backToFullThreadA11y": "Regresar al hilo completo de comentarios",
+  "threadTruncated": "Hilo truncado — no se muestran todas las respuestas"
 }

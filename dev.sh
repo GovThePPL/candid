@@ -339,13 +339,17 @@ if [[ "$SEED_ONLY" == "false" ]]; then
     wait_for_healthy "nlp" 180
     wait_for_healthy "chat" 30
 
-    # Wait for Polis (non-fatal — Polis build can be slow)
+    # Wait for Polis (retry once if unhealthy)
     echo ""
     log "Waiting for Polis..."
-    if ! wait_for_healthy "polis-server" 60; then
-        warn "Polis is not ready yet."
-        echo "    You can check with: docker compose logs -f polis-server"
-        echo "    Continuing without Polis..."
+    if ! wait_for_healthy "polis-server" 120; then
+        warn "Polis not ready — restarting polis-server..."
+        docker compose restart polis-server 2>/dev/null || true
+        if ! wait_for_healthy "polis-server" 120; then
+            warn "Polis still not ready after restart."
+            echo "    You can check with: docker compose logs -f polis-server"
+            echo "    Continuing without Polis..."
+        fi
     fi
     echo ""
 fi

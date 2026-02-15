@@ -292,6 +292,18 @@ export const usersApiWrapper = {
     )
   },
 
+  async muteNotifications(body) {
+    return await promisify(usersApi.muteNotifications.bind(usersApi), body)
+  },
+
+  async unmuteNotifications(body) {
+    return await promisify(usersApi.unmuteNotifications.bind(usersApi), body)
+  },
+
+  async getNotificationMuteStatus(opts) {
+    return await promisify(usersApi.getNotificationMuteStatus.bind(usersApi), opts.targetType, opts.targetId)
+  },
+
   async getAvailableAvatars() {
     return await promisify(usersApi.getAvailableAvatars.bind(usersApi))
   },
@@ -308,6 +320,10 @@ export const usersApiWrapper = {
       usersApi.updateDiagnosticsConsent.bind(usersApi),
       { consent }
     )
+  },
+
+  async getActivity(opts = {}) {
+    return await promisify(usersApi.getUserActivity.bind(usersApi), opts)
   },
 }
 
@@ -1102,6 +1118,11 @@ export const commentsApiWrapper = {
 
   async patchComment(commentId, body) {
     return await promisify(commentsApi.patchComment.bind(commentsApi), commentId, body)
+  },
+
+  async getCommentThread(postId, commentId, opts = {}) {
+    const { maxDescendants } = opts
+    return await promisify(commentsApi.getCommentThread.bind(commentsApi), postId, commentId, { maxDescendants })
   },
 }
 

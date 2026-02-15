@@ -117,11 +117,58 @@ def _is_notification_type_enabled(user_id, notification_type, db):
     return True
 
 
-def send_comment_reply_notification(parent_author_id, replier_display_name,
+def _is_notification_muted(user_id, target_type, target_id, db):
+    """Check if user has muted notifications for a specific post or comment.
+
+    Args:
+        user_id: The user's ID
+        target_type: 'post' or 'comment'
+        target_id: The post or comment ID
+        db: Database module
+
+    Returns:
+        True if muted, False otherwise
+    """
+    row = db.execute_query(
+        "SELECT 1 FROM notification_mute WHERE user_id = %s AND target_type = %s AND target_id = %s",
+        (str(user_id), target_type, str(target_id)), fetchone=True)
+    return row is not None
+
+
+def send_post_comment_notification(post_author_id, commenter_display_name,
                                     comment_snippet, post_id, db):
-    """Send a push notification when someone replies to a comment.
+    """Send a push notification when someone posts a top-level comment on a post.
 
     Checks per-type preference before sending.
+
+    Args:
+        post_author_id: User ID of the post author.
+        commenter_display_name: Display name of the commenter.
+        comment_snippet: Body text of the comment (truncated).
+        post_id: Post ID for deep linking.
+        db: Database module.
+    """
+    if not _is_notification_type_enabled(post_author_id, 'post_comment', db):
+        return
+    if _is_notification_muted(post_author_id, 'post', post_id, db):
+        return
+
+    snippet = comment_snippet[:80] + "..." if len(comment_snippet) > 80 else comment_snippet
+    send_or_queue_notification(
+        title=f"{commenter_display_name} commented on your post",
+        body=snippet,
+        data={"action": "open_post", "postId": str(post_id)},
+        recipient_user_id=post_author_id,
+        db=db,
+    )
+
+
+def send_comment_reply_notification(parent_author_id, replier_display_name,
+                                    comment_snippet, post_id, db,
+                                    parent_comment_id=None):
+    """Send a push notification when someone replies to a comment.
+
+    Checks per-type preference and mute status before sending.
 
     Args:
         parent_author_id: User ID of the parent comment's author.
@@ -129,8 +176,14 @@ def send_comment_reply_notification(parent_author_id, replier_display_name,
         comment_snippet: Body text of the reply (truncated).
         post_id: Post ID for deep linking.
         db: Database module.
+        parent_comment_id: The comment being replied to (for mute check).
     """
     if not _is_notification_type_enabled(parent_author_id, 'comment_reply', db):
+        return
+    # Check if the author muted this specific comment or the whole post
+    if parent_comment_id and _is_notification_muted(parent_author_id, 'comment', parent_comment_id, db):
+        return
+    if _is_notification_muted(parent_author_id, 'post', post_id, db):
         return
 
     snippet = comment_snippet[:80] + "..." if len(comment_snippet) > 80 else comment_snippet

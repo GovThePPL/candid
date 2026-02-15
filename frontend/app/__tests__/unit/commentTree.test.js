@@ -3,6 +3,8 @@ import {
   sortTree,
   flattenTree,
   controversyScore,
+  getAutoCollapsedIds,
+  AUTO_COLLAPSE_THRESHOLD,
 } from '../../lib/commentTree'
 
 // Helper to create a comment with defaults
@@ -13,6 +15,8 @@ const makeComment = (overrides = {}) => ({
   score: 0,
   upvoteCount: 0,
   downvoteCount: 0,
+  weightedUpvotes: 0,
+  weightedDownvotes: 0,
   createdTime: '2026-01-01T00:00:00Z',
   ...overrides,
 })
@@ -397,5 +401,63 @@ describe('flattenTree', () => {
     const c = flat.find(n => n.id === 'c')
     // c is collapsed — hasVisibleChildren = false → stub (not start)
     expect(c.lineStates).toEqual(['stub'])
+  })
+})
+
+describe('getAutoCollapsedIds', () => {
+  it('returns empty set for empty input', () => {
+    expect(getAutoCollapsedIds([])).toEqual(new Set())
+  })
+
+  it('returns IDs of comments with weighted net below default threshold (-3)', () => {
+    const comments = [
+      makeComment({ id: 'c1', weightedUpvotes: 2, weightedDownvotes: 7 }),   // net -5
+      makeComment({ id: 'c2', weightedUpvotes: 3, weightedDownvotes: 6 }),   // net -3, at threshold, not below
+      makeComment({ id: 'c3', weightedUpvotes: 5, weightedDownvotes: 2 }),   // net +3
+      makeComment({ id: 'c4', weightedUpvotes: 1, weightedDownvotes: 12 }),  // net -11
+    ]
+    const ids = getAutoCollapsedIds(comments)
+    expect(ids).toEqual(new Set(['c1', 'c4']))
+  })
+
+  it('uses custom threshold when provided', () => {
+    const comments = [
+      makeComment({ id: 'c1', weightedUpvotes: 1, weightedDownvotes: 2 }),  // net -1
+      makeComment({ id: 'c2', weightedUpvotes: 0, weightedDownvotes: 0 }),  // net 0
+      makeComment({ id: 'c3', weightedUpvotes: 4, weightedDownvotes: 2 }),  // net +2
+    ]
+    const ids = getAutoCollapsedIds(comments, 0)
+    expect(ids).toEqual(new Set(['c1']))
+  })
+
+  it('treats missing weighted values as 0', () => {
+    const comments = [
+      makeComment({ id: 'c1' }),  // both 0 from default
+      { id: 'c2', parentCommentId: null, body: 'test' },  // no weighted fields
+    ]
+    const ids = getAutoCollapsedIds(comments)
+    expect(ids).toEqual(new Set())  // 0 is not < -3
+  })
+
+  it('excludes deleted comments', () => {
+    const comments = [
+      makeComment({ id: 'c1', weightedUpvotes: 0, weightedDownvotes: 5, status: 'deleted' }),
+      makeComment({ id: 'c2', weightedUpvotes: 0, weightedDownvotes: 5 }),
+    ]
+    const ids = getAutoCollapsedIds(comments)
+    expect(ids).toEqual(new Set(['c2']))
+  })
+
+  it('excludes removed comments', () => {
+    const comments = [
+      makeComment({ id: 'c1', weightedUpvotes: 0, weightedDownvotes: 5, status: 'removed' }),
+      makeComment({ id: 'c2', weightedUpvotes: 0, weightedDownvotes: 5 }),
+    ]
+    const ids = getAutoCollapsedIds(comments)
+    expect(ids).toEqual(new Set(['c2']))
+  })
+
+  it('exports AUTO_COLLAPSE_THRESHOLD as -3', () => {
+    expect(AUTO_COLLAPSE_THRESHOLD).toBe(-3)
   })
 })

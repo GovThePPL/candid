@@ -222,5 +222,20 @@
   "cancelCropA11y": "Cancel crop",
   "zoomA11y": "Zoom",
 
-  "errorDiagnosticsFailed": "Couldn't update diagnostics preference"
+  "errorDiagnosticsFailed": "Couldn't update diagnostics preference",
+
+  "menuActivity": "My Activity",
+  "activity": "My Activity",
+  "activityEmpty": "No activity yet",
+  "activityEmptySubtitle": "Your posts and comments will appear here",
+  "activityFilterAll": "All",
+  "activityFilterPosts": "Posts",
+  "activityFilterComments": "Comments",
+  "activityPost": "Post",
+  "activityComment": "Comment",
+  "activityInPost": "in {{title}}",
+  "activityItemA11y": "{{type}} from {{time}}: {{title}}",
+  "activityDeleted": "[deleted]",
+  "failedLoadActivity": "Failed to load activity",
+  "loadingActivity": "Loading activity..."
 }

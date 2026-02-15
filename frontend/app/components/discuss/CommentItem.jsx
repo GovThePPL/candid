@@ -29,6 +29,8 @@ const INDENT_PX = 8
  * @param {Function} props.onToggleCollapse - Called with comment id
  * @param {Function} props.onToggleRole - Called with (commentId, showCreatorRole)
  */
+const DEPTH_CUTOFF = 8
+
 export default memo(function CommentItem({
   comment,
   currentUserId,
@@ -40,6 +42,10 @@ export default memo(function CommentItem({
   onReply,
   onToggleCollapse,
   onToggleRole,
+  onToggleMuteComment,
+  onContinueThread,
+  isTruncatedRoot,
+  onLoadMoreReplies,
 }) {
   const { t } = useTranslation('discuss')
   const colors = useThemeColors()
@@ -49,7 +55,7 @@ export default memo(function CommentItem({
   const isDeleted = comment.isDeleted || comment.deletedByModerator
   const isOwnComment = currentUserId && comment.creator?.id === currentUserId
   const authorName = comment.creator?.displayName || comment.creator?.username || '?'
-  const hasChildren = (comment.children?.length || 0) > 0
+  const hasChildren = !!comment.hasChildren
   const isEdited = comment.updatedTime && comment.createdTime &&
     new Date(comment.updatedTime).getTime() - new Date(comment.createdTime).getTime() > 1000
 
@@ -127,12 +133,28 @@ export default memo(function CommentItem({
           </View>
         </View>
 
+        {/* Auto-collapsed below-threshold indicator */}
+        {!isDeleted && comment.isAutoCollapsed && (
+          <TouchableOpacity
+            style={styles.autoCollapsedRow}
+            onPress={() => onToggleCollapse(comment.id)}
+            activeOpacity={0.6}
+            accessibilityRole="button"
+            accessibilityLabel={t('belowThresholdA11y', { author: authorName })}
+          >
+            <Ionicons name="chevron-forward" size={14} color={colors.secondaryText} />
+            <ThemedText variant="caption" color="secondary">
+              {t('belowThreshold')}
+            </ThemedText>
+          </TouchableOpacity>
+        )}
+
         {/* Body — tappable to collapse children */}
         {isDeleted ? (
           <ThemedText variant="bodySmall" color="placeholder" style={styles.body}>
             {comment.deletedByModerator ? t('removedComment') : t('deletedComment')}
           </ThemedText>
-        ) : hasChildren ? (
+        ) : comment.isAutoCollapsed ? null : hasChildren ? (
           <TouchableOpacity
             style={styles.body}
             onPress={() => onToggleCollapse(comment.id)}
@@ -153,7 +175,7 @@ export default memo(function CommentItem({
         )}
 
         {/* Action row: collapsed indicator, spacer, options, reply pill, vote pill */}
-        {!isDeleted && (
+        {!isDeleted && !comment.isAutoCollapsed && (
           <View style={styles.actionRow}>
             {/* Left side: collapsed summary + edited indicator */}
             {comment.isCollapsed && comment.collapsedCount > 0 && (
@@ -216,6 +238,38 @@ export default memo(function CommentItem({
           </View>
         )}
 
+        {/* Continue this thread link (for deeply nested threads) */}
+        {!isDeleted && comment.depth >= DEPTH_CUTOFF && hasChildren && !comment.isCollapsed && onContinueThread && (
+          <TouchableOpacity
+            style={styles.continueThread}
+            onPress={() => onContinueThread(comment.id)}
+            activeOpacity={0.6}
+            accessibilityRole="link"
+            accessibilityLabel={t('continueThreadA11y')}
+          >
+            <ThemedText variant="caption" color="primary">
+              {t('continueThread')}
+            </ThemedText>
+            <Ionicons name="arrow-forward" size={14} color={colors.primary} />
+          </TouchableOpacity>
+        )}
+
+        {/* Load more replies (for truncated root threads) */}
+        {!isDeleted && isTruncatedRoot && onLoadMoreReplies && (
+          <TouchableOpacity
+            style={styles.continueThread}
+            onPress={() => onLoadMoreReplies(comment.id)}
+            activeOpacity={0.6}
+            accessibilityRole="button"
+            accessibilityLabel={t('loadMoreRepliesA11y')}
+          >
+            <Ionicons name="chatbubbles-outline" size={14} color={colors.primary} />
+            <ThemedText variant="caption" color="primary">
+              {t('loadMoreReplies')}
+            </ThemedText>
+          </TouchableOpacity>
+        )}
+
         {/* Options modal */}
         <BottomDrawerModal
           visible={optionsVisible}
@@ -243,6 +297,27 @@ export default memo(function CommentItem({
                 />
                 <ThemedText variant="body">
                   {comment.showCreatorRole !== false ? t('hideRoleBadge') : t('showRoleBadge')}
+                </ThemedText>
+              </TouchableOpacity>
+            )}
+            {isOwnComment && (
+              <TouchableOpacity
+                style={styles.optionRow}
+                onPress={() => {
+                  onToggleMuteComment?.(comment.id, !comment.isMuted)
+                  setOptionsVisible(false)
+                }}
+                activeOpacity={0.7}
+                accessibilityRole="menuitem"
+                accessibilityLabel={t('muteCommentNotificationsA11y')}
+              >
+                <Ionicons
+                  name={comment.isMuted ? 'notifications-outline' : 'notifications-off-outline'}
+                  size={20}
+                  color={colors.secondaryText}
+                />
+                <ThemedText variant="body">
+                  {comment.isMuted ? t('unmuteCommentNotifications') : t('muteCommentNotifications')}
                 </ThemedText>
               </TouchableOpacity>
             )}
@@ -341,6 +416,19 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+  },
+  autoCollapsedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 2,
+    opacity: 0.7,
+  },
+  continueThread: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: Spacing.xs,
   },
   optionsList: {
     padding: Spacing.lg,

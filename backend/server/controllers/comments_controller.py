@@ -19,7 +19,14 @@ from candid.controllers.helpers.scoring import wilson_score, vote_weight
 from candid.controllers.helpers.ideological_coords import (
     get_effective_coords, get_conversation_for_post,
 )
-from candid.controllers.helpers.push_notifications import send_comment_reply_notification
+from candid.controllers.helpers.push_notifications import (
+    send_comment_reply_notification,
+    send_post_comment_notification,
+)
+from candid.controllers.helpers.discuss_events import (
+    publish_new_comment,
+    publish_vote_update,
+)
 
 
 def _strip_html(text):
@@ -82,7 +89,7 @@ def _row_to_comment(row, post_type=None, post_location_id=None, post_category_id
 # Endpoints
 # ---------------------------------------------------------------------------
 
-def get_comments(post_id, cursor=None, limit=None, token_info=None):  # noqa: E501
+def get_comments(post_id, cursor=None, limit=None, max_descendants=None, token_info=None):  # noqa: E501
     """Get comments for a post (path-ordered tree, paginated by root comments)."""
     user_id = token_info["sub"] if token_info else None
 
@@ -90,6 +97,11 @@ def get_comments(post_id, cursor=None, limit=None, token_info=None):  # noqa: E5
     if limit is None:
         limit = 20
     limit = max(1, min(limit, 100))
+
+    # Clamp max_descendants
+    if max_descendants is None:
+        max_descendants = 50
+    max_descendants = max(1, min(max_descendants, 500))
 
     # Decode cursor (base64-encoded path of last root comment)
     cursor_path = None
@@ -145,48 +157,56 @@ def get_comments(post_id, cursor=None, limit=None, token_info=None):  # noqa: E5
             "totalRootCount": total_root_count,
         }, 200
 
-    root_ids = [str(r["id"]) for r in root_rows]
     last_root_path = root_rows[-1]["path"]
     next_cursor = base64.urlsafe_b64encode(last_root_path.encode("utf-8")).decode("ascii") if has_more else None
 
-    # Build query for roots + all descendants
+    # Fetch descendants per root, capped by max_descendants
     vote_join = ""
     vote_select = ", NULL AS user_vote_type, NULL AS user_vote_reason"
-
-    # Build LIKE patterns for descendant matching
-    like_patterns = [r["path"] + "/%" for r in root_rows]
-
-    # Construct the IN clause and LIKE ANY clause
-    root_placeholders = ",".join(["%s"] * len(root_ids))
-    like_placeholders = ",".join(["%s"] * len(like_patterns))
-
     if user_id:
         vote_join = "LEFT JOIN comment_vote cv ON cv.comment_id = c.id AND cv.user_id = %s"
         vote_select = ", cv.vote_type AS user_vote_type, cv.downvote_reason AS user_vote_reason"
-        query_params = [user_id, post_id] + root_ids + like_patterns
-    else:
-        query_params = [post_id] + root_ids + like_patterns
 
-    rows = db.execute_query(f"""
-        SELECT c.*,
-               u.username AS creator_username, u.display_name AS creator_display_name,
-               u.avatar_icon_url AS creator_avatar_icon_url, u.status AS creator_status,
-               u.trust_score AS creator_trust_score,
-               u.show_role_badge AS creator_show_role_badge,
-               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u.id AND k.status = 'sent'), 0) AS creator_kudos_count
-               {vote_select}
-        FROM comment c
-        JOIN users u ON c.creator_user_id = u.id
-        {vote_join}
-        WHERE c.post_id = %s AND (
-            c.id IN ({root_placeholders})
-            OR c.path LIKE ANY(ARRAY[{like_placeholders}])
-        )
-        ORDER BY c.path
-    """, tuple(query_params))
+    all_rows = []
+    truncated_roots = []
 
-    if rows is None:
-        rows = []
+    for root in root_rows:
+        root_id = str(root["id"])
+        like_pattern = root["path"] + "/%"
+
+        if user_id:
+            query_params = [user_id, post_id, root_id, like_pattern, max_descendants + 1]
+        else:
+            query_params = [post_id, root_id, like_pattern, max_descendants + 1]
+
+        rows = db.execute_query(f"""
+            SELECT c.*,
+                   u.username AS creator_username, u.display_name AS creator_display_name,
+                   u.avatar_icon_url AS creator_avatar_icon_url, u.status AS creator_status,
+                   u.trust_score AS creator_trust_score,
+                   u.show_role_badge AS creator_show_role_badge,
+                   COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u.id AND k.status = 'sent'), 0) AS creator_kudos_count
+                   {vote_select}
+            FROM comment c
+            JOIN users u ON c.creator_user_id = u.id
+            {vote_join}
+            WHERE c.post_id = %s AND (
+                c.id = %s
+                OR c.path LIKE %s
+            )
+            ORDER BY c.path
+            LIMIT %s
+        """, tuple(query_params))
+
+        if rows is None:
+            rows = []
+
+        # +1 detection: if we got more than max_descendants, this root is truncated
+        if len(rows) > max_descendants:
+            truncated_roots.append(root_id)
+            rows = rows[:max_descendants]
+
+        all_rows.extend(rows)
 
     is_qa = post["post_type"] == "question"
     post_location_id = str(post["location_id"])
@@ -194,7 +214,7 @@ def get_comments(post_id, cursor=None, limit=None, token_info=None):  # noqa: E5
 
     # Post-process: handle deleted/removed, add role badges
     result = []
-    for row in rows:
+    for row in all_rows:
         # Deleted/removed leaves are omitted entirely
         if row["status"] in ("deleted", "removed") and row.get("child_count", 0) == 0:
             continue
@@ -236,6 +256,7 @@ def get_comments(post_id, cursor=None, limit=None, token_info=None):  # noqa: E5
         "nextCursor": next_cursor,
         "hasMore": has_more,
         "totalRootCount": total_root_count,
+        "truncatedRoots": truncated_roots,
     }, 200
 
 
@@ -335,9 +356,25 @@ def create_comment(post_id, body, token_info=None):  # noqa: E501
                 send_comment_reply_notification(
                     str(parent_row["creator_user_id"]),
                     user_row["display_name"] if user_row else "Someone",
-                    body_text, post_id, db)
+                    body_text, post_id, db,
+                    parent_comment_id=parent_comment_id)
             except Exception as e:
                 logging.getLogger(__name__).error("Reply notification error: %s", e)
+
+    # Send post-comment notification for top-level comments
+    if not parent_comment_id:
+        post_author_id = str(post["creator_user_id"])
+        if post_author_id != user_id:
+            try:
+                user_row = db.execute_query(
+                    "SELECT display_name FROM users WHERE id = %s",
+                    (user_id,), fetchone=True)
+                send_post_comment_notification(
+                    post_author_id,
+                    user_row["display_name"] if user_row else "Someone",
+                    body_text, post_id, db)
+            except Exception as e:
+                logging.getLogger(__name__).error("Post comment notification error: %s", e)
 
     # Fetch created comment
     row = db.execute_query("""
@@ -360,7 +397,15 @@ def create_comment(post_id, body, token_info=None):  # noqa: E501
     row_dict["creator_role"] = creator_role
     row_dict["show_creator_role"] = show_creator_role
 
-    return _row_to_comment(row_dict), 201
+    comment_dict = _row_to_comment(row_dict)
+
+    # Publish real-time event
+    try:
+        publish_new_comment(post_id, comment_dict)
+    except Exception as e:
+        logger.error("Failed to publish new_comment event: %s", e)
+
+    return comment_dict, 201
 
 
 def update_comment(comment_id, body, token_info=None):  # noqa: E501
@@ -567,11 +612,129 @@ def vote_on_comment(comment_id, body, token_info=None):  # noqa: E501
         WHERE id = %s
     """, (up_count, down_count, weighted_up, weighted_down, new_score, comment_id))
 
+    # Publish real-time event
+    try:
+        publish_vote_update(str(comment["post_id"]), comment_id, {
+            "upvoteCount": up_count,
+            "downvoteCount": down_count,
+            "score": new_score,
+        })
+    except Exception as e:
+        logger.error("Failed to publish vote_update event: %s", e)
+
     return {
         "userVote": user_vote,
         "upvoteCount": up_count,
         "downvoteCount": down_count,
         "score": new_score,
+    }, 200
+
+
+def get_comment_thread(post_id, comment_id, max_descendants=None, token_info=None):  # noqa: E501
+    """Get a comment and its descendants (for 'Continue this thread')."""
+    user_id = token_info["sub"] if token_info else None
+
+    if max_descendants is None:
+        max_descendants = 100
+    max_descendants = max(1, min(max_descendants, 500))
+
+    # Verify post exists
+    post = db.execute_query(
+        "SELECT * FROM post WHERE id = %s AND status != 'removed'",
+        (post_id,), fetchone=True,
+    )
+    if not post:
+        return ErrorModel(404, "Post not found"), 404
+
+    # Fetch the target comment
+    target = db.execute_query(
+        "SELECT * FROM comment WHERE id = %s AND post_id = %s",
+        (comment_id, post_id), fetchone=True,
+    )
+    if not target:
+        return ErrorModel(404, "Comment not found"), 404
+
+    # Fetch descendants via path prefix, ordered by path, limited
+    vote_join = ""
+    vote_select = ", NULL AS user_vote_type, NULL AS user_vote_reason"
+    if user_id:
+        vote_join = "LEFT JOIN comment_vote cv ON cv.comment_id = c.id AND cv.user_id = %s"
+        vote_select = ", cv.vote_type AS user_vote_type, cv.downvote_reason AS user_vote_reason"
+        query_params = [user_id, post_id, comment_id, target["path"] + "/%", max_descendants + 1]
+    else:
+        query_params = [post_id, comment_id, target["path"] + "/%", max_descendants + 1]
+
+    rows = db.execute_query(f"""
+        SELECT c.*,
+               u.username AS creator_username, u.display_name AS creator_display_name,
+               u.avatar_icon_url AS creator_avatar_icon_url, u.status AS creator_status,
+               u.trust_score AS creator_trust_score,
+               u.show_role_badge AS creator_show_role_badge,
+               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u.id AND k.status = 'sent'), 0) AS creator_kudos_count
+               {vote_select}
+        FROM comment c
+        JOIN users u ON c.creator_user_id = u.id
+        {vote_join}
+        WHERE c.post_id = %s AND (
+            c.id = %s
+            OR c.path LIKE %s
+        )
+        ORDER BY c.path
+        LIMIT %s
+    """, tuple(query_params))
+
+    if rows is None:
+        rows = []
+
+    truncated = len(rows) > max_descendants
+    if truncated:
+        rows = rows[:max_descendants]
+
+    is_qa = post["post_type"] == "question"
+    post_location_id = str(post["location_id"])
+    post_category_id = str(post["category_id"]) if post.get("category_id") else None
+    target_depth = target["depth"]
+
+    # Post-process: same logic as get_comments
+    result = []
+    for row in rows:
+        if row["status"] in ("deleted", "removed") and row.get("child_count", 0) == 0:
+            continue
+        if row["status"] == "deleted":
+            row = dict(row)
+            row["body"] = "[deleted]"
+        elif row["status"] == "removed":
+            row = dict(row)
+            row["body"] = "[removed]"
+
+        row_dict = dict(row) if not isinstance(row, dict) else row
+
+        # Rebase depth relative to target comment
+        row_dict["depth"] = row_dict["depth"] - target_depth
+
+        # Role badge visibility
+        creator_role = get_highest_role_at_location(
+            str(row["creator_user_id"]), post_location_id, post_category_id
+        )
+        show_creator_role = row_dict.get("show_creator_role", False)
+        creator_show_role_badge = row_dict.get("creator_show_role_badge", True)
+        is_own = user_id and str(row["creator_user_id"]) == user_id
+
+        if is_own:
+            row_dict["creator_role"] = creator_role
+            row_dict["show_creator_role"] = show_creator_role
+        elif creator_role and show_creator_role and creator_show_role_badge:
+            row_dict["creator_role"] = creator_role
+            row_dict["show_creator_role"] = None
+        else:
+            row_dict["creator_role"] = None
+            row_dict["show_creator_role"] = None
+
+        result.append(_row_to_comment(row_dict))
+
+    return {
+        "comments": result,
+        "truncated": truncated,
     }, 200
 
 

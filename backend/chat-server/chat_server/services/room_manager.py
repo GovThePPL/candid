@@ -100,3 +100,8 @@ class RoomManager:
     def chat_room(chat_id: str) -> str:
         """Get the room name for a chat."""
         return f"chat:{chat_id}"
+
+    @staticmethod
+    def post_room(post_id: str) -> str:
+        """Get the room name for a discuss post."""
+        return f"post:{post_id}"

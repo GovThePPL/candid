@@ -222,5 +222,20 @@
   "cancelCropA11y": "Cancelar recorte",
   "zoomA11y": "Zoom",
 
-  "errorDiagnosticsFailed": "No se pudo actualizar la preferencia de diagnósticos"
+  "errorDiagnosticsFailed": "No se pudo actualizar la preferencia de diagnósticos",
+
+  "menuActivity": "Mi Actividad",
+  "activity": "Mi Actividad",
+  "activityEmpty": "Sin actividad",
+  "activityEmptySubtitle": "Tus publicaciones y comentarios aparecerán aquí",
+  "activityFilterAll": "Todo",
+  "activityFilterPosts": "Publicaciones",
+  "activityFilterComments": "Comentarios",
+  "activityPost": "Publicación",
+  "activityComment": "Comentario",
+  "activityInPost": "en {{title}}",
+  "activityItemA11y": "{{type}} de {{time}}: {{title}}",
+  "activityDeleted": "[eliminado]",
+  "failedLoadActivity": "No se pudo cargar la actividad",
+  "loadingActivity": "Cargando actividad..."
 }

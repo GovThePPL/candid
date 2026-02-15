@@ -309,6 +309,39 @@ class TestGetComments:
         assert voted["userVote"] is not None
         assert voted["userVote"]["voteType"] == "upvote"
 
+    def test_truncated_roots(self, normal_headers, normal2_headers):
+        post = _create_post(normal_headers, title="CTEST truncation")
+        root = _create_comment(normal_headers, post["id"], body="Root").json()
+        # Create 3 replies
+        for i in range(3):
+            _create_comment(normal2_headers, post["id"], body=f"Reply {i}",
+                            parent_comment_id=root["id"])
+
+        # maxDescendants=2 — root has 3 replies, so it should be truncated
+        resp = requests.get(
+            f"{POSTS_URL}/{post['id']}/comments",
+            headers=normal_headers,
+            params={"maxDescendants": 2},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert root["id"] in data.get("truncatedRoots", [])
+
+    def test_no_truncation_within_limit(self, normal_headers, normal2_headers):
+        post = _create_post(normal_headers, title="CTEST no truncation")
+        root = _create_comment(normal_headers, post["id"], body="Root").json()
+        _create_comment(normal2_headers, post["id"], body="Reply",
+                        parent_comment_id=root["id"])
+
+        resp = requests.get(
+            f"{POSTS_URL}/{post['id']}/comments",
+            headers=normal_headers,
+            params={"maxDescendants": 50},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data.get("truncatedRoots", []) == []
+
     def test_qa_role_badge(self, normal_headers):
         """Q&A posts show creator role badge."""
         post = _create_post(
@@ -467,6 +500,87 @@ class TestVoteOnComment:
         )
         assert row["upvote_count"] == 1
         assert row["downvote_count"] == 1
+
+
+class TestGetCommentThread:
+    """GET /posts/{postId}/comments/{commentId}/thread"""
+
+    def test_returns_comment_and_descendants(self, normal_headers, normal2_headers):
+        post = _create_post(normal_headers, title="CTEST thread")
+        c1 = _create_comment(normal_headers, post["id"], body="Root 1").json()
+        c1_r1 = _create_comment(normal2_headers, post["id"], body="Reply 1",
+                                parent_comment_id=c1["id"]).json()
+        c1_r2 = _create_comment(normal_headers, post["id"], body="Reply 2",
+                                parent_comment_id=c1["id"]).json()
+        c1_r1_gc = _create_comment(normal_headers, post["id"], body="Grandchild",
+                                   parent_comment_id=c1_r1["id"]).json()
+
+        resp = requests.get(
+            f"{POSTS_URL}/{post['id']}/comments/{c1['id']}/thread",
+            headers=normal_headers,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["truncated"] is False
+        ids = [c["id"] for c in data["comments"]]
+        assert c1["id"] in ids
+        assert c1_r1["id"] in ids
+        assert c1_r2["id"] in ids
+        assert c1_r1_gc["id"] in ids
+
+    def test_rebases_depth(self, normal_headers, normal2_headers):
+        post = _create_post(normal_headers, title="CTEST thread depth")
+        root = _create_comment(normal_headers, post["id"], body="Root").json()
+        child = _create_comment(normal2_headers, post["id"], body="Child",
+                                parent_comment_id=root["id"]).json()
+        grandchild = _create_comment(normal_headers, post["id"], body="GC",
+                                     parent_comment_id=child["id"]).json()
+
+        # Get thread from child — child should be depth 0, grandchild depth 1
+        resp = requests.get(
+            f"{POSTS_URL}/{post['id']}/comments/{child['id']}/thread",
+            headers=normal_headers,
+        )
+        assert resp.status_code == 200
+        comments = resp.json()["comments"]
+        child_c = next(c for c in comments if c["id"] == child["id"])
+        gc_c = next(c for c in comments if c["id"] == grandchild["id"])
+        assert child_c["depth"] == 0
+        assert gc_c["depth"] == 1
+
+    def test_truncation_with_limit(self, normal_headers, normal2_headers):
+        post = _create_post(normal_headers, title="CTEST thread trunc")
+        root = _create_comment(normal_headers, post["id"], body="Root").json()
+        # Create 3 replies
+        for i in range(3):
+            _create_comment(normal2_headers, post["id"], body=f"Reply {i}",
+                            parent_comment_id=root["id"])
+
+        # maxDescendants=2 should truncate (root + 3 replies = 4, limit 2 means truncated)
+        resp = requests.get(
+            f"{POSTS_URL}/{post['id']}/comments/{root['id']}/thread",
+            headers=normal_headers,
+            params={"maxDescendants": 2},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["truncated"] is True
+        assert len(data["comments"]) == 2
+
+    def test_nonexistent_comment(self, normal_headers):
+        post = _create_post(normal_headers, title="CTEST thread 404")
+        resp = requests.get(
+            f"{POSTS_URL}/{post['id']}/comments/{NONEXISTENT_UUID}/thread",
+            headers=normal_headers,
+        )
+        assert resp.status_code == 404
+
+    def test_nonexistent_post(self, normal_headers):
+        resp = requests.get(
+            f"{POSTS_URL}/{NONEXISTENT_UUID}/comments/{NONEXISTENT_UUID}/thread",
+            headers=normal_headers,
+        )
+        assert resp.status_code == 404
 
 
 class TestReportComment:

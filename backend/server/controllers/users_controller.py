@@ -1,3 +1,4 @@
+import json
 import logging
 import connexion
 from typing import Dict
@@ -1068,6 +1069,220 @@ def update_push_token(body, token_info=None):  # noqa: E501
     """, (token, platform, user.id))
 
     return {"status": "ok"}
+
+
+def mute_notifications(body, token_info=None):  # noqa: E501
+    """Mute notifications for a specific post or comment (owner only)."""
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+    user = token_to_user(token_info)
+
+    raw = connexion.request.get_json() if connexion.request.is_json else body
+    target_type = raw.get('targetType')
+    target_id = raw.get('targetId')
+
+    if target_type not in ('post', 'comment'):
+        return ErrorModel(400, "targetType must be 'post' or 'comment'"), 400
+    if not target_id:
+        return ErrorModel(400, "targetId is required"), 400
+
+    # Verify ownership
+    if target_type == 'post':
+        row = db.execute_query(
+            "SELECT creator_user_id FROM post WHERE id = %s", (target_id,), fetchone=True)
+    else:
+        row = db.execute_query(
+            "SELECT creator_user_id FROM comment WHERE id = %s", (target_id,), fetchone=True)
+
+    if not row:
+        return ErrorModel(404, "Target not found"), 404
+    if str(row["creator_user_id"]) != str(user.id):
+        return ErrorModel(403, "Only the content owner can mute notifications"), 403
+
+    db.execute_query("""
+        INSERT INTO notification_mute (user_id, target_type, target_id)
+        VALUES (%s, %s, %s)
+        ON CONFLICT (user_id, target_type, target_id) DO NOTHING
+    """, (user.id, target_type, target_id))
+
+    return {"muted": True}, 201
+
+
+def unmute_notifications(body, token_info=None):  # noqa: E501
+    """Unmute notifications for a specific post or comment."""
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+    user = token_to_user(token_info)
+
+    raw = connexion.request.get_json() if connexion.request.is_json else body
+    target_type = raw.get('targetType')
+    target_id = raw.get('targetId')
+
+    if target_type not in ('post', 'comment'):
+        return ErrorModel(400, "targetType must be 'post' or 'comment'"), 400
+    if not target_id:
+        return ErrorModel(400, "targetId is required"), 400
+
+    db.execute_query("""
+        DELETE FROM notification_mute
+        WHERE user_id = %s AND target_type = %s AND target_id = %s
+    """, (user.id, target_type, target_id))
+
+    return {"muted": False}
+
+
+def get_notification_mute_status(target_type, target_id, token_info=None):  # noqa: E501
+    """Check if a post or comment is muted."""
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+    user = token_to_user(token_info)
+
+    if target_type not in ('post', 'comment'):
+        return ErrorModel(400, "targetType must be 'post' or 'comment'"), 400
+
+    row = db.execute_query(
+        "SELECT 1 FROM notification_mute WHERE user_id = %s AND target_type = %s AND target_id = %s",
+        (user.id, target_type, target_id), fetchone=True)
+
+    return {"muted": row is not None}
+
+
+def _encode_activity_cursor(created_time, item_id):
+    """Encode a cursor for activity pagination."""
+    import base64 as b64
+    payload = json.dumps({"v": str(created_time), "id": str(item_id)})
+    return b64.urlsafe_b64encode(payload.encode()).decode()
+
+
+def _decode_activity_cursor(cursor):
+    """Decode an activity cursor. Returns (created_time_str, item_id) or None."""
+    import base64 as b64
+    try:
+        payload = json.loads(b64.urlsafe_b64decode(cursor))
+        return payload["v"], payload["id"]
+    except Exception:
+        return None
+
+
+def get_user_activity(type_=None, cursor=None, limit=None, token_info=None):  # noqa: E501
+    """Get current user's recent posts and comments.
+
+    :param type_: Filter by activity type (posts, comments, all).
+                  Named type_ because connexion's pythonic_params renames
+                  'type' to avoid shadowing the Python builtin.
+    :param cursor: Pagination cursor
+    :param limit: Number of items per page
+    :param token_info: JWT token info
+    :rtype: Union[dict, Tuple[dict, int]]
+    """
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+    user = token_to_user(token_info)
+    user_id = str(user.id)
+
+    activity_type = type_ or "all"
+    if limit is None:
+        limit = 20
+    limit = max(1, min(limit, 50))
+
+    # Build UNION query
+    parts = []
+    params = []
+
+    cursor_vals = None
+    if cursor:
+        cursor_vals = _decode_activity_cursor(cursor)
+
+    if activity_type in ("all", "posts"):
+        cursor_clause = ""
+        if cursor_vals:
+            cursor_clause = "AND (p.created_time < %s OR (p.created_time = %s AND p.id::text < %s))"
+            params_post = [user_id, cursor_vals[0], cursor_vals[0], cursor_vals[1]]
+        else:
+            params_post = [user_id]
+
+        parts.append(f"""
+            SELECT p.id, 'post' AS type, p.title, p.body,
+                   p.id AS post_id, p.title AS post_title,
+                   p.upvote_count, p.downvote_count, p.score,
+                   p.comment_count, p.created_time, p.status
+            FROM post p
+            WHERE p.creator_user_id = %s
+              AND p.status != 'removed'
+              {cursor_clause}
+        """)
+        params.extend(params_post)
+
+    if activity_type in ("all", "comments"):
+        cursor_clause = ""
+        if cursor_vals:
+            cursor_clause = "AND (c.created_time < %s OR (c.created_time = %s AND c.id::text < %s))"
+            params_comment = [user_id, cursor_vals[0], cursor_vals[0], cursor_vals[1]]
+        else:
+            params_comment = [user_id]
+
+        parts.append(f"""
+            SELECT c.id, 'comment' AS type, NULL AS title, c.body,
+                   c.post_id, pt.title AS post_title,
+                   c.upvote_count, c.downvote_count, c.score,
+                   NULL AS comment_count, c.created_time, c.status
+            FROM comment c
+            LEFT JOIN post pt ON pt.id = c.post_id
+            WHERE c.creator_user_id = %s
+              AND c.status != 'removed'
+              {cursor_clause}
+        """)
+        params.extend(params_comment)
+
+    if not parts:
+        return {"items": [], "nextCursor": None, "hasMore": False}
+
+    union_query = " UNION ALL ".join(parts)
+    full_query = f"""
+        SELECT * FROM ({union_query}) AS activity
+        ORDER BY created_time DESC, id DESC
+        LIMIT %s
+    """
+    params.append(limit + 1)
+
+    rows = db.execute_query(full_query, tuple(params))
+    if rows is None:
+        rows = []
+
+    has_more = len(rows) > limit
+    if has_more:
+        rows = rows[:limit]
+
+    items = []
+    for row in rows:
+        item = {
+            "id": str(row["id"]),
+            "type": row["type"],
+            "title": row["title"],
+            "body": row["body"][:200] if row["body"] else "",
+            "postId": str(row["post_id"]) if row["post_id"] else None,
+            "postTitle": row["post_title"],
+            "upvoteCount": row["upvote_count"] or 0,
+            "downvoteCount": row["downvote_count"] or 0,
+            "score": float(row["score"] or 0),
+            "commentCount": row["comment_count"],
+            "createdTime": row["created_time"].isoformat() if row["created_time"] else None,
+            "status": row["status"],
+        }
+        items.append(item)
+
+    next_cursor = None
+    if has_more and rows:
+        last = rows[-1]
+        next_cursor = _encode_activity_cursor(
+            last["created_time"].isoformat(), str(last["id"])
+        )
+
+    return {"items": items, "nextCursor": next_cursor, "hasMore": has_more}
 
 
 def update_diagnostics_consent(body, token_info=None):  # noqa: E501

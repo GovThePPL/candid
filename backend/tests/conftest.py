@@ -413,19 +413,32 @@ def _ensure_seed_users_active(_db_snapshot_restore, request):
     yield
 
 
+def _login_and_link(username):
+    """Login to get a JWT token AND make an API call to trigger keycloak_id auto-linking.
+
+    The test seed data has keycloak_id = NULL. The backend's keycloak.py auto-links
+    the Keycloak subject ID on the first authenticated API call. Without this,
+    the chat server cannot resolve the keycloak_id to a Candid user.
+    """
+    token = login(username)
+    # Make any authenticated API call to trigger auto-linking in keycloak.py
+    requests.get(f"{BASE_URL}/users/me", headers=auth_header(token))
+    return token
+
+
 @pytest.fixture(scope="session")
 def admin_token(_ensure_seed_users_active):
-    return login("admin1")
+    return _login_and_link("admin1")
 
 
 @pytest.fixture(scope="session")
 def normal_token(_ensure_seed_users_active):
-    return login("normal1")
+    return _login_and_link("normal1")
 
 
 @pytest.fixture(scope="session")
 def moderator_token(_ensure_seed_users_active):
-    return login("moderator1")
+    return _login_and_link("moderator1")
 
 
 @pytest.fixture(scope="session")
@@ -445,7 +458,7 @@ def moderator_headers(moderator_token):
 
 @pytest.fixture(scope="session")
 def normal2_token():
-    return login("normal2")
+    return _login_and_link("normal2")
 
 
 @pytest.fixture(scope="session")
@@ -455,7 +468,7 @@ def normal2_headers(normal2_token):
 
 @pytest.fixture(scope="session")
 def normal3_token():
-    return login("normal3")
+    return _login_and_link("normal3")
 
 
 @pytest.fixture(scope="session")

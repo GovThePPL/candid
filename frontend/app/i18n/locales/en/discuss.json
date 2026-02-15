@@ -155,7 +155,26 @@
   "toggleRoleA11y": "Toggle role badge visibility",
   "reportPostA11y": "Report post by {{author}}",
 
+  "belowThreshold": "Comment below score threshold",
+  "belowThresholdA11y": "Comment by {{author}} is below the score threshold. Tap to expand.",
+
+  "mutePostNotifications": "Mute comment notifications",
+  "unmutePostNotifications": "Unmute comment notifications",
+  "mutePostNotificationsA11y": "Toggle comment notifications for this post",
+  "muteCommentNotifications": "Mute reply notifications",
+  "unmuteCommentNotifications": "Unmute reply notifications",
+  "muteCommentNotificationsA11y": "Toggle reply notifications for this comment",
+
   "errorVoteFailed": "Vote couldn't be saved",
   "errorCommentFailed": "Comment couldn't be posted",
-  "errorToggleRoleFailed": "Couldn't update role badge"
+  "errorToggleRoleFailed": "Couldn't update role badge",
+
+  "loadMoreReplies": "Load more replies",
+  "loadMoreRepliesA11y": "Load more replies for this comment thread",
+
+  "continueThread": "Continue this thread",
+  "continueThreadA11y": "Continue reading this comment thread",
+  "backToFullThread": "Back to full thread",
+  "backToFullThreadA11y": "Return to the full comment thread",
+  "threadTruncated": "Thread truncated — not all replies are shown"
 }

@@ -10,6 +10,7 @@ from .typing import register_typing_handlers
 from .agreed_positions import register_agreed_position_handlers
 from .chat_lifecycle import register_lifecycle_handlers
 from .read_receipts import register_read_receipt_handlers
+from .discuss import register_discuss_handlers
 
 
 def register_handlers(sio: socketio.AsyncServer) -> None:
@@ -20,3 +21,4 @@ def register_handlers(sio: socketio.AsyncServer) -> None:
     register_agreed_position_handlers(sio)
     register_lifecycle_handlers(sio)
     register_read_receipt_handlers(sio)
+    register_discuss_handlers(sio)

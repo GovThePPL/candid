@@ -157,6 +157,7 @@ Separate from roles. `users.status = 'banned'` blocks all authorized endpoints e
 | `card_builders.py` | Card queue construction helpers (position, survey, demographic cards) |
 | `chat_availability.py` | Chat partner matching and availability logic |
 | `chat_events.py` | WebSocket chat event handling |
+| `discuss_events.py` | Redis pub/sub event publishing for discuss forum (new comments, vote updates) |
 | `config.py` | Dev/prod configuration loader |
 | `constants.py` | Shared constants (limits, defaults, enums) |
 | `database.py` | PostgreSQL connection pool wrapper (psycopg2, RealDictCursor, DatabaseError) |

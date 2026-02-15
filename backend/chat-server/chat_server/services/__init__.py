@@ -52,6 +52,8 @@ async def initialize_services(app: web.Application) -> None:
         on_chat_accepted=_handle_chat_accepted,
         on_chat_request_response=_handle_chat_request_response,
         on_chat_request_received=_handle_chat_request_received,
+        on_new_comment=_handle_new_comment,
+        on_vote_update=_handle_vote_update,
     )
 
     # Start background task for checking timed-out sessions
@@ -258,6 +260,52 @@ async def _handle_chat_request_response(data: dict) -> None:
         initiator_room = room_manager.user_room(initiator_user_id)
         await _sio.emit(event_name, event_data, room=initiator_room)
         logger.info(f"Emitted {event_name} to user {initiator_user_id}")
+
+
+async def _handle_new_comment(data: dict) -> None:
+    """
+    Handle new_comment event from REST API via pub/sub.
+
+    Broadcasts the new comment to all clients in the post room.
+    """
+    post_id = data.get("postId")
+    comment = data.get("comment")
+
+    if not all([post_id, comment]):
+        logger.error(f"Invalid new_comment event data: {data}")
+        return
+
+    logger.info(f"Handling new_comment for post {post_id}")
+
+    if _sio:
+        post_room = room_manager.post_room(post_id)
+        await _sio.emit("new_comment", comment, room=post_room)
+        logger.debug(f"Emitted new_comment to room {post_room}")
+
+
+async def _handle_vote_update(data: dict) -> None:
+    """
+    Handle vote_update event from REST API via pub/sub.
+
+    Broadcasts updated vote counts to all clients in the post room.
+    """
+    post_id = data.get("postId")
+    comment_id = data.get("commentId")
+    counts = data.get("counts")
+
+    if not all([post_id, comment_id, counts]):
+        logger.error(f"Invalid vote_update event data: {data}")
+        return
+
+    logger.info(f"Handling vote_update for comment {comment_id} in post {post_id}")
+
+    if _sio:
+        post_room = room_manager.post_room(post_id)
+        await _sio.emit("vote_update", {
+            "commentId": comment_id,
+            **counts,
+        }, room=post_room)
+        logger.debug(f"Emitted vote_update to room {post_room}")
 
 
 def get_redis_store() -> RedisStore:

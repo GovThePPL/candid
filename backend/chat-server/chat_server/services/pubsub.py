@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 # Channel names
 CHAT_EVENTS_CHANNEL = "chat:events"
+DISCUSS_EVENTS_CHANNEL = "discuss:events"
 
 
 class PubSubService:
@@ -37,17 +38,22 @@ class PubSubService:
             decode_responses=True,
         )
         self._pubsub = self._redis.pubsub()
-        await self._pubsub.subscribe(CHAT_EVENTS_CHANNEL)
-        logger.info(f"Subscribed to channel: {CHAT_EVENTS_CHANNEL}")
+        await self._pubsub.subscribe(CHAT_EVENTS_CHANNEL, DISCUSS_EVENTS_CHANNEL)
+        logger.info(f"Subscribed to channels: {CHAT_EVENTS_CHANNEL}, {DISCUSS_EVENTS_CHANNEL}")
 
-    async def start_listener(self, on_chat_accepted, on_chat_request_response=None, on_chat_request_received=None) -> None:
+    async def start_listener(self, on_chat_accepted, on_chat_request_response=None,
+                             on_chat_request_received=None,
+                             on_new_comment=None, on_vote_update=None) -> None:
         """Start the background listener task."""
         self._listener_task = asyncio.create_task(
-            self._listen(on_chat_accepted, on_chat_request_response, on_chat_request_received)
+            self._listen(on_chat_accepted, on_chat_request_response,
+                         on_chat_request_received, on_new_comment, on_vote_update)
         )
         logger.info("Started pub/sub listener task")
 
-    async def _listen(self, on_chat_accepted, on_chat_request_response=None, on_chat_request_received=None) -> None:
+    async def _listen(self, on_chat_accepted, on_chat_request_response=None,
+                      on_chat_request_received=None,
+                      on_new_comment=None, on_vote_update=None) -> None:
         """Listen for messages and dispatch to handlers.
 
         Auto-reconnects with exponential backoff on connection failures.
@@ -61,20 +67,34 @@ class PubSubService:
                     if message["type"] != "message":
                         continue
 
+                    channel = message.get("channel", "")
+
                     try:
                         data = json.loads(message["data"])
                         event_type = data.get("event")
 
-                        if event_type == "chat_accepted":
-                            await on_chat_accepted(data)
-                        elif event_type == "chat_request_response":
-                            if on_chat_request_response:
-                                await on_chat_request_response(data)
-                        elif event_type == "chat_request_received":
-                            if on_chat_request_received:
-                                await on_chat_request_received(data)
+                        if channel == CHAT_EVENTS_CHANNEL:
+                            if event_type == "chat_accepted":
+                                await on_chat_accepted(data)
+                            elif event_type == "chat_request_response":
+                                if on_chat_request_response:
+                                    await on_chat_request_response(data)
+                            elif event_type == "chat_request_received":
+                                if on_chat_request_received:
+                                    await on_chat_request_received(data)
+                            else:
+                                logger.warning(f"Unknown chat event type: {event_type}")
+                        elif channel == DISCUSS_EVENTS_CHANNEL:
+                            if event_type == "new_comment":
+                                if on_new_comment:
+                                    await on_new_comment(data)
+                            elif event_type == "vote_update":
+                                if on_vote_update:
+                                    await on_vote_update(data)
+                            else:
+                                logger.warning(f"Unknown discuss event type: {event_type}")
                         else:
-                            logger.warning(f"Unknown event type: {event_type}")
+                            logger.warning(f"Message from unknown channel: {channel}")
 
                     except json.JSONDecodeError:
                         logger.error(f"Invalid JSON in pub/sub message: {message['data']}")
@@ -109,7 +129,7 @@ class PubSubService:
             decode_responses=True,
         )
         self._pubsub = self._redis.pubsub()
-        await self._pubsub.subscribe(CHAT_EVENTS_CHANNEL)
+        await self._pubsub.subscribe(CHAT_EVENTS_CHANNEL, DISCUSS_EVENTS_CHANNEL)
         logger.info("Pub/sub reconnected successfully")
 
     async def close(self) -> None:
@@ -122,7 +142,7 @@ class PubSubService:
                 pass
 
         if self._pubsub:
-            await self._pubsub.unsubscribe(CHAT_EVENTS_CHANNEL)
+            await self._pubsub.unsubscribe(CHAT_EVENTS_CHANNEL, DISCUSS_EVENTS_CHANNEL)
             await self._pubsub.close()
 
         if self._redis:
