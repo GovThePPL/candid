@@ -94,10 +94,28 @@ def queue_vote_sync(position_id: str, user_id: str, response: str) -> bool:
     }
 
     try:
+        payload_json = json.dumps(payload)
+
+        # If a pending/partial entry exists for this position+user, update it
+        # (handles vote changes and prevents duplicates)
+        updated = db.execute_query("""
+            UPDATE polis_sync_queue
+            SET payload = %s, status = 'pending',
+                next_retry_time = CURRENT_TIMESTAMP, retry_count = 0,
+                updated_time = CURRENT_TIMESTAMP
+            WHERE operation_type = 'vote'
+              AND payload->>'position_id' = %s
+              AND payload->>'user_id' = %s
+              AND status IN ('pending', 'partial')
+            RETURNING id
+        """, (payload_json, position_id, user_id), fetchone=True)
+        if updated:
+            return True  # Updated existing entry
+
         db.execute_query("""
             INSERT INTO polis_sync_queue (id, operation_type, payload, status)
             VALUES (%s, 'vote', %s, 'pending')
-        """, (str(uuid.uuid4()), json.dumps(payload)))
+        """, (str(uuid.uuid4()), payload_json))
         return True
     except Exception:
         return False

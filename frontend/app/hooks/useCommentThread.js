@@ -1,15 +1,23 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import api from '../lib/api'
+import { useToast } from '../components/Toast'
 import { buildTree, sortTree, flattenTree } from '../lib/commentTree'
 
 /**
  * Hook for managing comment thread state: fetch, tree build, sort, collapse,
  * optimistic voting, comment creation, and cursor-based pagination.
  *
+ * Sort order is computed once on fetch/sort-change/new-comments and held stable.
+ * Votes update comment data in-place without re-sorting (prevents comments
+ * from jumping around while the user is reading).
+ *
  * @param {string} postId - Post ID to fetch comments for
  * @returns {Object} thread state and actions
  */
 export default function useCommentThread(postId) {
+  const { t } = useTranslation('discuss')
+  const showToast = useToast()
   const [rawComments, setRawComments] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -20,6 +28,10 @@ export default function useCommentThread(postId) {
   const [hasMore, setHasMore] = useState(false)
   const [totalRootCount, setTotalRootCount] = useState(0)
   const mountedRef = useRef(true)
+
+  // Counter bumped on structural changes (fetch, new comments, load more)
+  // to trigger re-sort. Votes do NOT bump this.
+  const [structureVersion, setStructureVersion] = useState(0)
 
   useEffect(() => {
     mountedRef.current = true
@@ -36,6 +48,7 @@ export default function useCommentThread(postId) {
       if (mountedRef.current) {
         const comments = result?.comments ?? (Array.isArray(result) ? result : [])
         setRawComments(comments)
+        setStructureVersion(v => v + 1)
         setCursor(result?.nextCursor ?? null)
         setHasMore(result?.hasMore ?? false)
         setTotalRootCount(result?.totalRootCount ?? comments.length)
@@ -65,6 +78,7 @@ export default function useCommentThread(postId) {
       if (mountedRef.current) {
         const newComments = result?.comments ?? []
         setRawComments(prev => [...prev, ...newComments])
+        setStructureVersion(v => v + 1)
         setCursor(result?.nextCursor ?? null)
         setHasMore(result?.hasMore ?? false)
       }
@@ -79,13 +93,36 @@ export default function useCommentThread(postId) {
     }
   }, [postId, cursor, hasMore, loadingMore])
 
-  // Build flattened list from raw comments
-  const flatList = useMemo(() => {
+  // Compute sort order + tree layout (only on structural changes, sort, collapse)
+  // Returns array of { id, depth, visualDepth, isCollapsed, collapsedCount, activeLines, lineStates }
+  const sortedLayout = useMemo(() => {
     if (rawComments.length === 0) return []
     const tree = buildTree(rawComments)
     const sorted = sortTree(tree, sort)
-    return flattenTree(sorted, collapsedIds)
-  }, [rawComments, sort, collapsedIds])
+    const flat = flattenTree(sorted, collapsedIds)
+    // Strip data fields — keep only structural/layout info + id
+    return flat.map(item => ({
+      id: item.id,
+      depth: item.depth,
+      visualDepth: item.visualDepth,
+      isCollapsed: item.isCollapsed,
+      collapsedCount: item.collapsedCount,
+      activeLines: item.activeLines,
+      lineStates: item.lineStates,
+    }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [structureVersion, sort, collapsedIds])
+
+  // Build final flat list: stable order from sortedLayout + current data from rawComments
+  const flatList = useMemo(() => {
+    if (sortedLayout.length === 0) return []
+    const commentMap = new Map(rawComments.map(c => [c.id, c]))
+    return sortedLayout.map(layout => {
+      const data = commentMap.get(layout.id)
+      if (!data) return null
+      return { ...data, ...layout }
+    }).filter(Boolean)
+  }, [sortedLayout, rawComments])
 
   // Toggle collapse
   const toggleCollapse = useCallback((commentId) => {
@@ -136,7 +173,7 @@ export default function useCommentThread(postId) {
       }
     }
 
-    // Optimistic update
+    // Optimistic update — does NOT bump structureVersion, so no re-sort
     setRawComments(prev => prev.map(c =>
       c.id === commentId
         ? { ...c, upvoteCount: newUpvoteCount, downvoteCount: newDownvoteCount, userVote: newUserVote }
@@ -147,7 +184,7 @@ export default function useCommentThread(postId) {
       const body = { voteType }
       if (voteType === 'downvote' && reason) body.downvoteReason = reason
       const result = await api.comments.voteOnComment(commentId, body)
-      // Reconcile with server response
+      // Reconcile with server response — no re-sort
       if (mountedRef.current && result) {
         setRawComments(prev => prev.map(c =>
           c.id === commentId
@@ -166,8 +203,9 @@ export default function useCommentThread(postId) {
       if (mountedRef.current) {
         setRawComments(prevComments)
       }
+      showToast(t('errorVoteFailed'))
     }
-  }, [rawComments])
+  }, [rawComments, showToast, t])
 
   // Toggle role badge visibility on a comment
   const handleToggleRole = useCallback(async (commentId, show) => {
@@ -186,17 +224,21 @@ export default function useCommentThread(postId) {
       if (mountedRef.current) {
         setRawComments(prevComments)
       }
+      showToast(t('errorToggleRoleFailed'))
     }
-  }, [rawComments])
+  }, [rawComments, showToast, t])
 
-  // Create a new comment
+  // Create a new comment — optimistic insert, reconcile on server response
   const handleCreateComment = useCallback(async (body, parentCommentId) => {
     const payload = { body }
     if (parentCommentId) payload.parentCommentId = parentCommentId
-    await api.comments.createComment(postId, payload)
-    // Refetch to get server-assigned fields (id, path, score, etc.)
-    await fetchComments()
-  }, [postId, fetchComments])
+    const result = await api.comments.createComment(postId, payload)
+    // Insert the server-returned comment into local state
+    if (mountedRef.current && result) {
+      setRawComments(prev => [...prev, result])
+      setStructureVersion(v => v + 1)
+    }
+  }, [postId])
 
   return {
     flatList,

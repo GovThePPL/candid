@@ -220,5 +220,7 @@
   "cropPhoto": "Recortar Foto",
   "acceptCrop": "Aceptar",
   "cancelCropA11y": "Cancelar recorte",
-  "zoomA11y": "Zoom"
+  "zoomA11y": "Zoom",
+
+  "errorDiagnosticsFailed": "No se pudo actualizar la preferencia de diagnósticos"
 }

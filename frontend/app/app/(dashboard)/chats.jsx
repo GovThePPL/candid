@@ -7,6 +7,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { SemanticColors } from '../../constants/Colors'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import useChatHistory from '../../hooks/useChatHistory'
+import { useToast } from '../../components/Toast'
 import ThemedText from '../../components/ThemedText'
 import Header from '../../components/Header'
 import EmptyState from '../../components/EmptyState'
@@ -169,6 +170,7 @@ export default function Chats() {
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const { t } = useTranslation('chat')
+  const showToast = useToast()
 
   const {
     chats, loading, refreshing, error,
@@ -190,9 +192,14 @@ export default function Chats() {
 
   const handleSubmitChatReport = useCallback(async (ruleId, comment) => {
     if (!reportChatId) return
-    await api.moderation.reportChat(reportChatId, ruleId, comment)
-    setReportModalVisible(false)
-  }, [reportChatId])
+    try {
+      await api.moderation.reportChat(reportChatId, ruleId, comment)
+      setReportModalVisible(false)
+    } catch (err) {
+      console.error('Failed to submit chat report:', err)
+      showToast(t('errorReportFailed'))
+    }
+  }, [reportChatId, showToast, t])
 
   const renderChatItem = useCallback(({ item }) => (
     <ChatHistoryCard

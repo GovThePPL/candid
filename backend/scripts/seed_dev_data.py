@@ -63,7 +63,7 @@ KEYCLOAK_BACKEND_CLIENT_SECRET = os.environ.get('KEYCLOAK_BACKEND_CLIENT_SECRET'
 # 10 groups spanning the political spectrum, bell-curve population distribution
 # Vote tuple order: (progressive, liberal, socdem, socialist, moderate, centrist,
 #                    libertarian, conservative, populist, traditionalist)
-#   1 = agree, -1 = disagree, 0 = pass/skip
+#   1 = agree (maps to Polis -1), -1 = disagree (maps to Polis +1), 0 = pass/skip
 
 BELIEF_SYSTEMS = {
     "progressive":    {"count": 4, "prefix": "prog",  "vote_index": 0, "vote_noise": 0.15, "lean": "very_liberal"},
@@ -85,10 +85,10 @@ POSITIONS = [
     # --- Economy & Taxation ---
     {"statement": "The free market should operate with minimal government intervention.",
      "category": "Economy & Taxation",
-     "votes": (-1, -1, -1, -1,  1, -1,  1,  1,  1,  1)},
+     "votes": (-1, -1, -1, -1,  1,  0,  1,  1,  1,  1)},
     {"statement": "Wealthy corporations should pay significantly higher taxes to fund social programs.",
      "category": "Economy & Taxation",
-     "votes": ( 1,  1,  1,  1,  1, -1, -1, -1, -1, -1)},
+     "votes": ( 1,  1,  1,  1,  1, -1, -1, -1,  1, -1)},
     {"statement": "Tariffs on imported goods protect American workers and should be increased.",
      "category": "Economy & Taxation",
      "votes": ( 0, -1,  0,  0, -1, -1, -1,  0,  1,  1)},
@@ -97,7 +97,7 @@ POSITIONS = [
      "votes": ( 1,  1,  1,  1, -1, -1,  0, -1, -1, -1)},
     {"statement": "Labor unions are essential for protecting workers' rights.",
      "category": "Economy & Taxation",
-     "votes": ( 1,  1,  1,  1,  1,  1, -1, -1,  0, -1)},
+     "votes": ( 1,  1,  1,  1,  1,  1, -1, -1,  1, -1)},
 
     # --- Social Issues ---
     {"statement": "Traditional family values should be promoted and protected by government policy.",
@@ -124,7 +124,7 @@ POSITIONS = [
     # --- Immigration ---
     {"statement": "A physical wall on the southern border is necessary for national security.",
      "category": "Immigration",
-     "votes": (-1, -1, -1, -1, -1, -1, -1,  0,  1,  1)},
+     "votes": (-1, -1, -1, -1, -1, -1, -1,  1,  1,  1)},
     {"statement": "Undocumented immigrants who have lived here for years should have a path to citizenship.",
      "category": "Immigration",
      "votes": ( 1,  1,  1,  1,  1,  1,  0, -1, -1, -1)},
@@ -147,7 +147,7 @@ POSITIONS = [
      "votes": (-1, -1, -1, -1, -1,  1,  1,  1,  1,  1)},
     {"statement": "Big tech companies have too much power and should be broken up or heavily regulated.",
      "category": "Government & Democracy",
-     "votes": ( 1,  1,  1,  1,  1,  1, -1, -1,  1,  0)},
+     "votes": ( 1,  1,  1,  1,  1,  1, -1,  1,  1,  0)},
 
     # --- Healthcare ---
     {"statement": "Healthcare should be provided by the government as a right, not a privilege.",
@@ -183,7 +183,7 @@ POSITIONS = [
      "votes": ( 1,  1,  1, -1,  1,  1,  0,  1, -1,  0)},
     {"statement": "Military spending should be significantly reduced and redirected to domestic programs.",
      "category": "Foreign Policy & Defense",
-     "votes": ( 1,  1,  1,  1, -1, -1, -1, -1, -1, -1)},
+     "votes": ( 1,  1,  1,  1, -1, -1,  1, -1, -1, -1)},
     {"statement": "The US should continue strong military support for Israel.",
      "category": "Foreign Policy & Defense",
      "votes": (-1, -1, -1, -1,  1,  1,  0,  1,  1,  1)},
@@ -472,13 +472,13 @@ class CandidAPI:
         return r.status_code in (200, 201, 204)
 
     def set_demographics(self, data):
-        r = self.session.put(f"{self.base_url}/api/v1/users/me/demographics",
-                             json=data, headers=self._headers())
+        r = self.session.patch(f"{self.base_url}/api/v1/users/me/demographics",
+                               json=data, headers=self._headers())
         return r.status_code in (200, 201, 204)
 
     def set_settings(self, data):
-        r = self.session.put(f"{self.base_url}/api/v1/users/me/settings",
-                             json=data, headers=self._headers())
+        r = self.session.patch(f"{self.base_url}/api/v1/users/me/settings",
+                               json=data, headers=self._headers())
         return r.status_code in (200, 201, 204)
 
     def create_position(self, statement, category_id, location_id):
@@ -489,12 +489,13 @@ class CandidAPI:
         return r.json() if r.status_code in (200, 201) else None
 
     def adopt_position(self, position_id):
-        r = self.session.post(f"{self.base_url}/api/v1/positions/{position_id}/adopt",
+        r = self.session.post(f"{self.base_url}/api/v1/users/me/positions",
+                              json={"positionId": position_id},
                               headers=self._headers())
         return r.status_code in (200, 201, 204)
 
     def vote(self, position_id, response_type):
-        r = self.session.post(f"{self.base_url}/api/v1/positions/response",
+        r = self.session.post(f"{self.base_url}/api/v1/positions/responses",
                               json={"responses": [{"positionId": position_id, "response": response_type}]},
                               headers=self._headers())
         return r.status_code in (200, 201, 204)
@@ -532,8 +533,9 @@ class CandidAPI:
         return r.json() if r.status_code in (200, 201) else None
 
     def claim_report(self, report_id):
-        r = self.session.post(f"{self.base_url}/api/v1/moderation/reports/{report_id}/claim",
-                              headers=self._headers())
+        r = self.session.patch(f"{self.base_url}/api/v1/moderation/reports/{report_id}",
+                               json={"claimedBy": self.user_id},
+                               headers=self._headers())
         return r.status_code in (200, 204)
 
     def take_action(self, report_id, mod_response, actions=None, text=None):
@@ -581,40 +583,43 @@ class CandidAPI:
 
     def request_role_assignment(self, target_user_id, role, location_id,
                                 category_id=None, reason=None):
-        body = {"targetUserId": target_user_id, "role": role, "locationId": location_id}
+        body = {"action": "assign", "targetUserId": target_user_id,
+                "role": role, "locationId": location_id}
         if category_id:
             body["positionCategoryId"] = category_id
         if reason:
             body["reason"] = reason
-        r = self.session.post(f"{self.base_url}/api/v1/admin/roles",
+        r = self.session.post(f"{self.base_url}/api/v1/admin/roles/requests",
                               json=body, headers=self._headers())
         return r.json() if r.status_code in (200, 201) else None
 
     def request_role_removal(self, user_role_id, reason=None):
-        body = {"userRoleId": user_role_id}
+        body = {"action": "remove", "userRoleId": user_role_id}
         if reason:
             body["reason"] = reason
-        r = self.session.post(f"{self.base_url}/api/v1/admin/roles/remove",
+        r = self.session.post(f"{self.base_url}/api/v1/admin/roles/requests",
                               json=body, headers=self._headers())
         return r.json() if r.status_code in (200, 201) else None
 
     def approve_role_request(self, request_id):
-        r = self.session.post(
-            f"{self.base_url}/api/v1/admin/roles/requests/{request_id}/approve",
-            headers=self._headers())
+        r = self.session.patch(
+            f"{self.base_url}/api/v1/admin/roles/requests/{request_id}",
+            json={"status": "approved"}, headers=self._headers())
         return r.json() if r.status_code == 200 else None
 
     def deny_role_request(self, request_id, reason=None):
-        body = {"reason": reason} if reason else {}
-        r = self.session.post(
-            f"{self.base_url}/api/v1/admin/roles/requests/{request_id}/deny",
+        body = {"status": "denied"}
+        if reason:
+            body["reason"] = reason
+        r = self.session.patch(
+            f"{self.base_url}/api/v1/admin/roles/requests/{request_id}",
             json=body, headers=self._headers())
         return r.json() if r.status_code == 200 else None
 
     def rescind_role_request(self, request_id):
-        r = self.session.post(
-            f"{self.base_url}/api/v1/admin/roles/requests/{request_id}/rescind",
-            headers=self._headers())
+        r = self.session.patch(
+            f"{self.base_url}/api/v1/admin/roles/requests/{request_id}",
+            json={"status": "rescinded"}, headers=self._headers())
         return r.json() if r.status_code == 200 else None
 
     def get_role_requests(self, view='all'):
@@ -630,13 +635,15 @@ class CandidAPI:
         return r.json() if r.status_code == 200 else []
 
     def ban_user(self, user_id, reason):
-        r = self.session.post(f"{self.base_url}/api/v1/admin/users/{user_id}/ban",
-                              json={"reason": reason}, headers=self._headers())
+        r = self.session.patch(f"{self.base_url}/api/v1/admin/users/{user_id}/status",
+                               json={"status": "banned", "reason": reason},
+                               headers=self._headers())
         return r.json() if r.status_code == 200 else None
 
     def unban_user(self, user_id, reason):
-        r = self.session.post(f"{self.base_url}/api/v1/admin/users/{user_id}/unban",
-                              json={"reason": reason}, headers=self._headers())
+        r = self.session.patch(f"{self.base_url}/api/v1/admin/users/{user_id}/status",
+                               json={"status": "active", "reason": reason},
+                               headers=self._headers())
         return r.json() if r.status_code == 200 else None
 
     # --- Admin: Surveys ---
@@ -967,7 +974,7 @@ def phase_4_votes(api, all_users, positions, dry_run=False):
     # Pre-compute each voter's position subset and vote responses
     voter_tasks = []
     for voter in voters:
-        vote_fraction = random.uniform(0.30, 0.75)
+        vote_fraction = random.uniform(0.65, 0.90)
         voter_positions = random.sample(positions, int(len(positions) * vote_fraction))
         vote_plan = []
         for pos_data in voter_positions:
@@ -1676,8 +1683,13 @@ def phase_10_pairwise(api, dry_run=False):
     print("PHASE 10: Pairwise")
     print("=" * 60)
 
-    # Idempotency: skip if pairwise responses already exist
-    existing = db_query_one("SELECT count(*) as cnt FROM pairwise_response")
+    # Idempotency: skip if generated users already have pairwise responses
+    # (SQL test data creates core-user responses; we need generated-user responses too)
+    existing = db_query_one("""
+        SELECT count(*) as cnt FROM pairwise_response pr
+        JOIN users u ON u.id = pr.user_id
+        WHERE u.username LIKE '%%\\_user\\_%%'
+    """)
     if existing and existing['cnt'] > 10:
         print(f"  Pairwise responses already exist ({existing['cnt']}), skipping")
         return
@@ -1712,17 +1724,19 @@ def phase_10_pairwise(api, dry_run=False):
     PAIRWISE_PREFS = {
         "Oregon Community Labels": {
             # Each belief system's #1 label must be unique and dominant within its Polis group.
-            # "Liberal" deliberately pushed low for non-liberal systems to avoid duplicate group labels.
-            "progressive":    ["Progressive", "Social Democrat", "Socialist", "Moderate", "Centrist", "Liberal", "Libertarian", "Conservative", "Populist", "Traditionalist"],
-            "liberal":        ["Liberal", "Moderate", "Progressive", "Centrist", "Social Democrat", "Libertarian", "Socialist", "Conservative", "Populist", "Traditionalist"],
-            "social_democrat": ["Social Democrat", "Socialist", "Progressive", "Moderate", "Centrist", "Liberal", "Libertarian", "Conservative", "Populist", "Traditionalist"],
-            "socialist":      ["Socialist", "Social Democrat", "Progressive", "Moderate", "Centrist", "Liberal", "Libertarian", "Conservative", "Populist", "Traditionalist"],
-            "moderate":       ["Moderate", "Centrist", "Social Democrat", "Progressive", "Libertarian", "Conservative", "Liberal", "Populist", "Socialist", "Traditionalist"],
-            "centrist":       ["Centrist", "Moderate", "Libertarian", "Conservative", "Populist", "Liberal", "Traditionalist", "Social Democrat", "Progressive", "Socialist"],
-            "libertarian":    ["Libertarian", "Conservative", "Centrist", "Populist", "Moderate", "Traditionalist", "Liberal", "Social Democrat", "Progressive", "Socialist"],
+            # Left groups: "Liberal" at #3-4 (realistic — progressives prefer "Liberal" over "Centrist").
+            # Center groups: "Liberal" and "Conservative" roughly equidistant (balanced moderate).
+            # Right groups: "Conservative" at #2-3 (mainstream right label, high cross-group support).
+            "progressive":    ["Progressive", "Social Democrat", "Liberal", "Socialist", "Moderate", "Centrist", "Libertarian", "Conservative", "Populist", "Traditionalist"],
+            "liberal":        ["Liberal", "Progressive", "Social Democrat", "Moderate", "Centrist", "Libertarian", "Socialist", "Conservative", "Populist", "Traditionalist"],
+            "social_democrat": ["Social Democrat", "Progressive", "Liberal", "Socialist", "Moderate", "Centrist", "Libertarian", "Conservative", "Populist", "Traditionalist"],
+            "socialist":      ["Socialist", "Social Democrat", "Progressive", "Liberal", "Moderate", "Centrist", "Libertarian", "Conservative", "Populist", "Traditionalist"],
+            "moderate":       ["Moderate", "Centrist", "Liberal", "Conservative", "Progressive", "Libertarian", "Social Democrat", "Populist", "Socialist", "Traditionalist"],
+            "centrist":       ["Centrist", "Moderate", "Conservative", "Liberal", "Libertarian", "Populist", "Progressive", "Traditionalist", "Social Democrat", "Socialist"],
+            "libertarian":    ["Libertarian", "Conservative", "Centrist", "Moderate", "Populist", "Traditionalist", "Liberal", "Social Democrat", "Progressive", "Socialist"],
             "conservative":   ["Conservative", "Libertarian", "Traditionalist", "Centrist", "Populist", "Moderate", "Liberal", "Social Democrat", "Progressive", "Socialist"],
-            "populist":       ["Populist", "Traditionalist", "Conservative", "Libertarian", "Centrist", "Moderate", "Liberal", "Social Democrat", "Progressive", "Socialist"],
-            "traditionalist": ["Traditionalist", "Populist", "Conservative", "Libertarian", "Centrist", "Moderate", "Liberal", "Social Democrat", "Progressive", "Socialist"],
+            "populist":       ["Populist", "Conservative", "Traditionalist", "Libertarian", "Centrist", "Moderate", "Liberal", "Social Democrat", "Progressive", "Socialist"],
+            "traditionalist": ["Traditionalist", "Conservative", "Populist", "Libertarian", "Centrist", "Moderate", "Liberal", "Social Democrat", "Progressive", "Socialist"],
         },
         "Healthcare Policy Labels": {
             "progressive":    ["State-Run System", "Universal Coverage", "Public-Private Hybrid", "Market-Based"],
@@ -1868,21 +1882,14 @@ def phase_10_pairwise(api, dry_run=False):
                 ranked = [label for label in prefs if label in items_map]
                 if len(ranked) < 2:
                     continue
-                # Generate adjacent pairs from ranked preference list
-                # (1v2, 2v3, 3v4, ...) for transitive chain coverage
-                adjacent_pairs = [(ranked[j], ranked[j + 1]) for j in range(len(ranked) - 1)]
-                # Sample 60-80% of adjacent pairs for per-user variation
-                n_adjacent = max(1, int(len(adjacent_pairs) * random.uniform(0.60, 0.80)))
-                selected_adjacent = random.sample(adjacent_pairs, n_adjacent)
-                # Add 1-2 random cross-rank pairs for matrix density
-                n_cross = min(2, max(1, len(ranked) // 4))
-                cross_pairs = []
-                for _ in range(n_cross):
-                    ci = random.randint(0, len(ranked) - 2)
-                    cj = random.randint(ci + 2, len(ranked) - 1) if ci + 2 < len(ranked) else ci + 1
-                    if cj < len(ranked) and (ranked[ci], ranked[cj]) not in selected_adjacent:
-                        cross_pairs.append((ranked[ci], ranked[cj]))
-                for winner_label, loser_label in selected_adjacent + cross_pairs:
+                # Generate random pairs from all possible combinations
+                # (simulates real app which presents random pairs to users)
+                all_pairs = [(ranked[a], ranked[b])
+                             for a in range(len(ranked))
+                             for b in range(a + 1, len(ranked))]
+                n_comparisons = max(3, int(len(all_pairs) * random.uniform(0.20, 0.40)))
+                selected_pairs = random.sample(all_pairs, min(n_comparisons, len(all_pairs)))
+                for winner_label, loser_label in selected_pairs:
                     if random.random() < config["vote_noise"]:
                         # Noise: swap winner and loser
                         winner_label, loser_label = loser_label, winner_label

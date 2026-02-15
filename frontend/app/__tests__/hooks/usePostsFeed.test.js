@@ -1,5 +1,15 @@
 import { renderHook, act, waitFor } from '@testing-library/react-native'
 
+jest.mock('../../components/Toast', () => ({
+  useToast: () => jest.fn(),
+}))
+
+jest.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key) => key,
+  }),
+}))
+
 const mockGetPosts = jest.fn()
 const mockVoteOnPost = jest.fn()
 
@@ -175,7 +185,7 @@ describe('usePostsFeed', () => {
     expect(result.current.posts[0].userVote).toBeNull()
   })
 
-  it('handleUpvote reverts on API error by refetching', async () => {
+  it('handleUpvote reverts locally on API error without refetching', async () => {
     mockGetPosts.mockResolvedValue({
       posts: [{ id: 'p1', title: 'Test', upvoteCount: 3, userVote: null }],
       hasMore: false,
@@ -185,20 +195,15 @@ describe('usePostsFeed', () => {
     const { result } = renderHook(() => usePostsFeed('loc1', 'all', 'discussion'))
     await waitFor(() => expect(result.current.loading).toBe(false))
 
-    // Vote fails, then refetch returns original data
+    const fetchCallsBefore = mockGetPosts.mock.calls.length
     mockVoteOnPost.mockRejectedValue(new Error('Vote failed'))
-    mockGetPosts.mockResolvedValue({
-      posts: [{ id: 'p1', title: 'Test', upvoteCount: 3, userVote: null }],
-      hasMore: false,
-      nextCursor: null,
-    })
 
     await act(async () => {
       await result.current.handleUpvote('p1')
     })
 
-    await waitFor(() => expect(result.current.loading).toBe(false))
-    // Should have refetched
+    // Should have reverted locally — no refetch
+    expect(mockGetPosts).toHaveBeenCalledTimes(fetchCallsBefore)
     expect(result.current.posts[0].upvoteCount).toBe(3)
     expect(result.current.posts[0].userVote).toBeNull()
   })
@@ -218,6 +223,30 @@ describe('usePostsFeed', () => {
     expect(mockGetPosts.mock.calls.length).toBeGreaterThan(callsBefore)
     const lastCall = mockGetPosts.mock.calls[mockGetPosts.mock.calls.length - 1]
     expect(lastCall[1]).toEqual(expect.objectContaining({ sort: 'new' }))
+  })
+
+  it('handleToggleRole updates showCreatorRole locally', async () => {
+    mockGetPosts.mockResolvedValue({
+      posts: [
+        { id: 'p1', title: 'Test', showCreatorRole: false },
+        { id: 'p2', title: 'Other', showCreatorRole: false },
+      ],
+      hasMore: false,
+      nextCursor: null,
+    })
+
+    const { result } = renderHook(() => usePostsFeed('loc1', 'all', 'discussion'))
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    act(() => {
+      result.current.handleToggleRole('p1', true)
+    })
+
+    expect(result.current.posts[0].showCreatorRole).toBe(true)
+    expect(result.current.posts[1].showCreatorRole).toBe(false)
+
+    // No API call — optimistic only
+    expect(mockVoteOnPost).not.toHaveBeenCalled()
   })
 
   it('refetches when answeredFilter changes', async () => {

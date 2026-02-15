@@ -95,9 +95,12 @@ export default memo(function CommentItem({
           <View style={styles.headerLeft}>
             {!isDeleted ? (
               <UserCard
-                variant="inline"
+                compact
+                avatarSize={22}
+                showKudosCount={false}
                 user={comment.creator}
-                discussRole={comment.showCreatorRole !== false ? comment.creatorRole : null}
+                discussRole={comment.creatorRole}
+                showRoleBadge={comment.showCreatorRole !== false}
               />
             ) : (
               <ThemedText variant="caption" color="secondary">
@@ -181,7 +184,7 @@ export default memo(function CommentItem({
               accessibilityLabel={t('commentOptionsA11y', { author: authorName })}
               hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
-              <Ionicons name="ellipsis-horizontal" size={16} color={colors.secondaryText} />
+              <Ionicons name="ellipsis-vertical" size={16} color={colors.secondaryText} />
             </TouchableOpacity>
 
             {/* Reply pill */}

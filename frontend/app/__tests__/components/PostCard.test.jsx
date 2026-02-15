@@ -17,6 +17,14 @@ jest.mock('react-native-markdown-display', () => {
   }
 })
 
+jest.mock('../../components/BottomDrawerModal', () => {
+  const { View, Text } = require('react-native')
+  return function BottomDrawerModal({ visible, title, children }) {
+    if (!visible) return null
+    return <View><Text>{title}</Text>{children}</View>
+  }
+})
+
 import PostCard from '../../components/discuss/PostCard'
 
 const basePost = {
@@ -30,7 +38,7 @@ const basePost = {
   creatorRole: null,
   isAnswered: null,
   category: null,
-  creator: { displayName: 'TestUser', username: 'testuser' },
+  creator: { id: 'u1', displayName: 'TestUser', username: 'testuser' },
   createdTime: '2026-02-12T10:00:00Z',
 }
 
@@ -39,6 +47,7 @@ describe('PostCard', () => {
     post: basePost,
     onPress: jest.fn(),
     onUpvote: jest.fn(),
+    onToggleRole: jest.fn(),
   }
 
   beforeEach(() => {
@@ -57,9 +66,8 @@ describe('PostCard', () => {
     expect(screen.getByText('5')).toBeTruthy()
   })
 
-  it('renders author display name and @username', () => {
+  it('renders @username in bottom row', () => {
     render(<PostCard {...defaultProps} />)
-    expect(screen.getByText('TestUser')).toBeTruthy()
     expect(screen.getByText('@testuser')).toBeTruthy()
   })
 
@@ -110,10 +118,9 @@ describe('PostCard', () => {
     expect(screen.queryByText('checkmark-circle')).toBeNull()
   })
 
-  it('renders creator name in bottom bar', () => {
+  it('renders @username in bottom bar', () => {
     render(<PostCard {...defaultProps} />)
-    // Block variant renders display name
-    expect(screen.getByText('TestUser')).toBeTruthy()
+    expect(screen.getByText('@testuser')).toBeTruthy()
   })
 
   it('calls onPress when card is tapped', () => {
@@ -143,24 +150,22 @@ describe('PostCard', () => {
     expect(screen.getByText('12')).toBeTruthy()
   })
 
-  it('shows role indicator when creatorRole is present', () => {
-    const post = { ...basePost, creatorRole: 'moderator' }
-    render(<PostCard {...defaultProps} post={post} />)
-    expect(screen.getByTestId('role-overlay')).toBeTruthy()
-  })
-
   it('falls back to username when displayName missing', () => {
     const post = { ...basePost, creator: { username: 'fallback_user' } }
     render(<PostCard {...defaultProps} post={post} />)
-    // Block variant shows @username
     expect(screen.getByText('@fallback_user')).toBeTruthy()
   })
 
-  it('shows anonymous fallback when creator is null', () => {
+  it('shows displayName fallback when creator has no username', () => {
+    const post = { ...basePost, creator: { id: 'u1', displayName: 'NoUsername' } }
+    render(<PostCard {...defaultProps} post={post} />)
+    expect(screen.getByText('NoUsername')).toBeTruthy()
+  })
+
+  it('shows ? fallback when creator is null', () => {
     const post = { ...basePost, creator: null }
     render(<PostCard {...defaultProps} post={post} />)
-    // Block variant falls back to 'common:anonymous' for display name
-    expect(screen.getByText('common:anonymous')).toBeTruthy()
+    expect(screen.getByText('?')).toBeTruthy()
   })
 
   it('has correct accessibility label', () => {
@@ -200,5 +205,69 @@ describe('PostCard', () => {
 
     // Back to "Show more"
     expect(screen.getByText('expandPost')).toBeTruthy()
+  })
+
+  // Three-dot options menu tests
+  it('renders three-dot options button with correct a11y label', () => {
+    render(<PostCard {...defaultProps} />)
+    expect(screen.getByLabelText('postOptionsA11y TestUser')).toBeTruthy()
+  })
+
+  it('opens BottomDrawerModal when three-dot is tapped', () => {
+    render(<PostCard {...defaultProps} />)
+    fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
+    expect(screen.getByText('postOptions')).toBeTruthy()
+  })
+
+  it('shows Report option in the modal', () => {
+    render(<PostCard {...defaultProps} />)
+    fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
+    expect(screen.getByText('report')).toBeTruthy()
+    expect(screen.getByLabelText('reportPostA11y TestUser')).toBeTruthy()
+  })
+
+  it('shows "Hide role badge" for own post with creatorRole', () => {
+    const post = { ...basePost, creatorRole: 'moderator', showCreatorRole: true }
+    render(<PostCard {...defaultProps} post={post} currentUserId="u1" />)
+    fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
+    expect(screen.getByText('hideRoleBadge')).toBeTruthy()
+  })
+
+  it('shows "Show role badge" for own post with showCreatorRole=false', () => {
+    const post = { ...basePost, creatorRole: 'moderator', showCreatorRole: false }
+    render(<PostCard {...defaultProps} post={post} currentUserId="u1" />)
+    fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
+    expect(screen.getByText('showRoleBadge')).toBeTruthy()
+  })
+
+  it('does not show role toggle for other users posts', () => {
+    const post = { ...basePost, creatorRole: 'moderator' }
+    render(<PostCard {...defaultProps} post={post} currentUserId="u2" />)
+    fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
+    expect(screen.queryByText('hideRoleBadge')).toBeNull()
+    expect(screen.queryByText('showRoleBadge')).toBeNull()
+  })
+
+  it('does not show role toggle when creatorRole is null', () => {
+    render(<PostCard {...defaultProps} currentUserId="u1" />)
+    fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
+    expect(screen.queryByText('hideRoleBadge')).toBeNull()
+    expect(screen.queryByText('showRoleBadge')).toBeNull()
+  })
+
+  it('calls onToggleRole with (postId, newValue) when role toggle is tapped', () => {
+    const onToggleRole = jest.fn()
+    const post = { ...basePost, creatorRole: 'admin', showCreatorRole: true }
+    render(<PostCard {...defaultProps} post={post} currentUserId="u1" onToggleRole={onToggleRole} />)
+    fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
+    fireEvent.press(screen.getByText('hideRoleBadge'))
+    expect(onToggleRole).toHaveBeenCalledWith('p1', false)
+  })
+
+  it('three-dot tap does not trigger card onPress', () => {
+    const onPress = jest.fn()
+    render(<PostCard {...defaultProps} onPress={onPress} />)
+    fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
+    expect(onPress).not.toHaveBeenCalled()
   })
 })

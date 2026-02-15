@@ -11,6 +11,7 @@ import ChatRequestIndicator from './ChatRequestIndicator'
 import Avatar from './Avatar'
 import ThemedText from './ThemedText'
 import BugReportModal from './BugReportModal'
+import { useToast } from './Toast'
 import api from '../lib/api'
 
 export default function Header({ onBack, showCreateButton }) {
@@ -19,6 +20,7 @@ export default function Header({ onBack, showCreateButton }) {
   const colors = useThemeColors()
   const insets = useSafeAreaInsets()
   const styles = useMemo(() => createStyles(colors, insets), [colors, insets])
+  const showToast = useToast()
   const { user, logout, pendingChatRequest, clearPendingChatRequest } = useContext(UserContext)
   const pathname = usePathname()
   const [sidebarVisible, setSidebarVisible] = useState(false)
@@ -51,27 +53,31 @@ export default function Header({ onBack, showCreateButton }) {
 
   // Handle chat request timeout - rescind the request
   const handleChatRequestTimeout = useCallback(async () => {
-    if (pendingChatRequest?.id) {
+    const requestId = pendingChatRequest?.id
+    clearPendingChatRequest()
+    if (requestId) {
       try {
-        await api.chat.rescindChatRequest(pendingChatRequest.id)
+        await api.chat.rescindChatRequest(requestId)
       } catch (err) {
         console.error('Failed to rescind chat request:', err)
+        showToast(t('errorChatRequestRescindFailed'))
       }
     }
-    clearPendingChatRequest()
-  }, [pendingChatRequest, clearPendingChatRequest])
+  }, [pendingChatRequest, clearPendingChatRequest, showToast, t])
 
   // Handle chat request cancellation by user
   const handleChatRequestCancel = useCallback(async () => {
-    if (pendingChatRequest?.id) {
+    const requestId = pendingChatRequest?.id
+    clearPendingChatRequest()
+    if (requestId) {
       try {
-        await api.chat.rescindChatRequest(pendingChatRequest.id)
+        await api.chat.rescindChatRequest(requestId)
       } catch (err) {
         console.error('Failed to rescind chat request:', err)
+        showToast(t('errorChatRequestRescindFailed'))
       }
     }
-    clearPendingChatRequest()
-  }, [pendingChatRequest, clearPendingChatRequest])
+  }, [pendingChatRequest, clearPendingChatRequest, showToast, t])
 
   return (
     <>

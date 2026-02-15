@@ -9,10 +9,12 @@ import { useTranslation } from 'react-i18next'
 import { UserContext } from '../contexts/UserContext'
 import api, { translateError } from '../lib/api'
 import { CacheManager, CacheKeys } from '../lib/cache'
+import { useToast } from '../components/Toast'
 
 export default function useChatHistory() {
   const { user } = useContext(UserContext)
   const { t } = useTranslation('chat')
+  const showToast = useToast()
 
   const [chats, setChats] = useState([])
   const [loading, setLoading] = useState(true)
@@ -118,9 +120,10 @@ export default function useChatHistory() {
         ))
       } else {
         console.error('Failed to send kudos:', err)
+        showToast(t('errorKudosFailed'))
       }
     }
-  }, [user?.id])
+  }, [user?.id, showToast, t])
 
   const handleRefresh = useCallback(() => {
     fetchChats(true)

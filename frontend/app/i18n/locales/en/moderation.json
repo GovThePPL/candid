@@ -103,5 +103,11 @@
   "viewChatLogA11y": "View chat log",
   "viewHistoryA11y": "View user moderation history",
   "responseInputA11y": "Response comment",
-  "submitResponseA11y": "Submit response"
+  "submitResponseA11y": "Submit response",
+
+  "errorPassFailed": "Couldn't release report",
+  "errorDismissReportFailed": "Couldn't dismiss report",
+  "errorActionFailed": "Moderation action failed",
+  "errorAppealResponseFailed": "Couldn't submit appeal response",
+  "errorModifyFailed": "Couldn't modify action"
 }

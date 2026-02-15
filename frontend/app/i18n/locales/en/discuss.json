@@ -152,5 +152,10 @@
   "hideRoleBadge": "Hide role badge",
   "postOptions": "Post options",
   "postOptionsA11y": "Options for post by {{author}}",
-  "toggleRoleA11y": "Toggle role badge visibility"
+  "toggleRoleA11y": "Toggle role badge visibility",
+  "reportPostA11y": "Report post by {{author}}",
+
+  "errorVoteFailed": "Vote couldn't be saved",
+  "errorCommentFailed": "Comment couldn't be posted",
+  "errorToggleRoleFailed": "Couldn't update role badge"
 }

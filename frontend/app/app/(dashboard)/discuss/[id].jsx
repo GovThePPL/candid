@@ -4,13 +4,17 @@ import {
   FlatList,
   TextInput,
   TouchableOpacity,
-  KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
   StyleSheet,
   Dimensions,
   Modal,
 } from 'react-native'
+// react-native-keyboard-controller tracks actual keyboard frame (handles emoji
+// keyboard, different keyboard heights, smooth transitions). Native only.
+const KBAvoidingView = Platform.OS !== 'web'
+  ? require('react-native-keyboard-controller').KeyboardAvoidingView
+  : null
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useNavigation } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -22,6 +26,7 @@ import { hasQAAuthority } from '../../../lib/roles'
 import { Spacing, BorderRadius } from '../../../constants/Theme'
 import { SemanticColors } from '../../../constants/Colors'
 import api from '../../../lib/api'
+import { useToast } from '../../../components/Toast'
 import useCommentThread from '../../../hooks/useCommentThread'
 import Header from '../../../components/Header'
 import PostHeader from '../../../components/discuss/PostHeader'
@@ -42,6 +47,7 @@ export default function PostDetail() {
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const { user } = useContext(UserContext)
+  const showToast = useToast()
 
   // Post state
   const [post, setPost] = useState(null)
@@ -82,6 +88,45 @@ export default function PostDetail() {
 
   const flatListRef = useRef(null)
   const maxInputHeight = screenHeight * 0.3
+
+  // Web: track keyboard height via visualViewport (native handled by KBAvoidingView)
+  const [webKeyboardHeight, setWebKeyboardHeight] = useState(0)
+  useEffect(() => {
+    if (Platform.OS !== 'web') return
+    const vv = window.visualViewport
+    if (!vv) return
+    const initialHeight = window.innerHeight
+    let focusTimeout = null
+
+    const update = () => {
+      const diff = initialHeight - vv.height
+      setWebKeyboardHeight(diff > 150 ? diff : 0)
+    }
+
+    vv.addEventListener('resize', update)
+
+    // Firefox fires no visualViewport resize on keyboard open — use focus events
+    const onFocusIn = (e) => {
+      if (!e.target?.tagName?.match?.(/INPUT|TEXTAREA/i)) return
+      clearTimeout(focusTimeout)
+      setWebKeyboardHeight(Math.round(initialHeight * 0.4))
+      setTimeout(update, 300)
+    }
+    const onFocusOut = () => {
+      focusTimeout = setTimeout(() => {
+        if (vv.height >= initialHeight - 150) setWebKeyboardHeight(0)
+      }, 300)
+    }
+
+    document.addEventListener('focusin', onFocusIn)
+    document.addEventListener('focusout', onFocusOut)
+    return () => {
+      vv.removeEventListener('resize', update)
+      document.removeEventListener('focusin', onFocusIn)
+      document.removeEventListener('focusout', onFocusOut)
+      clearTimeout(focusTimeout)
+    }
+  }, [])
 
   const isQAPost = post?.postType === 'question'
   const isPostLocked = post?.status === 'locked'
@@ -145,8 +190,9 @@ export default function PostDetail() {
       // Revert by re-fetching
       const data = await api.posts.getPost(postId).catch(() => null)
       if (data) setPost(data)
+      showToast(t('errorVoteFailed'))
     }
-  }, [post, postId])
+  }, [post, postId, showToast, t])
 
   const handlePostDownvote = useCallback(async () => {
     if (!post) return
@@ -170,11 +216,12 @@ export default function PostDetail() {
       } catch {
         const data = await api.posts.getPost(postId).catch(() => null)
         if (data) setPost(data)
+        showToast(t('errorVoteFailed'))
       }
       return
     }
     setDownvoteTarget({ type: 'post', id: post.id })
-  }, [post, postId])
+  }, [post, postId, showToast, t])
 
   // Post role toggle
   const handleTogglePostRole = useCallback(async (postId, show) => {
@@ -186,8 +233,9 @@ export default function PostDetail() {
       // Revert by re-fetching
       const data = await api.posts.getPost(postId).catch(() => null)
       if (data) setPost(data)
+      showToast(t('errorToggleRoleFailed'))
     }
-  }, [])
+  }, [showToast, t])
 
   // Comment voting handlers
   const handleCommentUpvote = useCallback((commentId) => {
@@ -230,6 +278,7 @@ export default function PostDetail() {
       } catch {
         const data = await api.posts.getPost(postId).catch(() => null)
         if (data) setPost(data)
+        showToast(t('errorVoteFailed'))
       }
     } else if (type === 'comment') {
       handleCommentVote(id, 'downvote', reason)
@@ -259,7 +308,7 @@ export default function PostDetail() {
       setInputHeight(40)
       setReplyingTo(null)
     } catch {
-      // Error is surfaced by the hook
+      showToast(t('errorCommentFailed'))
     } finally {
       setPosting(false)
     }
@@ -395,14 +444,14 @@ export default function PostDetail() {
         ? t('addReply')
         : t('addComment')
 
-  const keyboardOffset = Platform.OS === 'ios' ? 64 + insets.top : 0
+  const Wrapper = Platform.OS === 'web' ? View : KBAvoidingView
+  const wrapperProps = Platform.OS === 'web' ? {} : {
+    behavior: 'padding',
+    keyboardVerticalOffset: 0,
+  }
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.screen, { paddingTop: insets.top }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={keyboardOffset}
-    >
+    <Wrapper style={[styles.screen, { paddingTop: insets.top }]} {...wrapperProps}>
       <Header onBack={handleBack} />
       <FlatList
         ref={flatListRef}
@@ -549,13 +598,18 @@ export default function PostDetail() {
         </View>
       </Modal>
 
+      {/* Web keyboard spacer */}
+      {Platform.OS === 'web' && webKeyboardHeight > 0 && (
+        <View style={{ height: webKeyboardHeight }} />
+      )}
+
       {/* Downvote reason picker */}
       <DownvoteReasonPicker
         visible={downvoteTarget != null}
         onClose={() => setDownvoteTarget(null)}
         onSelect={handleDownvoteReasonSelect}
       />
-    </KeyboardAvoidingView>
+    </Wrapper>
   )
 }
 

@@ -152,5 +152,10 @@
   "hideRoleBadge": "Ocultar insignia de rol",
   "postOptions": "Opciones de publicación",
   "postOptionsA11y": "Opciones para publicación de {{author}}",
-  "toggleRoleA11y": "Alternar visibilidad de insignia de rol"
+  "toggleRoleA11y": "Alternar visibilidad de insignia de rol",
+  "reportPostA11y": "Reportar publicación de {{author}}",
+
+  "errorVoteFailed": "No se pudo guardar el voto",
+  "errorCommentFailed": "No se pudo publicar el comentario",
+  "errorToggleRoleFailed": "No se pudo actualizar la insignia de rol"
 }

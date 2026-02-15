@@ -90,15 +90,34 @@ class TestQueuePositionSync:
 class TestQueueVoteSync:
     def test_agree_vote(self):
         mock_db = MagicMock()
-        mock_db.execute_query = MagicMock(return_value=None)
+        # First call: UPDATE (no match), second call: INSERT
+        mock_db.execute_query = MagicMock(side_effect=[None, None])
 
         with patch("candid.controllers.helpers.polis_sync.db", mock_db), \
              patch("candid.controllers.helpers.polis_sync.config", MagicMock(POLIS_ENABLED=True)):
             from candid.controllers.helpers.polis_sync import queue_vote_sync
             result = queue_vote_sync("pos-1", "user-1", "agree")
             assert result is True
-            payload = json.loads(mock_db.execute_query.call_args[0][1][1])
-            assert payload["polis_vote"] == -1
+            # INSERT call is the second one
+            insert_payload = json.loads(mock_db.execute_query.call_args_list[1][0][1][1])
+            assert insert_payload["polis_vote"] == -1
+
+    def test_dedup_updates_existing(self):
+        """When a pending entry exists for same position+user, update instead of insert."""
+        mock_db = MagicMock()
+        # First call: UPDATE returns a match (existing pending entry found)
+        mock_db.execute_query = MagicMock(return_value={"id": "existing-id"})
+
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db), \
+             patch("candid.controllers.helpers.polis_sync.config", MagicMock(POLIS_ENABLED=True)):
+            from candid.controllers.helpers.polis_sync import queue_vote_sync
+            result = queue_vote_sync("pos-1", "user-1", "disagree")
+            assert result is True
+            # Only one call (UPDATE), no INSERT
+            assert mock_db.execute_query.call_count == 1
+            update_sql = mock_db.execute_query.call_args[0][0]
+            assert "UPDATE" in update_sql
+            assert "RETURNING" in update_sql
 
     def test_chat_response_skipped(self):
         with patch("candid.controllers.helpers.polis_sync.config", MagicMock(POLIS_ENABLED=True)):

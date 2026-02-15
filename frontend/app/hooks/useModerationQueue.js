@@ -6,11 +6,13 @@ import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import api, { translateError } from '../lib/api'
 import { useUser } from './useUser'
+import { useToast } from '../components/Toast'
 
 export default function useModerationQueue() {
   const { t } = useTranslation('moderation')
   const router = useRouter()
   const { user } = useUser()
+  const showToast = useToast()
 
   const [queue, setQueue] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -81,14 +83,17 @@ export default function useModerationQueue() {
   // Report actions
   const handlePass = useCallback(async () => {
     if (currentItem?.type === 'report') {
+      advanceQueue()
       try {
         await api.moderation.releaseReport(currentItem.data.id)
       } catch (err) {
         console.error('Failed to release report:', err)
+        showToast(t('errorPassFailed'))
       }
+    } else {
+      advanceQueue()
     }
-    advanceQueue()
-  }, [currentItem, advanceQueue])
+  }, [currentItem, advanceQueue, showToast, t])
 
   const handleDismiss = useCallback(async () => {
     if (!currentItem || processing) return
@@ -103,6 +108,7 @@ export default function useModerationQueue() {
       advanceQueue()
     } catch (err) {
       console.error('Failed to dismiss report:', err)
+      showToast(t('errorDismissReportFailed'))
     } finally {
       setProcessing(false)
     }
@@ -118,6 +124,7 @@ export default function useModerationQueue() {
       advanceQueue()
     } catch (err) {
       console.error('Failed to mark spurious:', err)
+      showToast(t('errorActionFailed'))
     } finally {
       setProcessing(false)
     }
@@ -132,6 +139,7 @@ export default function useModerationQueue() {
       advanceQueue()
     } catch (err) {
       console.error('Failed to take action:', err)
+      showToast(t('errorActionFailed'))
     } finally {
       setProcessing(false)
     }
@@ -152,6 +160,7 @@ export default function useModerationQueue() {
       advanceQueue()
     } catch (err) {
       console.error('Failed to respond to appeal:', err)
+      showToast(t('errorAppealResponseFailed'))
     } finally {
       setProcessing(false)
     }
@@ -165,6 +174,7 @@ export default function useModerationQueue() {
       advanceQueue()
     } catch (err) {
       console.error('Failed to dismiss admin response notification:', err)
+      showToast(t('errorDismissReportFailed'))
     } finally {
       setProcessing(false)
     }
@@ -183,6 +193,7 @@ export default function useModerationQueue() {
       advanceQueue()
     } catch (err) {
       console.error('Failed to modify action:', err)
+      showToast(t('errorModifyFailed'))
     } finally {
       setProcessing(false)
     }

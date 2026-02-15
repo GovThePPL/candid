@@ -86,6 +86,21 @@ describe('CommentItem', () => {
     expect(screen.getByTestId('role-overlay')).toBeTruthy()
   })
 
+  it('shows role title bubble when creatorRole present and showCreatorRole not false', () => {
+    const comment = { ...baseComment, creatorRole: 'moderator' }
+    render(<CommentItem {...defaultProps} comment={comment} />)
+    expect(screen.getByTestId('role-username-pill')).toBeTruthy()
+    expect(screen.getByText('@testuser · discuss:roleModerator')).toBeTruthy()
+  })
+
+  it('shows avatar letter but hides role bubble when showCreatorRole is false', () => {
+    const comment = { ...baseComment, creatorRole: 'moderator', showCreatorRole: false }
+    render(<CommentItem {...defaultProps} comment={comment} />)
+    expect(screen.getByTestId('role-overlay')).toBeTruthy()
+    expect(screen.queryByTestId('role-username-pill')).toBeNull()
+    expect(screen.getByText('@testuser')).toBeTruthy()
+  })
+
   it('does not show role overlay when creatorRole is null', () => {
     render(<CommentItem {...defaultProps} />)
     expect(screen.queryByTestId('role-overlay')).toBeNull()

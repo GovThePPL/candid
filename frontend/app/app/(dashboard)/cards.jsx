@@ -10,6 +10,7 @@ import { useThemeColors } from '../../hooks/useThemeColors'
 import useCardHandlers from '../../hooks/useCardHandlers'
 import api from '../../lib/api'
 import ThemedText from '../../components/ThemedText'
+import { useToast } from '../../components/Toast'
 import { UserContext } from '../../contexts/UserContext'
 import { CacheManager, CacheKeys, CacheDurations } from '../../lib/cache'
 import {
@@ -57,6 +58,7 @@ export default function CardQueue() {
   const [initialLoading, setInitialLoading] = useState(true)
   const [error, setError] = useState(null)
 
+  const showToast = useToast()
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
 
@@ -536,30 +538,50 @@ export default function CardQueue() {
   // Handle removing a position from the chatting list
   const handleRemoveFromChattingList = useCallback(async () => {
     if (currentCard?.type !== 'position' || !currentCard?.data?.chattingListId) return
+    // Save state for revert
+    const prevChattingListId = currentCard.data.chattingListId
+    const prevSource = currentCard.data.source
+    const prevMapEntry = chattingListMapRef.current.get(currentCard.data.id)
+
+    // Optimistic update
+    chattingListMapRef.current.delete(currentCard.data.id)
+    setCards(prev => prev.map((card, idx) => {
+      if (idx === currentIndex && card.type === 'position') {
+        return {
+          ...card,
+          data: {
+            ...card.data,
+            source: null,
+            chattingListId: null,
+          }
+        }
+      }
+      return card
+    }))
+
     try {
-      await api.chattingList.remove(currentCard.data.chattingListId)
-      // Update local map
-      chattingListMapRef.current.delete(currentCard.data.id)
-      // Invalidate chatting list cache
-      if (user?.id) await CacheManager.invalidate(CacheKeys.chattingList(user.id))
-      // Update the card in state to show it's no longer in the chatting list
+      await api.chattingList.remove(prevChattingListId)
+      if (user?.id) CacheManager.invalidate(CacheKeys.chattingList(user.id))
+    } catch (err) {
+      console.error('Failed to remove from chatting list:', err)
+      // Revert
+      if (prevMapEntry) chattingListMapRef.current.set(currentCard.data.id, prevMapEntry)
       setCards(prev => prev.map((card, idx) => {
         if (idx === currentIndex && card.type === 'position') {
           return {
             ...card,
             data: {
               ...card.data,
-              source: null,
-              chattingListId: null,
+              source: prevSource,
+              chattingListId: prevChattingListId,
             }
           }
         }
         return card
       }))
-    } catch (err) {
-      console.error('Failed to remove from chatting list:', err)
+      showToast(t('errorChattingListFailed'))
     }
-  }, [currentCard, currentIndex])
+  }, [currentCard, currentIndex, user?.id, showToast, t])
 
   // Handle adding a position to the chatting list
   const handleAddToChattingList = useCallback(async () => {
@@ -573,35 +595,61 @@ export default function CardQueue() {
       setShowChattingListModal(true)
     }
 
+    // Optimistic update
+    setCards(prev => prev.map((card, idx) => {
+      if (idx === currentIndex && card.type === 'position') {
+        return {
+          ...card,
+          data: {
+            ...card.data,
+            source: 'chatting_list',
+          }
+        }
+      }
+      return card
+    }))
+
     try {
       const result = await api.chattingList.addPosition(currentCard.data.id)
-      // Update local map
+      // Update local map and card with actual ID
       if (result?.id) {
         chattingListMapRef.current.set(currentCard.data.id, {
           id: result.id,
           hasPendingRequests: false,
         })
+        setCards(prev => prev.map((card, idx) => {
+          if (idx === currentIndex && card.type === 'position') {
+            return {
+              ...card,
+              data: {
+                ...card.data,
+                chattingListId: result.id,
+              }
+            }
+          }
+          return card
+        }))
       }
-      // Invalidate chatting list cache
-      if (user?.id) await CacheManager.invalidate(CacheKeys.chattingList(user.id))
-      // Update the card in state to show it's now in the chatting list
+      if (user?.id) CacheManager.invalidate(CacheKeys.chattingList(user.id))
+    } catch (err) {
+      console.error('Failed to add to chatting list:', err)
+      // Revert
       setCards(prev => prev.map((card, idx) => {
         if (idx === currentIndex && card.type === 'position') {
           return {
             ...card,
             data: {
               ...card.data,
-              source: 'chatting_list',
-              chattingListId: result?.id,
+              source: null,
+              chattingListId: null,
             }
           }
         }
         return card
       }))
-    } catch (err) {
-      console.error('Failed to add to chatting list:', err)
+      showToast(t('errorChattingListFailed'))
     }
-  }, [currentCard, currentIndex, user?.seenChattingListExplanation])
+  }, [currentCard, currentIndex, user?.id, showToast, t])
 
   // Keyboard support for PC
   useEffect(() => {

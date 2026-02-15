@@ -103,5 +103,11 @@
   "viewChatLogA11y": "Ver registro del chat",
   "viewHistoryA11y": "Ver historial de moderación del usuario",
   "responseInputA11y": "Comentario de respuesta",
-  "submitResponseA11y": "Enviar respuesta"
+  "submitResponseA11y": "Enviar respuesta",
+
+  "errorPassFailed": "No se pudo liberar el reporte",
+  "errorDismissReportFailed": "No se pudo descartar el reporte",
+  "errorActionFailed": "La acción de moderación falló",
+  "errorAppealResponseFailed": "No se pudo enviar la respuesta a la apelación",
+  "errorModifyFailed": "No se pudo modificar la acción"
 }

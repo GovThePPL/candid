@@ -84,15 +84,21 @@ class PolisWorker:
         """
         now = datetime.now(timezone.utc)
 
-        # Get pending items ready for processing
+        # Atomically claim pending items using FOR UPDATE SKIP LOCKED
+        # to prevent multiple gunicorn workers from processing the same items
         items = db.execute_query("""
-            SELECT id, operation_type, payload, retry_count
-            FROM polis_sync_queue
-            WHERE status IN ('pending', 'partial')
-              AND next_retry_time <= %s
-            ORDER BY created_time ASC
-            LIMIT %s
-        """, (now, self.batch_size))
+            UPDATE polis_sync_queue
+            SET status = 'processing', updated_time = %s
+            WHERE id IN (
+                SELECT id FROM polis_sync_queue
+                WHERE status IN ('pending', 'partial')
+                  AND next_retry_time <= %s
+                ORDER BY created_time ASC
+                LIMIT %s
+                FOR UPDATE SKIP LOCKED
+            )
+            RETURNING id, operation_type, payload, retry_count
+        """, (now, now, self.batch_size))
 
         if not items:
             return 0
@@ -101,13 +107,6 @@ class PolisWorker:
 
         for item in items:
             item_id = str(item["id"])
-
-            # Mark as processing
-            db.execute_query("""
-                UPDATE polis_sync_queue
-                SET status = 'processing', updated_time = %s
-                WHERE id = %s
-            """, (now, item_id))
 
             try:
                 payload = item["payload"]

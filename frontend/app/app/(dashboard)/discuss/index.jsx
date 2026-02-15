@@ -48,6 +48,7 @@ export default function DiscussFeed() {
     handleRefresh,
     handleUpvote,
     handleDownvote,
+    handleToggleRole,
   } = usePostsFeed(selectedLocation, selectedCategory, postType)
 
   // Downvote reason picker state
@@ -87,9 +88,10 @@ export default function DiscussFeed() {
       onPress={() => handlePostPress(item)}
       onUpvote={handleUpvote}
       onDownvote={handlePostDownvote}
+      onToggleRole={handleToggleRole}
       currentUserId={user?.id}
     />
-  ), [handlePostPress, handleUpvote, handlePostDownvote, user?.id])
+  ), [handlePostPress, handleUpvote, handlePostDownvote, handleToggleRole, user?.id])
 
   const keyExtractor = useCallback((item) => item.id, [])
 

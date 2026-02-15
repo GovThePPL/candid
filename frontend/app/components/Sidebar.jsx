@@ -1,9 +1,9 @@
-import { StyleSheet, View, TouchableOpacity, Dimensions, Pressable, Platform } from 'react-native'
+import { StyleSheet, View, TouchableOpacity, Modal, Pressable, Platform, useWindowDimensions } from 'react-native'
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useRouter, usePathname } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
-import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated'
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { SemanticColors } from '../constants/Colors'
@@ -12,18 +12,18 @@ import Avatar from './Avatar'
 import { canAccessAdmin } from '../lib/roles'
 import api from '../lib/api'
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window')
-const SIDEBAR_WIDTH = SCREEN_WIDTH * 0.65
-
 export default function Sidebar({ visible, onClose, user, onLogout, onBugReport }) {
   const { t } = useTranslation()
   const router = useRouter()
   const pathname = usePathname()
   const colors = useThemeColors()
   const insets = useSafeAreaInsets()
-  const styles = useMemo(() => createStyles(colors), [colors])
-  const slideX = useSharedValue(SIDEBAR_WIDTH)
+  const { width: screenWidth } = useWindowDimensions()
+  const sidebarWidth = Math.min(screenWidth * 0.65, 320)
+  const styles = useMemo(() => createStyles(colors, sidebarWidth), [colors, sidebarWidth])
+  const slideX = useSharedValue(sidebarWidth)
   const overlayOpacity = useSharedValue(0)
+  const [modalVisible, setModalVisible] = useState(false)
   const [pendingCount, setPendingCount] = useState(0)
 
   const showAdmin = canAccessAdmin(user)
@@ -38,13 +38,20 @@ export default function Sidebar({ visible, onClose, user, onLogout, onBugReport 
     }
   }, [visible, showAdmin])
 
+  const hideModal = useCallback(() => {
+    setModalVisible(false)
+  }, [])
+
   useEffect(() => {
     if (visible) {
+      setModalVisible(true)
       slideX.value = withTiming(0, { duration: 250 })
       overlayOpacity.value = withTiming(1, { duration: 250 })
     } else {
-      slideX.value = withTiming(SIDEBAR_WIDTH, { duration: 200 })
-      overlayOpacity.value = withTiming(0, { duration: 200 })
+      slideX.value = withTiming(sidebarWidth, { duration: 200 })
+      overlayOpacity.value = withTiming(0, { duration: 200 }, () => {
+        runOnJS(hideModal)()
+      })
     }
   }, [visible])
 
@@ -66,75 +73,79 @@ export default function Sidebar({ visible, onClose, user, onLogout, onBugReport 
     onLogout()
   }
 
-  if (!visible) return null
-
   return (
-    <View style={styles.container}>
-      {/* Overlay */}
-      <Pressable style={styles.overlayPressable} onPress={onClose} accessibilityLabel={t('closeMenu')}>
-        <Animated.View style={[styles.overlay, overlayStyle]} />
-      </Pressable>
+    <Modal
+      visible={modalVisible}
+      transparent
+      animationType="none"
+      onRequestClose={onClose}
+    >
+      <View style={styles.container}>
+        {/* Overlay */}
+        <Pressable style={styles.overlayPressable} onPress={onClose} accessibilityLabel={t('closeMenu')}>
+          <Animated.View style={[styles.overlay, overlayStyle]} />
+        </Pressable>
 
-      {/* Sidebar */}
-      <Animated.View style={[styles.sidebar, sidebarStyle]}>
-        {/* User Info */}
-        <View style={[styles.userSection, { paddingTop: insets.top + 16 }]}>
-          <Avatar user={user} size={64} showKudosBadge showKudosCount />
-          <View style={styles.userInfo}>
-            <ThemedText variant="h3" color="dark" numberOfLines={1}>{user?.displayName || t('guest')}</ThemedText>
-            <ThemedText variant="bodySmall" color="secondary" numberOfLines={1}>@{user?.username || 'guest'}</ThemedText>
-          </View>
-        </View>
-
-        {/* Menu Items */}
-        <View style={styles.menuSection}>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/settings')} accessibilityRole="button" accessibilityLabel={t('settings')}>
-            <ThemedText variant="button" color="inverse" style={styles.menuText}>{t('settings')}</ThemedText>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/chats')} accessibilityRole="button" accessibilityLabel={t('chatHistory')}>
-            <View style={styles.menuItemRow}>
-              <ThemedText variant="button" color="inverse" style={styles.menuText}>{t('chatHistory')}</ThemedText>
-              <Ionicons name="chatbubbles-outline" size={18} color="#FFFFFF" />
+        {/* Sidebar */}
+        <Animated.View style={[styles.sidebar, sidebarStyle]}>
+          {/* User Info */}
+          <View style={[styles.userSection, { paddingTop: insets.top + 16 }]}>
+            <Avatar user={user} size={64} showKudosBadge showKudosCount />
+            <View style={styles.userInfo}>
+              <ThemedText variant="h3" color="dark" numberOfLines={1}>{user?.displayName || t('guest')}</ThemedText>
+              <ThemedText variant="bodySmall" color="secondary" numberOfLines={1}>@{user?.username || 'guest'}</ThemedText>
             </View>
-          </TouchableOpacity>
-          {showAdmin && (
-            <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/admin')} accessibilityRole="button" accessibilityLabel={t('admin:adminPanelA11y')}>
+          </View>
+
+          {/* Menu Items */}
+          <View style={styles.menuSection}>
+            <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/settings')} accessibilityRole="button" accessibilityLabel={t('settings')}>
+              <ThemedText variant="button" color="inverse" style={styles.menuText}>{t('settings')}</ThemedText>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/chats')} accessibilityRole="button" accessibilityLabel={t('chatHistory')}>
               <View style={styles.menuItemRow}>
-                <ThemedText variant="button" color="inverse" style={styles.menuText}>{t('admin:admin')}</ThemedText>
-                {pendingCount > 0 && (
-                  <View style={styles.badge}>
-                    <ThemedText variant="caption" color="inverse" style={styles.badgeText}>{pendingCount}</ThemedText>
-                  </View>
-                )}
+                <ThemedText variant="button" color="inverse" style={styles.menuText}>{t('chatHistory')}</ThemedText>
+                <Ionicons name="chatbubbles-outline" size={18} color="#FFFFFF" />
               </View>
             </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => { onClose(); onBugReport?.(); }}
-            accessibilityRole="button"
-            accessibilityLabel={t('reportBug')}
-          >
-            <ThemedText variant="button" color="inverse" style={styles.menuText}>{t('reportBug')}</ThemedText>
-          </TouchableOpacity>
-        </View>
+            {showAdmin && (
+              <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/admin')} accessibilityRole="button" accessibilityLabel={t('admin:adminPanelA11y')}>
+                <View style={styles.menuItemRow}>
+                  <ThemedText variant="button" color="inverse" style={styles.menuText}>{t('admin:admin')}</ThemedText>
+                  {pendingCount > 0 && (
+                    <View style={styles.badge}>
+                      <ThemedText variant="caption" color="inverse" style={styles.badgeText}>{pendingCount}</ThemedText>
+                    </View>
+                  )}
+                </View>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => { onClose(); onBugReport?.(); }}
+              accessibilityRole="button"
+              accessibilityLabel={t('reportBug')}
+            >
+              <ThemedText variant="button" color="inverse" style={styles.menuText}>{t('reportBug')}</ThemedText>
+            </TouchableOpacity>
+          </View>
 
-        {/* Logout */}
-        <View style={styles.logoutSection}>
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} accessibilityRole="button" accessibilityLabel={t('logOut')}>
-            <Ionicons name="log-out-outline" size={20} color={SemanticColors.warning} />
-            <ThemedText variant="button" color="error" style={styles.logoutText}>{t('logOut')}</ThemedText>
-          </TouchableOpacity>
-        </View>
-      </Animated.View>
-    </View>
+          {/* Logout */}
+          <View style={styles.logoutSection}>
+            <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} accessibilityRole="button" accessibilityLabel={t('logOut')}>
+              <Ionicons name="log-out-outline" size={20} color={SemanticColors.warning} />
+              <ThemedText variant="button" color="error" style={styles.logoutText}>{t('logOut')}</ThemedText>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+      </View>
+    </Modal>
   )
 }
 
-const createStyles = (colors) => StyleSheet.create({
+const createStyles = (colors, sidebarWidth) => StyleSheet.create({
   container: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 100,
+    flex: 1,
   },
   overlayPressable: {
     ...StyleSheet.absoluteFillObject,
@@ -148,7 +159,7 @@ const createStyles = (colors) => StyleSheet.create({
     top: 0,
     right: 0,
     bottom: 0,
-    width: SIDEBAR_WIDTH,
+    width: sidebarWidth,
     backgroundColor: colors.cardBackground,
     paddingTop: 0,
     ...Platform.select({

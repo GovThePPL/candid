@@ -178,7 +178,7 @@ class TestProcessBatch:
 
 class TestStatusTransitions:
     def test_pending_to_processing(self):
-        """Items should be marked 'processing' before being worked on."""
+        """Items should be atomically claimed and marked 'processing' via FOR UPDATE SKIP LOCKED."""
         from candid.controllers.helpers.polis_worker import PolisWorker
         mock_db = MagicMock()
 
@@ -187,8 +187,8 @@ class TestStatusTransitions:
                                "creator_user_id": "u"})
 
         mock_db.execute_query = MagicMock(side_effect=[
+            # First call: atomic claim + mark processing (UPDATE ... FOR UPDATE SKIP LOCKED ... RETURNING)
             [{"id": "q-1", "operation_type": "position", "payload": payload, "retry_count": 0}],
-            None,  # mark processing
             None,  # mark completed
         ])
 
@@ -197,9 +197,10 @@ class TestStatusTransitions:
             w = PolisWorker()
             w.process_batch()
 
-            # Second call should be the "processing" update
-            second_call_sql = mock_db.execute_query.call_args_list[1][0][0]
-            assert "processing" in second_call_sql
+            # First call should atomically claim items and set status to 'processing'
+            first_call_sql = mock_db.execute_query.call_args_list[0][0][0]
+            assert "processing" in first_call_sql
+            assert "FOR UPDATE SKIP LOCKED" in first_call_sql
 
     def test_success_to_completed(self):
         from candid.controllers.helpers.polis_worker import PolisWorker

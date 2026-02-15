@@ -85,5 +85,8 @@
   "sendKudosA11y": "Enviar kudos",
   "messageMenuA11y": "Menú de tipo de mensaje",
   "sendMessageA11y": "Enviar mensaje",
-  "viewChatA11y": "Ver chat"
+  "viewChatA11y": "Ver chat",
+
+  "errorReportFailed": "No se pudo enviar el reporte",
+  "errorKudosFailed": "No se pudieron enviar los kudos"
 }

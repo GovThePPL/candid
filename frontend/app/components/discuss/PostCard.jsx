@@ -6,11 +6,11 @@ import { useThemeColors } from '../../hooks/useThemeColors'
 import { Spacing, BorderRadius, Shadows, Typography } from '../../constants/Theme'
 import { SemanticColors } from '../../constants/Colors'
 import ThemedText from '../ThemedText'
-import UserCard from '../UserCard'
 import VoteControl from './VoteControl'
 import BridgingBadge from './BridgingBadge'
 import MarkdownRenderer from './MarkdownRenderer'
 import LocationCategoryBadge from '../LocationCategoryBadge'
+import BottomDrawerModal from '../BottomDrawerModal'
 
 /**
  * Post card for the feed list. Supports expanding the body inline.
@@ -20,13 +20,15 @@ import LocationCategoryBadge from '../LocationCategoryBadge'
  * @param {Function} props.onPress - Called when card is tapped
  * @param {Function} props.onUpvote - Called with postId when upvote is tapped
  * @param {Function} props.onDownvote - Called with postId when downvote is tapped
+ * @param {Function} props.onToggleRole - Called with (postId, showCreatorRole)
  * @param {string} [props.currentUserId] - Current user's ID (disables voting on own posts)
  */
-export default function PostCard({ post, onPress, onUpvote, onDownvote, currentUserId }) {
+export default function PostCard({ post, onPress, onUpvote, onDownvote, onToggleRole, currentUserId }) {
   const { t } = useTranslation('discuss')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const [expanded, setExpanded] = useState(false)
+  const [optionsVisible, setOptionsVisible] = useState(false)
 
   const isLocked = post.status === 'locked'
   const isOwnPost = currentUserId && post.creator?.id === currentUserId
@@ -37,6 +39,11 @@ export default function PostCard({ post, onPress, onUpvote, onDownvote, currentU
   const handleExpand = (e) => {
     e?.stopPropagation?.()
     setExpanded(prev => !prev)
+  }
+
+  const handleOptionsPress = (e) => {
+    e?.stopPropagation?.()
+    setOptionsVisible(true)
   }
 
   return (
@@ -108,13 +115,22 @@ export default function PostCard({ post, onPress, onUpvote, onDownvote, currentU
 
       {/* Bottom row: author left, actions right */}
       <View style={styles.bottomRow}>
-        <UserCard
-          user={post.creator}
-          compact
-          discussRole={post.showCreatorRole !== false ? post.creatorRole : null}
-        />
+        <ThemedText variant="caption" color="secondary" numberOfLines={1} style={styles.authorText}>
+          {post.creator?.username ? `@${post.creator.username}` : displayName}
+        </ThemedText>
 
         <View style={styles.bottomActions}>
+          {/* Options (three-dot) button */}
+          <TouchableOpacity
+            onPress={handleOptionsPress}
+            activeOpacity={0.6}
+            accessibilityRole="button"
+            accessibilityLabel={t('postOptionsA11y', { author: displayName })}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          >
+            <Ionicons name="ellipsis-vertical" size={16} color={colors.secondaryText} />
+          </TouchableOpacity>
+
           <View style={styles.commentCount}>
             <Ionicons name="chatbubble-outline" size={14} color={colors.secondaryText} />
             <ThemedText variant="caption" color="secondary">{post.commentCount || 0}</ThemedText>
@@ -133,6 +149,49 @@ export default function PostCard({ post, onPress, onUpvote, onDownvote, currentU
           />
         </View>
       </View>
+
+      {/* Options modal */}
+      <BottomDrawerModal
+        visible={optionsVisible}
+        onClose={() => setOptionsVisible(false)}
+        title={t('postOptions')}
+        shrink
+      >
+        <View style={styles.optionsList}>
+          {isOwnPost && post.creatorRole != null && (
+            <TouchableOpacity
+              style={styles.optionRow}
+              onPress={() => {
+                const newShow = post.showCreatorRole === false
+                onToggleRole?.(post.id, newShow)
+                setOptionsVisible(false)
+              }}
+              activeOpacity={0.7}
+              accessibilityRole="menuitem"
+              accessibilityLabel={t('toggleRoleA11y')}
+            >
+              <Ionicons
+                name={post.showCreatorRole !== false ? 'eye-off-outline' : 'eye-outline'}
+                size={20}
+                color={colors.secondaryText}
+              />
+              <ThemedText variant="body">
+                {post.showCreatorRole !== false ? t('hideRoleBadge') : t('showRoleBadge')}
+              </ThemedText>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={styles.optionRow}
+            onPress={() => setOptionsVisible(false)}
+            activeOpacity={0.7}
+            accessibilityRole="menuitem"
+            accessibilityLabel={t('reportPostA11y', { author: displayName })}
+          >
+            <Ionicons name="flag-outline" size={20} color={colors.secondaryText} />
+            <ThemedText variant="body">{t('report')}</ThemedText>
+          </TouchableOpacity>
+        </View>
+      </BottomDrawerModal>
     </Pressable>
   )
 }
@@ -213,6 +272,10 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  authorText: {
+    flexShrink: 1,
+    minWidth: 0,
+  },
   bottomActions: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -223,5 +286,15 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+  },
+  optionsList: {
+    padding: Spacing.lg,
+  },
+  optionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.md,
   },
 })

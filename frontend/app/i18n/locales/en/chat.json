@@ -85,5 +85,8 @@
   "sendKudosA11y": "Send kudos",
   "messageMenuA11y": "Message type menu",
   "sendMessageA11y": "Send message",
-  "viewChatA11y": "View chat"
+  "viewChatA11y": "View chat",
+
+  "errorReportFailed": "Report couldn't be submitted",
+  "errorKudosFailed": "Couldn't send kudos"
 }

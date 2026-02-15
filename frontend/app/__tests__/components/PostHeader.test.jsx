@@ -71,6 +71,21 @@ describe('PostHeader', () => {
     expect(screen.getByTestId('role-overlay')).toBeTruthy()
   })
 
+  it('shows role title bubble when creatorRole present and showCreatorRole not false', () => {
+    const post = { ...basePost, creatorRole: 'admin' }
+    render(<PostHeader {...defaultProps} post={post} />)
+    expect(screen.getByTestId('role-username-pill')).toBeTruthy()
+    expect(screen.getByText('@authoruser · discuss:roleAdmin')).toBeTruthy()
+  })
+
+  it('shows avatar letter but hides role bubble when showCreatorRole is false', () => {
+    const post = { ...basePost, creatorRole: 'admin', showCreatorRole: false }
+    render(<PostHeader {...defaultProps} post={post} />)
+    expect(screen.getByTestId('role-overlay')).toBeTruthy()
+    expect(screen.queryByTestId('role-username-pill')).toBeNull()
+    expect(screen.getByText('@authoruser')).toBeTruthy()
+  })
+
   it('renders title', () => {
     render(<PostHeader {...defaultProps} />)
     expect(screen.getByText('Test Post Title')).toBeTruthy()

@@ -16,6 +16,10 @@ app/
 │   └── locales/      # en/ and es/ JSON translation files (9 namespaces each)
 ├── lib/              # Utility libraries (API, WebSocket, cache, etc.)
 ├── assets/           # Images and static files
+├── __tests__/        # Jest test suites
+│   ├── components/   # Component rendering and interaction tests
+│   ├── hooks/        # Custom hook behavior and state tests
+│   └── unit/         # Pure utility/function unit tests
 ├── package.json      # Dependencies (Expo v54, React Native)
 ├── babel.config.js   # Babel configuration
 └── metro.config.js   # Metro bundler configuration

@@ -14,12 +14,14 @@ import { CacheManager, CacheKeys, CacheDurations } from '../../../lib/cache'
 import ThemedText from '../../../components/ThemedText'
 import Header from '../../../components/Header'
 import LoadingView from '../../../components/LoadingView'
+import { useToast } from '../../../components/Toast'
 
 export default function AccountSettings() {
   const { logout, user, refreshUser } = useUser()
   const router = useRouter()
   const { t } = useTranslation('settings')
   const colors = useThemeColors()
+  const showToast = useToast()
   const styles = useMemo(() => createStyles(colors), [colors])
   const shared = useMemo(() => createSharedStyles(colors), [colors])
 
@@ -143,6 +145,7 @@ export default function AccountSettings() {
       // Revert on failure
       setDiagnosticsConsent(diagnosticsConsent)
       console.error('Failed to update diagnostics consent:', err)
+      showToast(t('errorDiagnosticsFailed'))
     }
   }
 

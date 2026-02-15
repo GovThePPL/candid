@@ -68,8 +68,8 @@ python3 -m pytest backend/tests/unit/ --benchmark-only -v
 | `test_keycloak.py` | `keycloak.py` | Role extraction, token validation, user creation, conflict handling |
 | `test_nlp.py` | `nlp.py` | Embeddings, similarity, NSFW check, avatar processing, health check |
 | `test_polis_client.py` | `polis_client.py` | Admin token caching, HTTP error handling, XID tokens, token clearing |
-| `test_polis_sync.py` | `polis_sync.py` | XID generation, vote mapping, queue operations, time windows |
-| `test_polis_worker.py` | `polis_worker.py` | Exponential backoff, status transitions, batch processing, queue stats |
+| `test_polis_sync.py` | `polis_sync.py` | XID generation, vote mapping, queue operations, deduplication upsert, time windows |
+| `test_polis_worker.py` | `polis_worker.py` | Exponential backoff, atomic claim (FOR UPDATE SKIP LOCKED), status transitions, batch processing, queue stats |
 | `test_push_notifications.py` | `push_notifications.py` | Statement truncation, Expo Push API formatting, daily counter |
 | `test_chat_events.py` | `chat_events.py` | Redis pub/sub event structure, optional fields, error handling |
 | `test_bug_reports.py` | `bug_reports_controller.py` | Bug report creation, diagnostics consent, input validation |

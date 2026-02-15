@@ -68,7 +68,7 @@ if [ -z "$EXPO_PUBLIC_HOST_IP" ]; then
         # WSL2 port forwarding: Docker ports are only reachable at the WSL2 internal IP,
         # not at Windows localhost. netsh portproxy must forward to the WSL2 IP, which
         # changes on every WSL restart.
-        WSL2_IP=$(hostname -I | awk '{print $1}')
+        WSL2_IP=$(ip addr show eth0 2>/dev/null | grep -oP 'inet \K[0-9.]+')
         if [ -n "$EXPO_PUBLIC_HOST_IP" ] && [ -n "$WSL2_IP" ]; then
             PORTPROXY_OUTPUT=$(powershell.exe -NoProfile -Command \
                 "netsh interface portproxy show v4tov4" 2>/dev/null | tr -d '\r')

@@ -5,6 +5,16 @@ jest.mock('../../hooks/useThemeColors', () => ({
   useThemeColors: () => mockColors,
 }))
 
+jest.mock('../../components/Toast', () => ({
+  useToast: () => jest.fn(),
+}))
+
+jest.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key) => key,
+  }),
+}))
+
 const mockGetComments = jest.fn()
 const mockVoteOnComment = jest.fn()
 const mockCreateComment = jest.fn()
@@ -155,14 +165,11 @@ describe('useCommentThread', () => {
     expect(comment.userVote).toBeNull()
   })
 
-  it('handleCreateComment refetches after success', async () => {
-    mockGetComments
-      .mockResolvedValueOnce([makeComment({ id: 'c1' })])
-      .mockResolvedValueOnce([
-        makeComment({ id: 'c1' }),
-        makeComment({ id: 'c2', body: 'New comment' }),
-      ])
-    mockCreateComment.mockResolvedValue({})
+  it('handleCreateComment inserts server response locally', async () => {
+    mockGetComments.mockResolvedValueOnce([makeComment({ id: 'c1' })])
+    mockCreateComment.mockResolvedValue(
+      makeComment({ id: 'c2', body: 'New comment' })
+    )
 
     const { result } = renderHook(() => useCommentThread('p1'))
     await waitFor(() => expect(result.current.loading).toBe(false))
@@ -172,9 +179,39 @@ describe('useCommentThread', () => {
       await result.current.handleCreateComment('New comment', null)
     })
 
-    // Should have refetched
-    expect(mockGetComments).toHaveBeenCalledTimes(2)
+    // Should NOT have refetched — comment inserted from API response
+    expect(mockGetComments).toHaveBeenCalledTimes(1)
     expect(result.current.flatList).toHaveLength(2)
+    expect(result.current.flatList[1].id).toBe('c2')
+  })
+
+  it('votes do not re-sort comments', async () => {
+    // c1 has lower score but was fetched first; c2 has higher score
+    mockGetComments.mockResolvedValue([
+      makeComment({ id: 'c1', score: 1, upvoteCount: 1, downvoteCount: 0 }),
+      makeComment({ id: 'c2', score: 10, upvoteCount: 10, downvoteCount: 0 }),
+    ])
+    mockVoteOnComment.mockResolvedValue({
+      upvoteCount: 20, downvoteCount: 0, score: 20,
+      userVote: { voteType: 'upvote' },
+    })
+
+    const { result } = renderHook(() => useCommentThread('p1'))
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    // Initial sort: c2 first (higher score in 'best' mode)
+    expect(result.current.flatList[0].id).toBe('c2')
+    expect(result.current.flatList[1].id).toBe('c1')
+
+    // Upvote c1 — its score now exceeds c2, but order should NOT change
+    await act(async () => {
+      await result.current.handleVote('c1', 'upvote')
+    })
+
+    expect(result.current.flatList[0].id).toBe('c2')
+    expect(result.current.flatList[1].id).toBe('c1')
+    // Score updated in place
+    expect(result.current.flatList[1].upvoteCount).toBe(20)
   })
 
   it('handles fetch error gracefully', async () => {

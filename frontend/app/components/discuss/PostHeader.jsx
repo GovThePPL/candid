@@ -66,7 +66,10 @@ export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, 
       <View style={styles.bottomBar}>
         <UserCard
           user={post.creator}
-          discussRole={post.showCreatorRole !== false ? post.creatorRole : null}
+          compact
+          discussRole={post.creatorRole}
+          showRoleBadge={post.showCreatorRole !== false}
+          style={styles.authorCard}
         />
 
         <View style={styles.bottomActions}>
@@ -78,7 +81,7 @@ export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, 
             accessibilityLabel={t('postOptionsA11y', { author: authorName })}
             hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
           >
-            <Ionicons name="ellipsis-horizontal" size={18} color={colors.secondaryText} />
+            <Ionicons name="ellipsis-vertical" size={18} color={colors.secondaryText} />
           </TouchableOpacity>
 
           {/* Comment count */}
@@ -154,7 +157,7 @@ export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, 
             onPress={() => setOptionsVisible(false)}
             activeOpacity={0.7}
             accessibilityRole="menuitem"
-            accessibilityLabel={t('reportA11y', { author: authorName })}
+            accessibilityLabel={t('reportPostA11y', { author: authorName })}
           >
             <Ionicons name="flag-outline" size={20} color={colors.secondaryText} />
             <ThemedText variant="body">{t('report')}</ThemedText>
@@ -200,6 +203,10 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  authorCard: {
+    flexShrink: 1,
+    minWidth: 0,
   },
   bottomActions: {
     flexDirection: 'row',

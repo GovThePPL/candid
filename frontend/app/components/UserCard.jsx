@@ -6,7 +6,7 @@ import { GROUP_COLORS, SemanticColors, BrandColor, OnBrandColors } from '../cons
 import { Typography, Spacing } from '../constants/Theme'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { formatRelativeTime } from '../lib/timeUtils'
-import { ROLE_COLORS } from './discuss/RoleBadge'
+import { ROLE_COLORS, ROLE_LABEL_KEYS } from './discuss/RoleBadge'
 import ThemedText from './ThemedText'
 import Avatar from './Avatar'
 
@@ -23,7 +23,8 @@ import Avatar from './Avatar'
  * @param {boolean} [props.reverse] - Avatar on right (block only)
  * @param {boolean} [props.compact] - Smaller layout (block only)
  * @param {'default'|'onBrand'} [props.colorScheme='default']
- * @param {string|null} [props.discussRole] - Renders role pill on username (admin, moderator, etc.)
+ * @param {string|null} [props.discussRole] - Role key for avatar indicator (admin, moderator, etc.)
+ * @param {boolean} [props.showRoleBadge] - Show role title + colored username bubble (default: true when discussRole set)
  * @param {string|null} [props.timestamp] - ISO string rendered as relative time
  * @param {boolean} [props.isEdited] - Shows "(edited)" before timestamp
  * @param {boolean} [props.showAvatar] - Default true
@@ -47,6 +48,7 @@ export default function UserCard({
   // general props
   colorScheme = 'default',
   discussRole,
+  showRoleBadge,
   timestamp,
   isEdited = false,
   showAvatar = true,
@@ -68,6 +70,7 @@ export default function UserCard({
         user={user}
         isOnBrand={isOnBrand}
         discussRole={discussRole}
+        showRoleBadge={showRoleBadge}
         timestamp={timestamp}
         isEdited={isEdited}
         showAvatar={showAvatar}
@@ -91,6 +94,7 @@ export default function UserCard({
       compact={compact}
       isOnBrand={isOnBrand}
       discussRole={discussRole}
+      showRoleBadge={showRoleBadge}
       showAvatar={showAvatar}
       avatarSize={avatarSize}
       showKudosCount={showKudosCount}
@@ -108,6 +112,7 @@ function InlineVariant({
   user,
   isOnBrand,
   discussRole,
+  showRoleBadge: showRoleBadgeProp,
   timestamp,
   isEdited,
   showAvatar,
@@ -128,6 +133,9 @@ function InlineVariant({
   const nameStyle = isOnBrand ? undefined : styles.inlineNameWeight
 
   const roleColor = discussRole ? ROLE_COLORS[discussRole] : null
+  const shouldShowRoleBubble = (showRoleBadgeProp ?? true) && !!roleColor
+  const roleLabel = shouldShowRoleBubble && ROLE_LABEL_KEYS[discussRole]
+    ? t('discuss:' + ROLE_LABEL_KEYS[discussRole]) : null
 
   return (
     <View style={styles.inlineContainer}>
@@ -157,10 +165,10 @@ function InlineVariant({
         >
           {displayName}
         </ThemedText>
-        {username && roleColor ? (
+        {username && shouldShowRoleBubble ? (
           <View testID="role-username-pill" style={[styles.roleUsernamePill, { backgroundColor: roleColor }]}>
             <ThemedText variant="badgeSm" style={styles.roleUsernameText}>
-              @{username}
+              @{username} · {roleLabel}
             </ThemedText>
           </View>
         ) : username ? (
@@ -202,7 +210,7 @@ function InlineVariant({
 
 function BlockVariant({
   user, role, reverse, compact, isOnBrand,
-  discussRole,
+  discussRole, showRoleBadge: showRoleBadgeProp,
   showAvatar = true, avatarSize: avatarSizeProp, showKudosCount,
   nameVariant, label, containerStyle,
   colors, styles, t,
@@ -225,6 +233,9 @@ function BlockVariant({
   const nameColor = isOnBrand ? 'inverse' : 'dark'
 
   const roleColor = discussRole ? ROLE_COLORS[discussRole] : null
+  const shouldShowRoleBubble = (showRoleBadgeProp ?? true) && !!roleColor
+  const roleLabel = shouldShowRoleBubble && ROLE_LABEL_KEYS[discussRole]
+    ? t('discuss:' + ROLE_LABEL_KEYS[discussRole]) : null
 
   return (
     <View style={[
@@ -259,10 +270,10 @@ function BlockVariant({
         >
           {displayName || t('common:anonymous')}
         </ThemedText>
-        {username && roleColor ? (
+        {username && shouldShowRoleBubble ? (
           <View testID="role-username-pill" style={[styles.roleUsernamePill, styles.blockUsername, { backgroundColor: roleColor }]}>
             <ThemedText variant="badgeSm" style={styles.roleUsernameText}>
-              @{username}
+              @{username} · {roleLabel}
             </ThemedText>
           </View>
         ) : username ? (

@@ -310,6 +310,19 @@ if [[ -z "${CORS_ORIGINS:-}" ]]; then
     export CORS_ORIGINS
 fi
 
+# --- Generate Polis JWT keys (if missing) --------------------------------
+
+POLIS_KEYS_DIR="backend/polis-integration/keys"
+if [[ ! -f "${POLIS_KEYS_DIR}/jwt-private.pem" ]]; then
+    log "Generating Polis JWT keypair..."
+    mkdir -p "$POLIS_KEYS_DIR"
+    openssl genpkey -algorithm RSA -out "${POLIS_KEYS_DIR}/jwt-private.pem" -pkeyopt rsa_keygen_bits:2048 2>/dev/null
+    openssl rsa -in "${POLIS_KEYS_DIR}/jwt-private.pem" -pubout -out "${POLIS_KEYS_DIR}/jwt-public.pem" 2>/dev/null
+    ok "JWT keypair generated in ${POLIS_KEYS_DIR}/"
+else
+    ok "Polis JWT keys already exist"
+fi
+
 # --- Start services (unless --seed-only) --------------------------------
 
 if [[ "$SEED_ONLY" == "false" ]]; then

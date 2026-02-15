@@ -8,6 +8,11 @@ import { useFonts, Pacifico_400Regular } from "@expo-google-fonts/pacifico"
 Text.defaultProps = Text.defaultProps || {}
 Text.defaultProps.maxFontSizeMultiplier = 2.0
 import { GestureHandlerRootView } from "react-native-gesture-handler"
+// KeyboardProvider enables react-native-keyboard-controller's KeyboardAvoidingView
+// (native only — tracks actual keyboard frame for smooth height transitions)
+const KeyboardProvider = Platform.OS === 'web'
+  ? ({ children }) => children
+  : require('react-native-keyboard-controller').KeyboardProvider
 import { ThemeProvider as NavigationThemeProvider, DefaultTheme as NavDefaultTheme, DarkTheme as NavDarkTheme } from "@react-navigation/native"
 import { UserProvider } from "../contexts/UserContext"
 import { ThemeProvider, useTheme } from "../contexts/ThemeContext"
@@ -97,16 +102,18 @@ function InnerLayout() {
   return (
     <NavigationThemeProvider value={navTheme}>
       <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
-        <StatusBar style={isDark ? 'light' : 'dark'} />
-        <Stack screenOptions={{
-          headerStyle: { backgroundColor: colors.navBackground },
-          headerTintColor: colors.title,
-          contentStyle: { backgroundColor: colors.background },
-        }}>
-          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-          <Stack.Screen name="(dashboard)" options={{ headerShown: false }} />
-          <Stack.Screen name="index" options={{ title: t('home') }} />
-        </Stack>
+        <KeyboardProvider>
+          <StatusBar style={isDark ? 'light' : 'dark'} />
+          <Stack screenOptions={{
+            headerStyle: { backgroundColor: colors.navBackground },
+            headerTintColor: colors.title,
+            contentStyle: { backgroundColor: colors.background },
+          }}>
+            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+            <Stack.Screen name="(dashboard)" options={{ headerShown: false }} />
+            <Stack.Screen name="index" options={{ title: t('home') }} />
+          </Stack>
+        </KeyboardProvider>
       </GestureHandlerRootView>
     </NavigationThemeProvider>
   )

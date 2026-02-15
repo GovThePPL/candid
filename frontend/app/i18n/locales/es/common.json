@@ -111,5 +111,7 @@
   "systemLanguageA11y": "Idioma del sistema",
 
   "chatHistory": "Historial de Chats",
-  "createPositionA11y": "Crear posición"
+  "createPositionA11y": "Crear posición",
+
+  "errorChatRequestRescindFailed": "No se pudo cancelar la solicitud de chat"
 }

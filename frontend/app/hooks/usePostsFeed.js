@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import api from '../lib/api'
+import { useToast } from '../components/Toast'
 
 /**
  * Hook for paginated post feed with sort and filter support.
@@ -10,6 +12,8 @@ import api from '../lib/api'
  * @returns {object} Feed state and controls
  */
 export default function usePostsFeed(locationId, categoryId, postType) {
+  const { t } = useTranslation('discuss')
+  const showToast = useToast()
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -89,6 +93,9 @@ export default function usePostsFeed(locationId, categoryId, postType) {
   }, [fetchPosts])
 
   const handleUpvote = useCallback(async (postId) => {
+    // Snapshot for rollback
+    const prevPosts = posts
+
     // Optimistic update
     setPosts(prev => prev.map(p => {
       if (p.id !== postId) return p
@@ -114,12 +121,23 @@ export default function usePostsFeed(locationId, categoryId, postType) {
         }
       }))
     } catch (err) {
-      // Revert optimistic update by refetching
-      fetchPosts()
+      // Revert optimistic update
+      setPosts(prevPosts)
+      showToast(t('errorVoteFailed'))
     }
-  }, [fetchPosts])
+  }, [posts, showToast, t])
+
+  const handleToggleRole = useCallback((postId, showCreatorRole) => {
+    // Optimistic update only — no API endpoint yet
+    setPosts(prev => prev.map(p =>
+      p.id === postId ? { ...p, showCreatorRole } : p
+    ))
+  }, [])
 
   const handleDownvote = useCallback(async (postId, reason) => {
+    // Snapshot for rollback
+    const prevPosts = posts
+
     // Optimistic update
     setPosts(prev => prev.map(p => {
       if (p.id !== postId) return p
@@ -145,9 +163,11 @@ export default function usePostsFeed(locationId, categoryId, postType) {
         }
       }))
     } catch (err) {
-      fetchPosts()
+      // Revert optimistic update
+      setPosts(prevPosts)
+      showToast(t('errorVoteFailed'))
     }
-  }, [fetchPosts])
+  }, [posts, showToast, t])
 
   // Refetch when dependencies change
   useEffect(() => {
@@ -170,5 +190,6 @@ export default function usePostsFeed(locationId, categoryId, postType) {
     handleRefresh,
     handleUpvote,
     handleDownvote,
+    handleToggleRole,
   }
 }

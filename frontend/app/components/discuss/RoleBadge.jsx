@@ -25,7 +25,7 @@ export const ROLE_COLORS = {
   liaison: '#00838F',
 }
 
-const ROLE_LABEL_KEYS = {
+export const ROLE_LABEL_KEYS = {
   admin: 'roleAdmin',
   moderator: 'roleModerator',
   facilitator: 'roleFacilitator',

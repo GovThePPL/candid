@@ -49,10 +49,18 @@ describe('UserCard', () => {
       expect(screen.getByTestId('role-overlay')).toBeTruthy()
     })
 
-    it('wraps username in role-colored pill when discussRole is set', () => {
+    it('wraps username in role-colored pill with role title when discussRole is set', () => {
       render(<UserCard user={makeUser()} discussRole="moderator" />)
       expect(screen.getByTestId('role-username-pill')).toBeTruthy()
+      expect(screen.getByText('@janedoe · discuss:roleModerator')).toBeTruthy()
+    })
+
+    it('shows plain username when showRoleBadge is false', () => {
+      render(<UserCard user={makeUser()} discussRole="moderator" showRoleBadge={false} />)
+      expect(screen.queryByTestId('role-username-pill')).toBeNull()
       expect(screen.getByText('@janedoe')).toBeTruthy()
+      // Avatar still shows role overlay
+      expect(screen.getByTestId('role-overlay')).toBeTruthy()
     })
 
     it('does not show role pill when discussRole is null', () => {
@@ -69,10 +77,11 @@ describe('UserCard', () => {
       expect(screen.getByText('@janedoe')).toBeTruthy()
     })
 
-    it('renders role circle and username pill when discussRole is set', () => {
+    it('renders role circle and username pill with role title when discussRole is set', () => {
       render(<UserCard variant="inline" user={makeUser()} discussRole="moderator" />)
       expect(screen.getByTestId('role-overlay')).toBeTruthy()
       expect(screen.getByTestId('role-username-pill')).toBeTruthy()
+      expect(screen.getByText('@janedoe · discuss:roleModerator')).toBeTruthy()
     })
 
     it('renders relative time when timestamp is set', () => {

@@ -131,5 +131,18 @@
   "addedToChattingList": "Added to chatting list \u2014 you'll be matched when someone is online",
   "unknownCardType": "Unknown card type: {{type}}",
   "loadingCards": "Loading cards...",
-  "failedLoadCards": "Failed to load cards"
+  "failedLoadCards": "Failed to load cards",
+
+  "errorResponseFailed": "Your response couldn't be saved",
+  "errorChatRequestFailed": "Chat request failed",
+  "errorChatAcceptFailed": "Couldn't accept chat request",
+  "errorChatDeclineFailed": "Couldn't decline chat request",
+  "errorReportFailed": "Report couldn't be submitted",
+  "errorDismissFailed": "Couldn't dismiss notification",
+  "errorAdoptFailed": "Couldn't adopt position",
+  "errorSurveyFailed": "Your response couldn't be saved",
+  "errorDemographicFailed": "Your response couldn't be saved",
+  "errorKudosFailed": "Couldn't process kudos",
+  "errorDiagnosticsFailed": "Couldn't save preference",
+  "errorChattingListFailed": "Couldn't update chatting list"
 }
