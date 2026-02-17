@@ -16,6 +16,7 @@ jest.mock('react-i18next', () => ({
 }))
 
 const mockGetComments = jest.fn()
+const mockGetCommentThread = jest.fn()
 const mockVoteOnComment = jest.fn()
 const mockCreateComment = jest.fn()
 const mockPatchComment = jest.fn()
@@ -25,6 +26,7 @@ jest.mock('../../lib/api', () => ({
   default: {
     comments: {
       getComments: (...args) => mockGetComments(...args),
+      getCommentThread: (...args) => mockGetCommentThread(...args),
       voteOnComment: (...args) => mockVoteOnComment(...args),
       createComment: (...args) => mockCreateComment(...args),
       patchComment: (...args) => mockPatchComment(...args),
@@ -323,5 +325,120 @@ describe('useCommentThread', () => {
 
     // Should revert to original
     expect(result.current.flatList[0].showCreatorRole).toBe(true)
+  })
+
+  describe('loadParentComment', () => {
+    it('fetches parent and prepends to flat list', async () => {
+      mockGetComments.mockResolvedValue([
+        makeComment({ id: 'c1', parentCommentId: 'p1' }),
+      ])
+      mockGetCommentThread.mockResolvedValue({
+        comments: [makeComment({ id: 'p1', body: 'parent' })],
+      })
+
+      const { result } = renderHook(() => useCommentThread('post1'))
+      await waitFor(() => expect(result.current.loading).toBe(false))
+      expect(result.current.flatList).toHaveLength(1)
+
+      let parent
+      await act(async () => {
+        parent = await result.current.loadParentComment('p1')
+      })
+
+      expect(parent).toBeTruthy()
+      expect(parent.id).toBe('p1')
+      expect(mockGetCommentThread).toHaveBeenCalledWith('post1', 'p1', { maxDescendants: 1 })
+      // Parent now appears in flatList as the root, c1 as child
+      expect(result.current.flatList).toHaveLength(2)
+      expect(result.current.flatList[0].id).toBe('p1')
+      expect(result.current.flatList[0].depth).toBe(0)
+      expect(result.current.flatList[1].id).toBe('c1')
+      expect(result.current.flatList[1].depth).toBe(1)
+    })
+
+    it('deduplicates — does not add parent if already present', async () => {
+      mockGetComments.mockResolvedValue([
+        makeComment({ id: 'p1' }),
+        makeComment({ id: 'c1', parentCommentId: 'p1' }),
+      ])
+      mockGetCommentThread.mockResolvedValue({
+        comments: [makeComment({ id: 'p1' })],
+      })
+
+      const { result } = renderHook(() => useCommentThread('post1'))
+      await waitFor(() => expect(result.current.loading).toBe(false))
+      expect(result.current.flatList).toHaveLength(2)
+
+      await act(async () => {
+        await result.current.loadParentComment('p1')
+      })
+
+      // Still 2 comments — no duplicate
+      expect(result.current.flatList).toHaveLength(2)
+    })
+
+    it('returns null on network error', async () => {
+      mockGetComments.mockResolvedValue([makeComment({ id: 'c1' })])
+      mockGetCommentThread.mockRejectedValue(new Error('Network error'))
+
+      const { result } = renderHook(() => useCommentThread('post1'))
+      await waitFor(() => expect(result.current.loading).toBe(false))
+
+      let parent
+      await act(async () => {
+        parent = await result.current.loadParentComment('missing')
+      })
+
+      expect(parent).toBeNull()
+      expect(result.current.flatList).toHaveLength(1)
+    })
+  })
+
+  describe('layout cache stability', () => {
+    it('preserves flatList item references for unchanged comments on collapse', async () => {
+      mockGetComments.mockResolvedValue([
+        makeComment({ id: 'r1', score: 10 }),
+        makeComment({ id: 'c1', parentCommentId: 'r1', score: 5 }),
+        makeComment({ id: 'c2', parentCommentId: 'r1', score: 3 }),
+        makeComment({ id: 'r2', score: 8 }),
+      ])
+
+      const { result } = renderHook(() => useCommentThread('p1'))
+      await waitFor(() => expect(result.current.loading).toBe(false))
+
+      expect(result.current.flatList).toHaveLength(4)
+      const r2Before = result.current.flatList.find(c => c.id === 'r2')
+
+      // Collapse r1 — hides c1 and c2, but r2 should keep same reference
+      act(() => result.current.toggleCollapse('r1'))
+
+      expect(result.current.flatList).toHaveLength(2) // r1 (collapsed), r2
+      const r2After = result.current.flatList.find(c => c.id === 'r2')
+      expect(r2After).toBe(r2Before) // Same object reference
+    })
+
+    it('preserves flatList item references for unchanged comments on vote', async () => {
+      mockGetComments.mockResolvedValue([
+        makeComment({ id: 'c1', score: 10 }),
+        makeComment({ id: 'c2', score: 5 }),
+      ])
+      mockVoteOnComment.mockResolvedValue({
+        upvoteCount: 4, downvoteCount: 1, score: 6,
+        userVote: { voteType: 'upvote' },
+      })
+
+      const { result } = renderHook(() => useCommentThread('p1'))
+      await waitFor(() => expect(result.current.loading).toBe(false))
+
+      const c2Before = result.current.flatList[1]
+
+      await act(async () => {
+        await result.current.handleVote('c1', 'upvote')
+      })
+
+      const c2After = result.current.flatList[1]
+      // c2 wasn't voted on — same reference preserved by layout + flatList cache
+      expect(c2After).toBe(c2Before)
+    })
   })
 })

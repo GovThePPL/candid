@@ -102,6 +102,12 @@ export default function Sidebar({ visible, onClose, user, onLogout, onBugReport 
             <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/settings')} accessibilityRole="button" accessibilityLabel={t('settings')}>
               <ThemedText variant="button" color="inverse" style={styles.menuText}>{t('settings')}</ThemedText>
             </TouchableOpacity>
+            <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/settings/activity')} accessibilityRole="button" accessibilityLabel={t('myActivity')}>
+              <View style={styles.menuItemRow}>
+                <ThemedText variant="button" color="inverse" style={styles.menuText}>{t('myActivity')}</ThemedText>
+                <Ionicons name="time-outline" size={18} color="#FFFFFF" />
+              </View>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuPress('/chats')} accessibilityRole="button" accessibilityLabel={t('chatHistory')}>
               <View style={styles.menuItemRow}>
                 <ThemedText variant="button" color="inverse" style={styles.menuText}>{t('chatHistory')}</ThemedText>

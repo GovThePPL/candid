@@ -1,4 +1,4 @@
-import { StyleSheet, View, ActivityIndicator, TouchableOpacity, Platform, Dimensions } from 'react-native'
+import { StyleSheet, View, TouchableOpacity, Platform, Dimensions } from 'react-native'
 import { useState, useEffect, useCallback, useRef, useContext, useMemo } from 'react'
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, interpolate, runOnJS } from 'react-native-reanimated'
 import { useRouter } from 'expo-router'
@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useTranslation } from 'react-i18next'
 import { SemanticColors } from '../../constants/Colors'
+import { Shadows } from '../../constants/Theme'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import useCardHandlers from '../../hooks/useCardHandlers'
 import api from '../../lib/api'
@@ -25,6 +26,7 @@ import {
   DiagnosticsConsentCard,
 } from '../../components/cards'
 import Header from '../../components/Header'
+import { SkeletonPulse, SkeletonBox, SkeletonCircle, SkeletonLine } from '../../components/Skeleton'
 import ChattingListExplanationModal from '../../components/ChattingListExplanationModal'
 import AdoptPositionExplanationModal from '../../components/AdoptPositionExplanationModal'
 import ReportModal from '../../components/ReportModal'
@@ -48,6 +50,38 @@ const SWIPING_ACTIVITY_WINDOW_MS = 15 * 1000
 const PROMOTION_DELAY_MS = 10 * 1000
 
 const SCREEN_HEIGHT = Dimensions.get('window').height
+
+function CardQueueSkeleton({ styles, colors }) {
+  return (
+    <View style={styles.cardContainer}>
+      <SkeletonPulse style={styles.skeletonCard}>
+        {/* Header row — badge left, circle button right */}
+        <View style={styles.skeletonHeaderRow}>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <SkeletonBox width={36} height={22} borderRadius={10} />
+            <SkeletonLine width={70} height={14} />
+          </View>
+          <SkeletonCircle size={42} />
+        </View>
+        {/* Statement — centered, matching paddingVertical: 40 */}
+        <View style={styles.skeletonStatementArea}>
+          <SkeletonLine width="85%" height={16} />
+          <SkeletonLine width="100%" height={16} />
+          <SkeletonLine width="60%" height={16} />
+        </View>
+        {/* Footer — flag | avatar+name | add, with top border */}
+        <View style={styles.skeletonFooterRow}>
+          <SkeletonCircle size={42} />
+          <View style={{ alignItems: 'center', gap: 6 }}>
+            <SkeletonCircle size={36} />
+            <SkeletonLine width={60} height={10} />
+          </View>
+          <SkeletonCircle size={42} />
+        </View>
+      </SkeletonPulse>
+    </View>
+  )
+}
 
 export default function CardQueue() {
   const router = useRouter()
@@ -903,10 +937,7 @@ export default function CardQueue() {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <Header showCreateButton />
-        <View style={styles.centerContent}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <ThemedText variant="button" color="secondary" style={styles.loadingText}>{t('loadingCards')}</ThemedText>
-        </View>
+        <CardQueueSkeleton styles={styles} colors={colors} />
       </SafeAreaView>
     )
   }
@@ -1087,5 +1118,31 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.cardBackground,
     borderRadius: 16,
     alignItems: 'center',
+  },
+  skeletonCard: {
+    flex: 1,
+    backgroundColor: colors.cardBackground,
+    borderRadius: 12,
+    padding: 20,
+    ...Shadows.card,
+  },
+  skeletonHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  skeletonStatementArea: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingVertical: 40,
+    gap: 12,
+  },
+  skeletonFooterRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.cardBorder,
   },
 })

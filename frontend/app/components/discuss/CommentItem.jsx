@@ -1,7 +1,8 @@
-import { memo, useState, useMemo } from 'react'
+import { memo, useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { View, TouchableOpacity, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
+import { useTheme } from '../../contexts/ThemeContext'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { Spacing } from '../../constants/Theme'
 import ThemedText from '../ThemedText'
@@ -10,26 +11,11 @@ import VoteControl from './VoteControl'
 import BridgingBadge from './BridgingBadge'
 import MarkdownRenderer from './MarkdownRenderer'
 import BottomDrawerModal from '../BottomDrawerModal'
+import { ROLE_COLORS } from './RoleBadge'
+import { THREAD_DEPTH_LIMIT } from '../../lib/commentTree'
 import { formatRelativeTime } from '../../lib/timeUtils'
 
-const INDENT_PX = 8
-
-/**
- * Single comment in a thread with indentation, voting, reply, and collapse.
- *
- * @param {Object} props
- * @param {Object} props.comment - Flattened comment node with depth/visualDepth
- * @param {string} props.currentUserId - Current user's ID
- * @param {boolean} props.isQAPost - Whether the parent post is a Q&A question
- * @param {boolean} props.isPostLocked - Whether the parent post is locked
- * @param {boolean} props.currentUserHasQAAuthority - Whether current user has QA authority
- * @param {Function} props.onUpvote - Called with comment id
- * @param {Function} props.onDownvote - Called with comment id
- * @param {Function} props.onReply - Called with comment object
- * @param {Function} props.onToggleCollapse - Called with comment id
- * @param {Function} props.onToggleRole - Called with (commentId, showCreatorRole)
- */
-const DEPTH_CUTOFF = 8
+const INDENT_PX = 16
 
 export default memo(function CommentItem({
   comment,
@@ -46,16 +32,22 @@ export default memo(function CommentItem({
   onContinueThread,
   isTruncatedRoot,
   onLoadMoreReplies,
+  isFocused,
+  isScrollTarget,
+  onFocusReady,
 }) {
   const { t } = useTranslation('discuss')
+  const { isDark } = useTheme()
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const [optionsVisible, setOptionsVisible] = useState(false)
+  const containerRef = useRef(null)
 
   const isDeleted = comment.isDeleted || comment.deletedByModerator
   const isOwnComment = currentUserId && comment.creator?.id === currentUserId
   const authorName = comment.creator?.displayName || comment.creator?.username || '?'
   const hasChildren = !!comment.hasChildren
+  const atDepthLimit = comment.depth >= THREAD_DEPTH_LIMIT
   const isEdited = comment.updatedTime && comment.createdTime &&
     new Date(comment.updatedTime).getTime() - new Date(comment.createdTime).getTime() > 1000
 
@@ -67,13 +59,49 @@ export default memo(function CommentItem({
     return comment.creatorRole != null
   })()
 
+  // Role-based content tint
+  const roleHighlightBg = useMemo(() => {
+    if (isDeleted || !comment.creatorRole || comment.showCreatorRole === false) return null
+    const color = ROLE_COLORS[comment.creatorRole]
+    if (!color) return null
+    return color + (isDark ? '30' : '1A')
+  }, [isDeleted, comment.creatorRole, comment.showCreatorRole, isDark])
+
+  // measureInWindow for scroll positioning (fires on scroll target, not focused comment)
+  useEffect(() => {
+    if (!isScrollTarget || !containerRef.current) return
+    const timer = setTimeout(() => {
+      containerRef.current.measureInWindow((x, y, w, h) => {
+        if (y === 0 && h === 0) return
+        onFocusReady?.(y)
+      })
+    }, 200)
+    return () => clearTimeout(timer)
+  }, [isScrollTarget])
+
+  // Stable callbacks for child components (avoid inline arrows that defeat memo)
+  const handleUpvote = useCallback(() => onUpvote(comment.id), [onUpvote, comment.id])
+  const handleDownvote = useCallback(() => onDownvote(comment.id), [onDownvote, comment.id])
+  const handleCollapse = useCallback(() => onToggleCollapse(comment.id), [onToggleCollapse, comment.id])
+
   const lineStates = comment.lineStates || []
 
   return (
     <View
+      ref={containerRef}
       style={styles.container}
       accessibilityLabel={t('commentByA11y', { author: authorName })}
     >
+      {/* Focus highlight overlay */}
+      {isFocused && (
+        <View
+          style={[StyleSheet.absoluteFill, {
+            backgroundColor: isDark ? 'rgba(255, 184, 255, 0.12)' : 'rgba(92, 0, 92, 0.10)',
+            borderRadius: 4,
+          }]}
+          pointerEvents="none"
+        />
+      )}
       {/* Depth thread lines with start/end/full/stub rendering */}
       {lineStates.length > 0 && (
         <View style={styles.linesContainer}>
@@ -95,7 +123,7 @@ export default memo(function CommentItem({
         </View>
       )}
 
-      <View style={styles.content}>
+      <View style={[styles.content, roleHighlightBg && { backgroundColor: roleHighlightBg, borderRadius: 4 }]}>
         {/* Header row: avatar, author, role, time, depth badge */}
         <View style={styles.headerRow}>
           <View style={styles.headerLeft}>
@@ -137,7 +165,7 @@ export default memo(function CommentItem({
         {!isDeleted && comment.isAutoCollapsed && (
           <TouchableOpacity
             style={styles.autoCollapsedRow}
-            onPress={() => onToggleCollapse(comment.id)}
+            onPress={handleCollapse}
             activeOpacity={0.6}
             accessibilityRole="button"
             accessibilityLabel={t('belowThresholdA11y', { author: authorName })}
@@ -149,15 +177,15 @@ export default memo(function CommentItem({
           </TouchableOpacity>
         )}
 
-        {/* Body — tappable to collapse children */}
+        {/* Body — tappable to collapse children (not at depth limit where children aren't inline) */}
         {isDeleted ? (
           <ThemedText variant="bodySmall" color="placeholder" style={styles.body}>
             {comment.deletedByModerator ? t('removedComment') : t('deletedComment')}
           </ThemedText>
-        ) : comment.isAutoCollapsed ? null : hasChildren ? (
+        ) : comment.isAutoCollapsed ? null : (hasChildren && !atDepthLimit) ? (
           <TouchableOpacity
             style={styles.body}
-            onPress={() => onToggleCollapse(comment.id)}
+            onPress={handleCollapse}
             activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel={
@@ -177,10 +205,10 @@ export default memo(function CommentItem({
         {/* Action row: collapsed indicator, spacer, options, reply pill, vote pill */}
         {!isDeleted && !comment.isAutoCollapsed && (
           <View style={styles.actionRow}>
-            {/* Left side: collapsed summary + edited indicator */}
-            {comment.isCollapsed && comment.collapsedCount > 0 && (
+            {/* Left side: collapsed summary + edited indicator (not at depth limit) */}
+            {comment.isCollapsed && comment.collapsedCount > 0 && !atDepthLimit && (
               <TouchableOpacity
-                onPress={() => onToggleCollapse(comment.id)}
+                onPress={handleCollapse}
                 activeOpacity={0.6}
                 style={styles.collapsedSummary}
                 accessibilityRole="button"
@@ -229,8 +257,8 @@ export default memo(function CommentItem({
               upvoteCount={comment.upvoteCount || 0}
               downvoteCount={comment.downvoteCount || 0}
               userVote={comment.userVote}
-              onUpvote={() => onUpvote(comment.id)}
-              onDownvote={() => onDownvote(comment.id)}
+              onUpvote={handleUpvote}
+              onDownvote={handleDownvote}
               authorName={authorName}
               targetType="comment"
               disabled={isOwnComment}
@@ -238,8 +266,8 @@ export default memo(function CommentItem({
           </View>
         )}
 
-        {/* Continue this thread link (for deeply nested threads) */}
-        {!isDeleted && comment.depth >= DEPTH_CUTOFF && hasChildren && !comment.isCollapsed && onContinueThread && (
+        {/* Continue this thread link (at depth limit where children aren't rendered inline) */}
+        {!isDeleted && atDepthLimit && hasChildren && onContinueThread && (
           <TouchableOpacity
             style={styles.continueThread}
             onPress={() => onContinueThread(comment.id)}
@@ -355,7 +383,8 @@ const createStyles = (colors) => StyleSheet.create({
   lineSegment: {
     flex: 1,
     borderLeftWidth: 1,
-    borderLeftColor: colors.cardBorder,
+    borderLeftColor: colors.threadLine,
+    marginLeft: 7,
   },
   lineInsetTop: {
     marginTop: Spacing.sm,
@@ -364,12 +393,12 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   depthSpacer: {
-    width: 4,
+    width: 7,
   },
   content: {
     flex: 1,
     paddingVertical: Spacing.sm,
-    marginLeft: 4,
+    marginLeft: 0,
   },
   headerRow: {
     flexDirection: 'row',
@@ -429,6 +458,12 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: 14,
+    alignSelf: 'flex-start',
+    marginTop: Spacing.xs,
   },
   optionsList: {
     padding: Spacing.lg,

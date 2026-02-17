@@ -5,6 +5,16 @@ import { useToast } from '../components/Toast'
 import { buildTree, sortTree, flattenTree, getAutoCollapsedIds } from '../lib/commentTree'
 import { isConnected, joinPost, leavePost, onNewComment, onVoteUpdate } from '../lib/socket'
 
+/** Shallow array equality for short arrays (activeLines, lineStates). */
+function arrEq(a, b) {
+  if (a === b) return true
+  if (!a || !b || a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false
+  }
+  return true
+}
+
 /**
  * Hook for managing comment thread state: fetch, tree build, sort, collapse,
  * optimistic voting, comment creation, and cursor-based pagination.
@@ -13,12 +23,17 @@ import { isConnected, joinPost, leavePost, onNewComment, onVoteUpdate } from '..
  * Votes update comment data in-place without re-sorting (prevents comments
  * from jumping around while the user is reading).
  *
+ * Performance: callbacks use refs to read state, avoiding dependency on
+ * rawComments/flatList. The flatList cache reuses merged objects when neither
+ * the source data nor layout has changed, preserving referential equality for
+ * React.memo on CommentItem.
+ *
  * @param {string} postId - Post ID to fetch comments for
  * @param {Object} [options] - Options
  * @param {string} [options.threadRootId] - If set, fetches a single comment's subtree instead of full post comments
  * @returns {Object} thread state and actions
  */
-export default function useCommentThread(postId, { threadRootId } = {}) {
+export default function useCommentThread(postId, { threadRootId, focusCommentId } = {}) {
   const { t } = useTranslation('discuss')
   const showToast = useToast()
   const [rawComments, setRawComments] = useState([])
@@ -38,6 +53,18 @@ export default function useCommentThread(postId, { threadRootId } = {}) {
   // to trigger re-sort. Votes do NOT bump this.
   const [structureVersion, setStructureVersion] = useState(0)
 
+  // Refs for stable callback access (avoids putting state arrays in callback deps)
+  const rawCommentsRef = useRef(rawComments)
+  useEffect(() => { rawCommentsRef.current = rawComments }, [rawComments])
+
+  // Cache for stable flatList item references — reuses merged objects when
+  // neither source data nor layout changed for a given comment
+  const flatListCacheRef = useRef(new Map())
+
+  // Cache for stable layout objects — reuses previous layout when all
+  // field values match, so flatListCacheRef gets referential hits on collapse
+  const layoutCacheRef = useRef(new Map())
+
   useEffect(() => {
     mountedRef.current = true
     return () => { mountedRef.current = false }
@@ -51,7 +78,9 @@ export default function useCommentThread(postId, { threadRootId } = {}) {
     try {
       let result
       if (threadRootId) {
-        result = await api.comments.getCommentThread(postId, threadRootId)
+        result = await api.comments.getCommentThread(postId, threadRootId, {
+          includeAncestors: !!focusCommentId,
+        })
       } else {
         result = await api.comments.getComments(postId)
       }
@@ -80,7 +109,7 @@ export default function useCommentThread(postId, { threadRootId } = {}) {
         setLoading(false)
       }
     }
-  }, [postId, threadRootId])
+  }, [postId, threadRootId, focusCommentId])
 
   // Fetch on mount / postId change
   useEffect(() => {
@@ -160,61 +189,158 @@ export default function useCommentThread(postId, { threadRootId } = {}) {
     }
   }, [postId, cursor, hasMore, loadingMore])
 
+  // Auto-expand ancestors of focused comment so it's visible in the flat list
+  useEffect(() => {
+    if (!focusCommentId || rawComments.length === 0) return
+    const commentMap = new Map(rawComments.map(c => [c.id, c]))
+    const comment = commentMap.get(focusCommentId)
+    if (!comment) return
+
+    const ancestorIds = []
+    let parentId = comment.parentCommentId
+    while (parentId) {
+      const parent = commentMap.get(parentId)
+      if (!parent) break
+      ancestorIds.push(parent.id)
+      parentId = parent.parentCommentId
+    }
+    if (ancestorIds.length === 0) return
+
+    setCollapsedIds(prev => {
+      const next = new Set(prev)
+      let changed = false
+      for (const id of ancestorIds) {
+        if (next.has(id)) { next.delete(id); changed = true }
+      }
+      return changed ? next : prev
+    })
+    setExpandedIds(prev => {
+      const next = new Set(prev)
+      let changed = false
+      for (const id of ancestorIds) {
+        if (!next.has(id)) { next.add(id); changed = true }
+      }
+      return changed ? next : prev
+    })
+  }, [focusCommentId, rawComments])
+
+  // Auto-collapsed IDs — computed once, shared by effectiveCollapsedIds and UI
+  const autoCollapsedSet = useMemo(() => getAutoCollapsedIds(rawComments),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [structureVersion])
+
   // Compute effective collapsed IDs: manual collapses + auto-collapse (minus explicit expands)
   const effectiveCollapsedIds = useMemo(() => {
-    const autoCollapsed = getAutoCollapsedIds(rawComments)
     const effective = new Set(collapsedIds)
-    for (const id of autoCollapsed) {
+    for (const id of autoCollapsedSet) {
       if (!expandedIds.has(id)) {
         effective.add(id)
       }
     }
     return effective
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [structureVersion, collapsedIds, expandedIds])
+  }, [autoCollapsedSet, collapsedIds, expandedIds])
 
-  // Auto-collapsed IDs for UI differentiation
-  const autoCollapsedSet = useMemo(() => getAutoCollapsedIds(rawComments),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [structureVersion])
-
-  // Compute sort order + tree layout (only on structural changes, sort, collapse)
-  // Returns array of { id, depth, visualDepth, isCollapsed, isAutoCollapsed, collapsedCount, activeLines, lineStates }
-  const sortedLayout = useMemo(() => {
+  // Cache sorted tree — only rebuild on structural changes or sort change.
+  // Collapse toggles skip the expensive buildTree + sortTree steps.
+  const sortedTree = useMemo(() => {
     if (rawComments.length === 0) return []
     const tree = buildTree(rawComments)
-    const sorted = sortTree(tree, sort)
-    const flat = flattenTree(sorted, effectiveCollapsedIds)
-    // Strip data fields — keep only structural/layout info + id
-    return flat.map(item => ({
-      id: item.id,
-      depth: item.depth,
-      visualDepth: item.visualDepth,
-      isCollapsed: item.isCollapsed,
-      isAutoCollapsed: autoCollapsedSet.has(item.id) && !expandedIds.has(item.id),
-      collapsedCount: item.collapsedCount,
-      hasChildren: Array.isArray(item.children) && item.children.length > 0,
-      activeLines: item.activeLines,
-      lineStates: item.lineStates,
-    }))
+    return sortTree(tree, sort)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [structureVersion, sort, effectiveCollapsedIds, autoCollapsedSet, expandedIds])
+  }, [structureVersion, sort])
 
-  // Build final flat list: stable order from sortedLayout + current data from rawComments
+  // Flatten only — runs on collapse changes without rebuilding tree.
+  // Caches layout objects by field values so most items keep the same
+  // reference on collapse (only the toggled comment + a few neighbors change).
+  const sortedLayout = useMemo(() => {
+    if (sortedTree.length === 0) {
+      layoutCacheRef.current = new Map()
+      return []
+    }
+    const flat = flattenTree(sortedTree, effectiveCollapsedIds)
+    const prevCache = layoutCacheRef.current
+    const nextCache = new Map()
+
+    const result = flat.map(item => {
+      const id = item.id
+      const isAutoCollapsed = autoCollapsedSet.has(id) && !expandedIds.has(id)
+      const hasChildren = Array.isArray(item.children) && item.children.length > 0
+
+      const prev = prevCache.get(id)
+      if (prev &&
+          prev.depth === item.depth &&
+          prev.visualDepth === item.visualDepth &&
+          prev.isCollapsed === item.isCollapsed &&
+          prev.isAutoCollapsed === isAutoCollapsed &&
+          prev.collapsedCount === item.collapsedCount &&
+          prev.hasChildren === hasChildren &&
+          arrEq(prev.activeLines, item.activeLines) &&
+          arrEq(prev.lineStates, item.lineStates)) {
+        nextCache.set(id, prev)
+        return prev
+      }
+
+      const layout = {
+        id,
+        depth: item.depth,
+        visualDepth: item.visualDepth,
+        isCollapsed: item.isCollapsed,
+        isAutoCollapsed,
+        collapsedCount: item.collapsedCount,
+        hasChildren,
+        activeLines: item.activeLines,
+        lineStates: item.lineStates,
+      }
+      nextCache.set(id, layout)
+      return layout
+    })
+
+    layoutCacheRef.current = nextCache
+    return result
+  }, [sortedTree, effectiveCollapsedIds, autoCollapsedSet, expandedIds])
+
+  // Build final flat list with stable object references per comment.
+  // Reuses previous merged objects when neither source data nor layout changed,
+  // so React.memo on CommentItem skips re-rendering unchanged comments.
   const flatList = useMemo(() => {
-    if (sortedLayout.length === 0) return []
+    if (sortedLayout.length === 0) {
+      flatListCacheRef.current = new Map()
+      return []
+    }
     const commentMap = new Map(rawComments.map(c => [c.id, c]))
-    return sortedLayout.map(layout => {
+    const prevCache = flatListCacheRef.current
+    const nextCache = new Map()
+
+    const result = sortedLayout.map(layout => {
       const data = commentMap.get(layout.id)
       if (!data) return null
-      return { ...data, ...layout }
+      const entry = prevCache.get(layout.id)
+      // Reuse previous merged object if both source data and layout are unchanged
+      if (entry && entry.data === data && entry.layout === layout) {
+        nextCache.set(layout.id, entry)
+        return entry.merged
+      }
+      const merged = { ...data, ...layout }
+      nextCache.set(layout.id, { merged, data, layout })
+      return merged
     }).filter(Boolean)
+
+    flatListCacheRef.current = nextCache
+    return result
   }, [sortedLayout, rawComments])
 
-  // Toggle collapse — handles both manual and auto-collapsed items
+  // Refs for stable toggleCollapse access
+  const autoCollapsedRef = useRef(autoCollapsedSet)
+  useEffect(() => { autoCollapsedRef.current = autoCollapsedSet }, [autoCollapsedSet])
+  const expandedIdsRef = useRef(expandedIds)
+  useEffect(() => { expandedIdsRef.current = expandedIds }, [expandedIds])
+
+  // Toggle collapse — stable callback using refs (no deps on derived state)
   const toggleCollapse = useCallback((commentId) => {
+    const autoSet = autoCollapsedRef.current
+    const expSet = expandedIdsRef.current
     // If it's auto-collapsed and being expanded, add to expandedIds
-    if (autoCollapsedSet.has(commentId) && !expandedIds.has(commentId)) {
+    if (autoSet.has(commentId) && !expSet.has(commentId)) {
       setExpandedIds(prev => {
         const next = new Set(prev)
         next.add(commentId)
@@ -223,7 +349,7 @@ export default function useCommentThread(postId, { threadRootId } = {}) {
       return
     }
     // If it was auto-collapsed but user expanded it, re-collapse by removing from expandedIds
-    if (autoCollapsedSet.has(commentId) && expandedIds.has(commentId)) {
+    if (autoSet.has(commentId) && expSet.has(commentId)) {
       setExpandedIds(prev => {
         const next = new Set(prev)
         next.delete(commentId)
@@ -241,13 +367,11 @@ export default function useCommentThread(postId, { threadRootId } = {}) {
       }
       return next
     })
-  }, [autoCollapsedSet, expandedIds])
+  }, [])
 
-  // Optimistic vote on comment
+  // Optimistic vote on comment — stable callback using ref for current state
   const handleVote = useCallback(async (commentId, voteType, reason) => {
-    // Find current comment state for rollback
-    const prevComments = rawComments
-    const comment = rawComments.find(c => c.id === commentId)
+    const comment = rawCommentsRef.current.find(c => c.id === commentId)
     if (!comment) return
 
     const wasUpvoted = comment.userVote?.voteType === 'upvote'
@@ -279,6 +403,9 @@ export default function useCommentThread(postId, { threadRootId } = {}) {
       }
     }
 
+    // Capture pre-update state for rollback (read ref before setRawComments)
+    const snapshotForRollback = rawCommentsRef.current
+
     // Optimistic update — does NOT bump structureVersion, so no re-sort
     setRawComments(prev => prev.map(c =>
       c.id === commentId
@@ -307,16 +434,16 @@ export default function useCommentThread(postId, { threadRootId } = {}) {
     } catch {
       // Revert on error
       if (mountedRef.current) {
-        setRawComments(prevComments)
+        setRawComments(snapshotForRollback)
       }
       showToast(t('errorVoteFailed'))
     }
-  }, [rawComments, showToast, t])
+  }, [showToast, t])
 
-  // Toggle role badge visibility on a comment
+  // Toggle role badge visibility — stable callback using ref for rollback
   const handleToggleRole = useCallback(async (commentId, show) => {
-    // Optimistic update
-    const prevComments = rawComments
+    const snapshotForRollback = rawCommentsRef.current
+
     setRawComments(prev => prev.map(c =>
       c.id === commentId
         ? { ...c, showCreatorRole: show }
@@ -328,11 +455,34 @@ export default function useCommentThread(postId, { threadRootId } = {}) {
     } catch {
       // Revert on error
       if (mountedRef.current) {
-        setRawComments(prevComments)
+        setRawComments(snapshotForRollback)
       }
       showToast(t('errorToggleRoleFailed'))
     }
-  }, [rawComments, showToast, t])
+  }, [showToast, t])
+
+  // Load a single parent comment by ID — used by "View parent comment" to
+  // progressively prepend ancestors without loading sibling threads.
+  const loadParentComment = useCallback(async (parentCommentId) => {
+    try {
+      const result = await api.comments.getCommentThread(postId, parentCommentId, { maxDescendants: 1 })
+      if (mountedRef.current && result) {
+        const comments = result.comments ?? []
+        const parent = comments.find(c => c.id === parentCommentId)
+        if (parent) {
+          setRawComments(prev => {
+            if (prev.some(c => c.id === parentCommentId)) return prev
+            return [parent, ...prev]
+          })
+          setStructureVersion(v => v + 1)
+          return parent
+        }
+      }
+    } catch {
+      showToast(t('errorLoadComments'))
+    }
+    return null
+  }, [postId, showToast, t])
 
   // Load more replies for a truncated root — fetches full subtree via getCommentThread
   const loadMoreReplies = useCallback(async (rootCommentId) => {
@@ -385,9 +535,9 @@ export default function useCommentThread(postId, { threadRootId } = {}) {
     refetch: fetchComments,
     loadMore,
     loadMoreReplies,
+    loadParentComment,
     hasMore,
     totalRootCount,
     truncatedRoots,
-    commentCount: rawComments.length,
   }
 }

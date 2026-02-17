@@ -20,6 +20,8 @@ export function controversyScore(up, down) {
  * net (weightedUpvotes − weightedDownvotes) falls below this are
  * automatically collapsed unless the user explicitly expands them.
  */
+export const THREAD_DEPTH_LIMIT = 7
+
 export const AUTO_COLLAPSE_THRESHOLD = -3
 
 /**
@@ -137,14 +139,14 @@ function countDescendants(node) {
  *
  * Each item gets:
  * - `depth`: actual nesting level (0 for root)
- * - `visualDepth`: Math.min(depth, 5) — caps indentation
+ * - `visualDepth`: Math.min(depth, THREAD_DEPTH_LIMIT) — caps indentation
  * - `isCollapsed`: whether this node is collapsed
  * - `collapsedCount`: total hidden descendants (only set on collapsed nodes)
  * - `activeLines`: array of booleans (length = visualDepth - 1) indicating
  *   which ancestor thread lines should be drawn. A line is active when the
  *   ancestor at that depth still has siblings below.
  *
- * Children of collapsed nodes are skipped.
+ * Children of collapsed nodes and nodes at THREAD_DEPTH_LIMIT are skipped.
  *
  * @param {Array} tree - sorted tree nodes
  * @param {Set} collapsedIds - Set of comment IDs that are collapsed
@@ -161,7 +163,7 @@ export function flattenTree(tree, collapsedIds = new Set(), depth = 0, ancestorH
     const node = tree[i]
     const isLast = i === tree.length - 1
     const isCollapsed = collapsedIds.has(node.id)
-    const visualDepth = Math.min(depth, 5)
+    const visualDepth = Math.min(depth, THREAD_DEPTH_LIMIT)
 
     // Record whether this node has a next sibling at its depth
     ancestorHasNext[depth] = !isLast
@@ -195,8 +197,8 @@ export function flattenTree(tree, collapsedIds = new Set(), depth = 0, ancestorH
 
     result.push(item)
 
-    // Skip children of collapsed nodes
-    if (!isCollapsed && node.children && node.children.length > 0) {
+    // Skip children of collapsed nodes and nodes at the depth limit
+    if (!isCollapsed && depth < THREAD_DEPTH_LIMIT && node.children && node.children.length > 0) {
       const childItems = flattenTree(node.children, collapsedIds, depth + 1, ancestorHasNext)
       result.push(...childItems)
     }

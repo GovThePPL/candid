@@ -5,7 +5,6 @@ import {
   View,
   ScrollView,
   RefreshControl,
-  ActivityIndicator,
   TouchableOpacity,
   TextInput,
   Linking,
@@ -28,13 +27,66 @@ import PositionCard from '../../components/stats/PositionCard'
 import GroupDemographicsModal from '../../components/stats/GroupDemographicsModal'
 import SurveyResultsModal from '../../components/stats/SurveyResultsModal'
 import InfoModal from '../../components/InfoModal'
+import { SkeletonPulse, SkeletonBox, SkeletonLine } from '../../components/Skeleton'
 import api, { statsApiWrapper, surveysApiWrapper, API_BASE_URL, translateError } from '../../lib/api'
+import { CacheManager, CacheKeys, CacheDurations } from '../../lib/cache'
 import { UserContext } from '../../contexts/UserContext'
 import { useLocationCategory } from '../../contexts/LocationCategoryContext'
 
 const CARD_MIN_WIDTH = 340
 const SEARCH_DEBOUNCE_MS = 800
 const SEARCH_PAGE_SIZE = 20
+
+function StatsContentSkeleton({ styles }) {
+  return (
+    <SkeletonPulse>
+      {/* Opinion map area */}
+      <View style={styles.section}>
+        <SkeletonLine width={120} height={16} style={{ marginLeft: 16, marginBottom: 8 }} />
+        <SkeletonBox width="100%" height={200} borderRadius={12} style={{ marginHorizontal: 16 }} />
+      </View>
+      {/* Tab bar pills */}
+      <View style={styles.skeletonTabRow}>
+        <SkeletonBox width={80} height={32} borderRadius={16} />
+        <SkeletonBox width={70} height={32} borderRadius={16} />
+        <SkeletonBox width={70} height={32} borderRadius={16} />
+      </View>
+      {/* Demographics row */}
+      <View style={styles.skeletonDemographicsRow}>
+        <SkeletonLine width={100} height={12} />
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <SkeletonBox width={60} height={24} borderRadius={12} />
+          <SkeletonBox width={70} height={24} borderRadius={12} />
+          <SkeletonBox width={55} height={24} borderRadius={12} />
+        </View>
+      </View>
+      {/* Position cards */}
+      <View style={styles.section}>
+        <SkeletonLine width={200} height={16} style={{ marginLeft: 16, marginBottom: 12 }} />
+        <View style={styles.skeletonCarouselRow}>
+          <View style={styles.skeletonPositionCard}>
+            <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
+              <SkeletonBox width={30} height={18} borderRadius={8} />
+              <SkeletonLine width={50} height={12} />
+            </View>
+            <SkeletonLine width="85%" height={13} />
+            <SkeletonLine width="60%" height={13} />
+            <SkeletonBox width="100%" height={24} borderRadius={6} style={{ marginTop: 10 }} />
+          </View>
+          <View style={styles.skeletonPositionCard}>
+            <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
+              <SkeletonBox width={30} height={18} borderRadius={8} />
+              <SkeletonLine width={60} height={12} />
+            </View>
+            <SkeletonLine width="70%" height={13} />
+            <SkeletonLine width="90%" height={13} />
+            <SkeletonBox width="100%" height={24} borderRadius={6} style={{ marginTop: 10 }} />
+          </View>
+        </View>
+      </View>
+    </SkeletonPulse>
+  )
+}
 
 export default function Stats() {
   const { user } = useContext(UserContext)
@@ -170,13 +222,46 @@ export default function Stats() {
   const fetchStats = async () => {
     if (!selectedLocation || !selectedCategory) return
 
+    const cacheKey = CacheKeys.stats(selectedLocation, selectedCategory)
+
     try {
-      setLoading(true)
       setError(null)
+
+      // Check cache first
+      const cached = await CacheManager.get(cacheKey)
+
+      if (cached && !CacheManager.isStale(cached, CacheDurations.STATS)) {
+        // Fresh cache — use immediately, no fetch needed
+        setStatsData(cached.data)
+        setActiveTab('majority')
+        setLoading(false)
+        return
+      }
+
+      if (cached) {
+        // Stale cache — show cached data immediately, refresh in background
+        setStatsData(cached.data)
+        setLoading(false)
+
+        // Background refresh
+        try {
+          const data = await statsApiWrapper.getStats(selectedLocation, selectedCategory)
+          setStatsData(data)
+          setActiveTab('majority')
+          await CacheManager.set(cacheKey, data)
+        } catch (err) {
+          // Silently fail — stale data is already displayed
+          console.warn('Background stats refresh failed:', err)
+        }
+        return
+      }
+
+      // No cache — show loading, fetch normally
+      setLoading(true)
       const data = await statsApiWrapper.getStats(selectedLocation, selectedCategory)
       setStatsData(data)
-      // Reset to majority tab when data changes
       setActiveTab('majority')
+      await CacheManager.set(cacheKey, data)
     } catch (err) {
       console.error('Error fetching stats:', err)
       setError(translateError(err.message, t) || t('failedLoadStats'))
@@ -187,9 +272,22 @@ export default function Stats() {
   }
 
   const onRefresh = useCallback(async () => {
+    if (!selectedLocation || !selectedCategory) return
     setRefreshing(true)
-    await fetchStats()
-    setRefreshing(false)
+    try {
+      const cacheKey = CacheKeys.stats(selectedLocation, selectedCategory)
+      await CacheManager.invalidate(cacheKey)
+      const data = await statsApiWrapper.getStats(selectedLocation, selectedCategory)
+      setStatsData(data)
+      setActiveTab('majority')
+      await CacheManager.set(cacheKey, data)
+      setError(null)
+    } catch (err) {
+      console.error('Error refreshing stats:', err)
+      setError(translateError(err.message, t) || t('failedLoadStats'))
+    } finally {
+      setRefreshing(false)
+    }
   }, [selectedLocation, selectedCategory])
 
   const handleGroupSelect = (groupId) => {
@@ -267,12 +365,7 @@ export default function Stats() {
 
   const renderContent = () => {
     if (loading && !refreshing) {
-      return (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <ThemedText variant="bodySmall" color="secondary" style={styles.loadingText}>{t('loadingStats')}</ThemedText>
-        </View>
-      )
+      return <StatsContentSkeleton styles={styles} />
     }
 
     if (error) {
@@ -784,5 +877,32 @@ const createStyles = (colors) => StyleSheet.create({
   },
   searchSpinner: {
     marginTop: 16,
+  },
+
+  // Skeleton
+  skeletonTabRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  skeletonDemographicsRow: {
+    paddingHorizontal: 16,
+    gap: 8,
+    marginBottom: 8,
+  },
+  skeletonCarouselRow: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 16,
+  },
+  skeletonPositionCard: {
+    flex: 1,
+    backgroundColor: colors.cardBackground,
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    gap: 8,
   },
 })

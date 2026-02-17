@@ -188,6 +188,7 @@ const createStyles = (colors, insets) => StyleSheet.create({
     marginRight: -2,
   },
   logo: {
+    lineHeight: 40,
     ...Platform.select({
       web: {
         fontFamily: 'Pacifico, cursive',

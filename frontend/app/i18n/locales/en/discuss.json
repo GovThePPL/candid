@@ -176,5 +176,7 @@
   "continueThreadA11y": "Continue reading this comment thread",
   "backToFullThread": "Back to full thread",
   "backToFullThreadA11y": "Return to the full comment thread",
-  "threadTruncated": "Thread truncated — not all replies are shown"
+  "threadTruncated": "Thread truncated — not all replies are shown",
+  "viewParent": "View parent comment",
+  "viewParentA11y": "Navigate to the parent comment thread"
 }

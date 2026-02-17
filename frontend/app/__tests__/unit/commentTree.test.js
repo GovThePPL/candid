@@ -5,6 +5,7 @@ import {
   controversyScore,
   getAutoCollapsedIds,
   AUTO_COLLAPSE_THRESHOLD,
+  THREAD_DEPTH_LIMIT,
 } from '../../lib/commentTree'
 
 // Helper to create a comment with defaults
@@ -161,20 +162,21 @@ describe('flattenTree', () => {
     ])
   })
 
-  it('caps visualDepth at 5', () => {
-    // Create a chain 7 levels deep
+  it('caps visualDepth at THREAD_DEPTH_LIMIT and stops rendering children beyond it', () => {
+    // Create a chain 9 levels deep (l0 through l9)
     const chain = [makeComment({ id: 'l0' })]
-    for (let i = 1; i <= 7; i++) {
+    for (let i = 1; i <= 9; i++) {
       chain.push(makeComment({ id: `l${i}`, parentCommentId: `l${i - 1}` }))
     }
     const tree = buildTree(chain)
     const flat = flattenTree(tree)
-    expect(flat[5].depth).toBe(5)
-    expect(flat[5].visualDepth).toBe(5)
-    expect(flat[6].depth).toBe(6)
-    expect(flat[6].visualDepth).toBe(5) // Capped
+    // Only items up to the depth limit are rendered (l0 through l7)
+    expect(flat).toHaveLength(8)
     expect(flat[7].depth).toBe(7)
-    expect(flat[7].visualDepth).toBe(5) // Capped
+    expect(flat[7].visualDepth).toBe(7)
+    expect(flat[7].id).toBe('l7')
+    // l7 still knows it has children (for "continue thread" button)
+    expect(flat[7].children.length).toBeGreaterThan(0)
   })
 
   it('skips children of collapsed nodes', () => {
@@ -459,5 +461,9 @@ describe('getAutoCollapsedIds', () => {
 
   it('exports AUTO_COLLAPSE_THRESHOLD as -3', () => {
     expect(AUTO_COLLAPSE_THRESHOLD).toBe(-3)
+  })
+
+  it('exports THREAD_DEPTH_LIMIT as 7', () => {
+    expect(THREAD_DEPTH_LIMIT).toBe(7)
   })
 })

@@ -20,10 +20,10 @@ echo "Patching CardItem models for proper discriminator validation..."
 patch_card_item() {
     local file=$1
     local expected_type=$2
-    # Use sed for the replacement (only first match)
-    sed -i "s|// ensure the json data is a string|// ensure the json data matches the expected enum value|" "$file"
-    sed -i "s|if (data\['type'\] \&\& !(typeof data\['type'\] === 'string' || data\['type'\] instanceof String)) {|if (data['type'] !== '$expected_type') {|" "$file"
-    sed -i "s|throw new Error(\"Expected the field \\\`type\\\` to be a primitive type in the JSON string but got \" + data\['type'\]);|throw new Error(\"Expected type to be '$expected_type' but got '\" + data['type'] + \"'\");|" "$file"
+    # Delimiter is # (not | which appears in the JS source as ||)
+    sed -i "s#// ensure the json data is a string#// ensure the json data matches the expected enum value#" "$file"
+    sed -i "s#if (data\['type'\] \&\& !(typeof data\['type'\] === 'string' || data\['type'\] instanceof String)) {#if (data['type'] !== '$expected_type') {#" "$file"
+    sed -i "s#throw new Error(\"Expected the field \`type\` to be a primitive type in the JSON string but got \" + data\['type'\]);#throw new Error(\"Expected type to be '$expected_type' but got '\" + data['type'] + \"'\");#" "$file"
 }
 
 [ -f src/model/PositionCardItem.js ] && patch_card_item src/model/PositionCardItem.js "position"

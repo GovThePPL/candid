@@ -88,41 +88,24 @@ export default function PreferencesSettings() {
       setLoading(true)
       setError(null)
 
-      const categoriesCacheKey = CacheKeys.categories()
-      const settingsCacheKey = CacheKeys.settings(user?.id)
-
-      const [cachedCategories, cachedSettings] = await Promise.all([
-        CacheManager.get(categoriesCacheKey),
-        CacheManager.get(settingsCacheKey),
+      const [{ data: categoriesData }, { data: settingsData }] = await Promise.all([
+        CacheManager.fetchOrCache(
+          CacheKeys.categories(),
+          () => api.categories.getAll(),
+          { maxAge: CacheDurations.CATEGORIES }
+        ),
+        CacheManager.fetchOrCache(
+          CacheKeys.settings(user?.id),
+          () => api.users.getSettings(),
+          { maxAge: CacheDurations.SETTINGS }
+        ),
       ])
 
-      const categoriesFresh = cachedCategories && !CacheManager.isStale(cachedCategories, CacheDurations.CATEGORIES)
-      const settingsFresh = cachedSettings && !CacheManager.isStale(cachedSettings, CacheDurations.SETTINGS)
-
-      if (categoriesFresh) {
-        setCategories(cachedCategories.data)
+      if (categoriesData) {
+        setCategories(categoriesData)
       }
-      if (settingsFresh) {
-        applySettingsData(cachedSettings.data)
-      }
-
-      if (!categoriesFresh || !settingsFresh) {
-        const fetches = []
-        if (!categoriesFresh) fetches.push(api.categories.getAll())
-        else fetches.push(null)
-        if (!settingsFresh) fetches.push(api.users.getSettings())
-        else fetches.push(null)
-
-        const [categoriesData, settingsData] = await Promise.all(fetches)
-
-        if (categoriesData) {
-          setCategories(categoriesData)
-          await CacheManager.set(categoriesCacheKey, categoriesData)
-        }
-        if (settingsData) {
-          applySettingsData(settingsData)
-          await CacheManager.set(settingsCacheKey, settingsData)
-        }
+      if (settingsData) {
+        applySettingsData(settingsData)
       }
 
       setTimeout(() => {

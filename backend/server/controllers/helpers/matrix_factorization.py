@@ -354,9 +354,9 @@ def _store_mf_results(conversation_id, model, idx_maps):
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
     """, (conversation_id, location_id, category_id,
           len(idx_to_user_id), len(idx_to_item_id),
-          idx_maps["n_votes"],
-          model["final_loss"], model["epochs"],
-          idx_maps.get("duration_seconds")))
+          int(idx_maps["n_votes"]),
+          float(model["final_loss"]), int(model["epochs"]),
+          float(idx_maps["duration_seconds"]) if idx_maps.get("duration_seconds") is not None else None))
 
 
 # ---------------------------------------------------------------------------

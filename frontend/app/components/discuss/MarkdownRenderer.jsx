@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from 'react'
+import { memo, useMemo, useCallback } from 'react'
 import { Linking } from 'react-native'
 import Markdown from 'react-native-markdown-display'
 import { useThemeColors } from '../../hooks/useThemeColors'
@@ -11,7 +11,7 @@ import { Typography } from '../../constants/Theme'
  * @param {string} props.content - Markdown string to render
  * @param {'post'|'comment'} [props.variant='post'] - Controls heading/sizing
  */
-export default function MarkdownRenderer({ content, variant = 'post' }) {
+export default memo(function MarkdownRenderer({ content, variant = 'post' }) {
   const colors = useThemeColors()
   const markdownStyles = useMemo(() => createMarkdownStyles(colors, variant), [colors, variant])
   const rules = useMemo(() => ({
@@ -33,7 +33,7 @@ export default function MarkdownRenderer({ content, variant = 'post' }) {
       {content}
     </Markdown>
   )
-}
+})
 
 const createMarkdownStyles = (colors, variant) => {
   const isComment = variant === 'comment'

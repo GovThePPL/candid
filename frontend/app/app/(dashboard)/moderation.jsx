@@ -1,4 +1,5 @@
 import { StyleSheet, View, TouchableOpacity, ActivityIndicator, ScrollView, TextInput, Platform } from 'react-native'
+import { SkeletonPulse, SkeletonBox, SkeletonCircle, SkeletonLine } from '../../components/Skeleton'
 import { useMemo } from 'react'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
@@ -447,6 +448,53 @@ function AdminResponseNotificationCard({ item, onHistoryPress, onChatPress, colo
   )
 }
 
+function ModerationQueueSkeleton({ styles, colors }) {
+  return (
+    <ScrollView style={styles.cardContainer} contentContainerStyle={styles.cardContainerContent}>
+      <SkeletonPulse>
+        <CardShell
+          header={
+            <View style={styles.skeletonHeaderInner}>
+              <SkeletonBox width={50} height={44} borderRadius={8} style={{ backgroundColor: 'rgba(255,255,255,0.2)' }} />
+              <View style={{ flex: 1, gap: 6 }}>
+                <SkeletonLine width="60%" height={13} style={{ backgroundColor: 'rgba(255,255,255,0.25)' }} />
+                <SkeletonLine width="85%" height={10} style={{ backgroundColor: 'rgba(255,255,255,0.15)' }} />
+              </View>
+            </View>
+          }
+          headerColor={colors.warningSurface}
+          footer={
+            <View style={{ gap: 10 }}>
+              <SkeletonBox width={130} height={32} borderRadius={10} style={{ backgroundColor: 'rgba(255,255,255,0.15)' }} />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <SkeletonCircle size={28} style={{ backgroundColor: 'rgba(255,255,255,0.2)' }} />
+                <SkeletonLine width={80} height={11} style={{ backgroundColor: 'rgba(255,255,255,0.2)' }} />
+              </View>
+            </View>
+          }
+          footerColor={colors.primarySurface}
+          style={styles.reportCard}
+        >
+          {/* Body: PositionInfoCard mimic */}
+          <View style={{ padding: 16, gap: 10 }}>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <SkeletonBox width={36} height={20} borderRadius={10} />
+              <SkeletonLine width={70} height={12} />
+            </View>
+            <SkeletonLine width="85%" height={14} />
+            <SkeletonLine width="100%" height={14} />
+            <SkeletonLine width="55%" height={14} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.cardBorder }}>
+              <SkeletonCircle size={32} />
+              <SkeletonLine width={80} height={11} />
+            </View>
+          </View>
+        </CardShell>
+      </SkeletonPulse>
+    </ScrollView>
+  )
+}
+
 export default function ModerationQueue() {
   const { t } = useTranslation('moderation')
   const colors = useThemeColors()
@@ -472,10 +520,7 @@ export default function ModerationQueue() {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <Header />
-        <View style={styles.centerContent}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <ThemedText variant="body" color="secondary" style={styles.loadingText}>{t('loadingQueue')}</ThemedText>
-        </View>
+        <ModerationQueueSkeleton styles={styles} colors={colors} />
       </SafeAreaView>
     )
   }
@@ -1063,5 +1108,12 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.primarySurface,
     borderColor: colors.primary,
     flex: 1,
+  },
+
+  // Skeleton
+  skeletonHeaderInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
 })

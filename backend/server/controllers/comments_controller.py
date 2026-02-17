@@ -630,13 +630,19 @@ def vote_on_comment(comment_id, body, token_info=None):  # noqa: E501
     }, 200
 
 
-def get_comment_thread(post_id, comment_id, max_descendants=None, token_info=None):  # noqa: E501
-    """Get a comment and its descendants (for 'Continue this thread')."""
+def get_comment_thread(post_id, comment_id, max_descendants=None, include_ancestors=None, token_info=None):  # noqa: E501
+    """Get a comment and its descendants (for 'Continue this thread').
+
+    When include_ancestors is true, also returns the ancestor chain of the
+    target comment for context.  Depths are kept absolute (not rebased) so the
+    full tree renders correctly.
+    """
     user_id = token_info["sub"] if token_info else None
 
     if max_descendants is None:
         max_descendants = 100
     max_descendants = max(1, min(max_descendants, 500))
+    include_ancestors = bool(include_ancestors)
 
     # Verify post exists
     post = db.execute_query(
@@ -654,15 +660,34 @@ def get_comment_thread(post_id, comment_id, max_descendants=None, token_info=Non
     if not target:
         return ErrorModel(404, "Comment not found"), 404
 
+    # Extract ancestor IDs from the target's path (if requested)
+    ancestor_ids = []
+    if include_ancestors:
+        path_parts = target["path"].split("/")
+        # path_parts includes the target itself at the end; ancestors are all preceding parts
+        ancestor_ids = [p for p in path_parts if p != str(comment_id)]
+
     # Fetch descendants via path prefix, ordered by path, limited
     vote_join = ""
     vote_select = ", NULL AS user_vote_type, NULL AS user_vote_reason"
+
+    # Build the WHERE clause — always include target + descendants
+    where_clauses = ["c.id = %s", "c.path LIKE %s"]
     if user_id:
         vote_join = "LEFT JOIN comment_vote cv ON cv.comment_id = c.id AND cv.user_id = %s"
         vote_select = ", cv.vote_type AS user_vote_type, cv.downvote_reason AS user_vote_reason"
-        query_params = [user_id, post_id, comment_id, target["path"] + "/%", max_descendants + 1]
+        query_params = [user_id, post_id, comment_id, target["path"] + "/%"]
     else:
-        query_params = [post_id, comment_id, target["path"] + "/%", max_descendants + 1]
+        query_params = [post_id, comment_id, target["path"] + "/%"]
+
+    # Add ancestor IDs to the query if requested
+    if ancestor_ids:
+        placeholders = ", ".join(["%s"] * len(ancestor_ids))
+        where_clauses.append(f"c.id IN ({placeholders})")
+        query_params.extend(ancestor_ids)
+
+    query_params.append(max_descendants + 1 + len(ancestor_ids))
+    where_sql = " OR ".join(where_clauses)
 
     rows = db.execute_query(f"""
         SELECT c.*,
@@ -676,8 +701,7 @@ def get_comment_thread(post_id, comment_id, max_descendants=None, token_info=Non
         JOIN users u ON c.creator_user_id = u.id
         {vote_join}
         WHERE c.post_id = %s AND (
-            c.id = %s
-            OR c.path LIKE %s
+            {where_sql}
         )
         ORDER BY c.path
         LIMIT %s
@@ -686,9 +710,14 @@ def get_comment_thread(post_id, comment_id, max_descendants=None, token_info=Non
     if rows is None:
         rows = []
 
-    truncated = len(rows) > max_descendants
+    # Truncation applies to descendants only — ancestors don't count toward the limit
+    ancestor_id_set = set(ancestor_ids)
+    descendant_rows = [r for r in rows if str(r["id"]) not in ancestor_id_set]
+    truncated = len(descendant_rows) > max_descendants
     if truncated:
-        rows = rows[:max_descendants]
+        # Keep all ancestors + first max_descendants descendant rows
+        descendant_ids_to_keep = {str(r["id"]) for r in descendant_rows[:max_descendants]}
+        rows = [r for r in rows if str(r["id"]) in ancestor_id_set or str(r["id"]) in descendant_ids_to_keep]
 
     is_qa = post["post_type"] == "question"
     post_location_id = str(post["location_id"])
@@ -699,7 +728,9 @@ def get_comment_thread(post_id, comment_id, max_descendants=None, token_info=Non
     result = []
     for row in rows:
         if row["status"] in ("deleted", "removed") and row.get("child_count", 0) == 0:
-            continue
+            # Keep deleted ancestors for context even as leaves
+            if str(row["id"]) not in ancestor_id_set:
+                continue
         if row["status"] == "deleted":
             row = dict(row)
             row["body"] = "[deleted]"
@@ -709,8 +740,9 @@ def get_comment_thread(post_id, comment_id, max_descendants=None, token_info=Non
 
         row_dict = dict(row) if not isinstance(row, dict) else row
 
-        # Rebase depth relative to target comment
-        row_dict["depth"] = row_dict["depth"] - target_depth
+        # Rebase depth relative to target comment (skip when ancestors included)
+        if not include_ancestors:
+            row_dict["depth"] = row_dict["depth"] - target_depth
 
         # Role badge visibility
         creator_role = get_highest_role_at_location(

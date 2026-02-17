@@ -44,21 +44,22 @@ export default function useChatHistory() {
       }
 
       // Check metadata to see if we need to fetch fresh data
+      let fetchedMetadata = null
       const shouldFetch = await (async () => {
         if (isRefresh) return true // Always fetch on pull-to-refresh
 
         try {
-          const metadata = await api.chat.getUserChatsMetadata(user.id)
+          fetchedMetadata = await api.chat.getUserChatsMetadata(user.id)
           const cached = await CacheManager.get(cacheKey)
 
           // No cache - need to fetch
           if (!cached) return true
 
           // Check if count changed
-          if (metadata.count !== cached.metadata?.count) return true
+          if (fetchedMetadata.count !== cached.metadata?.count) return true
 
           // Check if last activity time changed
-          if (metadata.lastActivityTime !== cached.metadata?.lastActivityTime) return true
+          if (fetchedMetadata.lastActivityTime !== cached.metadata?.lastActivityTime) return true
 
           // Cache is fresh - no need to fetch
           return false
@@ -72,13 +73,9 @@ export default function useChatHistory() {
         const data = await api.chat.getUserChats(user.id, { limit: 50 })
         setChats(data)
 
-        // Get fresh metadata for cache
-        let metadata = null
-        try {
-          metadata = await api.chat.getUserChatsMetadata(user.id)
-        } catch {
-          metadata = { count: data.length, lastActivityTime: new Date().toISOString() }
-        }
+        // Reuse metadata from above, or fall back to synthetic metadata
+        const metadata = fetchedMetadata
+          || { count: data.length, lastActivityTime: new Date().toISOString() }
 
         // Cache the result
         await CacheManager.set(cacheKey, data, { metadata })

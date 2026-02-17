@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import { View, TouchableOpacity, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
@@ -21,7 +21,7 @@ import ThemedText from '../ThemedText'
  * @param {'post'|'comment'} [props.targetType='comment']
  * @param {boolean} [props.disabled=false] - Disables voting (e.g. own content)
  */
-export default function VoteControl({
+export default memo(function VoteControl({
   upvoteCount = 0,
   downvoteCount = 0,
   userVote,
@@ -147,7 +147,7 @@ export default function VoteControl({
       </TouchableOpacity>
     </View>
   )
-}
+})
 
 const createStyles = (colors) => StyleSheet.create({
   // sm pill

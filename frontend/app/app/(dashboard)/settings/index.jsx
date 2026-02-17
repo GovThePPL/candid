@@ -13,7 +13,6 @@ import Avatar from '../../../components/Avatar'
 import LanguagePicker from '../../../components/LanguagePicker'
 
 const getMenuItems = (t) => [
-  { label: t('menuActivity'), icon: 'time-outline', route: '/settings/activity' },
   { label: t('menuDemographics'), icon: 'stats-chart-outline', route: '/settings/demographics' },
   { label: t('menuPreferences'), icon: 'options-outline', route: '/settings/preferences' },
   ...(Platform.OS !== 'web' ? [{ label: t('menuNotifications'), icon: 'notifications-outline', route: '/settings/notifications' }] : []),

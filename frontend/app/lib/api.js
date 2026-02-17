@@ -1121,8 +1121,8 @@ export const commentsApiWrapper = {
   },
 
   async getCommentThread(postId, commentId, opts = {}) {
-    const { maxDescendants } = opts
-    return await promisify(commentsApi.getCommentThread.bind(commentsApi), postId, commentId, { maxDescendants })
+    const { maxDescendants, includeAncestors } = opts
+    return await promisify(commentsApi.getCommentThread.bind(commentsApi), postId, commentId, { maxDescendants, includeAncestors })
   },
 }
 

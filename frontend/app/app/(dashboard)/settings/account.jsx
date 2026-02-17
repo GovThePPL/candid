@@ -50,20 +50,14 @@ export default function AccountSettings() {
       setLoading(true)
       setError(null)
 
-      const profileCacheKey = CacheKeys.profile(user?.id)
-      const cachedProfile = await CacheManager.get(profileCacheKey)
-      const profileFresh = cachedProfile && !CacheManager.isStale(cachedProfile, CacheDurations.PROFILE)
-
-      if (profileFresh) {
-        setProfile(cachedProfile.data)
-        setEmail(cachedProfile.data?.email || '')
-      } else {
-        const profileData = await api.users.getProfile()
-        if (profileData) {
-          setProfile(profileData)
-          setEmail(profileData.email || '')
-          await CacheManager.set(profileCacheKey, profileData)
-        }
+      const { data: profileData } = await CacheManager.fetchOrCache(
+        CacheKeys.profile(user?.id),
+        () => api.users.getProfile(),
+        { maxAge: CacheDurations.PROFILE }
+      )
+      if (profileData) {
+        setProfile(profileData)
+        setEmail(profileData.email || '')
       }
 
       setTimeout(() => {

@@ -138,6 +138,38 @@ export const CacheManager = {
   },
 
   /**
+   * Fetch-or-cache: works with any async function (not raw Response objects).
+   * Returns cached data if fresh, otherwise calls fetchFn.
+   * Falls back to stale cache on error.
+   * @param {string} key - Cache key
+   * @param {function} fetchFn - Async function that returns data
+   * @param {object} options - Options
+   * @param {number} options.maxAge - Max cache age in ms (default 5 min)
+   * @param {boolean} options.forceRefresh - Force fetch even if cached
+   * @returns {Promise<{data: any, fromCache: boolean}>}
+   */
+  async fetchOrCache(key, fetchFn, options = {}) {
+    const { maxAge = 5 * 60 * 1000, forceRefresh = false } = options;
+    const cached = await this.get(key);
+
+    if (cached && !forceRefresh && !this.isStale(cached, maxAge)) {
+      return { data: cached.data, fromCache: true };
+    }
+
+    try {
+      const data = await fetchFn();
+      await this.set(key, data);
+      return { data, fromCache: false };
+    } catch (error) {
+      if (cached) {
+        console.warn(`fetchOrCache: fetch failed for ${key}, using stale cache`);
+        return { data: cached.data, fromCache: true };
+      }
+      throw error;
+    }
+  },
+
+  /**
    * Fetch with caching and conditional request support
    * @param {string} key - Cache key
    * @param {function} fetchFn - Function that returns fetch promise, receives headers object
@@ -321,6 +353,8 @@ export const CacheKeys = {
   settings: (userId) => `settings:user:${userId}`,
   categories: () => 'categories',
   chattingList: (userId) => `chattinglist:user:${userId}`,
+  activityPosts: (userId) => `activity:posts:${userId}`,
+  activityComments: (userId) => `activity:comments:${userId}`,
 };
 
 // Default cache durations (in milliseconds)
@@ -335,6 +369,7 @@ export const CacheDurations = {
   SETTINGS: 60 * 60 * 1000, // 1 hour (rarely changes)
   CATEGORIES: Infinity, // Static data, never expires
   CHATTING_LIST: 5 * 60 * 1000, // 5 minutes
+  ACTIVITY: 5 * 60 * 1000, // 5 minutes
 };
 
 export default CacheManager;

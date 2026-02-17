@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef, useContext } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef, useContext, memo } from 'react'
 import {
   View,
   FlatList,
@@ -39,7 +39,7 @@ import ThemedText from '../../../components/ThemedText'
 const screenHeight = Dimensions.get('window').height
 
 export default function PostDetail() {
-  const { id: postId, threadRoot } = useLocalSearchParams()
+  const { id: postId, threadRoot, focus } = useLocalSearchParams()
   const router = useRouter()
   const navigation = useNavigation()
   const insets = useSafeAreaInsets()
@@ -68,11 +68,11 @@ export default function PostDetail() {
     handleCreateComment,
     loadMore,
     loadMoreReplies,
+    loadParentComment,
     hasMore,
     totalRootCount,
     truncatedRoots,
-    commentCount,
-  } = useCommentThread(postId, { threadRootId: threadRoot || undefined })
+  } = useCommentThread(postId, { threadRootId: threadRoot || undefined, focusCommentId: focus || undefined })
 
   // Input state
   const [inputText, setInputText] = useState('')
@@ -85,6 +85,13 @@ export default function PostDetail() {
 
   // Downvote picker
   const [downvoteTarget, setDownvoteTarget] = useState(null)
+
+  // Focus state (for navigating to a specific comment)
+  // localFocus is set when loading a parent in-place (no URL navigation)
+  const [localFocus, setLocalFocus] = useState(null)
+  const effectiveFocus = focus || localFocus
+  const scrollOffsetRef = useRef(0)
+  const hasFocusScrolledRef = useRef(false)
 
   // Link prompt
   const [showLinkPrompt, setShowLinkPrompt] = useState(false)
@@ -133,6 +140,42 @@ export default function PostDetail() {
     }
   }, [])
 
+  // Reset scroll flag when focus param changes; clear local focus on URL focus
+  useEffect(() => {
+    if (focus) {
+      setLocalFocus(null)
+      hasFocusScrolledRef.current = false
+    }
+  }, [focus])
+
+  // Compute scroll target: walk up to 2 parents from focused comment
+  const scrollTargetId = useMemo(() => {
+    if (!effectiveFocus) return null
+    const commentMap = new Map(flatList.map(c => [c.id, c]))
+    const focused = commentMap.get(effectiveFocus)
+    if (!focused) return effectiveFocus
+    let target = effectiveFocus
+    let parentId = focused.parentCommentId
+    for (let i = 0; i < 2 && parentId; i++) {
+      const parent = commentMap.get(parentId)
+      if (!parent) break
+      target = parent.id
+      parentId = parent.parentCommentId
+    }
+    return target
+  }, [effectiveFocus, flatList])
+
+  // Scroll to scroll target (grandparent of focused comment) when it reports position
+  const handleFocusReady = useCallback((windowY) => {
+    if (hasFocusScrolledRef.current) return
+    hasFocusScrolledRef.current = true
+    const contentY = scrollOffsetRef.current + windowY
+    const targetOffset = Math.max(0, contentY - 80)
+    setTimeout(() => {
+      flatListRef.current?.scrollToOffset({ offset: targetOffset, animated: true })
+    }, 150)
+  }, [])
+
   const isQAPost = post?.postType === 'question'
   const isPostLocked = post?.status === 'locked'
   const userHasQAAuthority = hasQAAuthority(user)
@@ -158,6 +201,30 @@ export default function PostDetail() {
   const handleBackToFullThread = useCallback(() => {
     router.push(`/discuss/${postId}`)
   }, [router, postId])
+
+  // Find the nearest unloaded ancestor above the thread root.
+  // Enables progressive "View parent" — each click loads one more level.
+  const nextParentId = useMemo(() => {
+    if (!threadRoot) return null
+    const commentMap = new Map(flatList.map(c => [c.id, c]))
+    let current = commentMap.get(threadRoot)
+    if (!current) return null
+    while (current.parentCommentId) {
+      const parent = commentMap.get(current.parentCommentId)
+      if (!parent) return current.parentCommentId
+      current = parent
+    }
+    return null
+  }, [threadRoot, flatList])
+
+  const handleViewParent = useCallback(async () => {
+    if (!nextParentId) return
+    const parent = await loadParentComment(nextParentId)
+    if (parent) {
+      setLocalFocus(nextParentId)
+      hasFocusScrolledRef.current = false
+    }
+  }, [nextParentId, loadParentComment])
 
   // Fetch post
   useEffect(() => {
@@ -287,20 +354,24 @@ export default function PostDetail() {
     }
   }, [showToast, t])
 
-  // Comment voting handlers
+  // Ref for reading current comment data without adding flatList to deps
+  const flatListDataRef = useRef(flatList)
+  useEffect(() => { flatListDataRef.current = flatList }, [flatList])
+
+  // Comment voting handlers — stable callbacks (no deps on flatList/rawComments)
   const handleCommentUpvote = useCallback((commentId) => {
     handleCommentVote(commentId, 'upvote')
   }, [handleCommentVote])
 
   const handleCommentDownvote = useCallback((commentId) => {
     // If already downvoted, toggle it off without opening reason picker
-    const comment = flatList.find(c => c.id === commentId)
+    const comment = flatListDataRef.current.find(c => c.id === commentId)
     if (comment?.userVote?.voteType === 'downvote') {
       handleCommentVote(commentId, 'downvote', comment.userVote.downvoteReason || 'disagree')
       return
     }
     setDownvoteTarget({ type: 'comment', id: commentId })
-  }, [flatList, handleCommentVote])
+  }, [handleCommentVote])
 
   // Downvote reason selected
   const handleDownvoteReasonSelect = useCallback(async (reason) => {
@@ -386,44 +457,71 @@ export default function PostDetail() {
     setShowLinkPrompt(false)
   }, [linkUrl, linkText])
 
-  // Group flat comments into chains (root comment + all replies)
+  // Group flat comments into chains (root comment + all replies).
+  // Cache chains by root ID — reuse previous array when all items are the same
+  // reference, so FlatList skips re-rendering unchanged chains.
+  const chainsCacheRef = useRef(new Map())
   const chains = useMemo(() => {
-    const result = []
+    const groups = []
     let current = []
     for (const item of flatList) {
       if (item.depth === 0 && current.length > 0) {
-        result.push(current)
+        groups.push(current)
         current = []
       }
       current.push(item)
     }
-    if (current.length > 0) result.push(current)
-    return result
+    if (current.length > 0) groups.push(current)
+
+    const prevCache = chainsCacheRef.current
+    const nextCache = new Map()
+    const stableChains = groups.map(chain => {
+      const key = chain[0].id
+      const prev = prevCache.get(key)
+      if (prev && prev.length === chain.length && prev.every((item, i) => item === chain[i])) {
+        nextCache.set(key, prev)
+        return prev
+      }
+      nextCache.set(key, chain)
+      return chain
+    })
+    chainsCacheRef.current = nextCache
+    return stableChains
   }, [flatList])
 
+  // Stable refs for values that ChainBlock needs but shouldn't cause re-renders
+  const truncatedRootsRef = useRef(truncatedRoots)
+  useEffect(() => { truncatedRootsRef.current = truncatedRoots }, [truncatedRoots])
+
+  // Collect all chain-rendering callbacks into a stable ref to avoid
+  // re-creating renderChain when any individual callback changes
+  const chainHandlersRef = useRef(null)
+  chainHandlersRef.current = {
+    onUpvote: handleCommentUpvote,
+    onDownvote: handleCommentDownvote,
+    onReply: handleReply,
+    onToggleCollapse: toggleCollapse,
+    onToggleRole: handleCommentToggleRole,
+    onToggleMuteComment: handleToggleMuteComment,
+    onContinueThread: handleContinueThread,
+    onLoadMoreReplies: loadMoreReplies,
+    onFocusReady: handleFocusReady,
+    truncatedRoots,
+    focus: effectiveFocus,
+    scrollTargetId,
+    currentUserId: user?.id,
+    isQAPost,
+    isPostLocked,
+    userHasQAAuthority,
+  }
+
   const renderChain = useCallback(({ item: chain }) => (
-    <View style={styles.chainBlock}>
-      {chain.map((comment) => (
-        <CommentItem
-          key={comment.id}
-          comment={comment}
-          currentUserId={user?.id}
-          isQAPost={isQAPost}
-          isPostLocked={isPostLocked}
-          currentUserHasQAAuthority={userHasQAAuthority}
-          onUpvote={handleCommentUpvote}
-          onDownvote={handleCommentDownvote}
-          onReply={handleReply}
-          onToggleCollapse={toggleCollapse}
-          onToggleRole={handleCommentToggleRole}
-          onToggleMuteComment={handleToggleMuteComment}
-          onContinueThread={handleContinueThread}
-          isTruncatedRoot={truncatedRoots.has(comment.id)}
-          onLoadMoreReplies={loadMoreReplies}
-        />
-      ))}
-    </View>
-  ), [user?.id, isQAPost, isPostLocked, userHasQAAuthority, handleCommentUpvote, handleCommentDownvote, handleReply, toggleCollapse, handleCommentToggleRole, handleToggleMuteComment, handleContinueThread, truncatedRoots, loadMoreReplies, styles.chainBlock])
+    <ChainBlock
+      chain={chain}
+      handlersRef={chainHandlersRef}
+      style={styles.chainBlock}
+    />
+  ), [styles.chainBlock])
 
   const chainKeyExtractor = useCallback((item) => item[0].id, [])
 
@@ -457,20 +555,6 @@ export default function PostDetail() {
   // List header: post + comment header
   const ListHeader = (
     <>
-      {threadRoot && (
-        <TouchableOpacity
-          style={styles.threadBanner}
-          onPress={handleBackToFullThread}
-          activeOpacity={0.6}
-          accessibilityRole="link"
-          accessibilityLabel={t('backToFullThreadA11y')}
-        >
-          <Ionicons name="arrow-back" size={16} color={colors.primary} />
-          <ThemedText variant="body" color="primary">
-            {t('backToFullThread')}
-          </ThemedText>
-        </TouchableOpacity>
-      )}
       <View style={styles.postHeaderShadow}>
         <PostHeader
           post={post}
@@ -485,10 +569,40 @@ export default function PostDetail() {
       <View style={styles.commentSection}>
         <View style={styles.commentHeaderRow}>
           <ThemedText variant="h3">
-            {t('commentsHeader', { count: commentCount })}
+            {t('commentsHeader', { count: post?.commentCount ?? 0 })}
           </ThemedText>
           <CommentSortControl sort={sort} onSortChange={setSort} />
         </View>
+        {threadRoot && (
+          <View style={styles.threadButtonRow}>
+            <TouchableOpacity
+              style={styles.threadPill}
+              onPress={handleBackToFullThread}
+              activeOpacity={0.6}
+              accessibilityRole="link"
+              accessibilityLabel={t('backToFullThreadA11y')}
+            >
+              <Ionicons name="arrow-back" size={14} color={colors.primary} />
+              <ThemedText variant="caption" color="primary">
+                {t('backToFullThread')}
+              </ThemedText>
+            </TouchableOpacity>
+            {nextParentId && (
+              <TouchableOpacity
+                style={styles.threadPill}
+                onPress={handleViewParent}
+                activeOpacity={0.6}
+                accessibilityRole="link"
+                accessibilityLabel={t('viewParentA11y')}
+              >
+                <Ionicons name="arrow-up" size={14} color={colors.primary} />
+                <ThemedText variant="caption" color="primary">
+                  {t('viewParent')}
+                </ThemedText>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
         {commentsLoading && flatList.length === 0 && (
           <ActivityIndicator size="small" color={colors.primary} style={styles.commentLoading} />
         )}
@@ -541,6 +655,8 @@ export default function PostDetail() {
         keyboardDismissMode="interactive"
         onEndReached={hasMore ? loadMore : undefined}
         onEndReachedThreshold={0.5}
+        scrollEventThrottle={16}
+        onScroll={(e) => { scrollOffsetRef.current = e.nativeEvent.contentOffset.y }}
       />
 
       {/* Reply banner */}
@@ -683,6 +799,38 @@ export default function PostDetail() {
   )
 }
 
+// Renders a chain of comments (root + all replies in one card).
+// Reads handlers from a ref so FlatList's renderItem stays stable.
+const ChainBlock = memo(function ChainBlock({ chain, handlersRef, style }) {
+  const h = handlersRef.current
+  return (
+    <View style={style}>
+      {chain.map((comment) => (
+        <CommentItem
+          key={comment.id}
+          comment={comment}
+          currentUserId={h.currentUserId}
+          isQAPost={h.isQAPost}
+          isPostLocked={h.isPostLocked}
+          currentUserHasQAAuthority={h.userHasQAAuthority}
+          onUpvote={h.onUpvote}
+          onDownvote={h.onDownvote}
+          onReply={h.onReply}
+          onToggleCollapse={h.onToggleCollapse}
+          onToggleRole={h.onToggleRole}
+          onToggleMuteComment={h.onToggleMuteComment}
+          onContinueThread={h.onContinueThread}
+          isTruncatedRoot={h.truncatedRoots.has(comment.id)}
+          onLoadMoreReplies={h.onLoadMoreReplies}
+          isFocused={h.focus === comment.id}
+          isScrollTarget={h.scrollTargetId === comment.id}
+          onFocusReady={h.onFocusReady}
+        />
+      ))}
+    </View>
+  )
+})
+
 const createStyles = (colors) => StyleSheet.create({
   screen: {
     flex: 1,
@@ -713,15 +861,20 @@ const createStyles = (colors) => StyleSheet.create({
       default: { boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)' },
     }),
   },
-  threadBanner: {
+  threadButtonRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  threadPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    backgroundColor: colors.cardBackground,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.cardBorder,
+    gap: 4,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.pill,
+    borderWidth: 1,
+    borderColor: colors.primary,
   },
   commentSection: {
     paddingHorizontal: Spacing.lg,

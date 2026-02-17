@@ -7380,6 +7380,12 @@ paths:
             minimum: 1
             maximum: 500
           description: Maximum number of descendants to return
+        - name: includeAncestors
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: When true, also return ancestor comments of the target comment for context. Depths are not rebased when ancestors are included.
       responses:
         '200':
           description: Comment thread

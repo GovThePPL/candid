@@ -3,15 +3,12 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Parse flags
-VERBOSE=false
 for arg in "$@"; do
     case "$arg" in
-        -v|--verbose) VERBOSE=true ;;
         -h|--help)
             echo "Usage: ./start.sh [OPTIONS]"
             echo ""
             echo "Options:"
-            echo "  -v, --verbose  Show full output from API regeneration and npm install"
             echo "  -h, --help     Show this help message"
             echo ""
             echo "Environment overrides:"
@@ -97,18 +94,8 @@ export EXPO_PUBLIC_API_URL="${EXPO_PUBLIC_API_URL:-http://${EXPO_PUBLIC_HOST_IP}
 export EXPO_PUBLIC_CHAT_URL="${EXPO_PUBLIC_CHAT_URL:-http://${EXPO_PUBLIC_HOST_IP}:8002}"
 export EXPO_PUBLIC_KEYCLOAK_URL="${EXPO_PUBLIC_KEYCLOAK_URL:-http://${EXPO_PUBLIC_HOST_IP}:8180}"
 
-# Regenerate API client (suppress output unless -v)
-if [ "$VERBOSE" = true ]; then
-    "$SCRIPT_DIR/regenerate_api.sh"
-else
-    echo -n "Regenerating API client..."
-    if "$SCRIPT_DIR/regenerate_api.sh" >/dev/null 2>&1; then
-        echo " done"
-    else
-        echo " FAILED (rerun with -v to see errors)"
-        exit 1
-    fi
-fi
+# Regenerate API client
+"$SCRIPT_DIR/regenerate_api.sh"
 
 # Print summary banner right before Expo starts
 echo ""

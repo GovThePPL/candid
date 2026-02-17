@@ -5,6 +5,9 @@ const mockColors = require('../../constants/Colors').LightTheme
 jest.mock('../../hooks/useThemeColors', () => ({
   useThemeColors: () => mockColors,
 }))
+jest.mock('../../contexts/ThemeContext', () => ({
+  useTheme: () => ({ isDark: false }),
+}))
 
 jest.mock('../../lib/timeUtils', () => ({
   formatRelativeTime: () => '2h',

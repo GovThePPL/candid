@@ -110,8 +110,11 @@
   "languageHintA11y": "Abre selector de idioma",
   "systemLanguageA11y": "Idioma del sistema",
 
+  "myActivity": "Mi Actividad",
   "chatHistory": "Historial de Chats",
   "createPositionA11y": "Crear posición",
 
-  "errorChatRequestRescindFailed": "No se pudo cancelar la solicitud de chat"
+  "errorChatRequestRescindFailed": "No se pudo cancelar la solicitud de chat",
+
+  "loadingSkeleton": "Cargando contenido"
 }

@@ -1,10 +1,11 @@
-import { StyleSheet, View, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native'
+import { StyleSheet, View, FlatList, TouchableOpacity, RefreshControl } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useCallback, useState, useContext, useMemo } from 'react'
 import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { SemanticColors } from '../../constants/Colors'
+import { Shadows } from '../../constants/Theme'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import useChatHistory from '../../hooks/useChatHistory'
 import { useToast } from '../../components/Toast'
@@ -13,6 +14,7 @@ import Header from '../../components/Header'
 import EmptyState from '../../components/EmptyState'
 import CardShell from '../../components/CardShell'
 import PositionInfoCard from '../../components/PositionInfoCard'
+import { SkeletonPulse, SkeletonBox, SkeletonCircle, SkeletonLine } from '../../components/Skeleton'
 import { UserContext } from '../../contexts/UserContext'
 import api from '../../lib/api'
 import ReportModal from '../../components/ReportModal'
@@ -164,6 +166,40 @@ function ChatHistoryCard({ chat, onPress, onSendKudos, onReport, currentUserId, 
   )
 }
 
+function ChatListSkeleton({ styles, colors }) {
+  return (
+    <SkeletonPulse style={styles.listContent}>
+      {Array.from({ length: 4 }).map((_, i) => (
+        <View key={i} style={styles.cardWrapper}>
+          {/* Meta row */}
+          <View style={styles.chatMetaRow}>
+            <SkeletonLine width={60} height={10} />
+            <SkeletonBox width={80} height={24} borderRadius={12} />
+          </View>
+          {/* CardShell mimic — rounded card with padding */}
+          <View style={styles.skeletonChatCard}>
+            {/* Badge row (LocationCategoryBadge) */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <SkeletonBox width={36} height={20} borderRadius={10} />
+              <SkeletonLine width={70} height={12} />
+            </View>
+            {/* Statement lines */}
+            <View style={{ gap: 6, marginBottom: 12 }}>
+              <SkeletonLine width="90%" height={13} />
+              <SkeletonLine width="75%" height={13} />
+            </View>
+            {/* Creator row with border-top */}
+            <View style={styles.skeletonCreatorRow}>
+              <SkeletonCircle size={32} />
+              <SkeletonLine width={80} height={11} />
+            </View>
+          </View>
+        </View>
+      ))}
+    </SkeletonPulse>
+  )
+}
+
 export default function Chats() {
   const { user } = useContext(UserContext)
   const router = useRouter()
@@ -245,10 +281,8 @@ export default function Chats() {
         </View>
       )}
 
-      {loading && !refreshing ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
+      {loading && !refreshing && chats.length === 0 ? (
+        <ChatListSkeleton styles={styles} colors={colors} />
       ) : (
         <FlatList
           data={chats}
@@ -295,10 +329,20 @@ const createStyles = (colors) => StyleSheet.create({
     paddingTop: 8,
     flexGrow: 1,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  skeletonChatCard: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: 12,
+    padding: 16,
+    ...Shadows.card,
+    overflow: 'hidden',
+  },
+  skeletonCreatorRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.cardBorder,
   },
   errorContainer: {
     flexDirection: 'row',

@@ -102,18 +102,13 @@ export default function NotificationSettings() {
       setLoading(true)
       setError(null)
 
-      const settingsCacheKey = CacheKeys.settings(user?.id)
-      const cachedSettings = await CacheManager.get(settingsCacheKey)
-      const settingsFresh = cachedSettings && !CacheManager.isStale(cachedSettings, CacheDurations.SETTINGS)
-
-      if (settingsFresh) {
-        applySettingsData(cachedSettings.data)
-      } else {
-        const settingsData = await api.users.getSettings()
-        if (settingsData) {
-          applySettingsData(settingsData)
-          await CacheManager.set(settingsCacheKey, settingsData)
-        }
+      const { data: settingsData } = await CacheManager.fetchOrCache(
+        CacheKeys.settings(user?.id),
+        () => api.users.getSettings(),
+        { maxAge: CacheDurations.SETTINGS }
+      )
+      if (settingsData) {
+        applySettingsData(settingsData)
       }
 
       setTimeout(() => {

@@ -224,18 +224,44 @@
 
   "errorDiagnosticsFailed": "No se pudo actualizar la preferencia de diagnósticos",
 
-  "menuActivity": "Mi Actividad",
   "activity": "Mi Actividad",
-  "activityEmpty": "Sin actividad",
-  "activityEmptySubtitle": "Tus publicaciones y comentarios aparecerán aquí",
-  "activityFilterAll": "Todo",
-  "activityFilterPosts": "Publicaciones",
-  "activityFilterComments": "Comentarios",
+  "loadingActivity": "Cargando actividad...",
+
+  "activityTabPositions": "Posturas",
+  "activityTabChattingList": "Chats",
+  "activityTabPosts": "Publicaciones",
+  "activityTabComments": "Comentarios",
+  "activityTabPositionsA11y": "Pestaña de posturas",
+  "activityTabChattingListA11y": "Pestaña de lista de chats",
+  "activityTabPostsA11y": "Pestaña de publicaciones",
+  "activityTabCommentsA11y": "Pestaña de comentarios",
+
+  "activityEmptyPositions": "Sin posturas aún",
+  "activityEmptyPositionsSubtitle": "Adopta posturas desde la cola de tarjetas",
+  "activityEmptyChattingList": "La lista de chats está vacía",
+  "activityEmptyChattingListSubtitle": "Añade posturas desde la cola de tarjetas",
+  "activityEmptyPosts": "Sin publicaciones aún",
+  "activityEmptyPostsSubtitle": "Comparte tus ideas en el foro",
+  "activityEmptyComments": "Sin comentarios aún",
+  "activityEmptyCommentsSubtitle": "Participa en las discusiones del foro",
+
+  "failedLoadPositions": "No se pudieron cargar las posturas",
+  "failedLoadChattingList": "No se pudo cargar la lista de chats",
+  "failedLoadActivity": "No se pudo cargar la actividad",
+
+  "positionStatusActive": "Activa",
+  "positionStatusInactive": "Inactiva",
+  "positionItemA11y": "{{statement}}, {{location}}, {{category}}, {{status}}",
+
+  "chattingListChats": "{{count}} chats",
+  "chattingListPending": "{{count}} pendientes",
+  "chattingListActive": "Activa",
+  "chattingListPaused": "Pausada",
+  "chattingListItemA11y": "{{statement}}, {{status}}, {{chats}} chats",
+
   "activityPost": "Publicación",
   "activityComment": "Comentario",
   "activityInPost": "en {{title}}",
   "activityItemA11y": "{{type}} de {{time}}: {{title}}",
-  "activityDeleted": "[eliminado]",
-  "failedLoadActivity": "No se pudo cargar la actividad",
-  "loadingActivity": "Cargando actividad..."
+  "activityDeleted": "[eliminado]"
 }

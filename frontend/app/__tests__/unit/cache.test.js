@@ -142,6 +142,71 @@ describe('CacheManager.isStale', () => {
   })
 })
 
+describe('CacheManager.fetchOrCache', () => {
+  it('returns fresh cached data without calling fetchFn', async () => {
+    await CacheManager.set('k', { items: [1] })
+    const fetchFn = jest.fn()
+
+    const result = await CacheManager.fetchOrCache('k', fetchFn, { maxAge: 60000 })
+    expect(result.data).toEqual({ items: [1] })
+    expect(result.fromCache).toBe(true)
+    expect(fetchFn).not.toHaveBeenCalled()
+  })
+
+  it('calls fetchFn when cache is stale', async () => {
+    await CacheManager.set('k', { old: true })
+    await CacheManager.invalidate('k')
+
+    const fetchFn = jest.fn().mockResolvedValue({ new: true })
+
+    const result = await CacheManager.fetchOrCache('k', fetchFn, { maxAge: 60000 })
+    expect(result.data).toEqual({ new: true })
+    expect(result.fromCache).toBe(false)
+    expect(fetchFn).toHaveBeenCalled()
+  })
+
+  it('falls back to stale cache on fetch error', async () => {
+    await CacheManager.set('k', { fallback: true })
+    await CacheManager.invalidate('k')
+
+    const fetchFn = jest.fn().mockRejectedValue(new Error('API error'))
+
+    const result = await CacheManager.fetchOrCache('k', fetchFn, { maxAge: 60000 })
+    expect(result.data).toEqual({ fallback: true })
+    expect(result.fromCache).toBe(true)
+  })
+
+  it('throws when fetch fails and no cache exists', async () => {
+    const fetchFn = jest.fn().mockRejectedValue(new Error('API error'))
+
+    await expect(
+      CacheManager.fetchOrCache('missing', fetchFn, { maxAge: 60000 })
+    ).rejects.toThrow('API error')
+  })
+
+  it('forceRefresh bypasses fresh cache', async () => {
+    await CacheManager.set('k', { old: true })
+
+    const fetchFn = jest.fn().mockResolvedValue({ new: true })
+
+    const result = await CacheManager.fetchOrCache('k', fetchFn, {
+      maxAge: 60000,
+      forceRefresh: true,
+    })
+    expect(result.data).toEqual({ new: true })
+    expect(result.fromCache).toBe(false)
+    expect(fetchFn).toHaveBeenCalled()
+  })
+
+  it('calls fetchFn when no cache exists', async () => {
+    const fetchFn = jest.fn().mockResolvedValue({ fresh: true })
+
+    const result = await CacheManager.fetchOrCache('empty', fetchFn, { maxAge: 60000 })
+    expect(result.data).toEqual({ fresh: true })
+    expect(result.fromCache).toBe(false)
+  })
+})
+
 describe('CacheManager.fetchWithCache', () => {
   it('returns fresh cached data without fetching', async () => {
     await CacheManager.set('k', { items: [1] })
@@ -364,6 +429,8 @@ describe('CacheKeys', () => {
     expect(CacheKeys.settings('u1')).toBe('settings:user:u1')
     expect(CacheKeys.categories()).toBe('categories')
     expect(CacheKeys.chattingList('u1')).toBe('chattinglist:user:u1')
+    expect(CacheKeys.activityPosts('u1')).toBe('activity:posts:u1')
+    expect(CacheKeys.activityComments('u1')).toBe('activity:comments:u1')
   })
 })
 
@@ -375,5 +442,6 @@ describe('CacheDurations', () => {
     expect(CacheDurations.STATS).toBe(5 * 60 * 1000)
     expect(CacheDurations.PROFILE).toBe(60 * 60 * 1000)
     expect(CacheDurations.CATEGORIES).toBe(Infinity)
+    expect(CacheDurations.ACTIVITY).toBe(5 * 60 * 1000)
   })
 })

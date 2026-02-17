@@ -73,33 +73,21 @@ export default function ProfileSettings() {
       setLoading(true)
       setError(null)
 
-      const profileCacheKey = CacheKeys.profile(user?.id)
-      const cachedProfile = await CacheManager.get(profileCacheKey)
-      const profileFresh = cachedProfile && !CacheManager.isStale(cachedProfile, CacheDurations.PROFILE)
-
-      // Always fetch locations directly (not cached via profile)
-      const locationFetches = [
+      const [{ data: profileData }, locationsData, allLocationsData] = await Promise.all([
+        CacheManager.fetchOrCache(
+          CacheKeys.profile(user?.id),
+          () => api.users.getProfile(),
+          { maxAge: CacheDurations.PROFILE }
+        ),
         api.users.getLocations().catch(() => []),
         api.users.getAllLocations().catch(() => []),
-      ]
+      ])
 
-      if (profileFresh) {
-        applyProfileData(cachedProfile.data)
-        const [locationsData, allLocationsData] = await Promise.all(locationFetches)
-        setLocations(locationsData || [])
-        setAllLocations(allLocationsData || [])
-      } else {
-        const [profileData, locationsData, allLocationsData] = await Promise.all([
-          api.users.getProfile(),
-          ...locationFetches,
-        ])
-        if (profileData) {
-          applyProfileData(profileData)
-          await CacheManager.set(profileCacheKey, profileData)
-        }
-        setLocations(locationsData || [])
-        setAllLocations(allLocationsData || [])
+      if (profileData) {
+        applyProfileData(profileData)
       }
+      setLocations(locationsData || [])
+      setAllLocations(allLocationsData || [])
 
       setTimeout(() => {
         isInitialLoadRef.current = false

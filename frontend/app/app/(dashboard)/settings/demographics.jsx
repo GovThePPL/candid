@@ -138,19 +138,12 @@ export default function DemographicsSettings() {
       setLoading(true)
       setError(null)
 
-      const demographicsCacheKey = CacheKeys.demographics(user?.id)
-      const cachedDemographics = await CacheManager.get(demographicsCacheKey)
-      const demographicsFresh = cachedDemographics && !CacheManager.isStale(cachedDemographics, CacheDurations.DEMOGRAPHICS)
-
-      if (demographicsFresh) {
-        applyDemographicsData(cachedDemographics.data)
-      } else {
-        const demographicsData = await api.users.getDemographics().catch(() => null)
-        if (demographicsData !== undefined) {
-          applyDemographicsData(demographicsData)
-          await CacheManager.set(demographicsCacheKey, demographicsData)
-        }
-      }
+      const { data: demographicsData } = await CacheManager.fetchOrCache(
+        CacheKeys.demographics(user?.id),
+        () => api.users.getDemographics().catch(() => null),
+        { maxAge: CacheDurations.DEMOGRAPHICS }
+      )
+      applyDemographicsData(demographicsData)
 
       setTimeout(() => {
         isInitialLoadRef.current = false

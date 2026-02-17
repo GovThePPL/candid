@@ -224,18 +224,44 @@
 
   "errorDiagnosticsFailed": "Couldn't update diagnostics preference",
 
-  "menuActivity": "My Activity",
   "activity": "My Activity",
-  "activityEmpty": "No activity yet",
-  "activityEmptySubtitle": "Your posts and comments will appear here",
-  "activityFilterAll": "All",
-  "activityFilterPosts": "Posts",
-  "activityFilterComments": "Comments",
+  "loadingActivity": "Loading activity...",
+
+  "activityTabPositions": "Positions",
+  "activityTabChattingList": "Chatting",
+  "activityTabPosts": "Posts",
+  "activityTabComments": "Comments",
+  "activityTabPositionsA11y": "Positions tab",
+  "activityTabChattingListA11y": "Chatting list tab",
+  "activityTabPostsA11y": "Posts tab",
+  "activityTabCommentsA11y": "Comments tab",
+
+  "activityEmptyPositions": "No positions yet",
+  "activityEmptyPositionsSubtitle": "Adopt positions from the card queue",
+  "activityEmptyChattingList": "Chatting list is empty",
+  "activityEmptyChattingListSubtitle": "Add positions from the card queue",
+  "activityEmptyPosts": "No posts yet",
+  "activityEmptyPostsSubtitle": "Share your thoughts in the forum",
+  "activityEmptyComments": "No comments yet",
+  "activityEmptyCommentsSubtitle": "Join discussions in the forum",
+
+  "failedLoadPositions": "Failed to load positions",
+  "failedLoadChattingList": "Failed to load chatting list",
+  "failedLoadActivity": "Failed to load activity",
+
+  "positionStatusActive": "Active",
+  "positionStatusInactive": "Inactive",
+  "positionItemA11y": "{{statement}}, {{location}}, {{category}}, {{status}}",
+
+  "chattingListChats": "{{count}} chats",
+  "chattingListPending": "{{count}} pending",
+  "chattingListActive": "Active",
+  "chattingListPaused": "Paused",
+  "chattingListItemA11y": "{{statement}}, {{status}}, {{chats}} chats",
+
   "activityPost": "Post",
   "activityComment": "Comment",
   "activityInPost": "in {{title}}",
   "activityItemA11y": "{{type}} from {{time}}: {{title}}",
-  "activityDeleted": "[deleted]",
-  "failedLoadActivity": "Failed to load activity",
-  "loadingActivity": "Loading activity..."
+  "activityDeleted": "[deleted]"
 }

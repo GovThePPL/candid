@@ -176,5 +176,7 @@
   "continueThreadA11y": "Continuar leyendo este hilo de comentarios",
   "backToFullThread": "Volver al hilo completo",
   "backToFullThreadA11y": "Regresar al hilo completo de comentarios",
-  "threadTruncated": "Hilo truncado — no se muestran todas las respuestas"
+  "threadTruncated": "Hilo truncado — no se muestran todas las respuestas",
+  "viewParent": "Ver comentario padre",
+  "viewParentA11y": "Navegar al hilo del comentario padre"
 }

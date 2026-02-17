@@ -68,6 +68,7 @@ export const LightTheme = {
   // Borders & dividers
   cardBorder: "#E0E0E0",
   border: "#E0E0E0",
+  threadLine: "#CCCCCC",
 
   // Icons
   iconColor: "#888888",
@@ -145,6 +146,7 @@ export const DarkTheme = {
   // Borders & dividers
   cardBorder: "#2E2E2E",
   border: "#2E2E2E",
+  threadLine: "#555555",
 
   // Icons
   iconColor: "#999999",
