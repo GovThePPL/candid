@@ -9,6 +9,8 @@ import useKeyboardHeight from '../../../hooks/useKeyboardHeight'
 import { Spacing, BorderRadius, Typography } from '../../../constants/Theme'
 import { SemanticColors } from '../../../constants/Colors'
 import api from '../../../lib/api'
+import { CacheManager, CacheKeys } from '../../../lib/cache'
+import { useUser } from '../../../hooks/useUser'
 import Header from '../../../components/Header'
 import ThemedText from '../../../components/ThemedText'
 import ThemedTextInput from '../../../components/ThemedTextInput'
@@ -24,6 +26,7 @@ export default function CreatePost() {
   const router = useRouter()
   const navigation = useNavigation()
   const { t } = useTranslation('discuss')
+  const { user } = useUser()
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const { keyboardHeight, webInitialHeight } = useKeyboardHeight()
@@ -86,6 +89,7 @@ export default function CreatePost() {
         categoryId: selectedCategory || undefined,
         postType,
       })
+      if (user?.id) CacheManager.invalidate(CacheKeys.activityPosts(user.id))
       navigation.replace('[id]', { id: result.id })
     } catch (err) {
       if (err?.status === 429) {

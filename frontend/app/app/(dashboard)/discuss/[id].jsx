@@ -23,7 +23,7 @@ import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../../hooks/useThemeColors'
 import { UserContext } from '../../../contexts/UserContext'
 import { hasQAAuthority } from '../../../lib/roles'
-import { Spacing, BorderRadius } from '../../../constants/Theme'
+import { Spacing, BorderRadius, Shadows } from '../../../constants/Theme'
 import { SemanticColors } from '../../../constants/Colors'
 import api from '../../../lib/api'
 import { useToast } from '../../../components/Toast'
@@ -35,6 +35,7 @@ import CommentSortControl from '../../../components/discuss/CommentSortControl'
 import DownvoteReasonPicker from '../../../components/discuss/DownvoteReasonPicker'
 import EmptyState from '../../../components/EmptyState'
 import ThemedText from '../../../components/ThemedText'
+import ReplyComposer from '../../../components/discuss/ReplyComposer'
 
 const screenHeight = Dimensions.get('window').height
 
@@ -82,6 +83,7 @@ export default function PostDetail() {
 
   // Mute state
   const [postMuted, setPostMuted] = useState(false)
+  const [mutedCommentIds, setMutedCommentIds] = useState(() => new Set())
 
   // Downvote picker
   const [downvoteTarget, setDownvoteTarget] = useState(null)
@@ -194,12 +196,12 @@ export default function PostDetail() {
 
   // Navigate to a subtree view for deeply nested threads
   const handleContinueThread = useCallback((commentId) => {
-    router.push(`/discuss/${postId}?threadRoot=${commentId}`)
+    router.replace(`/discuss/${postId}?threadRoot=${commentId}`)
   }, [router, postId])
 
   // Navigate back to full thread from subtree view
   const handleBackToFullThread = useCallback(() => {
-    router.push(`/discuss/${postId}`)
+    router.replace(`/discuss/${postId}`)
   }, [router, postId])
 
   // Find the nearest unloaded ancestor above the thread root.
@@ -269,6 +271,13 @@ export default function PostDetail() {
 
   // Toggle comment mute
   const handleToggleMuteComment = useCallback(async (commentId, mute) => {
+    // Optimistic update
+    setMutedCommentIds(prev => {
+      const next = new Set(prev)
+      if (mute) next.add(commentId)
+      else next.delete(commentId)
+      return next
+    })
     try {
       if (mute) {
         await api.users.muteNotifications({ targetType: 'comment', targetId: commentId })
@@ -276,6 +285,13 @@ export default function PostDetail() {
         await api.users.unmuteNotifications({ targetType: 'comment', targetId: commentId })
       }
     } catch {
+      // Revert on failure
+      setMutedCommentIds(prev => {
+        const next = new Set(prev)
+        if (mute) next.delete(commentId)
+        else next.add(commentId)
+        return next
+      })
       showToast(t('errorVoteFailed'))
     }
   }, [showToast, t])
@@ -417,23 +433,37 @@ export default function PostDetail() {
     setReplyingTo(null)
   }, [])
 
-  // Submit comment
+  // Submit top-level comment (inline input bar)
   const handleSubmitComment = useCallback(async () => {
     const text = inputText.trim()
     if (!text || posting) return
 
     setPosting(true)
     try {
-      await handleCreateComment(text, replyingTo?.id || null)
+      await handleCreateComment(text, null)
       setInputText('')
       setInputHeight(40)
-      setReplyingTo(null)
     } catch {
       showToast(t('errorCommentFailed'))
     } finally {
       setPosting(false)
     }
-  }, [inputText, posting, handleCreateComment, replyingTo])
+  }, [inputText, posting, handleCreateComment])
+
+  // Submit reply via ReplyComposer modal
+  const [replyPosting, setReplyPosting] = useState(false)
+  const handleReplySubmit = useCallback(async (replyText) => {
+    if (!replyingTo || replyPosting) return
+    setReplyPosting(true)
+    try {
+      await handleCreateComment(replyText, replyingTo.id)
+      setReplyingTo(null)
+    } catch {
+      showToast(t('errorCommentFailed'))
+    } finally {
+      setReplyPosting(false)
+    }
+  }, [replyingTo, replyPosting, handleCreateComment, showToast, t])
 
   const handleContentSizeChange = useCallback((event) => {
     const contentHeight = event.nativeEvent.contentSize.height
@@ -519,9 +549,10 @@ export default function PostDetail() {
     <ChainBlock
       chain={chain}
       handlersRef={chainHandlersRef}
+      mutedCommentIds={mutedCommentIds}
       style={styles.chainBlock}
     />
-  ), [styles.chainBlock])
+  ), [styles.chainBlock, mutedCommentIds])
 
   const chainKeyExtractor = useCallback((item) => item[0].id, [])
 
@@ -618,15 +649,13 @@ export default function PostDetail() {
     </>
   )
 
-  // Determine input state
-  const inputDisabled = isPostLocked || (!canPostTopLevel && !replyingTo)
+  // Determine input state (inline bar is for top-level comments only)
+  const inputDisabled = isPostLocked || !canPostTopLevel
   const inputPlaceholder = isPostLocked
     ? t('postLocked')
-    : (!canPostTopLevel && !replyingTo)
+    : !canPostTopLevel
       ? t('qaOnlyExperts')
-      : replyingTo
-        ? t('addReply')
-        : t('addComment')
+      : t('addComment')
 
   const Wrapper = Platform.OS === 'web' ? View : KBAvoidingView
   const wrapperProps = Platform.OS === 'web' ? {} : {
@@ -659,24 +688,7 @@ export default function PostDetail() {
         onScroll={(e) => { scrollOffsetRef.current = e.nativeEvent.contentOffset.y }}
       />
 
-      {/* Reply banner */}
-      {replyingTo && (
-        <View style={styles.replyBanner}>
-          <ThemedText variant="caption" color="secondary" style={styles.replyText}>
-            {t('replyingTo', { username: replyingTo.creator?.username || '?' })}
-          </ThemedText>
-          <TouchableOpacity
-            onPress={cancelReply}
-            accessibilityRole="button"
-            accessibilityLabel={t('cancelReply')}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="close" size={18} color={colors.secondaryText} />
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Input bar */}
+      {/* Input bar (top-level comments only) */}
       <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, Spacing.sm) }]}>
         <View style={styles.inputRow}>
           <TouchableOpacity
@@ -713,7 +725,7 @@ export default function PostDetail() {
             onPress={handleSubmitComment}
             disabled={!inputText.trim() || inputDisabled || posting}
             accessibilityRole="button"
-            accessibilityLabel={replyingTo ? t('postReply') : t('postComment')}
+            accessibilityLabel={t('postComment')}
           >
             {posting ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
@@ -789,6 +801,15 @@ export default function PostDetail() {
         <View style={{ height: webKeyboardHeight }} />
       )}
 
+      {/* Reply composer modal */}
+      <ReplyComposer
+        visible={replyingTo != null}
+        comment={replyingTo}
+        onSubmit={handleReplySubmit}
+        onClose={cancelReply}
+        posting={replyPosting}
+      />
+
       {/* Downvote reason picker */}
       <DownvoteReasonPicker
         visible={downvoteTarget != null}
@@ -801,14 +822,14 @@ export default function PostDetail() {
 
 // Renders a chain of comments (root + all replies in one card).
 // Reads handlers from a ref so FlatList's renderItem stays stable.
-const ChainBlock = memo(function ChainBlock({ chain, handlersRef, style }) {
+const ChainBlock = memo(function ChainBlock({ chain, handlersRef, mutedCommentIds, style }) {
   const h = handlersRef.current
   return (
     <View style={style}>
       {chain.map((comment) => (
         <CommentItem
           key={comment.id}
-          comment={comment}
+          comment={mutedCommentIds.has(comment.id) ? { ...comment, isMuted: true } : comment}
           currentUserId={h.currentUserId}
           isQAPost={h.isQAPost}
           isPostLocked={h.isPostLocked}
@@ -848,18 +869,10 @@ const createStyles = (colors) => StyleSheet.create({
   chainBlock: {
     backgroundColor: colors.cardBackground,
     paddingVertical: Spacing.xs,
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3 },
-      android: { elevation: 2 },
-      default: { boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)' },
-    }),
+    ...Shadows.card,
   },
   postHeaderShadow: {
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3 },
-      android: { elevation: 2 },
-      default: { boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)' },
-    }),
+    ...Shadows.card,
   },
   threadButtonRow: {
     flexDirection: 'row',
@@ -898,19 +911,6 @@ const createStyles = (colors) => StyleSheet.create({
   },
   loadingMore: {
     paddingVertical: Spacing.md,
-  },
-  replyBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.cardBackground,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.cardBorder,
-  },
-  replyText: {
-    flex: 1,
   },
   inputContainer: {
     paddingHorizontal: Spacing.md,

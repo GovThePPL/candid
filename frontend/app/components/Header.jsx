@@ -1,37 +1,29 @@
 import { StyleSheet, View, TouchableOpacity, Platform } from 'react-native'
-import { useContext, useState, useCallback, useRef, useMemo, useEffect } from 'react'
-import { useRouter, usePathname } from 'expo-router'
+import { useContext, useState, useCallback, useRef, useMemo } from 'react'
+import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { UserContext } from '../contexts/UserContext'
-import Sidebar from './Sidebar'
+import { useNotificationCount } from '../contexts/NotificationContext'
 import ChatRequestIndicator from './ChatRequestIndicator'
 import Avatar from './Avatar'
 import ThemedText from './ThemedText'
-import BugReportModal from './BugReportModal'
 import { useToast } from './Toast'
 import api from '../lib/api'
 
-export default function Header({ onBack, showCreateButton }) {
+export default function Header({ onBack, showCreateButton, showAvatar = true }) {
   const { t } = useTranslation()
   const router = useRouter()
   const colors = useThemeColors()
   const insets = useSafeAreaInsets()
   const styles = useMemo(() => createStyles(colors, insets), [colors, insets])
   const showToast = useToast()
-  const { user, logout, pendingChatRequest, clearPendingChatRequest } = useContext(UserContext)
-  const pathname = usePathname()
-  const [sidebarVisible, setSidebarVisible] = useState(false)
-  const [bugReportVisible, setBugReportVisible] = useState(false)
+  const { user, pendingChatRequest, clearPendingChatRequest } = useContext(UserContext)
+  const { unreadCount } = useNotificationCount()
   const [headerWidth, setHeaderWidth] = useState(0)
 
-  // Close sidebar and modals when navigating away
-  useEffect(() => {
-    setSidebarVisible(false)
-    setBugReportVisible(false)
-  }, [pathname])
   const [rightWidth, setRightWidth] = useState(0)
   const logoWidthRef = useRef(0)
 
@@ -45,11 +37,6 @@ export default function Header({ onBack, showCreateButton }) {
   // On sub-pages (onBack), always hide logo when indicator is active — back arrow is enough context
   const showLogo = !pendingChatRequest ||
     (!onBack && availableWidth >= logoWidthRef.current + SECTION_GAPS + COMFORTABLE_INDICATOR_WIDTH)
-
-  const handleLogout = async () => {
-    await logout()
-    router.replace('/login')
-  }
 
   // Handle chat request timeout - rescind the request
   const handleChatRequestTimeout = useCallback(async () => {
@@ -80,70 +67,80 @@ export default function Header({ onBack, showCreateButton }) {
   }, [pendingChatRequest, clearPendingChatRequest, showToast, t])
 
   return (
-    <>
-      <View style={styles.header} onLayout={e => setHeaderWidth(e.nativeEvent.layout.width)}>
-        {/* Left section */}
-        <View style={[styles.headerLeft, pendingChatRequest && !showLogo && styles.headerLeftExpanded]}>
-          {onBack && (
-            <TouchableOpacity onPress={onBack} style={styles.backButton} accessibilityLabel={t('goBack')} accessibilityRole="button">
-              <Ionicons name="arrow-back" size={22} color={colors.primary} />
-            </TouchableOpacity>
-          )}
-          {showLogo && (
-            <ThemedText
-              variant="brandCompact"
-              style={[styles.logo, { color: colors.logoText }]}
-              onLayout={e => { logoWidthRef.current = e.nativeEvent.layout.width }}
-            >
-              Candid{Platform.OS !== 'web' ? ' ' : ''}
-            </ThemedText>
-          )}
-          {/* Narrow: indicator replaces logo, left-aligned */}
-          {pendingChatRequest && !showLogo && (
-            <ChatRequestIndicator
-              pendingRequest={pendingChatRequest}
-              onTimeout={handleChatRequestTimeout}
-              onCancel={handleChatRequestCancel}
-            />
-          )}
-        </View>
-
-        {/* Center section: indicator between logo and right when there's room */}
-        {pendingChatRequest && showLogo && (
-          <View style={styles.headerCenter}>
-            <ChatRequestIndicator
-              pendingRequest={pendingChatRequest}
-              onTimeout={handleChatRequestTimeout}
-              onCancel={handleChatRequestCancel}
-            />
-          </View>
+    <View style={styles.header} onLayout={e => setHeaderWidth(e.nativeEvent.layout.width)}>
+      {/* Left section */}
+      <View style={[styles.headerLeft, pendingChatRequest && !showLogo && styles.headerLeftExpanded]}>
+        {onBack && (
+          <TouchableOpacity onPress={onBack} style={styles.backButton} accessibilityLabel={t('goBack')} accessibilityRole="button">
+            <Ionicons name="arrow-back" size={22} color={colors.primary} />
+          </TouchableOpacity>
         )}
+        {showLogo && (
+          <ThemedText
+            variant="brandCompact"
+            style={[styles.logo, { color: colors.logoText }]}
+            onLayout={e => { logoWidthRef.current = e.nativeEvent.layout.width }}
+          >
+            Candid{Platform.OS !== 'web' ? ' ' : ''}
+          </ThemedText>
+        )}
+        {/* Narrow: indicator replaces logo, left-aligned */}
+        {pendingChatRequest && !showLogo && (
+          <ChatRequestIndicator
+            pendingRequest={pendingChatRequest}
+            onTimeout={handleChatRequestTimeout}
+            onCancel={handleChatRequestCancel}
+          />
+        )}
+      </View>
 
-        {/* Right section */}
-        <View style={styles.headerRight} onLayout={e => setRightWidth(e.nativeEvent.layout.width)}>
-          {showCreateButton && (
-            <TouchableOpacity onPress={() => router.push('/create')} style={styles.createButton} accessibilityLabel={t('createPositionA11y')} accessibilityRole="button">
-              <ThemedText variant="bodySmall" color="secondary" style={styles.createButtonText}>{t('tabAdd')}</ThemedText>
-              <Ionicons name="add" size={18} color={colors.secondaryText} />
-            </TouchableOpacity>
+      {/* Center section: indicator between logo and right when there's room */}
+      {pendingChatRequest && showLogo && (
+        <View style={styles.headerCenter}>
+          <ChatRequestIndicator
+            pendingRequest={pendingChatRequest}
+            onTimeout={handleChatRequestTimeout}
+            onCancel={handleChatRequestCancel}
+          />
+        </View>
+      )}
+
+      {/* Right section */}
+      <View style={styles.headerRight} onLayout={e => setRightWidth(e.nativeEvent.layout.width)}>
+        {showCreateButton && (
+          <TouchableOpacity onPress={() => router.push('/profile?tab=positions')} style={styles.createButton} accessibilityLabel={t('createPositionA11y')} accessibilityRole="button">
+            <ThemedText variant="bodySmall" color="secondary" style={styles.createButtonText}>{t('tabAdd')}</ThemedText>
+            <Ionicons name="add" size={18} color={colors.secondaryText} />
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity
+          onPress={() => router.push('/notifications')}
+          style={styles.bellButton}
+          accessibilityLabel={unreadCount > 0
+            ? t('notifications:bellA11y', { count: unreadCount })
+            : t('notifications:bellA11yNone')}
+          accessibilityRole="button"
+        >
+          <Ionicons
+            name={unreadCount > 0 ? 'notifications' : 'notifications-outline'}
+            size={22}
+            color={colors.secondaryText}
+          />
+          {unreadCount > 0 && (
+            <View style={styles.badge}>
+              <ThemedText variant="label" style={styles.badgeText}>
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </ThemedText>
+            </View>
           )}
-          <TouchableOpacity onPress={() => setSidebarVisible(true)} accessibilityLabel={t('openMenu')} accessibilityRole="button">
+        </TouchableOpacity>
+        {showAvatar && (
+          <TouchableOpacity onPress={() => router.push('/profile')} accessibilityLabel={t('viewProfile')} accessibilityRole="button">
             <Avatar user={user} size={36} showKudosBadge showKudosCount />
           </TouchableOpacity>
-        </View>
+        )}
       </View>
-      <Sidebar
-        visible={sidebarVisible}
-        onClose={() => setSidebarVisible(false)}
-        user={user}
-        onLogout={handleLogout}
-        onBugReport={() => setBugReportVisible(true)}
-      />
-      <BugReportModal
-        visible={bugReportVisible}
-        onClose={() => setBugReportVisible(false)}
-      />
-    </>
+    </View>
   )
 }
 
@@ -219,5 +216,27 @@ const createStyles = (colors, insets) => StyleSheet.create({
   },
   createButtonText: {
     fontWeight: '500',
+  },
+  bellButton: {
+    padding: 4,
+    position: 'relative',
+  },
+  badge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: '#D32F2F',
+    borderRadius: 9,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+    lineHeight: 14,
   },
 })

@@ -18,6 +18,7 @@ jest.mock('candid_api', () => {
     AuthenticationApi: jest.fn(() => ({})),
     PostsApi: jest.fn(() => ({})),
     CommentsApi: jest.fn(() => ({})),
+    NotificationsApi: jest.fn(() => ({})),
   }
 })
 

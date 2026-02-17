@@ -1,7 +1,7 @@
-import { useState, useMemo, useContext, useCallback } from 'react'
+import { useState, useMemo, useContext, useCallback, useRef } from 'react'
 import { View, FlatList, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useRouter } from 'expo-router'
+import { useRouter, useFocusEffect } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../../hooks/useThemeColors'
@@ -50,6 +50,16 @@ export default function DiscussFeed() {
     handleDownvote,
     handleToggleRole,
   } = usePostsFeed(selectedLocation, selectedCategory, postType)
+
+  // Refresh feed on focus (e.g. returning from creating a post)
+  const hasMountedRef = useRef(false)
+  useFocusEffect(useCallback(() => {
+    if (hasMountedRef.current) {
+      handleRefresh()
+    } else {
+      hasMountedRef.current = true
+    }
+  }, [handleRefresh]))
 
   // Downvote reason picker state
   const [downvotePostId, setDownvotePostId] = useState(null)

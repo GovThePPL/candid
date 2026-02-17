@@ -268,7 +268,8 @@ def compute_pairwise_rankings(survey_id, user_id_filter=None):
     return rankings
 
 
-def notify_peers(peer_user_ids, requester_name, action, role, target_name):
+def notify_peers(peer_user_ids, requester_name, action, role, target_name,
+                 requester_user_id=None):
     """Send push notifications to approval peers about a role change request."""
     try:
         from candid.controllers.helpers.push_notifications import send_or_queue_notification
@@ -277,7 +278,9 @@ def notify_peers(peer_user_ids, requester_name, action, role, target_name):
         body = f"{requester_name} requested to {action_word} {role} for {target_name}"
         data = {"action": "open_admin_pending"}
         for peer_id in peer_user_ids:
-            send_or_queue_notification(title, body, data, peer_id, db)
+            send_or_queue_notification(title, body, data, peer_id, db,
+                                       notification_type='role_change',
+                                       actor_user_id=requester_user_id)
     except Exception as e:
         logger.error("Failed to notify peers: %s", e)
 

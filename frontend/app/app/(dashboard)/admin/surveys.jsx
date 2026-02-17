@@ -16,6 +16,7 @@ import { useToast } from '../../../components/Toast'
 import { useUser } from '../../../hooks/useUser'
 import { getHighestRole } from '../../../lib/roles'
 import LocationPicker from '../../../components/LocationPicker'
+import LocationCategoryBadge from '../../../components/LocationCategoryBadge'
 import useSurveyForm from '../../../hooks/useSurveyForm'
 
 const SURVEY_TYPES = ['standard', 'pairwise']
@@ -124,7 +125,6 @@ export default function SurveysScreen() {
 
   const getSurveyTitle = (survey) => survey.surveyTitle || ''
   const getSurveyType = (survey) => survey.surveyType === 'pairwise' ? 'pairwise' : 'standard'
-  const getLocationName = (survey) => survey.locationName
   const getCategoryName = (survey) => survey.categoryName
 
   const renderSurvey = useCallback(({ item }) => {
@@ -132,29 +132,21 @@ export default function SurveysScreen() {
     const type = getSurveyType(item)
     const start = item.startTime
     const end = item.endTime
-    const locName = getLocationName(item)
     const catName = getCategoryName(item)
 
     return (
       <View style={styles.surveyCard}>
-        <View style={styles.badgeRow}>
+        <View style={styles.cardTopRow}>
+          <LocationCategoryBadge
+            location={item.locationCode ? { code: item.locationCode } : null}
+            category={{ label: catName || t('allCategories') }}
+            size="md"
+          />
           <View style={[styles.typeBadge, type === 'pairwise' ? styles.typeBadgePairwise : styles.typeBadgeStandard]}>
             <ThemedText variant="badge" color="inverse" style={styles.typeBadgeText}>
               {type === 'pairwise' ? t('typePairwise') : t('typeStandard')}
             </ThemedText>
           </View>
-          {locName && (
-            <View style={styles.metaBadge}>
-              <Ionicons name="location-outline" size={12} color={colors.badgeText} />
-              <ThemedText variant="badge" style={{ color: colors.badgeText }}>{locName}</ThemedText>
-            </View>
-          )}
-          {catName && (
-            <View style={styles.metaBadge}>
-              <Ionicons name="pricetag-outline" size={12} color={colors.badgeText} />
-              <ThemedText variant="badge" style={{ color: colors.badgeText }}>{catName}</ThemedText>
-            </View>
-          )}
         </View>
 
         <ThemedText variant="button" color="dark">{title}</ThemedText>
@@ -206,13 +198,17 @@ export default function SurveysScreen() {
     const type = getSurveyType(viewSurvey)
     const start = viewSurvey.startTime
     const end = viewSurvey.endTime
-    const locName = getLocationName(viewSurvey)
     const catName = getCategoryName(viewSurvey)
 
     return (
       <ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
-        {/* Type + dates */}
-        <View style={styles.badgeRow}>
+        {/* Location/category + type */}
+        <View style={styles.cardTopRow}>
+          <LocationCategoryBadge
+            location={viewSurvey.locationCode ? { code: viewSurvey.locationCode } : null}
+            category={{ label: catName || t('allCategories') }}
+            size="md"
+          />
           <View style={[styles.typeBadge, type === 'pairwise' ? styles.typeBadgePairwise : styles.typeBadgeStandard]}>
             <ThemedText variant="badge" color="inverse" style={styles.typeBadgeText}>
               {type === 'pairwise' ? t('typePairwise') : t('typeStandard')}
@@ -227,24 +223,6 @@ export default function SurveysScreen() {
               end: end ? new Date(end).toLocaleDateString() : '—',
             })}
           </ThemedText>
-        )}
-
-        {/* Location/category badges */}
-        {(locName || catName) && (
-          <View style={styles.badgeRow}>
-            {locName && (
-              <View style={styles.metaBadge}>
-                <Ionicons name="location-outline" size={12} color={colors.badgeText} />
-                <ThemedText variant="badge" style={{ color: colors.badgeText }}>{locName}</ThemedText>
-              </View>
-            )}
-            {catName && (
-              <View style={styles.metaBadge}>
-                <Ionicons name="pricetag-outline" size={12} color={colors.badgeText} />
-                <ThemedText variant="badge" style={{ color: colors.badgeText }}>{catName}</ThemedText>
-              </View>
-            )}
-          </View>
         )}
 
         {/* Standard survey: questions with options */}
@@ -311,12 +289,14 @@ export default function SurveysScreen() {
         </View>
 
         {locations.length > 0 && (
-          <LocationFilterButton
-            allLocations={locations}
-            selectedLocationId={filterLocationId}
-            onSelect={setFilterLocationId}
-            accessibilityLabel={t('filterLocationA11y', { location: filterLocationId ? '' : t('allLocations') })}
-          />
+          <View style={styles.filterRow}>
+            <LocationFilterButton
+              allLocations={locations}
+              selectedLocationId={filterLocationId}
+              onSelect={setFilterLocationId}
+              accessibilityLabel={t('filterLocationA11y', { location: filterLocationId ? '' : t('allLocations') })}
+            />
+          </View>
         )}
 
         {loading ? (
@@ -657,13 +637,14 @@ const createStyles = (colors) => StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: 20,
   },
   titleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
   pageTitle: {
     color: colors.primary,
@@ -677,6 +658,10 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 25,
   },
+  filterRow: {
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
   center: {
     flex: 1,
     justifyContent: 'center',
@@ -685,12 +670,14 @@ const createStyles = (colors) => StyleSheet.create({
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
+    paddingHorizontal: 16,
   },
   surveyList: {
     flex: 1,
   },
   listContent: {
     paddingBottom: 20,
+    paddingHorizontal: 16,
     gap: 12,
   },
   surveyCard: {
@@ -716,19 +703,10 @@ const createStyles = (colors) => StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.5,
   },
-  badgeRow: {
+  cardTopRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  metaBadge: {
-    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.badgeBg,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
   },
   actionRow: {
     flexDirection: 'row',

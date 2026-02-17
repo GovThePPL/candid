@@ -52,6 +52,7 @@ python3 -m pytest backend/tests/unit/ --benchmark-only -v
 | `test_admin_categories_users.py` | Admin category creation, user ban/unban |
 | `test_posts.py` | Post CRUD, voting, locking, pagination, reporting |
 | `test_comments.py` | Comment CRUD, voting, Q&A authorization, nested replies |
+| `test_notifications.py` | Notification inbox list, unread count, mark read, mark all read |
 | `test_auth_required.py` | Consolidated 401 checks for all protected endpoints (parametrized) |
 | `test_user_activity.py` | User activity feed (posts + comments, pagination, type filtering) |
 | `test_counter_triggers.py` | Database counter trigger validation |
@@ -91,6 +92,8 @@ python3 -m pytest backend/tests/unit/ --benchmark-only -v
 | `test_matrix_factorization.py` | `matrix_factorization.py` | MF SGD algorithm, convergence, group recovery, Polis regularization, DB interactions |
 | `test_mf_worker.py` | `mf_worker.py` | MF worker lifecycle, advisory locks, training trigger logic |
 | `test_discuss_events.py` | `discuss_events.py` | Redis pub/sub event publishing for discuss forum |
+| `test_notification_events.py` | `notification_events.py` | Redis pub/sub event publishing for notification inbox |
+| `test_notifications_controller.py` | `notifications_controller.py` | Cursor encoding/decoding for notification pagination |
 | `test_user_summary.py` | `user_summary.py` | User summary fetch logic for UserCard display |
 
 ## Key Files

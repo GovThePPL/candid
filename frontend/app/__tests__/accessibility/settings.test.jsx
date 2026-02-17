@@ -46,6 +46,7 @@ jest.mock('../../contexts/UserContext', () => ({
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn(), navigate: jest.fn() }),
   useLocalSearchParams: () => ({}),
+  useNavigation: () => ({ addListener: jest.fn(() => jest.fn()), goBack: jest.fn(), getState: () => ({ routes: [] }) }),
   useSegments: () => [],
 }))
 
@@ -84,10 +85,6 @@ jest.mock('../../components/ChatRequestIndicator', () => {
   const { View } = require('react-native')
   return () => <View testID="chat-indicator" />
 })
-jest.mock('../../components/Sidebar', () => {
-  const { View } = require('react-native')
-  return () => <View testID="sidebar" />
-})
 jest.mock('../../components/LocationPicker', () => {
   const { View } = require('react-native')
   return () => <View testID="location-picker" />
@@ -122,5 +119,15 @@ describe('Settings Hub accessibility', () => {
     expect(screen.getByRole('button', { name: /menuPreferences/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /menuNotifications/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /menuAccount/i })).toBeTruthy()
+  })
+
+  test('Report Bug button has button role and label', () => {
+    render(<SettingsHub />)
+    expect(screen.getByRole('button', { name: /menuReportBugA11y/i })).toBeTruthy()
+  })
+
+  test('Log Out button has button role and label', () => {
+    render(<SettingsHub />)
+    expect(screen.getByRole('button', { name: /logOutA11y/i })).toBeTruthy()
   })
 })

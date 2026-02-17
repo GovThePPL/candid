@@ -1,16 +1,19 @@
-import { StyleSheet, View, TouchableOpacity, Platform } from 'react-native'
-import { useMemo } from 'react'
-import { useRouter, useLocalSearchParams } from 'expo-router'
+import { StyleSheet, View, ScrollView, TouchableOpacity, Platform } from 'react-native'
+import { useMemo, useState, useEffect, useCallback, useContext } from 'react'
+import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useTheme } from '../../../contexts/ThemeContext'
 import { useUser } from '../../../hooks/useUser'
+import { UserContext } from '../../../contexts/UserContext'
+import { SemanticColors } from '../../../constants/Colors'
 
 import ThemedText from '../../../components/ThemedText'
 import Header from '../../../components/Header'
 import Avatar from '../../../components/Avatar'
 import LanguagePicker from '../../../components/LanguagePicker'
+import BugReportModal from '../../../components/BugReportModal'
 
 const getMenuItems = (t) => [
   { label: t('menuDemographics'), icon: 'stats-chart-outline', route: '/settings/demographics' },
@@ -22,24 +25,43 @@ const getMenuItems = (t) => [
 export default function SettingsHub() {
   const { t } = useTranslation('settings')
   const { user } = useUser()
+  const { logout } = useContext(UserContext)
   const router = useRouter()
+  const navigation = useNavigation()
   const { returnTo } = useLocalSearchParams()
   const { colors, themePreference, setThemePreference } = useTheme()
   const styles = useMemo(() => createStyles(colors), [colors])
   const MENU_ITEMS = useMemo(() => getMenuItems(t), [t])
+  const [bugReportVisible, setBugReportVisible] = useState(false)
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     if (returnTo) {
       router.navigate(returnTo)
     } else {
       router.back()
     }
-  }
+  }, [returnTo, router])
+
+  // Intercept gesture/hardware back when returnTo exists so it navigates correctly
+  useEffect(() => {
+    if (!returnTo) return
+
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      e.preventDefault()
+      handleBack()
+    })
+    return unsubscribe
+  }, [navigation, returnTo, handleBack])
+
+  const handleLogout = useCallback(async () => {
+    await logout()
+    router.replace('/login')
+  }, [logout, router])
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <Header onBack={handleBack} />
-      <View style={styles.content}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
         <View style={styles.pageHeader}>
           <ThemedText variant="h1" title={true} style={styles.pageTitle}>
             {t('settings')}
@@ -120,7 +142,36 @@ export default function SettingsHub() {
             </TouchableOpacity>
           ))}
         </View>
-      </View>
+
+        {/* Report Bug */}
+        <TouchableOpacity
+          style={styles.reportBugButton}
+          onPress={() => setBugReportVisible(true)}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={t('menuReportBugA11y')}
+        >
+          <Ionicons name="bug-outline" size={20} color={colors.secondaryText} />
+          <ThemedText variant="button" color="secondary" style={styles.menuLabel}>{t('menuReportBug')}</ThemedText>
+        </TouchableOpacity>
+
+        {/* Log Out */}
+        <TouchableOpacity
+          style={styles.logoutButton}
+          onPress={handleLogout}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={t('logOutA11y')}
+        >
+          <Ionicons name="log-out-outline" size={20} color={SemanticColors.warning} />
+          <ThemedText variant="button" style={styles.logoutText}>{t('logOut')}</ThemedText>
+        </TouchableOpacity>
+      </ScrollView>
+
+      <BugReportModal
+        visible={bugReportVisible}
+        onClose={() => setBugReportVisible(false)}
+      />
     </SafeAreaView>
   )
 }
@@ -130,9 +181,12 @@ const createStyles = (colors) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  content: {
+  scrollView: {
     flex: 1,
+  },
+  content: {
     padding: 20,
+    paddingBottom: 40,
   },
   pageHeader: {
     marginBottom: 20,
@@ -206,6 +260,29 @@ const createStyles = (colors) => StyleSheet.create({
   },
   themeOptionLabelSelected: {
     color: '#FFFFFF',
+    fontWeight: '500',
+  },
+  reportBugButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    marginTop: 24,
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: SemanticColors.warning,
+    borderRadius: 25,
+  },
+  logoutText: {
+    color: SemanticColors.warning,
     fontWeight: '500',
   },
 })

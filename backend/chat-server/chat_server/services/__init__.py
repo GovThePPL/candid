@@ -54,6 +54,7 @@ async def initialize_services(app: web.Application) -> None:
         on_chat_request_received=_handle_chat_request_received,
         on_new_comment=_handle_new_comment,
         on_vote_update=_handle_vote_update,
+        on_notification=_handle_notification,
     )
 
     # Start background task for checking timed-out sessions
@@ -306,6 +307,27 @@ async def _handle_vote_update(data: dict) -> None:
             **counts,
         }, room=post_room)
         logger.debug(f"Emitted vote_update to room {post_room}")
+
+
+async def _handle_notification(data: dict) -> None:
+    """
+    Handle notification event from REST API via pub/sub.
+
+    Delivers the notification to the recipient's personal user room.
+    """
+    user_id = data.get("userId")
+    notification = data.get("notification")
+
+    if not all([user_id, notification]):
+        logger.error(f"Invalid notification event data: {data}")
+        return
+
+    logger.info(f"Handling notification for user {user_id}")
+
+    if _sio:
+        user_room = room_manager.user_room(user_id)
+        await _sio.emit("notification", notification, room=user_room)
+        logger.debug(f"Emitted notification to user {user_id}")
 
 
 def get_redis_store() -> RedisStore:

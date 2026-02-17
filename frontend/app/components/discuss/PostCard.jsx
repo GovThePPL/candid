@@ -128,11 +128,11 @@ export default function PostCard({ post, onPress, onUpvote, onDownvote, onToggle
             accessibilityLabel={t('postOptionsA11y', { author: displayName })}
             hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
           >
-            <Ionicons name="ellipsis-vertical" size={16} color={colors.secondaryText} />
+            <Ionicons name="ellipsis-vertical" size={18} color={colors.secondaryText} />
           </TouchableOpacity>
 
           <View style={styles.commentCount}>
-            <Ionicons name="chatbubble-outline" size={14} color={colors.secondaryText} />
+            <Ionicons name="chatbubble-outline" size={18} color={colors.secondaryText} />
             <ThemedText variant="caption" color="secondary">{post.commentCount || 0}</ThemedText>
           </View>
 
@@ -286,6 +286,12 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    backgroundColor: colors.cardBackground,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    borderRadius: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
   optionsList: {
     padding: Spacing.lg,

@@ -456,6 +456,22 @@ export function onVoteUpdate(handler) {
   }
 }
 
+/**
+ * Set up listener for notification events (real-time inbox delivery).
+ * @param {Function} handler - Called with notification data
+ * @returns {Function} - Cleanup function
+ */
+export function onNotification(handler) {
+  if (!socket) {
+    return () => {}
+  }
+
+  socket.on('notification', handler)
+  return () => {
+    if (socket) socket.off('notification', handler)
+  }
+}
+
 export default {
   connect: connectSocket,
   disconnect: disconnectSocket,
@@ -480,4 +496,5 @@ export default {
   leavePost,
   onNewComment,
   onVoteUpdate,
+  onNotification,
 }

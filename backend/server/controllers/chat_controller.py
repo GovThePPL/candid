@@ -17,8 +17,8 @@ from candid.controllers.helpers.chat_events import publish_chat_accepted, publis
 from candid.controllers.cards_controller import _get_pending_chat_requests
 from candid.controllers.helpers.card_builders import chat_request_to_card as _chat_request_to_card
 from candid.controllers.helpers import presence
-from candid.controllers.helpers.push_notifications import send_chat_request_notification
-from candid.controllers.helpers.chat_availability import _is_notifiable
+from candid.controllers.helpers.push_notifications import send_or_queue_notification
+
 from candid.controllers.helpers.cache_headers import (
     add_cache_headers,
     check_not_modified,
@@ -117,26 +117,21 @@ def create_chat_request(body, token_info=None):
 
     # Send push notification if recipient is offline
     if delivery_context == 'notification':
-        recipient_info = db.execute_query("""
-            SELECT push_token, notifications_enabled, notification_frequency,
-                   notifications_sent_today, notifications_sent_date,
-                   quiet_hours_start, quiet_hours_end, timezone
-            FROM users WHERE id = %s
-        """, (recipient_user_id,), fetchone=True)
+        initiator_info = db.execute_query("""
+            SELECT display_name FROM users WHERE id = %s
+        """, (str(user.id),), fetchone=True)
+        initiator_name = initiator_info["display_name"] if initiator_info else "Someone"
+        short_statement = result["statement"][:80] + "..." if len(result["statement"]) > 80 else result["statement"]
 
-        if recipient_info and _is_notifiable(recipient_info):
-            initiator_info = db.execute_query("""
-                SELECT display_name FROM users WHERE id = %s
-            """, (str(user.id),), fetchone=True)
-            initiator_name = initiator_info["display_name"] if initiator_info else "Someone"
-
-            send_chat_request_notification(
-                push_token=recipient_info["push_token"],
-                initiator_display_name=initiator_name,
-                position_statement=result["statement"],
-                db=db,
-                recipient_user_id=recipient_user_id,
-            )
+        send_or_queue_notification(
+            title=f"{initiator_name} wants to chat",
+            body=short_statement,
+            data={"action": "open_cards"},
+            recipient_user_id=recipient_user_id,
+            db=db,
+            notification_type='chat_request',
+            actor_user_id=str(user.id),
+        )
 
     # For swiping/in_app contexts, publish real-time event to recipient
     if delivery_context in ('swiping', 'in_app'):

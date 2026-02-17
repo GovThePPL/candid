@@ -1,0 +1,15 @@
+{
+  "title": "Notificaciones",
+  "bellA11y": "Notificaciones, {{count}} sin leer",
+  "bellA11yNone": "Notificaciones, ninguna sin leer",
+  "emptyTitle": "Sin notificaciones aún",
+  "emptySubtitle": "Verás actualizaciones aquí cuando interactúen con tu contenido.",
+  "notificationItemA11y": "{{title}}, {{time}}, {{status}}",
+  "readStatus": "leído",
+  "unreadStatus": "no leído",
+  "typeCommentReply": "Respuesta",
+  "typePostComment": "Comentario",
+  "typeChatRequest": "Solicitud de chat",
+  "typeRoleChange": "Cambio de rol",
+  "typeModeration": "Moderación"
+}

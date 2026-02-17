@@ -605,7 +605,8 @@ def create_role_request(body, token_info=None):  # noqa: E501
     target_name = db.execute_query("SELECT display_name FROM users WHERE id = %s",
                                     (target_user_id,), fetchone=True)
     target_display = target_name['display_name'] if target_name else 'a user'
-    _notify_peers(peers, user.display_name, 'assign', role, target_display)
+    _notify_peers(peers, user.display_name, 'assign', role, target_display,
+                  requester_user_id=str(user.id))
 
     return {'id': request_id, 'status': 'pending'}, 201
 
@@ -684,7 +685,8 @@ def _handle_role_removal(body, user, token_info=None):
     target_name = db.execute_query("SELECT display_name FROM users WHERE id = %s",
                                     (str(role_row['user_id']),), fetchone=True)
     target_display = target_name['display_name'] if target_name else 'a user'
-    _notify_peers(peers, user.display_name, 'remove', role, target_display)
+    _notify_peers(peers, user.display_name, 'remove', role, target_display,
+                  requester_user_id=str(user.id))
 
     return {'id': request_id, 'status': 'pending'}, 201
 

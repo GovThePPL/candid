@@ -180,10 +180,16 @@ export function UserProvider({ children }) {
         if (data?.action === 'open_cards') {
           // Navigate to cards page when user taps a chat request notification
           setActiveChatNavigation(null) // Clear any stale navigation
+        } else if (data?.action === 'open_organization') {
+          setPendingDeepLink('/admin/organization')
         } else if (data?.action === 'open_admin_pending') {
           setPendingDeepLink('/admin/request-log')
         } else if (data?.action === 'open_post' && data?.postId) {
-          setPendingDeepLink(`/discuss/${data.postId}`)
+          if (data.commentId) {
+            setPendingDeepLink({ pathname: '/discuss/[id]', params: { id: data.postId, threadRoot: data.commentId, focus: data.commentId } })
+          } else {
+            setPendingDeepLink(`/discuss/${data.postId}`)
+          }
         }
       })
     } catch (error) {

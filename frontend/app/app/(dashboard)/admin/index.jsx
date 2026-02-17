@@ -1,6 +1,6 @@
 import { StyleSheet, View, TouchableOpacity, ActivityIndicator } from 'react-native'
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { useRouter, useLocalSearchParams } from 'expo-router'
+import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
@@ -26,6 +26,7 @@ export default function AdminHub() {
   const { t } = useTranslation('admin')
   const { user } = useUser()
   const router = useRouter()
+  const navigation = useNavigation()
   const { returnTo } = useLocalSearchParams()
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
@@ -50,13 +51,24 @@ export default function AdminHub() {
     fetchPendingCount()
   }, [fetchPendingCount])
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     if (returnTo) {
       router.navigate(returnTo)
     } else {
       router.back()
     }
-  }
+  }, [returnTo, router])
+
+  // Intercept gesture/hardware back when returnTo exists so it navigates correctly
+  useEffect(() => {
+    if (!returnTo) return
+
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      e.preventDefault()
+      handleBack()
+    })
+    return unsubscribe
+  }, [navigation, returnTo, handleBack])
 
   const sortedRoles = useMemo(() => {
     const roles = user?.roles || []
@@ -145,10 +157,11 @@ const createStyles = (colors) => StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: 20,
   },
   pageHeader: {
     marginBottom: 20,
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
   pageTitle: {
     color: colors.primary,
@@ -158,6 +171,7 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
+    marginHorizontal: 16,
     borderWidth: 1,
     borderColor: colors.cardBorder,
   },
@@ -200,6 +214,7 @@ const createStyles = (colors) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.cardBorder,
     overflow: 'hidden',
+    marginHorizontal: 16,
   },
   menuItem: {
     flexDirection: 'row',

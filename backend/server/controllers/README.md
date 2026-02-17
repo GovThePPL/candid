@@ -18,6 +18,7 @@ Custom controller implementations for the Flask API. These files are copied over
 | `admin_controller.py` | Admin | Role management, approval workflow, locations, surveys |
 | `posts_controller.py` | Posts | Create/list/update/delete posts, voting, locking |
 | `comments_controller.py` | Comments | Create/list/update/delete comments, voting, Q&A auth |
+| `notifications_controller.py` | Notifications | Inbox list with cursor pagination, unread count, mark read |
 | `moderation_controller.py` | Moderation | Report queue, claims, actions, appeals, user history, post/comment reports |
 | `security_controller.py` | Security | JWT token validation for Connexion |
 
@@ -158,6 +159,7 @@ Separate from roles. `users.status = 'banned'` blocks all authorized endpoints e
 | `chat_availability.py` | Chat partner matching and availability logic |
 | `chat_events.py` | WebSocket chat event handling |
 | `discuss_events.py` | Redis pub/sub event publishing for discuss forum (new comments, vote updates) |
+| `notification_events.py` | Redis pub/sub event publishing for notification inbox (real-time delivery to clients) |
 | `config.py` | Dev/prod configuration loader |
 | `constants.py` | Shared constants (limits, defaults, enums) |
 | `database.py` | PostgreSQL connection pool wrapper (psycopg2, RealDictCursor, DatabaseError) |
@@ -174,7 +176,7 @@ Separate from roles. `users.status = 'banned'` blocks all authorized endpoints e
 | `polis_sync.py` | Queue-based async sync of positions and votes to Polis |
 | `polis_worker.py` | Worker thread for processing Polis sync queue |
 | `presence.py` | User presence and swiping state tracking via Redis |
-| `push_notifications.py` | Expo push notification delivery with quiet hours |
+| `push_notifications.py` | Expo push notification delivery with quiet hours, notification inbox writes |
 | `rate_limiting.py` | Sliding-window rate limiting using Redis sorted sets |
 | `redis_pool.py` | Shared Redis connection pool |
 | `scoring.py` | Wilson score, hot score, controversial score, vote weighting by ideological distance |

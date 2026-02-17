@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 # Channel names
 CHAT_EVENTS_CHANNEL = "chat:events"
 DISCUSS_EVENTS_CHANNEL = "discuss:events"
+NOTIFICATION_EVENTS_CHANNEL = "notifications:events"
 
 
 class PubSubService:
@@ -38,22 +39,26 @@ class PubSubService:
             decode_responses=True,
         )
         self._pubsub = self._redis.pubsub()
-        await self._pubsub.subscribe(CHAT_EVENTS_CHANNEL, DISCUSS_EVENTS_CHANNEL)
-        logger.info(f"Subscribed to channels: {CHAT_EVENTS_CHANNEL}, {DISCUSS_EVENTS_CHANNEL}")
+        await self._pubsub.subscribe(CHAT_EVENTS_CHANNEL, DISCUSS_EVENTS_CHANNEL,
+                                     NOTIFICATION_EVENTS_CHANNEL)
+        logger.info(f"Subscribed to channels: {CHAT_EVENTS_CHANNEL}, {DISCUSS_EVENTS_CHANNEL}, {NOTIFICATION_EVENTS_CHANNEL}")
 
     async def start_listener(self, on_chat_accepted, on_chat_request_response=None,
                              on_chat_request_received=None,
-                             on_new_comment=None, on_vote_update=None) -> None:
+                             on_new_comment=None, on_vote_update=None,
+                             on_notification=None) -> None:
         """Start the background listener task."""
         self._listener_task = asyncio.create_task(
             self._listen(on_chat_accepted, on_chat_request_response,
-                         on_chat_request_received, on_new_comment, on_vote_update)
+                         on_chat_request_received, on_new_comment, on_vote_update,
+                         on_notification)
         )
         logger.info("Started pub/sub listener task")
 
     async def _listen(self, on_chat_accepted, on_chat_request_response=None,
                       on_chat_request_received=None,
-                      on_new_comment=None, on_vote_update=None) -> None:
+                      on_new_comment=None, on_vote_update=None,
+                      on_notification=None) -> None:
         """Listen for messages and dispatch to handlers.
 
         Auto-reconnects with exponential backoff on connection failures.
@@ -93,6 +98,12 @@ class PubSubService:
                                     await on_vote_update(data)
                             else:
                                 logger.warning(f"Unknown discuss event type: {event_type}")
+                        elif channel == NOTIFICATION_EVENTS_CHANNEL:
+                            if event_type == "notification":
+                                if on_notification:
+                                    await on_notification(data)
+                            else:
+                                logger.warning(f"Unknown notification event type: {event_type}")
                         else:
                             logger.warning(f"Message from unknown channel: {channel}")
 
@@ -129,7 +140,8 @@ class PubSubService:
             decode_responses=True,
         )
         self._pubsub = self._redis.pubsub()
-        await self._pubsub.subscribe(CHAT_EVENTS_CHANNEL, DISCUSS_EVENTS_CHANNEL)
+        await self._pubsub.subscribe(CHAT_EVENTS_CHANNEL, DISCUSS_EVENTS_CHANNEL,
+                                     NOTIFICATION_EVENTS_CHANNEL)
         logger.info("Pub/sub reconnected successfully")
 
     async def close(self) -> None:
@@ -142,7 +154,8 @@ class PubSubService:
                 pass
 
         if self._pubsub:
-            await self._pubsub.unsubscribe(CHAT_EVENTS_CHANNEL, DISCUSS_EVENTS_CHANNEL)
+            await self._pubsub.unsubscribe(CHAT_EVENTS_CHANNEL, DISCUSS_EVENTS_CHANNEL,
+                                         NOTIFICATION_EVENTS_CHANNEL)
             await self._pubsub.close()
 
         if self._redis:

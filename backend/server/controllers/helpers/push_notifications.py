@@ -136,7 +136,8 @@ def _is_notification_muted(user_id, target_type, target_id, db):
 
 
 def send_post_comment_notification(post_author_id, commenter_display_name,
-                                    comment_snippet, post_id, db):
+                                    comment_snippet, post_id, db,
+                                    commenter_user_id=None, comment_id=None):
     """Send a push notification when someone posts a top-level comment on a post.
 
     Checks per-type preference before sending.
@@ -147,6 +148,8 @@ def send_post_comment_notification(post_author_id, commenter_display_name,
         comment_snippet: Body text of the comment (truncated).
         post_id: Post ID for deep linking.
         db: Database module.
+        commenter_user_id: User ID of the commenter (for inbox actor).
+        comment_id: Comment ID for deep linking to the specific comment.
     """
     if not _is_notification_type_enabled(post_author_id, 'post_comment', db):
         return
@@ -154,18 +157,25 @@ def send_post_comment_notification(post_author_id, commenter_display_name,
         return
 
     snippet = comment_snippet[:80] + "..." if len(comment_snippet) > 80 else comment_snippet
+    data = {"action": "open_post", "postId": str(post_id)}
+    if comment_id:
+        data["commentId"] = str(comment_id)
     send_or_queue_notification(
         title=f"{commenter_display_name} commented on your post",
         body=snippet,
-        data={"action": "open_post", "postId": str(post_id)},
+        data=data,
         recipient_user_id=post_author_id,
         db=db,
+        notification_type='post_comment',
+        actor_user_id=commenter_user_id,
     )
 
 
 def send_comment_reply_notification(parent_author_id, replier_display_name,
                                     comment_snippet, post_id, db,
-                                    parent_comment_id=None):
+                                    parent_comment_id=None,
+                                    replier_user_id=None,
+                                    reply_comment_id=None):
     """Send a push notification when someone replies to a comment.
 
     Checks per-type preference and mute status before sending.
@@ -177,6 +187,8 @@ def send_comment_reply_notification(parent_author_id, replier_display_name,
         post_id: Post ID for deep linking.
         db: Database module.
         parent_comment_id: The comment being replied to (for mute check).
+        replier_user_id: User ID of the replier (for inbox actor).
+        reply_comment_id: The reply comment ID for deep linking.
     """
     if not _is_notification_type_enabled(parent_author_id, 'comment_reply', db):
         return
@@ -187,12 +199,17 @@ def send_comment_reply_notification(parent_author_id, replier_display_name,
         return
 
     snippet = comment_snippet[:80] + "..." if len(comment_snippet) > 80 else comment_snippet
+    data = {"action": "open_post", "postId": str(post_id)}
+    if reply_comment_id:
+        data["commentId"] = str(reply_comment_id)
     send_or_queue_notification(
         title=f"{replier_display_name} replied to your comment",
         body=snippet,
-        data={"action": "open_post", "postId": str(post_id)},
+        data=data,
         recipient_user_id=parent_author_id,
         db=db,
+        notification_type='comment_reply',
+        actor_user_id=replier_user_id,
     )
 
 
@@ -243,13 +260,16 @@ def _is_under_frequency_cap(user_row):
     return True  # Different date, counter is effectively 0
 
 
-def send_or_queue_notification(title, body, data, recipient_user_id, db):
+def send_or_queue_notification(title, body, data, recipient_user_id, db,
+                               notification_type=None, actor_user_id=None):
     """Send a notification immediately or queue it if user is in quiet hours.
 
-    1. Load recipient's notification settings
-    2. If notifications disabled or over cap → drop silently
-    3. If in quiet hours → queue in notification_queue table
-    4. Otherwise → send immediately
+    1. If notification_type is provided, always write to notification_inbox
+       and publish a real-time event (independent of push delivery)
+    2. Load recipient's notification settings
+    3. If notifications disabled or over cap → skip push silently
+    4. If in quiet hours → queue push in notification_queue table
+    5. Otherwise → send push immediately
 
     Args:
         title: Notification title
@@ -257,7 +277,51 @@ def send_or_queue_notification(title, body, data, recipient_user_id, db):
         data: Data dict for deep linking
         recipient_user_id: Target user's ID
         db: Database module
+        notification_type: If set, persist to inbox (e.g. 'comment_reply')
+        actor_user_id: Who triggered the notification (for inbox display)
     """
+    # Always write to inbox when notification_type is provided
+    if notification_type:
+        try:
+            row = db.execute_query("""
+                INSERT INTO notification_inbox
+                    (user_id, notification_type, actor_user_id, title, body, data)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id, created_time
+            """, (str(recipient_user_id), notification_type,
+                  str(actor_user_id) if actor_user_id else None,
+                  title, body, json.dumps(data or {})),
+                fetchone=True)
+
+            if row:
+                # Look up actor info for the real-time event
+                actor_name = None
+                actor_avatar = None
+                if actor_user_id:
+                    actor_row = db.execute_query(
+                        "SELECT display_name, avatar_icon_url FROM users WHERE id = %s",
+                        (str(actor_user_id),), fetchone=True)
+                    if actor_row:
+                        actor_name = actor_row["display_name"]
+                        actor_avatar = actor_row["avatar_icon_url"]
+
+                from candid.controllers.helpers.notification_events import publish_notification
+                publish_notification(
+                    user_id=recipient_user_id,
+                    inbox_id=row["id"],
+                    notification_type=notification_type,
+                    title=title,
+                    body=body,
+                    data=data,
+                    actor_user_id=actor_user_id,
+                    actor_display_name=actor_name,
+                    actor_avatar_icon_url=actor_avatar,
+                    created_time=row["created_time"],
+                )
+        except Exception as e:
+            logger.error("Error writing to notification inbox: %s", e)
+
+    # Push notification logic (independent of inbox)
     user_row = db.execute_query("""
         SELECT push_token, notifications_enabled, quiet_hours_start, quiet_hours_end,
                timezone, notification_frequency, notifications_sent_today,

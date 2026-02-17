@@ -126,6 +126,12 @@ jest.mock('candid_api', () => {
       deleteComment: jest.fn(),
       voteOnComment: jest.fn(),
     })),
+    NotificationsApi: jest.fn(() => ({
+      getNotifications: jest.fn(),
+      getNotificationsUnreadCount: jest.fn(),
+      markNotificationRead: jest.fn(),
+      markAllNotificationsRead: jest.fn(),
+    })),
   }
 })
 

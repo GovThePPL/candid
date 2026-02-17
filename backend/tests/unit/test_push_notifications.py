@@ -505,6 +505,7 @@ class TestSendCommentReplyNotification:
         return send_comment_reply_notification(*args, **kwargs)
 
     def test_sends_when_type_enabled(self):
+        from datetime import datetime, timezone as tz
         mock_db = MagicMock()
         user_row = {
             "push_token": PUSH_TOKEN,
@@ -516,14 +517,18 @@ class TestSendCommentReplyNotification:
             "notifications_sent_today": 0,
             "notifications_sent_date": None,
         }
+        inbox_row = {"id": "inbox-1", "created_time": datetime(2026, 1, 1, tzinfo=tz.utc)}
         mock_db.execute_query.side_effect = [
             None,       # type pref query (absent = enabled)
             None,       # comment mute check (not muted)
             None,       # post mute check (not muted)
-            user_row,   # send_or_queue user lookup
+            inbox_row,  # inbox INSERT RETURNING
+            # actor lookup skipped (no replier_user_id)
+            user_row,   # send_or_queue user lookup (push)
         ]
 
-        with patch("candid.controllers.helpers.push_notifications.urllib.request.urlopen") as mock_open:
+        with patch("candid.controllers.helpers.push_notifications.urllib.request.urlopen") as mock_open, \
+             patch("candid.controllers.helpers.notification_events.get_redis"):
             mock_response = MagicMock()
             mock_response.read.return_value = b'{"data": {"status": "ok"}}'
             mock_response.__enter__ = MagicMock(return_value=mock_response)
@@ -550,6 +555,7 @@ class TestSendCommentReplyNotification:
         mock_send.assert_not_called()
 
     def test_truncates_long_snippet(self):
+        from datetime import datetime, timezone as tz
         mock_db = MagicMock()
         user_row = {
             "push_token": PUSH_TOKEN,
@@ -561,16 +567,20 @@ class TestSendCommentReplyNotification:
             "notifications_sent_today": 0,
             "notifications_sent_date": None,
         }
+        inbox_row = {"id": "inbox-2", "created_time": datetime(2026, 1, 1, tzinfo=tz.utc)}
         mock_db.execute_query.side_effect = [
             None,       # type pref (absent = enabled)
             None,       # comment mute check (not muted)
             None,       # post mute check (not muted)
-            user_row,   # send_or_queue user lookup
+            inbox_row,  # inbox INSERT RETURNING
+            # actor lookup skipped (no replier_user_id)
+            user_row,   # send_or_queue user lookup (push)
         ]
 
         long_text = "A" * 200
 
-        with patch("candid.controllers.helpers.push_notifications.urllib.request.urlopen") as mock_open:
+        with patch("candid.controllers.helpers.push_notifications.urllib.request.urlopen") as mock_open, \
+             patch("candid.controllers.helpers.notification_events.get_redis"):
             mock_response = MagicMock()
             mock_response.read.return_value = b'{"data": {"status": "ok"}}'
             mock_response.__enter__ = MagicMock(return_value=mock_response)
@@ -597,6 +607,7 @@ class TestSendPostCommentNotification:
         return send_post_comment_notification(*args, **kwargs)
 
     def test_sends_when_type_enabled(self):
+        from datetime import datetime, timezone as tz
         mock_db = MagicMock()
         user_row = {
             "push_token": PUSH_TOKEN,
@@ -608,13 +619,17 @@ class TestSendPostCommentNotification:
             "notifications_sent_today": 0,
             "notifications_sent_date": None,
         }
+        inbox_row = {"id": "inbox-1", "created_time": datetime(2026, 1, 1, tzinfo=tz.utc)}
         mock_db.execute_query.side_effect = [
             None,       # type pref query (absent = enabled)
             None,       # post mute check (not muted)
-            user_row,   # send_or_queue user lookup
+            inbox_row,  # inbox INSERT RETURNING
+            # actor lookup skipped (no commenter_user_id)
+            user_row,   # send_or_queue user lookup (push)
         ]
 
-        with patch("candid.controllers.helpers.push_notifications.urllib.request.urlopen") as mock_open:
+        with patch("candid.controllers.helpers.push_notifications.urllib.request.urlopen") as mock_open, \
+             patch("candid.controllers.helpers.notification_events.get_redis"):
             mock_response = MagicMock()
             mock_response.read.return_value = b'{"data": {"status": "ok"}}'
             mock_response.__enter__ = MagicMock(return_value=mock_response)
@@ -641,6 +656,7 @@ class TestSendPostCommentNotification:
         mock_send.assert_not_called()
 
     def test_truncates_long_snippet(self):
+        from datetime import datetime, timezone as tz
         mock_db = MagicMock()
         user_row = {
             "push_token": PUSH_TOKEN,
@@ -652,15 +668,19 @@ class TestSendPostCommentNotification:
             "notifications_sent_today": 0,
             "notifications_sent_date": None,
         }
+        inbox_row = {"id": "inbox-2", "created_time": datetime(2026, 1, 1, tzinfo=tz.utc)}
         mock_db.execute_query.side_effect = [
             None,       # type pref (absent = enabled)
             None,       # post mute check (not muted)
-            user_row,   # send_or_queue user lookup
+            inbox_row,  # inbox INSERT RETURNING
+            # actor lookup skipped (no commenter_user_id)
+            user_row,   # send_or_queue user lookup (push)
         ]
 
         long_text = "B" * 200
 
-        with patch("candid.controllers.helpers.push_notifications.urllib.request.urlopen") as mock_open:
+        with patch("candid.controllers.helpers.push_notifications.urllib.request.urlopen") as mock_open, \
+             patch("candid.controllers.helpers.notification_events.get_redis"):
             mock_response = MagicMock()
             mock_response.read.return_value = b'{"data": {"status": "ok"}}'
             mock_response.__enter__ = MagicMock(return_value=mock_response)

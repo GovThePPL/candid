@@ -512,11 +512,12 @@ const createStyles = (colors) => StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: 20,
   },
   pageTitle: {
     color: colors.primary,
     marginBottom: 16,
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
   searchInput: {
     backgroundColor: colors.cardBackground,
@@ -528,6 +529,7 @@ const createStyles = (colors) => StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     marginBottom: 16,
+    marginHorizontal: 16,
   },
   center: {
     flex: 1,
@@ -537,9 +539,11 @@ const createStyles = (colors) => StyleSheet.create({
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
+    paddingHorizontal: 16,
   },
   listContent: {
     paddingBottom: 20,
+    paddingHorizontal: 16,
     gap: 12,
   },
   userCard: {

@@ -224,7 +224,7 @@
 
   "errorDiagnosticsFailed": "Couldn't update diagnostics preference",
 
-  "activity": "My Activity",
+  "activity": "My Content",
   "loadingActivity": "Loading activity...",
 
   "activityTabPositions": "Positions",
@@ -234,7 +234,11 @@
   "activityTabPositionsA11y": "Positions tab",
   "activityTabChattingListA11y": "Chatting list tab",
   "activityTabPostsA11y": "Posts tab",
+  "activityTabChats": "Chats",
+  "activityTabChatsA11y": "Chats tab",
   "activityTabCommentsA11y": "Comments tab",
+
+  "positionStatsMeta": "{{agree}} agree \u00b7 {{disagree}} disagree \u00b7 {{chats}} chats",
 
   "activityEmptyPositions": "No positions yet",
   "activityEmptyPositionsSubtitle": "Adopt positions from the card queue",
@@ -258,6 +262,13 @@
   "chattingListActive": "Active",
   "chattingListPaused": "Paused",
   "chattingListItemA11y": "{{statement}}, {{status}}, {{chats}} chats",
+
+  "profileCardA11y": "Your profile. Tap to open settings",
+  "adminLink": "Admin",
+  "adminLinkA11y": "Admin panel{{pendingInfo}}",
+  "adminPendingInfo": ", {{count}} pending",
+  "menuReportBug": "Report Bug",
+  "menuReportBugA11y": "Report a bug",
 
   "activityPost": "Post",
   "activityComment": "Comment",

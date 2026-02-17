@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import api from '../lib/api'
+import { CacheManager, CacheKeys } from '../lib/cache'
 import { useToast } from '../components/Toast'
+import { useUser } from './useUser'
 import { buildTree, sortTree, flattenTree, getAutoCollapsedIds } from '../lib/commentTree'
 import { isConnected, joinPost, leavePost, onNewComment, onVoteUpdate } from '../lib/socket'
 
@@ -36,6 +38,7 @@ function arrEq(a, b) {
 export default function useCommentThread(postId, { threadRootId, focusCommentId } = {}) {
   const { t } = useTranslation('discuss')
   const showToast = useToast()
+  const { user } = useUser()
   const [rawComments, setRawComments] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -519,7 +522,8 @@ export default function useCommentThread(postId, { threadRootId, focusCommentId 
       setRawComments(prev => [...prev, result])
       setStructureVersion(v => v + 1)
     }
-  }, [postId])
+    if (user?.id) CacheManager.invalidate(CacheKeys.activityComments(user.id))
+  }, [postId, user?.id])
 
   return {
     flatList,

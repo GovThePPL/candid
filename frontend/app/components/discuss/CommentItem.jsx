@@ -92,6 +92,13 @@ export default memo(function CommentItem({
       style={styles.container}
       accessibilityLabel={t('commentByA11y', { author: authorName })}
     >
+      {/* Role highlight overlay — from thread lines to right screen edge */}
+      {roleHighlightBg && (
+        <View
+          style={[styles.roleHighlight, { backgroundColor: roleHighlightBg }]}
+          pointerEvents="none"
+        />
+      )}
       {/* Focus highlight overlay */}
       {isFocused && (
         <View
@@ -123,7 +130,7 @@ export default memo(function CommentItem({
         </View>
       )}
 
-      <View style={[styles.content, roleHighlightBg && { backgroundColor: roleHighlightBg, borderRadius: 4 }]}>
+      <View style={styles.content}>
         {/* Header row: avatar, author, role, time, depth badge */}
         <View style={styles.headerRow}>
           <View style={styles.headerLeft}>
@@ -234,7 +241,7 @@ export default memo(function CommentItem({
               accessibilityLabel={t('commentOptionsA11y', { author: authorName })}
               hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
-              <Ionicons name="ellipsis-vertical" size={16} color={colors.secondaryText} />
+              <Ionicons name="ellipsis-vertical" size={18} color={colors.secondaryText} />
             </TouchableOpacity>
 
             {/* Reply pill */}
@@ -246,7 +253,7 @@ export default memo(function CommentItem({
                 accessibilityRole="button"
                 accessibilityLabel={t('replyButtonA11y', { author: authorName })}
               >
-                <Ionicons name="arrow-undo-outline" size={14} color={colors.secondaryText} />
+                <Ionicons name="arrow-undo-outline" size={18} color={colors.secondaryText} />
                 <ThemedText variant="caption" color="secondary">{t('reply')}</ThemedText>
               </TouchableOpacity>
             )}
@@ -371,6 +378,13 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: Spacing.lg,
   },
+  roleHighlight: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: Spacing.lg,
+    right: 0,
+  },
   linesContainer: {
     flexDirection: 'row',
   },
@@ -437,7 +451,7 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.cardBackground,
     borderWidth: 1,
     borderColor: colors.cardBorder,
-    borderRadius: 14,
+    borderRadius: 16,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },

@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useLocalSearchParams, router } from 'expo-router'
+import { useLocalSearchParams, router, useNavigation } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../../../hooks/useThemeColors'
@@ -23,6 +23,7 @@ import { positionsApiWrapper } from '../../../lib/api'
 
 export default function PositionClosures() {
   const { id: positionId } = useLocalSearchParams()
+  const navigation = useNavigation()
   const { t } = useTranslation('stats')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
@@ -72,10 +73,19 @@ export default function PositionClosures() {
     setShowStatementsModal(true)
   }
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     // Navigate back to stats tab - router.back() doesn't work well with tab navigation
     router.navigate('/stats')
-  }
+  }, [])
+
+  // Intercept gesture/hardware back to ensure it navigates to stats tab
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      e.preventDefault()
+      handleBack()
+    })
+    return unsubscribe
+  }, [navigation, handleBack])
 
   const renderContent = () => {
     if (loading) {
@@ -136,9 +146,9 @@ export default function PositionClosures() {
           ))
         ) : (
           <View style={styles.emptyContainer}>
-            <Ionicons name="chatbubbles-outline" size={48} color={colors.secondaryText} />
-            <ThemedText variant="h3" style={styles.emptyTitle}>{t('noAgreementsYet')}</ThemedText>
-            <ThemedText variant="bodySmall" color="secondary" style={styles.emptyText}>
+            <Ionicons name="chatbubbles-outline" size={48} color={colors.placeholderText} />
+            <ThemedText variant="body" color="placeholder" style={styles.emptyTitle}>{t('noAgreementsYet')}</ThemedText>
+            <ThemedText variant="bodySmall" color="placeholder" style={styles.emptyText}>
               {t('noAgreementsDesc')}
             </ThemedText>
           </View>

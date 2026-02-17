@@ -69,6 +69,7 @@ jest.mock('../../components/Toast', () => ({
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: jest.fn(), back: jest.fn(), navigate: jest.fn() }),
   useLocalSearchParams: () => ({}),
+  useNavigation: () => ({ addListener: jest.fn(() => jest.fn()), goBack: jest.fn(), getState: () => ({ routes: [] }) }),
   useSegments: () => [],
 }))
 

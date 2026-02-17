@@ -26,6 +26,7 @@ Phases (all run by default):
    10  pairwise       Respond to pairwise comparisons
    11  admin          Role requests, bans, admin surveys
    12  posts          Posts, nested comments, and votes (direct SQL)
+   13  notifications  Populate notification inbox from seeded data
 """
 
 import argparse
@@ -2644,7 +2645,11 @@ SEED_COMMENTS = {
             # Normal users can reply to moderator answers
             {"body": "This is a really clear explanation, thank you! So if I bought my house "
                      "recently, I'm probably paying more than my neighbor who's been there 20 years?",
-             "author_prefix": "normal"},
+             "author_prefix": "normal", "replies": [
+                {"body": "Yes, exactly. It's one of the most common complaints from recent buyers. "
+                         "The system rewards long-term ownership but creates real inequities.",
+                 "author_prefix": "moderator"},
+            ]},
             {"body": "One thing to add: you can look up your property's assessed vs. market "
                      "value on the county assessor's website. The gap can be eye-opening.",
              "author_prefix": "cen"},
@@ -2697,7 +2702,11 @@ SEED_COMMENTS = {
          "author_prefix": "lib", "replies": [
             {"body": "This is heartbreaking but real. I know three artists who moved to "
                      "Bend or Ashland in the last year alone.",
-             "author_prefix": "normal"},
+             "author_prefix": "normal", "replies": [
+                {"body": "Same story in the music scene. Small venues can't compete with "
+                         "rising rents and noise complaints from new condo developments.",
+                 "author_prefix": "lib"},
+            ]},
             {"body": "The Portland Arts Tax was supposed to help with this. Where is that "
                      "money actually going?",
              "author_prefix": "con"},
@@ -2719,7 +2728,11 @@ SEED_COMMENTS = {
             # Normal users can reply to moderator answers
             {"body": "Thank you for this list! The cancellation list tip is really helpful. "
                      "I'll pass this along.",
-             "author_prefix": "normal"},
+             "author_prefix": "normal", "replies": [
+                {"body": "Glad it helped! One more tip: many providers offer free 15-minute "
+                         "consultations so you can find a good fit before committing.",
+                 "author_prefix": "moderator"},
+            ]},
             {"body": "Also worth looking into Open Path Collective — it's a network of therapists "
                      "who offer sessions at $30-$80. Not Portland-specific but many local providers "
                      "are on there.",
@@ -2906,7 +2919,7 @@ def phase_12_posts(location_id, category_map, dry_run=False):
     for i, post_data in enumerate(SEED_POSTS):
         # Rotate creators across belief groups
         creator_prefixes = ["prog", "lib", "mod", "con", "cen", "libt",
-                            "socdem", "pop", "soc", "trad"]
+                            "socdem", "pop", "normal", "trad"]
         creator = pick_user(creator_prefixes[i % len(creator_prefixes)])
         category_id = get_category_id(post_data["category"])
 
@@ -3136,6 +3149,214 @@ def phase_12_posts(location_id, category_map, dry_run=False):
 
 
 # ---------------------------------------------------------------------------
+# Phase 13: Notifications — populate notification_inbox from seeded data
+# ---------------------------------------------------------------------------
+
+def phase_13_notifications(dry_run=False):
+    """Create notification_inbox rows from data created in earlier phases."""
+    print("\n" + "=" * 60)
+    print("PHASE 13: Notifications")
+    print("=" * 60)
+
+    # Idempotency check — earlier API-driven phases may have organically inserted
+    # a handful of notifications via push_notifications.py.  Only skip if the
+    # count is large enough to indicate phase 13 already ran (>30).  Otherwise,
+    # clear the organic rows and re-seed with the full curated set.
+    existing = db_query_one("SELECT count(*) as cnt FROM notification_inbox")
+    existing_cnt = existing["cnt"] if existing else 0
+    if existing_cnt > 30:
+        print(f"  Skipping: {existing_cnt} notifications already exist (phase 13 already ran)")
+        return
+    if existing_cnt > 0:
+        print(f"  Clearing {existing_cnt} organic notifications from earlier phases")
+        db_execute("DELETE FROM notification_inbox")
+
+    if dry_run:
+        print("  Would create notification_inbox rows from seeded data")
+        return
+
+    # Build user display name lookup
+    all_users = db_query("SELECT id, username, display_name FROM users")
+    if not all_users:
+        print("  ERROR: No users found")
+        return
+    user_display = {}
+    for u in all_users:
+        user_display[str(u["id"])] = u["display_name"] or u["username"]
+
+    # Users who should have unread notifications (for testing bell badge)
+    unread_usernames = {"normal1", "normal2", "normal3"}
+    unread_user_ids = set()
+    for u in all_users:
+        if u["username"] in unread_usernames:
+            unread_user_ids.add(str(u["id"]))
+
+    notifications = []
+
+    # --- 1. post_comment: top-level comments on posts ---
+    top_comments = db_query("""
+        SELECT c.id, c.post_id, c.creator_user_id, c.body, c.created_time,
+               p.creator_user_id AS post_creator_id
+        FROM comment c
+        JOIN post p ON c.post_id = p.id
+        WHERE c.depth = 0
+          AND c.creator_user_id != p.creator_user_id
+    """)
+    for row in (top_comments or []):
+        actor_id = str(row["creator_user_id"])
+        user_id = str(row["post_creator_id"])
+        actor_name = user_display.get(actor_id, "Someone")
+        body = (row["body"] or "")[:80]
+        notifications.append({
+            "user_id": user_id,
+            "actor_user_id": actor_id,
+            "notification_type": "post_comment",
+            "title": f"{actor_name} commented on your post",
+            "body": body,
+            "data": json.dumps({"action": "open_post", "postId": str(row["post_id"]),
+                                "commentId": str(row["id"])}),
+            "created_time": row["created_time"],
+        })
+    print(f"  post_comment: {len(top_comments or [])} notifications")
+
+    # --- 2. comment_reply: replies to comments ---
+    replies = db_query("""
+        SELECT c.id, c.post_id, c.creator_user_id, c.body, c.created_time,
+               parent.creator_user_id AS parent_creator_id
+        FROM comment c
+        JOIN comment parent ON c.parent_comment_id = parent.id
+        WHERE c.depth > 0
+          AND c.creator_user_id != parent.creator_user_id
+    """)
+    for row in (replies or []):
+        actor_id = str(row["creator_user_id"])
+        user_id = str(row["parent_creator_id"])
+        actor_name = user_display.get(actor_id, "Someone")
+        body = (row["body"] or "")[:80]
+        notifications.append({
+            "user_id": user_id,
+            "actor_user_id": actor_id,
+            "notification_type": "comment_reply",
+            "title": f"{actor_name} replied to your comment",
+            "body": body,
+            "data": json.dumps({"action": "open_post", "postId": str(row["post_id"]),
+                                "commentId": str(row["id"])}),
+            "created_time": row["created_time"],
+        })
+    print(f"  comment_reply: {len(replies or [])} notifications")
+
+    # --- 3. role_change: approved role assignments ---
+    role_changes = db_query("""
+        SELECT rcr.target_user_id, rcr.requested_by, rcr.role,
+               rcr.created_time, l.name AS location_name
+        FROM role_change_request rcr
+        JOIN location l ON rcr.location_id = l.id
+        WHERE rcr.status IN ('approved', 'auto_approved')
+          AND rcr.action = 'assign'
+    """)
+    for row in (role_changes or []):
+        user_id = str(row["target_user_id"])
+        actor_id = str(row["requested_by"])
+        role_label = row["role"].replace("_", " ")
+        notifications.append({
+            "user_id": user_id,
+            "actor_user_id": actor_id,
+            "notification_type": "role_change",
+            "title": f"You've been assigned the {role_label} role",
+            "body": f"at {row['location_name']}",
+            "data": json.dumps({"action": "open_organization"}),
+            "created_time": row["created_time"],
+        })
+    print(f"  role_change: {len(role_changes or [])} notifications")
+
+    # --- 5. moderation: actions taken on users ---
+    mod_actions = db_query("""
+        SELECT mat.user_id, mac.action, mac.class,
+               mac.action_end_time, ma.created_time,
+               r.target_object_type, ru.title AS rule_title
+        FROM mod_action_target mat
+        JOIN mod_action_class mac ON mat.mod_action_class_id = mac.id
+        JOIN mod_action ma ON mac.mod_action_id = ma.id
+        JOIN report r ON ma.report_id = r.id
+        LEFT JOIN rule ru ON r.rule_id = ru.id
+    """)
+    for row in (mod_actions or []):
+        user_id = str(row["user_id"])
+        action_label = row["action"].replace("_", " ")
+        target_type = (row["target_object_type"] or "content").replace("_", " ")
+        rule_title = row["rule_title"]
+
+        # Build descriptive title based on action
+        if row["action"] in ("permanent_ban", "temporary_ban"):
+            title = f"Your account has been {'permanently' if row['action'] == 'permanent_ban' else 'temporarily'} suspended"
+        elif row["action"] == "warning":
+            title = f"You received a warning about your {target_type}"
+        else:
+            title = f"Your {target_type} was removed by a moderator"
+
+        # Build body with rule info if available
+        body_parts = []
+        if rule_title:
+            body_parts.append(f"Rule violated: {rule_title}")
+        if row["action"] == "temporary_ban" and row["action_end_time"]:
+            body_parts.append(f"Ends: {row['action_end_time'].strftime('%b %d, %Y')}")
+        body = ". ".join(body_parts) if body_parts else f"Action: {action_label}"
+
+        notifications.append({
+            "user_id": user_id,
+            "actor_user_id": None,
+            "notification_type": "moderation",
+            "title": title,
+            "body": body,
+            "data": json.dumps({}),
+            "created_time": row["created_time"],
+        })
+    print(f"  moderation: {len(mod_actions or [])} notifications")
+
+    if not notifications:
+        print("  No notifications to insert (earlier phases may not have run)")
+        return
+
+    # --- Insert all notifications ---
+    # Mark ~60% as read, but keep unread for target users (normal1/2/3)
+    inserted = 0
+    read_count = 0
+    unread_count = 0
+
+    conn = db_conn()
+    try:
+        with conn.cursor() as cur:
+            for n in notifications:
+                # Users in unread_user_ids get ~70% unread; others get ~70% read
+                if n["user_id"] in unread_user_ids:
+                    is_read = random.random() < 0.3
+                else:
+                    is_read = random.random() < 0.7
+
+                cur.execute("""
+                    INSERT INTO notification_inbox
+                        (user_id, actor_user_id, notification_type, title, body, data,
+                         is_read, created_time)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    n["user_id"], n["actor_user_id"], n["notification_type"],
+                    n["title"], n["body"], n["data"],
+                    is_read, n["created_time"],
+                ))
+                inserted += 1
+                if is_read:
+                    read_count += 1
+                else:
+                    unread_count += 1
+            conn.commit()
+    finally:
+        conn.close()
+
+    print(f"  Inserted {inserted} notifications ({read_count} read, {unread_count} unread)")
+    print("  Phase 13 complete")
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -3143,7 +3364,7 @@ def main():
     parser = argparse.ArgumentParser(description='Seed rich dev data for Candid')
     parser.add_argument('--api-url', default=API_URL, help='Candid API URL')
     parser.add_argument('--dry-run', action='store_true', help='Show what would be done')
-    parser.add_argument('--phase', type=int, help='Run only this phase (1-12)')
+    parser.add_argument('--phase', type=int, help='Run only this phase (1-13)')
     args = parser.parse_args()
 
     random.seed(42)  # Reproducible data
@@ -3238,6 +3459,7 @@ def main():
     run_phase(10, "Pairwise", phase_10_pairwise, api, args.dry_run)
     run_phase(11, "Admin", phase_11_admin, api, location_id, category_map, args.dry_run)
     run_phase(12, "Posts", phase_12_posts, location_id, category_map, args.dry_run)
+    run_phase(13, "Notifications", phase_13_notifications, args.dry_run)
 
     print("\n" + "=" * 60)
     print("SEED COMPLETE")
@@ -3258,6 +3480,7 @@ def main():
             UNION ALL SELECT 'comments', count(*) FROM comment
             UNION ALL SELECT 'post_votes', count(*) FROM post_vote
             UNION ALL SELECT 'comment_votes', count(*) FROM comment_vote
+            UNION ALL SELECT 'notifications', count(*) FROM notification_inbox
             ORDER BY tbl
         """)
         for row in (counts or []):

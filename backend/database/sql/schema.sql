@@ -559,6 +559,25 @@ CREATE TABLE notification_mute (
 );
 CREATE INDEX idx_notif_mute_user ON notification_mute(user_id, target_type, target_id);
 
+-- Persistent notification inbox
+CREATE TABLE notification_inbox (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    notification_type VARCHAR(50) NOT NULL CHECK (notification_type IN (
+        'comment_reply', 'post_comment', 'chat_request', 'role_change', 'moderation'
+    )),
+    actor_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    data JSONB DEFAULT '{}',
+    is_read BOOLEAN NOT NULL DEFAULT false,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_notif_inbox_user_unread
+    ON notification_inbox(user_id, created_time DESC) WHERE is_read = false;
+CREATE INDEX idx_notif_inbox_user_time
+    ON notification_inbox(user_id, created_time DESC);
+
 -- ========== Posts ==========
 
 CREATE TABLE post (

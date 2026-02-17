@@ -56,8 +56,8 @@
   "requestLogTitle": "Request Log",
   "tabNeedsReview": "Needs Review",
   "tabNeedsReviewA11y": "Show requests needing your review",
-  "tabAllRequests": "All Requests",
-  "tabAllRequestsA11y": "Show all requests in your scope",
+  "tabActivity": "Activity",
+  "tabActivityA11y": "Show all role and admin activity",
   "tabMyRequests": "My Requests",
   "tabMyRequestsA11y": "Show your own requests",
 
@@ -90,8 +90,9 @@
   "roleRescinded": "Request rescinded.",
 
   "noRequests": "No Requests",
+  "noActivity": "No Activity",
   "noRequestsReviewSubtitle": "There are no role change requests awaiting your review.",
-  "noRequestsAllSubtitle": "No role change requests found in your scope.",
+  "noActivitySubtitle": "No role changes or admin actions found in your scope.",
   "noRequestsMineSubtitle": "You haven't submitted any role change requests.",
 
   "locationsTitle": "Locations",

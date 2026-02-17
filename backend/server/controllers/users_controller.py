@@ -1109,14 +1109,14 @@ def mute_notifications(body, token_info=None):  # noqa: E501
     return {"muted": True}, 201
 
 
-def unmute_notifications(body, token_info=None):  # noqa: E501
+def unmute_notifications(body=None, token_info=None):  # noqa: E501
     """Unmute notifications for a specific post or comment."""
     authorized, auth_err = authorization("normal", token_info)
     if not authorized:
         return auth_err, auth_err.code
     user = token_to_user(token_info)
 
-    raw = connexion.request.get_json() if connexion.request.is_json else body
+    raw = connexion.request.get_json() if connexion.request.is_json else (body or {})
     target_type = raw.get('targetType')
     target_id = raw.get('targetId')
 
@@ -1208,9 +1208,13 @@ def get_user_activity(type_=None, cursor=None, limit=None, token_info=None):  # 
         parts.append(f"""
             SELECT p.id, 'post' AS type, p.title, p.body,
                    p.id AS post_id, p.title AS post_title,
+                   pc.label AS post_category_label,
+                   pl.code AS post_location_code,
                    p.upvote_count, p.downvote_count, p.score,
                    p.comment_count, p.created_time, p.status
             FROM post p
+            LEFT JOIN position_category pc ON pc.id = p.category_id
+            LEFT JOIN location pl ON pl.id = p.location_id
             WHERE p.creator_user_id = %s
               AND p.status != 'removed'
               {cursor_clause}
@@ -1228,10 +1232,14 @@ def get_user_activity(type_=None, cursor=None, limit=None, token_info=None):  # 
         parts.append(f"""
             SELECT c.id, 'comment' AS type, NULL AS title, c.body,
                    c.post_id, pt.title AS post_title,
+                   pc.label AS post_category_label,
+                   pl.code AS post_location_code,
                    c.upvote_count, c.downvote_count, c.score,
                    NULL AS comment_count, c.created_time, c.status
             FROM comment c
             LEFT JOIN post pt ON pt.id = c.post_id
+            LEFT JOIN position_category pc ON pc.id = pt.category_id
+            LEFT JOIN location pl ON pl.id = pt.location_id
             WHERE c.creator_user_id = %s
               AND c.status != 'removed'
               {cursor_clause}
@@ -1266,6 +1274,8 @@ def get_user_activity(type_=None, cursor=None, limit=None, token_info=None):  # 
             "body": row["body"][:200] if row["body"] else "",
             "postId": str(row["post_id"]) if row["post_id"] else None,
             "postTitle": row["post_title"],
+            "postCategoryLabel": row["post_category_label"],
+            "postLocationCode": row["post_location_code"],
             "upvoteCount": row["upvote_count"] or 0,
             "downvoteCount": row["downvote_count"] or 0,
             "score": float(row["score"] or 0),

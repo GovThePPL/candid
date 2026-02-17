@@ -25,8 +25,7 @@
   "settings": "Configuraci\u00f3n",
   "reportBug": "Reportar Error",
   "logOut": "Cerrar Sesi\u00f3n",
-  "closeMenu": "Cerrar men\u00fa",
-  "openMenu": "Abrir men\u00fa",
+  "viewProfile": "Ver perfil",
   "goBack": "Volver",
   "kudosCount": "{{count}} kudos",
 
@@ -110,11 +109,14 @@
   "languageHintA11y": "Abre selector de idioma",
   "systemLanguageA11y": "Idioma del sistema",
 
-  "myActivity": "Mi Actividad",
+  "myContent": "Mi Contenido",
   "chatHistory": "Historial de Chats",
   "createPositionA11y": "Crear posición",
 
   "errorChatRequestRescindFailed": "No se pudo cancelar la solicitud de chat",
+
+  "addMode": "Modo agregar",
+  "addItemA11y": "Agregar postura: {{statement}}",
 
   "loadingSkeleton": "Cargando contenido"
 }

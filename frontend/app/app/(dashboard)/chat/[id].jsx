@@ -29,6 +29,7 @@ import { useThemeColors } from '../../../hooks/useThemeColors'
 import { UserContext } from '../../../contexts/UserContext'
 import Header from '../../../components/Header'
 import api, { translateError } from '../../../lib/api'
+import { CacheManager, CacheKeys } from '../../../lib/cache'
 import {
   joinChat,
   sendMessage,
@@ -182,6 +183,7 @@ export default function ChatScreen() {
   const otherTypingTimeoutRef = useRef(null) // Delay before hiding other user's typing indicator
   const lastSentReadReceiptRef = useRef(null) // Track last read receipt we sent to avoid duplicates
   const visibleMessageIdsRef = useRef(new Set()) // Track which messages are currently visible on screen
+  const confirmedLeaveRef = useRef(false) // Tracks confirmed leave to allow beforeRemove
 
   // Animated values for typing dots
   const dot1Anim = useRef(new Animated.Value(0)).current
@@ -201,6 +203,18 @@ export default function ChatScreen() {
       parent?.setOptions({ tabBarStyle: undefined })
     }
   }, [navigation])
+
+  // Intercept gesture/hardware back when chat is live — show leave confirmation
+  useEffect(() => {
+    if (chatEnded || isHistoricalView || isModerationView) return
+
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      if (confirmedLeaveRef.current) return // Allow navigation after confirmation
+      e.preventDefault()
+      setShowLeaveConfirm(true)
+    })
+    return unsubscribe
+  }, [navigation, chatEnded, isHistoricalView, isModerationView])
 
   // Animate typing dots and play sound when other user is typing
   useEffect(() => {
@@ -649,6 +663,7 @@ export default function ChatScreen() {
       } else {
         await sendMessage(chatId, text, currentMessageType)
       }
+      if (user?.id) CacheManager.invalidate(CacheKeys.userChats(user.id))
     } catch (err) {
       console.error('Failed to send message:', err)
       // Restore the input text and message type on error
@@ -697,17 +712,20 @@ export default function ChatScreen() {
         router.replace('/chats')
       } else if (from === 'moderation') {
         router.replace('/moderation')
-      } else {
+      } else if (navigation.canGoBack()) {
         router.back()
+      } else {
+        router.replace('/cards')
       }
     } else {
       setShowLeaveConfirm(true)
     }
-  }, [chatEnded, router, from])
+  }, [chatEnded, router, from, navigation])
 
   // Handle confirmed exit chat
   const handleConfirmLeave = useCallback(async () => {
     setShowLeaveConfirm(false)
+    confirmedLeaveRef.current = true
     // Only try to exit if the chat hasn't already ended (e.g., other user left)
     if (!chatEnded) {
       try {
@@ -721,10 +739,12 @@ export default function ChatScreen() {
       router.replace('/chats')
     } else if (from === 'moderation') {
       router.replace('/moderation')
-    } else {
+    } else if (navigation.canGoBack()) {
       router.back()
+    } else {
+      router.replace('/cards')
     }
-  }, [chatId, router, chatEnded, from])
+  }, [chatId, router, chatEnded, from, navigation])
 
   // Cancel leaving
   const handleCancelLeave = useCallback(() => {

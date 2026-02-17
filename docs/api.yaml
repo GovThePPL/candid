@@ -581,6 +581,28 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/SurveyQuestion'
+        items:
+          type: array
+          nullable: true
+          description: Pairwise survey items (only present when surveyType is pairwise)
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              text:
+                type: string
+              order:
+                type: integer
+        comparisonQuestion:
+          type: string
+          nullable: true
+          description: Pairwise survey comparison question
+        isGroupLabeling:
+          type: boolean
+          nullable: true
+          description: Whether this is a group labeling survey
 
     UpdateSurveyRequest:
       type: object
@@ -2449,6 +2471,44 @@ components:
         details:
           type: object
 
+    NotificationItem:
+      type: object
+      required:
+        - id
+        - type
+        - title
+        - body
+        - isRead
+        - createdTime
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [comment_reply, post_comment, chat_request, role_change, moderation]
+        actorUserId:
+          type: string
+          format: uuid
+          nullable: true
+        actorDisplayName:
+          type: string
+          nullable: true
+        actorAvatarIconUrl:
+          type: string
+          nullable: true
+        title:
+          type: string
+        body:
+          type: string
+        data:
+          type: object
+        isRead:
+          type: boolean
+        createdTime:
+          type: string
+          format: date-time
+
     DemographicCrosstab:
       type: object
       properties:
@@ -2951,6 +3011,14 @@ components:
           type: string
           nullable: true
           description: Title of the post (for comments, the parent post's title)
+        postCategoryLabel:
+          type: string
+          nullable: true
+          description: Category label of the post
+        postLocationCode:
+          type: string
+          nullable: true
+          description: Location code of the post
         upvoteCount:
           type: integer
         downvoteCount:
@@ -6835,6 +6903,100 @@ paths:
                 $ref: '#/components/schemas/ErrorModel'
 
   # ========== Notification Muting ==========
+
+  /notifications:
+    get:
+      operationId: getNotifications
+      summary: Get the current user's notification inbox
+      tags:
+        - Notifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 50
+      responses:
+        '200':
+          description: Paginated notification list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/NotificationItem'
+                  nextCursor:
+                    type: string
+                    nullable: true
+                  hasMore:
+                    type: boolean
+
+  /notifications/unread-count:
+    get:
+      operationId: getNotificationsUnreadCount
+      summary: Get the count of unread notifications
+      tags:
+        - Notifications
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Unread count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+
+  /notifications/{notificationId}/read:
+    put:
+      operationId: markNotificationRead
+      summary: Mark a single notification as read
+      tags:
+        - Notifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Notification marked as read
+        '404':
+          description: Notification not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /notifications/read-all:
+    put:
+      operationId: markAllNotificationsRead
+      summary: Mark all notifications as read
+      tags:
+        - Notifications
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          description: All notifications marked as read
 
   /notifications/mute:
     post:

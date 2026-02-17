@@ -18,6 +18,7 @@ jest.mock('../../hooks/useUser', () => ({
 }))
 
 const mockGetRoleRequests = jest.fn()
+const mockGetAdminActions = jest.fn()
 const mockApproveRoleRequest = jest.fn()
 const mockDenyRoleRequest = jest.fn()
 const mockRescindRoleRequest = jest.fn()
@@ -28,6 +29,7 @@ jest.mock('../../lib/api', () => ({
   default: {
     admin: {
       getRoleRequests: (...args) => mockGetRoleRequests(...args),
+      getAdminActions: (...args) => mockGetAdminActions(...args),
       approveRoleRequest: (...args) => mockApproveRoleRequest(...args),
       denyRoleRequest: (...args) => mockDenyRoleRequest(...args),
       rescindRoleRequest: (...args) => mockRescindRoleRequest(...args),
@@ -113,6 +115,7 @@ const makeApprovedRequest = (id = 'r2') => ({
 beforeEach(() => {
   jest.clearAllMocks()
   mockGetRoleRequests.mockResolvedValue([])
+  mockGetAdminActions.mockResolvedValue([])
 })
 
 describe('Request Log screen', () => {
@@ -124,7 +127,7 @@ describe('Request Log screen', () => {
   it('renders three tab buttons', async () => {
     render(<RequestLogScreen />)
     expect(screen.getByText('tabNeedsReview')).toBeTruthy()
-    expect(screen.getByText('tabAllRequests')).toBeTruthy()
+    expect(screen.getByText('tabActivity')).toBeTruthy()
     expect(screen.getByText('tabMyRequests')).toBeTruthy()
   })
 
@@ -139,7 +142,7 @@ describe('Request Log screen', () => {
     render(<RequestLogScreen />)
     await waitFor(() => expect(mockGetRoleRequests).toHaveBeenCalledWith('pending'))
 
-    fireEvent.press(screen.getByText('tabAllRequests'))
+    fireEvent.press(screen.getByText('tabActivity'))
     await waitFor(() => expect(mockGetRoleRequests).toHaveBeenCalledWith('all'))
 
     fireEvent.press(screen.getByText('tabMyRequests'))
@@ -173,10 +176,10 @@ describe('Request Log screen', () => {
     render(<RequestLogScreen />)
 
     // Switch to All Requests to see approved
-    fireEvent.press(screen.getByText('tabAllRequests'))
+    fireEvent.press(screen.getByText('tabActivity'))
 
     await waitFor(() => {
-      expect(screen.getByText('statusApproved')).toBeTruthy()
+      expect(screen.getAllByText('statusApproved').length).toBeGreaterThan(0)
     })
   })
 
@@ -194,7 +197,7 @@ describe('Request Log screen', () => {
   it('tabs have correct accessibility roles', () => {
     render(<RequestLogScreen />)
     const tabs = screen.getAllByRole('tab')
-    expect(tabs.length).toBe(4)
+    expect(tabs.length).toBe(3)
   })
 
   it('action buttons have correct accessibility roles', async () => {

@@ -33,7 +33,7 @@ jest.mock('expo-router', () => ({
   useSegments: () => [],
 }))
 
-// Mock sidebar dependencies
+// Mock dependencies
 jest.mock('../../components/Avatar', () => {
   const { View } = require('react-native')
   return (props) => <View testID="avatar" />
@@ -63,50 +63,23 @@ jest.mock('../../components/ChatRequestIndicator', () => {
   return () => <View testID="chat-indicator" />
 })
 
-jest.mock('../../components/BugReportModal', () => {
-  const { View } = require('react-native')
-  return () => <View testID="bug-report-modal" />
-})
+jest.mock('../../contexts/NotificationContext', () => ({
+  useNotificationCount: () => ({ unreadCount: 0 }),
+}))
 
-import Sidebar from '../../components/Sidebar'
 import Header from '../../components/Header'
 import GroupTabBar from '../../components/stats/GroupTabBar'
 import PositionListManager from '../../components/PositionListManager'
 
-describe('Sidebar accessibility', () => {
-  const defaultProps = {
-    visible: true,
-    onClose: jest.fn(),
-    user: { displayName: 'TestUser', username: 'testuser', kudosCount: 10 },
-    onLogout: jest.fn(),
-    onBugReport: jest.fn(),
-  }
-
-  test('Settings menu item has button role and label', () => {
-    render(<Sidebar {...defaultProps} />)
-    expect(screen.getByRole('button', { name: /settings/i })).toBeTruthy()
-  })
-
-  test('Report Bug menu item has button role and label', () => {
-    render(<Sidebar {...defaultProps} />)
-    expect(screen.getByRole('button', { name: /reportBug/i })).toBeTruthy()
-  })
-
-  test('Log Out has button role and label', () => {
-    render(<Sidebar {...defaultProps} />)
-    expect(screen.getByRole('button', { name: /logOut/i })).toBeTruthy()
-  })
-
-  test('Chat History menu item has button role and label', () => {
-    render(<Sidebar {...defaultProps} />)
-    expect(screen.getByRole('button', { name: /chatHistory/i })).toBeTruthy()
-  })
-})
-
 describe('Header accessibility', () => {
-  test('menu button has accessible label', () => {
+  test('avatar button has viewProfile accessible label', () => {
     render(<Header />)
-    expect(screen.getByRole('button', { name: /openMenu/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /viewProfile/i })).toBeTruthy()
+  })
+
+  test('showAvatar=false hides avatar button', () => {
+    render(<Header showAvatar={false} />)
+    expect(screen.queryByRole('button', { name: /viewProfile/i })).toBeNull()
   })
 })
 

@@ -27,7 +27,7 @@ chat-server/
 │   ├── auth.py          # JWT token validation
 │   ├── config.py        # Environment configuration
 │   ├── handlers/        # Socket.IO event handlers (chat, discuss)
-│   ├── services/        # Business logic and data access
+│   ├── services/        # Business logic, data access, pub/sub (chat, discuss, notifications)
 │   └── tests/           # Unit tests
 ├── Dockerfile           # Python 3.12-slim container
 └── requirements.txt     # Dependencies

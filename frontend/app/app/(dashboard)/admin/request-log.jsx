@@ -1,5 +1,5 @@
-import { StyleSheet, View, TouchableOpacity, FlatList, ActivityIndicator, TextInput, Alert, Platform } from 'react-native'
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { StyleSheet, View, TouchableOpacity, FlatList, ActivityIndicator, TextInput, Alert, Platform, ScrollView } from 'react-native'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -9,15 +9,17 @@ import { useUser } from '../../../hooks/useUser'
 import { SemanticColors } from '../../../constants/Colors'
 import { Typography } from '../../../constants/Theme'
 import { ROLE_LABEL_KEYS } from '../../../lib/roles'
+import { ROLE_COLORS } from '../../../components/discuss/RoleBadge'
 import api, { translateError } from '../../../lib/api'
 import UserCard from '../../../components/UserCard'
 import ThemedText from '../../../components/ThemedText'
 import Header from '../../../components/Header'
 import EmptyState from '../../../components/EmptyState'
 import BottomDrawerModal from '../../../components/BottomDrawerModal'
+import LocationCategoryBadge from '../../../components/LocationCategoryBadge'
 import { useToast } from '../../../components/Toast'
 
-const TABS = ['pending', 'all', 'mine', 'actions']
+const TABS = ['pending', 'all', 'mine']
 
 const STATUS_COLORS = {
   pending: SemanticColors.pending,
@@ -64,10 +66,11 @@ export default function RequestLogScreen() {
   const { user } = useUser()
   const styles = useMemo(() => createStyles(colors), [colors])
   const toast = useToast()
+  const toastRef = useRef(toast)
+  toastRef.current = toast
 
   const [activeTab, setActiveTab] = useState('pending')
   const [requests, setRequests] = useState([])
-  const [adminActions, setAdminActions] = useState([])
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(null)
 
@@ -79,34 +82,29 @@ export default function RequestLogScreen() {
   const fetchRequests = useCallback(async (tab) => {
     setLoading(true)
     try {
-      const data = await api.admin.getRoleRequests(tab)
-      setRequests(data || [])
+      if (tab === 'all') {
+        // Merge role requests + admin actions into a unified activity feed
+        const [reqData, actionData] = await Promise.all([
+          api.admin.getRoleRequests(tab),
+          api.admin.getAdminActions(),
+        ])
+        const merged = [...(reqData || []), ...(actionData || [])]
+        merged.sort((a, b) => new Date(b.createdTime || 0) - new Date(a.createdTime || 0))
+        setRequests(merged)
+      } else {
+        const data = await api.admin.getRoleRequests(tab)
+        setRequests(data || [])
+      }
     } catch (err) {
-      toast?.(translateError(err.message, t) || t('loadError'), 'error')
+      toastRef.current?.(translateError(err.message, t) || t('loadError'), 'error')
     } finally {
       setLoading(false)
     }
-  }, [t, toast])
-
-  const fetchAdminActions = useCallback(async () => {
-    setLoading(true)
-    try {
-      const data = await api.admin.getAdminActions()
-      setAdminActions(data || [])
-    } catch (err) {
-      toast?.(translateError(err.message, t) || t('loadError'), 'error')
-    } finally {
-      setLoading(false)
-    }
-  }, [t, toast])
+  }, [t])
 
   useEffect(() => {
-    if (activeTab === 'actions') {
-      fetchAdminActions()
-    } else {
-      fetchRequests(activeTab)
-    }
-  }, [activeTab, fetchRequests, fetchAdminActions])
+    fetchRequests(activeTab)
+  }, [activeTab, fetchRequests])
 
   const handleTabChange = useCallback((tab) => {
     setActiveTab(tab)
@@ -174,77 +172,123 @@ export default function RequestLogScreen() {
 
   const getEmptySubtitle = () => {
     if (activeTab === 'pending') return t('noRequestsReviewSubtitle')
-    if (activeTab === 'all') return t('noRequestsAllSubtitle')
-    if (activeTab === 'mine') return t('noRequestsMineSubtitle')
-    return t('noAdminActionsSubtitle')
+    if (activeTab === 'all') return t('noActivitySubtitle')
+    return t('noRequestsMineSubtitle')
   }
 
-  const renderRequest = useCallback(({ item }) => {
+  const renderItem = useCallback(({ item }) => {
+    const isAdminAction = item.action === 'ban' || item.action === 'unban'
+
+    if (isAdminAction) {
+      const isBan = item.action === 'ban'
+      return (
+        <View style={styles.requestCard}>
+          <View style={styles.cardTopRow}>
+            <View style={{ flex: 1 }} />
+            <View style={[styles.actionBadge, isBan ? styles.actionBadgeRemove : styles.actionBadgeAssign]}>
+              <ThemedText variant="badge" color="inverse" style={styles.actionBadgeText}>
+                {isBan ? t('actionBan') : t('actionUnban')}
+              </ThemedText>
+            </View>
+          </View>
+          <View style={styles.targetSection}>
+            <UserCard user={item.targetUser} avatarSize="sm" nameVariant="label" style={{ flex: 1, minWidth: 0 }} />
+          </View>
+          <View style={styles.requesterSection}>
+            <UserCard user={item.performedBy} avatarSize="sm" nameVariant="label" label={t('performedByLabel')} />
+            {item.reason && (
+              <ThemedText variant="body" color="dark" style={styles.reasonText}>
+                {item.reason}
+              </ThemedText>
+            )}
+          </View>
+          {item.createdTime && (
+            <ThemedText variant="caption" color="secondary">
+              {t('createdAt')}: {new Date(item.createdTime).toLocaleDateString()}
+            </ThemedText>
+          )}
+        </View>
+      )
+    }
+
     const isAssign = item.action === 'assign'
     const isPending = item.status === 'pending'
     const statusColor = STATUS_COLORS[item.status] || colors.secondaryText
+    const roleColor = ROLE_COLORS[item.role] || colors.badgeBg
 
     return (
       <View style={styles.requestCard}>
-        {/* Top row: action badge + status badge */}
-        <View style={styles.badgeRow}>
-          <View style={[styles.actionBadge, isAssign ? styles.actionBadgeAssign : styles.actionBadgeRemove]}>
-            <ThemedText variant="badge" color="inverse" style={styles.actionBadgeText}>
-              {isAssign ? t('actionAssign') : t('actionRemove')}
-            </ThemedText>
-          </View>
-          <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
-            <ThemedText variant="badge" color="inverse" style={styles.statusBadgeText}>
-              {t(STATUS_KEYS[item.status] || item.status)}
-            </ThemedText>
-          </View>
-        </View>
-
-        {/* Target user + role */}
-        <View style={styles.requestInfo}>
-          <UserCard user={item.targetUser} avatarSize="sm" nameVariant="label" />
-          <View style={styles.roleBadge}>
-            <ThemedText variant="badge" style={styles.roleBadgeText}>
-              {t(ROLE_LABEL_KEYS[item.role] || item.role)}
-            </ThemedText>
+        {/* Top row: location+category left, status + action right */}
+        <View style={styles.cardTopRow}>
+          <LocationCategoryBadge
+            location={item.location}
+            category={item.category}
+            size="md"
+          />
+          <View style={styles.topRowRight}>
+            <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
+              <ThemedText variant="badge" color="inverse" style={styles.statusBadgeText}>
+                {t(STATUS_KEYS[item.status] || item.status)}
+              </ThemedText>
+            </View>
+            <View style={[styles.actionBadge, isAssign ? styles.actionBadgeAssign : styles.actionBadgeRemove]}>
+              <ThemedText variant="badge" color="inverse" style={styles.actionBadgeText}>
+                {isAssign ? t('actionAssign') : t('actionRemove')}
+              </ThemedText>
+            </View>
           </View>
         </View>
 
-        {/* Location + category */}
-        <View style={styles.requestMeta}>
-          {item.location && (
-            <ThemedText variant="caption" color="secondary">
-              {t('atLocation', { location: item.location.name })}
-            </ThemedText>
-          )}
-          {item.category && (
-            <ThemedText variant="caption" color="secondary">
-              {t('inCategory', { category: item.category.label })}
-            </ThemedText>
-          )}
+        {/* Target user + role in colored section */}
+        <View style={[styles.targetSection, { backgroundColor: roleColor + '18' }]}>
+          <View style={styles.requestInfo}>
+            <UserCard user={item.targetUser} avatarSize="sm" nameVariant="label" style={{ flex: 1, minWidth: 0 }} />
+            <View style={[styles.roleBadge, { backgroundColor: roleColor + '30' }]}>
+              <ThemedText variant="badge" style={[styles.roleBadgeText, { color: roleColor }]}>
+                {t(ROLE_LABEL_KEYS[item.role] || item.role)}
+              </ThemedText>
+            </View>
+          </View>
         </View>
 
-        {/* Requester */}
-        <UserCard user={item.requester} avatarSize="sm" nameVariant="label" label={t('requestedBy')} />
+        {/* Requester + reason */}
+        <View style={styles.requesterSection}>
+          <UserCard user={item.requester} avatarSize="sm" nameVariant="label" label={t('requestedBy')} />
+          {item.reason ? (
+            <ThemedText variant="body" color="dark" style={styles.reasonText}>
+              {item.reason}
+            </ThemedText>
+          ) : null}
+        </View>
 
-        {/* Reason */}
-        {item.reason ? (
-          <ThemedText variant="caption" color="secondary" style={styles.reasonText}>
-            {t('reason')}: {item.reason}
-          </ThemedText>
-        ) : null}
-
-        {/* Reviewer line (for resolved requests) */}
+        {/* Reviewer section (for resolved requests) */}
         {item.reviewer && (
-          <UserCard user={item.reviewer} avatarSize="sm" nameVariant="label" label={t('reviewedByLabel')} />
+          <View style={styles.reviewerSection}>
+            <UserCard user={item.reviewer} avatarSize="sm" nameVariant="label" label={t('reviewedByLabel')} />
+            {item.status === 'approved' || item.status === 'auto_approved' ? (
+              <View style={[styles.decisionBadge, styles.decisionApproved]}>
+                <Ionicons name="checkmark-circle" size={14} color={SemanticColors.success} />
+                <ThemedText variant="badge" style={{ color: SemanticColors.success, fontWeight: '600' }}>
+                  {t(STATUS_KEYS.approved)}
+                </ThemedText>
+              </View>
+            ) : item.status === 'denied' ? (
+              <>
+                <View style={[styles.decisionBadge, styles.decisionDenied]}>
+                  <Ionicons name="close-circle" size={14} color={SemanticColors.warning} />
+                  <ThemedText variant="badge" style={{ color: SemanticColors.warning, fontWeight: '600' }}>
+                    {t(STATUS_KEYS.denied)}
+                  </ThemedText>
+                </View>
+                {item.denialReason ? (
+                  <ThemedText variant="body" color="dark" style={styles.reasonText}>
+                    {t('denialReasonLabel')}: {item.denialReason}
+                  </ThemedText>
+                ) : null}
+              </>
+            ) : null}
+          </View>
         )}
-
-        {/* Denial reason */}
-        {item.status === 'denied' && item.denialReason ? (
-          <ThemedText variant="caption" color="secondary" style={styles.reasonText}>
-            {t('denialReasonLabel')}: {item.denialReason}
-          </ThemedText>
-        ) : null}
 
         {/* Timestamps */}
         <View style={styles.timestampRow}>
@@ -327,35 +371,6 @@ export default function RequestLogScreen() {
     )
   }, [styles, t, activeTab, handleApprove, handleRescind, processing, colors])
 
-  const renderAdminAction = useCallback(({ item }) => {
-    const isBan = item.action === 'ban'
-    return (
-      <View style={styles.requestCard}>
-        <View style={styles.badgeRow}>
-          <View style={[styles.actionBadge, isBan ? styles.actionBadgeRemove : styles.actionBadgeAssign]}>
-            <ThemedText variant="badge" color="inverse" style={styles.actionBadgeText}>
-              {isBan ? t('actionBan') : t('actionUnban')}
-            </ThemedText>
-          </View>
-        </View>
-        <View style={styles.requestInfo}>
-          <UserCard user={item.targetUser} avatarSize="sm" nameVariant="label" />
-        </View>
-        <UserCard user={item.performedBy} avatarSize="sm" nameVariant="label" label={t('performedByLabel')} />
-        {item.reason && (
-          <ThemedText variant="caption" color="secondary" style={styles.reasonText}>
-            {t('reason')}: {item.reason}
-          </ThemedText>
-        )}
-        {item.createdTime && (
-          <ThemedText variant="caption" color="secondary">
-            {t('createdAt')}: {new Date(item.createdTime).toLocaleDateString()}
-          </ThemedText>
-        )}
-      </View>
-    )
-  }, [styles, t])
-
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <Header onBack={() => router.back()} />
@@ -363,55 +378,46 @@ export default function RequestLogScreen() {
         <ThemedText variant="h1" title={true} style={styles.pageTitle}>{t('requestLogTitle')}</ThemedText>
 
         {/* Tab row */}
-        <View style={styles.tabRow}>
-          {TABS.map((tab) => {
-            const isActive = activeTab === tab
-            const tabKey = tab === 'pending' ? 'tabNeedsReview' : tab === 'all' ? 'tabAllRequests' : tab === 'mine' ? 'tabMyRequests' : 'tabAdminActions'
-            const a11yKey = tabKey + 'A11y'
-            return (
-              <TouchableOpacity
-                key={tab}
-                style={[styles.tab, isActive && styles.tabActive]}
-                onPress={() => handleTabChange(tab)}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: isActive }}
-                accessibilityLabel={t(a11yKey)}
-              >
-                <ThemedText
-                  variant="buttonSmall"
-                  style={[styles.tabText, isActive && styles.tabTextActive]}
+        <View style={styles.tabRow} accessibilityRole="tablist">
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tabScrollContent}
+          >
+            {TABS.map((tab) => {
+              const isActive = activeTab === tab
+              const tabKey = tab === 'pending' ? 'tabNeedsReview' : tab === 'all' ? 'tabActivity' : 'tabMyRequests'
+              const a11yKey = tabKey + 'A11y'
+              return (
+                <TouchableOpacity
+                  key={tab}
+                  style={[styles.tab, isActive && styles.tabActive]}
+                  onPress={() => handleTabChange(tab)}
+                  activeOpacity={0.7}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: isActive }}
+                  accessibilityLabel={t(a11yKey)}
                 >
-                  {t(tabKey)}
-                </ThemedText>
-              </TouchableOpacity>
-            )
-          })}
+                  <ThemedText
+                    variant="buttonSmall"
+                    style={[styles.tabText, isActive && styles.tabTextActive]}
+                  >
+                    {t(tabKey)}
+                  </ThemedText>
+                </TouchableOpacity>
+              )
+            })}
+          </ScrollView>
         </View>
 
         {loading ? (
           <View style={styles.center}>
             <ActivityIndicator size="large" color={colors.primary} />
           </View>
-        ) : activeTab === 'actions' ? (
-          adminActions.length === 0 ? (
-            <EmptyState
-              icon="shield-outline"
-              title={t('noAdminActions')}
-              subtitle={getEmptySubtitle()}
-              style={styles.emptyContainer}
-            />
-          ) : (
-            <FlatList
-              data={adminActions}
-              keyExtractor={(item) => item.id}
-              renderItem={renderAdminAction}
-              contentContainerStyle={styles.listContent}
-            />
-          )
         ) : requests.length === 0 ? (
           <EmptyState
             icon="document-text-outline"
-            title={t('noRequests')}
+            title={activeTab === 'all' ? t('noActivity') : t('noRequests')}
             subtitle={getEmptySubtitle()}
             style={styles.emptyContainer}
           />
@@ -419,7 +425,7 @@ export default function RequestLogScreen() {
           <FlatList
             data={requests}
             keyExtractor={(item) => item.id}
-            renderItem={renderRequest}
+            renderItem={renderItem}
             contentContainerStyle={styles.listContent}
           />
         )}
@@ -471,33 +477,38 @@ const createStyles = (colors) => StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: 20,
   },
   pageTitle: {
     color: colors.primary,
     marginBottom: 16,
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
   tabRow: {
-    flexDirection: 'row',
-    gap: 8,
     marginBottom: 16,
   },
+  tabScrollContent: {
+    gap: 8,
+    paddingHorizontal: 16,
+  },
   tab: {
-    flex: 1,
+    paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 8,
-    backgroundColor: colors.buttonDefault,
-    alignItems: 'center',
+    backgroundColor: colors.cardBackground,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
   },
   tabActive: {
-    backgroundColor: colors.primarySurface,
+    backgroundColor: colors.buttonSelected,
+    borderColor: colors.buttonSelected,
   },
   tabText: {
-    color: colors.buttonDefaultText,
+    fontWeight: '500',
   },
   tabTextActive: {
     color: colors.buttonSelectedText,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   center: {
     flex: 1,
@@ -507,9 +518,11 @@ const createStyles = (colors) => StyleSheet.create({
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
+    paddingHorizontal: 16,
   },
   listContent: {
     paddingBottom: 20,
+    paddingHorizontal: 16,
     gap: 12,
   },
   requestCard: {
@@ -520,10 +533,15 @@ const createStyles = (colors) => StyleSheet.create({
     borderColor: colors.cardBorder,
     gap: 8,
   },
-  badgeRow: {
+  cardTopRow: {
     flexDirection: 'row',
-    gap: 8,
+    justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  topRowRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   actionBadge: {
     paddingHorizontal: 10,
@@ -549,6 +567,12 @@ const createStyles = (colors) => StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.5,
   },
+  targetSection: {
+    borderRadius: 10,
+    padding: 12,
+    gap: 8,
+    backgroundColor: colors.background,
+  },
   requestInfo: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -556,18 +580,39 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 8,
   },
   roleBadge: {
-    backgroundColor: colors.badgeBg,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
   },
   roleBadgeText: {
-    color: colors.badgeText,
     fontWeight: '600',
   },
-  requestMeta: {
+  requesterSection: {
+    backgroundColor: colors.background,
+    borderRadius: 10,
+    padding: 12,
+    gap: 8,
+  },
+  reviewerSection: {
+    backgroundColor: colors.background,
+    borderRadius: 10,
+    padding: 12,
+    gap: 8,
+  },
+  decisionBadge: {
     flexDirection: 'row',
-    gap: 12,
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  decisionApproved: {
+    backgroundColor: SemanticColors.success + '18',
+  },
+  decisionDenied: {
+    backgroundColor: SemanticColors.warning + '18',
   },
   reasonText: {
     fontStyle: 'italic',

@@ -56,8 +56,8 @@
   "requestLogTitle": "Registro de Solicitudes",
   "tabNeedsReview": "Pendientes",
   "tabNeedsReviewA11y": "Mostrar solicitudes que necesitan tu revisión",
-  "tabAllRequests": "Todas",
-  "tabAllRequestsA11y": "Mostrar todas las solicitudes en tu ámbito",
+  "tabActivity": "Actividad",
+  "tabActivityA11y": "Mostrar toda la actividad de roles y admin",
   "tabMyRequests": "Mis Solicitudes",
   "tabMyRequestsA11y": "Mostrar tus propias solicitudes",
 
@@ -90,8 +90,9 @@
   "roleRescinded": "Solicitud rescindida.",
 
   "noRequests": "Sin Solicitudes",
+  "noActivity": "Sin Actividad",
   "noRequestsReviewSubtitle": "No hay solicitudes de cambio de rol pendientes de revisión.",
-  "noRequestsAllSubtitle": "No se encontraron solicitudes de cambio de rol en tu ámbito.",
+  "noActivitySubtitle": "No se encontraron cambios de rol ni acciones de admin en tu ámbito.",
   "noRequestsMineSubtitle": "No has enviado solicitudes de cambio de rol.",
 
   "locationsTitle": "Ubicaciones",

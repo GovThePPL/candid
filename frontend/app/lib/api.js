@@ -15,6 +15,7 @@ import {
   AuthenticationApi,
   PostsApi,
   CommentsApi,
+  NotificationsApi,
 } from 'candid_api'
 import { CacheManager } from './cache'
 import { recordApiError } from './errorCollector'
@@ -64,6 +65,7 @@ const adminApi = new AdminApi(apiClient)
 const authenticationApi = new AuthenticationApi(apiClient)
 const postsApi = new PostsApi(apiClient)
 const commentsApi = new CommentsApi(apiClient)
+const notificationsApi = new NotificationsApi(apiClient)
 
 // Token management
 export async function getToken() {
@@ -1126,6 +1128,25 @@ export const commentsApiWrapper = {
   },
 }
 
+// Notifications API
+export const notificationsApiWrapper = {
+  async getNotifications(opts = {}) {
+    return await promisify(notificationsApi.getNotifications.bind(notificationsApi), opts)
+  },
+
+  async getUnreadCount() {
+    return await promisify(notificationsApi.getNotificationsUnreadCount.bind(notificationsApi))
+  },
+
+  async markRead(notificationId) {
+    return await promisify(notificationsApi.markNotificationRead.bind(notificationsApi), notificationId)
+  },
+
+  async markAllRead() {
+    return await promisify(notificationsApi.markAllNotificationsRead.bind(notificationsApi))
+  },
+}
+
 export default {
   auth: authApi,
   users: usersApiWrapper,
@@ -1141,5 +1162,6 @@ export default {
   bugReports: bugReportsApiWrapper,
   posts: postsApiWrapper,
   comments: commentsApiWrapper,
+  notifications: notificationsApiWrapper,
   initializeAuth,
 }

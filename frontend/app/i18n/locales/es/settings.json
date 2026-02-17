@@ -224,7 +224,7 @@
 
   "errorDiagnosticsFailed": "No se pudo actualizar la preferencia de diagnósticos",
 
-  "activity": "Mi Actividad",
+  "activity": "Mi Contenido",
   "loadingActivity": "Cargando actividad...",
 
   "activityTabPositions": "Posturas",
@@ -234,7 +234,11 @@
   "activityTabPositionsA11y": "Pestaña de posturas",
   "activityTabChattingListA11y": "Pestaña de lista de chats",
   "activityTabPostsA11y": "Pestaña de publicaciones",
+  "activityTabChats": "Chats",
+  "activityTabChatsA11y": "Pestaña de chats",
   "activityTabCommentsA11y": "Pestaña de comentarios",
+
+  "positionStatsMeta": "{{agree}} a favor · {{disagree}} en contra · {{chats}} chats",
 
   "activityEmptyPositions": "Sin posturas aún",
   "activityEmptyPositionsSubtitle": "Adopta posturas desde la cola de tarjetas",
@@ -258,6 +262,13 @@
   "chattingListActive": "Activa",
   "chattingListPaused": "Pausada",
   "chattingListItemA11y": "{{statement}}, {{status}}, {{chats}} chats",
+
+  "profileCardA11y": "Tu perfil. Toca para abrir configuración",
+  "adminLink": "Admin",
+  "adminLinkA11y": "Panel de administración{{pendingInfo}}",
+  "adminPendingInfo": ", {{count}} pendientes",
+  "menuReportBug": "Reportar Error",
+  "menuReportBugA11y": "Reportar un error",
 
   "activityPost": "Publicación",
   "activityComment": "Comentario",

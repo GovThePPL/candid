@@ -1,0 +1,15 @@
+{
+  "title": "Notifications",
+  "bellA11y": "Notifications, {{count}} unread",
+  "bellA11yNone": "Notifications, none unread",
+  "emptyTitle": "No notifications yet",
+  "emptySubtitle": "You'll see updates here when people interact with your content.",
+  "notificationItemA11y": "{{title}}, {{time}}, {{status}}",
+  "readStatus": "read",
+  "unreadStatus": "unread",
+  "typeCommentReply": "Reply",
+  "typePostComment": "Comment",
+  "typeChatRequest": "Chat request",
+  "typeRoleChange": "Role change",
+  "typeModeration": "Moderation"
+}

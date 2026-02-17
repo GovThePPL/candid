@@ -28,7 +28,7 @@ function RoleUserCard({ item, user, locations, onRemove, colors, styles, t }) {
 
   return (
     <View style={styles.roleCard}>
-      <UserCard user={item.user} avatarSize={32} nameVariant="label" />
+      <UserCard user={item.user} avatarSize={32} nameVariant="label" style={styles.roleCardUser} />
       <View style={styles.roleCardBadges}>
         <View style={styles.roleBadge}>
           <ThemedText variant="badge" style={styles.roleBadgeText}>
@@ -1071,11 +1071,12 @@ const createStyles = (colors) => StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: 20,
   },
   pageTitle: {
     color: colors.primary,
     marginBottom: 16,
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
   center: {
     flex: 1,
@@ -1085,9 +1086,11 @@ const createStyles = (colors) => StyleSheet.create({
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
+    paddingHorizontal: 16,
   },
   scrollContent: {
     paddingBottom: 20,
+    paddingHorizontal: 16,
   },
 
   // Location sections
@@ -1165,6 +1168,10 @@ const createStyles = (colors) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.cardBorder,
     gap: 10,
+  },
+  roleCardUser: {
+    flex: 1,
+    minWidth: 0,
   },
   roleCardInfo: {
     flex: 1,

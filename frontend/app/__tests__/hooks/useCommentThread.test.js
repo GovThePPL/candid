@@ -15,6 +15,15 @@ jest.mock('react-i18next', () => ({
   }),
 }))
 
+jest.mock('../../hooks/useUser', () => ({
+  useUser: () => ({ user: { id: 'u1' } }),
+}))
+
+jest.mock('../../lib/cache', () => ({
+  CacheManager: { invalidate: jest.fn() },
+  CacheKeys: { activityComments: (id) => `activity-comments:${id}` },
+}))
+
 const mockGetComments = jest.fn()
 const mockGetCommentThread = jest.fn()
 const mockVoteOnComment = jest.fn()

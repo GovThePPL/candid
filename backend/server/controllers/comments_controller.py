@@ -357,7 +357,9 @@ def create_comment(post_id, body, token_info=None):  # noqa: E501
                     str(parent_row["creator_user_id"]),
                     user_row["display_name"] if user_row else "Someone",
                     body_text, post_id, db,
-                    parent_comment_id=parent_comment_id)
+                    parent_comment_id=parent_comment_id,
+                    replier_user_id=user_id,
+                    reply_comment_id=comment_id)
             except Exception as e:
                 logging.getLogger(__name__).error("Reply notification error: %s", e)
 
@@ -372,7 +374,9 @@ def create_comment(post_id, body, token_info=None):  # noqa: E501
                 send_post_comment_notification(
                     post_author_id,
                     user_row["display_name"] if user_row else "Someone",
-                    body_text, post_id, db)
+                    body_text, post_id, db,
+                    commenter_user_id=user_id,
+                    comment_id=comment_id)
             except Exception as e:
                 logging.getLogger(__name__).error("Post comment notification error: %s", e)
 

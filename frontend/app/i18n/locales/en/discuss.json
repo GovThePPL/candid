@@ -178,5 +178,16 @@
   "backToFullThreadA11y": "Return to the full comment thread",
   "threadTruncated": "Thread truncated — not all replies are shown",
   "viewParent": "View parent comment",
-  "viewParentA11y": "Navigate to the parent comment thread"
+  "viewParentA11y": "Navigate to the parent comment thread",
+
+  "replyComposerTitle": "Reply",
+  "replyComposerCancel": "Cancel",
+  "replyComposerSubmit": "Reply",
+  "replyComposerPlaceholder": "Write your reply...",
+  "replyComposerPreview": "Preview",
+  "replyComposerPreviewA11y": "Toggle markdown preview",
+  "replyComposerPreviewEmpty": "Nothing to preview yet",
+  "replyComposerInsertLinkA11y": "Insert link",
+  "replyComposerCancelA11y": "Cancel reply",
+  "replyComposerSubmitA11y": "Submit reply to {{author}}"
 }

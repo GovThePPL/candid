@@ -178,5 +178,16 @@
   "backToFullThreadA11y": "Regresar al hilo completo de comentarios",
   "threadTruncated": "Hilo truncado — no se muestran todas las respuestas",
   "viewParent": "Ver comentario padre",
-  "viewParentA11y": "Navegar al hilo del comentario padre"
+  "viewParentA11y": "Navegar al hilo del comentario padre",
+
+  "replyComposerTitle": "Responder",
+  "replyComposerCancel": "Cancelar",
+  "replyComposerSubmit": "Responder",
+  "replyComposerPlaceholder": "Escribe tu respuesta...",
+  "replyComposerPreview": "Vista previa",
+  "replyComposerPreviewA11y": "Alternar vista previa de markdown",
+  "replyComposerPreviewEmpty": "Nada que previsualizar aún",
+  "replyComposerInsertLinkA11y": "Insertar enlace",
+  "replyComposerCancelA11y": "Cancelar respuesta",
+  "replyComposerSubmitA11y": "Enviar respuesta a {{author}}"
 }

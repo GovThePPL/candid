@@ -261,7 +261,7 @@ export default function usePositionManagement() {
 
   return {
     // State
-    chattingList, chattingListLoading,
+    myPositions, chattingList, chattingListLoading,
     // Normalized data
     normalizedMyPositions, normalizedChattingList,
     // Position actions

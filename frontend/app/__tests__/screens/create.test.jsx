@@ -137,9 +137,10 @@ jest.mock('expo-router', () => ({
   },
   Link: 'Link',
   Stack: { Screen: 'Screen' },
+  Redirect: 'Redirect',
 }))
 
-import Create from '../../app/(dashboard)/create'
+import PositionManagerContent from '../../components/PositionManagerContent'
 
 function renderCreate(contextOverrides = {}) {
   const contextValue = { ...mockUserContext, ...contextOverrides }
@@ -151,7 +152,7 @@ function renderCreate(contextOverrides = {}) {
   })
   const result = render(
     <UserContext.Provider value={contextValue}>
-      <Create />
+      <PositionManagerContent />
     </UserContext.Provider>
   )
   // Restore spy after initial render; async updates may still log later
@@ -168,7 +169,7 @@ beforeEach(() => {
   mockSearchSimilar.mockResolvedValue([])
 })
 
-describe('Create screen', () => {
+describe('PositionManagerContent', () => {
   // NOTE: "renders without crashing" smoke tests were intentionally removed.
   // Interaction tests below already render the component, making smoke tests redundant.
 

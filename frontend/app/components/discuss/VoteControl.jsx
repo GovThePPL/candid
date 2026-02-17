@@ -115,7 +115,7 @@ export default memo(function VoteControl({
       >
         <Ionicons
           name="chevron-up"
-          size={16}
+          size={18}
           color={isActive ? OnBrandColors.text : colors.secondaryText}
         />
       </TouchableOpacity>
@@ -130,6 +130,11 @@ export default memo(function VoteControl({
         {netScore}
       </ThemedText>
 
+      <View style={[
+        styles.smDivider,
+        isActive && styles.smDividerActive,
+      ]} />
+
       <TouchableOpacity
         onPress={onDownvote}
         disabled={disabled}
@@ -141,7 +146,7 @@ export default memo(function VoteControl({
       >
         <Ionicons
           name="chevron-down"
-          size={16}
+          size={18}
           color={isActive ? OnBrandColors.text : colors.secondaryText}
         />
       </TouchableOpacity>
@@ -158,9 +163,9 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.cardBackground,
     borderWidth: 1,
     borderColor: colors.cardBorder,
-    borderRadius: 14,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    borderRadius: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
   smPillUpvoted: {
     backgroundColor: SemanticColors.agree,
@@ -179,6 +184,15 @@ const createStyles = (colors) => StyleSheet.create({
   },
   smScoreActive: {
     color: OnBrandColors.text,
+  },
+  smDivider: {
+    width: 1,
+    height: 14,
+    backgroundColor: colors.cardBorder,
+    marginHorizontal: 1,
+  },
+  smDividerActive: {
+    backgroundColor: OnBrandColors.text + '40',
   },
   disabled: {
     opacity: 0.4,

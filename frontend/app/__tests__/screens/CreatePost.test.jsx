@@ -68,6 +68,15 @@ jest.mock('../../components/discuss/MarkdownRenderer', () => {
   }
 })
 
+jest.mock('../../hooks/useUser', () => ({
+  useUser: () => ({ user: { id: 'u1', username: 'alice' } }),
+}))
+
+jest.mock('../../lib/cache', () => ({
+  CacheManager: { invalidate: jest.fn() },
+  CacheKeys: { activityPosts: (id) => `activity-posts:${id}` },
+}))
+
 import CreatePost from '../../app/(dashboard)/discuss/create'
 
 describe('CreatePost', () => {

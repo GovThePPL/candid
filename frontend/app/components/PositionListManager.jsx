@@ -1,11 +1,12 @@
 import { useState, useMemo, useEffect, forwardRef, useImperativeHandle } from 'react'
-import { StyleSheet, View, TouchableOpacity, TextInput, Platform } from 'react-native'
+import { StyleSheet, View, TouchableOpacity, TextInput, Platform, ActivityIndicator } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { SemanticColors } from '../constants/Colors'
 import { Typography } from '../constants/Theme'
 import ThemedText from './ThemedText'
+import LocationCategoryBadge from './LocationCategoryBadge'
 import EmptyState from './EmptyState'
 import LoadingView from './LoadingView'
 
@@ -24,6 +25,11 @@ import LoadingView from './LoadingView'
  *   onDeleteItems       - (ids[]) => Promise
  *   onBulkToggle        - (ids[], newActiveState) => Promise
  *   onFloatingBarChange - ({ visible, count, mode }) => void  — notifies parent to show/hide floating action bar (delete mode only)
+ *   onAddItem           - (positionId) => Promise — called when user taps + on an add-mode result (opt-in: shows + button when provided)
+ *   onAddSearch         - (query) => void — called when search text changes in add mode
+ *   addSearchResults    - Array<{ id, statement, similarity, categoryLabel, locationCode, wasPreviouslyHeld }>
+ *   addSearchLoading    - boolean
+ *   addSearchMinLength  - number (default 20)
  *   loading             - boolean
  *   emptyIcon           - string (Ionicons name)
  *   emptyTitle          - string
@@ -35,6 +41,11 @@ const PositionListManager = forwardRef(function PositionListManager({
   onDeleteItems,
   onBulkToggle,
   onFloatingBarChange,
+  onAddItem,
+  onAddSearch,
+  addSearchResults = [],
+  addSearchLoading = false,
+  addSearchMinLength = 20,
   onSearchFocus,
   onSearchBlur,
   loading,
@@ -49,6 +60,8 @@ const PositionListManager = forwardRef(function PositionListManager({
   const [searchQuery, setSearchQuery] = useState('')
   const [deleteMode, setDeleteMode] = useState(false)
   const [chatMode, setChatMode] = useState(false)
+  const [addMode, setAddMode] = useState(false)
+  const [addingIds, setAddingIds] = useState(new Set())
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [expandedLocations, setExpandedLocations] = useState({})
   const [expandedCategories, setExpandedCategories] = useState({})
@@ -166,6 +179,7 @@ const PositionListManager = forwardRef(function PositionListManager({
 
   function enterDeleteMode() {
     setChatMode(false)
+    if (addMode) exitAddMode()
     setDeleteMode(true)
     setSelectedIds(new Set())
   }
@@ -177,12 +191,55 @@ const PositionListManager = forwardRef(function PositionListManager({
 
   function enterChatMode() {
     setDeleteMode(false)
+    if (addMode) exitAddMode()
     setSelectedIds(new Set())
     setChatMode(true)
   }
 
   function exitChatMode() {
     setChatMode(false)
+  }
+
+  function enterAddMode() {
+    setDeleteMode(false)
+    setChatMode(false)
+    setSelectedIds(new Set())
+    setSearchQuery('')
+    setAddMode(true)
+  }
+
+  function exitAddMode() {
+    setAddMode(false)
+    setSearchQuery('')
+    onAddSearch?.('')
+  }
+
+  function toggleAddMode() {
+    if (addMode) exitAddMode()
+    else enterAddMode()
+  }
+
+  // Handle search input changes — routes to onAddSearch in add mode
+  function handleSearchChange(text) {
+    setSearchQuery(text)
+    if (addMode) {
+      onAddSearch?.(text)
+    }
+  }
+
+  // Handle tapping + on an add-mode result
+  async function handleAddResult(id) {
+    if (addingIds.has(id)) return
+    setAddingIds(prev => new Set([...prev, id]))
+    try {
+      await onAddItem?.(id)
+    } finally {
+      setAddingIds(prev => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+    }
   }
 
   async function handleDeleteSelected() {
@@ -303,9 +360,13 @@ const PositionListManager = forwardRef(function PositionListManager({
       <>
         <View style={styles.itemContent}>
           {!showCollapsible && (
-            <ThemedText variant="caption" color="secondary" style={styles.itemDetail}>
-              {item.locationCode || item.locationName} · {item.categoryName}
-            </ThemedText>
+            <View style={styles.itemDetail}>
+              <LocationCategoryBadge
+                location={{ code: item.locationCode, name: item.locationName }}
+                category={{ label: item.categoryName }}
+                size="sm"
+              />
+            </View>
           )}
           <ThemedText
             variant="bodySmall"
@@ -358,7 +419,8 @@ const PositionListManager = forwardRef(function PositionListManager({
     return <LoadingView style={styles.loadingContainer} />
   }
 
-  if (items.length === 0) {
+  // Early return for empty list only when add mode is not available
+  if (items.length === 0 && !onAddItem) {
     return (
       <EmptyState
         icon={emptyIcon}
@@ -369,32 +431,130 @@ const PositionListManager = forwardRef(function PositionListManager({
     )
   }
 
+  // Render add-mode search results
+  function renderAddResults() {
+    const query = searchQuery.trim()
+
+    // Min chars hint
+    if (query.length > 0 && query.length < addSearchMinLength) {
+      return (
+        <ThemedText variant="bodySmall" color="secondary" style={styles.noResultsText}>
+          {t('create:searchMinChars', { min: addSearchMinLength })}
+        </ThemedText>
+      )
+    }
+
+    // Loading
+    if (addSearchLoading) {
+      return (
+        <View style={styles.addSearchLoading}>
+          <ActivityIndicator size="small" color={colors.primary} />
+          <ThemedText variant="bodySmall" color="secondary">{t('create:searching')}</ThemedText>
+        </View>
+      )
+    }
+
+    // Results
+    if (addSearchResults.length > 0) {
+      return (
+        <View style={styles.addSearchResults}>
+          {addSearchResults.map(result => {
+            const isAdding = addingIds.has(result.id)
+            return (
+              <View key={result.id} style={styles.addSearchResultRow}>
+                <View style={styles.addSearchResultContent}>
+                  {result.wasPreviouslyHeld && (
+                    <View style={styles.addSearchPreviouslyHeld}>
+                      <Ionicons name="time-outline" size={12} color={colors.primary} />
+                      <ThemedText variant="caption" color="primary" style={styles.addSearchPreviouslyHeldText}>
+                        {t('create:previouslyHeld')}
+                      </ThemedText>
+                    </View>
+                  )}
+                  <ThemedText variant="bodySmall" color="dark" style={styles.addSearchStatement} numberOfLines={2}>
+                    {"\u201C"}{result.statement}{"\u201D"}
+                  </ThemedText>
+                  <View style={styles.addSearchMeta}>
+                    <ThemedText variant="caption" color="secondary">
+                      {t('create:matchPercent', { percent: Math.round(result.similarity * 100) })}
+                    </ThemedText>
+                    {result.categoryLabel && (
+                      <LocationCategoryBadge
+                        location={{ code: result.locationCode }}
+                        category={{ label: result.categoryLabel }}
+                        size="sm"
+                      />
+                    )}
+                  </View>
+                </View>
+                <TouchableOpacity
+                  onPress={() => handleAddResult(result.id)}
+                  disabled={isAdding}
+                  style={[styles.addSearchButton, isAdding && { opacity: 0.4 }]}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('addItemA11y', { statement: result.statement })}
+                >
+                  <Ionicons name="add-circle" size={28} color={SemanticColors.agree} />
+                </TouchableOpacity>
+              </View>
+            )
+          })}
+        </View>
+      )
+    }
+
+    // No results (only when query meets min length)
+    if (query.length >= addSearchMinLength) {
+      return (
+        <ThemedText variant="bodySmall" color="secondary" style={styles.noResultsText}>
+          {t('create:noMatchingPositions')}
+        </ThemedText>
+      )
+    }
+
+    return null
+  }
+
+  const hasItems = items.length > 0
+
   return (
     <View>
       {/* Toolbar: search + mode buttons */}
       <View style={styles.toolbar}>
+        {/* Add mode toggle (left of search bar, only when onAddItem provided) */}
+        {onAddItem && (
+          <TouchableOpacity
+            style={[styles.modeButton, addMode && styles.modeButtonActive]}
+            onPress={toggleAddMode}
+            accessibilityLabel={t('addMode')}
+            accessibilityRole="button"
+            accessibilityState={{ selected: addMode }}
+          >
+            <Ionicons name="add" size={16} color={addMode ? '#FFFFFF' : colors.primary} />
+          </TouchableOpacity>
+        )}
         <View style={styles.searchContainer}>
           <Ionicons name="search" size={16} color={colors.secondaryText} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
-            placeholder={t('filterPositions')}
+            placeholder={addMode ? t('create:searchPositions') : t('filterPositions')}
             placeholderTextColor={colors.placeholderText}
             value={searchQuery}
-            onChangeText={setSearchQuery}
+            onChangeText={handleSearchChange}
             onFocus={handleInputFocus}
             onBlur={onSearchBlur}
             autoCapitalize="none"
             autoCorrect={false}
             maxFontSizeMultiplier={1.5}
-            accessibilityLabel={t('filterPositions')}
+            accessibilityLabel={addMode ? t('create:searchPositions') : t('filterPositions')}
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.searchClear} accessibilityLabel={t('clearSearch')} accessibilityRole="button">
+            <TouchableOpacity onPress={() => handleSearchChange('')} style={styles.searchClear} accessibilityLabel={t('clearSearch')} accessibilityRole="button">
               <Ionicons name="close-circle" size={18} color={colors.secondaryText} />
             </TouchableOpacity>
           )}
         </View>
-        {!deleteMode && !chatMode && (
+        {!deleteMode && !chatMode && !addMode && (
           <>
             <TouchableOpacity style={styles.modeButton} onPress={enterChatMode} accessibilityLabel={t('chatMode')} accessibilityRole="button">
               <Ionicons name="chatbubble-outline" size={16} color={colors.primary} />
@@ -416,20 +576,33 @@ const PositionListManager = forwardRef(function PositionListManager({
         )}
       </View>
 
+      {/* Add mode: show search results instead of normal list */}
+      {addMode && renderAddResults()}
+
+      {/* Empty state shown below toolbar when add mode is available */}
+      {!hasItems && !addMode && (
+        <EmptyState
+          icon={emptyIcon}
+          title={emptyTitle}
+          subtitle={emptySubtitle}
+          style={styles.emptyContainer}
+        />
+      )}
+
       {/* No results from filter */}
-      {filteredItems.length === 0 && searchQuery.trim().length > 0 && (
+      {!addMode && filteredItems.length === 0 && searchQuery.trim().length > 0 && (
         <ThemedText variant="bodySmall" color="secondary" style={styles.noResultsText}>{t('noFilterResults')}</ThemedText>
       )}
 
       {/* Flat list for under 25 items */}
-      {!showCollapsible && filteredItems.length > 0 && (
+      {!addMode && !showCollapsible && filteredItems.length > 0 && (
         <View style={styles.flatList}>
           {filteredItems.map(item => renderItem(item))}
         </View>
       )}
 
       {/* Grouped collapsible list for 25+ items */}
-      {showCollapsible && grouped && Object.entries(grouped).map(([locationName, categories]) => {
+      {!addMode && showCollapsible && grouped && Object.entries(grouped).map(([locationName, categories]) => {
         const locItems = getLocationItems(locationName)
         const locIds = locItems.map(i => i.id)
         const locExpanded = expandedLocations[locationName] !== false
@@ -521,19 +694,23 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.cardBackground,
-    borderRadius: 30,
+    borderRadius: 19,
     borderWidth: 1,
     borderColor: colors.cardBorder,
-    paddingHorizontal: 12,
+    paddingLeft: 12,
+    paddingRight: 6,
+    height: 38,
   },
   searchIcon: {
-    marginRight: 8,
+    marginRight: 6,
+    flexShrink: 0,
   },
   searchInput: {
     flex: 1,
     padding: 0,
-    paddingVertical: 10,
-    ...Typography.body,
+    margin: 0,
+    fontSize: 15,
+    lineHeight: 20,
     color: colors.text,
     backgroundColor: 'transparent',
     borderRadius: 0,
@@ -542,24 +719,32 @@ const createStyles = (colors) => StyleSheet.create({
     scrollMarginTop: 80,
   },
   searchClear: {
-    marginLeft: 8,
     padding: 4,
+    flexShrink: 0,
   },
   modeButton: {
-    padding: 10,
-    borderRadius: 25,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    backgroundColor: colors.cardBackground,
-  },
-  doneButton: {
-    width: 84, // matches two modeButtons (38px each) + 8px gap
-    paddingVertical: 10,
-    borderRadius: 25,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     borderWidth: 1,
     borderColor: colors.cardBorder,
     backgroundColor: colors.cardBackground,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modeButtonActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  doneButton: {
+    width: 84, // matches two modeButtons (38px each) + 8px gap
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.cardBackground,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   doneButtonText: {
     fontWeight: '500',
@@ -682,6 +867,55 @@ const createStyles = (colors) => StyleSheet.create({
   headerRightControl: {
     paddingHorizontal: 12,
     paddingVertical: 4,
+  },
+
+  // Add mode search results
+  addSearchLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    gap: 8,
+  },
+  addSearchResults: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    overflow: 'hidden',
+  },
+  addSearchResultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.cardBorder,
+  },
+  addSearchResultContent: {
+    flex: 1,
+  },
+  addSearchPreviouslyHeld: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 4,
+  },
+  addSearchPreviouslyHeldText: {
+    fontWeight: '500',
+  },
+  addSearchStatement: {
+    fontStyle: 'italic',
+    lineHeight: 18,
+  },
+  addSearchMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  addSearchButton: {
+    padding: 4,
+    marginLeft: 8,
   },
 
   // Empty & loading

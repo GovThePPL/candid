@@ -92,10 +92,6 @@ jest.mock('../../lib/avatarUtils', () => ({
   getTrustBadgeInfo: () => ({ color: '#FFD700', tier: 'gold' }),
 }))
 // ChatRequestIndicator is tested directly - not mocked
-jest.mock('../../components/Sidebar', () => {
-  const { View } = require('react-native')
-  return () => <View testID="sidebar" />
-})
 jest.mock('../../components/LocationPicker', () => {
   const { View } = require('react-native')
   return () => <View testID="location-picker" />

@@ -13,11 +13,12 @@ app/
 ├── hooks/            # Custom React hooks
 ├── i18n/             # Internationalization (i18next config + translation files)
 │   ├── index.js      # i18next initialization
-│   └── locales/      # en/ and es/ JSON translation files (9 namespaces each)
+│   └── locales/      # en/ and es/ JSON translation files (12 namespaces each)
 ├── lib/              # Utility libraries (API, WebSocket, cache, etc.)
 ├── assets/           # Images and static files
 ├── __tests__/        # Jest test suites
 │   ├── components/   # Component rendering and interaction tests
+│   ├── contexts/     # Context provider tests
 │   ├── hooks/        # Custom hook behavior and state tests
 │   └── unit/         # Pure utility/function unit tests
 ├── package.json      # Dependencies (Expo v54, React Native)
@@ -28,10 +29,10 @@ app/
 ## Architecture
 
 - **Routing:** Expo Router with file-based routes in `app/`
-- **State:** `UserContext` in `contexts/` manages auth, user data, and chat state
+- **State:** `UserContext` for auth/user data/chat state, `NotificationContext` for unread badge count
 - **i18n:** i18next with `I18nContext` for language preference (en/es/system), persisted to AsyncStorage
 - **API:** Generated JS client wrapped with `promisify()` in `lib/api.js`
-- **Real-time:** Socket.IO client in `lib/socket.js` for chat messaging
+- **Real-time:** Socket.IO client in `lib/socket.js` for chat messaging and notification delivery
 - **Styling:** Themed components using `constants/Colors.js` and `constants/Theme.js`
 
 ## Auth Flow

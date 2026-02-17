@@ -969,7 +969,7 @@ export default function CardQueue() {
           </ThemedText>
           <TouchableOpacity
             style={styles.createButton}
-            onPress={() => router.push('/create')}
+            onPress={() => router.push('/profile?tab=positions')}
             accessibilityRole="button"
             accessibilityLabel={t('createPosition')}
           >
