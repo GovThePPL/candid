@@ -216,7 +216,7 @@ export default function ChatHistoryContent({ showHeader = true, onScroll, listHe
   const [reportChatId, setReportChatId] = useState(null)
 
   const handleChatPress = useCallback((chat) => {
-    router.push(`/chat/${chat.id}?from=chats`)
+    router.push(`/chat/${chat.id}?mode=history`)
   }, [router])
 
   const handleReportChat = useCallback((chatId) => {

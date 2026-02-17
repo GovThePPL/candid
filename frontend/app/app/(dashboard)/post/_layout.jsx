@@ -1,7 +1,7 @@
 import { Stack } from 'expo-router'
 import { useThemeColors } from '../../../hooks/useThemeColors'
 
-export default function DiscussLayout() {
+export default function PostLayout() {
   const colors = useThemeColors()
 
   return (

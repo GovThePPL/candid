@@ -77,7 +77,7 @@ jest.mock('../../lib/cache', () => ({
   CacheKeys: { activityPosts: (id) => `activity-posts:${id}` },
 }))
 
-import CreatePost from '../../app/(dashboard)/discuss/create'
+import CreatePost from '../../app/(dashboard)/(tabs)/discuss/create'
 
 describe('CreatePost', () => {
   beforeEach(() => {

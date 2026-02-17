@@ -125,7 +125,7 @@ export default function PostsContent({ onScroll, listHeader, stickyHeader }) {
   }, [hasMore, loadingMore, nextCursor, fetchData])
 
   const handleItemPress = useCallback((item) => {
-    if (item.id) router.push(`/discuss/${item.id}`)
+    if (item.id) router.push(`/post/${item.id}`)
   }, [router])
 
   const renderItem = useCallback(({ item }) => {

@@ -239,7 +239,7 @@ describe('useModerationQueue', () => {
       result.current.handleChatPress('chat-1', 'reporter-1')
     })
 
-    expect(mockPush).toHaveBeenCalledWith('/chat/chat-1?from=moderation&reporterId=reporter-1')
+    expect(mockPush).toHaveBeenCalledWith('/chat/chat-1?mode=moderation&reporterId=reporter-1')
   })
 
   // Optimistic advancement

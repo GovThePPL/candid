@@ -517,9 +517,12 @@ export default function useCommentThread(postId, { threadRootId, focusCommentId 
     const payload = { body }
     if (parentCommentId) payload.parentCommentId = parentCommentId
     const result = await api.comments.createComment(postId, payload)
-    // Insert the server-returned comment into local state
+    // Insert the server-returned comment into local state (dedup against socket race)
     if (mountedRef.current && result) {
-      setRawComments(prev => [...prev, result])
+      setRawComments(prev => {
+        if (prev.some(c => c.id === result.id)) return prev
+        return [...prev, result]
+      })
       setStructureVersion(v => v + 1)
     }
     if (user?.id) CacheManager.invalidate(CacheKeys.activityComments(user.id))

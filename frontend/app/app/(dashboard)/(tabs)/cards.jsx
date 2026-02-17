@@ -5,15 +5,15 @@ import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useTranslation } from 'react-i18next'
-import { SemanticColors } from '../../constants/Colors'
-import { Shadows } from '../../constants/Theme'
-import { useThemeColors } from '../../hooks/useThemeColors'
-import useCardHandlers from '../../hooks/useCardHandlers'
-import api from '../../lib/api'
-import ThemedText from '../../components/ThemedText'
-import { useToast } from '../../components/Toast'
-import { UserContext } from '../../contexts/UserContext'
-import { CacheManager, CacheKeys, CacheDurations } from '../../lib/cache'
+import { SemanticColors } from '../../../constants/Colors'
+import { Shadows } from '../../../constants/Theme'
+import { useThemeColors } from '../../../hooks/useThemeColors'
+import useCardHandlers from '../../../hooks/useCardHandlers'
+import api from '../../../lib/api'
+import ThemedText from '../../../components/ThemedText'
+import { useToast } from '../../../components/Toast'
+import { UserContext } from '../../../contexts/UserContext'
+import { CacheManager, CacheKeys, CacheDurations } from '../../../lib/cache'
 import {
   PositionCard,
   ChatRequestCard,
@@ -24,12 +24,12 @@ import {
   BanNotificationCard,
   PositionRemovedCard,
   DiagnosticsConsentCard,
-} from '../../components/cards'
-import Header from '../../components/Header'
-import { SkeletonPulse, SkeletonBox, SkeletonCircle, SkeletonLine } from '../../components/Skeleton'
-import ChattingListExplanationModal from '../../components/ChattingListExplanationModal'
-import AdoptPositionExplanationModal from '../../components/AdoptPositionExplanationModal'
-import ReportModal from '../../components/ReportModal'
+} from '../../../components/cards'
+import Header from '../../../components/Header'
+import { SkeletonPulse, SkeletonBox, SkeletonCircle, SkeletonLine } from '../../../components/Skeleton'
+import ChattingListExplanationModal from '../../../components/ChattingListExplanationModal'
+import AdoptPositionExplanationModal from '../../../components/AdoptPositionExplanationModal'
+import ReportModal from '../../../components/ReportModal'
 
 // AsyncStorage keys for tutorial tracking
 const TUTORIAL_CHATTING_LIST_KEY = '@tutorial_seen_chatting_list'

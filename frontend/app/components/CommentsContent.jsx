@@ -125,7 +125,7 @@ export default function CommentsContent({ onScroll, listHeader, stickyHeader }) 
   const handleItemPress = useCallback((item) => {
     const postId = item.postId
     if (postId) {
-      router.push({ pathname: '/discuss/[id]', params: { id: postId, threadRoot: item.id, focus: item.id } })
+      router.push({ pathname: '/post/[id]', params: { id: postId, threadRoot: item.id, focus: item.id } })
     }
   }, [router])
 

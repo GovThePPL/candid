@@ -132,7 +132,7 @@ export default function ChatScreen() {
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
 
-  const { id: chatId, from, reporterId } = useLocalSearchParams()
+  const { id: chatId, mode, reporterId } = useLocalSearchParams()
   const router = useRouter()
   const navigation = useNavigation()
   const { user } = useContext(UserContext)
@@ -335,7 +335,7 @@ export default function ChatScreen() {
         setError(null)
 
         // If viewing from chat history or moderation, load directly from API (no WebSocket needed)
-        if (from === 'chats' || from === 'moderation') {
+        if (mode === 'history' || mode === 'moderation') {
           try {
             const chatLog = await api.chat.getChatLog(chatId)
             setChatInfo(chatLog)
@@ -343,7 +343,7 @@ export default function ChatScreen() {
             setIsHistoricalView(true)
 
             // If moderator view, capture participants for message attribution
-            if (from === 'moderation') {
+            if (mode === 'moderation') {
               setIsModerationView(true)
               const chatParticipants = chatLog.participants
                 || [chatLog.otherUser, chatLog.position?.creator].filter(Boolean)
@@ -636,7 +636,7 @@ export default function ChatScreen() {
         clearTimeout(otherTypingTimeoutRef.current)
       }
     }
-  }, [chatId, user?.id, from])
+  }, [chatId, user?.id, mode])
 
   // Handle sending a message
   const handleSend = useCallback(async () => {
@@ -704,23 +704,22 @@ export default function ChatScreen() {
     setInputHeight(newHeight)
   }, [maxInputHeight])
 
+  const safeBack = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back()
+    } else {
+      router.replace('/chats')
+    }
+  }, [router])
+
   // Show leave confirmation
   const handleBackPress = useCallback(() => {
     if (chatEnded) {
-      // Navigate based on where we came from
-      if (from === 'chats') {
-        router.replace('/chats')
-      } else if (from === 'moderation') {
-        router.replace('/moderation')
-      } else if (navigation.canGoBack()) {
-        router.back()
-      } else {
-        router.replace('/cards')
-      }
+      safeBack()
     } else {
       setShowLeaveConfirm(true)
     }
-  }, [chatEnded, router, from, navigation])
+  }, [chatEnded, safeBack])
 
   // Handle confirmed exit chat
   const handleConfirmLeave = useCallback(async () => {
@@ -734,17 +733,8 @@ export default function ChatScreen() {
         console.error('Failed to exit chat:', err)
       }
     }
-    // Navigate based on where we came from
-    if (from === 'chats') {
-      router.replace('/chats')
-    } else if (from === 'moderation') {
-      router.replace('/moderation')
-    } else if (navigation.canGoBack()) {
-      router.back()
-    } else {
-      router.replace('/cards')
-    }
-  }, [chatId, router, chatEnded, from, navigation])
+    safeBack()
+  }, [chatId, safeBack, chatEnded])
 
   // Cancel leaving
   const handleCancelLeave = useCallback(() => {
@@ -1332,7 +1322,7 @@ export default function ChatScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-        {from === 'chats' || from === 'moderation' ? (
+        {mode === 'history' || mode === 'moderation' ? (
           <Header onBack={handleBackPress} />
         ) : (
           <View style={styles.header}>
@@ -1345,7 +1335,7 @@ export default function ChatScreen() {
         )}
         <View style={styles.centerContent}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <ThemedText variant="button" style={styles.loadingText}>{from === 'chats' || from === 'moderation' ? t('loadingChat') : t('joiningChat')}</ThemedText>
+          <ThemedText variant="button" style={styles.loadingText}>{mode === 'history' || mode === 'moderation' ? t('loadingChat') : t('joiningChat')}</ThemedText>
         </View>
         {renderLeaveConfirmModal()}
       </SafeAreaView>
@@ -1356,11 +1346,11 @@ export default function ChatScreen() {
   if (error) {
     return (
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-        {from === 'chats' || from === 'moderation' ? (
-          <Header onBack={() => router.back()} />
+        {mode === 'history' || mode === 'moderation' ? (
+          <Header onBack={safeBack} />
         ) : (
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton} accessibilityRole="button" accessibilityLabel={t('backA11y')}>
+            <TouchableOpacity onPress={safeBack} style={styles.backButton} accessibilityRole="button" accessibilityLabel={t('backA11y')}>
               <Ionicons name="arrow-back" size={24} color={colors.primary} />
             </TouchableOpacity>
             <ThemedText variant="h2" color="primary" style={styles.headerTitle}>{t('chat')}</ThemedText>
@@ -1371,8 +1361,8 @@ export default function ChatScreen() {
           <ThemedText variant="button" color="error" style={styles.errorText}>{error}</ThemedText>
           <Pressable
             style={styles.retryButton}
-            onPress={() => router.back()}
-            onPressIn={Platform.OS === 'web' ? () => router.back() : undefined}
+            onPress={safeBack}
+            onPressIn={Platform.OS === 'web' ? safeBack : undefined}
             role="button"
           >
             <ThemedText variant="button" color="inverse">{t('goBack')}</ThemedText>

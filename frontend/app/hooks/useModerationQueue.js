@@ -33,7 +33,7 @@ export default function useModerationQueue() {
 
   const handleChatPress = useCallback((chatId, reporterId) => {
     if (chatId) {
-      router.push(`/chat/${chatId}?from=moderation${reporterId ? `&reporterId=${reporterId}` : ''}`)
+      router.push(`/chat/${chatId}?mode=moderation${reporterId ? `&reporterId=${reporterId}` : ''}`)
     }
   }, [router])
 

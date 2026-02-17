@@ -15,33 +15,34 @@ import {
 const KBAvoidingView = Platform.OS !== 'web'
   ? require('react-native-keyboard-controller').KeyboardAvoidingView
   : null
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter, usePathname } from 'expo-router'
 import { useNavigation } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
-import { useThemeColors } from '../../../hooks/useThemeColors'
-import { UserContext } from '../../../contexts/UserContext'
-import { hasQAAuthority } from '../../../lib/roles'
-import { Spacing, BorderRadius, Shadows } from '../../../constants/Theme'
-import { SemanticColors } from '../../../constants/Colors'
-import api from '../../../lib/api'
-import { useToast } from '../../../components/Toast'
-import useCommentThread from '../../../hooks/useCommentThread'
-import Header from '../../../components/Header'
-import PostHeader from '../../../components/discuss/PostHeader'
-import CommentItem from '../../../components/discuss/CommentItem'
-import CommentSortControl from '../../../components/discuss/CommentSortControl'
-import DownvoteReasonPicker from '../../../components/discuss/DownvoteReasonPicker'
-import EmptyState from '../../../components/EmptyState'
-import ThemedText from '../../../components/ThemedText'
-import ReplyComposer from '../../../components/discuss/ReplyComposer'
+import { useThemeColors } from '../../../../hooks/useThemeColors'
+import { UserContext } from '../../../../contexts/UserContext'
+import { hasQAAuthority } from '../../../../lib/roles'
+import { Spacing, BorderRadius, Shadows } from '../../../../constants/Theme'
+import { SemanticColors } from '../../../../constants/Colors'
+import api from '../../../../lib/api'
+import { useToast } from '../../../../components/Toast'
+import useCommentThread from '../../../../hooks/useCommentThread'
+import Header from '../../../../components/Header'
+import PostHeader from '../../../../components/discuss/PostHeader'
+import CommentItem from '../../../../components/discuss/CommentItem'
+import CommentSortControl from '../../../../components/discuss/CommentSortControl'
+import DownvoteReasonPicker from '../../../../components/discuss/DownvoteReasonPicker'
+import EmptyState from '../../../../components/EmptyState'
+import ThemedText from '../../../../components/ThemedText'
+import ReplyComposer from '../../../../components/discuss/ReplyComposer'
 
 const screenHeight = Dimensions.get('window').height
 
 export default function PostDetail() {
   const { id: postId, threadRoot, focus } = useLocalSearchParams()
   const router = useRouter()
+  const pathname = usePathname()
   const navigation = useNavigation()
   const insets = useSafeAreaInsets()
   const { t } = useTranslation('discuss')
@@ -186,23 +187,18 @@ export default function PostDetail() {
   const canPostTopLevel = !isPostLocked && (!isQAPost || userHasQAAuthority)
 
   const handleBack = useCallback(() => {
-    const state = navigation.getState()
-    if (state?.routes?.length > 1) {
-      navigation.goBack()
-    } else {
-      router.replace('/discuss')
-    }
-  }, [navigation, router])
+    router.back()
+  }, [router])
 
   // Navigate to a subtree view for deeply nested threads
   const handleContinueThread = useCallback((commentId) => {
-    router.replace(`/discuss/${postId}?threadRoot=${commentId}`)
-  }, [router, postId])
+    router.push(`${pathname}?threadRoot=${commentId}`)
+  }, [router, pathname])
 
   // Navigate back to full thread from subtree view
   const handleBackToFullThread = useCallback(() => {
-    router.replace(`/discuss/${postId}`)
-  }, [router, postId])
+    router.push(pathname)
+  }, [router, pathname])
 
   // Find the nearest unloaded ancestor above the thread root.
   // Enables progressive "View parent" — each click loads one more level.
