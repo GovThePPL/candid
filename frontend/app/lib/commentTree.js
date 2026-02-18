@@ -81,15 +81,22 @@ export function buildTree(flatComments) {
  * Modes: 'best' (score desc), 'new' (createdTime desc),
  * 'top' (net votes desc), 'controversial' (controversy desc).
  */
-export function sortTree(tree, mode = 'best') {
+export function sortTree(tree, mode = 'best', isRoot = true) {
   if (!Array.isArray(tree)) return []
 
   const comparator = getSortComparator(mode)
-  const sorted = [...tree].sort(comparator)
+  const sorted = [...tree].sort((a, b) => {
+    // Pinned comments float to the top at root level
+    if (isRoot) {
+      if (a.isPinned && !b.isPinned) return -1
+      if (!a.isPinned && b.isPinned) return 1
+    }
+    return comparator(a, b)
+  })
 
   for (const node of sorted) {
     if (node.children && node.children.length > 0) {
-      node.children = sortTree(node.children, mode)
+      node.children = sortTree(node.children, mode, false)
     }
   }
 

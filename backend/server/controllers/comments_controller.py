@@ -69,6 +69,9 @@ def _row_to_comment(row, post_type=None, post_location_id=None, post_category_id
     elif row.get("creator_user_id"):
         comment["creator"] = {"id": str(row["creator_user_id"])}
 
+    # Pinned
+    comment["isPinned"] = bool(row.get("is_pinned", False))
+
     # Creator role (for Q&A badge)
     comment["creatorRole"] = row.get("creator_role")
     comment["showCreatorRole"] = row.get("show_creator_role")
@@ -211,6 +214,7 @@ def get_comments(post_id, cursor=None, limit=None, max_descendants=None, token_i
     is_qa = post["post_type"] == "question"
     post_location_id = str(post["location_id"])
     post_category_id = str(post["category_id"]) if post.get("category_id") else None
+    pinned_id = str(post["pinned_comment_id"]) if post.get("pinned_comment_id") else None
 
     # Post-process: handle deleted/removed, add role badges
     result = []
@@ -228,6 +232,7 @@ def get_comments(post_id, cursor=None, limit=None, max_descendants=None, token_i
             row["body"] = "[removed]"
 
         row_dict = dict(row) if not isinstance(row, dict) else row
+        row_dict["is_pinned"] = (str(row["id"]) == pinned_id) if pinned_id else False
 
         # Role badge visibility: check both user-level and item-level flags
         creator_role = get_highest_role_at_location(
@@ -726,6 +731,7 @@ def get_comment_thread(post_id, comment_id, max_descendants=None, include_ancest
     is_qa = post["post_type"] == "question"
     post_location_id = str(post["location_id"])
     post_category_id = str(post["category_id"]) if post.get("category_id") else None
+    pinned_id = str(post["pinned_comment_id"]) if post.get("pinned_comment_id") else None
     target_depth = target["depth"]
 
     # Post-process: same logic as get_comments
@@ -743,6 +749,7 @@ def get_comment_thread(post_id, comment_id, max_descendants=None, include_ancest
             row["body"] = "[removed]"
 
         row_dict = dict(row) if not isinstance(row, dict) else row
+        row_dict["is_pinned"] = (str(row["id"]) == pinned_id) if pinned_id else False
 
         # Rebase depth relative to target comment (skip when ancestors included)
         if not include_ancestors:

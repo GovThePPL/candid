@@ -2915,6 +2915,11 @@ components:
           type: boolean
           nullable: true
           description: Whether creator role badge is shown on this post (only returned for own posts)
+        pinnedCommentId:
+          type: string
+          format: uuid
+          nullable: true
+          description: ID of the pinned comment on this post (null if none)
         bridgingScore:
           type: number
           format: double
@@ -3070,6 +3075,9 @@ components:
             downvoteReason:
               type: string
               nullable: true
+        isPinned:
+          type: boolean
+          description: Whether this comment is pinned on the post
         createdTime:
           type: string
           format: date-time
@@ -3795,6 +3803,12 @@ paths:
                 $ref: '#/components/schemas/Report'
         '400':
           description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '409':
+          description: User has already reported this content
           content:
             application/json:
               schema:
@@ -4746,6 +4760,12 @@ paths:
                 $ref: '#/components/schemas/ErrorModel'
         '403':
           description: Forbidden - user was not a participant in this chat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '409':
+          description: User has already reported this content
           content:
             application/json:
               schema:
@@ -7877,6 +7897,58 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
+  /posts/{postId}/pin-comment:
+    post:
+      operationId: pinComment
+      summary: Pin or unpin a comment on a post
+      tags:
+        - Posts
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                commentId:
+                  type: string
+                  format: uuid
+                  nullable: true
+                  description: Comment ID to pin, or null to unpin
+      responses:
+        '200':
+          description: Pin updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pinnedCommentId:
+                    type: string
+                    format: uuid
+                    nullable: true
+        '403':
+          description: Not authorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: Post or comment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
   /posts/{postId}/vote:
     post:
       operationId: voteOnPost
@@ -8282,6 +8354,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
+        '409':
+          description: User has already reported this content
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
 
   /comments/{commentId}/report:
     post:
@@ -8322,6 +8400,12 @@ paths:
                 $ref: '#/components/schemas/Report'
         '400':
           description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '409':
+          description: User has already reported this content
           content:
             application/json:
               schema:

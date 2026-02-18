@@ -169,6 +169,22 @@ export default function usePostsFeed(locationId, categoryId, postType) {
     }
   }, [posts, showToast, t])
 
+  const handleLockPost = useCallback(async (postId, lock) => {
+    setPosts(prev => prev.map(p =>
+      p.id === postId ? { ...p, status: lock ? 'locked' : 'active' } : p
+    ))
+    try {
+      await api.posts.patchPost(postId, { locked: lock })
+      showToast(lock ? t('lockSuccess') : t('unlockSuccess'))
+    } catch {
+      // Revert
+      setPosts(prev => prev.map(p =>
+        p.id === postId ? { ...p, status: lock ? 'active' : 'locked' } : p
+      ))
+      showToast(t('errorLockFailed'))
+    }
+  }, [showToast, t])
+
   // Refetch when dependencies change
   useEffect(() => {
     fetchPosts()
@@ -191,5 +207,6 @@ export default function usePostsFeed(locationId, categoryId, postType) {
     handleUpvote,
     handleDownvote,
     handleToggleRole,
+    handleLockPost,
   }
 }

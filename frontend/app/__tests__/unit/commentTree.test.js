@@ -130,6 +130,31 @@ describe('sortTree', () => {
     expect(sorted[0].id).toBe('c3')
   })
 
+  it('floats pinned comments to the top at root level', () => {
+    const comments = [
+      makeComment({ id: 'c1', score: 10 }),
+      makeComment({ id: 'c2', score: 5, isPinned: true }),
+      makeComment({ id: 'c3', score: 8 }),
+    ]
+    const tree = buildTree(comments)
+    const sorted = sortTree(tree, 'best')
+    expect(sorted[0].id).toBe('c2') // pinned comes first
+    expect(sorted[1].id).toBe('c1') // then sorted by score
+    expect(sorted[2].id).toBe('c3')
+  })
+
+  it('does not float pinned children (only root level)', () => {
+    const comments = [
+      makeComment({ id: 'p1', score: 1 }),
+      makeComment({ id: 'c1', parentCommentId: 'p1', score: 10 }),
+      makeComment({ id: 'c2', parentCommentId: 'p1', score: 5, isPinned: true }),
+    ]
+    const tree = buildTree(comments)
+    const sorted = sortTree(tree, 'best')
+    // Children should still be sorted by score, not pinned
+    expect(sorted[0].children.map(n => n.id)).toEqual(['c1', 'c2'])
+  })
+
   it('recursively sorts children', () => {
     const nested = [
       makeComment({ id: 'p1', score: 1 }),

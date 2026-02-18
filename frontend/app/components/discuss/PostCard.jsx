@@ -24,7 +24,7 @@ import BottomDrawerModal from '../BottomDrawerModal'
  * @param {Function} props.onToggleRole - Called with (postId, showCreatorRole)
  * @param {string} [props.currentUserId] - Current user's ID (disables voting on own posts)
  */
-export default function PostCard({ post, onPress, onUpvote, onDownvote, onToggleRole, currentUserId, canModerate, onReport, onModerate }) {
+export default function PostCard({ post, onPress, onUpvote, onDownvote, onToggleRole, onLock, currentUserId, canModerate, onReport, onModerate }) {
   const { t } = useTranslation('discuss')
   const colors = useThemeColors()
   const router = useRouter()
@@ -187,6 +187,27 @@ export default function PostCard({ post, onPress, onUpvote, onDownvote, onToggle
               />
               <ThemedText variant="body">
                 {post.showCreatorRole !== false ? t('hideRoleBadge') : t('showRoleBadge')}
+              </ThemedText>
+            </TouchableOpacity>
+          )}
+          {(isOwnPost || canModerate) && (
+            <TouchableOpacity
+              style={styles.optionRow}
+              onPress={() => {
+                onLock?.(post.id, !isLocked)
+                setOptionsVisible(false)
+              }}
+              activeOpacity={0.7}
+              accessibilityRole="menuitem"
+              accessibilityLabel={isLocked ? t('unlockPostA11y') : t('lockPostA11y')}
+            >
+              <Ionicons
+                name={isLocked ? 'lock-open-outline' : 'lock-closed-outline'}
+                size={20}
+                color={colors.secondaryText}
+              />
+              <ThemedText variant="body">
+                {isLocked ? t('unlockPost') : t('lockPost')}
               </ThemedText>
             </TouchableOpacity>
           )}

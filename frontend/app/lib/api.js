@@ -1178,6 +1178,10 @@ export const postsApiWrapper = {
   async patchPost(postId, body) {
     return await promisify(postsApi.patchPost.bind(postsApi), postId, body)
   },
+
+  async pinComment(postId, commentId) {
+    return await promisify(postsApi.pinComment.bind(postsApi), postId, { commentId: commentId || null })
+  },
 }
 
 // Comments API

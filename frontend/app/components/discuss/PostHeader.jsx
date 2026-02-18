@@ -25,7 +25,7 @@ import LocationCategoryBadge from '../LocationCategoryBadge'
  * @param {Function} props.onDownvote - Called when downvote is tapped
  * @param {Function} props.onToggleRole - Called with (postId, showCreatorRole)
  */
-export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, onToggleRole, onToggleMute, isMuted, canModerate, onReport, onModerate }) {
+export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, onToggleRole, onToggleMute, onLock, isMuted, canModerate, onReport, onModerate }) {
   const { t } = useTranslation('discuss')
   const router = useRouter()
   const colors = useThemeColors()
@@ -178,6 +178,27 @@ export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, 
               />
               <ThemedText variant="body">
                 {isMuted ? t('unmutePostNotifications') : t('mutePostNotifications')}
+              </ThemedText>
+            </TouchableOpacity>
+          )}
+          {(isOwnPost || canModerate) && (
+            <TouchableOpacity
+              style={styles.optionRow}
+              onPress={() => {
+                onLock?.(!isLocked)
+                setOptionsVisible(false)
+              }}
+              activeOpacity={0.7}
+              accessibilityRole="menuitem"
+              accessibilityLabel={isLocked ? t('unlockPostA11y') : t('lockPostA11y')}
+            >
+              <Ionicons
+                name={isLocked ? 'lock-open-outline' : 'lock-closed-outline'}
+                size={20}
+                color={colors.secondaryText}
+              />
+              <ThemedText variant="body">
+                {isLocked ? t('unlockPost') : t('lockPost')}
               </ThemedText>
             </TouchableOpacity>
           )}

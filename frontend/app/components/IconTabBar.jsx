@@ -15,7 +15,7 @@ export default function IconTabBar({ tabs, activeTab, onTabChange, t }) {
   const styles = useMemo(() => createStyles(colors), [colors])
 
   return (
-    <View style={[styles.tabRow, { backgroundColor: colors.background }]} accessibilityRole="tablist">
+    <View style={[styles.tabRow, { backgroundColor: colors.cardBackground }]} accessibilityRole="tablist">
       {tabs.map((tab) => {
         const isActive = activeTab === tab.key
         return (

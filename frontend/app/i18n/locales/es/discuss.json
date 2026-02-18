@@ -199,5 +199,23 @@
   "moderationSuccess": "Acción tomada",
   "moderationForbidden": "No tienes permiso para moderar este contenido",
   "reportSuccess": "Reporte enviado",
-  "errorReportFailed": "No se pudo enviar el reporte"
+  "errorReportFailed": "No se pudo enviar el reporte",
+
+  "lockPost": "Bloquear publicación",
+  "unlockPost": "Desbloquear publicación",
+  "lockPostA11y": "Bloquear esta publicación para evitar nuevos comentarios",
+  "unlockPostA11y": "Desbloquear esta publicación para permitir nuevos comentarios",
+  "lockSuccess": "Publicación bloqueada",
+  "unlockSuccess": "Publicación desbloqueada",
+  "errorLockFailed": "No se pudo actualizar el estado de bloqueo",
+
+  "pinned": "Fijado",
+  "pinnedA11y": "Este comentario está fijado",
+  "pinComment": "Fijar comentario",
+  "unpinComment": "Desfijar comentario",
+  "pinCommentA11y": "Fijar este comentario en la parte superior",
+  "unpinCommentA11y": "Desfijar este comentario",
+  "pinSuccess": "Comentario fijado",
+  "unpinSuccess": "Comentario desfijado",
+  "errorPinFailed": "No se pudo actualizar el estado de fijado"
 }

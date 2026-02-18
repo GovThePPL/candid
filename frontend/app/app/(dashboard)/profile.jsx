@@ -135,88 +135,90 @@ export default function ProfileScreen() {
   // Profile section rendered inside each tab's scroll container so it scrolls away naturally
   const profileHeader = (
     <View style={styles.profileSection}>
-      {isOwnProfile ? (
-        <TouchableOpacity
-          style={styles.profileCard}
-          onPress={() => router.push('/settings')}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={t('profileAvatarA11y')}
-        >
-          <Avatar user={user} size="lg" showKudosBadge showKudosCount />
-          <View style={styles.profileInfo}>
-            <ThemedText variant="h3" color="dark" numberOfLines={1}>
-              {user?.displayName || t('guest')}
-            </ThemedText>
-            <ThemedText variant="bodySmall" color="secondary" numberOfLines={1}>
-              @{user?.username || t('guestUsername')}
-            </ThemedText>
-            {hasRoles && (
-              <View style={styles.rolesRow}>
-                {user.roles.map((r, i) => (
-                  <RoleBadge
-                    key={`${r.role}-${r.locationId}-${i}`}
-                    role={r.role}
-                    location={r.locationCode}
-                    category={r.categoryLabel}
-                  />
-                ))}
-              </View>
-            )}
-          </View>
-          <View style={styles.profileChevron}>
-            <Ionicons name="chevron-forward" size={20} color={colors.secondaryText} />
-          </View>
-        </TouchableOpacity>
-      ) : (
-        <View style={styles.profileCard}>
-          <Avatar user={displayUser} size="lg" showKudosBadge showKudosCount />
-          <View style={styles.profileInfo}>
-            <ThemedText variant="h3" color="dark" numberOfLines={1}>
-              {displayUser?.displayName || displayUser?.username || '?'}
-            </ThemedText>
-            <ThemedText variant="bodySmall" color="secondary" numberOfLines={1}>
-              @{displayUser?.username || '?'}
-            </ThemedText>
-            {hasRoles && displayUser?.roles && (
-              <View style={styles.rolesRow}>
-                {displayUser.roles.map((r, i) => (
-                  <RoleBadge
-                    key={`${r.role}-${r.locationId}-${i}`}
-                    role={r.role}
-                    location={r.locationCode}
-                    category={r.categoryLabel}
-                  />
-                ))}
-              </View>
-            )}
-          </View>
-        </View>
-      )}
-
-      {/* Admin button — own profile only */}
-      {showAdmin && (
-        <TouchableOpacity
-          style={styles.adminButton}
-          onPress={() => router.push('/admin')}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={t('adminButtonA11y', {
-            pendingInfo: pendingCount > 0 ? t('adminPendingInfo', { count: pendingCount }) : '',
-          })}
-        >
-          <Ionicons name="shield-outline" size={16} color={colors.primary} />
-          <ThemedText variant="bodySmall" color="primary" style={styles.adminButtonText}>
-            {t('admin:admin')}
-          </ThemedText>
-          {pendingCount > 0 && (
-            <View style={styles.adminBadge}>
-              <ThemedText variant="caption" style={styles.adminBadgeText}>{pendingCount}</ThemedText>
+      <View style={styles.profileWrapper}>
+        {isOwnProfile ? (
+          <TouchableOpacity
+            style={styles.profileCard}
+            onPress={() => router.push('/settings')}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={t('profileAvatarA11y')}
+          >
+            <Avatar user={user} size="lg" showKudosBadge showKudosCount />
+            <View style={styles.profileInfo}>
+              <ThemedText variant="h3" color="dark" numberOfLines={1}>
+                {user?.displayName || t('guest')}
+              </ThemedText>
+              <ThemedText variant="bodySmall" color="secondary" numberOfLines={1}>
+                @{user?.username || t('guestUsername')}
+              </ThemedText>
+              {hasRoles && (
+                <View style={styles.rolesRow}>
+                  {user.roles.map((r, i) => (
+                    <RoleBadge
+                      key={`${r.role}-${r.locationId}-${i}`}
+                      role={r.role}
+                      location={r.locationCode}
+                      category={r.categoryLabel}
+                    />
+                  ))}
+                </View>
+              )}
             </View>
-          )}
-          <Ionicons name="chevron-forward" size={16} color={colors.secondaryText} />
-        </TouchableOpacity>
-      )}
+            <View style={styles.profileChevron}>
+              <Ionicons name="chevron-forward" size={20} color={colors.secondaryText} />
+            </View>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.profileCard}>
+            <Avatar user={displayUser} size="lg" showKudosBadge showKudosCount />
+            <View style={styles.profileInfo}>
+              <ThemedText variant="h3" color="dark" numberOfLines={1}>
+                {displayUser?.displayName || displayUser?.username || '?'}
+              </ThemedText>
+              <ThemedText variant="bodySmall" color="secondary" numberOfLines={1}>
+                @{displayUser?.username || '?'}
+              </ThemedText>
+              {hasRoles && displayUser?.roles && (
+                <View style={styles.rolesRow}>
+                  {displayUser.roles.map((r, i) => (
+                    <RoleBadge
+                      key={`${r.role}-${r.locationId}-${i}`}
+                      role={r.role}
+                      location={r.locationCode}
+                      category={r.categoryLabel}
+                    />
+                  ))}
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* Admin button — own profile only */}
+        {showAdmin && (
+          <TouchableOpacity
+            style={styles.adminButton}
+            onPress={() => router.push('/admin')}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={t('adminButtonA11y', {
+              pendingInfo: pendingCount > 0 ? t('adminPendingInfo', { count: pendingCount }) : '',
+            })}
+          >
+            <Ionicons name="shield-outline" size={16} color={colors.primary} />
+            <ThemedText variant="bodySmall" color="primary" style={styles.adminButtonText}>
+              {t('admin:admin')}
+            </ThemedText>
+            {pendingCount > 0 && (
+              <View style={styles.adminBadge}>
+                <ThemedText variant="caption" style={styles.adminBadgeText}>{pendingCount}</ThemedText>
+              </View>
+            )}
+            <Ionicons name="chevron-forward" size={16} color={colors.secondaryText} />
+          </TouchableOpacity>
+        )}
+      </View>
     </View>
   )
 
@@ -248,22 +250,20 @@ const createStyles = (colors) => StyleSheet.create({
 
   // Profile section (rendered inside content scroll containers)
   profileSection: {
+    backgroundColor: colors.cardBackground,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.cardBorder,
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.xs,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
+  },
+  profileWrapper: {
     gap: Spacing.sm,
   },
   profileCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'stretch',
-    backgroundColor: colors.cardBackground,
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
     gap: 12,
   },
   profileInfo: {
@@ -271,8 +271,7 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 2,
   },
   profileChevron: {
-    position: 'absolute',
-    right: 12,
+    marginLeft: 'auto',
   },
   rolesRow: {
     flexDirection: 'row',
@@ -283,13 +282,9 @@ const createStyles = (colors) => StyleSheet.create({
   adminButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'stretch',
-    backgroundColor: colors.cardBackground,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
+    borderTopWidth: 1,
+    borderTopColor: colors.cardBorder,
+    paddingTop: Spacing.sm,
     gap: 8,
   },
   adminButtonText: {

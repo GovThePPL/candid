@@ -103,6 +103,23 @@ class TestReportPosition:
         )
         assert resp.status_code == 400
 
+    @pytest.mark.mutation
+    def test_duplicate_report_returns_409(self, normal_headers):
+        """Submitting the same report twice returns 409."""
+        payload = {"ruleId": RULE_VIOLENCE_ID}
+        resp1 = requests.post(
+            f"{BASE_URL}/positions/{POSITION3_ID}/report",
+            headers=normal_headers,
+            json=payload,
+        )
+        assert resp1.status_code == 201
+
+        resp2 = requests.post(
+            f"{BASE_URL}/positions/{POSITION3_ID}/report",
+            headers=normal_headers,
+            json=payload,
+        )
+        assert resp2.status_code == 409
 
 
 class TestReportChat:

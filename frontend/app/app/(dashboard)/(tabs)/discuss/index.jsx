@@ -53,6 +53,7 @@ export default function DiscussFeed() {
     handleUpvote,
     handleDownvote,
     handleToggleRole,
+    handleLockPost,
   } = usePostsFeed(selectedLocation, selectedCategory, postType)
 
   // Refresh feed on focus (e.g. returning from creating a post)
@@ -158,13 +159,14 @@ export default function DiscussFeed() {
         onUpvote={handleUpvote}
         onDownvote={handlePostDownvote}
         onToggleRole={handleToggleRole}
+        onLock={handleLockPost}
         currentUserId={user?.id}
         canModerate={canMod}
         onReport={handleReportPost}
         onModerate={handleModeratePost}
       />
     )
-  }, [handlePostPress, handleUpvote, handlePostDownvote, handleToggleRole, user?.id, checkModerateScope, handleReportPost, handleModeratePost])
+  }, [handlePostPress, handleUpvote, handlePostDownvote, handleToggleRole, handleLockPost, user?.id, checkModerateScope, handleReportPost, handleModeratePost])
 
   const keyExtractor = useCallback((item) => item.id, [])
 

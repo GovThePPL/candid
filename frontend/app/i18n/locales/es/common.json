@@ -121,5 +121,8 @@
   "addMode": "Modo agregar",
   "addItemA11y": "Agregar postura: {{statement}}",
 
-  "loadingSkeleton": "Cargando contenido"
+  "loadingSkeleton": "Cargando contenido",
+
+  "errorAlreadyReported": "Ya has reportado este contenido",
+  "errorReportFailed": "No se pudo enviar el reporte"
 }

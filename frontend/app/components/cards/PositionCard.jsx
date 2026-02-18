@@ -86,8 +86,8 @@ const PositionCard = forwardRef(function PositionCard({
         {/* Footer */}
         <View style={styles.footer}>
           {canModerate ? (
-            <TouchableOpacity onPress={onModerate} style={[styles.iconButton, styles.moderateButton]} accessibilityLabel={t('positionModerate')} accessibilityRole="button">
-              <Ionicons name="shield-outline" size={22} color={colors.primary} />
+            <TouchableOpacity onPress={onModerate} style={[styles.iconButton, styles.flagButton]} accessibilityLabel={t('positionModerate')} accessibilityRole="button">
+              <Ionicons name="shield-outline" size={22} color="#E57373" />
             </TouchableOpacity>
           ) : (
             <TouchableOpacity onPress={onReport} style={[styles.iconButton, styles.flagButton]} accessibilityLabel={t('positionReport')} accessibilityRole="button">
@@ -192,9 +192,6 @@ const createStyles = (colors) => StyleSheet.create({
   },
   flagButton: {
     backgroundColor: SemanticColors.disagree + '20',
-  },
-  moderateButton: {
-    backgroundColor: colors.primary + '20',
   },
   addButton: {
     backgroundColor: SemanticColors.agree + '20',

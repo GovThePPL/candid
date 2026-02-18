@@ -21,6 +21,7 @@ const INDENT_PX = 16
 export default memo(function CommentItem({
   comment,
   currentUserId,
+  isPostAuthor,
   isQAPost,
   isPostLocked,
   currentUserHasQAAuthority,
@@ -30,6 +31,7 @@ export default memo(function CommentItem({
   onToggleCollapse,
   onToggleRole,
   onToggleMuteComment,
+  onPinComment,
   onContinueThread,
   isTruncatedRoot,
   onLoadMoreReplies,
@@ -172,6 +174,15 @@ export default memo(function CommentItem({
             )}
           </View>
           <View style={styles.headerRight}>
+            {comment.isPinned && (
+              <View
+                style={styles.pinnedBadge}
+                accessibilityLabel={t('pinnedA11y')}
+              >
+                <Ionicons name="pin" size={12} color={colors.primary} />
+                <ThemedText variant="caption" color="primary">{t('pinned')}</ThemedText>
+              </View>
+            )}
             <BridgingBadge item={comment} />
             {comment.createdTime && (
               <ThemedText variant="caption" color="secondary">
@@ -369,6 +380,27 @@ export default memo(function CommentItem({
                 </ThemedText>
               </TouchableOpacity>
             )}
+            {(isPostAuthor || canModerate) && comment.depth === 0 && (
+              <TouchableOpacity
+                style={styles.optionRow}
+                onPress={() => {
+                  onPinComment?.(comment.isPinned ? null : comment.id)
+                  setOptionsVisible(false)
+                }}
+                activeOpacity={0.7}
+                accessibilityRole="menuitem"
+                accessibilityLabel={comment.isPinned ? t('unpinCommentA11y') : t('pinCommentA11y')}
+              >
+                <Ionicons
+                  name={comment.isPinned ? 'pin-outline' : 'pin'}
+                  size={20}
+                  color={colors.secondaryText}
+                />
+                <ThemedText variant="body">
+                  {comment.isPinned ? t('unpinComment') : t('pinComment')}
+                </ThemedText>
+              </TouchableOpacity>
+            )}
             {canModerate ? (
               <TouchableOpacity
                 style={styles.optionRow}
@@ -504,6 +536,11 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 14,
     alignSelf: 'flex-start',
     marginTop: Spacing.xs,
+  },
+  pinnedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
   },
   optionsList: {
     padding: Spacing.lg,

@@ -71,6 +71,7 @@ export default function PostDetail() {
     handleVote: handleCommentVote,
     handleToggleRole: handleCommentToggleRole,
     handleCreateComment,
+    setCommentPinned,
     loadMore,
     loadMoreReplies,
     loadParentComment,
@@ -425,6 +426,34 @@ export default function PostDetail() {
     setDownvoteTarget({ type: 'post', id: post.id })
   }, [post, postId, showToast, t])
 
+  // Lock/unlock post
+  const handleLockPost = useCallback(async (lock) => {
+    const prevStatus = post?.status
+    setPost(prev => prev ? { ...prev, status: lock ? 'locked' : 'active' } : prev)
+    try {
+      await api.posts.patchPost(postId, { locked: lock })
+      showToast(lock ? t('lockSuccess') : t('unlockSuccess'))
+    } catch {
+      setPost(prev => prev ? { ...prev, status: prevStatus } : prev)
+      showToast(t('errorLockFailed'))
+    }
+  }, [post, postId, showToast, t])
+
+  // Pin/unpin comment
+  const handlePinComment = useCallback(async (commentId) => {
+    const prevPinnedId = post?.pinnedCommentId
+    setPost(prev => prev ? { ...prev, pinnedCommentId: commentId || null } : prev)
+    setCommentPinned(commentId)
+    try {
+      await api.posts.pinComment(postId, commentId)
+      showToast(commentId ? t('pinSuccess') : t('unpinSuccess'))
+    } catch {
+      setPost(prev => prev ? { ...prev, pinnedCommentId: prevPinnedId } : prev)
+      setCommentPinned(prevPinnedId)
+      showToast(t('errorPinFailed'))
+    }
+  }, [post, postId, setCommentPinned, showToast, t])
+
   // Post role toggle
   const handleTogglePostRole = useCallback(async (postId, show) => {
     // Optimistic update
@@ -602,6 +631,7 @@ export default function PostDetail() {
     onToggleCollapse: toggleCollapse,
     onToggleRole: handleCommentToggleRole,
     onToggleMuteComment: handleToggleMuteComment,
+    onPinComment: handlePinComment,
     onContinueThread: handleContinueThread,
     onLoadMoreReplies: loadMoreReplies,
     onFocusReady: handleFocusReady,
@@ -611,6 +641,7 @@ export default function PostDetail() {
     focus: effectiveFocus,
     scrollTargetId,
     currentUserId: user?.id,
+    isPostAuthor: post?.creator?.id === user?.id,
     isQAPost,
     isPostLocked,
     userHasQAAuthority,
@@ -666,6 +697,7 @@ export default function PostDetail() {
           onDownvote={handlePostDownvote}
           onToggleRole={handleTogglePostRole}
           onToggleMute={handleTogglePostMute}
+          onLock={handleLockPost}
           isMuted={postMuted}
           canModerate={userCanModerate}
           onReport={handleReportPost}
@@ -924,6 +956,7 @@ const ChainBlock = memo(function ChainBlock({ chain, handlersRef, mutedCommentId
           key={comment.id}
           comment={mutedCommentIds.has(comment.id) ? { ...comment, isMuted: true } : comment}
           currentUserId={h.currentUserId}
+          isPostAuthor={h.isPostAuthor}
           isQAPost={h.isQAPost}
           isPostLocked={h.isPostLocked}
           currentUserHasQAAuthority={h.userHasQAAuthority}
@@ -933,6 +966,7 @@ const ChainBlock = memo(function ChainBlock({ chain, handlersRef, mutedCommentId
           onToggleCollapse={h.onToggleCollapse}
           onToggleRole={h.onToggleRole}
           onToggleMuteComment={h.onToggleMuteComment}
+          onPinComment={h.onPinComment}
           onContinueThread={h.onContinueThread}
           isTruncatedRoot={h.truncatedRoots.has(comment.id)}
           onLoadMoreReplies={h.onLoadMoreReplies}

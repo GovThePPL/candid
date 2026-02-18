@@ -121,5 +121,8 @@
   "addMode": "Add mode",
   "addItemA11y": "Add position: {{statement}}",
 
-  "loadingSkeleton": "Loading content"
+  "loadingSkeleton": "Loading content",
+
+  "errorAlreadyReported": "You have already reported this content",
+  "errorReportFailed": "Report couldn't be submitted"
 }

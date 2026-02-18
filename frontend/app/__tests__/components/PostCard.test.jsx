@@ -302,4 +302,50 @@ describe('PostCard', () => {
     fireEvent.press(screen.getByLabelText('reportPostA11y TestUser'))
     expect(onReport).toHaveBeenCalledWith('p1')
   })
+
+  // Lock/unlock tests
+  it('shows lock option for own post', () => {
+    render(<PostCard {...defaultProps} currentUserId="u1" onLock={jest.fn()} />)
+    fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
+    expect(screen.getByText('lockPost')).toBeTruthy()
+    expect(screen.getByLabelText('lockPostA11y')).toBeTruthy()
+  })
+
+  it('shows lock option when canModerate is true', () => {
+    render(<PostCard {...defaultProps} canModerate={true} onLock={jest.fn()} />)
+    fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
+    expect(screen.getByText('lockPost')).toBeTruthy()
+  })
+
+  it('does not show lock option for other users without moderate permission', () => {
+    render(<PostCard {...defaultProps} currentUserId="u2" canModerate={false} />)
+    fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
+    expect(screen.queryByText('lockPost')).toBeNull()
+    expect(screen.queryByText('unlockPost')).toBeNull()
+  })
+
+  it('shows unlock option when post is locked', () => {
+    const post = { ...basePost, status: 'locked' }
+    render(<PostCard {...defaultProps} post={post} currentUserId="u1" onLock={jest.fn()} />)
+    fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
+    expect(screen.getByText('unlockPost')).toBeTruthy()
+    expect(screen.getByLabelText('unlockPostA11y')).toBeTruthy()
+  })
+
+  it('calls onLock with (postId, true) when lock tapped', () => {
+    const onLock = jest.fn()
+    render(<PostCard {...defaultProps} currentUserId="u1" onLock={onLock} />)
+    fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
+    fireEvent.press(screen.getByText('lockPost'))
+    expect(onLock).toHaveBeenCalledWith('p1', true)
+  })
+
+  it('calls onLock with (postId, false) when unlock tapped', () => {
+    const onLock = jest.fn()
+    const post = { ...basePost, status: 'locked' }
+    render(<PostCard {...defaultProps} post={post} currentUserId="u1" onLock={onLock} />)
+    fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
+    fireEvent.press(screen.getByText('unlockPost'))
+    expect(onLock).toHaveBeenCalledWith('p1', false)
+  })
 })

@@ -53,6 +53,7 @@ components/
 ├── BugReportModal.jsx            # Bug report submission modal
 ├── CardShell.jsx                 # Generic card container with themed styling
 ├── ChatHistoryContent.jsx        # Chat history list with position context; accepts showHeader prop
+├── ChatMarkdown.jsx              # Markdown renderer for chat bubbles (white text on colored backgrounds)
 ├── ChatRequestIndicator.jsx      # Pending chat request badge/indicator
 ├── ChattingListExplanationModal.jsx # Explanation modal for chatting list
 ├── CommentsContent.jsx           # User's comment history list with vote counts and post context; optional userId prop for public profiles

@@ -27,12 +27,14 @@ export default function ReportModal({ visible, onClose, onSubmit, contentType, i
   const [comment, setComment] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     if (visible) {
       setSelectedRuleId(null)
       setComment('')
       setSuccess(false)
+      setError(null)
       fetchRules()
     }
   }, [visible])
@@ -61,6 +63,11 @@ export default function ReportModal({ visible, onClose, onSubmit, contentType, i
       }, 800)
     } catch (err) {
       console.error('Failed to submit report:', err)
+      if (err?.status === 409 || err?.response?.status === 409) {
+        setError(t('common:errorAlreadyReported'))
+      } else {
+        setError(t('common:errorReportFailed'))
+      }
     } finally {
       setSubmitting(false)
     }
@@ -142,6 +149,11 @@ export default function ReportModal({ visible, onClose, onSubmit, contentType, i
                 </>
               )}
             </TouchableOpacity>
+            {error && (
+              <ThemedText variant="label" style={styles.errorText}>
+                {error}
+              </ThemedText>
+            )}
           </View>
         </View>
       )}
@@ -239,5 +251,9 @@ const createStyles = (colors) => StyleSheet.create({
   },
   submitButtonDisabled: {
     opacity: 0.5,
+  },
+  errorText: {
+    color: SemanticColors.error,
+    textAlign: 'center',
   },
 })

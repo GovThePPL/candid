@@ -390,12 +390,21 @@ class TestLockPost:
         assert resp.status_code == 200
         assert resp.json()["status"] == "active"
 
-    def test_non_moderator_blocked(self, normal_headers):
+    def test_non_author_non_moderator_blocked(self, normal_headers, normal2_headers):
         create_resp = _create_post(normal_headers, title="TEST lock blocked")
         post_id = create_resp.json()["id"]
 
-        resp = requests.patch(f"{POSTS_URL}/{post_id}", headers=normal_headers, json={"locked": True})
+        # normal2 is neither the author nor a moderator
+        resp = requests.patch(f"{POSTS_URL}/{post_id}", headers=normal2_headers, json={"locked": True})
         assert resp.status_code == 403
+
+    def test_author_can_lock_own_post(self, normal_headers):
+        create_resp = _create_post(normal_headers, title="TEST author lock")
+        post_id = create_resp.json()["id"]
+
+        resp = requests.patch(f"{POSTS_URL}/{post_id}", headers=normal_headers, json={"locked": True})
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "locked"
 
     def test_comment_on_locked_post_blocked(self, normal_headers, moderator_headers, normal2_headers):
         create_resp = _create_post(normal_headers, title="TEST locked comment")
@@ -529,6 +538,142 @@ class TestVoteOnPost:
         assert row["downvote_count"] == 0
 
 
+class TestPinComment:
+    """POST /posts/{postId}/pin-comment"""
+
+    def test_author_can_pin_comment(self, normal_headers, normal2_headers):
+        create_resp = _create_post(normal_headers, title="TEST pin post")
+        post_id = create_resp.json()["id"]
+
+        # Create a comment as another user
+        comment_resp = requests.post(
+            f"{BASE_URL}/posts/{post_id}/comments",
+            headers=normal2_headers,
+            json={"body": "pin me"},
+        )
+        comment_id = comment_resp.json()["id"]
+
+        # Pin it as the post author
+        resp = requests.post(
+            f"{POSTS_URL}/{post_id}/pin-comment",
+            headers=normal_headers,
+            json={"commentId": comment_id},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["pinnedCommentId"] == comment_id
+
+        # Verify post has pinnedCommentId
+        post_resp = requests.get(f"{POSTS_URL}/{post_id}", headers=normal_headers)
+        assert post_resp.json()["pinnedCommentId"] == comment_id
+
+    def test_author_can_unpin_comment(self, normal_headers, normal2_headers):
+        create_resp = _create_post(normal_headers, title="TEST unpin post")
+        post_id = create_resp.json()["id"]
+
+        comment_resp = requests.post(
+            f"{BASE_URL}/posts/{post_id}/comments",
+            headers=normal2_headers,
+            json={"body": "pin then unpin"},
+        )
+        comment_id = comment_resp.json()["id"]
+
+        # Pin
+        requests.post(
+            f"{POSTS_URL}/{post_id}/pin-comment",
+            headers=normal_headers,
+            json={"commentId": comment_id},
+        )
+        # Unpin
+        resp = requests.post(
+            f"{POSTS_URL}/{post_id}/pin-comment",
+            headers=normal_headers,
+            json={"commentId": None},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["pinnedCommentId"] is None
+
+    def test_moderator_can_pin(self, normal_headers, moderator_headers, normal2_headers):
+        create_resp = _create_post(normal_headers, title="TEST mod pin")
+        post_id = create_resp.json()["id"]
+
+        comment_resp = requests.post(
+            f"{BASE_URL}/posts/{post_id}/comments",
+            headers=normal2_headers,
+            json={"body": "mod pin me"},
+        )
+        comment_id = comment_resp.json()["id"]
+
+        resp = requests.post(
+            f"{POSTS_URL}/{post_id}/pin-comment",
+            headers=moderator_headers,
+            json={"commentId": comment_id},
+        )
+        assert resp.status_code == 200
+
+    def test_non_author_non_mod_blocked(self, normal_headers, normal2_headers):
+        create_resp = _create_post(normal_headers, title="TEST pin blocked")
+        post_id = create_resp.json()["id"]
+
+        comment_resp = requests.post(
+            f"{BASE_URL}/posts/{post_id}/comments",
+            headers=normal2_headers,
+            json={"body": "try to pin"},
+        )
+        comment_id = comment_resp.json()["id"]
+
+        resp = requests.post(
+            f"{POSTS_URL}/{post_id}/pin-comment",
+            headers=normal2_headers,
+            json={"commentId": comment_id},
+        )
+        assert resp.status_code == 403
+
+    def test_pin_nonexistent_comment_404(self, normal_headers):
+        create_resp = _create_post(normal_headers, title="TEST pin 404")
+        post_id = create_resp.json()["id"]
+
+        resp = requests.post(
+            f"{POSTS_URL}/{post_id}/pin-comment",
+            headers=normal_headers,
+            json={"commentId": NONEXISTENT_UUID},
+        )
+        assert resp.status_code == 404
+
+    def test_comments_include_is_pinned(self, normal_headers, normal2_headers):
+        create_resp = _create_post(normal_headers, title="TEST isPinned")
+        post_id = create_resp.json()["id"]
+
+        comment_resp = requests.post(
+            f"{BASE_URL}/posts/{post_id}/comments",
+            headers=normal2_headers,
+            json={"body": "check isPinned"},
+        )
+        comment_id = comment_resp.json()["id"]
+
+        # Before pinning
+        comments_resp = requests.get(
+            f"{BASE_URL}/posts/{post_id}/comments",
+            headers=normal_headers,
+        )
+        comments = comments_resp.json()["comments"]
+        target = next(c for c in comments if c["id"] == comment_id)
+        assert target["isPinned"] is False
+
+        # Pin and check
+        requests.post(
+            f"{POSTS_URL}/{post_id}/pin-comment",
+            headers=normal_headers,
+            json={"commentId": comment_id},
+        )
+        comments_resp = requests.get(
+            f"{BASE_URL}/posts/{post_id}/comments",
+            headers=normal_headers,
+        )
+        comments = comments_resp.json()["comments"]
+        target = next(c for c in comments if c["id"] == comment_id)
+        assert target["isPinned"] is True
+
+
 class TestReportPost:
     """POST /posts/{postId}/report"""
 
@@ -542,3 +687,22 @@ class TestReportPost:
             json={"ruleId": RULE_VIOLENCE_ID},
         )
         assert resp.status_code == 201
+
+    @pytest.mark.mutation
+    def test_duplicate_report_returns_409(self, normal_headers, normal2_headers):
+        create_resp = _create_post(normal_headers, title="TEST dup report post")
+        post_id = create_resp.json()["id"]
+
+        resp1 = requests.post(
+            f"{POSTS_URL}/{post_id}/report",
+            headers=normal2_headers,
+            json={"ruleId": RULE_VIOLENCE_ID},
+        )
+        assert resp1.status_code == 201
+
+        resp2 = requests.post(
+            f"{POSTS_URL}/{post_id}/report",
+            headers=normal2_headers,
+            json={"ruleId": RULE_VIOLENCE_ID},
+        )
+        assert resp2.status_code == 409

@@ -161,4 +161,36 @@ describe('ReportModal', () => {
     fireEvent.changeText(input, 'test comment')
     expect(input.props.value).toBe('test comment')
   })
+
+  it('shows duplicate error on 409 response', async () => {
+    const onSubmit = jest.fn().mockRejectedValue({ status: 409 })
+    render(<ReportModal {...defaultProps} onSubmit={onSubmit} />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Harassment')).toBeTruthy()
+    })
+
+    fireEvent.press(screen.getByText('Harassment'))
+    fireEvent.press(screen.getByLabelText('submitReport'))
+
+    await waitFor(() => {
+      expect(screen.getByText('common:errorAlreadyReported')).toBeTruthy()
+    })
+  })
+
+  it('shows generic error on non-409 failure', async () => {
+    const onSubmit = jest.fn().mockRejectedValue({ status: 500 })
+    render(<ReportModal {...defaultProps} onSubmit={onSubmit} />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Harassment')).toBeTruthy()
+    })
+
+    fireEvent.press(screen.getByText('Harassment'))
+    fireEvent.press(screen.getByLabelText('submitReport'))
+
+    await waitFor(() => {
+      expect(screen.getByText('common:errorReportFailed')).toBeTruthy()
+    })
+  })
 })

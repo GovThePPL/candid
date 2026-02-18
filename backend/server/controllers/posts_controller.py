@@ -12,7 +12,7 @@ from candid.models.error_model import ErrorModel
 from candid.controllers import db
 from candid.controllers.helpers.auth import (
     authorization, token_to_user, is_moderator_at_location,
-    get_highest_role_at_location,
+    is_facilitator_for, get_highest_role_at_location,
 )
 from candid.controllers.helpers.rate_limiting import check_rate_limit_for
 from candid.controllers.helpers.scoring import wilson_score
@@ -84,6 +84,9 @@ def _row_to_post(row, user_vote_row=None):
     # Creator role (highest approved role at post location, if badge visible)
     post["creatorRole"] = row.get("creator_role")
     post["showCreatorRole"] = row.get("show_creator_role")
+
+    # Pinned comment
+    post["pinnedCommentId"] = str(row["pinned_comment_id"]) if row.get("pinned_comment_id") else None
 
     # Bridging score from MF
     post["bridgingScore"] = float(row["mf_intercept"]) if row.get("mf_intercept") is not None else None
@@ -735,10 +738,13 @@ def patch_post(post_id, body, token_info=None):  # noqa: E501
             (show_creator_role, post_id),
         )
 
-    # Handle locked (moderator only)
+    # Handle locked (post author, moderator, or facilitator)
     if locked is not None:
-        if not is_moderator_at_location(user_id, str(post["location_id"])):
-            return ErrorModel(403, "Only moderators can lock posts"), 403
+        is_author = str(post["creator_user_id"]) == user_id
+        loc_id = str(post["location_id"])
+        cat_id = str(post["category_id"]) if post.get("category_id") else None
+        if not is_author and not is_moderator_at_location(user_id, loc_id) and not is_facilitator_for(user_id, loc_id, cat_id):
+            return ErrorModel(403, "Only the author or moderators can lock posts"), 403
 
         new_status = "locked" if locked else "active"
         db.execute_query(
@@ -769,3 +775,48 @@ def patch_post(post_id, body, token_info=None):  # noqa: E501
     if show_creator_role is not None:
         row_dict["show_creator_role"] = show_creator_role
     return _row_to_post(row_dict), 200
+
+
+def pin_comment(post_id, body, token_info=None):  # noqa: E501
+    """Pin or unpin a comment on a post."""
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    user = token_to_user(token_info)
+    user_id = str(user.id)
+
+    post = db.execute_query(
+        "SELECT * FROM post WHERE id = %s AND status NOT IN ('removed', 'deleted')",
+        (post_id,), fetchone=True,
+    )
+    if not post:
+        return ErrorModel(404, "Post not found"), 404
+
+    data = connexion.request.get_json()
+    comment_id = data.get("commentId")  # null = unpin
+
+    # Authorization: post author OR moderator/facilitator at post location
+    is_author = str(post["creator_user_id"]) == user_id
+    loc_id = str(post["location_id"])
+    cat_id = str(post["category_id"]) if post.get("category_id") else None
+    is_mod = is_moderator_at_location(user_id, loc_id)
+    is_fac = is_facilitator_for(user_id, loc_id, cat_id)
+    if not is_author and not is_mod and not is_fac:
+        return ErrorModel(403, "Only post author or moderators can pin comments"), 403
+
+    if comment_id:
+        # Verify comment belongs to this post, is active, and is a root comment
+        comment = db.execute_query(
+            "SELECT id FROM comment WHERE id = %s AND post_id = %s AND status = 'active' AND depth = 0",
+            (comment_id, post_id), fetchone=True,
+        )
+        if not comment:
+            return ErrorModel(404, "Comment not found"), 404
+
+    db.execute_query(
+        "UPDATE post SET pinned_comment_id = %s WHERE id = %s",
+        (comment_id, post_id),
+    )
+
+    return {"pinnedCommentId": str(comment_id) if comment_id else None}, 200

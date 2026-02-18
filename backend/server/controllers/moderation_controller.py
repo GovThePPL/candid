@@ -667,6 +667,15 @@ def report_chat(chat_id, body, token_info=None):  # noqa: E501
     if rule is None:
         return ErrorModel(400, "Rule not found or inactive"), 400
 
+    # Check for duplicate active report
+    existing = db.execute_query("""
+        SELECT id FROM report
+        WHERE submitter_user_id = %s AND target_object_type = 'chat_log'
+          AND target_object_id = %s AND status IN ('pending', 'action_taken')
+    """, (user.id, chat_id), fetchone=True)
+    if existing:
+        return ErrorModel(409, "You have already reported this content"), 409
+
     # Generate UUID and insert report
     report_id = str(uuid.uuid4())
     db.execute_query("""
@@ -733,6 +742,15 @@ def report_position(position_id, body, token_info=None):  # noqa: E501
     if rule is None:
         return ErrorModel(400, "Rule not found or inactive"), 400
 
+    # Check for duplicate active report
+    existing = db.execute_query("""
+        SELECT id FROM report
+        WHERE submitter_user_id = %s AND target_object_type = 'position'
+          AND target_object_id = %s AND status IN ('pending', 'action_taken')
+    """, (user.id, position_id), fetchone=True)
+    if existing:
+        return ErrorModel(409, "You have already reported this content"), 409
+
     # Generate UUID and insert report
     report_id = str(uuid.uuid4())
     db.execute_query("""
@@ -788,6 +806,15 @@ def report_post(post_id, body, token_info=None):  # noqa: E501
     if rule is None:
         return ErrorModel(400, "Rule not found or inactive"), 400
 
+    # Check for duplicate active report
+    existing = db.execute_query("""
+        SELECT id FROM report
+        WHERE submitter_user_id = %s AND target_object_type = 'post'
+          AND target_object_id = %s AND status IN ('pending', 'action_taken')
+    """, (user.id, post_id), fetchone=True)
+    if existing:
+        return ErrorModel(409, "You have already reported this content"), 409
+
     report_id = str(uuid.uuid4())
     db.execute_query("""
         INSERT INTO report (id, target_object_type, target_object_id, submitter_user_id, rule_id, submitter_comment)
@@ -840,6 +867,15 @@ def report_comment(comment_id, body, token_info=None):  # noqa: E501
     )
     if rule is None:
         return ErrorModel(400, "Rule not found or inactive"), 400
+
+    # Check for duplicate active report
+    existing = db.execute_query("""
+        SELECT id FROM report
+        WHERE submitter_user_id = %s AND target_object_type = 'comment'
+          AND target_object_id = %s AND status IN ('pending', 'action_taken')
+    """, (user.id, comment_id), fetchone=True)
+    if existing:
+        return ErrorModel(409, "You have already reported this content"), 409
 
     report_id = str(uuid.uuid4())
     db.execute_query("""

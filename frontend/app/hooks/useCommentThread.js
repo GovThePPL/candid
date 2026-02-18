@@ -512,6 +512,15 @@ export default function useCommentThread(postId, { threadRootId, focusCommentId 
     }
   }, [postId, showToast, t])
 
+  // Update isPinned on all comments — used by pin/unpin handler in parent
+  const setCommentPinned = useCallback((commentId) => {
+    setRawComments(prev => prev.map(c => ({
+      ...c,
+      isPinned: commentId ? c.id === commentId : false,
+    })))
+    setStructureVersion(v => v + 1)
+  }, [])
+
   // Create a new comment — optimistic insert, reconcile on server response
   const handleCreateComment = useCallback(async (body, parentCommentId) => {
     const payload = { body }
@@ -539,6 +548,7 @@ export default function useCommentThread(postId, { threadRootId, focusCommentId 
     handleVote,
     handleToggleRole,
     handleCreateComment,
+    setCommentPinned,
     refetch: fetchComments,
     loadMore,
     loadMoreReplies,

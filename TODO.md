@@ -16,7 +16,7 @@
 - Add toxicity checks and cooldown to chat
 - API rate limiting with backoff
 - Anti-gaming features
-- Only allow one report per user per item
+- ~~Only allow one report per user per item~~
 
 ## Trust System
 - Design and implement whole trust system
@@ -30,7 +30,7 @@
 - Map Reveal Requests — mutual-consent sharing of opinion map positions between users. Swipeable card to accept/decline, partner management modal on stats page, revocation support. See [plan](.claude/plans/radiant-skipping-fox.md)
 
 ## Chat Fixes and Enhancements
-- Basic markdown support in chat
+- ~~Basic markdown support in chat~~
 - Quoting another user's comment
 - Option selection emojis
 - Define message type
@@ -55,7 +55,10 @@
 ## Moderation
 - Fetch moderation queue one item at a time instead of the full queue — claimed reports are locked for 15 minutes and hidden from other moderators, so bulk-fetching unnecessarily locks items that may not be reviewed in time
 - ~~Implement comment and post reporting — the three-dot menu on comments has a Report button (currently no-op). Needs: backend endpoint for reporting comments/posts, reason picker, and integration with the existing moderation queue~~
-- Comment moderation actions — ~~delete comments~~, lock comment threads, pin comments
+- Comment moderation actions — ~~delete comments~~, ~~lock comment threads~~, ~~pin comments~~
+
+## Discuss
+- Show detailed score calculation option for comments
 
 ## Frontend Improvements
 - UGC Translation — runtime translation of user-generated content (positions, chat messages, surveys). See [plan](.claude-plans/2026-02-10_ugc-translation.md)

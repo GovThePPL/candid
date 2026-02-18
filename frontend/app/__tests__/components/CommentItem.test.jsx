@@ -286,4 +286,70 @@ describe('CommentItem', () => {
     fireEvent.press(screen.getByLabelText('reportA11y TestUser'))
     expect(onReport).toHaveBeenCalledWith('c1')
   })
+
+  // Pin comment tests
+  it('shows pinned badge when comment.isPinned is true', () => {
+    const comment = { ...baseComment, isPinned: true }
+    render(<CommentItem {...defaultProps} comment={comment} />)
+    expect(screen.getByText('pinned')).toBeTruthy()
+    expect(screen.getByLabelText('pinnedA11y')).toBeTruthy()
+  })
+
+  it('does not show pinned badge when isPinned is false', () => {
+    render(<CommentItem {...defaultProps} />)
+    expect(screen.queryByText('pinned')).toBeNull()
+  })
+
+  it('shows pin option for post author on root comment', () => {
+    const onPinComment = jest.fn()
+    render(<CommentItem {...defaultProps} isPostAuthor={true} onPinComment={onPinComment} />)
+    fireEvent.press(screen.getByLabelText('commentOptionsA11y TestUser'))
+    expect(screen.getByText('pinComment')).toBeTruthy()
+  })
+
+  it('shows unpin option when comment is already pinned', () => {
+    const onPinComment = jest.fn()
+    const comment = { ...baseComment, isPinned: true }
+    render(<CommentItem {...defaultProps} comment={comment} isPostAuthor={true} onPinComment={onPinComment} />)
+    fireEvent.press(screen.getByLabelText('commentOptionsA11y TestUser'))
+    expect(screen.getByText('unpinComment')).toBeTruthy()
+  })
+
+  it('calls onPinComment with comment id when pin tapped', () => {
+    const onPinComment = jest.fn()
+    render(<CommentItem {...defaultProps} isPostAuthor={true} onPinComment={onPinComment} />)
+    fireEvent.press(screen.getByLabelText('commentOptionsA11y TestUser'))
+    fireEvent.press(screen.getByLabelText('pinCommentA11y'))
+    expect(onPinComment).toHaveBeenCalledWith('c1')
+  })
+
+  it('calls onPinComment with null when unpin tapped', () => {
+    const onPinComment = jest.fn()
+    const comment = { ...baseComment, isPinned: true }
+    render(<CommentItem {...defaultProps} comment={comment} isPostAuthor={true} onPinComment={onPinComment} />)
+    fireEvent.press(screen.getByLabelText('commentOptionsA11y TestUser'))
+    fireEvent.press(screen.getByLabelText('unpinCommentA11y'))
+    expect(onPinComment).toHaveBeenCalledWith(null)
+  })
+
+  it('does not show pin option for non-author non-moderator', () => {
+    render(<CommentItem {...defaultProps} isPostAuthor={false} canModerate={false} />)
+    fireEvent.press(screen.getByLabelText('commentOptionsA11y TestUser'))
+    expect(screen.queryByText('pinComment')).toBeNull()
+  })
+
+  it('shows pin option for moderator on root comment', () => {
+    const onPinComment = jest.fn()
+    render(<CommentItem {...defaultProps} canModerate={true} onPinComment={onPinComment} onModerate={jest.fn()} />)
+    fireEvent.press(screen.getByLabelText('commentOptionsA11y TestUser'))
+    expect(screen.getByText('pinComment')).toBeTruthy()
+  })
+
+  it('does not show pin option on nested comment', () => {
+    const onPinComment = jest.fn()
+    const comment = { ...baseComment, depth: 2, visualDepth: 2 }
+    render(<CommentItem {...defaultProps} comment={comment} isPostAuthor={true} onPinComment={onPinComment} />)
+    fireEvent.press(screen.getByLabelText('commentOptionsA11y TestUser'))
+    expect(screen.queryByText('pinComment')).toBeNull()
+  })
 })

@@ -199,5 +199,23 @@
   "moderationSuccess": "Action taken",
   "moderationForbidden": "You don't have permission to moderate this content",
   "reportSuccess": "Report submitted",
-  "errorReportFailed": "Couldn't submit report"
+  "errorReportFailed": "Couldn't submit report",
+
+  "lockPost": "Lock post",
+  "unlockPost": "Unlock post",
+  "lockPostA11y": "Lock this post to prevent new comments",
+  "unlockPostA11y": "Unlock this post to allow new comments",
+  "lockSuccess": "Post locked",
+  "unlockSuccess": "Post unlocked",
+  "errorLockFailed": "Couldn't update lock status",
+
+  "pinned": "Pinned",
+  "pinnedA11y": "This comment is pinned",
+  "pinComment": "Pin comment",
+  "unpinComment": "Unpin comment",
+  "pinCommentA11y": "Pin this comment to the top",
+  "unpinCommentA11y": "Unpin this comment",
+  "pinSuccess": "Comment pinned",
+  "unpinSuccess": "Comment unpinned",
+  "errorPinFailed": "Couldn't update pin status"
 }

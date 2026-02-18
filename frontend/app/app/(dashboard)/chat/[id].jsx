@@ -50,6 +50,7 @@ import { playTypingSound, playMessageSound } from '../../../lib/sounds'
 import { getTrustBadgeInfo } from '../../../lib/avatarUtils'
 import Avatar from '../../../components/Avatar'
 import ThemedText from '../../../components/ThemedText'
+import ChatMarkdown from '../../../components/ChatMarkdown'
 import PositionInfoCard from '../../../components/PositionInfoCard'
 import ReportModal from '../../../components/ReportModal'
 import ModerationActionModal from '../../../components/ModerationActionModal'
@@ -1195,9 +1196,7 @@ export default function ChatScreen() {
         <View style={styles.ownMessageRow}>
           <View style={styles.ownMessageContainer}>
             <View style={[styles.messageBubble, styles.ownMessage]}>
-              <ThemedText variant="body" color="inverse" style={styles.messageText}>
-                {item.content}
-              </ThemedText>
+              <ChatMarkdown content={item.content} />
               {messageTime && (
                 <ThemedText variant="badge" style={[styles.messageTime, styles.ownMessageTime]}>
                   {messageTime}
@@ -1249,9 +1248,7 @@ export default function ChatScreen() {
         )}
         <View style={styles.otherMessageContainer}>
           <View style={[styles.messageBubble, styles.otherMessage]}>
-            <ThemedText variant="body" color="inverse" style={styles.messageText}>
-              {item.content}
-            </ThemedText>
+            <ChatMarkdown content={item.content} />
             {messageTime && (
               <ThemedText variant="badge" style={[styles.messageTime, styles.otherMessageTime]}>
                 {messageTime}

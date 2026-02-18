@@ -332,6 +332,11 @@ CREATE TABLE report (
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Prevent duplicate active reports: one per user per item (excludes resolved reports)
+CREATE UNIQUE INDEX idx_report_one_per_user_item
+    ON report (submitter_user_id, target_object_type, target_object_id)
+    WHERE status IN ('pending', 'action_taken');
+
 -- Moderation actions
 CREATE TABLE mod_action (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -624,7 +629,8 @@ CREATE TABLE post (
     comment_count INTEGER NOT NULL DEFAULT 0,
     created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    show_creator_role BOOLEAN NOT NULL DEFAULT false
+    show_creator_role BOOLEAN NOT NULL DEFAULT false,
+    pinned_comment_id UUID
 );
 
 CREATE INDEX idx_post_location ON post(location_id);
@@ -663,6 +669,10 @@ CREATE INDEX idx_comment_parent ON comment(parent_comment_id);
 CREATE INDEX idx_comment_creator ON comment(creator_user_id);
 CREATE INDEX idx_comment_path ON comment(post_id, path text_pattern_ops);
 CREATE INDEX idx_comment_post_score ON comment(post_id, score DESC);
+
+-- Add FK for pinned_comment_id now that comment table exists
+ALTER TABLE post ADD CONSTRAINT fk_post_pinned_comment
+    FOREIGN KEY (pinned_comment_id) REFERENCES comment(id) ON DELETE SET NULL;
 
 -- ========== Votes (for both posts and comments) ==========
 
