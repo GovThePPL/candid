@@ -189,5 +189,15 @@
   "replyComposerPreviewEmpty": "Nada que previsualizar aún",
   "replyComposerInsertLinkA11y": "Insertar enlace",
   "replyComposerCancelA11y": "Cancelar respuesta",
-  "replyComposerSubmitA11y": "Enviar respuesta a {{author}}"
+  "replyComposerSubmitA11y": "Enviar respuesta a {{author}}",
+  "viewProfileA11y": "Ver el perfil de {{author}}",
+
+  "moderate": "Moderar",
+  "moderateA11y": "Moderar este contenido",
+  "moderatePostA11y": "Moderar publicación de {{author}}",
+  "moderateCommentA11y": "Moderar comentario de {{author}}",
+  "moderationSuccess": "Acción tomada",
+  "moderationForbidden": "No tienes permiso para moderar este contenido",
+  "reportSuccess": "Reporte enviado",
+  "errorReportFailed": "No se pudo enviar el reporte"
 }

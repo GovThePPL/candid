@@ -20,6 +20,7 @@ const getMenuItems = (t, pendingCount) => [
   { label: t('menuRequestLog'), icon: 'document-text-outline', route: '/admin/request-log', badge: pendingCount },
   { label: t('menuUsers'), icon: 'person-outline', route: '/admin/users' },
   { label: t('menuSurveys'), icon: 'clipboard-outline', route: '/admin/surveys' },
+  { label: t('menuRules'), icon: 'shield-outline', route: '/admin/rules', a11yHint: t('menuRulesA11y') },
 ]
 
 export default function AdminHub() {
@@ -133,6 +134,7 @@ export default function AdminHub() {
               activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel={item.label}
+              accessibilityHint={item.a11yHint}
             >
               <Ionicons name={item.icon} size={22} color={colors.primary} />
               <ThemedText variant="button" color="dark" style={styles.menuLabel}>{item.label}</ThemedText>

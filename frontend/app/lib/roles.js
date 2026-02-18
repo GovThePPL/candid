@@ -274,3 +274,79 @@ export function canManageRoleAssignment(user, roleAssignment, allLocations) {
 
   return false
 }
+
+/**
+ * Check if user can moderate content at a given location/category scope.
+ * Moderating requires facilitator+ role with matching scope.
+ *
+ * @param {Object} user - User object with roles array
+ * @param {string|null} locationId - Content's location ID
+ * @param {string|null} categoryId - Content's category ID
+ * @param {Array} allLocations - Full location tree [{ id, parentLocationId }]
+ * @returns {boolean}
+ */
+export function canModerateAtScope(user, locationId, categoryId, allLocations) {
+  if (!Array.isArray(user?.roles) || !user.roles.length || !locationId) return false
+
+  for (const role of user.roles) {
+    // Only facilitator+ roles can moderate
+    if (!ROLE_HIERARCHY.facilitator.has(role.role)) continue
+    if (!role.locationId) continue
+
+    if (role.role === 'admin' || role.role === 'moderator') {
+      // Inherits DOWN — check if content location is a descendant
+      const descendants = getDescendantLocationIds(role.locationId, allLocations)
+      if (descendants.has(locationId)) return true
+    } else {
+      // facilitator / assistant_moderator — exact location match
+      if (role.locationId !== locationId) continue
+      // Category match: null category on role = all categories
+      if (!role.positionCategoryId || role.positionCategoryId === categoryId) {
+        return true
+      }
+    }
+  }
+  return false
+}
+
+/**
+ * Check if the user can manage rules at a given scope.
+ * - Global (null location): user has admin role at root location
+ * - Location-scoped: user has admin or moderator role at this location or an ancestor
+ * - Location+category: above OR user has facilitator role at exact location+category
+ * @param {object} user
+ * @param {string|null} locationId - rule's location scope
+ * @param {string|null} categoryId - rule's category scope
+ * @param {Array} allLocations - flat array with { id, parentLocationId }
+ * @returns {boolean}
+ */
+export function canManageRuleScope(user, locationId, categoryId, allLocations) {
+  if (!Array.isArray(user?.roles)) return false
+
+  if (locationId == null) {
+    // Global rule: must be admin at root location (null parent)
+    const rootId = allLocations?.find(l => l.parentLocationId == null)?.id
+    if (!rootId) return false
+    return user.roles.some(r => r.role === 'admin' && r.locationId === rootId)
+  }
+
+  // Location-scoped: admin or moderator at this location or ancestor
+  for (const r of user.roles) {
+    if ((r.role === 'admin' || r.role === 'moderator') && r.locationId) {
+      if (Array.isArray(allLocations) && getDescendantLocationIds(r.locationId, allLocations).has(locationId)) {
+        return true
+      }
+    }
+  }
+
+  // Category-scoped: also check facilitator at exact location+category
+  if (categoryId) {
+    return user.roles.some(
+      r => r.role === 'facilitator' &&
+           r.locationId === locationId &&
+           r.positionCategoryId === categoryId
+    )
+  }
+
+  return false
+}

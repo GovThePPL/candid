@@ -423,6 +423,7 @@ def _get_chatting_list_cards(user_id: str, limit: int = 3) -> List[dict]:
             -- Category
             pc.label as category_name,
             -- Location
+            l.id as location_id,
             l.code as location_code,
             l.name as location_name,
             -- Get an active user_position for chat requests
@@ -460,6 +461,7 @@ def _get_chatting_list_cards(user_id: str, limit: int = 3) -> List[dict]:
             "statement": item["statement"],
             "category_id": str(item["category_id"]) if item.get("category_id") else None,
             "category_name": item["category_name"],
+            "location_id": str(item["location_id"]) if item.get("location_id") else None,
             "location_code": item["location_code"],
             "location_name": item["location_name"],
             "creator_user_id": str(item["creator_user_id"]),
@@ -595,6 +597,7 @@ def _get_unvoted_positions_fallback(user_id: str, location_id: str, limit: int =
                 WHERE k.receiver_user_id = u.id AND k.status = 'sent'
             ), 0) as creator_kudos_count,
             pc.label as category_name,
+            l.id as location_id,
             l.code as location_code,
             l.name as location_name,
             up.id as user_position_id
@@ -625,6 +628,7 @@ def _get_unvoted_positions_fallback(user_id: str, location_id: str, limit: int =
             "statement": p["statement"],
             "category_id": str(p["category_id"]),
             "category_name": p["category_name"],
+            "location_id": str(p["location_id"]) if p.get("location_id") else None,
             "location_code": p["location_code"],
             "location_name": p["location_name"],
             "creator_user_id": str(p["creator_user_id"]),
@@ -748,6 +752,7 @@ def _get_pending_chat_requests(user_id: str, limit: int = 2) -> List[dict]:
             p.id as position_id,
             p.statement as position_statement,
             pc.label as position_category_name,
+            loc.id as position_location_id,
             loc.code as position_location_code,
             loc.name as position_location_name,
             -- Position author (responder)
@@ -836,6 +841,7 @@ def _get_pending_kudos_cards(user_id: str, limit: int = 2) -> List[dict]:
             p.statement as position_statement,
             pc.id as position_category_id,
             pc.label as position_category_name,
+            loc.id as position_location_id,
             loc.code as position_location_code,
             loc.name as position_location_name,
             -- Position author (the responder who owns the user_position)

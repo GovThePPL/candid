@@ -111,6 +111,28 @@ class TestGetUserById:
         for field in ("id", "username", "displayName", "status"):
             assert field in body, f"Missing field: {field}"
 
+    def test_returns_kudos_and_roles_fields(self, normal_headers):
+        """GET /users/{userId} includes kudosCount and roles."""
+        resp = requests.get(f"{BASE_URL}/users/{NORMAL2_ID}", headers=normal_headers)
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "kudosCount" in body, "Missing field: kudosCount"
+        assert isinstance(body["kudosCount"], int)
+
+    def test_returns_roles_array(self, normal_headers):
+        resp = requests.get(f"{BASE_URL}/users/{ADMIN1_ID}", headers=normal_headers)
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "roles" in body, "Missing field: roles"
+        assert isinstance(body["roles"], list)
+
+    def test_nonexistent_user_returns_404(self, normal_headers):
+        resp = requests.get(
+            f"{BASE_URL}/users/00000000-0000-0000-0000-000000000000",
+            headers=normal_headers,
+        )
+        assert resp.status_code == 404
+
 
 
 class TestProfileUpdateEdgeCases:

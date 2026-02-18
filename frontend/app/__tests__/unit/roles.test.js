@@ -13,6 +13,8 @@ import {
   canManageRoleAssignment,
   isAdminAtLocation,
   hasQAAuthority,
+  canManageRuleScope,
+  canModerateAtScope,
 } from '../../lib/roles'
 
 const makeUser = (roles) => ({ id: '1', roles })
@@ -426,6 +428,163 @@ describe('roles utilities', () => {
     it('returns false for assignment with no location', () => {
       const u = makeUser([role('admin', 1)])
       expect(canManageRoleAssignment(u, { role: 'admin', location: null }, testLocations)).toBe(false)
+    })
+  })
+
+  describe('canManageRuleScope', () => {
+    it('root admin can manage global rules (null location)', () => {
+      const u = makeUser([role('admin', 1)])
+      expect(canManageRuleScope(u, null, null, testLocations)).toBe(true)
+    })
+
+    it('non-root admin cannot manage global rules', () => {
+      const u = makeUser([role('admin', 2)])
+      expect(canManageRuleScope(u, null, null, testLocations)).toBe(false)
+    })
+
+    it('admin at ancestor can manage location-scoped rules', () => {
+      const u = makeUser([role('admin', 1)])
+      expect(canManageRuleScope(u, 2, null, testLocations)).toBe(true)
+      expect(canManageRuleScope(u, 4, null, testLocations)).toBe(true)
+    })
+
+    it('admin at location can manage rules at that location', () => {
+      const u = makeUser([role('admin', 2)])
+      expect(canManageRuleScope(u, 2, null, testLocations)).toBe(true)
+      expect(canManageRuleScope(u, 4, null, testLocations)).toBe(true)
+    })
+
+    it('admin at child cannot manage rules at parent', () => {
+      const u = makeUser([role('admin', 4)])
+      expect(canManageRuleScope(u, 2, null, testLocations)).toBe(false)
+      expect(canManageRuleScope(u, 1, null, testLocations)).toBe(false)
+    })
+
+    it('moderator at ancestor can manage location-scoped rules', () => {
+      const u = makeUser([role('moderator', 1)])
+      expect(canManageRuleScope(u, 2, null, testLocations)).toBe(true)
+      expect(canManageRuleScope(u, 4, null, testLocations)).toBe(true)
+    })
+
+    it('moderator at location can manage rules at that location', () => {
+      const u = makeUser([role('moderator', 2)])
+      expect(canManageRuleScope(u, 2, null, testLocations)).toBe(true)
+    })
+
+    it('moderator cannot manage global rules', () => {
+      const u = makeUser([role('moderator', 1)])
+      expect(canManageRuleScope(u, null, null, testLocations)).toBe(false)
+    })
+
+    it('facilitator at exact location+category can manage category-scoped rules', () => {
+      const u = makeUser([role('facilitator', 2, 'catA')])
+      expect(canManageRuleScope(u, 2, 'catA', testLocations)).toBe(true)
+    })
+
+    it('facilitator at wrong category cannot manage rules', () => {
+      const u = makeUser([role('facilitator', 2, 'catA')])
+      expect(canManageRuleScope(u, 2, 'catB', testLocations)).toBe(false)
+    })
+
+    it('facilitator at wrong location cannot manage rules', () => {
+      const u = makeUser([role('facilitator', 2, 'catA')])
+      expect(canManageRuleScope(u, 3, 'catA', testLocations)).toBe(false)
+    })
+
+    it('facilitator cannot manage location-only scoped rules (no category match)', () => {
+      const u = makeUser([role('facilitator', 2, 'catA')])
+      expect(canManageRuleScope(u, 2, null, testLocations)).toBe(false)
+    })
+
+    it('liaison/expert/assistant_moderator cannot manage rules', () => {
+      const u = makeUser([role('liaison', 1, 'catA')])
+      expect(canManageRuleScope(u, 1, 'catA', testLocations)).toBe(false)
+      expect(canManageRuleScope(u, null, null, testLocations)).toBe(false)
+    })
+
+    it('returns false for null user', () => {
+      expect(canManageRuleScope(null, 1, null, testLocations)).toBe(false)
+    })
+
+    it('returns false for user with no roles', () => {
+      expect(canManageRuleScope(makeUser([]), 1, null, testLocations)).toBe(false)
+    })
+
+    it('returns false with empty locations array', () => {
+      const u = makeUser([role('admin', 1)])
+      expect(canManageRuleScope(u, null, null, [])).toBe(false)
+    })
+  })
+
+  describe('canModerateAtScope', () => {
+    it('admin at Oregon can moderate Portland content (descendant)', () => {
+      const u = makeUser([role('admin', 2)])
+      expect(canModerateAtScope(u, 4, null, testLocations)).toBe(true)
+    })
+
+    it('admin at Oregon can moderate Oregon content (self)', () => {
+      const u = makeUser([role('admin', 2)])
+      expect(canModerateAtScope(u, 2, null, testLocations)).toBe(true)
+    })
+
+    it('admin at Oregon cannot moderate California content', () => {
+      const u = makeUser([role('admin', 2)])
+      expect(canModerateAtScope(u, 3, null, testLocations)).toBe(false)
+    })
+
+    it('moderator at Oregon can moderate Portland content (descendant)', () => {
+      const u = makeUser([role('moderator', 2)])
+      expect(canModerateAtScope(u, 4, null, testLocations)).toBe(true)
+    })
+
+    it('moderator at Oregon cannot moderate California content', () => {
+      const u = makeUser([role('moderator', 2)])
+      expect(canModerateAtScope(u, 3, null, testLocations)).toBe(false)
+    })
+
+    it('facilitator at Oregon/Healthcare can moderate Oregon/Healthcare', () => {
+      const u = makeUser([role('facilitator', 2, 'catA')])
+      expect(canModerateAtScope(u, 2, 'catA', testLocations)).toBe(true)
+    })
+
+    it('facilitator at Oregon/Healthcare cannot moderate Oregon/Education', () => {
+      const u = makeUser([role('facilitator', 2, 'catA')])
+      expect(canModerateAtScope(u, 2, 'catB', testLocations)).toBe(false)
+    })
+
+    it('facilitator at Oregon (null category) can moderate Oregon/any-category', () => {
+      const u = makeUser([role('facilitator', 2, null)])
+      expect(canModerateAtScope(u, 2, 'catA', testLocations)).toBe(true)
+      expect(canModerateAtScope(u, 2, 'catB', testLocations)).toBe(true)
+    })
+
+    it('facilitator at Oregon cannot moderate Portland content (no inheritance)', () => {
+      const u = makeUser([role('facilitator', 2, null)])
+      expect(canModerateAtScope(u, 4, null, testLocations)).toBe(false)
+    })
+
+    it('normal user always returns false', () => {
+      const u = makeUser([])
+      expect(canModerateAtScope(u, 2, null, testLocations)).toBe(false)
+    })
+
+    it('returns false for null user', () => {
+      expect(canModerateAtScope(null, 2, null, testLocations)).toBe(false)
+    })
+
+    it('returns false for null locationId', () => {
+      const u = makeUser([role('admin', 1)])
+      expect(canModerateAtScope(u, null, null, testLocations)).toBe(false)
+    })
+
+    it('liaison/expert cannot moderate (below facilitator threshold)', () => {
+      const u = makeUser([role('liaison', 2, 'catA')])
+      expect(canModerateAtScope(u, 2, 'catA', testLocations)).toBe(false)
+    })
+
+    it('assistant_moderator cannot moderate (below facilitator threshold)', () => {
+      const u = makeUser([role('assistant_moderator', 2, 'catA')])
+      expect(canModerateAtScope(u, 2, 'catA', testLocations)).toBe(false)
     })
   })
 })

@@ -4,17 +4,22 @@ These are data-fetching, logic, and formatting helpers used by admin endpoints.
 They have no request/response handling and can be reused across controllers.
 """
 
+import json
 import uuid
 import logging
 
 from candid.controllers import db
-from candid.controllers.helpers.auth import get_location_ancestors
+from candid.controllers.helpers.auth import (
+    get_location_ancestors, get_root_location_id,
+)
 from candid.models.user import User
 from candid.models.survey import Survey
 from candid.models.survey_question import SurveyQuestion
 from candid.models.survey_question_option import SurveyQuestionOption
 
 logger = logging.getLogger(__name__)
+
+VALID_CONTENT_TYPES = {'position', 'chat_log', 'post', 'comment'}
 
 # Roles admins can assign (at their location or descendants)
 ADMIN_ASSIGNABLE = {'admin', 'moderator', 'facilitator'}
@@ -287,11 +292,28 @@ def notify_peers(peer_user_ids, requester_name, action, role, target_name,
 
 def check_auto_approve_expired():
     """Auto-approve any pending requests past their timeout. Check-on-access pattern."""
-    db.execute_query("""
+    rows = db.execute_query("""
         UPDATE role_change_request
         SET status = 'auto_approved', updated_time = CURRENT_TIMESTAMP
         WHERE status = 'pending' AND auto_approve_at <= CURRENT_TIMESTAMP
+        RETURNING *
     """)
+    for row in (rows or []):
+        apply_role_change(row)
+        # Build description for notification
+        loc = db.execute_query(
+            "SELECT name FROM location WHERE id = %s",
+            (str(row['location_id']),), fetchone=True) if row.get('location_id') else None
+        location_name = loc['name'] if loc else 'Unknown'
+        desc = f"{row['action']} {row['role']} at {location_name}"
+        # Notify requester
+        notify_request_outcome(
+            str(row['requested_by']), None, 'auto_approved',
+            desc, 'role_change')
+        # Notify role target
+        notify_role_target(
+            str(row['target_user_id']), row['action'], row['role'],
+            location_name)
 
 
 def apply_role_change(request_row):
@@ -496,3 +518,450 @@ def format_role_request(r):
         'updatedTime': r['updated_time'].isoformat() if r.get('updated_time') else None,
     }
     return result
+
+
+# ---------------------------------------------------------------------------
+# Rule Management Helpers
+# ---------------------------------------------------------------------------
+
+
+def build_rule_response(row):
+    """Maps a DB rule row (with JOINed location/category names) to API response dict."""
+    content_types = row.get('applicable_content_types')
+    if content_types is None:
+        content_types = ['position', 'chat_log', 'post', 'comment']
+    elif isinstance(content_types, str):
+        # PG text[] comes as Python list via psycopg2, but handle string just in case
+        content_types = [ct.strip() for ct in content_types.strip('{}').split(',') if ct.strip()]
+
+    result = {
+        'id': str(row['id']),
+        'title': row['title'],
+        'text': row['text'],
+        'status': row.get('status', 'active'),
+        'applicableContentTypes': list(content_types),
+    }
+    if row.get('severity') is not None:
+        result['severity'] = row['severity']
+    if row.get('default_actions') is not None:
+        result['defaultActions'] = row['default_actions']
+    if row.get('sentencing_guidelines') is not None:
+        result['sentencingGuidelines'] = row['sentencing_guidelines']
+    if row.get('location_id'):
+        result['locationId'] = str(row['location_id'])
+        result['locationName'] = row.get('location_name')
+    else:
+        result['locationId'] = None
+        result['locationName'] = None
+    if row.get('position_category_id'):
+        result['positionCategoryId'] = str(row['position_category_id'])
+        result['categoryLabel'] = row.get('category_label')
+    else:
+        result['positionCategoryId'] = None
+        result['categoryLabel'] = None
+    if row.get('creator_user_id'):
+        result['creatorUserId'] = str(row['creator_user_id'])
+    else:
+        result['creatorUserId'] = None
+    result['createdTime'] = row['created_time'].isoformat() if row.get('created_time') else None
+    result['updatedTime'] = row['updated_time'].isoformat() if row.get('updated_time') else None
+    return result
+
+
+def get_rule_authority_location(user_id, location_id, category_id):
+    """Determine the requester's authority location for a rule scope.
+
+    Returns the location_id where the requester has authority, or None if unauthorized.
+
+    - Global rule (location_id=None): must be root admin -> return root location ID
+    - Location-scoped: admin at target location or ancestor -> return deepest admin location
+    - Location+category: above checks OR facilitator at exact scope -> return that location
+    """
+    user_id_str = str(user_id)
+
+    if location_id is None:
+        # Global rule: must be root admin
+        root_id = get_root_location_id()
+        if not root_id:
+            return None
+        row = db.execute_query("""
+            SELECT 1 FROM user_role
+            WHERE user_id = %s AND role = 'admin' AND location_id = %s
+            LIMIT 1
+        """, (user_id_str, root_id), fetchone=True)
+        return root_id if row else None
+
+    loc_str = str(location_id)
+
+    # Check admin authority (at target location or ancestor)
+    ancestors = get_location_ancestors(loc_str)
+    if ancestors:
+        admin_locs = db.execute_query("""
+            SELECT location_id FROM user_role
+            WHERE user_id = %s AND role = 'admin' AND location_id = ANY(%s::uuid[])
+        """, (user_id_str, ancestors))
+        if admin_locs:
+            admin_set = {str(r['location_id']) for r in admin_locs}
+            for anc in ancestors:
+                if anc in admin_set:
+                    return anc
+
+    # Check moderator authority (at target location or ancestor)
+    if ancestors:
+        mod_locs = db.execute_query("""
+            SELECT location_id FROM user_role
+            WHERE user_id = %s AND role = 'moderator' AND location_id = ANY(%s::uuid[])
+        """, (user_id_str, ancestors))
+        if mod_locs:
+            mod_set = {str(r['location_id']) for r in mod_locs}
+            for anc in ancestors:
+                if anc in mod_set:
+                    return anc
+
+    # If category-scoped, check facilitator at exact location+category
+    if category_id:
+        row = db.execute_query("""
+            SELECT 1 FROM user_role
+            WHERE user_id = %s AND role = 'facilitator'
+            AND location_id = %s AND position_category_id = %s
+            LIMIT 1
+        """, (user_id_str, loc_str, str(category_id)), fetchone=True)
+        if row:
+            return loc_str
+
+    return None
+
+
+def find_rule_approval_peer(request_row):
+    """Find peers who can approve a rule change request. Returns list of user_ids or None.
+
+    Mirrors find_approval_peer() logic but uses rule scope from proposed_rule:
+    - Global rule change: find peer root admin -> None = auto-approve
+    - Location-scoped: find peer admin at authority location -> admin at rule's location -> None
+    - Location+category (facilitator): peer facilitator -> location moderator -> location admin -> None
+    """
+    requester_id = str(request_row['requested_by'])
+    authority_loc = str(request_row['requester_authority_location_id'])
+
+    # Extract scope from proposed_rule JSONB
+    proposed = request_row.get('proposed_rule') or {}
+    if isinstance(proposed, str):
+        proposed = json.loads(proposed)
+
+    rule_location_id = proposed.get('locationId')
+    rule_category_id = proposed.get('positionCategoryId')
+
+    if rule_location_id is None:
+        # Global rule: find peer root admin
+        rows = db.execute_query("""
+            SELECT ur.user_id FROM user_role ur
+            JOIN users u ON ur.user_id = u.id
+            WHERE ur.role = 'admin' AND ur.location_id = %s AND ur.user_id != %s
+            AND u.keycloak_id IS NOT NULL
+        """, (authority_loc, requester_id))
+        if rows:
+            return [str(r['user_id']) for r in rows]
+        return None  # auto-approve
+
+    # Location-scoped: find peer admin at authority location
+    rows = db.execute_query("""
+        SELECT ur.user_id FROM user_role ur
+        JOIN users u ON ur.user_id = u.id
+        WHERE ur.role = 'admin' AND ur.location_id = %s AND ur.user_id != %s
+        AND u.keycloak_id IS NOT NULL
+    """, (authority_loc, requester_id))
+    if rows:
+        return [str(r['user_id']) for r in rows]
+
+    # No peer at authority level; try admin at rule's location
+    if str(rule_location_id) != authority_loc:
+        rows = db.execute_query("""
+            SELECT ur.user_id FROM user_role ur
+            JOIN users u ON ur.user_id = u.id
+            WHERE ur.role = 'admin' AND ur.location_id = %s AND ur.user_id != %s
+            AND u.keycloak_id IS NOT NULL
+        """, (str(rule_location_id), requester_id))
+        if rows:
+            return [str(r['user_id']) for r in rows]
+
+    # If category-scoped and requester is facilitator, try peer facilitator -> moderator -> admin
+    if rule_category_id:
+        rows = db.execute_query("""
+            SELECT ur.user_id FROM user_role ur
+            JOIN users u ON ur.user_id = u.id
+            WHERE ur.role = 'facilitator' AND ur.location_id = %s
+            AND ur.position_category_id = %s AND ur.user_id != %s
+            AND u.keycloak_id IS NOT NULL
+        """, (str(rule_location_id), str(rule_category_id), requester_id))
+        if rows:
+            return [str(r['user_id']) for r in rows]
+
+        # Fallback: location moderator
+        ancestors = get_location_ancestors(str(rule_location_id))
+        if ancestors:
+            rows = db.execute_query("""
+                SELECT ur.user_id FROM user_role ur
+                JOIN users u ON ur.user_id = u.id
+                WHERE ur.role = 'moderator' AND ur.location_id = ANY(%s::uuid[])
+                AND ur.user_id != %s AND u.keycloak_id IS NOT NULL
+            """, (ancestors, requester_id))
+            if rows:
+                return [str(r['user_id']) for r in rows]
+
+            # Fallback: location admin
+            rows = db.execute_query("""
+                SELECT ur.user_id FROM user_role ur
+                JOIN users u ON ur.user_id = u.id
+                WHERE ur.role = 'admin' AND ur.location_id = ANY(%s::uuid[])
+                AND ur.user_id != %s AND u.keycloak_id IS NOT NULL
+            """, (ancestors, requester_id))
+            if rows:
+                return [str(r['user_id']) for r in rows]
+
+    return None  # auto-approve
+
+
+def apply_rule_change(request_row):
+    """Apply an approved/auto-approved rule change request."""
+    proposed = request_row.get('proposed_rule') or {}
+    if isinstance(proposed, str):
+        proposed = json.loads(proposed)
+
+    action = request_row['action']
+
+    if action == 'create':
+        rule_id = str(uuid.uuid4())
+        content_types = proposed.get('applicableContentTypes', ['position', 'chat_log', 'post', 'comment'])
+        db.execute_query("""
+            INSERT INTO rule (id, creator_user_id, title, text, severity,
+                             default_actions, sentencing_guidelines,
+                             location_id, position_category_id, applicable_content_types)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            rule_id,
+            str(request_row['requested_by']),
+            proposed.get('title'),
+            proposed.get('text'),
+            proposed.get('severity'),
+            json.dumps(proposed.get('defaultActions', [])),
+            proposed.get('sentencingGuidelines'),
+            proposed.get('locationId'),
+            proposed.get('positionCategoryId'),
+            content_types,
+        ))
+
+    elif action == 'update':
+        rule_id = request_row.get('rule_id')
+        if not rule_id:
+            return
+        set_clauses = []
+        params = []
+        if 'title' in proposed:
+            set_clauses.append("title = %s")
+            params.append(proposed['title'])
+        if 'text' in proposed:
+            set_clauses.append("text = %s")
+            params.append(proposed['text'])
+        if 'severity' in proposed:
+            set_clauses.append("severity = %s")
+            params.append(proposed['severity'])
+        if 'defaultActions' in proposed:
+            set_clauses.append("default_actions = %s")
+            params.append(json.dumps(proposed['defaultActions']))
+        if 'sentencingGuidelines' in proposed:
+            set_clauses.append("sentencing_guidelines = %s")
+            params.append(proposed['sentencingGuidelines'])
+        if 'locationId' in proposed:
+            set_clauses.append("location_id = %s")
+            params.append(proposed['locationId'])
+        if 'positionCategoryId' in proposed:
+            set_clauses.append("position_category_id = %s")
+            params.append(proposed['positionCategoryId'])
+        if 'applicableContentTypes' in proposed:
+            set_clauses.append("applicable_content_types = %s")
+            params.append(proposed['applicableContentTypes'])
+        if set_clauses:
+            set_clauses.append("updated_time = CURRENT_TIMESTAMP")
+            params.append(str(rule_id))
+            db.execute_query(
+                f"UPDATE rule SET {', '.join(set_clauses)} WHERE id = %s",
+                tuple(params)
+            )
+
+    elif action == 'delete':
+        rule_id = request_row.get('rule_id')
+        if rule_id:
+            db.execute_query("""
+                UPDATE rule SET status = 'inactive', updated_time = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (str(rule_id),))
+
+
+def format_rule_request(r):
+    """Shared serializer for rule change request rows (with JOINed fields)."""
+    proposed = r.get('proposed_rule') or {}
+    if isinstance(proposed, str):
+        proposed = json.loads(proposed)
+
+    result = {
+        'id': str(r['id']),
+        'action': r['action'],
+        'ruleId': str(r['rule_id']) if r.get('rule_id') else None,
+        'proposedRule': proposed,
+        'requester': {
+            'id': str(r['requested_by']),
+            'username': r['requester_username'],
+            'displayName': r['requester_display_name'],
+            'status': r.get('requester_status', 'active'),
+            'avatarIconUrl': r.get('requester_avatar_icon_url'),
+            'trustScore': float(r['requester_trust_score']) if r.get('requester_trust_score') is not None else None,
+            'kudosCount': r.get('requester_kudos_count', 0),
+        },
+        'requesterAuthorityLocation': {
+            'id': str(r['requester_authority_location_id']),
+            'name': r.get('authority_location_name'),
+        } if r.get('requester_authority_location_id') else None,
+        'reason': r.get('request_reason'),
+        'status': r['status'],
+        'denialReason': r.get('denial_reason'),
+        'autoApproveAt': r['auto_approve_at'].isoformat() if r.get('auto_approve_at') else None,
+        'createdTime': r['created_time'].isoformat() if r.get('created_time') else None,
+        'updatedTime': r['updated_time'].isoformat() if r.get('updated_time') else None,
+        'reviewer': {
+            'id': str(r['reviewer_id']),
+            'username': r['reviewer_username'],
+            'displayName': r['reviewer_display_name'],
+            'status': r.get('reviewer_status', 'active'),
+            'avatarIconUrl': r.get('reviewer_avatar_icon_url'),
+            'trustScore': float(r['reviewer_trust_score']) if r.get('reviewer_trust_score') is not None else None,
+            'kudosCount': r.get('reviewer_kudos_count', 0),
+        } if r.get('reviewer_id') else None,
+    }
+
+    # Include current rule snapshot for update/delete
+    if r.get('current_rule_id'):
+        result['currentRule'] = {
+            'id': str(r['current_rule_id']),
+            'title': r.get('current_rule_title'),
+            'text': r.get('current_rule_text'),
+            'severity': r.get('current_rule_severity'),
+            'status': r.get('current_rule_status'),
+        }
+    else:
+        result['currentRule'] = None
+
+    return result
+
+
+def check_rule_auto_approve_expired():
+    """Auto-approve any pending rule change requests past their timeout."""
+    rows = db.execute_query("""
+        UPDATE rule_change_request
+        SET status = 'auto_approved', updated_time = CURRENT_TIMESTAMP
+        WHERE status = 'pending' AND auto_approve_at <= CURRENT_TIMESTAMP
+        RETURNING *
+    """)
+    for row in (rows or []):
+        apply_rule_change(row)
+        # Notify requester of auto-approval
+        proposed = row.get('proposed_rule') or {}
+        if isinstance(proposed, str):
+            proposed = json.loads(proposed)
+        desc = proposed.get('title', 'Rule change')
+        notify_request_outcome(
+            str(row['requested_by']), None, 'auto_approved',
+            desc, 'rule_change')
+
+
+# ---------------------------------------------------------------------------
+# Notification Helpers
+# ---------------------------------------------------------------------------
+
+
+def get_admins_at_location(location_id):
+    """Return user IDs of admins/moderators at a location or its ancestors."""
+    rows = db.execute_query("""
+        SELECT DISTINCT ur.user_id FROM user_role ur
+        WHERE ur.role IN ('admin', 'moderator')
+          AND ur.location_id IN (SELECT id FROM get_location_ancestors(%s))
+    """, (str(location_id),))
+    return [str(r['user_id']) for r in (rows or [])]
+
+
+def notify_request_outcome(recipient_user_id, reviewer_name, status,
+                           description, notification_type,
+                           actor_user_id=None):
+    """Notify a user about a request outcome (approved/denied/rescinded/auto_approved)."""
+    titles = {
+        'approved': 'Request approved',
+        'denied': 'Request denied',
+        'rescinded': 'Request rescinded',
+        'auto_approved': 'Request auto-approved',
+    }
+    if status == 'auto_approved':
+        body = f"{description} was auto-approved"
+    else:
+        body = f"{reviewer_name} {status}: {description}"
+
+    title = titles.get(status, 'Request updated')
+    data = {"action": "open_admin_request_log"}
+
+    try:
+        from candid.controllers.helpers.push_notifications import send_or_queue_notification
+        send_or_queue_notification(title, body, data, recipient_user_id, db,
+                                   notification_type=notification_type,
+                                   actor_user_id=actor_user_id)
+    except Exception as e:
+        logger.error("Failed to send request outcome notification: %s", e)
+
+
+def notify_role_target(target_user_id, action, role, location_name,
+                       actor_user_id=None):
+    """Notify a user that their role was granted or removed."""
+    if action == 'assign':
+        title = 'Role granted'
+        body = f"You have been granted {role} at {location_name}"
+    else:
+        title = 'Role removed'
+        body = f"Your {role} role at {location_name} has been removed"
+
+    data = {"action": "open_admin_roles"}
+
+    try:
+        from candid.controllers.helpers.push_notifications import send_or_queue_notification
+        send_or_queue_notification(title, body, data, target_user_id, db,
+                                   notification_type='role_change',
+                                   actor_user_id=actor_user_id)
+    except Exception as e:
+        logger.error("Failed to send role target notification: %s", e)
+
+
+def notify_admin_action(recipient_user_ids, title, body, actor_user_id=None):
+    """Notify users about a structural admin action."""
+    data = {"action": "open_admin"}
+
+    try:
+        from candid.controllers.helpers.push_notifications import send_or_queue_notification
+        for uid in recipient_user_ids:
+            send_or_queue_notification(title, body, data, uid, db,
+                                       notification_type='admin_action',
+                                       actor_user_id=actor_user_id)
+    except Exception as e:
+        logger.error("Failed to send admin action notification: %s", e)
+
+
+def send_auto_approve_reminder(peer_user_ids, description, notification_type,
+                               requester_user_id=None):
+    """Send a reminder to approval peers about an upcoming auto-approval."""
+    title = "Request auto-approving soon"
+    body = f"{description} will auto-approve tomorrow if not reviewed"
+    data = {"action": "open_admin_pending"}
+
+    try:
+        from candid.controllers.helpers.push_notifications import send_or_queue_notification
+        for peer_id in peer_user_ids:
+            send_or_queue_notification(title, body, data, peer_id, db,
+                                       notification_type=notification_type,
+                                       actor_user_id=requester_user_id)
+    except Exception as e:
+        logger.error("Failed to send auto-approve reminder: %s", e)

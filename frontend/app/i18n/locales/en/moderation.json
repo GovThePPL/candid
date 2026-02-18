@@ -109,5 +109,16 @@
   "errorDismissReportFailed": "Couldn't dismiss report",
   "errorActionFailed": "Moderation action failed",
   "errorAppealResponseFailed": "Couldn't submit appeal response",
-  "errorModifyFailed": "Couldn't modify action"
+  "errorModifyFailed": "Couldn't modify action",
+
+  "classPostCreator": "Post Author",
+  "classCommentCreator": "Comment Author",
+
+  "viewContent": "View Content",
+  "viewContext": "View Context",
+  "viewContentA11y": "View full post",
+  "viewContextA11y": "View comment in context",
+  "onPost": "On: {{title}}",
+  "contentRemoved": "This content has been removed",
+  "contentDeleted": "This content was deleted by the author"
 }

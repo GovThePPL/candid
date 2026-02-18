@@ -50,6 +50,10 @@ class Config:
 	# Role management
 	ROLE_APPROVAL_TIMEOUT_DAYS = int(os.environ.get('ROLE_APPROVAL_TIMEOUT_DAYS', '7'))
 
+	# Approval reminder worker
+	APPROVAL_REMINDER_ENABLED = os.environ.get('APPROVAL_REMINDER_ENABLED', 'true').lower() == 'true'
+	APPROVAL_REMINDER_INTERVAL = int(os.environ.get('APPROVAL_REMINDER_INTERVAL', '3600'))  # 1 hour
+
 	# Matrix Factorization (comment vote ideological coordinates)
 	MF_ENABLED = os.environ.get('MF_ENABLED', os.environ.get('POLIS_ENABLED', 'true')).lower() == 'true'
 	MF_TRAIN_INTERVAL = int(os.environ.get('MF_TRAIN_INTERVAL', '1800'))  # 30 min

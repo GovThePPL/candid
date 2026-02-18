@@ -1,7 +1,8 @@
 import { StyleSheet, View, TouchableOpacity, ActivityIndicator, ScrollView, TextInput, Platform } from 'react-native'
 import { SkeletonPulse, SkeletonBox, SkeletonCircle, SkeletonLine } from '../../../components/Skeleton'
-import { useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useRouter } from 'expo-router'
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { SemanticColors } from '../../../constants/Colors'
 import { useThemeColors } from '../../../hooks/useThemeColors'
@@ -10,6 +11,8 @@ import Header from '../../../components/Header'
 import EmptyState from '../../../components/EmptyState'
 import CardShell from '../../../components/CardShell'
 import PositionInfoCard from '../../../components/PositionInfoCard'
+import LocationCategoryBadge from '../../../components/LocationCategoryBadge'
+import MarkdownRenderer from '../../../components/discuss/MarkdownRenderer'
 import ModerationActionModal from '../../../components/ModerationActionModal'
 import ModerationHistoryModal from '../../../components/ModerationHistoryModal'
 import BottomDrawerModal from '../../../components/BottomDrawerModal'
@@ -29,6 +32,152 @@ const getClassLabels = (t) => ({
   active_adopter: t('classActiveAdopters'),
   passive_adopter: t('classPassiveAdopters'),
 })
+
+function RemovedBanner({ status, colors, styles }) {
+  const { t } = useTranslation('moderation')
+  if (status !== 'removed' && status !== 'deleted') return null
+  return (
+    <View style={styles.removedBanner}>
+      <Ionicons name="warning-outline" size={16} color={colors.warningBannerText} />
+      <ThemedText variant="caption" style={{ color: colors.warningBannerText }}>
+        {status === 'removed' ? t('contentRemoved') : t('contentDeleted')}
+      </ThemedText>
+    </View>
+  )
+}
+
+function PostTargetContent({ target, colors, styles }) {
+  const { t } = useTranslation(['moderation', 'discuss'])
+  const [expanded, setExpanded] = useState(false)
+
+  return (
+    <View style={styles.targetContentContainer}>
+      <RemovedBanner status={target.status} colors={colors} styles={styles} />
+      <LocationCategoryBadge location={target.location} category={target.category} size="md" />
+      <ThemedText variant="h3">{target.title}</ThemedText>
+      {target.body && (
+        expanded ? (
+          <MarkdownRenderer content={target.body} variant="post" />
+        ) : (
+          <ThemedText variant="body" color="secondary" numberOfLines={3}>{target.body}</ThemedText>
+        )
+      )}
+      {target.body && (
+        <TouchableOpacity
+          style={styles.expandButton}
+          onPress={() => setExpanded(!expanded)}
+          accessibilityRole="button"
+          accessibilityLabel={expanded ? t('discuss:collapsePostA11y') : t('discuss:expandPostA11y')}
+        >
+          <ThemedText variant="label" color="primary" style={styles.expandText}>
+            {expanded ? t('discuss:collapsePost') : t('discuss:expandPost')}
+          </ThemedText>
+        </TouchableOpacity>
+      )}
+      {target.creator && (
+        <View style={styles.targetCreatorRow}>
+          <UserCard user={target.creator} />
+        </View>
+      )}
+    </View>
+  )
+}
+
+function CommentTargetContent({ target, colors, styles }) {
+  const { t } = useTranslation('moderation')
+
+  return (
+    <View style={styles.targetContentContainer}>
+      <RemovedBanner status={target.status} colors={colors} styles={styles} />
+      <ThemedText variant="bodySmall" color="secondary" style={styles.commentContextHeader}>
+        {t('onPost', { title: target.postTitle })}
+      </ThemedText>
+      {target.body && (
+        <MarkdownRenderer content={target.body} variant="comment" />
+      )}
+      {target.creator && (
+        <View style={styles.targetCreatorRow}>
+          <UserCard user={target.creator} />
+        </View>
+      )}
+    </View>
+  )
+}
+
+function ModerationTargetContent({ target, targetId, colors, styles }) {
+  const { t } = useTranslation('moderation')
+
+  if (target?.type === 'position') {
+    return (
+      <PositionInfoCard
+        position={target}
+        authorSubtitle="username"
+      />
+    )
+  }
+  if (target?.type === 'chat_log') {
+    return (
+      <PositionInfoCard
+        position={{
+          statement: target.positionStatement,
+          creator: target.participants?.[0],
+        }}
+        authorSubtitle="username"
+        label={t('chatLabel', { names: target.participants?.map(p => p?.displayName).filter(Boolean).join(' & ') })}
+      />
+    )
+  }
+  if (target?.type === 'post') {
+    return <PostTargetContent target={target} colors={colors} styles={styles} />
+  }
+  if (target?.type === 'comment') {
+    return <CommentTargetContent target={target} colors={colors} styles={styles} />
+  }
+
+  return (
+    <View style={{ padding: 16 }}>
+      <ThemedText variant="bodySmall" color="secondary" style={{ fontStyle: 'italic' }}>{t('contentUnavailable')}</ThemedText>
+    </View>
+  )
+}
+
+function ViewContentButton({ target, targetId, styles }) {
+  const { t } = useTranslation('moderation')
+  const router = useRouter()
+  const isUnavailable = target?.status === 'removed' || target?.status === 'deleted'
+
+  if (target?.type === 'post') {
+    return (
+      <TouchableOpacity
+        style={[styles.historyButton, isUnavailable && styles.viewContentButtonDisabled]}
+        onPress={() => router.push({ pathname: '/post/[id]', params: { id: targetId } })}
+        disabled={isUnavailable}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={t('viewContentA11y')}
+      >
+        <Ionicons name="open-outline" size={16} color="#FFFFFF" />
+        <ThemedText variant="label" color="inverse">{t('viewContent')}</ThemedText>
+      </TouchableOpacity>
+    )
+  }
+  if (target?.type === 'comment') {
+    return (
+      <TouchableOpacity
+        style={[styles.historyButton, isUnavailable && styles.viewContentButtonDisabled]}
+        onPress={() => router.push({ pathname: '/post/[id]', params: { id: target.postId, focus: targetId } })}
+        disabled={isUnavailable}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={t('viewContextA11y')}
+      >
+        <Ionicons name="open-outline" size={16} color="#FFFFFF" />
+        <ThemedText variant="label" color="inverse">{t('viewContext')}</ThemedText>
+      </TouchableOpacity>
+    )
+  }
+  return null
+}
 
 function ReportCard({ item, onHistoryPress, onChatPress, colors, styles }) {
   const { t } = useTranslation('moderation')
@@ -66,6 +215,7 @@ function ReportCard({ item, onHistoryPress, onChatPress, colors, styles }) {
           <ThemedText variant="label" color="inverse">{t('viewChatLog')}</ThemedText>
         </TouchableOpacity>
       )}
+      <ViewContentButton target={target} targetId={data.targetId} styles={styles} />
       {onHistoryPress && (target?.creator || target?.participants) && (() => {
         const historyUser = target.creator
           || target.participants?.find(p => p?.id !== data.submitter?.id)
@@ -102,25 +252,7 @@ function ReportCard({ item, onHistoryPress, onChatPress, colors, styles }) {
       footerColor={colors.primarySurface}
       style={styles.reportCard}
     >
-      {target?.type === 'position' ? (
-        <PositionInfoCard
-          position={target}
-          authorSubtitle="username"
-        />
-      ) : target?.type === 'chat_log' ? (
-        <PositionInfoCard
-          position={{
-            statement: target.positionStatement,
-            creator: target.participants?.[0],
-          }}
-          authorSubtitle="username"
-          label={t('chatLabel', { names: target.participants?.map(p => p?.displayName).filter(Boolean).join(' & ') })}
-        />
-      ) : (
-        <View style={{ padding: 16 }}>
-          <ThemedText variant="bodySmall" color="secondary" style={{ fontStyle: 'italic' }}>{t('contentUnavailable')}</ThemedText>
-        </View>
-      )}
+      <ModerationTargetContent target={target} targetId={data.targetId} colors={colors} styles={styles} />
     </CardShell>
   )
 }
@@ -165,6 +297,7 @@ function AppealCard({ item, onHistoryPress, onChatPress, colors, styles }) {
           <ThemedText variant="label" color="inverse">{t('viewChatLog')}</ThemedText>
         </TouchableOpacity>
       )}
+      <ViewContentButton target={target} targetId={data.originalReport?.targetId} styles={styles} />
       {onHistoryPress && data.user && (
         <TouchableOpacity
           style={styles.historyButton}
@@ -254,25 +387,7 @@ function AppealCard({ item, onHistoryPress, onChatPress, colors, styles }) {
       footerColor={colors.primarySurface}
       style={styles.reportCard}
     >
-      {target?.type === 'position' ? (
-        <PositionInfoCard
-          position={target}
-          authorSubtitle="username"
-        />
-      ) : target?.type === 'chat_log' ? (
-        <PositionInfoCard
-          position={{
-            statement: target.positionStatement,
-            creator: target.participants?.[0],
-          }}
-          authorSubtitle="username"
-          label={t('chatLabel', { names: target.participants?.map(p => p?.displayName).filter(Boolean).join(' & ') })}
-        />
-      ) : (
-        <View style={{ padding: 16 }}>
-          <ThemedText variant="bodySmall" color="secondary" style={{ fontStyle: 'italic' }}>{t('contentUnavailable')}</ThemedText>
-        </View>
-      )}
+      <ModerationTargetContent target={target} targetId={data.originalReport?.targetId} colors={colors} styles={styles} />
     </CardShell>
   )
 }
@@ -327,6 +442,7 @@ function AdminResponseNotificationCard({ item, onHistoryPress, onChatPress, colo
           <ThemedText variant="label" color="inverse">{t('viewChatLog')}</ThemedText>
         </TouchableOpacity>
       )}
+      <ViewContentButton target={target} targetId={data.originalReport?.targetId} styles={styles} />
       {onHistoryPress && data.appealUser && (
         <TouchableOpacity
           style={styles.historyButton}
@@ -425,25 +541,7 @@ function AdminResponseNotificationCard({ item, onHistoryPress, onChatPress, colo
       footerColor={colors.primarySurface}
       style={styles.reportCard}
     >
-      {target?.type === 'position' ? (
-        <PositionInfoCard
-          position={target}
-          authorSubtitle="username"
-        />
-      ) : target?.type === 'chat_log' ? (
-        <PositionInfoCard
-          position={{
-            statement: target.positionStatement,
-            creator: target.participants?.[0],
-          }}
-          authorSubtitle="username"
-          label={t('chatLabel', { names: target.participants?.map(p => p?.displayName).filter(Boolean).join(' & ') })}
-        />
-      ) : (
-        <View style={{ padding: 16 }}>
-          <ThemedText variant="bodySmall" color="secondary" style={{ fontStyle: 'italic' }}>{t('contentUnavailable')}</ThemedText>
-        </View>
-      )}
+      <ModerationTargetContent target={target} targetId={data.originalReport?.targetId} colors={colors} styles={styles} />
     </CardShell>
   )
 }
@@ -1108,6 +1206,38 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.primarySurface,
     borderColor: colors.primary,
     flex: 1,
+  },
+
+  // Target content (post/comment in moderation queue)
+  targetContentContainer: {
+    padding: 16,
+    gap: 10,
+  },
+  removedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.warningBannerBg,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  expandButton: {
+    alignSelf: 'flex-start',
+  },
+  expandText: {
+    fontWeight: '600',
+  },
+  targetCreatorRow: {
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.cardBorder,
+  },
+  commentContextHeader: {
+    fontStyle: 'italic',
+  },
+  viewContentButtonDisabled: {
+    opacity: 0.4,
   },
 
   // Skeleton

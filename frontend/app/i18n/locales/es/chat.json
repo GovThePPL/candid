@@ -78,6 +78,7 @@
   "moreProposals": "{{count}} más",
   "backA11y": "Volver",
   "reportChatA11y": "Reportar este chat",
+  "moderateChatA11y": "Moderar este chat",
   "rejectProposalA11y": "Rechazar propuesta",
   "modifyProposalA11y": "Modificar propuesta",
   "acceptProposalA11y": "Aceptar propuesta",

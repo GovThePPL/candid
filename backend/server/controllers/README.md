@@ -15,7 +15,7 @@ Custom controller implementations for the Flask API. These files are copied over
 | `surveys_controller.py` | Surveys | Survey CRUD, responses, pairwise rankings, crosstabs |
 | `categories_controller.py` | Categories | Position categories, NLP-suggested categories |
 | `stats_controller.py` | Statistics | Location-based stats, demographic breakdowns |
-| `admin_controller.py` | Admin | Role management, approval workflow, locations, surveys |
+| `admin_controller.py` | Admin | Role management, rule management, approval workflow, locations, surveys |
 | `posts_controller.py` | Posts | Create/list/update/delete posts, voting, locking |
 | `comments_controller.py` | Comments | Create/list/update/delete comments, voting, Q&A auth |
 | `notifications_controller.py` | Notifications | Inbox list with cursor pagination, unread count, mark read |
@@ -152,7 +152,7 @@ Separate from roles. `users.status = 'banned'` blocks all authorized endpoints e
 
 | Module | Purpose |
 |--------|---------|
-| `admin.py` | Admin-specific helpers (request log queries, organization management) |
+| `admin.py` | Admin-specific helpers (request log queries, organization management, notification dispatchers) |
 | `auth.py` | Role-based authorization, location-scoped role checks, hierarchy walking, Q&A authority |
 | `cache_headers.py` | HTTP cache header utilities |
 | `card_builders.py` | Card queue construction helpers (position, survey, demographic cards) |
@@ -167,6 +167,7 @@ Separate from roles. `users.status = 'banned'` blocks all authorized endpoints e
 | `ideological_coords.py` | PCA projection from Polis votes, lazy coord caching, blending with MF |
 | `keycloak.py` | Keycloak OIDC token validation (RS256 JWKS), auto-registration |
 | `matrix_factorization.py` | Community Notes-style MF on comment votes: SGD fitting, Polis regularization, DB I/O |
+| `approval_reminder_worker.py` | Background daemon for sending auto-approve reminder notifications to approval peers |
 | `mf_worker.py` | Background daemon for periodic MF training with advisory-lock concurrency control |
 | `moderation.py` | Moderation queue helpers (report aggregation, action resolution) |
 | `nlp.py` | NLP service client for embeddings |

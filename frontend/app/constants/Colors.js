@@ -21,6 +21,7 @@ export const SemanticColors = {
   success: "#008800",
   escalate: "#B54800",
   pending: "#B58900",
+  info: "#3498DB",
   neutral: "#757575",
   overlay: "rgba(0, 0, 0, 0.5)",
   bridging: "#00796B",

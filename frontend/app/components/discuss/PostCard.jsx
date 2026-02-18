@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { View, TouchableOpacity, Pressable, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { Spacing, BorderRadius, Shadows, Typography } from '../../constants/Theme'
@@ -23,9 +24,10 @@ import BottomDrawerModal from '../BottomDrawerModal'
  * @param {Function} props.onToggleRole - Called with (postId, showCreatorRole)
  * @param {string} [props.currentUserId] - Current user's ID (disables voting on own posts)
  */
-export default function PostCard({ post, onPress, onUpvote, onDownvote, onToggleRole, currentUserId }) {
+export default function PostCard({ post, onPress, onUpvote, onDownvote, onToggleRole, currentUserId, canModerate, onReport, onModerate }) {
   const { t } = useTranslation('discuss')
   const colors = useThemeColors()
+  const router = useRouter()
   const styles = useMemo(() => createStyles(colors), [colors])
   const [expanded, setExpanded] = useState(false)
   const [optionsVisible, setOptionsVisible] = useState(false)
@@ -67,10 +69,7 @@ export default function PostCard({ post, onPress, onUpvote, onDownvote, onToggle
         <View style={styles.topRowRight}>
           <BridgingBadge item={post} />
           {post.isAnswered && (
-            <View style={styles.answeredBadge}>
-              <Ionicons name="checkmark-circle" size={13} color="#FFFFFF" />
-              <ThemedText style={styles.answeredText}>{t('answered')}</ThemedText>
-            </View>
+            <Ionicons name="checkmark-circle" size={16} color={SemanticColors.success} accessibilityLabel={t('answered')} />
           )}
           <ThemedText variant="caption" color="secondary">{relativeTime}</ThemedText>
         </View>
@@ -115,9 +114,20 @@ export default function PostCard({ post, onPress, onUpvote, onDownvote, onToggle
 
       {/* Bottom row: author left, actions right */}
       <View style={styles.bottomRow}>
-        <ThemedText variant="caption" color="secondary" numberOfLines={1} style={styles.authorText}>
-          {post.creator?.username ? `@${post.creator.username}` : displayName}
-        </ThemedText>
+        <TouchableOpacity
+          onPress={(e) => {
+            e?.stopPropagation?.()
+            if (post.creator?.id) router.push(`/profile?userId=${post.creator.id}`)
+          }}
+          activeOpacity={0.7}
+          accessibilityRole="link"
+          accessibilityLabel={t('viewProfileA11y', { author: displayName })}
+          disabled={!post.creator?.id}
+        >
+          <ThemedText variant="caption" color="secondary" numberOfLines={1} style={styles.authorText}>
+            {post.creator?.username ? `@${post.creator.username}` : displayName}
+          </ThemedText>
+        </TouchableOpacity>
 
         <View style={styles.bottomActions}>
           {/* Options (three-dot) button */}
@@ -180,16 +190,29 @@ export default function PostCard({ post, onPress, onUpvote, onDownvote, onToggle
               </ThemedText>
             </TouchableOpacity>
           )}
-          <TouchableOpacity
-            style={styles.optionRow}
-            onPress={() => setOptionsVisible(false)}
-            activeOpacity={0.7}
-            accessibilityRole="menuitem"
-            accessibilityLabel={t('reportPostA11y', { author: displayName })}
-          >
-            <Ionicons name="flag-outline" size={20} color={colors.secondaryText} />
-            <ThemedText variant="body">{t('report')}</ThemedText>
-          </TouchableOpacity>
+          {canModerate ? (
+            <TouchableOpacity
+              style={styles.optionRow}
+              onPress={() => { setOptionsVisible(false); onModerate?.(post.id) }}
+              activeOpacity={0.7}
+              accessibilityRole="menuitem"
+              accessibilityLabel={t('moderatePostA11y', { author: displayName })}
+            >
+              <Ionicons name="shield-outline" size={20} color={colors.secondaryText} />
+              <ThemedText variant="body">{t('moderate')}</ThemedText>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.optionRow}
+              onPress={() => { setOptionsVisible(false); onReport?.(post.id) }}
+              activeOpacity={0.7}
+              accessibilityRole="menuitem"
+              accessibilityLabel={t('reportPostA11y', { author: displayName })}
+            >
+              <Ionicons name="flag-outline" size={20} color={colors.secondaryText} />
+              <ThemedText variant="body">{t('report')}</ThemedText>
+            </TouchableOpacity>
+          )}
         </View>
       </BottomDrawerModal>
     </Pressable>
@@ -236,20 +259,6 @@ const createStyles = (colors) => StyleSheet.create({
   },
   statusText: {
     marginLeft: 2,
-  },
-  answeredBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: SemanticColors.success,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  answeredText: {
-    ...Typography.caption,
-    color: '#FFFFFF',
-    fontWeight: '600',
   },
   title: {
     marginBottom: Spacing.xs,

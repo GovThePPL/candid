@@ -6,7 +6,7 @@ import { useThemeColors } from '../hooks/useThemeColors'
 import { createSharedStyles } from '../constants/SharedStyles'
 import ThemedText from './ThemedText'
 
-export default function LocationPicker({ visible, onClose, allLocations, currentLocationId, onSelect, saving }) {
+export default function LocationPicker({ visible, onClose, allLocations, currentLocationId, onSelect, saving, showGlobal, globalSelected, onSelectGlobal }) {
   const [breadcrumb, setBreadcrumb] = useState([]) // stack of {id, name} for drill-down
   const { t } = useTranslation()
   const colors = useThemeColors()
@@ -125,6 +125,26 @@ export default function LocationPicker({ visible, onClose, allLocations, current
           )}
 
           <ScrollView style={styles.scrollView}>
+            {showGlobal && breadcrumb.length === 0 && (
+              <TouchableOpacity
+                style={[styles.item, globalSelected && styles.itemHighlighted]}
+                onPress={onSelectGlobal}
+                disabled={saving}
+                accessibilityRole="button"
+                accessibilityLabel={t('admin:ruleLocationGlobal')}
+                accessibilityState={{ selected: globalSelected }}
+              >
+                <View style={styles.itemLeft}>
+                  <Ionicons name="globe-outline" size={18} color={globalSelected ? colors.primary : colors.text} />
+                  <ThemedText variant="button" color={globalSelected ? 'primary' : 'dark'} style={[styles.itemName, globalSelected && styles.itemNameHighlighted]}>
+                    {t('admin:ruleLocationGlobal')}
+                  </ThemedText>
+                </View>
+                {globalSelected && (
+                  <Ionicons name="checkmark" size={20} color={colors.primary} />
+                )}
+              </TouchableOpacity>
+            )}
             {items.map((loc) => {
               const hasChildren = childrenMap[loc.id] && childrenMap[loc.id].length > 0
               const isInPath = currentPath.includes(loc.id)

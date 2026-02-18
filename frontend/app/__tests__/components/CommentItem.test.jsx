@@ -254,4 +254,36 @@ describe('CommentItem', () => {
     fireEvent.press(screen.getByText('showRoleBadge'))
     expect(onToggleRole).toHaveBeenCalledWith('c1', true)
   })
+
+  // Moderate vs Report tests
+  it('shows Moderate option when canModerate is true', () => {
+    render(<CommentItem {...defaultProps} canModerate={true} onModerate={jest.fn()} />)
+    fireEvent.press(screen.getByLabelText('commentOptionsA11y TestUser'))
+    expect(screen.getByText('moderate')).toBeTruthy()
+    expect(screen.getByLabelText('moderateCommentA11y TestUser')).toBeTruthy()
+    expect(screen.queryByText('report')).toBeNull()
+  })
+
+  it('shows Report option when canModerate is false (default)', () => {
+    render(<CommentItem {...defaultProps} />)
+    fireEvent.press(screen.getByLabelText('commentOptionsA11y TestUser'))
+    expect(screen.getByText('report')).toBeTruthy()
+    expect(screen.queryByText('moderate')).toBeNull()
+  })
+
+  it('calls onModerate with comment id when moderate button tapped', () => {
+    const onModerate = jest.fn()
+    render(<CommentItem {...defaultProps} canModerate={true} onModerate={onModerate} />)
+    fireEvent.press(screen.getByLabelText('commentOptionsA11y TestUser'))
+    fireEvent.press(screen.getByLabelText('moderateCommentA11y TestUser'))
+    expect(onModerate).toHaveBeenCalledWith('c1')
+  })
+
+  it('calls onReport with comment id when report button tapped', () => {
+    const onReport = jest.fn()
+    render(<CommentItem {...defaultProps} onReport={onReport} />)
+    fireEvent.press(screen.getByLabelText('commentOptionsA11y TestUser'))
+    fireEvent.press(screen.getByLabelText('reportA11y TestUser'))
+    expect(onReport).toHaveBeenCalledWith('c1')
+  })
 })

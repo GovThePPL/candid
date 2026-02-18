@@ -32,6 +32,7 @@ from candid.controllers.helpers.moderation import (
     get_reported_user_role as _get_reported_user_role,
     get_reported_user_ids as _get_reported_user_ids,
     get_content_scope as _get_content_scope,
+    get_content_scope_direct as _get_content_scope_direct,
     determine_actioner_role_level as _determine_actioner_role_level,
     find_appeal_reviewers as _find_appeal_reviewers,
     find_peer_reviewers as _find_peer_reviewers,
@@ -180,10 +181,13 @@ def get_user_moderation_history(user_id, token_info=None):  # noqa: E501
     return events
 
 
-def get_rules(token_info=None):  # noqa: E501
+def get_rules(content_type=None, token_info=None):  # noqa: E501
     """Get all active community rules
 
      # noqa: E501
+
+    :param content_type: Filter rules by applicable content type
+    :type content_type: str
 
     :rtype: Union[List[Rule], Tuple[List[Rule], int], Tuple[List[Rule], int, Dict[str, str]]
     """
@@ -191,12 +195,21 @@ def get_rules(token_info=None):  # noqa: E501
     if not authorized:
         return auth_err, auth_err.code
 
-    rules = db.execute_query("""
-        SELECT id, title, text, severity, default_actions, sentencing_guidelines
+    conditions = ["status = 'active'"]
+    params = []
+
+    if content_type:
+        conditions.append("%s = ANY(applicable_content_types)")
+        params.append(content_type)
+
+    where = " AND ".join(conditions)
+    rules = db.execute_query(f"""
+        SELECT id, title, text, severity, default_actions, sentencing_guidelines,
+               applicable_content_types
         FROM rule
-        WHERE status = 'active'
+        WHERE {where}
         ORDER BY created_time ASC
-    """)
+    """, tuple(params) if params else None)
 
     result = []
     for r in (rules or []):
@@ -207,6 +220,9 @@ def get_rules(token_info=None):  # noqa: E501
             rule_dict['defaultActions'] = r['default_actions']
         if r.get('sentencing_guidelines') is not None:
             rule_dict['sentencingGuidelines'] = r['sentencing_guidelines']
+        content_types = r.get('applicable_content_types')
+        if content_types is not None:
+            rule_dict['applicableContentTypes'] = list(content_types)
         result.append(rule_dict)
     return result
 
@@ -1039,14 +1055,29 @@ def respond_to_appeal(appeal_id, body, token_info=None):  # noqa: E501
                             invalidate_ban_cache(target_user_id)
 
                     # Enforce content removal
-                    if action == 'removed' and report['target_object_type'] == 'position':
-                        db.execute_query("""
-                            UPDATE position SET status = 'removed' WHERE id = %s
-                        """, (report['target_object_id'],))
-                        db.execute_query("""
-                            UPDATE user_position SET status = 'removed'
-                            WHERE position_id = %s AND status = 'active'
-                        """, (report['target_object_id'],))
+                    # For posts/comments, any punitive action also removes the content
+                    should_remove = (
+                        action == 'removed'
+                        or (action in ('warning', 'temporary_ban', 'permanent_ban')
+                            and report['target_object_type'] in ('post', 'comment'))
+                    )
+                    if should_remove:
+                        if report['target_object_type'] == 'position':
+                            db.execute_query("""
+                                UPDATE position SET status = 'removed' WHERE id = %s
+                            """, (report['target_object_id'],))
+                            db.execute_query("""
+                                UPDATE user_position SET status = 'removed'
+                                WHERE position_id = %s AND status = 'active'
+                            """, (report['target_object_id'],))
+                        elif report['target_object_type'] == 'post':
+                            db.execute_query("""
+                                UPDATE post SET status = 'removed' WHERE id = %s
+                            """, (report['target_object_id'],))
+                        elif report['target_object_type'] == 'comment':
+                            db.execute_query("""
+                                UPDATE comment SET status = 'removed' WHERE id = %s
+                            """, (report['target_object_id'],))
 
     # When escalation reviewer resolves an escalated appeal, notify prior responders
     if appeal['appeal_state'] == 'escalated' and db_appeal_state in ('approved', 'denied', 'modified'):
@@ -1242,14 +1273,30 @@ def take_moderator_action(report_id, body, token_info=None):  # noqa: E501
                     invalidate_ban_cache(target_user_id)
 
             # Enforce content removal
-            if action.action == 'removed' and report['target_object_type'] == 'position':
-                db.execute_query("""
-                    UPDATE position SET status = 'removed' WHERE id = %s
-                """, (report['target_object_id'],))
-                db.execute_query("""
-                    UPDATE user_position SET status = 'removed'
-                    WHERE position_id = %s AND status = 'active'
-                """, (report['target_object_id'],))
+            # For positions: only explicit 'removed' action removes content
+            # For posts/comments: any action implies content removal
+            should_remove = (
+                action.action == 'removed'
+                or (action.action in ('warning', 'temporary_ban', 'permanent_ban')
+                    and report['target_object_type'] in ('post', 'comment'))
+            )
+            if should_remove:
+                if report['target_object_type'] == 'position':
+                    db.execute_query("""
+                        UPDATE position SET status = 'removed' WHERE id = %s
+                    """, (report['target_object_id'],))
+                    db.execute_query("""
+                        UPDATE user_position SET status = 'removed'
+                        WHERE position_id = %s AND status = 'active'
+                    """, (report['target_object_id'],))
+                elif report['target_object_type'] == 'post':
+                    db.execute_query("""
+                        UPDATE post SET status = 'removed' WHERE id = %s
+                    """, (report['target_object_id'],))
+                elif report['target_object_type'] == 'comment':
+                    db.execute_query("""
+                        UPDATE comment SET status = 'removed' WHERE id = %s
+                    """, (report['target_object_id'],))
 
     # Build response
     responder = _get_user_card(user.id)
@@ -1261,3 +1308,186 @@ def take_moderator_action(report_id, body, token_info=None):  # noqa: E501
         mod_response=mod_action_request.mod_response,
         mod_response_text=mod_action_request.mod_response_text
     )
+
+
+def inline_moderator_action(body, token_info=None):  # noqa: E501
+    """Take inline moderation action on content (creates report + takes action in one step).
+
+    :param body:
+    :type body: dict | bytes
+
+    :rtype: Union[dict, Tuple[dict, int]]
+    """
+    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    user = token_to_user(token_info)
+
+    if connexion.request.is_json:
+        body = connexion.request.get_json()
+
+    target_type = body.get('targetType')
+    target_id = body.get('targetId')
+    rule_id = body.get('ruleId')
+    comment = body.get('comment')
+    mod_response = body.get('modResponse', 'take_action')
+    mod_response_text = body.get('modResponseText')
+    actions = body.get('actions', [])
+
+    # Validate required fields
+    if not target_type or target_type not in ('position', 'post', 'comment', 'chat_log'):
+        return ErrorModel(400, "Invalid target type"), 400
+    if not target_id:
+        return ErrorModel(400, "Target ID is required"), 400
+    if not rule_id:
+        return ErrorModel(400, "Rule ID is required"), 400
+
+    # Validate target exists
+    target_check = {
+        'position': ("SELECT id FROM position WHERE id = %s", (target_id,)),
+        'post': ("SELECT id FROM post WHERE id = %s AND status IN ('active', 'locked')", (target_id,)),
+        'comment': ("SELECT id FROM comment WHERE id = %s AND status = 'active'", (target_id,)),
+        'chat_log': ("SELECT id FROM chat_log WHERE id = %s", (target_id,)),
+    }
+    query, params = target_check[target_type]
+    exists = db.execute_query(query, params, fetchone=True)
+    if not exists:
+        return ErrorModel(400, "Target content not found"), 400
+
+    # Validate rule exists and is active
+    rule = db.execute_query(
+        "SELECT id FROM rule WHERE id = %s AND status = 'active'",
+        (rule_id,), fetchone=True,
+    )
+    if rule is None:
+        return ErrorModel(400, "Rule not found or inactive"), 400
+
+    # Get content scope for authority check
+    content_loc, content_cat = _get_content_scope_direct(target_type, target_id)
+
+    # Check authority: moderator has jurisdiction over content's location
+    is_admin = is_admin_anywhere(user.id)
+    is_mod = is_moderator_anywhere(user.id)
+
+    if not is_admin and not is_mod:
+        scopes = get_facilitator_scopes(user.id)
+        if not scopes:
+            return ErrorModel(403, "You don't have permission to moderate this content"), 403
+        if not content_loc or not content_cat or (content_loc, content_cat) not in scopes:
+            return ErrorModel(403, "Content is outside your facilitator scope"), 403
+
+    # Check hierarchy: content creator doesn't outrank moderator
+    reported_role = _get_reported_user_role(target_type, target_id)
+    role_hierarchy = ROLE_HIERARCHY
+
+    if not is_admin and not is_mod:
+        if role_hierarchy.get(reported_role, 0) >= role_hierarchy['facilitator']:
+            return ErrorModel(403, "You don't have permission to moderate this content"), 403
+    elif not is_admin and role_hierarchy.get(reported_role, 0) >= role_hierarchy['moderator']:
+        return ErrorModel(403, "Content by moderators or admins requires admin privileges"), 403
+
+    if is_admin and role_hierarchy.get(reported_role, 0) >= role_hierarchy['admin']:
+        reported_ids = _get_reported_user_ids(target_type, target_id)
+        if str(user.id) in reported_ids:
+            return ErrorModel(403, "You cannot take action on your own content"), 403
+
+    # Validate actions if taking action
+    if mod_response == 'take_action' and not actions:
+        return ErrorModel(400, "Actions are required when taking action"), 400
+
+    # Step 1: Create report record (submitter = moderator)
+    report_id = str(uuid.uuid4())
+    db.execute_query("""
+        INSERT INTO report (id, target_object_type, target_object_id, submitter_user_id, rule_id, submitter_comment)
+        VALUES (%s, %s, %s, %s, %s, %s)
+    """, (report_id, target_type, target_id, user.id, rule_id, comment))
+
+    # Step 2: Auto-claim report
+    db.execute_query("""
+        UPDATE report SET claimed_by_user_id = %s, claimed_at = CURRENT_TIMESTAMP
+        WHERE id = %s
+    """, (str(user.id), report_id))
+
+    # Step 3: Create mod_action
+    mod_action_id = str(uuid.uuid4())
+    db.execute_query("""
+        INSERT INTO mod_action (id, report_id, responder_user_id, mod_response, mod_response_text)
+        VALUES (%s, %s, %s, %s, %s)
+    """, (mod_action_id, report_id, user.id, mod_response, mod_response_text))
+
+    # Step 4: Update report status
+    report_status_map = {
+        'dismiss': 'dismissed',
+        'take_action': 'action_taken',
+    }
+    new_report_status = report_status_map.get(mod_response, 'action_taken')
+    db.execute_query("""
+        UPDATE report SET status = %s, updated_time = CURRENT_TIMESTAMP WHERE id = %s
+    """, (new_report_status, report_id))
+
+    # Step 5: If taking action, create action classes and targets
+    if mod_response == 'take_action' and actions:
+        for action_item in actions:
+            action_class_id = str(uuid.uuid4())
+            user_class = action_item.get('userClass', 'submitter')
+            action = action_item.get('action', 'removed')
+
+            if action == 'temporary_ban':
+                duration = action_item.get('duration', 7)
+                db.execute_query("""
+                    INSERT INTO mod_action_class (id, mod_action_id, class, action, action_start_time, action_end_time)
+                    VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + interval '%s days')
+                """, (action_class_id, mod_action_id, user_class, action, duration))
+            else:
+                db.execute_query("""
+                    INSERT INTO mod_action_class (id, mod_action_id, class, action, action_start_time)
+                    VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+                """, (action_class_id, mod_action_id, user_class, action))
+
+            # Identify and record target users
+            target_user_ids = _get_target_users(
+                user_class, target_type, target_id, report_id=report_id
+            )
+            for target_user_id in target_user_ids:
+                tid = str(uuid.uuid4())
+                db.execute_query("""
+                    INSERT INTO mod_action_target (id, user_id, mod_action_class_id)
+                    VALUES (%s, %s, %s)
+                """, (tid, target_user_id, action_class_id))
+
+            # Enforce bans
+            if action in ('permanent_ban', 'temporary_ban'):
+                for target_user_id in target_user_ids:
+                    db.execute_query("""
+                        UPDATE users SET status = 'banned' WHERE id = %s
+                    """, (target_user_id,))
+                    invalidate_ban_cache(target_user_id)
+
+            # Enforce content removal
+            # For positions: only explicit 'removed' action removes content
+            # For posts/comments: any action implies content removal
+            should_remove = (
+                action == 'removed'
+                or (action in ('warning', 'temporary_ban', 'permanent_ban')
+                    and target_type in ('post', 'comment'))
+            )
+            if should_remove:
+                if target_type == 'position':
+                    db.execute_query("""
+                        UPDATE position SET status = 'removed' WHERE id = %s
+                    """, (target_id,))
+                    db.execute_query("""
+                        UPDATE user_position SET status = 'removed'
+                        WHERE position_id = %s AND status = 'active'
+                    """, (target_id,))
+                elif target_type == 'post':
+                    db.execute_query("""
+                        UPDATE post SET status = 'removed' WHERE id = %s
+                    """, (target_id,))
+                elif target_type == 'comment':
+                    db.execute_query("""
+                        UPDATE comment SET status = 'removed' WHERE id = %s
+                    """, (target_id,))
+
+    return {'reportId': report_id, 'modActionId': mod_action_id}, 201

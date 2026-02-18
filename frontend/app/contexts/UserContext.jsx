@@ -183,7 +183,13 @@ export function UserProvider({ children }) {
         } else if (data?.action === 'open_organization') {
           setPendingDeepLink('/admin/organization')
         } else if (data?.action === 'open_admin_pending') {
-          setPendingDeepLink('/admin/request-log')
+          setPendingDeepLink('/admin')
+        } else if (data?.action === 'open_admin_request_log') {
+          setPendingDeepLink('/admin/request-log?tab=mine')
+        } else if (data?.action === 'open_admin_roles') {
+          setPendingDeepLink('/admin/organization')
+        } else if (data?.action === 'open_admin') {
+          setPendingDeepLink('/admin')
         } else if (data?.action === 'open_post' && data?.postId) {
           if (data.commentId) {
             setPendingDeepLink({ pathname: '/discuss/[id]', params: { id: data.postId, threadRoot: data.commentId, focus: data.commentId } })

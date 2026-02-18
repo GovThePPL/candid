@@ -21,6 +21,9 @@ jest.mock('candid_api', () => {
       getCurrentUserPositionsMetadata: jest.fn(),
       createUserPosition: jest.fn(),
       updatePushToken: jest.fn(),
+      getUserById: _mocks.getUserById = jest.fn(),
+      getUserActivityById: _mocks.getUserActivityById = jest.fn(),
+      getUserActivity: _mocks.getUserActivity = jest.fn(),
     })),
     CardsApi: jest.fn(() => ({
       getCardQueue: _mocks.getCardQueue,
@@ -150,6 +153,7 @@ import {
   surveysApiWrapper,
   postsApiWrapper,
   adminApiWrapper,
+  usersApiWrapper,
 } from '../../lib/api'
 import { recordApiError } from '../../lib/errorCollector'
 
@@ -611,5 +615,48 @@ describe('adminApiWrapper', () => {
       await expect(adminApiWrapper.searchUsers('test')).rejects.toBeTruthy()
       expect(recordApiError).toHaveBeenCalledWith('/admin/users', 403, 'Forbidden')
     })
+  })
+})
+
+describe('usersApiWrapper.getUserById', () => {
+  it('passes userId to the generated method', async () => {
+    const mockResult = { id: 'u1', username: 'alice', displayName: 'Alice' }
+    _mocks.getUserById.mockImplementation((userId, callback) => {
+      callback(null, mockResult, {})
+    })
+
+    const result = await usersApiWrapper.getUserById('u1')
+    expect(result).toEqual(mockResult)
+    expect(_mocks.getUserById).toHaveBeenCalledWith('u1', expect.any(Function))
+  })
+})
+
+describe('usersApiWrapper.getUserActivityById', () => {
+  it('passes userId and opts to the generated method', async () => {
+    const mockResult = { items: [{ id: 'a1', type: 'post' }], hasMore: false, nextCursor: null }
+    _mocks.getUserActivityById.mockImplementation((userId, opts, callback) => {
+      callback(null, mockResult, {})
+    })
+
+    const result = await usersApiWrapper.getUserActivityById('u1', { type: 'posts' })
+    expect(result).toEqual(mockResult)
+    expect(_mocks.getUserActivityById).toHaveBeenCalledWith(
+      'u1',
+      { type: 'posts' },
+      expect.any(Function)
+    )
+  })
+
+  it('defaults opts to empty object', async () => {
+    _mocks.getUserActivityById.mockImplementation((userId, opts, callback) => {
+      callback(null, { items: [], hasMore: false }, {})
+    })
+
+    await usersApiWrapper.getUserActivityById('u1')
+    expect(_mocks.getUserActivityById).toHaveBeenCalledWith(
+      'u1',
+      {},
+      expect.any(Function)
+    )
   })
 })

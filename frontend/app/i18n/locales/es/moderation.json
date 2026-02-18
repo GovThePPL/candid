@@ -109,5 +109,16 @@
   "errorDismissReportFailed": "No se pudo descartar el reporte",
   "errorActionFailed": "La acción de moderación falló",
   "errorAppealResponseFailed": "No se pudo enviar la respuesta a la apelación",
-  "errorModifyFailed": "No se pudo modificar la acción"
+  "errorModifyFailed": "No se pudo modificar la acción",
+
+  "classPostCreator": "Autor de la publicación",
+  "classCommentCreator": "Autor del comentario",
+
+  "viewContent": "Ver Contenido",
+  "viewContext": "Ver Contexto",
+  "viewContentA11y": "Ver publicación completa",
+  "viewContextA11y": "Ver comentario en contexto",
+  "onPost": "En: {{title}}",
+  "contentRemoved": "Este contenido ha sido eliminado",
+  "contentDeleted": "Este contenido fue borrado por el autor"
 }

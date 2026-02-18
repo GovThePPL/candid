@@ -25,3 +25,10 @@ if config.MF_ENABLED:
         stop_worker as stop_mf_worker
     start_mf_worker()
     atexit.register(stop_mf_worker)
+
+# Start approval reminder worker if enabled
+if config.APPROVAL_REMINDER_ENABLED:
+    from candid.controllers.helpers.approval_reminder_worker import \
+        start_worker as start_reminder, stop_worker as stop_reminder
+    start_reminder()
+    atexit.register(stop_reminder)

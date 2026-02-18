@@ -486,8 +486,9 @@ class TestApplyRoleChange:
 
 class TestCheckAutoApproveExpired:
     def test_runs_update_query(self):
-        """Calls UPDATE to auto-approve expired pending requests."""
+        """Calls UPDATE + RETURNING to auto-approve expired pending requests."""
         mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=[])
 
         with patch(f"{ADMIN_HELPERS}.db", mock_db):
             from candid.controllers.admin_controller import _check_auto_approve_expired
@@ -498,10 +499,12 @@ class TestCheckAutoApproveExpired:
             assert "UPDATE role_change_request" in sql
             assert "auto_approved" in sql
             assert "auto_approve_at <= CURRENT_TIMESTAMP" in sql
+            assert "RETURNING" in sql
 
     def test_is_idempotent(self):
         """Calling multiple times just runs the same UPDATE (no side effects)."""
         mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=[])
 
         with patch(f"{ADMIN_HELPERS}.db", mock_db):
             from candid.controllers.admin_controller import _check_auto_approve_expired
@@ -509,6 +512,35 @@ class TestCheckAutoApproveExpired:
             _check_auto_approve_expired()
 
             assert mock_db.execute_query.call_count == 2
+
+    def test_applies_and_notifies_expired_requests(self):
+        """Auto-approved requests get role applied and notifications sent."""
+        mock_db = MagicMock()
+        expired_row = {
+            'id': REQUEST_ID,
+            'action': 'assign',
+            'target_user_id': TARGET_USER,
+            'role': 'moderator',
+            'location_id': OREGON,
+            'position_category_id': None,
+            'requested_by': ADMIN_USER,
+            'user_role_id': None,
+        }
+        mock_db.execute_query = MagicMock(side_effect=[
+            [expired_row],  # RETURNING rows
+            {'name': 'Oregon'},  # location name lookup
+        ])
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{ADMIN_HELPERS}.apply_role_change") as mock_apply, \
+             patch(f"{ADMIN_HELPERS}.notify_request_outcome") as mock_notify_outcome, \
+             patch(f"{ADMIN_HELPERS}.notify_role_target") as mock_notify_target:
+            from candid.controllers.admin_controller import _check_auto_approve_expired
+            _check_auto_approve_expired()
+
+            mock_apply.assert_called_once_with(expired_row)
+            mock_notify_outcome.assert_called_once()
+            mock_notify_target.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
@@ -685,7 +717,11 @@ class TestRescindRoleRequest:
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(side_effect=[
             # Fetch request
-            {'id': REQUEST_ID, 'requested_by': FACILITATOR_USER, 'status': 'pending'},
+            {'id': REQUEST_ID, 'requested_by': FACILITATOR_USER, 'status': 'pending',
+             'action': 'assign', 'role': 'moderator', 'location_id': OREGON,
+             'position_category_id': None, 'requester_authority_location_id': OREGON},
+            # Location name lookup
+            {'name': 'Oregon'},
             # UPDATE
             None,
         ])
@@ -704,9 +740,14 @@ class TestRescindRoleRequest:
     def test_rescind_other_users_request_returns_403(self):
         """Cannot rescind another user's request."""
         mock_db = MagicMock()
-        mock_db.execute_query = MagicMock(return_value={
-            'id': REQUEST_ID, 'requested_by': ADMIN_USER, 'status': 'pending'
-        })
+        mock_db.execute_query = MagicMock(side_effect=[
+            # Fetch request
+            {'id': REQUEST_ID, 'requested_by': ADMIN_USER, 'status': 'pending',
+             'action': 'assign', 'role': 'moderator', 'location_id': OREGON,
+             'position_category_id': None, 'requester_authority_location_id': OREGON},
+            # Location name lookup
+            {'name': 'Oregon'},
+        ])
         body = {'status': 'rescinded'}
 
         with patch(f"{ADMIN}.db", mock_db), \
@@ -979,3 +1020,875 @@ class TestGetRoleRequests:
             from candid.controllers.admin_controller import get_role_requests
             result, status = get_role_requests(view='all', token_info=None)
             assert status == 401
+
+
+# ---------------------------------------------------------------------------
+# Rule Management Helpers (helpers/admin.py)
+# ---------------------------------------------------------------------------
+
+# Test UUIDs for rules
+RULE_ID = "ddd00000-0000-0000-0000-000000000001"
+RULE_REQUEST_ID = "eee00000-0000-0000-0000-000000000001"
+ROOT_LOC_ID = US_ROOT
+
+
+class TestBuildRuleResponse:
+    """Tests for build_rule_response() — maps DB row to API response."""
+
+    def test_full_fields(self):
+        """All fields present are mapped correctly."""
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        from candid.controllers.helpers.admin import build_rule_response
+
+        row = {
+            'id': RULE_ID,
+            'title': 'No Hate Speech',
+            'text': 'Hate speech is not allowed.',
+            'status': 'active',
+            'severity': 5,
+            'default_actions': [{"userClass": "submitter", "action": "temporary_ban", "duration": 7}],
+            'sentencing_guidelines': 'Ban for 7 days on first offense.',
+            'location_id': OREGON,
+            'location_name': 'Oregon',
+            'position_category_id': HEALTHCARE_CAT,
+            'category_label': 'Healthcare',
+            'creator_user_id': ADMIN_USER,
+            'applicable_content_types': ['position', 'chat_log'],
+            'created_time': now,
+            'updated_time': now,
+        }
+        result = build_rule_response(row)
+        assert result['id'] == RULE_ID
+        assert result['title'] == 'No Hate Speech'
+        assert result['text'] == 'Hate speech is not allowed.'
+        assert result['status'] == 'active'
+        assert result['severity'] == 5
+        assert result['defaultActions'] == [{"userClass": "submitter", "action": "temporary_ban", "duration": 7}]
+        assert result['sentencingGuidelines'] == 'Ban for 7 days on first offense.'
+        assert result['locationId'] == OREGON
+        assert result['locationName'] == 'Oregon'
+        assert result['positionCategoryId'] == HEALTHCARE_CAT
+        assert result['categoryLabel'] == 'Healthcare'
+        assert result['creatorUserId'] == ADMIN_USER
+        assert result['applicableContentTypes'] == ['position', 'chat_log']
+        assert result['createdTime'] == now.isoformat()
+        assert result['updatedTime'] == now.isoformat()
+
+    def test_nullable_fields(self):
+        """Nullable fields (location, category, severity, etc.) return None."""
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        from candid.controllers.helpers.admin import build_rule_response
+
+        row = {
+            'id': RULE_ID,
+            'title': 'Global Rule',
+            'text': 'Applies everywhere.',
+            'status': 'active',
+            'severity': None,
+            'default_actions': None,
+            'sentencing_guidelines': None,
+            'location_id': None,
+            'location_name': None,
+            'position_category_id': None,
+            'category_label': None,
+            'creator_user_id': None,
+            'applicable_content_types': ['position', 'chat_log', 'post', 'comment'],
+            'created_time': now,
+            'updated_time': None,
+        }
+        result = build_rule_response(row)
+        assert result['locationId'] is None
+        assert result['locationName'] is None
+        assert result['positionCategoryId'] is None
+        assert result['categoryLabel'] is None
+        assert result['creatorUserId'] is None
+        assert result['updatedTime'] is None
+        # severity, defaultActions, sentencingGuidelines should be absent (only set if not None)
+        assert 'severity' not in result
+        assert 'defaultActions' not in result
+        assert 'sentencingGuidelines' not in result
+
+    def test_default_content_types_when_none(self):
+        """When applicable_content_types is None, defaults to all four types."""
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        from candid.controllers.helpers.admin import build_rule_response
+
+        row = {
+            'id': RULE_ID,
+            'title': 'Rule',
+            'text': 'Text',
+            'status': 'active',
+            'applicable_content_types': None,
+            'created_time': now,
+            'updated_time': None,
+        }
+        result = build_rule_response(row)
+        assert set(result['applicableContentTypes']) == {'position', 'chat_log', 'post', 'comment'}
+
+
+class TestGetRuleAuthorityLocation:
+    """Tests for get_rule_authority_location() — determines authority for rule scope."""
+
+    def test_root_admin_global_rule(self):
+        """Root admin can manage global rules (location_id=None)."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value={"exists": True})
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{ADMIN_HELPERS}.get_root_location_id", return_value=ROOT_LOC_ID):
+            from candid.controllers.helpers.admin import get_rule_authority_location
+            result = get_rule_authority_location(ADMIN_USER, None, None)
+            assert result == ROOT_LOC_ID
+
+    def test_non_root_admin_global_denied(self):
+        """Non-root admin cannot manage global rules."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=None)
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{ADMIN_HELPERS}.get_root_location_id", return_value=ROOT_LOC_ID):
+            from candid.controllers.helpers.admin import get_rule_authority_location
+            result = get_rule_authority_location(MOD_USER, None, None)
+            assert result is None
+
+    def test_admin_at_ancestor_location(self):
+        """Admin at root can manage rules scoped to descendant locations."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            [{"location_id": ROOT_LOC_ID}],  # admin locations in ancestry
+        ])
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{ADMIN_HELPERS}.get_location_ancestors", return_value=[OREGON, ROOT_LOC_ID]):
+            from candid.controllers.helpers.admin import get_rule_authority_location
+            result = get_rule_authority_location(ADMIN_USER, OREGON, None)
+            assert result == ROOT_LOC_ID
+
+    def test_child_admin_denied_for_parent_scope(self):
+        """Admin at Oregon cannot manage rules scoped to root."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            [],  # no admin locs in ancestry of root
+            [],  # no moderator locs
+        ])
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{ADMIN_HELPERS}.get_location_ancestors", return_value=[ROOT_LOC_ID]):
+            from candid.controllers.helpers.admin import get_rule_authority_location
+            result = get_rule_authority_location(MOD_USER, ROOT_LOC_ID, None)
+            assert result is None
+
+    def test_facilitator_exact_scope(self):
+        """Facilitator at exact location+category can manage category-scoped rules."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            [],  # no admin locs in ancestry
+            [],  # no moderator locs
+            {"exists": True},  # facilitator match
+        ])
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{ADMIN_HELPERS}.get_location_ancestors", return_value=[OREGON, ROOT_LOC_ID]):
+            from candid.controllers.helpers.admin import get_rule_authority_location
+            result = get_rule_authority_location(
+                FACILITATOR_USER, OREGON, HEALTHCARE_CAT)
+            assert result == str(OREGON)
+
+    def test_facilitator_wrong_scope_denied(self):
+        """Facilitator at wrong location+category is denied."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            [],  # no admin locs
+            [],  # no moderator locs
+            None,  # no facilitator match
+        ])
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{ADMIN_HELPERS}.get_location_ancestors", return_value=[PORTLAND, OREGON, ROOT_LOC_ID]):
+            from candid.controllers.helpers.admin import get_rule_authority_location
+            result = get_rule_authority_location(
+                FACILITATOR_USER, PORTLAND, HEALTHCARE_CAT)
+            assert result is None
+
+
+class TestFindRuleApprovalPeer:
+    """Tests for find_rule_approval_peer() — finds peers for rule change requests."""
+
+    def test_peer_root_admin_found(self):
+        """For global rule, finds peer root admin."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=[
+            {"user_id": PEER_ADMIN}
+        ])
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.admin import find_rule_approval_peer
+            result = find_rule_approval_peer({
+                'requested_by': ADMIN_USER,
+                'requester_authority_location_id': ROOT_LOC_ID,
+                'proposed_rule': {'locationId': None},
+            })
+            assert result is not None
+            assert PEER_ADMIN in result
+
+    def test_no_peer_auto_approve_global(self):
+        """No peer root admin for global rule => auto-approve (None)."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=[])
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.admin import find_rule_approval_peer
+            result = find_rule_approval_peer({
+                'requested_by': ADMIN_USER,
+                'requester_authority_location_id': ROOT_LOC_ID,
+                'proposed_rule': {'locationId': None},
+            })
+            assert result is None
+
+    def test_peer_facilitator_found(self):
+        """For category-scoped rule, finds peer facilitator."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            [],  # no peer admin at authority (line 650)
+            # rule_location_id == authority_loc => skip admin at rule location (line 660)
+            [{"user_id": PEER_FACILITATOR}],  # peer facilitator (line 672)
+        ])
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.admin import find_rule_approval_peer
+            result = find_rule_approval_peer({
+                'requested_by': FACILITATOR_USER,
+                'requester_authority_location_id': OREGON,
+                'proposed_rule': {
+                    'locationId': OREGON,
+                    'positionCategoryId': HEALTHCARE_CAT,
+                },
+            })
+            assert result is not None
+            assert PEER_FACILITATOR in result
+
+    def test_fallback_to_moderator_then_admin(self):
+        """No peer facilitator => falls to moderator."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            [],  # no peer admin at authority (line 650)
+            # rule_location_id == authority_loc => skip (line 660)
+            [],  # no peer facilitator (line 672)
+            [{"user_id": MOD_USER}],  # moderator found (line 685)
+        ])
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{ADMIN_HELPERS}.get_location_ancestors", return_value=[OREGON, ROOT_LOC_ID]):
+            from candid.controllers.helpers.admin import find_rule_approval_peer
+            result = find_rule_approval_peer({
+                'requested_by': FACILITATOR_USER,
+                'requester_authority_location_id': OREGON,
+                'proposed_rule': {
+                    'locationId': OREGON,
+                    'positionCategoryId': HEALTHCARE_CAT,
+                },
+            })
+            assert result is not None
+            assert MOD_USER in result
+
+    def test_fallback_all_way_to_admin(self):
+        """No peer facilitator, no moderator => falls to admin."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            [],  # no peer admin at authority (line 650)
+            # rule_location_id == authority_loc => skip (line 660)
+            [],  # no peer facilitator (line 672)
+            [],  # no moderator (line 685)
+            [{"user_id": ADMIN_USER}],  # admin found (line 694)
+        ])
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{ADMIN_HELPERS}.get_location_ancestors", return_value=[OREGON, ROOT_LOC_ID]):
+            from candid.controllers.helpers.admin import find_rule_approval_peer
+            result = find_rule_approval_peer({
+                'requested_by': FACILITATOR_USER,
+                'requester_authority_location_id': OREGON,
+                'proposed_rule': {
+                    'locationId': OREGON,
+                    'positionCategoryId': HEALTHCARE_CAT,
+                },
+            })
+            assert result is not None
+            assert ADMIN_USER in result
+
+
+class TestApplyRuleChange:
+    """Tests for apply_rule_change() — applies approved rule changes."""
+
+    def test_create_inserts_rule(self):
+        """Create action inserts a new rule row."""
+        mock_db = MagicMock()
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{ADMIN_HELPERS}.uuid.uuid4", return_value="new-rule-id"):
+            from candid.controllers.helpers.admin import apply_rule_change
+            apply_rule_change({
+                'action': 'create',
+                'requested_by': ADMIN_USER,
+                'proposed_rule': {
+                    'title': 'New Rule',
+                    'text': 'Rule description',
+                    'severity': 3,
+                    'locationId': OREGON,
+                    'positionCategoryId': None,
+                    'applicableContentTypes': ['position', 'post'],
+                },
+            })
+
+            mock_db.execute_query.assert_called_once()
+            sql = mock_db.execute_query.call_args[0][0]
+            assert "INSERT INTO rule" in sql
+            params = mock_db.execute_query.call_args[0][1]
+            assert "new-rule-id" in params
+            assert "New Rule" in params
+            assert ADMIN_USER in params
+
+    def test_update_modifies_rule(self):
+        """Update action modifies existing rule fields."""
+        mock_db = MagicMock()
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.admin import apply_rule_change
+            apply_rule_change({
+                'action': 'update',
+                'rule_id': RULE_ID,
+                'requested_by': ADMIN_USER,
+                'proposed_rule': {
+                    'title': 'Updated Title',
+                    'severity': 4,
+                },
+            })
+
+            mock_db.execute_query.assert_called_once()
+            sql = mock_db.execute_query.call_args[0][0]
+            assert "UPDATE rule SET" in sql
+            assert "title = %s" in sql
+            assert "severity = %s" in sql
+            params = mock_db.execute_query.call_args[0][1]
+            assert 'Updated Title' in params
+            assert 4 in params
+
+    def test_update_without_rule_id_is_noop(self):
+        """Update without rule_id does nothing."""
+        mock_db = MagicMock()
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.admin import apply_rule_change
+            apply_rule_change({
+                'action': 'update',
+                'rule_id': None,
+                'requested_by': ADMIN_USER,
+                'proposed_rule': {'title': 'New Title'},
+            })
+
+            mock_db.execute_query.assert_not_called()
+
+    def test_delete_soft_deletes_rule(self):
+        """Delete action sets rule status to inactive."""
+        mock_db = MagicMock()
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.admin import apply_rule_change
+            apply_rule_change({
+                'action': 'delete',
+                'rule_id': RULE_ID,
+                'requested_by': ADMIN_USER,
+                'proposed_rule': {},
+            })
+
+            mock_db.execute_query.assert_called_once()
+            sql = mock_db.execute_query.call_args[0][0]
+            assert "UPDATE rule SET status = 'inactive'" in sql
+            params = mock_db.execute_query.call_args[0][1]
+            assert RULE_ID in params
+
+    def test_delete_without_rule_id_is_noop(self):
+        """Delete without rule_id does nothing."""
+        mock_db = MagicMock()
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.admin import apply_rule_change
+            apply_rule_change({
+                'action': 'delete',
+                'rule_id': None,
+                'requested_by': ADMIN_USER,
+                'proposed_rule': {},
+            })
+
+            mock_db.execute_query.assert_not_called()
+
+
+class TestFormatRuleRequest:
+    """Tests for format_rule_request() — serializes rule change request rows."""
+
+    def test_full_fields(self):
+        """All fields present are serialized correctly."""
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        from candid.controllers.helpers.admin import format_rule_request
+
+        row = {
+            'id': RULE_REQUEST_ID,
+            'action': 'create',
+            'rule_id': None,
+            'proposed_rule': {'title': 'New Rule', 'text': 'Description'},
+            'requested_by': ADMIN_USER,
+            'requester_username': 'admin1',
+            'requester_display_name': 'Admin One',
+            'requester_status': 'active',
+            'requester_avatar_icon_url': None,
+            'requester_trust_score': 5.0,
+            'requester_kudos_count': 10,
+            'requester_authority_location_id': ROOT_LOC_ID,
+            'authority_location_name': 'United States',
+            'request_reason': 'Needed for moderation',
+            'status': 'pending',
+            'denial_reason': None,
+            'auto_approve_at': now,
+            'created_time': now,
+            'updated_time': None,
+            'reviewer_id': None,
+            'reviewer_username': None,
+            'reviewer_display_name': None,
+            'current_rule_id': None,
+        }
+        result = format_rule_request(row)
+        assert result['id'] == RULE_REQUEST_ID
+        assert result['action'] == 'create'
+        assert result['ruleId'] is None
+        assert result['proposedRule'] == {'title': 'New Rule', 'text': 'Description'}
+        assert result['requester']['id'] == ADMIN_USER
+        assert result['requester']['username'] == 'admin1'
+        assert result['requester']['trustScore'] == 5.0
+        assert result['requester']['kudosCount'] == 10
+        assert result['requesterAuthorityLocation']['id'] == ROOT_LOC_ID
+        assert result['requesterAuthorityLocation']['name'] == 'United States'
+        assert result['reason'] == 'Needed for moderation'
+        assert result['status'] == 'pending'
+        assert result['denialReason'] is None
+        assert result['reviewer'] is None
+        assert result['currentRule'] is None
+        assert result['autoApproveAt'] == now.isoformat()
+        assert result['createdTime'] == now.isoformat()
+        assert result['updatedTime'] is None
+
+    def test_nullable_reviewer(self):
+        """Reviewer is None when not reviewed yet."""
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        from candid.controllers.helpers.admin import format_rule_request
+
+        row = {
+            'id': RULE_REQUEST_ID,
+            'action': 'delete',
+            'rule_id': RULE_ID,
+            'proposed_rule': '{"title": "Old Rule"}',  # test string parsing
+            'requested_by': ADMIN_USER,
+            'requester_username': 'admin1',
+            'requester_display_name': 'Admin One',
+            'requester_authority_location_id': ROOT_LOC_ID,
+            'authority_location_name': 'United States',
+            'status': 'pending',
+            'auto_approve_at': now,
+            'created_time': now,
+            'updated_time': None,
+            'reviewer_id': None,
+            'reviewer_username': None,
+            'reviewer_display_name': None,
+            'current_rule_id': RULE_ID,
+            'current_rule_title': 'Old Rule',
+            'current_rule_text': 'Old text',
+            'current_rule_severity': 3,
+            'current_rule_status': 'active',
+        }
+        result = format_rule_request(row)
+        assert result['reviewer'] is None
+        assert result['ruleId'] == RULE_ID
+        assert result['proposedRule'] == {'title': 'Old Rule'}
+        assert result['currentRule'] is not None
+        assert result['currentRule']['id'] == RULE_ID
+        assert result['currentRule']['title'] == 'Old Rule'
+        assert result['currentRule']['severity'] == 3
+
+    def test_with_reviewer(self):
+        """Reviewer is populated when reviewed."""
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        from candid.controllers.helpers.admin import format_rule_request
+
+        row = {
+            'id': RULE_REQUEST_ID,
+            'action': 'create',
+            'rule_id': None,
+            'proposed_rule': {'title': 'New Rule'},
+            'requested_by': ADMIN_USER,
+            'requester_username': 'admin1',
+            'requester_display_name': 'Admin One',
+            'requester_authority_location_id': ROOT_LOC_ID,
+            'authority_location_name': 'United States',
+            'status': 'denied',
+            'denial_reason': 'Not needed',
+            'auto_approve_at': now,
+            'created_time': now,
+            'updated_time': now,
+            'reviewer_id': PEER_ADMIN,
+            'reviewer_username': 'peer_admin',
+            'reviewer_display_name': 'Peer Admin',
+            'reviewer_status': 'active',
+            'reviewer_avatar_icon_url': None,
+            'reviewer_trust_score': 8.0,
+            'reviewer_kudos_count': 5,
+            'current_rule_id': None,
+        }
+        result = format_rule_request(row)
+        assert result['reviewer'] is not None
+        assert result['reviewer']['id'] == PEER_ADMIN
+        assert result['reviewer']['username'] == 'peer_admin'
+        assert result['reviewer']['trustScore'] == 8.0
+        assert result['reviewer']['kudosCount'] == 5
+        assert result['denialReason'] == 'Not needed'
+        assert result['status'] == 'denied'
+
+
+class TestCheckRuleAutoApproveExpired:
+    """Tests for check_rule_auto_approve_expired() — auto-approves expired rule requests."""
+
+    def test_auto_approves_expired_requests(self):
+        """Runs UPDATE + RETURNING and calls apply_rule_change for each expired row."""
+        mock_db = MagicMock()
+        expired_row = {
+            'id': RULE_REQUEST_ID,
+            'action': 'create',
+            'rule_id': None,
+            'requested_by': ADMIN_USER,
+            'proposed_rule': {'title': 'Auto Rule', 'text': 'Auto text'},
+        }
+        mock_db.execute_query = MagicMock(return_value=[expired_row])
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{ADMIN_HELPERS}.apply_rule_change") as mock_apply, \
+             patch(f"{ADMIN_HELPERS}.notify_request_outcome"):
+            from candid.controllers.helpers.admin import check_rule_auto_approve_expired
+            check_rule_auto_approve_expired()
+
+            # First call should be the UPDATE query
+            sql = mock_db.execute_query.call_args_list[0][0][0]
+            assert "UPDATE rule_change_request" in sql
+            assert "auto_approved" in sql
+            assert "auto_approve_at <= CURRENT_TIMESTAMP" in sql
+            assert "RETURNING" in sql
+
+            # Should have applied the change for each returned row
+            mock_apply.assert_called_once_with(expired_row)
+
+    def test_no_expired_requests(self):
+        """No expired requests means no apply_rule_change calls."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=[])
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{ADMIN_HELPERS}.apply_rule_change") as mock_apply:
+            from candid.controllers.helpers.admin import check_rule_auto_approve_expired
+            check_rule_auto_approve_expired()
+
+            mock_apply.assert_not_called()
+
+    def test_none_return(self):
+        """None return value (no rows) means no apply_rule_change calls."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=None)
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{ADMIN_HELPERS}.apply_rule_change") as mock_apply:
+            from candid.controllers.helpers.admin import check_rule_auto_approve_expired
+            check_rule_auto_approve_expired()
+
+            mock_apply.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Notification Helpers (helpers/admin.py)
+# ---------------------------------------------------------------------------
+
+PUSH_NOTIFICATIONS = "candid.controllers.helpers.push_notifications"
+
+
+class TestNotifyRequestOutcome:
+    """Tests for notify_request_outcome() — sends request lifecycle notifications."""
+
+    def test_approved_sends_correct_notification(self):
+        """Approved status sends 'Request approved' with reviewer name."""
+        mock_db = MagicMock()
+        mock_send = MagicMock()
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{PUSH_NOTIFICATIONS}.send_or_queue_notification", mock_send):
+            from candid.controllers.helpers.admin import notify_request_outcome
+            notify_request_outcome(TARGET_USER, "Admin One", "approved",
+                                   "assign admin at Oregon", "role_change",
+                                   actor_user_id=ADMIN_USER)
+
+            mock_send.assert_called_once()
+            args = mock_send.call_args
+            assert args[0][0] == "Request approved"
+            assert "Admin One approved" in args[0][1]
+            assert args[0][3] == TARGET_USER
+            assert args[1]['notification_type'] == 'role_change'
+            assert args[1]['actor_user_id'] == ADMIN_USER
+
+    def test_denied_sends_correct_notification(self):
+        """Denied status sends 'Request denied' with reviewer name."""
+        mock_db = MagicMock()
+        mock_send = MagicMock()
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{PUSH_NOTIFICATIONS}.send_or_queue_notification", mock_send):
+            from candid.controllers.helpers.admin import notify_request_outcome
+            notify_request_outcome(TARGET_USER, "Peer Admin", "denied",
+                                   "assign moderator at Portland", "role_change")
+
+            mock_send.assert_called_once()
+            assert "Request denied" == mock_send.call_args[0][0]
+            assert "Peer Admin denied" in mock_send.call_args[0][1]
+
+    def test_rescinded_sends_correct_notification(self):
+        """Rescinded status sends 'Request rescinded'."""
+        mock_db = MagicMock()
+        mock_send = MagicMock()
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{PUSH_NOTIFICATIONS}.send_or_queue_notification", mock_send):
+            from candid.controllers.helpers.admin import notify_request_outcome
+            notify_request_outcome(PEER_ADMIN, "Admin One", "rescinded",
+                                   "assign admin at Oregon", "role_change")
+
+            mock_send.assert_called_once()
+            assert "Request rescinded" == mock_send.call_args[0][0]
+
+    def test_auto_approved_sends_correct_notification(self):
+        """Auto-approved status sends without reviewer name."""
+        mock_db = MagicMock()
+        mock_send = MagicMock()
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{PUSH_NOTIFICATIONS}.send_or_queue_notification", mock_send):
+            from candid.controllers.helpers.admin import notify_request_outcome
+            notify_request_outcome(ADMIN_USER, None, "auto_approved",
+                                   "assign moderator at Oregon", "role_change")
+
+            mock_send.assert_called_once()
+            assert "Request auto-approved" == mock_send.call_args[0][0]
+            assert "was auto-approved" in mock_send.call_args[0][1]
+
+    def test_rule_change_type(self):
+        """Supports rule_change notification type."""
+        mock_db = MagicMock()
+        mock_send = MagicMock()
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{PUSH_NOTIFICATIONS}.send_or_queue_notification", mock_send):
+            from candid.controllers.helpers.admin import notify_request_outcome
+            notify_request_outcome(ADMIN_USER, "Peer", "approved",
+                                   "No Hate Speech", "rule_change")
+
+            assert mock_send.call_args[1]['notification_type'] == 'rule_change'
+
+    def test_exception_is_caught(self):
+        """Exceptions from push notification are caught and logged."""
+        mock_db = MagicMock()
+        mock_send = MagicMock(side_effect=Exception("push error"))
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{PUSH_NOTIFICATIONS}.send_or_queue_notification", mock_send):
+            from candid.controllers.helpers.admin import notify_request_outcome
+            # Should not raise
+            notify_request_outcome(TARGET_USER, "Admin", "approved",
+                                   "test", "role_change")
+
+
+class TestNotifyRoleTarget:
+    """Tests for notify_role_target() — notifies user of role grant/removal."""
+
+    def test_assign_notification(self):
+        """Assign action sends 'Role granted' notification."""
+        mock_db = MagicMock()
+        mock_send = MagicMock()
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{PUSH_NOTIFICATIONS}.send_or_queue_notification", mock_send):
+            from candid.controllers.helpers.admin import notify_role_target
+            notify_role_target(TARGET_USER, "assign", "moderator", "Oregon",
+                               actor_user_id=ADMIN_USER)
+
+            mock_send.assert_called_once()
+            assert "Role granted" == mock_send.call_args[0][0]
+            assert "granted moderator at Oregon" in mock_send.call_args[0][1]
+            assert mock_send.call_args[1]['notification_type'] == 'role_change'
+
+    def test_remove_notification(self):
+        """Remove action sends 'Role removed' notification."""
+        mock_db = MagicMock()
+        mock_send = MagicMock()
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{PUSH_NOTIFICATIONS}.send_or_queue_notification", mock_send):
+            from candid.controllers.helpers.admin import notify_role_target
+            notify_role_target(TARGET_USER, "remove", "admin", "Portland")
+
+            mock_send.assert_called_once()
+            assert "Role removed" == mock_send.call_args[0][0]
+            assert "admin role at Portland has been removed" in mock_send.call_args[0][1]
+
+    def test_data_contains_open_admin_roles(self):
+        """Notification data directs user to admin roles screen."""
+        mock_db = MagicMock()
+        mock_send = MagicMock()
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{PUSH_NOTIFICATIONS}.send_or_queue_notification", mock_send):
+            from candid.controllers.helpers.admin import notify_role_target
+            notify_role_target(TARGET_USER, "assign", "facilitator", "Oregon")
+
+            data = mock_send.call_args[0][2]
+            assert data == {"action": "open_admin_roles"}
+
+
+class TestNotifyAdminAction:
+    """Tests for notify_admin_action() — generic admin action notifications."""
+
+    def test_sends_to_all_recipients(self):
+        """Sends notification to all specified recipients."""
+        mock_db = MagicMock()
+        mock_send = MagicMock()
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{PUSH_NOTIFICATIONS}.send_or_queue_notification", mock_send):
+            from candid.controllers.helpers.admin import notify_admin_action
+            notify_admin_action([ADMIN_USER, PEER_ADMIN], "Test Title",
+                                "Test body", actor_user_id=MOD_USER)
+
+            assert mock_send.call_count == 2
+            # Check both recipients received the notification
+            recipients = [c[0][3] for c in mock_send.call_args_list]
+            assert ADMIN_USER in recipients
+            assert PEER_ADMIN in recipients
+
+    def test_notification_type_is_admin_action(self):
+        """Notification type is 'admin_action'."""
+        mock_db = MagicMock()
+        mock_send = MagicMock()
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{PUSH_NOTIFICATIONS}.send_or_queue_notification", mock_send):
+            from candid.controllers.helpers.admin import notify_admin_action
+            notify_admin_action([TARGET_USER], "Title", "Body")
+
+            assert mock_send.call_args[1]['notification_type'] == 'admin_action'
+
+    def test_data_contains_open_admin(self):
+        """Notification data directs user to admin screen."""
+        mock_db = MagicMock()
+        mock_send = MagicMock()
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{PUSH_NOTIFICATIONS}.send_or_queue_notification", mock_send):
+            from candid.controllers.helpers.admin import notify_admin_action
+            notify_admin_action([TARGET_USER], "Title", "Body")
+
+            data = mock_send.call_args[0][2]
+            assert data == {"action": "open_admin"}
+
+
+class TestSendAutoApproveReminder:
+    """Tests for send_auto_approve_reminder() — reminder to approval peers."""
+
+    def test_sends_to_all_peers(self):
+        """Sends reminder notification to all peer user IDs."""
+        mock_db = MagicMock()
+        mock_send = MagicMock()
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{PUSH_NOTIFICATIONS}.send_or_queue_notification", mock_send):
+            from candid.controllers.helpers.admin import send_auto_approve_reminder
+            send_auto_approve_reminder(
+                [ADMIN_USER, PEER_ADMIN], "assign moderator at Oregon",
+                "role_change", requester_user_id=FACILITATOR_USER)
+
+            assert mock_send.call_count == 2
+            assert "Request auto-approving soon" == mock_send.call_args[0][0]
+            assert "will auto-approve tomorrow" in mock_send.call_args[0][1]
+
+    def test_correct_notification_type(self):
+        """Uses provided notification_type."""
+        mock_db = MagicMock()
+        mock_send = MagicMock()
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{PUSH_NOTIFICATIONS}.send_or_queue_notification", mock_send):
+            from candid.controllers.helpers.admin import send_auto_approve_reminder
+            send_auto_approve_reminder([ADMIN_USER], "test", "rule_change")
+
+            assert mock_send.call_args[1]['notification_type'] == 'rule_change'
+
+    def test_data_contains_open_admin_pending(self):
+        """Notification data directs user to pending admin requests."""
+        mock_db = MagicMock()
+        mock_send = MagicMock()
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{PUSH_NOTIFICATIONS}.send_or_queue_notification", mock_send):
+            from candid.controllers.helpers.admin import send_auto_approve_reminder
+            send_auto_approve_reminder([ADMIN_USER], "test", "role_change")
+
+            data = mock_send.call_args[0][2]
+            assert data == {"action": "open_admin_pending"}
+
+
+class TestGetAdminsAtLocation:
+    """Tests for get_admins_at_location() — finds admins/moderators at a location."""
+
+    def test_returns_admin_user_ids(self):
+        """Returns user IDs of admins/moderators at location or ancestors."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=[
+            {"user_id": ADMIN_USER},
+            {"user_id": MOD_USER},
+        ])
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.admin import get_admins_at_location
+            result = get_admins_at_location(OREGON)
+
+            assert ADMIN_USER in result
+            assert MOD_USER in result
+            assert len(result) == 2
+
+    def test_returns_empty_when_no_admins(self):
+        """Returns empty list when no admins/moderators found."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=[])
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.admin import get_admins_at_location
+            result = get_admins_at_location(PORTLAND)
+
+            assert result == []
+
+    def test_handles_none_result(self):
+        """Handles None return from DB query."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=None)
+
+        with patch(f"{ADMIN_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.admin import get_admins_at_location
+            result = get_admins_at_location(PORTLAND)
+
+            assert result == []

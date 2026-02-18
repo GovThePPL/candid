@@ -327,6 +327,14 @@ export const usersApiWrapper = {
   async getActivity(opts = {}) {
     return await promisify(usersApi.getUserActivity.bind(usersApi), opts)
   },
+
+  async getUserById(userId) {
+    return await promisify(usersApi.getUserById.bind(usersApi), userId)
+  },
+
+  async getUserActivityById(userId, opts = {}) {
+    return await promisify(usersApi.getUserActivityById.bind(usersApi), userId, opts)
+  },
 }
 
 // Cards API
@@ -775,8 +783,10 @@ export const statsApiWrapper = {
 
 // Moderation API
 export const moderationApiWrapper = {
-  async getRules() {
-    return await promisify(moderationApi.getRules.bind(moderationApi))
+  async getRules(contentType) {
+    const opts = {}
+    if (contentType) opts.contentType = contentType
+    return await promisify(moderationApi.getRules.bind(moderationApi), opts)
   },
 
   async getQueue() {
@@ -801,6 +811,35 @@ export const moderationApiWrapper = {
     return await promisify(
       moderationApi.reportChat.bind(moderationApi),
       chatId,
+      body
+    )
+  },
+
+  async reportPost(postId, ruleId, comment = null) {
+    const body = { ruleId }
+    if (comment) body.comment = comment
+
+    return await promisify(
+      moderationApi.reportPost.bind(moderationApi),
+      postId,
+      body
+    )
+  },
+
+  async reportComment(commentId, ruleId, comment = null) {
+    const body = { ruleId }
+    if (comment) body.comment = comment
+
+    return await promisify(
+      moderationApi.reportComment.bind(moderationApi),
+      commentId,
+      body
+    )
+  },
+
+  async inlineAction(body) {
+    return await promisify(
+      moderationApi.inlineModeratorAction.bind(moderationApi),
       body
     )
   },
@@ -1039,6 +1078,52 @@ export const adminApiWrapper = {
   async getAdminActions() {
     return await promisify(
       adminApi.getAdminActions.bind(adminApi)
+    )
+  },
+
+  // Rule management
+  async getAdminRules({ status, locationId, contentType } = {}) {
+    return await promisify(
+      adminApi.getAdminRules.bind(adminApi),
+      { status, locationId, contentType }
+    )
+  },
+
+  async createRuleRequest(body) {
+    return await promisify(
+      adminApi.createRuleRequest.bind(adminApi),
+      body
+    )
+  },
+
+  async getRuleRequests(view = 'pending') {
+    return await promisify(
+      adminApi.getRuleRequests.bind(adminApi),
+      { view }
+    )
+  },
+
+  async approveRuleRequest(requestId) {
+    return await promisify(
+      adminApi.updateRuleRequest.bind(adminApi),
+      requestId,
+      { status: 'approved' }
+    )
+  },
+
+  async denyRuleRequest(requestId, reason) {
+    return await promisify(
+      adminApi.updateRuleRequest.bind(adminApi),
+      requestId,
+      { status: 'denied', reason }
+    )
+  },
+
+  async rescindRuleRequest(requestId) {
+    return await promisify(
+      adminApi.updateRuleRequest.bind(adminApi),
+      requestId,
+      { status: 'rescinded' }
     )
   },
 }

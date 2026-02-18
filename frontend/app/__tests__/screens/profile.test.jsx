@@ -30,7 +30,7 @@ const mockUser = {
   displayName: 'TestUser',
   username: 'testuser',
   kudosCount: 5,
-  roles: [{ role: 'admin', locationId: 1 }],
+  roles: [{ role: 'admin', locationId: 1, locationCode: 'US', categoryLabel: null }],
 }
 
 jest.mock('../../contexts/UserContext', () => ({
@@ -40,7 +40,7 @@ jest.mock('../../contexts/UserContext', () => ({
       displayName: 'TestUser',
       username: 'testuser',
       kudosCount: 5,
-      roles: [{ role: 'admin', locationId: 1 }],
+      roles: [{ role: 'admin', locationId: 1, locationCode: 'US', categoryLabel: null }],
     },
     logout: jest.fn(),
     pendingChatRequest: null,
@@ -50,10 +50,11 @@ jest.mock('../../contexts/UserContext', () => ({
   }),
 }))
 
+let mockSearchParams = {}
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
   usePathname: () => '/profile',
-  useLocalSearchParams: () => ({}),
+  useLocalSearchParams: () => mockSearchParams,
   useSegments: () => [],
   useFocusEffect: jest.fn(),
 }))
@@ -72,20 +73,29 @@ jest.mock('../../components/PositionManagerContent', () => {
 })
 jest.mock('../../components/PostsContent', () => {
   const { View } = require('react-native')
-  return ({ listHeader, stickyHeader }) => <View testID="posts-content">{listHeader}{stickyHeader}</View>
+  return ({ listHeader, stickyHeader, userId }) => <View testID="posts-content" userId={userId}>{listHeader}{stickyHeader}</View>
 })
 jest.mock('../../components/CommentsContent', () => {
   const { View } = require('react-native')
-  return ({ listHeader, stickyHeader }) => <View testID="comments-content">{listHeader}{stickyHeader}</View>
+  return ({ listHeader, stickyHeader, userId }) => <View testID="comments-content" userId={userId}>{listHeader}{stickyHeader}</View>
 })
 jest.mock('../../components/ChatHistoryContent', () => {
   const { View } = require('react-native')
   return ({ listHeader, stickyHeader }) => <View testID="chat-history-content">{listHeader}{stickyHeader}</View>
 })
+const mockGetUserById = jest.fn(() => Promise.resolve({
+  id: 'u2',
+  displayName: 'Other User',
+  username: 'otheruser',
+  kudosCount: 3,
+  roles: [],
+}))
+
 jest.mock('../../lib/api', () => ({
   __esModule: true,
   default: {
     admin: { getPendingRequests: jest.fn(() => Promise.resolve([])) },
+    users: { getUserById: (...args) => mockGetUserById(...args) },
   },
   translateError: (msg) => msg,
 }))
@@ -96,8 +106,19 @@ jest.mock('../../components/ChatRequestIndicator', () => {
   const { View } = require('react-native')
   return () => <View testID="chat-indicator" />
 })
+jest.mock('../../components/discuss/RoleBadge', () => {
+  const { Text } = require('react-native')
+  return ({ role, location, category }) => (
+    <Text testID="role-badge">{[location, category, role].filter(Boolean).join(' · ')}</Text>
+  )
+})
 
 import ProfileScreen from '../../app/(dashboard)/profile'
+
+beforeEach(() => {
+  mockSearchParams = {}
+  mockGetUserById.mockClear()
+})
 
 describe('Profile screen', () => {
   test('renders profile card with display name and username', () => {
@@ -139,13 +160,64 @@ describe('Profile screen', () => {
     expect(screen.getByTestId('chat-history-content')).toBeTruthy()
   })
 
-  test('admin link shown when user has admin role', () => {
+  test('admin button shown when user has admin role', () => {
     render(<ProfileScreen />)
-    expect(screen.getByRole('button', { name: /adminLinkA11y/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /adminButtonA11y/i })).toBeTruthy()
   })
 
-  test('profile card has accessible label', () => {
+  test('avatar has accessible label', () => {
     render(<ProfileScreen />)
-    expect(screen.getByRole('button', { name: /profileCardA11y/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /profileAvatarA11y/i })).toBeTruthy()
+  })
+})
+
+describe('Public profile', () => {
+  beforeEach(() => {
+    mockSearchParams = { userId: 'u2' }
+    mockGetUserById.mockResolvedValue({
+      id: 'u2',
+      displayName: 'Other User',
+      username: 'otheruser',
+      kudosCount: 3,
+      roles: [],
+    })
+  })
+
+  test('shows only 2 tabs (posts and comments)', async () => {
+    render(<ProfileScreen />)
+    // Wait for user fetch to resolve
+    await screen.findByText('Other User')
+    const tabs = screen.getAllByRole('tab')
+    expect(tabs.length).toBe(2)
+  })
+
+  test('fetches target user via getUserById', async () => {
+    render(<ProfileScreen />)
+    await screen.findByText('Other User')
+    expect(mockGetUserById).toHaveBeenCalledWith('u2')
+  })
+
+  test('does not show admin button for public profile', async () => {
+    render(<ProfileScreen />)
+    await screen.findByText('Other User')
+    expect(screen.queryByRole('button', { name: /adminButtonA11y/i })).toBeNull()
+  })
+
+  test('displays other user display name and username', async () => {
+    render(<ProfileScreen />)
+    await screen.findByText('Other User')
+    expect(screen.getByText('@otheruser')).toBeTruthy()
+  })
+
+  test('posts tab active by default for public profile', async () => {
+    render(<ProfileScreen />)
+    await screen.findByText('Other User')
+    expect(screen.getByTestId('posts-content')).toBeTruthy()
+  })
+
+  test('shows not found screen when user does not exist', async () => {
+    mockGetUserById.mockRejectedValue(new Error('Not Found'))
+    render(<ProfileScreen />)
+    await screen.findByText('userProfileNotFound')
   })
 })

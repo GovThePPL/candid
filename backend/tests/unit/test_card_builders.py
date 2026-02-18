@@ -51,6 +51,7 @@ class TestPositionToCard:
             "creator_avatar_icon_url": "http://img/a_icon.png",
             "category_id": "c1",
             "category_name": "Policy",
+            "location_id": "loc1",
             "location_code": "US",
             "location_name": "United States",
             "created_time": "2026-01-01T00:00:00",
@@ -78,7 +79,7 @@ class TestPositionToCard:
 
     def test_location_included(self):
         card = position_to_card(self._base_pos())
-        assert card["data"]["location"] == {"code": "US", "name": "United States"}
+        assert card["data"]["location"] == {"id": "loc1", "code": "US", "name": "United States"}
 
     def test_no_category(self):
         pos = self._base_pos()
@@ -121,6 +122,7 @@ class TestChattingListPositionToCard:
             "creator_username": "bob",
             "category_name": "Economy",
             "category_id": "c2",
+            "location_id": "loc3",
             "location_code": "OR",
             "location_name": "Oregon",
             "chatting_list_id": "cl1",
@@ -198,6 +200,7 @@ class TestChatRequestToCard:
             "position_id": 30,
             "position_statement": "We should improve transit",
             "position_category_name": "Infrastructure",
+            "position_location_id": "loc2",
             "position_location_code": "PDX",
             "position_location_name": "Portland",
             "response": "pending",
@@ -218,7 +221,7 @@ class TestChatRequestToCard:
 
     def test_position_location(self):
         card = chat_request_to_card(self._base_req())
-        assert card["data"]["position"]["location"] == {"code": "PDX", "name": "Portland"}
+        assert card["data"]["position"]["location"] == {"id": "loc2", "code": "PDX", "name": "Portland"}
 
     def test_no_category(self):
         req = self._base_req()
@@ -265,6 +268,7 @@ class TestKudosToCard:
             "position_author_avatar_icon_url": None,
             "position_category_id": "c3",
             "position_category_name": "Environment",
+            "position_location_id": "loc4",
             "position_location_code": "US",
             "position_location_name": "United States",
             "closing_statement": "We agree!",

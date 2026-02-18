@@ -196,6 +196,7 @@ const createStyles = (colors) => StyleSheet.create({
     left: 0,
     right: 0,
     height: 16,
+    pointerEvents: 'none',
   },
   bottomSection: {
     padding: 16,

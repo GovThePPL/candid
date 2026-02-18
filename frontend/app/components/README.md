@@ -55,7 +55,7 @@ components/
 ├── ChatHistoryContent.jsx        # Chat history list with position context; accepts showHeader prop
 ├── ChatRequestIndicator.jsx      # Pending chat request badge/indicator
 ├── ChattingListExplanationModal.jsx # Explanation modal for chatting list
-├── CommentsContent.jsx           # User's comment history list with vote counts and post context
+├── CommentsContent.jsx           # User's comment history list with vote counts and post context; optional userId prop for public profiles
 ├── EmptyState.jsx                # Empty state placeholder with icon and message
 ├── Header.jsx                    # Top navigation header bar
 ├── IconTabBar.jsx                # Reusable icon tab bar with active indicator
@@ -73,8 +73,8 @@ components/
 ├── PositionInfoCard.jsx          # Detailed position information card
 ├── PositionListManager.jsx       # Position list with search, chat/delete/add modes
 ├── PositionManagerContent.jsx    # Position management view with create form and list
-├── PostsContent.jsx              # User's post history list with vote counts and comment counts
-├── ReportModal.jsx               # Content reporting modal
+├── PostsContent.jsx              # User's post history list with vote counts and comment counts; optional userId prop for public profiles
+├── ReportModal.jsx               # Content reporting and moderation modal (isModerating prop switches title/mode)
 ├── Skeleton.jsx                  # Skeleton loading primitives (SkeletonPulse, SkeletonBox, SkeletonCircle, SkeletonLine)
 ├── Spacer.jsx                    # Configurable spacing component
 ├── StickyHeaderFlatList.jsx      # FlatList wrapper with scrollable header and sticky header support

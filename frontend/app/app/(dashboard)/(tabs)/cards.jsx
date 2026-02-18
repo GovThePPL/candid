@@ -1,4 +1,4 @@
-import { StyleSheet, View, TouchableOpacity, Platform, Dimensions } from 'react-native'
+import { StyleSheet, View, TouchableOpacity, Platform, Dimensions, Alert } from 'react-native'
 import { useState, useEffect, useCallback, useRef, useContext, useMemo } from 'react'
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, interpolate, runOnJS } from 'react-native-reanimated'
 import { useRouter } from 'expo-router'
@@ -9,6 +9,7 @@ import { SemanticColors } from '../../../constants/Colors'
 import { Shadows } from '../../../constants/Theme'
 import { useThemeColors } from '../../../hooks/useThemeColors'
 import useCardHandlers from '../../../hooks/useCardHandlers'
+import useModerateChecker from '../../../hooks/useModerateChecker'
 import api from '../../../lib/api'
 import ThemedText from '../../../components/ThemedText'
 import { useToast } from '../../../components/Toast'
@@ -30,6 +31,7 @@ import { SkeletonPulse, SkeletonBox, SkeletonCircle, SkeletonLine } from '../../
 import ChattingListExplanationModal from '../../../components/ChattingListExplanationModal'
 import AdoptPositionExplanationModal from '../../../components/AdoptPositionExplanationModal'
 import ReportModal from '../../../components/ReportModal'
+import ModerationActionModal from '../../../components/ModerationActionModal'
 
 // AsyncStorage keys for tutorial tracking
 const TUTORIAL_CHATTING_LIST_KEY = '@tutorial_seen_chatting_list'
@@ -106,6 +108,13 @@ export default function CardQueue() {
   // Report modal state
   const [reportModalVisible, setReportModalVisible] = useState(false)
   const [reportPositionId, setReportPositionId] = useState(null)
+
+  // Moderation state
+  const checkModerateScope = useModerateChecker()
+  const [moderateTarget, setModerateTarget] = useState(null)
+  const [moderateRule, setModerateRule] = useState(null)
+  const [moderateComment, setModerateComment] = useState(null)
+  const [actionModalVisible, setActionModalVisible] = useState(false)
 
   // Shared value for back card transition
   const backCardProgress = useSharedValue(0)
@@ -552,6 +561,41 @@ export default function CardQueue() {
     setReportModalVisible(true)
   }, [currentCard])
 
+  const handleModeratePosition = useCallback(() => {
+    setModerateTarget({ type: 'position', id: currentCard?.data?.id })
+    setReportModalVisible(true)
+  }, [currentCard])
+
+  const handleModerateRuleSelected = useCallback(async (ruleId, comment, rule) => {
+    setModerateRule(rule)
+    setModerateComment(comment)
+    setReportModalVisible(false)
+    setTimeout(() => setActionModalVisible(true), 300)
+  }, [])
+
+  const handleModerateActionSubmit = useCallback(async (actionData) => {
+    if (!moderateTarget || !moderateRule) return
+    try {
+      await api.moderation.inlineAction({
+        targetType: moderateTarget.type,
+        targetId: moderateTarget.id,
+        ruleId: moderateRule.id,
+        comment: moderateComment,
+        ...actionData,
+      })
+      setActionModalVisible(false)
+      Alert.alert(t('discuss:moderationSuccess'))
+      goToNextCard()
+    } catch (err) {
+      if (err?.status === 403) {
+        Alert.alert(t('discuss:moderationForbidden'))
+      } else {
+        console.error('Inline moderation failed:', err)
+      }
+      throw err
+    }
+  }, [moderateTarget, moderateRule, moderateComment, t, goToNextCard])
+
   const handleAddPosition = useCallback(async () => {
     if (currentCard?.type !== 'position') return
 
@@ -800,6 +844,7 @@ export default function CardQueue() {
     switch (card.type) {
       case 'position':
         const isFromChattingList = card.data?.source === 'chatting_list'
+        const cardCanModerate = checkModerateScope(card.data?.location?.id, card.data?.category?.id)
         return (
           <PositionCard
             ref={isBackCard ? undefined : currentCardRef}
@@ -810,6 +855,8 @@ export default function CardQueue() {
             onPass={isBackCard ? undefined : handlePass}
             onChatRequest={isBackCard || pendingChatRequest ? undefined : handleChatRequest}
             onReport={isBackCard ? undefined : handleReport}
+            onModerate={isBackCard ? undefined : handleModeratePosition}
+            canModerate={cardCanModerate}
             onAddPosition={isBackCard ? undefined : handleAddPosition}
             isBackCard={isBackCard}
             backCardAnimatedValue={backCardProgress}
@@ -1034,11 +1081,22 @@ export default function CardQueue() {
         onClose={handleCloseAdoptPositionModal}
       />
 
-      {/* Report modal */}
+      {/* Report / rule-selection modal */}
       <ReportModal
         visible={reportModalVisible}
-        onClose={() => setReportModalVisible(false)}
-        onSubmit={(ruleId, comment) => handleSubmitReport(reportPositionId, ruleId, comment)}
+        onClose={() => { setReportModalVisible(false); setReportPositionId(null) }}
+        onSubmit={moderateTarget ? handleModerateRuleSelected : (ruleId, comment) => handleSubmitReport(reportPositionId, ruleId, comment)}
+        contentType="position"
+        isModerating={!!moderateTarget}
+      />
+
+      {/* Moderation action modal (second step of moderation flow) */}
+      <ModerationActionModal
+        visible={actionModalVisible}
+        onClose={() => { setActionModalVisible(false); setModerateTarget(null); setModerateRule(null); setModerateComment(null) }}
+        onSubmit={handleModerateActionSubmit}
+        reportType={moderateTarget?.type}
+        rule={moderateRule}
       />
     </SafeAreaView>
   )

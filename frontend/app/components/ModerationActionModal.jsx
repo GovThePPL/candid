@@ -34,6 +34,14 @@ const getChatUserClasses = (t) => [
   { value: 'reporter', label: t('reportingUser') },
 ]
 
+const getPostUserClasses = (t) => [
+  { value: 'submitter', label: t('classPostCreator') },
+]
+
+const getCommentUserClasses = (t) => [
+  { value: 'submitter', label: t('classCommentCreator') },
+]
+
 function ActionRow({ userClass, action, onActionChange, duration, onDurationChange, colors, styles, actionOptions, t }) {
 
   const [open, setOpen] = useState(false)
@@ -134,10 +142,12 @@ export default function ModerationActionModal({ visible, onClose, onSubmit, repo
 
   const isChatReport = reportType === 'chat_log'
   const actionOptions = useMemo(() => getActionOptions(t), [t])
-  const userClasses = useMemo(
-    () => isChatReport ? getChatUserClasses(t) : getPositionUserClasses(t),
-    [t, isChatReport]
-  )
+  const userClasses = useMemo(() => {
+    if (reportType === 'chat_log') return getChatUserClasses(t)
+    if (reportType === 'post') return getPostUserClasses(t)
+    if (reportType === 'comment') return getCommentUserClasses(t)
+    return getPositionUserClasses(t)
+  }, [t, reportType])
   const [actions, setActions] = useState(() => buildDefaultActions(rule, isChatReport, userClasses))
   const [modNotes, setModNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)

@@ -30,11 +30,14 @@
   "kudosCount": "{{count}} kudos",
 
   "reportContent": "Reportar Contenido",
+  "moderateContent": "Moderar Contenido",
   "selectRuleViolation": "Selecciona la regla que fue violada",
   "reportSubmitted": "Reporte enviado",
   "addDetails": "Agregar detalles (opcional)...",
   "additionalDetails": "Detalles adicionales",
   "submitReport": "Enviar Reporte",
+  "submitModeration": "Moderar",
+  "moderationSubmitted": "Acción enviada",
 
   "reportBugTitle": "Reportar un Error",
   "bugSubtitle": "Describe qu\u00e9 sali\u00f3 mal",

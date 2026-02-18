@@ -27,6 +27,10 @@ from candid.controllers.helpers.admin import (
     get_group_user_ids as _get_group_user_ids,
     compute_pairwise_rankings as _compute_pairwise_rankings,
     notify_peers as _notify_peers,
+    notify_request_outcome as _notify_request_outcome,
+    notify_role_target as _notify_role_target,
+    notify_admin_action as _notify_admin_action,
+    get_admins_at_location as _get_admins_at_location,
     check_auto_approve_expired as _check_auto_approve_expired,
     apply_role_change as _apply_role_change,
     find_approval_peer as _find_approval_peer,
@@ -35,6 +39,13 @@ from candid.controllers.helpers.admin import (
     ADMIN_ASSIGNABLE as _ADMIN_ASSIGNABLE,
     FACILITATOR_ASSIGNABLE as _FACILITATOR_ASSIGNABLE,
     ALL_ASSIGNABLE as _ALL_ASSIGNABLE,
+    build_rule_response as _build_rule_response,
+    get_rule_authority_location as _get_rule_authority_location,
+    find_rule_approval_peer as _find_rule_approval_peer,
+    apply_rule_change as _apply_rule_change,
+    format_rule_request as _format_rule_request,
+    check_rule_auto_approve_expired as _check_rule_auto_approve_expired,
+    VALID_CONTENT_TYPES as _VALID_CONTENT_TYPES,
 )
 
 
@@ -599,6 +610,15 @@ def create_role_request(body, token_info=None):  # noqa: E501
             'position_category_id': category_id,
             'requested_by': str(user.id),
         })
+        # Notify requester + target about auto-approval
+        loc_row = db.execute_query("SELECT name FROM location WHERE id = %s",
+                                   (location_id,), fetchone=True)
+        loc_name = loc_row['name'] if loc_row else 'Unknown'
+        desc = f"assign {role} at {loc_name}"
+        _notify_request_outcome(str(user.id), None, 'auto_approved',
+                                desc, 'role_change')
+        _notify_role_target(target_user_id, 'assign', role, loc_name,
+                            actor_user_id=str(user.id))
         return {'id': request_id, 'status': 'auto_approved'}, 201
 
     # Notify approval peers
@@ -679,6 +699,15 @@ def _handle_role_removal(body, user, token_info=None):
             'position_category_id': category_id,
             'requested_by': str(user.id),
         })
+        # Notify requester + target about auto-approval
+        loc_row = db.execute_query("SELECT name FROM location WHERE id = %s",
+                                   (location_id,), fetchone=True) if location_id else None
+        loc_name = loc_row['name'] if loc_row else 'Unknown'
+        desc = f"remove {role} at {loc_name}"
+        _notify_request_outcome(str(user.id), None, 'auto_approved',
+                                desc, 'role_change')
+        _notify_role_target(str(role_row['user_id']), 'remove', role, loc_name,
+                            actor_user_id=str(user.id))
         return {'id': request_id, 'status': 'auto_approved'}, 201
 
     # Notify approval peers
@@ -805,6 +834,12 @@ def update_role_request(request_id, body, token_info=None):  # noqa: E501
     if req['status'] != 'pending':
         return ErrorModel(400, f"Request is already {req['status']}"), 400
 
+    # Resolve location name for notifications
+    loc_row = db.execute_query("SELECT name FROM location WHERE id = %s",
+                               (str(req['location_id']),), fetchone=True) if req.get('location_id') else None
+    loc_name = loc_row['name'] if loc_row else 'Unknown'
+    desc = f"{req['action']} {req['role']} at {loc_name}"
+
     if new_status == 'rescinded':
         # Only the original requester can rescind
         if str(req['requested_by']) != str(user.id):
@@ -815,6 +850,14 @@ def update_role_request(request_id, body, token_info=None):  # noqa: E501
             SET status = 'rescinded', updated_time = CURRENT_TIMESTAMP
             WHERE id = %s
         """, (request_id,))
+
+        # Notify approval peers about rescission
+        peers = _find_approval_peer(req)
+        if peers:
+            for peer_id in peers:
+                _notify_request_outcome(peer_id, user.display_name, 'rescinded',
+                                        desc, 'role_change',
+                                        actor_user_id=str(user.id))
 
         return {'id': str(req['id']), 'status': 'rescinded'}
 
@@ -832,6 +875,15 @@ def update_role_request(request_id, body, token_info=None):  # noqa: E501
 
         _apply_role_change(req)
 
+        # Notify requester of approval
+        _notify_request_outcome(str(req['requested_by']), user.display_name,
+                                'approved', desc, 'role_change',
+                                actor_user_id=str(user.id))
+        # Notify role target
+        _notify_role_target(str(req['target_user_id']), req['action'],
+                            req['role'], loc_name,
+                            actor_user_id=str(user.id))
+
         return {'id': str(req['id']), 'status': 'approved'}
 
     else:  # denied
@@ -841,6 +893,11 @@ def update_role_request(request_id, body, token_info=None):  # noqa: E501
             SET status = 'denied', reviewed_by = %s, denial_reason = %s, updated_time = CURRENT_TIMESTAMP
             WHERE id = %s
         """, (str(user.id), denial_reason, request_id))
+
+        # Notify requester of denial
+        _notify_request_outcome(str(req['requested_by']), user.display_name,
+                                'denied', desc, 'role_change',
+                                actor_user_id=str(user.id))
 
         return {'id': str(req['id']), 'status': 'denied'}
 
@@ -1053,6 +1110,18 @@ def create_location(body, token_info=None):  # noqa: E501
 
     invalidate_location_cache()
 
+    # Notify admins at parent location
+    parent_row = db.execute_query("SELECT name FROM location WHERE id = %s",
+                                  (parent_id,), fetchone=True)
+    parent_name = parent_row['name'] if parent_row else 'Unknown'
+    admin_ids = _get_admins_at_location(parent_id)
+    # Exclude the acting user
+    admin_ids = [a for a in admin_ids if a != str(user.id)]
+    if admin_ids:
+        _notify_admin_action(admin_ids, "New location created",
+                             f"{name} added under {parent_name}",
+                             actor_user_id=str(user.id))
+
     return {
         'id': location_id,
         'parentLocationId': parent_id,
@@ -1116,6 +1185,14 @@ def update_location(location_id, body, token_info=None):  # noqa: E501
 
     invalidate_location_cache()
 
+    # Notify admins at this location
+    admin_ids = _get_admins_at_location(location_id)
+    admin_ids = [a for a in admin_ids if a != str(user.id)]
+    if admin_ids:
+        _notify_admin_action(admin_ids, "Location updated",
+                             f"{name} was updated",
+                             actor_user_id=str(user.id))
+
     return {
         'id': str(location_id),
         'parentLocationId': str(new_parent_id) if new_parent_id else (str(loc['parent_location_id']) if loc['parent_location_id'] else None),
@@ -1149,6 +1226,16 @@ def delete_location(location_id, token_info=None):  # noqa: E501
     if not is_admin_at_location(str(user.id), location_id):
         return ErrorModel(403, "Admin authority at this location is required"), 403
 
+    # Gather admins at this location + parent before soft-delete
+    admin_ids = set(_get_admins_at_location(location_id))
+    if loc['parent_location_id']:
+        admin_ids.update(_get_admins_at_location(loc['parent_location_id']))
+    admin_ids.discard(str(user.id))
+
+    loc_name_row = db.execute_query("SELECT name FROM location WHERE id = %s",
+                                     (location_id,), fetchone=True)
+    loc_name = loc_name_row['name'] if loc_name_row else 'Unknown'
+
     # Reparent children + soft-delete
     parent_id = loc['parent_location_id']
     db.execute_query(
@@ -1159,6 +1246,12 @@ def delete_location(location_id, token_info=None):  # noqa: E501
         (location_id,))
 
     invalidate_location_cache()
+
+    # Notify admins
+    if admin_ids:
+        _notify_admin_action(list(admin_ids), "Location deleted",
+                             f"{loc_name} was removed",
+                             actor_user_id=str(user.id))
 
     return '', 204
 
@@ -1230,6 +1323,17 @@ def assign_location_category(location_id, body, token_info=None):  # noqa: E501
         VALUES (%s, %s, %s)
     """, (lc_id, location_id, category_id))
 
+    # Notify admins at this location
+    loc_row = db.execute_query("SELECT name FROM location WHERE id = %s",
+                               (location_id,), fetchone=True)
+    loc_name = loc_row['name'] if loc_row else 'Unknown'
+    admin_ids = _get_admins_at_location(location_id)
+    admin_ids = [a for a in admin_ids if a != str(user.id)]
+    if admin_ids:
+        _notify_admin_action(admin_ids, "Category assigned",
+                             f"{cat['label']} added to {loc_name}",
+                             actor_user_id=str(user.id))
+
     return {
         'id': lc_id,
         'locationId': str(location_id),
@@ -1260,10 +1364,33 @@ def remove_location_category(location_id, category_id, token_info=None):  # noqa
     if not existing:
         return ErrorModel(404, "Category assignment not found"), 404
 
+    # Look up names for notification before deleting
+    cat_row = db.execute_query("SELECT label FROM position_category WHERE id = %s",
+                               (category_id,), fetchone=True)
+    cat_label = cat_row['label'] if cat_row else 'Unknown'
+    loc_row = db.execute_query("SELECT name FROM location WHERE id = %s",
+                               (location_id,), fetchone=True)
+    loc_name = loc_row['name'] if loc_row else 'Unknown'
+
     db.execute_query("""
         DELETE FROM location_category
         WHERE location_id = %s AND position_category_id = %s
     """, (location_id, category_id))
+
+    # Notify admins at location + facilitators for that category
+    admin_ids = set(_get_admins_at_location(location_id))
+    facilitators = db.execute_query("""
+        SELECT DISTINCT ur.user_id FROM user_role ur
+        WHERE ur.role = 'facilitator' AND ur.location_id = %s
+          AND ur.position_category_id = %s
+    """, (location_id, category_id))
+    for f in (facilitators or []):
+        admin_ids.add(str(f['user_id']))
+    admin_ids.discard(str(user.id))
+    if admin_ids:
+        _notify_admin_action(list(admin_ids), "Category removed",
+                             f"{cat_label} removed from {loc_name}",
+                             actor_user_id=str(user.id))
 
     return '', 204
 
@@ -1304,11 +1431,28 @@ def create_category(body, token_info=None):  # noqa: E501
         if not parent:
             return ErrorModel(400, "Parent category not found"), 400
 
+    user = token_to_user(token_info)
+
     category_id = str(uuid.uuid4())
     db.execute_query("""
         INSERT INTO position_category (id, label, parent_position_category_id)
         VALUES (%s, %s, %s)
     """, (category_id, label, parent_id))
+
+    # Notify other site admins
+    from candid.controllers.helpers.auth import get_root_location_id
+    root_loc = get_root_location_id()
+    if root_loc:
+        site_admins = db.execute_query("""
+            SELECT DISTINCT ur.user_id FROM user_role ur
+            WHERE ur.role = 'admin' AND ur.location_id = %s AND ur.user_id != %s
+        """, (root_loc, str(user.id)))
+        if site_admins:
+            _notify_admin_action(
+                [str(r['user_id']) for r in site_admins],
+                "New category created",
+                f"{label} category was created",
+                actor_user_id=str(user.id))
 
     result = {
         'id': category_id,
@@ -1322,7 +1466,6 @@ def create_category(body, token_info=None):  # noqa: E501
         label_items = body.get('labelSurveyItems', [])
         label_items = [i.strip() for i in label_items if i.strip()]
         if len(label_items) >= 2:
-            user = token_to_user(token_info)
             comp_question = (body.get('labelSurveyComparisonQuestion') or '').strip() or "Which better describes this group's views?"
             survey_id = str(uuid.uuid4())
             db.execute_query("""
@@ -1418,6 +1561,16 @@ def update_user_status(user_id, body, token_info=None):  # noqa: E501
         VALUES (%s, %s, %s, %s, %s)
     """, (str(uuid.uuid4()), action, user_id, acting_user.id, reason))
 
+    # Notify the target user
+    if action == 'ban':
+        _notify_admin_action([user_id], "Account suspended",
+                             f"Your account has been suspended. Reason: {reason}",
+                             actor_user_id=str(acting_user.id))
+    else:
+        _notify_admin_action([user_id], "Account restored",
+                             "Your account has been restored",
+                             actor_user_id=str(acting_user.id))
+
     return {'id': str(user_id), 'status': new_status}
 
 
@@ -1475,3 +1628,394 @@ def get_admin_actions(token_info=None):  # noqa: E501
         }
         for r in (rows or [])
     ]
+
+
+# ---------------------------------------------------------------------------
+# Rule Management API
+# ---------------------------------------------------------------------------
+
+def get_admin_rules(status=None, location_id=None, content_type=None, token_info=None):  # noqa: E501
+    """Get rules (admin view with all statuses).
+
+    GET /admin/rules?status=&location_id=&content_type=
+    Auth: facilitator+ (any scoped role holder).
+    """
+    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    conditions = []
+    params = []
+
+    status = status or 'active'
+    if status != 'all':
+        conditions.append("r.status = %s")
+        params.append(status)
+
+    if location_id:
+        conditions.append("r.location_id = %s")
+        params.append(location_id)
+
+    if content_type:
+        conditions.append("%s = ANY(r.applicable_content_types)")
+        params.append(content_type)
+
+    where = ""
+    if conditions:
+        where = "WHERE " + " AND ".join(conditions)
+
+    rows = db.execute_query(f"""
+        SELECT r.id, r.creator_user_id, r.title, r.text, r.status, r.severity,
+               r.default_actions, r.sentencing_guidelines,
+               r.location_id, r.position_category_id, r.applicable_content_types,
+               r.created_time, r.updated_time,
+               l.name AS location_name, pc.label AS category_label
+        FROM rule r
+        LEFT JOIN location l ON r.location_id = l.id
+        LEFT JOIN position_category pc ON r.position_category_id = pc.id
+        {where}
+        ORDER BY r.severity DESC, r.created_time ASC
+    """, tuple(params) if params else None)
+
+    return [_build_rule_response(r) for r in (rows or [])]
+
+
+import json as _json
+
+
+def create_rule_request(body, token_info=None):  # noqa: E501
+    """Create a rule change request (create, update, or delete).
+
+    POST /admin/rules/requests
+    Auth: facilitator+ (any scoped role holder).
+    """
+    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    user = token_to_user(token_info)
+
+    if connexion.request.is_json:
+        body = connexion.request.get_json()
+
+    action = body.get('action')
+    if action not in ('create', 'update', 'delete'):
+        return ErrorModel(400, "action must be 'create', 'update', or 'delete'"), 400
+
+    proposed_rule = body.get('proposedRule', {})
+    rule_id = body.get('ruleId')
+    reason = body.get('reason', '')
+
+    # For update/delete, verify rule_id exists and is active
+    existing_rule = None
+    if action in ('update', 'delete'):
+        if not rule_id:
+            return ErrorModel(400, "ruleId is required for update/delete"), 400
+        existing_rule = db.execute_query("""
+            SELECT id, title, text, severity, default_actions, sentencing_guidelines,
+                   location_id, position_category_id, applicable_content_types, status
+            FROM rule WHERE id = %s
+        """, (rule_id,), fetchone=True)
+        if not existing_rule:
+            return ErrorModel(400, "Rule not found"), 400
+        if existing_rule['status'] != 'active' and action == 'update':
+            return ErrorModel(400, "Cannot update an inactive rule"), 400
+
+    # For delete, store current state as proposed_rule for audit trail
+    if action == 'delete' and existing_rule:
+        proposed_rule = {
+            'title': existing_rule['title'],
+            'text': existing_rule['text'],
+            'severity': existing_rule.get('severity'),
+            'defaultActions': existing_rule.get('default_actions', []),
+            'sentencingGuidelines': existing_rule.get('sentencing_guidelines'),
+            'locationId': str(existing_rule['location_id']) if existing_rule.get('location_id') else None,
+            'positionCategoryId': str(existing_rule['position_category_id']) if existing_rule.get('position_category_id') else None,
+            'applicableContentTypes': list(existing_rule.get('applicable_content_types', [])),
+        }
+
+    # Validate proposed_rule fields for create/update
+    if action in ('create', 'update'):
+        title = (proposed_rule.get('title') or '').strip()
+        text = (proposed_rule.get('text') or '').strip()
+
+        if action == 'create':
+            if not title:
+                return ErrorModel(400, "Title is required"), 400
+            if not text:
+                return ErrorModel(400, "Description text is required"), 400
+        if title and len(title) > 255:
+            return ErrorModel(400, "Title must be 255 characters or fewer"), 400
+
+        severity = proposed_rule.get('severity')
+        if severity is not None and (severity < 1 or severity > 5):
+            return ErrorModel(400, "Severity must be between 1 and 5"), 400
+
+        content_types = proposed_rule.get('applicableContentTypes')
+        if content_types is not None:
+            if not content_types or len(content_types) == 0:
+                return ErrorModel(400, "At least one content type is required"), 400
+            if not set(content_types).issubset(_VALID_CONTENT_TYPES):
+                return ErrorModel(400, "Invalid content type"), 400
+
+    # Determine scope from proposed_rule
+    scope_location_id = proposed_rule.get('locationId')
+    scope_category_id = proposed_rule.get('positionCategoryId')
+
+    # For update: also need authority over current scope
+    if action == 'update' and existing_rule:
+        current_loc = str(existing_rule['location_id']) if existing_rule.get('location_id') else None
+        current_cat = str(existing_rule['position_category_id']) if existing_rule.get('position_category_id') else None
+        # Authority over current scope
+        auth_loc_current = _get_rule_authority_location(str(user.id), current_loc, current_cat)
+        if not auth_loc_current:
+            return ErrorModel(403, "You do not have authority over the current rule scope"), 403
+
+    if action == 'delete' and existing_rule:
+        scope_location_id = str(existing_rule['location_id']) if existing_rule.get('location_id') else None
+        scope_category_id = str(existing_rule['position_category_id']) if existing_rule.get('position_category_id') else None
+
+    # Check authority over proposed scope
+    authority_loc = _get_rule_authority_location(str(user.id), scope_location_id, scope_category_id)
+    if not authority_loc:
+        return ErrorModel(403, "You do not have authority to manage rules at this scope"), 403
+
+    # Check for duplicate pending request on same rule_id+action
+    if rule_id:
+        dup = db.execute_query("""
+            SELECT id FROM rule_change_request
+            WHERE rule_id = %s AND action = %s AND status = 'pending'
+        """, (rule_id, action), fetchone=True)
+        if dup:
+            return ErrorModel(400, "A pending request already exists for this rule and action"), 400
+
+    # Compute auto-approve time
+    from datetime import datetime, timezone, timedelta
+    timeout_days = config.ROLE_APPROVAL_TIMEOUT_DAYS
+    auto_approve_at = datetime.now(timezone.utc) + timedelta(days=timeout_days)
+
+    # Create request
+    request_id = str(uuid.uuid4())
+    db.execute_query("""
+        INSERT INTO rule_change_request
+            (id, action, rule_id, proposed_rule, requested_by,
+             requester_authority_location_id, request_reason, auto_approve_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+    """, (request_id, action, rule_id, _json.dumps(proposed_rule),
+          str(user.id), authority_loc, reason, auto_approve_at))
+
+    # Check if auto-approve (no peer available)
+    request_row = {
+        'requested_by': str(user.id),
+        'requester_authority_location_id': authority_loc,
+        'proposed_rule': proposed_rule,
+        'rule_id': rule_id,
+        'action': action,
+    }
+    peers = _find_rule_approval_peer(request_row)
+    if peers is None:
+        # Auto-approve immediately
+        db.execute_query("""
+            UPDATE rule_change_request SET status = 'auto_approved', updated_time = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (request_id,))
+        request_row['rule_id'] = rule_id
+        _apply_rule_change(request_row)
+        # Notify requester of auto-approval
+        _notify_request_outcome(str(user.id), None, 'auto_approved',
+                                proposed_rule.get('title', 'Rule change'),
+                                'rule_change')
+        return {'id': request_id, 'status': 'auto_approved'}, 201
+
+    # Notify approval peers
+    _notify_peers(peers, user.display_name, action, 'rule', proposed_rule.get('title', 'a rule'),
+                  requester_user_id=str(user.id))
+
+    return {'id': request_id, 'status': 'pending'}, 201
+
+
+_RULE_REQUEST_SELECT = """
+    SELECT rcr.id, rcr.action, rcr.rule_id, rcr.proposed_rule,
+           rcr.requested_by, rcr.requester_authority_location_id,
+           rcr.request_reason, rcr.auto_approve_at, rcr.created_time,
+           rcr.status, rcr.denial_reason, rcr.updated_time, rcr.reviewed_by,
+           u_req.username AS requester_username, u_req.display_name AS requester_display_name,
+           u_req.avatar_icon_url AS requester_avatar_icon_url,
+           u_req.status AS requester_status, u_req.trust_score AS requester_trust_score,
+           COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u_req.id AND k.status = 'sent'), 0) AS requester_kudos_count,
+           u_rev.id AS reviewer_id, u_rev.username AS reviewer_username,
+           u_rev.display_name AS reviewer_display_name,
+           u_rev.avatar_icon_url AS reviewer_avatar_icon_url,
+           u_rev.status AS reviewer_status, u_rev.trust_score AS reviewer_trust_score,
+           COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u_rev.id AND k.status = 'sent'), 0) AS reviewer_kudos_count,
+           l_auth.name AS authority_location_name,
+           r_rule.id AS current_rule_id, r_rule.title AS current_rule_title,
+           r_rule.text AS current_rule_text, r_rule.severity AS current_rule_severity,
+           r_rule.status AS current_rule_status
+    FROM rule_change_request rcr
+    JOIN users u_req ON rcr.requested_by = u_req.id
+    LEFT JOIN users u_rev ON rcr.reviewed_by = u_rev.id
+    LEFT JOIN location l_auth ON rcr.requester_authority_location_id = l_auth.id
+    LEFT JOIN rule r_rule ON rcr.rule_id = r_rule.id
+"""
+
+
+def get_rule_requests(view=None, token_info=None):  # noqa: E501
+    """Get rule change requests with view filter.
+
+    GET /admin/rules/requests?view=pending|all|mine
+    Auth: facilitator+ (any scoped role holder).
+    """
+    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    user = token_to_user(token_info)
+    view = view or 'pending'
+
+    # Auto-approve expired before any view
+    _check_rule_auto_approve_expired()
+
+    if view == 'pending':
+        requests = db.execute_query(
+            _RULE_REQUEST_SELECT + " WHERE rcr.status = 'pending' ORDER BY rcr.created_time ASC"
+        )
+        result = []
+        for r in (requests or []):
+            peers = _find_rule_approval_peer(r)
+            if peers and str(user.id) in peers:
+                result.append(_format_rule_request(r))
+        return result
+
+    elif view == 'mine':
+        requests = db.execute_query(
+            _RULE_REQUEST_SELECT + " WHERE rcr.requested_by = %s ORDER BY rcr.created_time DESC",
+            (str(user.id),)
+        )
+        return [_format_rule_request(r) for r in (requests or [])]
+
+    elif view == 'all':
+        # Compute user's scope from their roles
+        roles = get_user_roles(str(user.id))
+        scope_locs = set()
+        for ur in roles:
+            loc_id = str(ur['location_id']) if ur.get('location_id') else None
+            if not loc_id:
+                continue
+            r = ur['role']
+            if r in ('admin', 'moderator'):
+                descendants = get_location_descendants(loc_id)
+                scope_locs.update(descendants)
+            elif r == 'facilitator':
+                scope_locs.add(loc_id)
+
+        if not scope_locs:
+            return []
+
+        scope_list = list(scope_locs)
+        requests = db.execute_query(
+            _RULE_REQUEST_SELECT +
+            " WHERE rcr.requester_authority_location_id = ANY(%s::uuid[]) ORDER BY rcr.created_time DESC LIMIT 200",
+            (scope_list,)
+        )
+        return [_format_rule_request(r) for r in (requests or [])]
+
+    else:
+        return ErrorModel(400, f"Invalid view: {view}"), 400
+
+
+def update_rule_request(request_id, body, token_info=None):  # noqa: E501
+    """Update a rule change request (approve, deny, or rescind).
+
+    PATCH /admin/rules/requests/{requestId}
+    Auth: facilitator+ (any scoped role holder).
+    """
+    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    user = token_to_user(token_info)
+
+    if connexion.request.is_json:
+        body = connexion.request.get_json()
+
+    new_status = body.get('status')
+    if new_status not in ('approved', 'denied', 'rescinded'):
+        return ErrorModel(400, "status must be 'approved', 'denied', or 'rescinded'"), 400
+
+    # Auto-approve expired first
+    _check_rule_auto_approve_expired()
+
+    req = db.execute_query("""
+        SELECT * FROM rule_change_request WHERE id = %s
+    """, (request_id,), fetchone=True)
+
+    if not req:
+        return ErrorModel(404, "Request not found"), 404
+
+    if req['status'] != 'pending':
+        return ErrorModel(400, f"Request is already {req['status']}"), 400
+
+    # Build description for notifications
+    proposed = req.get('proposed_rule') or {}
+    if isinstance(proposed, str):
+        import json as _json_mod
+        proposed = _json_mod.loads(proposed)
+    rule_desc = proposed.get('title', 'Rule change')
+
+    if new_status == 'rescinded':
+        # Only the original requester can rescind
+        if str(req['requested_by']) != str(user.id):
+            return ErrorModel(403, "Only the original requester can rescind"), 403
+
+        db.execute_query("""
+            UPDATE rule_change_request
+            SET status = 'rescinded', updated_time = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (request_id,))
+
+        # Notify approval peers about rescission
+        peers = _find_rule_approval_peer(req)
+        if peers:
+            for peer_id in peers:
+                _notify_request_outcome(peer_id, user.display_name, 'rescinded',
+                                        rule_desc, 'rule_change',
+                                        actor_user_id=str(user.id))
+
+        return {'id': str(req['id']), 'status': 'rescinded'}
+
+    # Approve or deny: verify this user can review
+    peers = _find_rule_approval_peer(req)
+    if not peers or str(user.id) not in peers:
+        return ErrorModel(403, "You are not authorized to review this request"), 403
+
+    if new_status == 'approved':
+        db.execute_query("""
+            UPDATE rule_change_request
+            SET status = 'approved', reviewed_by = %s, updated_time = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (str(user.id), request_id))
+
+        _apply_rule_change(req)
+
+        # Notify requester of approval
+        _notify_request_outcome(str(req['requested_by']), user.display_name,
+                                'approved', rule_desc, 'rule_change',
+                                actor_user_id=str(user.id))
+
+        return {'id': str(req['id']), 'status': 'approved'}
+
+    else:  # denied
+        denial_reason = body.get('reason', '')
+        db.execute_query("""
+            UPDATE rule_change_request
+            SET status = 'denied', reviewed_by = %s, denial_reason = %s, updated_time = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (str(user.id), denial_reason, request_id))
+
+        # Notify requester of denial
+        _notify_request_outcome(str(req['requested_by']), user.display_name,
+                                'denied', rule_desc, 'rule_change',
+                                actor_user_id=str(user.id))
+
+        return {'id': str(req['id']), 'status': 'denied'}

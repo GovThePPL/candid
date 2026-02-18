@@ -17,6 +17,8 @@ const PositionCard = forwardRef(function PositionCard({
   onPass,
   onChatRequest,
   onReport,
+  onModerate,
+  canModerate = false,
   onAddPosition,
   isBackCard,
   backCardAnimatedValue,
@@ -83,9 +85,15 @@ const PositionCard = forwardRef(function PositionCard({
 
         {/* Footer */}
         <View style={styles.footer}>
-          <TouchableOpacity onPress={onReport} style={[styles.iconButton, styles.flagButton]} accessibilityLabel={t('positionReport')} accessibilityRole="button">
-            <Ionicons name="flag-outline" size={22} color="#E57373" />
-          </TouchableOpacity>
+          {canModerate ? (
+            <TouchableOpacity onPress={onModerate} style={[styles.iconButton, styles.moderateButton]} accessibilityLabel={t('positionModerate')} accessibilityRole="button">
+              <Ionicons name="shield-outline" size={22} color={colors.primary} />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity onPress={onReport} style={[styles.iconButton, styles.flagButton]} accessibilityLabel={t('positionReport')} accessibilityRole="button">
+              <Ionicons name="flag-outline" size={22} color="#E57373" />
+            </TouchableOpacity>
+          )}
 
           <View style={styles.footerCenter}>
             <View style={styles.footerCenterInner}>
@@ -184,6 +192,9 @@ const createStyles = (colors) => StyleSheet.create({
   },
   flagButton: {
     backgroundColor: SemanticColors.disagree + '20',
+  },
+  moderateButton: {
+    backgroundColor: colors.primary + '20',
   },
   addButton: {
     backgroundColor: SemanticColors.agree + '20',

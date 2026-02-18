@@ -70,13 +70,14 @@ function ErrorView({ error, onRetry, styles, t }) {
   )
 }
 
-export default function PostsContent({ onScroll, listHeader, stickyHeader }) {
+export default function PostsContent({ onScroll, listHeader, stickyHeader, userId: targetUserId }) {
   const { t } = useTranslation(['settings', 'discuss'])
   const colors = useThemeColors()
   const router = useRouter()
   const { user } = useContext(UserContext)
   const styles = useMemo(() => createStyles(colors), [colors])
-  const userId = user?.id
+  const userId = targetUserId || user?.id
+  const isOtherUser = !!targetUserId && targetUserId !== user?.id
 
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
@@ -94,17 +95,24 @@ export default function PostsContent({ onScroll, listHeader, stickyHeader }) {
       }
       setError(null)
 
+      const fetchApi = isOtherUser
+        ? (opts) => api.users.getUserActivityById(targetUserId, opts)
+        : (opts) => api.users.getActivity(opts)
+
       if (!cursor) {
+        const cacheKey = isOtherUser
+          ? `activity:posts:other:${targetUserId}`
+          : CacheKeys.activityPosts(userId)
         const { data: result } = await CacheManager.fetchOrCache(
-          CacheKeys.activityPosts(userId),
-          () => api.users.getActivity({ type: 'posts' }),
+          cacheKey,
+          () => fetchApi({ type: 'posts' }),
           { maxAge: CacheDurations.ACTIVITY }
         )
         setItems(result.items || [])
         setNextCursor(result.nextCursor || null)
         setHasMore(result.hasMore || false)
       } else {
-        const result = await api.users.getActivity({ type: 'posts', cursor })
+        const result = await fetchApi({ type: 'posts', cursor })
         setItems(prev => [...prev, ...(result.items || [])])
         setNextCursor(result.nextCursor || null)
         setHasMore(result.hasMore || false)
@@ -115,7 +123,7 @@ export default function PostsContent({ onScroll, listHeader, stickyHeader }) {
       setLoading(false)
       setLoadingMore(false)
     }
-  }, [t, userId])
+  }, [t, userId, isOtherUser, targetUserId])
 
   useEffect(() => { fetchData() }, [])
 

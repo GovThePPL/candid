@@ -57,6 +57,8 @@ export default function NotificationSettings() {
     post_comment: true,
     chat_request: true,
     role_change: true,
+    rule_change: true,
+    admin_action: true,
     moderation: true,
   })
 
@@ -348,6 +350,8 @@ export default function NotificationSettings() {
                 { key: 'post_comment', label: t('notifTypePostComment'), desc: t('notifTypePostCommentDesc') },
                 { key: 'chat_request', label: t('notifTypeChatRequest'), desc: t('notifTypeChatRequestDesc') },
                 { key: 'role_change', label: t('notifTypeRoleChange'), desc: t('notifTypeRoleChangeDesc') },
+                { key: 'rule_change', label: t('notifTypeRuleChange'), desc: t('notifTypeRuleChangeDesc') },
+                { key: 'admin_action', label: t('notifTypeAdminAction'), desc: t('notifTypeAdminActionDesc') },
                 { key: 'moderation', label: t('notifTypeModeration'), desc: t('notifTypeModerationDesc') },
               ].map((item) => (
                 <View key={item.key} style={styles.notifTypeRow}>

@@ -53,8 +53,10 @@ python3 -m pytest backend/tests/unit/ --benchmark-only -v
 | `test_posts.py` | Post CRUD, voting, locking, pagination, reporting |
 | `test_comments.py` | Comment CRUD, voting, Q&A authorization, nested replies |
 | `test_notifications.py` | Notification inbox list, unread count, mark read, mark all read |
+| `test_admin_rules.py` | Admin rule management: CRUD, approval workflow, scope filtering, content type filtering |
 | `test_auth_required.py` | Consolidated 401 checks for all protected endpoints (parametrized) |
 | `test_user_activity.py` | User activity feed (posts + comments, pagination, type filtering) |
+| `test_user_activity_by_id.py` | Public user activity feed by user ID (posts + comments, 404, access control) |
 | `test_counter_triggers.py` | Database counter trigger validation |
 
 ## Unit Tests (`unit/`)
@@ -78,7 +80,7 @@ python3 -m pytest backend/tests/unit/ --benchmark-only -v
 | `test_database.py` | `database.py` | Connection pool and query execution |
 | `test_polis_scheduler.py` | `polis_scheduler.py` | Conversation lifecycle management |
 | `test_redis_pool.py` | `redis_pool.py` | Shared Redis connection pool singleton behavior |
-| `test_admin_helpers.py` | `admin_controller.py` | Role management helpers: authority location, approval peers, role changes, auto-approve |
+| `test_admin_helpers.py` | `admin_controller.py` | Role and rule management helpers: authority location, approval peers, role/rule changes, auto-approve, notification dispatchers |
 | `test_moderation_helpers.py` | `moderation_controller.py` | Hierarchical appeal routing: content scope, actioner level, peer/escalation reviewers |
 | `test_scoring.py` | `scoring.py` | Wilson score, hot score, controversial score, vote weight, ideological distance |
 | `test_ideological_coords.py` | `ideological_coords.py` | PCA projection, coordinate caching, blending, conversation lookup |
@@ -90,6 +92,7 @@ python3 -m pytest backend/tests/unit/ --benchmark-only -v
 | `test_stats_helpers.py` | `stats.py` | Opinion group computation, vote distribution helpers |
 | `test_user_mappers.py` | `user_mappers.py` | User serialization: profile, public view, admin view |
 | `test_matrix_factorization.py` | `matrix_factorization.py` | MF SGD algorithm, convergence, group recovery, Polis regularization, DB interactions |
+| `test_approval_reminder_worker.py` | `approval_reminder_worker.py` | Auto-approve reminder worker: role/rule request reminders, peer notification, deduplication |
 | `test_mf_worker.py` | `mf_worker.py` | MF worker lifecycle, advisory locks, training trigger logic |
 | `test_discuss_events.py` | `discuss_events.py` | Redis pub/sub event publishing for discuss forum |
 | `test_notification_events.py` | `notification_events.py` | Redis pub/sub event publishing for notification inbox |

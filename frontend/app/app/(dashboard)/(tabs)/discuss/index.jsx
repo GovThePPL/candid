@@ -1,5 +1,5 @@
 import { useState, useMemo, useContext, useCallback, useRef } from 'react'
-import { View, FlatList, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native'
+import { View, FlatList, ActivityIndicator, StyleSheet, TouchableOpacity, Alert } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter, useFocusEffect } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -9,13 +9,17 @@ import { Spacing } from '../../../../constants/Theme'
 import { UserContext } from '../../../../contexts/UserContext'
 import { useLocationCategory } from '../../../../contexts/LocationCategoryContext'
 import { hasQAAuthority } from '../../../../lib/roles'
+import useModerateChecker from '../../../../hooks/useModerateChecker'
 import usePostsFeed from '../../../../hooks/usePostsFeed'
+import api from '../../../../lib/api'
 import Header from '../../../../components/Header'
 import LocationCategorySelector from '../../../../components/LocationCategorySelector'
 import FeedTabBar from '../../../../components/discuss/FeedTabBar'
 import SortDropdown from '../../../../components/discuss/SortDropdown'
 import PostCard from '../../../../components/discuss/PostCard'
 import DownvoteReasonPicker from '../../../../components/discuss/DownvoteReasonPicker'
+import ReportModal from '../../../../components/ReportModal'
+import ModerationActionModal from '../../../../components/ModerationActionModal'
 import EmptyState from '../../../../components/EmptyState'
 import ThemedText from '../../../../components/ThemedText'
 
@@ -92,16 +96,75 @@ export default function DiscussFeed() {
     }
   }, [downvotePostId, handleDownvote])
 
-  const renderPostCard = useCallback(({ item }) => (
-    <PostCard
-      post={item}
-      onPress={() => handlePostPress(item)}
-      onUpvote={handleUpvote}
-      onDownvote={handlePostDownvote}
-      onToggleRole={handleToggleRole}
-      currentUserId={user?.id}
-    />
-  ), [handlePostPress, handleUpvote, handlePostDownvote, handleToggleRole, user?.id])
+  // Report / moderate state
+  const checkModerateScope = useModerateChecker()
+  const [reportPostId, setReportPostId] = useState(null)
+  const [reportModalVisible, setReportModalVisible] = useState(false)
+  const [moderateTarget, setModerateTarget] = useState(null)
+  const [moderateRule, setModerateRule] = useState(null)
+  const [moderateComment, setModerateComment] = useState(null)
+  const [actionModalVisible, setActionModalVisible] = useState(false)
+
+  const handleReportPost = useCallback((postId) => {
+    setReportPostId(postId)
+    setReportModalVisible(true)
+  }, [])
+
+  const handleReportSubmit = useCallback(async (ruleId, comment) => {
+    await api.moderation.reportPost(reportPostId, ruleId, comment)
+  }, [reportPostId])
+
+  const handleModeratePost = useCallback((postId) => {
+    setModerateTarget({ type: 'post', id: postId })
+    setReportModalVisible(true)
+  }, [])
+
+  const handleModerateRuleSelected = useCallback(async (ruleId, comment, rule) => {
+    setModerateRule(rule)
+    setModerateComment(comment)
+    setReportModalVisible(false)
+    setTimeout(() => setActionModalVisible(true), 300)
+  }, [])
+
+  const handleModerateActionSubmit = useCallback(async (actionData) => {
+    if (!moderateTarget || !moderateRule) return
+    try {
+      await api.moderation.inlineAction({
+        targetType: moderateTarget.type,
+        targetId: moderateTarget.id,
+        ruleId: moderateRule.id,
+        comment: moderateComment,
+        ...actionData,
+      })
+      setActionModalVisible(false)
+      Alert.alert(t('moderationSuccess'))
+      handleRefresh()
+    } catch (err) {
+      if (err?.status === 403) {
+        Alert.alert(t('moderationForbidden'))
+      } else {
+        console.error('Inline moderation failed:', err)
+      }
+      throw err
+    }
+  }, [moderateTarget, moderateRule, moderateComment, t, handleRefresh])
+
+  const renderPostCard = useCallback(({ item }) => {
+    const canMod = checkModerateScope(item.location?.id, item.category?.id)
+    return (
+      <PostCard
+        post={item}
+        onPress={() => handlePostPress(item)}
+        onUpvote={handleUpvote}
+        onDownvote={handlePostDownvote}
+        onToggleRole={handleToggleRole}
+        currentUserId={user?.id}
+        canModerate={canMod}
+        onReport={handleReportPost}
+        onModerate={handleModeratePost}
+      />
+    )
+  }, [handlePostPress, handleUpvote, handlePostDownvote, handleToggleRole, user?.id, checkModerateScope, handleReportPost, handleModeratePost])
 
   const keyExtractor = useCallback((item) => item.id, [])
 
@@ -136,17 +199,11 @@ export default function DiscussFeed() {
   }, [loadingMore, colors.primary, styles.footer])
 
   // Q&A answered filter options
-  const answerFilterOptions = postType === 'question' ? (
-    isQAAuthority
-      ? [
-          { id: null, label: t('filterAll') },
-          { id: 'false', label: t('filterUnanswered') },
-        ]
-      : [
-          { id: null, label: t('filterAll') },
-          { id: 'true', label: t('filterAnswered') },
-        ]
-  ) : null
+  const answerFilterOptions = postType === 'question' ? [
+    { id: null, label: t('filterAll') },
+    { id: 'true', label: t('filterAnswered') },
+    { id: 'false', label: t('filterUnanswered') },
+  ] : null
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -232,6 +289,24 @@ export default function DiscussFeed() {
         visible={downvotePostId != null}
         onClose={() => setDownvotePostId(null)}
         onSelect={handleDownvoteReasonSelect}
+      />
+
+      {/* Report modal (non-moderator report flow, or first step of moderation flow) */}
+      <ReportModal
+        visible={reportModalVisible}
+        onClose={() => { setReportModalVisible(false); setReportPostId(null) }}
+        onSubmit={moderateTarget ? handleModerateRuleSelected : handleReportSubmit}
+        contentType="post"
+        isModerating={!!moderateTarget}
+      />
+
+      {/* Moderation action modal (second step of moderation flow) */}
+      <ModerationActionModal
+        visible={actionModalVisible}
+        onClose={() => { setActionModalVisible(false); setModerateTarget(null); setModerateRule(null); setModerateComment(null) }}
+        onSubmit={handleModerateActionSubmit}
+        reportType={moderateTarget?.type}
+        rule={moderateRule}
       />
     </View>
   )

@@ -30,11 +30,14 @@
   "kudosCount": "{{count}} kudos",
 
   "reportContent": "Report Content",
+  "moderateContent": "Moderate Content",
   "selectRuleViolation": "Select the rule that was violated",
   "reportSubmitted": "Report submitted",
   "addDetails": "Add details (optional)...",
   "additionalDetails": "Additional details",
   "submitReport": "Submit Report",
+  "submitModeration": "Moderate",
+  "moderationSubmitted": "Action submitted",
 
   "reportBugTitle": "Report a Bug",
   "bugSubtitle": "Describe what went wrong",

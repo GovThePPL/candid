@@ -16,7 +16,7 @@ import ThemedText from './ThemedText'
 import BottomDrawerModal from './BottomDrawerModal'
 import api from '../lib/api'
 
-export default function ReportModal({ visible, onClose, onSubmit }) {
+export default function ReportModal({ visible, onClose, onSubmit, contentType, isModerating = false }) {
   const { t } = useTranslation()
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
@@ -40,7 +40,7 @@ export default function ReportModal({ visible, onClose, onSubmit }) {
   const fetchRules = async () => {
     setLoading(true)
     try {
-      const data = await api.moderation.getRules()
+      const data = await api.moderation.getRules(contentType)
       setRules(data || [])
     } catch (err) {
       console.error('Failed to fetch rules:', err)
@@ -53,7 +53,8 @@ export default function ReportModal({ visible, onClose, onSubmit }) {
     if (!selectedRuleId || submitting) return
     setSubmitting(true)
     try {
-      await onSubmit(selectedRuleId, comment || null)
+      const selectedRule = rules.find(r => r.id === selectedRuleId)
+      await onSubmit(selectedRuleId, comment || null, selectedRule)
       setSuccess(true)
       setTimeout(() => {
         onClose()
@@ -69,13 +70,13 @@ export default function ReportModal({ visible, onClose, onSubmit }) {
     <BottomDrawerModal
       visible={visible}
       onClose={onClose}
-      title={t('reportContent')}
+      title={isModerating ? t('moderateContent') : t('reportContent')}
       subtitle={t('selectRuleViolation')}
     >
       {success ? (
         <View style={styles.successContainer}>
           <Ionicons name="checkmark-circle" size={48} color={SemanticColors.success} />
-          <ThemedText variant="h2" style={styles.successText}>{t('reportSubmitted')}</ThemedText>
+          <ThemedText variant="h2" style={styles.successText}>{isModerating ? t('moderationSubmitted') : t('reportSubmitted')}</ThemedText>
         </View>
       ) : loading ? (
         <View style={styles.loadingContainer}>
@@ -129,15 +130,15 @@ export default function ReportModal({ visible, onClose, onSubmit }) {
               disabled={!selectedRuleId || submitting}
               activeOpacity={0.7}
               accessibilityRole="button"
-              accessibilityLabel={t('submitReport')}
+              accessibilityLabel={isModerating ? t('submitModeration') : t('submitReport')}
               accessibilityState={{ disabled: !selectedRuleId || submitting }}
             >
               {submitting ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
                 <>
-                  <Ionicons name="flag" size={18} color="#FFFFFF" />
-                  <ThemedText variant="button" color="inverse">{t('submitReport')}</ThemedText>
+                  <Ionicons name={isModerating ? 'shield-checkmark' : 'flag'} size={18} color="#FFFFFF" />
+                  <ThemedText variant="button" color="inverse">{isModerating ? t('submitModeration') : t('submitReport')}</ThemedText>
                 </>
               )}
             </TouchableOpacity>

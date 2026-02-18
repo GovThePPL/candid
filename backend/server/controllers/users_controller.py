@@ -211,6 +211,7 @@ def get_current_user(token_info=None):  # noqa: E501
             "locationId": r["location_id"],
             "positionCategoryId": r["position_category_id"],
             "locationName": r.get("location_name"),
+            "locationCode": r.get("location_code"),
             "categoryLabel": r.get("category_label"),
         }
         for r in roles
@@ -505,34 +506,59 @@ def get_user_by_id(user_id, token_info=None):  # noqa: E501
 
     :param user_id: ID of the user to retrieve
     :type user_id: str
-    :type user_id: str
 
     :rtype: Union[User, Tuple[User, int], Tuple[User, int, Dict[str, str]]
     """
     authorized, auth_err = authorization("normal", token_info)
     if not authorized:
         return auth_err, auth_err.code
-    user = token_to_user(token_info)
 
     ret = db.execute_query("""
         SELECT
-            display_name,
-            id,
-            status,
-            trust_score,
-            username
-        FROM users
-        WHERE id = %s
+            u.display_name,
+            u.id,
+            u.status,
+            u.trust_score,
+            u.username,
+            u.avatar_url,
+            u.avatar_icon_url,
+            COALESCE((
+                SELECT COUNT(*) FROM kudos k
+                WHERE k.receiver_user_id = u.id AND k.status = 'sent'
+            ), 0) as kudos_count
+        FROM users u
+        WHERE u.id = %s
         """,
     (user_id,), fetchone=True)
 
-    return User(
+    if ret is None:
+        return ErrorModel(404, "User not found"), 404
+
+    roles = get_user_roles(user_id)
+    role_list = [
+        {
+            "role": r["role"],
+            "locationId": r["location_id"],
+            "positionCategoryId": r["position_category_id"],
+            "locationName": r.get("location_name"),
+            "locationCode": r.get("location_code"),
+            "categoryLabel": r.get("category_label"),
+        }
+        for r in roles
+    ]
+
+    result = User(
         id=str(ret['id']),
         username=ret['username'],
         display_name=ret['display_name'],
         status=ret['status'],
         trust_score=float(ret['trust_score']) if ret.get('trust_score') is not None else None,
+        avatar_url=ret['avatar_url'],
+        avatar_icon_url=ret['avatar_icon_url'],
+        kudos_count=int(ret['kudos_count']),
     )
+    result.roles = role_list
+    return result
 
 
 def get_user_demographics(token_info=None):  # noqa: E501
@@ -878,7 +904,7 @@ def update_user_settings(body, token_info=None):  # noqa: E501
         params.append(bool(raw['showRoleBadge']))
 
     # Per-type notification preferences
-    VALID_NOTIF_TYPES = ('comment_reply', 'post_comment', 'chat_request', 'role_change', 'moderation')
+    VALID_NOTIF_TYPES = ('comment_reply', 'post_comment', 'chat_request', 'role_change', 'rule_change', 'admin_action', 'moderation')
     if 'notificationTypePrefs' in raw and isinstance(raw['notificationTypePrefs'], dict):
         for notif_type, enabled in raw['notificationTypePrefs'].items():
             if notif_type in VALID_NOTIF_TYPES:
@@ -1190,6 +1216,136 @@ def get_user_activity(type_=None, cursor=None, limit=None, token_info=None):  # 
     limit = max(1, min(limit, 50))
 
     # Build UNION query
+    parts = []
+    params = []
+
+    cursor_vals = None
+    if cursor:
+        cursor_vals = _decode_activity_cursor(cursor)
+
+    if activity_type in ("all", "posts"):
+        cursor_clause = ""
+        if cursor_vals:
+            cursor_clause = "AND (p.created_time < %s OR (p.created_time = %s AND p.id::text < %s))"
+            params_post = [user_id, cursor_vals[0], cursor_vals[0], cursor_vals[1]]
+        else:
+            params_post = [user_id]
+
+        parts.append(f"""
+            SELECT p.id, 'post' AS type, p.title, p.body,
+                   p.id AS post_id, p.title AS post_title,
+                   pc.label AS post_category_label,
+                   pl.code AS post_location_code,
+                   p.upvote_count, p.downvote_count, p.score,
+                   p.comment_count, p.created_time, p.status
+            FROM post p
+            LEFT JOIN position_category pc ON pc.id = p.category_id
+            LEFT JOIN location pl ON pl.id = p.location_id
+            WHERE p.creator_user_id = %s
+              AND p.status != 'removed'
+              {cursor_clause}
+        """)
+        params.extend(params_post)
+
+    if activity_type in ("all", "comments"):
+        cursor_clause = ""
+        if cursor_vals:
+            cursor_clause = "AND (c.created_time < %s OR (c.created_time = %s AND c.id::text < %s))"
+            params_comment = [user_id, cursor_vals[0], cursor_vals[0], cursor_vals[1]]
+        else:
+            params_comment = [user_id]
+
+        parts.append(f"""
+            SELECT c.id, 'comment' AS type, NULL AS title, c.body,
+                   c.post_id, pt.title AS post_title,
+                   pc.label AS post_category_label,
+                   pl.code AS post_location_code,
+                   c.upvote_count, c.downvote_count, c.score,
+                   NULL AS comment_count, c.created_time, c.status
+            FROM comment c
+            LEFT JOIN post pt ON pt.id = c.post_id
+            LEFT JOIN position_category pc ON pc.id = pt.category_id
+            LEFT JOIN location pl ON pl.id = pt.location_id
+            WHERE c.creator_user_id = %s
+              AND c.status != 'removed'
+              {cursor_clause}
+        """)
+        params.extend(params_comment)
+
+    if not parts:
+        return {"items": [], "nextCursor": None, "hasMore": False}
+
+    union_query = " UNION ALL ".join(parts)
+    full_query = f"""
+        SELECT * FROM ({union_query}) AS activity
+        ORDER BY created_time DESC, id DESC
+        LIMIT %s
+    """
+    params.append(limit + 1)
+
+    rows = db.execute_query(full_query, tuple(params))
+    if rows is None:
+        rows = []
+
+    has_more = len(rows) > limit
+    if has_more:
+        rows = rows[:limit]
+
+    items = []
+    for row in rows:
+        item = {
+            "id": str(row["id"]),
+            "type": row["type"],
+            "title": row["title"],
+            "body": row["body"][:200] if row["body"] else "",
+            "postId": str(row["post_id"]) if row["post_id"] else None,
+            "postTitle": row["post_title"],
+            "postCategoryLabel": row["post_category_label"],
+            "postLocationCode": row["post_location_code"],
+            "upvoteCount": row["upvote_count"] or 0,
+            "downvoteCount": row["downvote_count"] or 0,
+            "score": float(row["score"] or 0),
+            "commentCount": row["comment_count"],
+            "createdTime": row["created_time"].isoformat() if row["created_time"] else None,
+            "status": row["status"],
+        }
+        items.append(item)
+
+    next_cursor = None
+    if has_more and rows:
+        last = rows[-1]
+        next_cursor = _encode_activity_cursor(
+            last["created_time"].isoformat(), str(last["id"])
+        )
+
+    return {"items": items, "nextCursor": next_cursor, "hasMore": has_more}
+
+
+def get_user_activity_by_id(user_id, type_=None, cursor=None, limit=None, token_info=None):  # noqa: E501
+    """Get a user's recent posts and comments by user ID.
+
+    :param user_id: ID of the user whose activity to retrieve
+    :param type_: Filter by activity type (posts, comments, all)
+    :param cursor: Pagination cursor
+    :param limit: Number of items per page
+    :param token_info: JWT token info
+    :rtype: Union[dict, Tuple[dict, int]]
+    """
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    # Verify user exists
+    user_row = db.execute_query(
+        "SELECT id FROM users WHERE id = %s", (user_id,), fetchone=True)
+    if user_row is None:
+        return ErrorModel(404, "User not found"), 404
+
+    activity_type = type_ or "all"
+    if limit is None:
+        limit = 20
+    limit = max(1, min(limit, 50))
+
     parts = []
     params = []
 

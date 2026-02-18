@@ -1,4 +1,4 @@
-import { StyleSheet, View, TouchableOpacity, RefreshControl } from 'react-native'
+import { StyleSheet, View, TouchableOpacity, RefreshControl, Alert } from 'react-native'
 import { useCallback, useState, useContext, useMemo } from 'react'
 import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
@@ -14,8 +14,10 @@ import CardShell from '../components/CardShell'
 import PositionInfoCard from '../components/PositionInfoCard'
 import { SkeletonPulse, SkeletonBox, SkeletonCircle, SkeletonLine } from '../components/Skeleton'
 import { UserContext } from '../contexts/UserContext'
+import useModerateChecker from '../hooks/useModerateChecker'
 import api from '../lib/api'
 import ReportModal from '../components/ReportModal'
+import ModerationActionModal from '../components/ModerationActionModal'
 import KudosMedallion from '../components/KudosMedallion'
 import StickyHeaderFlatList from '../components/StickyHeaderFlatList'
 
@@ -69,7 +71,7 @@ function MetaBadgeIcon({ endTypeInfo }) {
   return <Ionicons name={endTypeInfo.icon} size={14} color={endTypeInfo.color} />
 }
 
-function ChatHistoryCard({ chat, onPress, onSendKudos, onReport, currentUserId, colors, styles }) {
+function ChatHistoryCard({ chat, onPress, onSendKudos, onReport, onModerate, canModerate, currentUserId, colors, styles }) {
   const { t } = useTranslation('chat')
   const { position, otherUser, agreedClosure, startTime, endTime, endType, status, endedByUserId, kudosSent, kudosReceived } = chat
   const endTypeInfo = getEndTypeLabel(endType, endedByUserId, currentUserId, colors, t)
@@ -134,17 +136,31 @@ function ChatHistoryCard({ chat, onPress, onSendKudos, onReport, currentUserId, 
             <MetaBadgeIcon endTypeInfo={endTypeInfo} />
             <ThemedText variant="badgeLg" style={{ color: endTypeInfo.color }}>{endTypeInfo.label}</ThemedText>
           </View>
-          {!isActive && onReport && (
-            <TouchableOpacity
-              onPress={() => onReport(chat.id)}
-              style={styles.reportIconButton}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              accessibilityRole="button"
-              accessibilityLabel={t('reportChatA11y')}
-            >
-              <Ionicons name="flag-outline" size={16} color={colors.secondaryText} />
-            </TouchableOpacity>
-          )}
+          {!isActive && (canModerate ? (
+            onModerate && (
+              <TouchableOpacity
+                onPress={() => onModerate(chat.id)}
+                style={styles.reportIconButton}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel={t('moderateChatA11y')}
+              >
+                <Ionicons name="shield-outline" size={16} color={colors.secondaryText} />
+              </TouchableOpacity>
+            )
+          ) : (
+            onReport && (
+              <TouchableOpacity
+                onPress={() => onReport(chat.id)}
+                style={styles.reportIconButton}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel={t('reportChatA11y')}
+              >
+                <Ionicons name="flag-outline" size={16} color={colors.secondaryText} />
+              </TouchableOpacity>
+            )
+          ))}
         </View>
       </View>
 
@@ -215,6 +231,13 @@ export default function ChatHistoryContent({ showHeader = true, onScroll, listHe
   const [reportModalVisible, setReportModalVisible] = useState(false)
   const [reportChatId, setReportChatId] = useState(null)
 
+  // Moderation state
+  const checkModerateScope = useModerateChecker()
+  const [moderateTarget, setModerateTarget] = useState(null)
+  const [moderateRule, setModerateRule] = useState(null)
+  const [moderateComment, setModerateComment] = useState(null)
+  const [actionModalVisible, setActionModalVisible] = useState(false)
+
   const handleChatPress = useCallback((chat) => {
     router.push(`/chat/${chat.id}?mode=history`)
   }, [router])
@@ -235,17 +258,57 @@ export default function ChatHistoryContent({ showHeader = true, onScroll, listHe
     }
   }, [reportChatId, showToast, t])
 
-  const renderChatItem = useCallback(({ item }) => (
-    <ChatHistoryCard
-      chat={item}
-      onPress={() => handleChatPress(item)}
-      onSendKudos={handleSendKudos}
-      onReport={handleReportChat}
-      currentUserId={user?.id}
-      colors={colors}
-      styles={styles}
-    />
-  ), [handleChatPress, handleSendKudos, handleReportChat, user?.id, colors, styles])
+  const handleModerateChat = useCallback((chatId) => {
+    setModerateTarget({ type: 'chat_log', id: chatId })
+    setReportModalVisible(true)
+  }, [])
+
+  const handleModerateRuleSelected = useCallback(async (ruleId, comment, rule) => {
+    setModerateRule(rule)
+    setModerateComment(comment)
+    setReportModalVisible(false)
+    setTimeout(() => setActionModalVisible(true), 300)
+  }, [])
+
+  const handleModerateActionSubmit = useCallback(async (actionData) => {
+    if (!moderateTarget || !moderateRule) return
+    try {
+      await api.moderation.inlineAction({
+        targetType: moderateTarget.type,
+        targetId: moderateTarget.id,
+        ruleId: moderateRule.id,
+        comment: moderateComment,
+        ...actionData,
+      })
+      setActionModalVisible(false)
+      Alert.alert(t('discuss:moderationSuccess'))
+      handleRefresh()
+    } catch (err) {
+      if (err?.status === 403) {
+        Alert.alert(t('discuss:moderationForbidden'))
+      } else {
+        console.error('Inline moderation failed:', err)
+      }
+      throw err
+    }
+  }, [moderateTarget, moderateRule, moderateComment, t, handleRefresh])
+
+  const renderChatItem = useCallback(({ item }) => {
+    const canMod = checkModerateScope(item.position?.location?.id, item.position?.category?.id)
+    return (
+      <ChatHistoryCard
+        chat={item}
+        onPress={() => handleChatPress(item)}
+        onSendKudos={handleSendKudos}
+        onReport={handleReportChat}
+        onModerate={handleModerateChat}
+        canModerate={canMod}
+        currentUserId={user?.id}
+        colors={colors}
+        styles={styles}
+      />
+    )
+  }, [handleChatPress, handleSendKudos, handleReportChat, handleModerateChat, checkModerateScope, user?.id, colors, styles])
 
   const keyExtractor = useCallback((item) => item.id, [])
 
@@ -307,8 +370,18 @@ export default function ChatHistoryContent({ showHeader = true, onScroll, listHe
 
       <ReportModal
         visible={reportModalVisible}
-        onClose={() => setReportModalVisible(false)}
-        onSubmit={handleSubmitChatReport}
+        onClose={() => { setReportModalVisible(false); setReportChatId(null) }}
+        onSubmit={moderateTarget ? handleModerateRuleSelected : handleSubmitChatReport}
+        contentType="chat_log"
+        isModerating={!!moderateTarget}
+      />
+
+      <ModerationActionModal
+        visible={actionModalVisible}
+        onClose={() => { setActionModalVisible(false); setModerateTarget(null); setModerateRule(null); setModerateComment(null) }}
+        onSubmit={handleModerateActionSubmit}
+        reportType={moderateTarget?.type}
+        rule={moderateRule}
       />
     </View>
   )

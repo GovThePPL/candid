@@ -105,11 +105,11 @@ describe('PostCard', () => {
     expect(screen.queryByText('bridgingBadge')).toBeNull()
   })
 
-  it('shows answered badge for answered Q&A posts', () => {
+  it('shows answered icon for answered Q&A posts', () => {
     const post = { ...basePost, isAnswered: true }
     render(<PostCard {...defaultProps} post={post} />)
     expect(screen.getByText('checkmark-circle')).toBeTruthy()
-    expect(screen.getByText('answered')).toBeTruthy()
+    expect(screen.getByLabelText('answered')).toBeTruthy()
   })
 
   it('does not show answered badge when isAnswered is false', () => {
@@ -269,5 +269,37 @@ describe('PostCard', () => {
     render(<PostCard {...defaultProps} onPress={onPress} />)
     fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
     expect(onPress).not.toHaveBeenCalled()
+  })
+
+  // Moderate vs Report tests
+  it('shows Moderate option when canModerate is true', () => {
+    render(<PostCard {...defaultProps} canModerate={true} onModerate={jest.fn()} />)
+    fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
+    expect(screen.getByText('moderate')).toBeTruthy()
+    expect(screen.getByLabelText('moderatePostA11y TestUser')).toBeTruthy()
+    expect(screen.queryByText('report')).toBeNull()
+  })
+
+  it('shows Report option when canModerate is false', () => {
+    render(<PostCard {...defaultProps} canModerate={false} />)
+    fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
+    expect(screen.getByText('report')).toBeTruthy()
+    expect(screen.queryByText('moderate')).toBeNull()
+  })
+
+  it('calls onModerate with post id when moderate button tapped', () => {
+    const onModerate = jest.fn()
+    render(<PostCard {...defaultProps} canModerate={true} onModerate={onModerate} />)
+    fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
+    fireEvent.press(screen.getByLabelText('moderatePostA11y TestUser'))
+    expect(onModerate).toHaveBeenCalledWith('p1')
+  })
+
+  it('calls onReport with post id when report button tapped', () => {
+    const onReport = jest.fn()
+    render(<PostCard {...defaultProps} canModerate={false} onReport={onReport} />)
+    fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
+    fireEvent.press(screen.getByLabelText('reportPostA11y TestUser'))
+    expect(onReport).toHaveBeenCalledWith('p1')
   })
 })

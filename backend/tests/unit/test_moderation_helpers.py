@@ -83,6 +83,50 @@ class TestGetReportedUserRole:
             from candid.controllers.moderation_controller import _get_reported_user_role
             assert _get_reported_user_role("unknown", "id-1") == "normal"
 
+    def test_post_creator_is_moderator(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            {"creator_user_id": MOD_USER},  # post lookup
+            {"role": "moderator"},           # user_role lookup
+        ])
+
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.moderation_controller import _get_reported_user_role
+            assert _get_reported_user_role("post", "post-1") == "moderator"
+
+    def test_post_creator_is_normal(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            {"creator_user_id": NORMAL_USER},
+            None,  # no privileged role
+        ])
+
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.moderation_controller import _get_reported_user_role
+            assert _get_reported_user_role("post", "post-1") == "normal"
+
+    def test_comment_author_is_facilitator(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            {"creator_user_id": FACILITATOR_USER},  # comment lookup
+            {"role": "facilitator"},         # user_role lookup
+        ])
+
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.moderation_controller import _get_reported_user_role
+            assert _get_reported_user_role("comment", "comment-1") == "facilitator"
+
+    def test_comment_author_is_normal(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            {"creator_user_id": NORMAL_USER},
+            None,
+        ])
+
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.moderation_controller import _get_reported_user_role
+            assert _get_reported_user_role("comment", "comment-1") == "normal"
+
 
 # ---------------------------------------------------------------------------
 # _get_content_scope  (extracted to helpers/moderation.py)
@@ -137,6 +181,86 @@ class TestGetContentScope:
             loc, cat = _get_content_scope(REPORT_ID)
             assert loc == PORTLAND
             assert cat == HEALTHCARE_CAT
+
+    def test_post_report_returns_scope(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            {"target_object_type": "post", "target_object_id": "post-1"},
+            {"location_id": OREGON, "category_id": HEALTHCARE_CAT},
+        ])
+
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.moderation_controller import _get_content_scope
+            loc, cat = _get_content_scope(REPORT_ID)
+            assert loc == OREGON
+            assert cat == HEALTHCARE_CAT
+
+    def test_comment_report_derives_from_parent_post(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            {"target_object_type": "comment", "target_object_id": "comment-1"},
+            {"location_id": PORTLAND, "category_id": HEALTHCARE_CAT},
+        ])
+
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.moderation_controller import _get_content_scope
+            loc, cat = _get_content_scope(REPORT_ID)
+            assert loc == PORTLAND
+            assert cat == HEALTHCARE_CAT
+
+
+# ---------------------------------------------------------------------------
+# _get_content_scope_direct  (extracted to helpers/moderation.py)
+# ---------------------------------------------------------------------------
+
+class TestGetContentScopeDirect:
+    def test_position_direct_scope(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value={"location_id": OREGON, "category_id": HEALTHCARE_CAT})
+
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.moderation_controller import _get_content_scope_direct
+            loc, cat = _get_content_scope_direct("position", POSITION_ID)
+            assert loc == OREGON
+            assert cat == HEALTHCARE_CAT
+
+    def test_post_direct_scope(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value={"location_id": PORTLAND, "category_id": HEALTHCARE_CAT})
+
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.moderation_controller import _get_content_scope_direct
+            loc, cat = _get_content_scope_direct("post", "post-1")
+            assert loc == PORTLAND
+            assert cat == HEALTHCARE_CAT
+
+    def test_comment_direct_scope_derives_from_post(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value={"location_id": OREGON, "category_id": HEALTHCARE_CAT})
+
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.moderation_controller import _get_content_scope_direct
+            loc, cat = _get_content_scope_direct("comment", "comment-1")
+            assert loc == OREGON
+            assert cat == HEALTHCARE_CAT
+
+    def test_unknown_type_returns_none(self):
+        mock_db = MagicMock()
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.moderation_controller import _get_content_scope_direct
+            loc, cat = _get_content_scope_direct("unknown", "id-1")
+            assert loc is None
+            assert cat is None
+
+    def test_missing_record_returns_none(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=None)
+
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.moderation_controller import _get_content_scope_direct
+            loc, cat = _get_content_scope_direct("post", "nonexistent")
+            assert loc is None
+            assert cat is None
 
 
 # ---------------------------------------------------------------------------
@@ -467,3 +591,581 @@ class TestShouldShowAppealToReviewer:
         appeal_data = {"originalAction": {"responder": {"id": MOD_USER}}}
         assert _should_show_appeal_to_reviewer(
             appeal_data, PEER_MOD_USER, {}) is True
+
+
+# ---------------------------------------------------------------------------
+# get_target_content  (helpers/moderation.py)
+# ---------------------------------------------------------------------------
+
+POST_ID = "ddd00000-0000-0000-0000-000000000010"
+COMMENT_ID = "ddd00000-0000-0000-0000-000000000011"
+
+FAKE_USER_INFO = {
+    'id': str(NORMAL_USER),
+    'username': 'testuser',
+    'displayName': 'Test User',
+    'status': 'active',
+    'kudosCount': 0,
+    'trustScore': None,
+    'avatarUrl': None,
+    'avatarIconUrl': None,
+}
+
+
+class TestGetTargetContent:
+    def test_post_returns_id_status_and_content(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            {
+                'id': POST_ID,
+                'title': 'Test Post',
+                'body': 'Post body text',
+                'status': 'active',
+                'creator_user_id': NORMAL_USER,
+                'category_id': HEALTHCARE_CAT,
+                'category_label': 'Healthcare',
+                'location_id': OREGON,
+                'location_name': 'Oregon',
+                'location_code': 'OR',
+            },
+            # get_user_info query
+            {
+                'id': NORMAL_USER, 'username': 'testuser',
+                'display_name': 'Test User', 'status': 'active',
+                'trust_score': None, 'kudos_count': 0,
+                'avatar_url': None, 'avatar_icon_url': None,
+            },
+        ])
+
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.moderation import get_target_content
+            result = get_target_content('post', POST_ID)
+            assert result is not None
+            assert result['type'] == 'post'
+            assert result['id'] == str(POST_ID)
+            assert result['status'] == 'active'
+            assert result['title'] == 'Test Post'
+            assert result['body'] == 'Post body text'
+            assert result['category']['label'] == 'Healthcare'
+            assert result['location']['code'] == 'OR'
+            assert result['creator'] is not None
+
+    def test_comment_returns_post_id_and_status(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            {
+                'id': COMMENT_ID,
+                'body': 'Comment body',
+                'status': 'removed',
+                'creator_user_id': NORMAL_USER,
+                'post_id': POST_ID,
+                'post_title': 'Parent Post',
+            },
+            # get_user_info query
+            {
+                'id': NORMAL_USER, 'username': 'testuser',
+                'display_name': 'Test User', 'status': 'active',
+                'trust_score': None, 'kudos_count': 0,
+                'avatar_url': None, 'avatar_icon_url': None,
+            },
+        ])
+
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.moderation import get_target_content
+            result = get_target_content('comment', COMMENT_ID)
+            assert result is not None
+            assert result['type'] == 'comment'
+            assert result['id'] == str(COMMENT_ID)
+            assert result['status'] == 'removed'
+            assert result['postId'] == str(POST_ID)
+            assert result['postTitle'] == 'Parent Post'
+            assert result['body'] == 'Comment body'
+            assert result['creator'] is not None
+
+    def test_position_unchanged(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            {
+                'id': POSITION_ID,
+                'statement': 'Test position',
+                'creator_user_id': NORMAL_USER,
+                'category_id': HEALTHCARE_CAT,
+                'category_label': 'Healthcare',
+                'location_id': OREGON,
+                'location_name': 'Oregon',
+                'location_code': 'OR',
+            },
+            # get_user_info query
+            {
+                'id': NORMAL_USER, 'username': 'testuser',
+                'display_name': 'Test User', 'status': 'active',
+                'trust_score': None, 'kudos_count': 0,
+                'avatar_url': None, 'avatar_icon_url': None,
+            },
+        ])
+
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.moderation import get_target_content
+            result = get_target_content('position', POSITION_ID)
+            assert result is not None
+            assert result['type'] == 'position'
+            assert result['statement'] == 'Test position'
+            assert result['category']['label'] == 'Healthcare'
+            assert result['location']['code'] == 'OR'
+
+    def test_unknown_type_returns_none(self):
+        mock_db = MagicMock()
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.moderation import get_target_content
+            result = get_target_content('unknown', 'some-id')
+            assert result is None
+
+
+# ---------------------------------------------------------------------------
+# get_reported_user_ids  (helpers/moderation.py)
+# ---------------------------------------------------------------------------
+
+CHAT_LOG_ID = "ccc00000-0000-0000-0000-000000000010"
+INITIATOR_USER = "eee00000-0000-0000-0000-000000000010"
+HOLDER_USER = "eee00000-0000-0000-0000-000000000011"
+CREATOR_USER = "eee00000-0000-0000-0000-000000000012"
+
+
+class TestGetReportedUserIds:
+    def test_position_returns_creator(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value={
+            "creator_user_id": CREATOR_USER
+        })
+
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.moderation import get_reported_user_ids
+            result = get_reported_user_ids("position", POSITION_ID)
+            assert result == [str(CREATOR_USER)]
+
+    def test_position_missing_returns_empty(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=None)
+
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.moderation import get_reported_user_ids
+            result = get_reported_user_ids("position", "nonexistent")
+            assert result == []
+
+    def test_chat_log_returns_both_participants(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value={
+            "initiator_user_id": INITIATOR_USER,
+            "position_holder_user_id": HOLDER_USER,
+        })
+
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.moderation import get_reported_user_ids
+            result = get_reported_user_ids("chat_log", CHAT_LOG_ID)
+            assert result == [str(INITIATOR_USER), str(HOLDER_USER)]
+
+    def test_chat_log_missing_returns_empty(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=None)
+
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.moderation import get_reported_user_ids
+            result = get_reported_user_ids("chat_log", "nonexistent")
+            assert result == []
+
+    def test_post_returns_author(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value={
+            "creator_user_id": CREATOR_USER
+        })
+
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.moderation import get_reported_user_ids
+            result = get_reported_user_ids("post", POST_ID)
+            assert result == [str(CREATOR_USER)]
+
+    def test_comment_returns_author(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value={
+            "creator_user_id": CREATOR_USER
+        })
+
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.moderation import get_reported_user_ids
+            result = get_reported_user_ids("comment", COMMENT_ID)
+            assert result == [str(CREATOR_USER)]
+
+    def test_unknown_type_returns_empty(self):
+        mock_db = MagicMock()
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.moderation import get_reported_user_ids
+            result = get_reported_user_ids("unknown", "some-id")
+            assert result == []
+
+    def test_position_null_creator_returns_empty(self):
+        """Position exists but creator_user_id is null."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value={
+            "creator_user_id": None
+        })
+
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.moderation import get_reported_user_ids
+            result = get_reported_user_ids("position", POSITION_ID)
+            assert result == []
+
+
+# ---------------------------------------------------------------------------
+# reverse_mod_action  (helpers/moderation.py)
+# ---------------------------------------------------------------------------
+
+class TestReverseModAction:
+    def test_reverses_permanent_ban(self):
+        """Permanent ban reversal sets user status back to 'active'."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            # Initial query fetching action targets
+            [{
+                "action": "permanent_ban",
+                "user_id": NORMAL_USER,
+                "class": "submitter",
+                "target_object_type": "position",
+                "target_object_id": POSITION_ID,
+            }],
+            # UPDATE users SET status = 'active'
+            None,
+        ])
+
+        with patch(f"{MOD_HELPERS}.db", mock_db), \
+             patch(f"{MOD_HELPERS}.invalidate_ban_cache") as mock_invalidate:
+            from candid.controllers.helpers.moderation import reverse_mod_action
+            reverse_mod_action(MOD_ACTION_ID)
+
+            # Verify the ban was reversed (UPDATE users)
+            calls = mock_db.execute_query.call_args_list
+            assert len(calls) == 2
+            update_call = calls[1]
+            assert "UPDATE users SET status = 'active'" in update_call[0][0]
+            assert update_call[0][1] == (NORMAL_USER,)
+
+            # Verify ban cache was invalidated
+            mock_invalidate.assert_called_once_with(NORMAL_USER)
+
+    def test_reverses_temporary_ban(self):
+        """Temporary ban reversal also sets user status back to 'active'."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            [{
+                "action": "temporary_ban",
+                "user_id": MOD_USER,
+                "class": "reporter",
+                "target_object_type": "post",
+                "target_object_id": POST_ID,
+            }],
+            None,  # UPDATE users
+        ])
+
+        with patch(f"{MOD_HELPERS}.db", mock_db), \
+             patch(f"{MOD_HELPERS}.invalidate_ban_cache") as mock_invalidate:
+            from candid.controllers.helpers.moderation import reverse_mod_action
+            reverse_mod_action(MOD_ACTION_ID)
+
+            calls = mock_db.execute_query.call_args_list
+            assert len(calls) == 2
+            update_call = calls[1]
+            assert "UPDATE users SET status = 'active'" in update_call[0][0]
+            assert update_call[0][1] == (MOD_USER,)
+            mock_invalidate.assert_called_once_with(MOD_USER)
+
+    def test_reverses_position_removal(self):
+        """Content removal for position restores position and user_position."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            [{
+                "action": "removed",
+                "user_id": NORMAL_USER,
+                "class": "submitter",
+                "target_object_type": "position",
+                "target_object_id": POSITION_ID,
+            }],
+            None,  # UPDATE position SET status = 'active'
+            None,  # UPDATE user_position SET status = 'active'
+        ])
+
+        with patch(f"{MOD_HELPERS}.db", mock_db), \
+             patch(f"{MOD_HELPERS}.invalidate_ban_cache"):
+            from candid.controllers.helpers.moderation import reverse_mod_action
+            reverse_mod_action(MOD_ACTION_ID)
+
+            calls = mock_db.execute_query.call_args_list
+            assert len(calls) == 3
+            # First UPDATE: position
+            assert "UPDATE position SET status = 'active'" in calls[1][0][0]
+            assert calls[1][0][1] == (POSITION_ID,)
+            # Second UPDATE: user_position
+            assert "UPDATE user_position SET status = 'active'" in calls[2][0][0]
+            assert calls[2][0][1] == (POSITION_ID,)
+
+    def test_reverses_post_removal(self):
+        """Content removal for post restores post status."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            [{
+                "action": "removed",
+                "user_id": NORMAL_USER,
+                "class": "submitter",
+                "target_object_type": "post",
+                "target_object_id": POST_ID,
+            }],
+            None,  # UPDATE post SET status = 'active'
+        ])
+
+        with patch(f"{MOD_HELPERS}.db", mock_db), \
+             patch(f"{MOD_HELPERS}.invalidate_ban_cache"):
+            from candid.controllers.helpers.moderation import reverse_mod_action
+            reverse_mod_action(MOD_ACTION_ID)
+
+            calls = mock_db.execute_query.call_args_list
+            assert len(calls) == 2
+            assert "UPDATE post SET status = 'active'" in calls[1][0][0]
+            assert calls[1][0][1] == (POST_ID,)
+
+    def test_reverses_comment_removal(self):
+        """Content removal for comment restores comment status."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            [{
+                "action": "removed",
+                "user_id": NORMAL_USER,
+                "class": "submitter",
+                "target_object_type": "comment",
+                "target_object_id": COMMENT_ID,
+            }],
+            None,  # UPDATE comment SET status = 'active'
+        ])
+
+        with patch(f"{MOD_HELPERS}.db", mock_db), \
+             patch(f"{MOD_HELPERS}.invalidate_ban_cache"):
+            from candid.controllers.helpers.moderation import reverse_mod_action
+            reverse_mod_action(MOD_ACTION_ID)
+
+            calls = mock_db.execute_query.call_args_list
+            assert len(calls) == 2
+            assert "UPDATE comment SET status = 'active'" in calls[1][0][0]
+            assert calls[1][0][1] == (COMMENT_ID,)
+
+    def test_no_targets_does_nothing(self):
+        """When no action targets are found, nothing is updated."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=None)
+
+        with patch(f"{MOD_HELPERS}.db", mock_db), \
+             patch(f"{MOD_HELPERS}.invalidate_ban_cache") as mock_invalidate:
+            from candid.controllers.helpers.moderation import reverse_mod_action
+            reverse_mod_action(MOD_ACTION_ID)
+
+            # Only the initial SELECT query should have been called
+            assert mock_db.execute_query.call_count == 1
+            mock_invalidate.assert_not_called()
+
+    def test_reverses_ban_and_removal_together(self):
+        """Multiple action classes are reversed independently."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            [
+                {
+                    "action": "permanent_ban",
+                    "user_id": NORMAL_USER,
+                    "class": "submitter",
+                    "target_object_type": "post",
+                    "target_object_id": POST_ID,
+                },
+                {
+                    "action": "removed",
+                    "user_id": NORMAL_USER,
+                    "class": "submitter",
+                    "target_object_type": "post",
+                    "target_object_id": POST_ID,
+                },
+            ],
+            None,  # UPDATE users (ban reversal)
+            None,  # UPDATE post (content removal reversal)
+        ])
+
+        with patch(f"{MOD_HELPERS}.db", mock_db), \
+             patch(f"{MOD_HELPERS}.invalidate_ban_cache") as mock_invalidate:
+            from candid.controllers.helpers.moderation import reverse_mod_action
+            reverse_mod_action(MOD_ACTION_ID)
+
+            calls = mock_db.execute_query.call_args_list
+            assert len(calls) == 3
+            assert "UPDATE users SET status = 'active'" in calls[1][0][0]
+            assert "UPDATE post SET status = 'active'" in calls[2][0][0]
+            mock_invalidate.assert_called_once_with(NORMAL_USER)
+
+
+# ---------------------------------------------------------------------------
+# get_target_users  (helpers/moderation.py)
+# ---------------------------------------------------------------------------
+
+class TestGetTargetUsers:
+    # --- submitter class ---
+
+    def test_submitter_position_returns_creator(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value={
+            "creator_user_id": CREATOR_USER
+        })
+
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.moderation import get_target_users
+            result = get_target_users("submitter", "position", POSITION_ID)
+            assert result == [str(CREATOR_USER)]
+
+    def test_submitter_post_returns_author(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value={
+            "creator_user_id": CREATOR_USER
+        })
+
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.moderation import get_target_users
+            result = get_target_users("submitter", "post", POST_ID)
+            assert result == [str(CREATOR_USER)]
+
+    def test_submitter_comment_returns_author(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value={
+            "creator_user_id": CREATOR_USER
+        })
+
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.moderation import get_target_users
+            result = get_target_users("submitter", "comment", COMMENT_ID)
+            assert result == [str(CREATOR_USER)]
+
+    def test_submitter_chat_log_returns_both_participants(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value={
+            "initiator_user_id": INITIATOR_USER,
+            "position_holder_user_id": HOLDER_USER,
+        })
+
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.moderation import get_target_users
+            result = get_target_users("submitter", "chat_log", CHAT_LOG_ID)
+            assert result == [str(INITIATOR_USER), str(HOLDER_USER)]
+
+    # --- active_adopter / passive_adopter classes ---
+
+    def test_active_adopter_position_returns_active_user_positions(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=[
+            {"user_id": NORMAL_USER},
+            {"user_id": CREATOR_USER},
+        ])
+
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.moderation import get_target_users
+            result = get_target_users("active_adopter", "position", POSITION_ID)
+            assert str(NORMAL_USER) in result
+            assert str(CREATOR_USER) in result
+            assert len(result) == 2
+
+    def test_passive_adopter_position_returns_non_active_user_positions(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=[
+            {"user_id": HOLDER_USER},
+        ])
+
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.moderation import get_target_users
+            result = get_target_users("passive_adopter", "position", POSITION_ID)
+            assert result == [str(HOLDER_USER)]
+
+    def test_active_adopter_chat_log_returns_empty(self):
+        """Chat logs don't have adopters."""
+        mock_db = MagicMock()
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.moderation import get_target_users
+            result = get_target_users("active_adopter", "chat_log", CHAT_LOG_ID)
+            assert result == []
+
+    # --- reporter class ---
+
+    def test_reporter_returns_report_submitter(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value={
+            "submitter_user_id": NORMAL_USER
+        })
+
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.moderation import get_target_users
+            result = get_target_users("reporter", "position", POSITION_ID, report_id=REPORT_ID)
+            assert result == [str(NORMAL_USER)]
+
+    def test_reporter_without_report_id_returns_empty(self):
+        mock_db = MagicMock()
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.moderation import get_target_users
+            result = get_target_users("reporter", "position", POSITION_ID)
+            assert result == []
+
+    # --- reported class ---
+
+    def test_reported_position_returns_creator(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value={
+            "creator_user_id": CREATOR_USER
+        })
+
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.moderation import get_target_users
+            result = get_target_users("reported", "position", POSITION_ID, report_id=REPORT_ID)
+            assert result == [str(CREATOR_USER)]
+
+    def test_reported_chat_log_returns_non_reporter_participant(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            # report lookup for submitter
+            {"submitter_user_id": INITIATOR_USER},
+            # chat_log lookup for participants
+            {
+                "initiator_user_id": INITIATOR_USER,
+                "position_holder_user_id": HOLDER_USER,
+            },
+        ])
+
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.moderation import get_target_users
+            result = get_target_users("reported", "chat_log", CHAT_LOG_ID, report_id=REPORT_ID)
+            assert result == [str(HOLDER_USER)]
+            assert str(INITIATOR_USER) not in result
+
+    def test_reported_without_report_id_returns_empty(self):
+        mock_db = MagicMock()
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.moderation import get_target_users
+            result = get_target_users("reported", "position", POSITION_ID)
+            assert result == []
+
+    # --- unknown type / class ---
+
+    def test_unknown_content_type_returns_empty(self):
+        mock_db = MagicMock()
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.moderation import get_target_users
+            result = get_target_users("submitter", "unknown_type", "some-id")
+            assert result == []
+
+    def test_submitter_position_null_creator_returns_empty(self):
+        """Position exists but creator_user_id is null."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value={
+            "creator_user_id": None
+        })
+
+        with patch(f"{MOD_HELPERS}.db", mock_db):
+            from candid.controllers.helpers.moderation import get_target_users
+            result = get_target_users("submitter", "position", POSITION_ID)
+            assert result == []

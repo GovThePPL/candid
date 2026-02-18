@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../../../hooks/useThemeColors'
 import { UserContext } from '../../../../contexts/UserContext'
 import { hasQAAuthority } from '../../../../lib/roles'
+import useModerateChecker from '../../../../hooks/useModerateChecker'
 import { Spacing, BorderRadius, Shadows } from '../../../../constants/Theme'
 import { SemanticColors } from '../../../../constants/Colors'
 import api from '../../../../lib/api'
@@ -36,6 +37,8 @@ import DownvoteReasonPicker from '../../../../components/discuss/DownvoteReasonP
 import EmptyState from '../../../../components/EmptyState'
 import ThemedText from '../../../../components/ThemedText'
 import ReplyComposer from '../../../../components/discuss/ReplyComposer'
+import ReportModal from '../../../../components/ReportModal'
+import ModerationActionModal from '../../../../components/ModerationActionModal'
 
 const screenHeight = Dimensions.get('window').height
 
@@ -292,6 +295,76 @@ export default function PostDetail() {
     }
   }, [showToast, t])
 
+  // Report / moderate state
+  const checkModerateScope = useModerateChecker()
+  const userCanModerate = post ? checkModerateScope(post.location?.id, post.category?.id) : false
+  const [reportTarget, setReportTarget] = useState(null)
+  const [reportModalVisible, setReportModalVisible] = useState(false)
+  const [moderateTarget, setModerateTarget] = useState(null)
+  const [moderateRule, setModerateRule] = useState(null)
+  const [moderateComment, setModerateComment] = useState(null)
+  const [actionModalVisible, setActionModalVisible] = useState(false)
+
+  const handleReportPost = useCallback((postId) => {
+    setReportTarget({ type: 'post', id: postId })
+    setReportModalVisible(true)
+  }, [])
+
+  const handleReportComment = useCallback((commentId) => {
+    setReportTarget({ type: 'comment', id: commentId })
+    setReportModalVisible(true)
+  }, [])
+
+  const handleReportSubmit = useCallback(async (ruleId, comment) => {
+    if (reportTarget.type === 'post') {
+      await api.moderation.reportPost(reportTarget.id, ruleId, comment)
+    } else {
+      await api.moderation.reportComment(reportTarget.id, ruleId, comment)
+    }
+  }, [reportTarget])
+
+  const handleModeratePost = useCallback((postId) => {
+    setModerateTarget({ type: 'post', id: postId })
+    setReportModalVisible(true)
+  }, [])
+
+  const handleModerateComment = useCallback((commentId) => {
+    setModerateTarget({ type: 'comment', id: commentId })
+    setReportModalVisible(true)
+  }, [])
+
+  const handleModerateRuleSelected = useCallback(async (ruleId, comment, rule) => {
+    setModerateRule(rule)
+    setModerateComment(comment)
+    setReportModalVisible(false)
+    setTimeout(() => setActionModalVisible(true), 300)
+  }, [])
+
+  const handleModerateActionSubmit = useCallback(async (actionData) => {
+    if (!moderateTarget || !moderateRule) return
+    try {
+      await api.moderation.inlineAction({
+        targetType: moderateTarget.type,
+        targetId: moderateTarget.id,
+        ruleId: moderateRule.id,
+        comment: moderateComment,
+        ...actionData,
+      })
+      setActionModalVisible(false)
+      showToast(t('moderationSuccess'))
+      // Refresh post data
+      const data = await api.posts.getPost(postId).catch(() => null)
+      if (data) setPost(data)
+    } catch (err) {
+      if (err?.status === 403) {
+        showToast(t('moderationForbidden'))
+      } else {
+        console.error('Inline moderation failed:', err)
+      }
+      throw err
+    }
+  }, [moderateTarget, moderateRule, moderateComment, t, showToast, postId])
+
   // Post voting
   const handlePostUpvote = useCallback(async () => {
     if (!post) return
@@ -532,6 +605,8 @@ export default function PostDetail() {
     onContinueThread: handleContinueThread,
     onLoadMoreReplies: loadMoreReplies,
     onFocusReady: handleFocusReady,
+    onReport: handleReportComment,
+    onModerate: handleModerateComment,
     truncatedRoots,
     focus: effectiveFocus,
     scrollTargetId,
@@ -539,6 +614,7 @@ export default function PostDetail() {
     isQAPost,
     isPostLocked,
     userHasQAAuthority,
+    canModerate: userCanModerate,
   }
 
   const renderChain = useCallback(({ item: chain }) => (
@@ -591,6 +667,9 @@ export default function PostDetail() {
           onToggleRole={handleTogglePostRole}
           onToggleMute={handleTogglePostMute}
           isMuted={postMuted}
+          canModerate={userCanModerate}
+          onReport={handleReportPost}
+          onModerate={handleModeratePost}
         />
       </View>
       <View style={styles.commentSection}>
@@ -812,6 +891,24 @@ export default function PostDetail() {
         onClose={() => setDownvoteTarget(null)}
         onSelect={handleDownvoteReasonSelect}
       />
+
+      {/* Report modal (non-moderator report flow, or first step of moderation flow) */}
+      <ReportModal
+        visible={reportModalVisible}
+        onClose={() => { setReportModalVisible(false); setReportTarget(null) }}
+        onSubmit={moderateTarget ? handleModerateRuleSelected : handleReportSubmit}
+        contentType={moderateTarget?.type || reportTarget?.type}
+        isModerating={!!moderateTarget}
+      />
+
+      {/* Moderation action modal (second step of moderation flow) */}
+      <ModerationActionModal
+        visible={actionModalVisible}
+        onClose={() => { setActionModalVisible(false); setModerateTarget(null); setModerateRule(null); setModerateComment(null) }}
+        onSubmit={handleModerateActionSubmit}
+        reportType={moderateTarget?.type}
+        rule={moderateRule}
+      />
     </Wrapper>
   )
 }
@@ -842,6 +939,9 @@ const ChainBlock = memo(function ChainBlock({ chain, handlersRef, mutedCommentId
           isFocused={h.focus === comment.id}
           isScrollTarget={h.scrollTargetId === comment.id}
           onFocusReady={h.onFocusReady}
+          canModerate={h.canModerate}
+          onReport={h.onReport}
+          onModerate={h.onModerate}
         />
       ))}
     </View>

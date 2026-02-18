@@ -53,6 +53,7 @@ def position_to_card(pos: dict) -> dict:
     location = None
     if pos.get("location_code"):
         location = {
+            "id": str(pos["location_id"]) if pos.get("location_id") else None,
             "code": pos.get("location_code"),
             "name": pos.get("location_name")
         }
@@ -99,6 +100,7 @@ def chatting_list_position_to_card(pos: dict) -> dict:
     location = None
     if pos.get("location_code"):
         location = {
+            "id": str(pos["location_id"]) if pos.get("location_id") else None,
             "code": pos.get("location_code"),
             "name": pos.get("location_name")
         }
@@ -179,6 +181,7 @@ def chat_request_to_card(chat_req: dict) -> dict:
 
     if chat_req.get("position_location_code"):
         position["location"] = {
+            "id": str(chat_req["position_location_id"]) if chat_req.get("position_location_id") else None,
             "code": chat_req["position_location_code"],
             "name": chat_req.get("position_location_name")
         }
@@ -232,6 +235,7 @@ def kudos_to_card(kudos_data: dict, user_id: str) -> dict:
 
     if kudos_data.get("position_location_code"):
         position["location"] = {
+            "id": str(kudos_data["position_location_id"]) if kudos_data.get("position_location_id") else None,
             "code": kudos_data["position_location_code"],
             "name": kudos_data["position_location_name"]
         }

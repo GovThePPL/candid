@@ -291,6 +291,28 @@ CREATE TABLE rule (
     severity INTEGER CHECK (severity BETWEEN 1 AND 5),
     default_actions JSONB DEFAULT '[]'::jsonb,
     sentencing_guidelines TEXT,
+    location_id UUID REFERENCES location(id) ON DELETE SET NULL,
+    position_category_id UUID REFERENCES position_category(id) ON DELETE SET NULL,
+    applicable_content_types TEXT[] DEFAULT '{position,chat_log,post,comment}',
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Rule change requests (approval workflow for rule create/update/delete)
+CREATE TABLE rule_change_request (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    action VARCHAR(20) NOT NULL CHECK (action IN ('create', 'update', 'delete')),
+    rule_id UUID REFERENCES rule(id) ON DELETE SET NULL,
+    proposed_rule JSONB NOT NULL,
+    requested_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    requester_authority_location_id UUID NOT NULL REFERENCES location(id) ON DELETE CASCADE,
+    request_reason TEXT,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending','approved','denied','auto_approved','rescinded')),
+    reviewed_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    denial_reason TEXT,
+    auto_approve_at TIMESTAMPTZ NOT NULL,
+    reminder_sent_at TIMESTAMPTZ,
     created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
@@ -509,6 +531,7 @@ CREATE TABLE role_change_request (
     reviewed_by UUID REFERENCES users(id) ON DELETE SET NULL,
     denial_reason TEXT,
     auto_approve_at TIMESTAMPTZ NOT NULL,
+    reminder_sent_at TIMESTAMPTZ,
     created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
@@ -540,7 +563,7 @@ CREATE TABLE notification_type_preferences (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     notification_type VARCHAR(50) NOT NULL CHECK (notification_type IN (
-        'comment_reply', 'post_comment', 'chat_request', 'role_change', 'moderation'
+        'comment_reply', 'post_comment', 'chat_request', 'role_change', 'rule_change', 'admin_action', 'moderation'
     )),
     enabled BOOLEAN NOT NULL DEFAULT true,
     created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -564,7 +587,7 @@ CREATE TABLE notification_inbox (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     notification_type VARCHAR(50) NOT NULL CHECK (notification_type IN (
-        'comment_reply', 'post_comment', 'chat_request', 'role_change', 'moderation'
+        'comment_reply', 'post_comment', 'chat_request', 'role_change', 'rule_change', 'admin_action', 'moderation'
     )),
     actor_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     title TEXT NOT NULL,
@@ -804,6 +827,15 @@ CREATE INDEX idx_role_change_request_authority_location ON role_change_request(r
 CREATE INDEX idx_role_change_request_reviewed_by ON role_change_request(reviewed_by);
 CREATE INDEX idx_role_change_request_user_role_id ON role_change_request(user_role_id);
 CREATE INDEX idx_rule_creator_user_id ON rule(creator_user_id);
+CREATE INDEX idx_rule_location_id ON rule(location_id);
+CREATE INDEX idx_rule_category_id ON rule(position_category_id);
+CREATE INDEX idx_rule_status ON rule(status);
+CREATE INDEX idx_rule_change_request_status ON rule_change_request(status) WHERE status = 'pending';
+CREATE INDEX idx_rule_change_request_requested_by ON rule_change_request(requested_by);
+CREATE INDEX idx_rule_change_request_rule_id ON rule_change_request(rule_id);
+CREATE INDEX idx_rule_change_request_auto_approve ON rule_change_request(auto_approve_at) WHERE status = 'pending';
+CREATE INDEX idx_rule_change_request_authority_location ON rule_change_request(requester_authority_location_id);
+CREATE INDEX idx_rule_change_request_reviewed_by ON rule_change_request(reviewed_by);
 CREATE INDEX idx_survey_creator_user_id ON survey(creator_user_id);
 CREATE INDEX idx_survey_position_category_id ON survey(position_category_id);
 CREATE INDEX idx_survey_question_survey_id ON survey_question(survey_id);

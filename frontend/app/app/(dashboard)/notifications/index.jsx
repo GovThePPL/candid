@@ -39,20 +39,23 @@ export default function NotificationsScreen() {
     // Deep link based on notification data
     const action = notification.data?.action
     if (action === 'open_post' && notification.data?.postId) {
-      // Dismiss notifications overlay, then navigate into the discuss tab
       const commentId = notification.data.commentId
-      router.back()
       if (commentId) {
-        router.navigate({ pathname: '/discuss/[id]', params: { id: notification.data.postId, threadRoot: commentId, focus: commentId } })
+        router.push({ pathname: '/post/[id]', params: { id: notification.data.postId, threadRoot: commentId, focus: commentId } })
       } else {
-        router.navigate(`/discuss/${notification.data.postId}`)
+        router.push(`/post/${notification.data.postId}`)
       }
     } else if (action === 'open_cards') {
       router.back()
-      router.navigate('/cards')
     } else if (action === 'open_organization') {
       router.push('/admin/organization')
     } else if (action === 'open_admin_pending') {
+      router.push('/admin')
+    } else if (action === 'open_admin_request_log') {
+      router.push('/admin/request-log?tab=mine')
+    } else if (action === 'open_admin_roles') {
+      router.push('/admin/organization')
+    } else if (action === 'open_admin') {
       router.push('/admin')
     }
   }, [markRead, router])

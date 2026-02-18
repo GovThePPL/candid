@@ -93,6 +93,10 @@
   "notifTypeChatRequestDesc": "When someone wants to chat about your position",
   "notifTypeRoleChange": "Role changes",
   "notifTypeRoleChangeDesc": "When your role is updated",
+  "notifTypeRuleChange": "Rule changes",
+  "notifTypeRuleChangeDesc": "When community rules are changed",
+  "notifTypeAdminAction": "Admin actions",
+  "notifTypeAdminActionDesc": "Location, category, and account changes",
   "notifTypeModeration": "Moderation",
   "notifTypeModerationDesc": "Moderation actions on your content",
   "notifTypeToggleA11y": "{{type}}: {{state}}",
@@ -263,9 +267,8 @@
   "chattingListPaused": "Paused",
   "chattingListItemA11y": "{{statement}}, {{status}}, {{chats}} chats",
 
-  "profileCardA11y": "Your profile. Tap to open settings",
-  "adminLink": "Admin",
-  "adminLinkA11y": "Admin panel{{pendingInfo}}",
+  "profileAvatarA11y": "Your profile photo. Tap to open settings",
+  "adminButtonA11y": "Admin panel. Tap to open{{pendingInfo}}",
   "adminPendingInfo": ", {{count}} pending",
   "menuReportBug": "Report Bug",
   "menuReportBugA11y": "Report a bug",
@@ -274,5 +277,7 @@
   "activityComment": "Comment",
   "activityInPost": "in {{title}}",
   "activityItemA11y": "{{type}} from {{time}}: {{title}}",
-  "activityDeleted": "[deleted]"
+  "activityDeleted": "[deleted]",
+  "userProfileNotFound": "User not found",
+  "userProfileNotFoundSubtitle": "This user may have been deleted or doesn't exist."
 }

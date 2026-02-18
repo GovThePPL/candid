@@ -139,7 +139,8 @@ def get_user_roles(user_id):
     """
     rows = db.execute_query("""
         SELECT ur.role, ur.location_id, ur.position_category_id,
-               l.name AS location_name, pc.label AS category_label
+               l.name AS location_name, l.code AS location_code,
+               pc.label AS category_label
         FROM user_role ur
         LEFT JOIN location l ON ur.location_id = l.id
         LEFT JOIN position_category pc ON ur.position_category_id = pc.id
@@ -153,6 +154,7 @@ def get_user_roles(user_id):
             "location_id": str(r["location_id"]) if r["location_id"] else None,
             "position_category_id": str(r["position_category_id"]) if r["position_category_id"] else None,
             "location_name": r.get("location_name"),
+            "location_code": r.get("location_code"),
             "category_label": r.get("category_label"),
         }
         for r in rows

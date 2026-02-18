@@ -112,6 +112,20 @@ def get_reported_user_role(target_object_type, target_object_id):
                 if role_hierarchy.get(role, 0) > role_hierarchy.get(highest_role, 0):
                     highest_role = role
 
+    elif target_object_type == 'post':
+        row = db.execute_query("""
+            SELECT creator_user_id FROM post WHERE id = %s
+        """, (target_object_id,), fetchone=True)
+        if row:
+            highest_role = _highest_role_for_user(row['creator_user_id'])
+
+    elif target_object_type == 'comment':
+        row = db.execute_query("""
+            SELECT creator_user_id FROM comment WHERE id = %s
+        """, (target_object_id,), fetchone=True)
+        if row:
+            highest_role = _highest_role_for_user(row['creator_user_id'])
+
     return highest_role
 
 
@@ -133,6 +147,18 @@ def get_reported_user_ids(target_object_type, target_object_id):
         """, (target_object_id,), fetchone=True)
         if row:
             return [str(row['initiator_user_id']), str(row['position_holder_user_id'])]
+    elif target_object_type == 'post':
+        row = db.execute_query("""
+            SELECT creator_user_id FROM post WHERE id = %s
+        """, (target_object_id,), fetchone=True)
+        if row and row['creator_user_id']:
+            return [str(row['creator_user_id'])]
+    elif target_object_type == 'comment':
+        row = db.execute_query("""
+            SELECT creator_user_id FROM comment WHERE id = %s
+        """, (target_object_id,), fetchone=True)
+        if row and row['creator_user_id']:
+            return [str(row['creator_user_id'])]
     return []
 
 
@@ -165,6 +191,74 @@ def get_content_scope(report_id):
             JOIN position p ON up.position_id = p.id
             WHERE cl.id = %s
         """, (report['target_object_id'],), fetchone=True)
+        if row:
+            return (str(row['location_id']) if row.get('location_id') else None,
+                    str(row['category_id']) if row.get('category_id') else None)
+
+    elif report['target_object_type'] == 'post':
+        row = db.execute_query("""
+            SELECT location_id, category_id FROM post WHERE id = %s
+        """, (report['target_object_id'],), fetchone=True)
+        if row:
+            return (str(row['location_id']) if row.get('location_id') else None,
+                    str(row['category_id']) if row.get('category_id') else None)
+
+    elif report['target_object_type'] == 'comment':
+        # Comment's scope comes from its parent post
+        row = db.execute_query("""
+            SELECT p.location_id, p.category_id
+            FROM comment c
+            JOIN post p ON c.post_id = p.id
+            WHERE c.id = %s
+        """, (report['target_object_id'],), fetchone=True)
+        if row:
+            return (str(row['location_id']) if row.get('location_id') else None,
+                    str(row['category_id']) if row.get('category_id') else None)
+
+    return None, None
+
+
+def get_content_scope_direct(target_type, target_id):
+    """Get the location_id and category_id directly from a target (no report_id needed).
+
+    Returns (location_id, category_id) or (None, None).
+    """
+    if target_type == 'position':
+        row = db.execute_query("""
+            SELECT location_id, category_id FROM position WHERE id = %s
+        """, (target_id,), fetchone=True)
+        if row:
+            return (str(row['location_id']) if row.get('location_id') else None,
+                    str(row['category_id']) if row.get('category_id') else None)
+
+    elif target_type == 'chat_log':
+        row = db.execute_query("""
+            SELECT p.location_id, p.category_id
+            FROM chat_log cl
+            JOIN chat_request cr ON cl.chat_request_id = cr.id
+            JOIN user_position up ON cr.user_position_id = up.id
+            JOIN position p ON up.position_id = p.id
+            WHERE cl.id = %s
+        """, (target_id,), fetchone=True)
+        if row:
+            return (str(row['location_id']) if row.get('location_id') else None,
+                    str(row['category_id']) if row.get('category_id') else None)
+
+    elif target_type == 'post':
+        row = db.execute_query("""
+            SELECT location_id, category_id FROM post WHERE id = %s
+        """, (target_id,), fetchone=True)
+        if row:
+            return (str(row['location_id']) if row.get('location_id') else None,
+                    str(row['category_id']) if row.get('category_id') else None)
+
+    elif target_type == 'comment':
+        row = db.execute_query("""
+            SELECT p.location_id, p.category_id
+            FROM comment c
+            JOIN post p ON c.post_id = p.id
+            WHERE c.id = %s
+        """, (target_id,), fetchone=True)
         if row:
             return (str(row['location_id']) if row.get('location_id') else None,
                     str(row['category_id']) if row.get('category_id') else None)
@@ -414,6 +508,50 @@ def get_target_content(target_type, target_id):
                 except (ValueError, TypeError):
                     pass
             return result
+
+    elif target_type == 'post':
+        row = db.execute_query("""
+            SELECT p.id, p.title, p.body, p.status, p.creator_user_id,
+                   pc.id AS category_id, pc.label AS category_label,
+                   l.id AS location_id, l.name AS location_name, l.code AS location_code
+            FROM post p
+            LEFT JOIN position_category pc ON p.category_id = pc.id
+            LEFT JOIN location l ON p.location_id = l.id
+            WHERE p.id = %s
+        """, (target_id,), fetchone=True)
+        if row:
+            creator = get_user_info(row['creator_user_id'])
+            return {
+                'type': 'post',
+                'id': str(row['id']),
+                'title': row['title'],
+                'body': row.get('body'),
+                'status': row['status'],
+                'category': {'id': str(row['category_id']), 'label': row['category_label']} if row.get('category_id') else None,
+                'location': {'code': row['location_code'], 'name': row['location_name']} if row.get('location_id') else None,
+                'creator': creator,
+            }
+
+    elif target_type == 'comment':
+        row = db.execute_query("""
+            SELECT c.id, c.body, c.status, c.creator_user_id, c.post_id,
+                   p.title AS post_title
+            FROM comment c
+            JOIN post p ON c.post_id = p.id
+            WHERE c.id = %s
+        """, (target_id,), fetchone=True)
+        if row:
+            creator = get_user_info(row['creator_user_id'])
+            return {
+                'type': 'comment',
+                'id': str(row['id']),
+                'body': row['body'],
+                'status': row['status'],
+                'postId': str(row['post_id']),
+                'postTitle': row['post_title'],
+                'creator': creator,
+            }
+
     return None
 
 
@@ -446,6 +584,16 @@ def reverse_mod_action(mod_action_id):
             db.execute_query("""
                 UPDATE user_position SET status = 'active'
                 WHERE position_id = %s AND status = 'removed'
+            """, (t['target_object_id'],))
+
+        if t['action'] == 'removed' and t['target_object_type'] == 'post':
+            db.execute_query("""
+                UPDATE post SET status = 'active' WHERE id = %s
+            """, (t['target_object_id'],))
+
+        if t['action'] == 'removed' and t['target_object_type'] == 'comment':
+            db.execute_query("""
+                UPDATE comment SET status = 'active' WHERE id = %s
             """, (t['target_object_id'],))
 
 
@@ -777,5 +925,21 @@ def get_target_users(user_class, target_object_type, target_object_id, report_id
                 user_ids.append(str(result['initiator_user_id']))
                 user_ids.append(str(result['position_holder_user_id']))
         # active_adopter and passive_adopter have no targets for chats
+
+    elif target_object_type == 'post':
+        if user_class == 'submitter':
+            result = db.execute_query("""
+                SELECT creator_user_id FROM post WHERE id = %s
+            """, (target_object_id,), fetchone=True)
+            if result and result['creator_user_id']:
+                user_ids.append(str(result['creator_user_id']))
+
+    elif target_object_type == 'comment':
+        if user_class == 'submitter':
+            result = db.execute_query("""
+                SELECT creator_user_id FROM comment WHERE id = %s
+            """, (target_object_id,), fetchone=True)
+            if result and result['creator_user_id']:
+                user_ids.append(str(result['creator_user_id']))
 
     return user_ids

@@ -1,6 +1,7 @@
 import { memo, useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { View, TouchableOpacity, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { useTheme } from '../../contexts/ThemeContext'
 import { useThemeColors } from '../../hooks/useThemeColors'
@@ -35,10 +36,14 @@ export default memo(function CommentItem({
   isFocused,
   isScrollTarget,
   onFocusReady,
+  canModerate,
+  onReport,
+  onModerate,
 }) {
   const { t } = useTranslation('discuss')
   const { isDark } = useTheme()
   const colors = useThemeColors()
+  const router = useRouter()
   const styles = useMemo(() => createStyles(colors), [colors])
   const [optionsVisible, setOptionsVisible] = useState(false)
   const containerRef = useRef(null)
@@ -135,14 +140,22 @@ export default memo(function CommentItem({
         <View style={styles.headerRow}>
           <View style={styles.headerLeft}>
             {!isDeleted ? (
-              <UserCard
-                compact
-                avatarSize={22}
-                showKudosCount={false}
-                user={comment.creator}
-                discussRole={comment.creatorRole}
-                showRoleBadge={comment.showCreatorRole !== false}
-              />
+              <TouchableOpacity
+                onPress={() => comment.creator?.id && router.push(`/profile?userId=${comment.creator.id}`)}
+                activeOpacity={0.7}
+                accessibilityRole="link"
+                accessibilityLabel={t('viewProfileA11y', { author: authorName })}
+                disabled={!comment.creator?.id}
+              >
+                <UserCard
+                  compact
+                  avatarSize={22}
+                  showKudosCount={false}
+                  user={comment.creator}
+                  discussRole={comment.creatorRole}
+                  showRoleBadge={comment.showCreatorRole !== false}
+                />
+              </TouchableOpacity>
             ) : (
               <ThemedText variant="caption" color="secondary">
                 {comment.deletedByModerator ? t('removedComment') : t('deletedComment')}
@@ -356,16 +369,29 @@ export default memo(function CommentItem({
                 </ThemedText>
               </TouchableOpacity>
             )}
-            <TouchableOpacity
-              style={styles.optionRow}
-              onPress={() => setOptionsVisible(false)}
-              activeOpacity={0.7}
-              accessibilityRole="menuitem"
-              accessibilityLabel={t('reportA11y', { author: authorName })}
-            >
-              <Ionicons name="flag-outline" size={20} color={colors.secondaryText} />
-              <ThemedText variant="body">{t('report')}</ThemedText>
-            </TouchableOpacity>
+            {canModerate ? (
+              <TouchableOpacity
+                style={styles.optionRow}
+                onPress={() => { setOptionsVisible(false); onModerate?.(comment.id) }}
+                activeOpacity={0.7}
+                accessibilityRole="menuitem"
+                accessibilityLabel={t('moderateCommentA11y', { author: authorName })}
+              >
+                <Ionicons name="shield-outline" size={20} color={colors.secondaryText} />
+                <ThemedText variant="body">{t('moderate')}</ThemedText>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.optionRow}
+                onPress={() => { setOptionsVisible(false); onReport?.(comment.id) }}
+                activeOpacity={0.7}
+                accessibilityRole="menuitem"
+                accessibilityLabel={t('reportA11y', { author: authorName })}
+              >
+                <Ionicons name="flag-outline" size={20} color={colors.secondaryText} />
+                <ThemedText variant="body">{t('report')}</ThemedText>
+              </TouchableOpacity>
+            )}
           </View>
         </BottomDrawerModal>
       </View>

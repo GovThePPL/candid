@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { View, TouchableOpacity, StyleSheet } from 'react-native'
+import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
@@ -24,8 +25,9 @@ import LocationCategoryBadge from '../LocationCategoryBadge'
  * @param {Function} props.onDownvote - Called when downvote is tapped
  * @param {Function} props.onToggleRole - Called with (postId, showCreatorRole)
  */
-export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, onToggleRole, onToggleMute, isMuted }) {
+export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, onToggleRole, onToggleMute, isMuted, canModerate, onReport, onModerate }) {
   const { t } = useTranslation('discuss')
+  const router = useRouter()
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const [optionsVisible, setOptionsVisible] = useState(false)
@@ -44,6 +46,12 @@ export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, 
         </View>
         <View style={styles.topRowRight}>
           <BridgingBadge item={post} />
+          {post.isAnswered && (
+            <View style={styles.answeredBadge}>
+              <Ionicons name="checkmark-circle" size={15} color="#FFFFFF" />
+              <ThemedText style={styles.answeredText}>{t('answered')}</ThemedText>
+            </View>
+          )}
           <ThemedText variant="caption" color="secondary">{relativeTime}</ThemedText>
         </View>
       </View>
@@ -64,13 +72,21 @@ export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, 
 
       {/* Bottom bar: author left, actions right */}
       <View style={styles.bottomBar}>
-        <UserCard
-          user={post.creator}
-          compact
-          discussRole={post.creatorRole}
-          showRoleBadge={post.showCreatorRole !== false}
+        <TouchableOpacity
+          onPress={() => post.creator?.id && router.push(`/profile?userId=${post.creator.id}`)}
+          disabled={!post.creator?.id}
+          activeOpacity={0.7}
+          accessibilityRole="link"
+          accessibilityLabel={t('viewProfileA11y', { author: authorName })}
           style={styles.authorCard}
-        />
+        >
+          <UserCard
+            user={post.creator}
+            compact
+            discussRole={post.creatorRole}
+            showRoleBadge={post.showCreatorRole !== false}
+          />
+        </TouchableOpacity>
 
         <View style={styles.bottomActions}>
           {/* Options (three-dot) button */}
@@ -105,20 +121,12 @@ export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, 
       </View>
 
       {/* Status badges */}
-      {(isLocked || post.isAnswered) && (
+      {isLocked && (
         <View style={styles.statusRow}>
-          {isLocked && (
-            <View style={styles.statusBadge}>
-              <Ionicons name="lock-closed" size={14} color={colors.secondaryText} />
-              <ThemedText variant="caption" color="secondary">{t('locked')}</ThemedText>
-            </View>
-          )}
-          {post.isAnswered && (
-            <View style={styles.answeredBadge}>
-              <Ionicons name="checkmark-circle" size={15} color="#FFFFFF" />
-              <ThemedText style={styles.answeredText}>{t('answered')}</ThemedText>
-            </View>
-          )}
+          <View style={styles.statusBadge}>
+            <Ionicons name="lock-closed" size={14} color={colors.secondaryText} />
+            <ThemedText variant="caption" color="secondary">{t('locked')}</ThemedText>
+          </View>
         </View>
       )}
 
@@ -173,16 +181,29 @@ export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, 
               </ThemedText>
             </TouchableOpacity>
           )}
-          <TouchableOpacity
-            style={styles.optionRow}
-            onPress={() => setOptionsVisible(false)}
-            activeOpacity={0.7}
-            accessibilityRole="menuitem"
-            accessibilityLabel={t('reportPostA11y', { author: authorName })}
-          >
-            <Ionicons name="flag-outline" size={20} color={colors.secondaryText} />
-            <ThemedText variant="body">{t('report')}</ThemedText>
-          </TouchableOpacity>
+          {canModerate ? (
+            <TouchableOpacity
+              style={styles.optionRow}
+              onPress={() => { setOptionsVisible(false); onModerate?.(post.id) }}
+              activeOpacity={0.7}
+              accessibilityRole="menuitem"
+              accessibilityLabel={t('moderatePostA11y', { author: authorName })}
+            >
+              <Ionicons name="shield-outline" size={20} color={colors.secondaryText} />
+              <ThemedText variant="body">{t('moderate')}</ThemedText>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.optionRow}
+              onPress={() => { setOptionsVisible(false); onReport?.(post.id) }}
+              activeOpacity={0.7}
+              accessibilityRole="menuitem"
+              accessibilityLabel={t('reportPostA11y', { author: authorName })}
+            >
+              <Ionicons name="flag-outline" size={20} color={colors.secondaryText} />
+              <ThemedText variant="body">{t('report')}</ThemedText>
+            </TouchableOpacity>
+          )}
         </View>
       </BottomDrawerModal>
     </View>

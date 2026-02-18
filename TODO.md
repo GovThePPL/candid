@@ -7,7 +7,7 @@
 - Make email required?
 - Require phone number for sign-up -- explore other user de-duplication options, consider cost of sending messages
 - Captcha on sign-up
-- Send user back to login screen when token expires and refresh fails
+- ~~Send user back to login screen when token expires and refresh fails~~
 
 ## Security
 - Implement bot detection system
@@ -27,6 +27,7 @@
 
 ## Card Queue
 - Donation cards
+- Map Reveal Requests — mutual-consent sharing of opinion map positions between users. Swipeable card to accept/decline, partner management modal on stats page, revocation support. See [plan](.claude/plans/radiant-skipping-fox.md)
 
 ## Chat Fixes and Enhancements
 - Basic markdown support in chat
@@ -40,7 +41,7 @@
 - Improve agreed position layout
 
 ## Admin Page
-- Admin CRUD for community rules — create, edit, and delete rules, and set each rule's context (positions, chat, etc.)
+- ~~Admin CRUD for community rules — create, edit, and delete rules, and set each rule's context (positions, chat, etc.)~~
 - Other admin-specific features
 
 ## Guest Access
@@ -53,8 +54,8 @@
 
 ## Moderation
 - Fetch moderation queue one item at a time instead of the full queue — claimed reports are locked for 15 minutes and hidden from other moderators, so bulk-fetching unnecessarily locks items that may not be reviewed in time
-- Implement comment and post reporting — the three-dot menu on comments has a Report button (currently no-op). Needs: backend endpoint for reporting comments/posts, reason picker, and integration with the existing moderation queue
-- Comment moderation actions — allow moderators to delete comments, lock comment threads, pin comments
+- ~~Implement comment and post reporting — the three-dot menu on comments has a Report button (currently no-op). Needs: backend endpoint for reporting comments/posts, reason picker, and integration with the existing moderation queue~~
+- Comment moderation actions — ~~delete comments~~, lock comment threads, pin comments
 
 ## Frontend Improvements
 - UGC Translation — runtime translation of user-generated content (positions, chat messages, surveys). See [plan](.claude-plans/2026-02-10_ugc-translation.md)

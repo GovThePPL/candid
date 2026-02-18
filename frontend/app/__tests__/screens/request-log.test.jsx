@@ -18,6 +18,7 @@ jest.mock('../../hooks/useUser', () => ({
 }))
 
 const mockGetRoleRequests = jest.fn()
+const mockGetRuleRequests = jest.fn()
 const mockGetAdminActions = jest.fn()
 const mockApproveRoleRequest = jest.fn()
 const mockDenyRoleRequest = jest.fn()
@@ -29,6 +30,7 @@ jest.mock('../../lib/api', () => ({
   default: {
     admin: {
       getRoleRequests: (...args) => mockGetRoleRequests(...args),
+      getRuleRequests: (...args) => mockGetRuleRequests(...args),
       getAdminActions: (...args) => mockGetAdminActions(...args),
       approveRoleRequest: (...args) => mockApproveRoleRequest(...args),
       denyRoleRequest: (...args) => mockDenyRoleRequest(...args),
@@ -115,6 +117,7 @@ const makeApprovedRequest = (id = 'r2') => ({
 beforeEach(() => {
   jest.clearAllMocks()
   mockGetRoleRequests.mockResolvedValue([])
+  mockGetRuleRequests.mockResolvedValue([])
   mockGetAdminActions.mockResolvedValue([])
 })
 

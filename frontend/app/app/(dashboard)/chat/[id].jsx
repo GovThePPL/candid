@@ -13,6 +13,7 @@ import {
   LayoutAnimation,
   UIManager,
   useWindowDimensions,
+  Alert,
 } from 'react-native'
 
 // Enable LayoutAnimation on Android
@@ -51,6 +52,8 @@ import Avatar from '../../../components/Avatar'
 import ThemedText from '../../../components/ThemedText'
 import PositionInfoCard from '../../../components/PositionInfoCard'
 import ReportModal from '../../../components/ReportModal'
+import ModerationActionModal from '../../../components/ModerationActionModal'
+import useModerateChecker from '../../../hooks/useModerateChecker'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -175,6 +178,16 @@ export default function ChatScreen() {
   const [proposalHeights, setProposalHeights] = useState({}) // Track heights of proposal cards for stacking
   const [kudosStatus, setKudosStatus] = useState(null) // null = show prompt, 'sent' = kudos sent, 'dismissed' = dismissed
   const [reportModalVisible, setReportModalVisible] = useState(false)
+
+  // Moderation state
+  const checkModerateScope = useModerateChecker()
+  const userCanModerate = chatInfo?.position
+    ? checkModerateScope(chatInfo.position.location?.id, chatInfo.position.category?.id)
+    : false
+  const [moderateTarget, setModerateTarget] = useState(null)
+  const [moderateRule, setModerateRule] = useState(null)
+  const [moderateComment, setModerateComment] = useState(null)
+  const [actionModalVisible, setActionModalVisible] = useState(false)
 
   const flatListRef = useRef(null)
   const typingTimeoutRef = useRef(null)
@@ -765,6 +778,40 @@ export default function ChatScreen() {
     await api.moderation.reportChat(chatId, ruleId, comment)
     setReportModalVisible(false)
   }, [chatId])
+
+  const handleModerateChat = useCallback(() => {
+    setModerateTarget({ type: 'chat_log', id: chatId })
+    setReportModalVisible(true)
+  }, [chatId])
+
+  const handleModerateRuleSelected = useCallback(async (ruleId, comment, rule) => {
+    setModerateRule(rule)
+    setModerateComment(comment)
+    setReportModalVisible(false)
+    setTimeout(() => setActionModalVisible(true), 300)
+  }, [])
+
+  const handleModerateActionSubmit = useCallback(async (actionData) => {
+    if (!moderateTarget || !moderateRule) return
+    try {
+      await api.moderation.inlineAction({
+        targetType: moderateTarget.type,
+        targetId: moderateTarget.id,
+        ruleId: moderateRule.id,
+        comment: moderateComment,
+        ...actionData,
+      })
+      setActionModalVisible(false)
+      Alert.alert(t('discuss:moderationSuccess'))
+    } catch (err) {
+      if (err?.status === 403) {
+        Alert.alert(t('discuss:moderationForbidden'))
+      } else {
+        console.error('Inline moderation failed:', err)
+      }
+      throw err
+    }
+  }, [moderateTarget, moderateRule, moderateComment, t])
 
   // Toggle special message menu
   const handleToggleSpecialMenu = useCallback(() => {
@@ -1426,14 +1473,25 @@ export default function ChatScreen() {
                   : t('chatEnded')}
           </ThemedText>
           {!isModerationView && (isHistoricalView || chatEnded) && (
-            <TouchableOpacity
-              onPress={() => setReportModalVisible(true)}
-              style={styles.reportButton}
-              accessibilityRole="button"
-              accessibilityLabel={t('reportChatA11y')}
-            >
-              <Ionicons name="flag-outline" size={18} color="#fff" />
-            </TouchableOpacity>
+            userCanModerate ? (
+              <TouchableOpacity
+                onPress={handleModerateChat}
+                style={styles.reportButton}
+                accessibilityRole="button"
+                accessibilityLabel={t('moderateChatA11y')}
+              >
+                <Ionicons name="shield-outline" size={18} color="#fff" />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                onPress={() => setReportModalVisible(true)}
+                style={styles.reportButton}
+                accessibilityRole="button"
+                accessibilityLabel={t('reportChatA11y')}
+              >
+                <Ionicons name="flag-outline" size={18} color="#fff" />
+              </TouchableOpacity>
+            )
           )}
         </View>
       )}
@@ -1701,8 +1759,18 @@ export default function ChatScreen() {
 
       <ReportModal
         visible={reportModalVisible}
-        onClose={() => setReportModalVisible(false)}
-        onSubmit={handleSubmitChatReport}
+        onClose={() => { setReportModalVisible(false) }}
+        onSubmit={moderateTarget ? handleModerateRuleSelected : handleSubmitChatReport}
+        contentType="chat_log"
+        isModerating={!!moderateTarget}
+      />
+
+      <ModerationActionModal
+        visible={actionModalVisible}
+        onClose={() => { setActionModalVisible(false); setModerateTarget(null); setModerateRule(null); setModerateComment(null) }}
+        onSubmit={handleModerateActionSubmit}
+        reportType={moderateTarget?.type}
+        rule={moderateRule}
       />
     </SafeAreaView>
   )

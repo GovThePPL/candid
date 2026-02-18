@@ -93,6 +93,10 @@
   "notifTypeChatRequestDesc": "Cuando alguien quiere chatear sobre tu postura",
   "notifTypeRoleChange": "Cambios de rol",
   "notifTypeRoleChangeDesc": "Cuando tu rol es actualizado",
+  "notifTypeRuleChange": "Cambios de reglas",
+  "notifTypeRuleChangeDesc": "Cuando se cambian las reglas comunitarias",
+  "notifTypeAdminAction": "Acciones administrativas",
+  "notifTypeAdminActionDesc": "Cambios de ubicación, categoría y cuenta",
   "notifTypeModeration": "Moderaci\u00f3n",
   "notifTypeModerationDesc": "Acciones de moderaci\u00f3n en tu contenido",
   "notifTypeToggleA11y": "{{type}}: {{state}}",
@@ -263,9 +267,8 @@
   "chattingListPaused": "Pausada",
   "chattingListItemA11y": "{{statement}}, {{status}}, {{chats}} chats",
 
-  "profileCardA11y": "Tu perfil. Toca para abrir configuración",
-  "adminLink": "Admin",
-  "adminLinkA11y": "Panel de administración{{pendingInfo}}",
+  "profileAvatarA11y": "Tu foto de perfil. Toca para abrir configuración",
+  "adminButtonA11y": "Panel de administración. Toca para abrir{{pendingInfo}}",
   "adminPendingInfo": ", {{count}} pendientes",
   "menuReportBug": "Reportar Error",
   "menuReportBugA11y": "Reportar un error",
@@ -274,5 +277,7 @@
   "activityComment": "Comentario",
   "activityInPost": "en {{title}}",
   "activityItemA11y": "{{type}} de {{time}}: {{title}}",
-  "activityDeleted": "[eliminado]"
+  "activityDeleted": "[eliminado]",
+  "userProfileNotFound": "Usuario no encontrado",
+  "userProfileNotFoundSubtitle": "Este usuario puede haber sido eliminado o no existe."
 }

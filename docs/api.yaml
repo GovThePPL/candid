@@ -82,6 +82,9 @@ components:
         locationName:
           type: string
           nullable: true
+        locationCode:
+          type: string
+          nullable: true
         positionCategoryId:
           type: string
           format: uuid
@@ -128,6 +131,11 @@ components:
           type: boolean
           nullable: true
           description: "Diagnostics consent: null = never asked, true = opted in, false = opted out"
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserRole'
+          description: Scoped roles assigned to this user
 
     Location:
       type: object
@@ -293,6 +301,9 @@ components:
           type: object
           nullable: true
           properties:
+            id:
+              type: string
+              format: uuid
             code:
               type: string
             name:
@@ -696,7 +707,7 @@ components:
           format: uuid
         reportType:
           type: string
-          enum: [position, chat_log]
+          enum: [position, chat_log, post, comment]
         targetId:
           type: string
           format: uuid
@@ -1792,6 +1803,134 @@ components:
         sentencingGuidelines:
           type: string
           description: Guidelines for moderators on appropriate actions
+        locationId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Location scope (null = global)
+        locationName:
+          type: string
+          nullable: true
+        positionCategoryId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Category scope (null = all categories)
+        categoryLabel:
+          type: string
+          nullable: true
+        applicableContentTypes:
+          type: array
+          items:
+            type: string
+            enum: [position, chat_log, post, comment]
+          description: Content types this rule applies to
+        status:
+          type: string
+          enum: [active, inactive]
+        creatorUserId:
+          type: string
+          format: uuid
+          nullable: true
+        createdTime:
+          type: string
+          format: date-time
+          nullable: true
+        updatedTime:
+          type: string
+          format: date-time
+          nullable: true
+
+    RuleChangeRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        action:
+          type: string
+          enum: [create, update, delete]
+        ruleId:
+          type: string
+          format: uuid
+          nullable: true
+        proposedRule:
+          type: object
+          properties:
+            title:
+              type: string
+            text:
+              type: string
+            severity:
+              type: integer
+              minimum: 1
+              maximum: 5
+            defaultActions:
+              type: array
+              items:
+                type: object
+                properties:
+                  userClass:
+                    type: string
+                  action:
+                    type: string
+                  duration:
+                    type: integer
+            sentencingGuidelines:
+              type: string
+              nullable: true
+            locationId:
+              type: string
+              format: uuid
+              nullable: true
+            positionCategoryId:
+              type: string
+              format: uuid
+              nullable: true
+            applicableContentTypes:
+              type: array
+              items:
+                type: string
+                enum: [position, chat_log, post, comment]
+        requester:
+          $ref: '#/components/schemas/User'
+        requesterAuthorityLocation:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+        reason:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [pending, approved, denied, auto_approved, rescinded]
+        reviewer:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/User'
+        denialReason:
+          type: string
+          nullable: true
+        autoApproveAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdTime:
+          type: string
+          format: date-time
+        updatedTime:
+          type: string
+          format: date-time
+          nullable: true
+        currentRule:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/Rule'
 
     ModActionAppealResponse:
       type: object
@@ -2486,7 +2625,7 @@ components:
           format: uuid
         type:
           type: string
-          enum: [comment_reply, post_comment, chat_request, role_change, moderation]
+          enum: [comment_reply, post_comment, chat_request, role_change, rule_change, admin_action, moderation]
         actorUserId:
           type: string
           format: uuid
@@ -5297,6 +5436,14 @@ paths:
       summary: Get all active community rules
       tags:
         - Moderation
+      parameters:
+        - name: content_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [position, chat_log, post, comment]
+          description: Filter rules by applicable content type
       responses:
         '200':
           description: List of active rules
@@ -5434,6 +5581,87 @@ paths:
                         - $ref: '#/components/schemas/AdminResponseNotificationCardItem'
         '403':
           description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /moderation/inline-action:
+    post:
+      operationId: inlineModeratorAction
+      summary: Take inline moderation action on content (creates report + takes action in one step)
+      tags:
+        - Moderation
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - targetType
+                - targetId
+                - ruleId
+                - modResponse
+              properties:
+                targetType:
+                  type: string
+                  enum: [position, post, comment, chat_log]
+                targetId:
+                  type: string
+                  format: uuid
+                ruleId:
+                  type: string
+                  format: uuid
+                comment:
+                  type: string
+                  nullable: true
+                modResponse:
+                  type: string
+                  enum: [take_action, dismiss]
+                modResponseText:
+                  type: string
+                actions:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - userClass
+                      - action
+                    properties:
+                      userClass:
+                        type: string
+                        enum: [submitter, active_adopter, passive_adopter, reporter, reported]
+                      action:
+                        type: string
+                        enum: [permanent_ban, temporary_ban, warning, removed]
+                      duration:
+                        type: integer
+                        description: Duration in days for temporary bans
+      responses:
+        '201':
+          description: Report created and action taken
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reportId:
+                    type: string
+                    format: uuid
+                  modActionId:
+                    type: string
+                    format: uuid
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '403':
+          description: Forbidden - insufficient permissions or hierarchy violation
           content:
             application/json:
               schema:
@@ -5628,6 +5856,62 @@ paths:
                 $ref: '#/components/schemas/User'
         '403':
           description: Forbidden - insufficient permissions to view this user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /users/{userId}/activity:
+    get:
+      operationId: getUserActivityById
+      summary: Get a user's recent posts and comments
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the user whose activity to retrieve
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [posts, comments, all]
+            default: all
+          description: Filter by activity type
+        - name: cursor
+          in: query
+          schema:
+            type: string
+          description: Opaque cursor for pagination
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 50
+          description: Number of items per page
+      responses:
+        '200':
+          description: Activity list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityPage'
+        '401':
+          description: Not authenticated
           content:
             application/json:
               schema:
@@ -6477,6 +6761,232 @@ paths:
                       format: date-time
         '403':
           description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+      security:
+        - BearerAuth: []
+
+  /admin/rules:
+    get:
+      operationId: getAdminRules
+      summary: Get rules (admin view with all statuses)
+      tags:
+        - Admin
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive, all]
+            default: active
+        - name: location_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: content_type
+          in: query
+          schema:
+            type: string
+            enum: [position, chat_log, post, comment]
+      responses:
+        '200':
+          description: List of rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Rule'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+      security:
+        - BearerAuth: []
+
+  /admin/rules/requests:
+    get:
+      operationId: getRuleRequests
+      summary: Get rule change requests with view filter
+      tags:
+        - Admin
+      parameters:
+        - name: view
+          in: query
+          schema:
+            type: string
+            enum: [pending, all, mine]
+            default: pending
+      responses:
+        '200':
+          description: List of rule change requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RuleChangeRequest'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+      security:
+        - BearerAuth: []
+    post:
+      operationId: createRuleRequest
+      summary: Create a rule change request (create, update, or delete)
+      tags:
+        - Admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - action
+                - proposedRule
+              properties:
+                action:
+                  type: string
+                  enum: [create, update, delete]
+                ruleId:
+                  type: string
+                  format: uuid
+                  description: Required for update/delete actions
+                proposedRule:
+                  type: object
+                  required:
+                    - title
+                    - text
+                  properties:
+                    title:
+                      type: string
+                    text:
+                      type: string
+                    severity:
+                      type: integer
+                      minimum: 1
+                      maximum: 5
+                    defaultActions:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          userClass:
+                            type: string
+                          action:
+                            type: string
+                          duration:
+                            type: integer
+                    sentencingGuidelines:
+                      type: string
+                      nullable: true
+                    locationId:
+                      type: string
+                      format: uuid
+                      nullable: true
+                    positionCategoryId:
+                      type: string
+                      format: uuid
+                      nullable: true
+                    applicableContentTypes:
+                      type: array
+                      items:
+                        type: string
+                        enum: [position, chat_log, post, comment]
+                reason:
+                  type: string
+      responses:
+        '201':
+          description: Rule change request created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    enum: [pending, auto_approved]
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+      security:
+        - BearerAuth: []
+
+  /admin/rules/requests/{requestId}:
+    patch:
+      operationId: updateRuleRequest
+      summary: Update a rule change request (approve, deny, or rescind)
+      tags:
+        - Admin
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum: [approved, denied, rescinded]
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Request updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: Request not found
           content:
             application/json:
               schema:

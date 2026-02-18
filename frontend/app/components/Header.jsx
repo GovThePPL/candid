@@ -1,6 +1,6 @@
 import { StyleSheet, View, TouchableOpacity, Platform } from 'react-native'
 import { useContext, useState, useCallback, useRef, useMemo } from 'react'
-import { useRouter } from 'expo-router'
+import { useRouter, usePathname } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -13,9 +13,10 @@ import ThemedText from './ThemedText'
 import { useToast } from './Toast'
 import api from '../lib/api'
 
-export default function Header({ onBack, showCreateButton, showAvatar = true }) {
+export default function Header({ onBack, showCreateButton, showAvatar = true, disableAvatarPress = false }) {
   const { t } = useTranslation()
   const router = useRouter()
+  const pathname = usePathname()
   const colors = useThemeColors()
   const insets = useSafeAreaInsets()
   const styles = useMemo(() => createStyles(colors, insets), [colors, insets])
@@ -113,32 +114,58 @@ export default function Header({ onBack, showCreateButton, showAvatar = true }) 
             <Ionicons name="add" size={18} color={colors.secondaryText} />
           </TouchableOpacity>
         )}
-        <TouchableOpacity
-          onPress={() => router.push('/notifications')}
-          style={styles.bellButton}
-          accessibilityLabel={unreadCount > 0
-            ? t('notifications:bellA11y', { count: unreadCount })
-            : t('notifications:bellA11yNone')}
-          accessibilityRole="button"
-        >
-          <Ionicons
-            name={unreadCount > 0 ? 'notifications' : 'notifications-outline'}
-            size={22}
-            color={colors.secondaryText}
-          />
-          {unreadCount > 0 && (
-            <View style={styles.badge}>
-              <ThemedText variant="label" style={styles.badgeText}>
-                {unreadCount > 99 ? '99+' : unreadCount}
-              </ThemedText>
-            </View>
-          )}
-        </TouchableOpacity>
-        {showAvatar && (
+        {pathname === '/notifications' ? (
+          <View
+            style={styles.bellButton}
+            accessibilityLabel={unreadCount > 0
+              ? t('notifications:bellA11y', { count: unreadCount })
+              : t('notifications:bellA11yNone')}
+          >
+            <Ionicons
+              name={unreadCount > 0 ? 'notifications' : 'notifications-outline'}
+              size={22}
+              color={colors.secondaryText}
+            />
+            {unreadCount > 0 && (
+              <View style={styles.badge}>
+                <ThemedText variant="label" style={styles.badgeText}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </ThemedText>
+              </View>
+            )}
+          </View>
+        ) : (
+          <TouchableOpacity
+            onPress={() => router.push('/notifications')}
+            style={styles.bellButton}
+            accessibilityLabel={unreadCount > 0
+              ? t('notifications:bellA11y', { count: unreadCount })
+              : t('notifications:bellA11yNone')}
+            accessibilityRole="button"
+          >
+            <Ionicons
+              name={unreadCount > 0 ? 'notifications' : 'notifications-outline'}
+              size={22}
+              color={colors.secondaryText}
+            />
+            {unreadCount > 0 && (
+              <View style={styles.badge}>
+                <ThemedText variant="label" style={styles.badgeText}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </ThemedText>
+              </View>
+            )}
+          </TouchableOpacity>
+        )}
+        {showAvatar && (disableAvatarPress ? (
+          <View accessibilityLabel={t('viewProfile')}>
+            <Avatar user={user} size={36} showKudosBadge showKudosCount />
+          </View>
+        ) : (
           <TouchableOpacity onPress={() => router.push('/profile')} accessibilityLabel={t('viewProfile')} accessibilityRole="button">
             <Avatar user={user} size={36} showKudosBadge showKudosCount />
           </TouchableOpacity>
-        )}
+        ))}
       </View>
     </View>
   )

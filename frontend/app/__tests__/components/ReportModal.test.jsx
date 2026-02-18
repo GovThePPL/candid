@@ -110,7 +110,7 @@ describe('ReportModal', () => {
     fireEvent.press(screen.getByLabelText('submitReport'))
 
     await waitFor(() => {
-      expect(onSubmit).toHaveBeenCalledWith('rule-2', 'This is spam content')
+      expect(onSubmit).toHaveBeenCalledWith('rule-2', 'This is spam content', expect.objectContaining({ id: 'rule-2', title: 'Spam' }))
     })
   })
 
@@ -128,6 +128,26 @@ describe('ReportModal', () => {
     await waitFor(() => {
       expect(screen.getByText('reportSubmitted')).toBeTruthy()
     })
+  })
+
+  it('shows "moderateContent" title when isModerating is true', async () => {
+    render(<ReportModal {...defaultProps} isModerating />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Harassment')).toBeTruthy()
+    })
+
+    expect(screen.getByText('moderateContent')).toBeTruthy()
+  })
+
+  it('shows "reportContent" title when isModerating is false', async () => {
+    render(<ReportModal {...defaultProps} />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Harassment')).toBeTruthy()
+    })
+
+    expect(screen.getByText('reportContent')).toBeTruthy()
   })
 
   it('comment input works', async () => {

@@ -41,4 +41,23 @@ describe('RoleBadge', () => {
     render(<RoleBadge role="admin" />)
     expect(screen.getByLabelText('roleAdmin')).toBeTruthy()
   })
+
+  it('shows location · role on single line when no category', () => {
+    render(<RoleBadge role="admin" location="US" />)
+    expect(screen.getByText('US · roleAdmin')).toBeTruthy()
+  })
+
+  it('renders two lines when category is provided', () => {
+    render(<RoleBadge role="expert" location="OR" category="Healthcare" />)
+    // Line 1: scope, Line 2: role
+    expect(screen.getByText('OR · Healthcare')).toBeTruthy()
+    expect(screen.getByText('roleExpert')).toBeTruthy()
+    // Accessibility label includes all parts
+    expect(screen.getByLabelText('OR · Healthcare · roleExpert')).toBeTruthy()
+  })
+
+  it('shows location · role when category is null', () => {
+    render(<RoleBadge role="moderator" location="US" category={null} />)
+    expect(screen.getByText('US · roleModerator')).toBeTruthy()
+  })
 })

@@ -566,7 +566,7 @@ def _get_unvoted_positions_from_db(
                    SELECT COUNT(*) FROM kudos k
                    WHERE k.receiver_user_id = u.id AND k.status = 'sent'
                ), 0) as creator_kudos_count,
-               pc.label as category_name, l.code as location_code, l.name as location_name,
+               pc.label as category_name, l.id as location_id, l.code as location_code, l.name as location_name,
                up.id as user_position_id
         FROM position p
         JOIN users u ON p.creator_user_id = u.id
@@ -596,6 +596,7 @@ def _get_unvoted_positions_from_db(
             "statement": p["statement"],
             "category_id": str(p["category_id"]),
             "category_name": p["category_name"],
+            "location_id": str(p["location_id"]) if p.get("location_id") else None,
             "location_code": p["location_code"],
             "location_name": p["location_name"],
             "creator_user_id": str(p["creator_user_id"]),
@@ -629,7 +630,7 @@ def _batch_polis_comments_to_positions(
                    SELECT COUNT(*) FROM kudos k
                    WHERE k.receiver_user_id = u.id AND k.status = 'sent'
                ), 0) as kudos_count,
-               pcat.label as category_name, l.code as location_code, l.name as location_name,
+               pcat.label as category_name, l.id as location_id, l.code as location_code, l.name as location_name,
                up.id as user_position_id
         FROM polis_comment pc
         JOIN position p ON pc.position_id = p.id
@@ -652,6 +653,7 @@ def _batch_polis_comments_to_positions(
             "statement": mapping["statement"],
             "category_id": category_id,
             "category_name": mapping["category_name"],
+            "location_id": str(mapping["location_id"]) if mapping.get("location_id") else None,
             "location_code": mapping["location_code"],
             "location_name": mapping["location_name"],
             "creator_user_id": str(mapping["creator_user_id"]),

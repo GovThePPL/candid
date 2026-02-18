@@ -502,7 +502,7 @@ class CandidAPI:
         return r.status_code in (200, 201, 204)
 
     def create_chat_request(self, user_position_id):
-        r = self.session.post(f"{self.base_url}/api/v1/chats/requests/",
+        r = self.session.post(f"{self.base_url}/api/v1/chats/requests",
                               json={"userPositionId": user_position_id},
                               headers=self._headers())
         return r.json() if r.status_code in (200, 201) else None
@@ -1149,21 +1149,22 @@ def phase_6_chats(api, all_users, positions, dry_run=False):
     # Pair opposing belief systems for interesting cross-spectrum dialogue
     # First 10 get agreed_closure (with agreed statements), rest get user_exit
     CHAT_PAIRINGS = [
+        # Responder must have a user_position (only _user_1 variants do)
         ("prog_user_1", "trad_user_1"),    # Progressive <-> Traditionalist
         ("lib_user_1", "con_user_1"),      # Liberal <-> Conservative
         ("socdem_user_1", "pop_user_1"),   # Social Democrat <-> Populist
         ("soc_user_1", "libt_user_1"),     # Socialist <-> Libertarian
         ("mod_user_1", "cen_user_1"),      # Moderate <-> Centrist (same-ish spectrum)
-        ("lib_user_2", "pop_user_2"),      # Liberal <-> Populist
-        ("prog_user_2", "con_user_2"),     # Progressive <-> Conservative
-        ("socdem_user_2", "trad_user_2"),  # Social Democrat <-> Traditionalist
-        ("lib_user_3", "libt_user_2"),     # Liberal <-> Libertarian
-        ("prog_user_3", "con_user_3"),     # Progressive <-> Conservative
-        ("mod_user_2", "con_user_4"),      # Moderate <-> Conservative
-        ("soc_user_2", "trad_user_3"),     # Socialist <-> Traditionalist
-        ("lib_user_4", "con_user_5"),      # Liberal <-> Conservative
-        ("mod_user_3", "pop_user_3"),      # Moderate <-> Populist
-        ("cen_user_2", "prog_user_4"),     # Centrist <-> Progressive
+        ("lib_user_2", "pop_user_1"),      # Liberal <-> Populist
+        ("prog_user_2", "con_user_1"),     # Progressive <-> Conservative
+        ("socdem_user_2", "trad_user_1"),  # Social Democrat <-> Traditionalist
+        ("lib_user_3", "libt_user_1"),     # Liberal <-> Libertarian
+        ("prog_user_3", "con_user_1"),     # Progressive <-> Conservative
+        ("mod_user_2", "con_user_1"),      # Moderate <-> Conservative
+        ("soc_user_2", "trad_user_1"),     # Socialist <-> Traditionalist
+        ("lib_user_4", "con_user_1"),      # Liberal <-> Conservative
+        ("mod_user_3", "pop_user_1"),      # Moderate <-> Populist
+        ("cen_user_2", "prog_user_1"),     # Centrist <-> Progressive
     ]
 
     chats_created = 0

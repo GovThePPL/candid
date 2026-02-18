@@ -1,6 +1,6 @@
 import { StyleSheet, View, TouchableOpacity, FlatList, ActivityIndicator, TextInput, Alert, Platform, ScrollView } from 'react-native'
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { useRouter } from 'expo-router'
+import { useRouter, useLocalSearchParams } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
@@ -20,6 +20,41 @@ import LocationCategoryBadge from '../../../components/LocationCategoryBadge'
 import { useToast } from '../../../components/Toast'
 
 const TABS = ['pending', 'all', 'mine']
+
+const SEVERITY_COLORS = {
+  1: SemanticColors.neutral,
+  2: SemanticColors.info,
+  3: SemanticColors.pending,
+  4: SemanticColors.escalate,
+  5: SemanticColors.warning,
+}
+
+const SEVERITY_KEYS = {
+  1: 'severity1',
+  2: 'severity2',
+  3: 'severity3',
+  4: 'severity4',
+  5: 'severity5',
+}
+
+const CONTENT_TYPE_KEYS = {
+  position: 'contentTypePosition',
+  chat_log: 'contentTypeChatLog',
+  post: 'contentTypePost',
+  comment: 'contentTypeComment',
+}
+
+const RULE_ACTION_COLORS = {
+  create: SemanticColors.success,
+  update: SemanticColors.pending,
+  delete: SemanticColors.warning,
+}
+
+const RULE_ACTION_KEYS = {
+  create: 'ruleRequestActionCreate',
+  update: 'ruleRequestActionUpdate',
+  delete: 'ruleRequestActionDelete',
+}
 
 const STATUS_COLORS = {
   pending: SemanticColors.pending,
@@ -62,6 +97,7 @@ function CountdownTimer({ targetDate }) {
 export default function RequestLogScreen() {
   const { t } = useTranslation('admin')
   const router = useRouter()
+  const { tab: initialTab } = useLocalSearchParams()
   const colors = useThemeColors()
   const { user } = useUser()
   const styles = useMemo(() => createStyles(colors), [colors])
@@ -69,7 +105,9 @@ export default function RequestLogScreen() {
   const toastRef = useRef(toast)
   toastRef.current = toast
 
-  const [activeTab, setActiveTab] = useState('pending')
+  const [activeTab, setActiveTab] = useState(
+    TABS.includes(initialTab) ? initialTab : 'pending'
+  )
   const [requests, setRequests] = useState([])
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(null)
@@ -77,23 +115,35 @@ export default function RequestLogScreen() {
   // Deny modal state
   const [denyModalVisible, setDenyModalVisible] = useState(false)
   const [denyTargetId, setDenyTargetId] = useState(null)
+  const [denyTargetType, setDenyTargetType] = useState('role') // 'role' or 'rule'
   const [denyReason, setDenyReason] = useState('')
 
   const fetchRequests = useCallback(async (tab) => {
     setLoading(true)
     try {
       if (tab === 'all') {
-        // Merge role requests + admin actions into a unified activity feed
-        const [reqData, actionData] = await Promise.all([
+        // Merge role requests + rule requests + admin actions into a unified activity feed
+        const [reqData, ruleReqData, actionData] = await Promise.all([
           api.admin.getRoleRequests(tab),
+          api.admin.getRuleRequests(tab),
           api.admin.getAdminActions(),
         ])
-        const merged = [...(reqData || []), ...(actionData || [])]
+        const taggedRole = (reqData || []).map(r => ({ ...r, _type: 'role_request' }))
+        const taggedRule = (ruleReqData || []).map(r => ({ ...r, _type: 'rule_request' }))
+        const taggedAdmin = (actionData || []).map(a => ({ ...a, _type: 'admin_action' }))
+        const merged = [...taggedRole, ...taggedRule, ...taggedAdmin]
         merged.sort((a, b) => new Date(b.createdTime || 0) - new Date(a.createdTime || 0))
         setRequests(merged)
       } else {
-        const data = await api.admin.getRoleRequests(tab)
-        setRequests(data || [])
+        const [roleData, ruleData] = await Promise.all([
+          api.admin.getRoleRequests(tab),
+          api.admin.getRuleRequests(tab),
+        ])
+        const taggedRole = (roleData || []).map(r => ({ ...r, _type: 'role_request' }))
+        const taggedRule = (ruleData || []).map(r => ({ ...r, _type: 'rule_request' }))
+        const merged = [...taggedRole, ...taggedRule]
+        merged.sort((a, b) => new Date(b.createdTime || 0) - new Date(a.createdTime || 0))
+        setRequests(merged)
       }
     } catch (err) {
       toastRef.current?.(translateError(err.message, t) || t('loadError'), 'error')
@@ -127,18 +177,23 @@ export default function RequestLogScreen() {
     if (!denyTargetId) return
     setProcessing(denyTargetId)
     try {
-      await api.admin.denyRoleRequest(denyTargetId, denyReason)
+      if (denyTargetType === 'rule') {
+        await api.admin.denyRuleRequest(denyTargetId, denyReason)
+      } else {
+        await api.admin.denyRoleRequest(denyTargetId, denyReason)
+      }
       toast?.(t('roleDenied'), 'success')
       setDenyModalVisible(false)
       setDenyReason('')
       setDenyTargetId(null)
+      setDenyTargetType('role')
       fetchRequests(activeTab)
     } catch (err) {
       toast?.(translateError(err.message, t) || t('error'), 'error')
     } finally {
       setProcessing(null)
     }
-  }, [denyTargetId, denyReason, activeTab, fetchRequests, t, toast])
+  }, [denyTargetId, denyTargetType, denyReason, activeTab, fetchRequests, t, toast])
 
   const handleRescind = useCallback(async (requestId) => {
     const confirmed = Platform.OS === 'web'
@@ -165,6 +220,62 @@ export default function RequestLogScreen() {
     }
   }, [activeTab, fetchRequests, t, toast])
 
+  // Rule request handlers
+  const handleApproveRule = useCallback(async (requestId) => {
+    setProcessing(requestId)
+    try {
+      await api.admin.approveRuleRequest(requestId)
+      toast?.(t('roleApproved'), 'success')
+      fetchRequests(activeTab)
+    } catch (err) {
+      toast?.(translateError(err.message, t) || t('error'), 'error')
+    } finally {
+      setProcessing(null)
+    }
+  }, [activeTab, fetchRequests, t, toast])
+
+  const handleDenyRule = useCallback(async () => {
+    if (!denyTargetId) return
+    setProcessing(denyTargetId)
+    try {
+      await api.admin.denyRuleRequest(denyTargetId, denyReason)
+      toast?.(t('roleDenied'), 'success')
+      setDenyModalVisible(false)
+      setDenyReason('')
+      setDenyTargetId(null)
+      fetchRequests(activeTab)
+    } catch (err) {
+      toast?.(translateError(err.message, t) || t('error'), 'error')
+    } finally {
+      setProcessing(null)
+    }
+  }, [denyTargetId, denyReason, activeTab, fetchRequests, t, toast])
+
+  const handleRescindRule = useCallback(async (requestId) => {
+    const confirmed = Platform.OS === 'web'
+      ? window.confirm(`${t('rescindConfirm')}\n${t('rescindMessage')}`)
+      : await new Promise(resolve => Alert.alert(
+          t('rescindConfirm'),
+          t('rescindMessage'),
+          [
+            { text: t('cancel'), style: 'cancel', onPress: () => resolve(false) },
+            { text: t('rescind'), style: 'destructive', onPress: () => resolve(true) },
+          ],
+          { cancelable: true, onDismiss: () => resolve(false) }
+        ))
+    if (!confirmed) return
+    setProcessing(requestId)
+    try {
+      await api.admin.rescindRuleRequest(requestId)
+      toast?.(t('roleRescinded'), 'success')
+      fetchRequests(activeTab)
+    } catch (err) {
+      toast?.(translateError(err.message, t) || t('error'), 'error')
+    } finally {
+      setProcessing(null)
+    }
+  }, [activeTab, fetchRequests, t, toast])
+
   const pendingCount = useMemo(() => {
     if (activeTab === 'pending') return requests.length
     return 0
@@ -176,92 +287,14 @@ export default function RequestLogScreen() {
     return t('noRequestsMineSubtitle')
   }
 
-  const renderItem = useCallback(({ item }) => {
-    const isAdminAction = item.action === 'ban' || item.action === 'unban'
-
-    if (isAdminAction) {
-      const isBan = item.action === 'ban'
-      return (
-        <View style={styles.requestCard}>
-          <View style={styles.cardTopRow}>
-            <View style={{ flex: 1 }} />
-            <View style={[styles.actionBadge, isBan ? styles.actionBadgeRemove : styles.actionBadgeAssign]}>
-              <ThemedText variant="badge" color="inverse" style={styles.actionBadgeText}>
-                {isBan ? t('actionBan') : t('actionUnban')}
-              </ThemedText>
-            </View>
-          </View>
-          <View style={styles.targetSection}>
-            <UserCard user={item.targetUser} avatarSize="sm" nameVariant="label" style={{ flex: 1, minWidth: 0 }} />
-          </View>
-          <View style={styles.requesterSection}>
-            <UserCard user={item.performedBy} avatarSize="sm" nameVariant="label" label={t('performedByLabel')} />
-            {item.reason && (
-              <ThemedText variant="body" color="dark" style={styles.reasonText}>
-                {item.reason}
-              </ThemedText>
-            )}
-          </View>
-          {item.createdTime && (
-            <ThemedText variant="caption" color="secondary">
-              {t('createdAt')}: {new Date(item.createdTime).toLocaleDateString()}
-            </ThemedText>
-          )}
-        </View>
-      )
-    }
-
-    const isAssign = item.action === 'assign'
+  // Shared reviewer + timestamps + action buttons section for role/rule requests
+  const renderRequestFooter = useCallback((item, isRuleRequest = false) => {
     const isPending = item.status === 'pending'
-    const statusColor = STATUS_COLORS[item.status] || colors.secondaryText
-    const roleColor = ROLE_COLORS[item.role] || colors.badgeBg
+    const onApprove = isRuleRequest ? handleApproveRule : handleApprove
+    const onRescind = isRuleRequest ? handleRescindRule : handleRescind
 
     return (
-      <View style={styles.requestCard}>
-        {/* Top row: location+category left, status + action right */}
-        <View style={styles.cardTopRow}>
-          <LocationCategoryBadge
-            location={item.location}
-            category={item.category}
-            size="md"
-          />
-          <View style={styles.topRowRight}>
-            <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
-              <ThemedText variant="badge" color="inverse" style={styles.statusBadgeText}>
-                {t(STATUS_KEYS[item.status] || item.status)}
-              </ThemedText>
-            </View>
-            <View style={[styles.actionBadge, isAssign ? styles.actionBadgeAssign : styles.actionBadgeRemove]}>
-              <ThemedText variant="badge" color="inverse" style={styles.actionBadgeText}>
-                {isAssign ? t('actionAssign') : t('actionRemove')}
-              </ThemedText>
-            </View>
-          </View>
-        </View>
-
-        {/* Target user + role in colored section */}
-        <View style={[styles.targetSection, { backgroundColor: roleColor + '18' }]}>
-          <View style={styles.requestInfo}>
-            <UserCard user={item.targetUser} avatarSize="sm" nameVariant="label" style={{ flex: 1, minWidth: 0 }} />
-            <View style={[styles.roleBadge, { backgroundColor: roleColor + '30' }]}>
-              <ThemedText variant="badge" style={[styles.roleBadgeText, { color: roleColor }]}>
-                {t(ROLE_LABEL_KEYS[item.role] || item.role)}
-              </ThemedText>
-            </View>
-          </View>
-        </View>
-
-        {/* Requester + reason */}
-        <View style={styles.requesterSection}>
-          <UserCard user={item.requester} avatarSize="sm" nameVariant="label" label={t('requestedBy')} />
-          {item.reason ? (
-            <ThemedText variant="body" color="dark" style={styles.reasonText}>
-              {item.reason}
-            </ThemedText>
-          ) : null}
-        </View>
-
-        {/* Reviewer section (for resolved requests) */}
+      <>
         {item.reviewer && (
           <View style={styles.reviewerSection}>
             <UserCard user={item.reviewer} avatarSize="sm" nameVariant="label" label={t('reviewedByLabel')} />
@@ -290,7 +323,6 @@ export default function RequestLogScreen() {
           </View>
         )}
 
-        {/* Timestamps */}
         <View style={styles.timestampRow}>
           {item.createdTime && (
             <ThemedText variant="caption" color="secondary">
@@ -304,7 +336,6 @@ export default function RequestLogScreen() {
           )}
         </View>
 
-        {/* Auto-approve countdown (pending only) */}
         {isPending && item.autoApproveAt && (
           <View style={styles.countdownRow}>
             <ThemedText variant="caption" color="secondary">{t('autoApproveAt')}: </ThemedText>
@@ -312,12 +343,11 @@ export default function RequestLogScreen() {
           </View>
         )}
 
-        {/* Action buttons */}
         {activeTab === 'pending' && isPending && (
           <View style={styles.actionRow}>
             <TouchableOpacity
               style={styles.approveButton}
-              onPress={() => handleApprove(item.id)}
+              onPress={() => onApprove(item.id)}
               disabled={processing === item.id}
               accessibilityRole="button"
               accessibilityLabel={t('approveA11y')}
@@ -334,7 +364,7 @@ export default function RequestLogScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.denyButton}
-              onPress={() => { setDenyTargetId(item.id); setDenyModalVisible(true) }}
+              onPress={() => { setDenyTargetId(item.id); setDenyModalVisible(true); setDenyTargetType(isRuleRequest ? 'rule' : 'role') }}
               disabled={processing === item.id}
               accessibilityRole="button"
               accessibilityLabel={t('denyA11y')}
@@ -350,7 +380,7 @@ export default function RequestLogScreen() {
           <View style={styles.actionRow}>
             <TouchableOpacity
               style={styles.rescindButton}
-              onPress={() => handleRescind(item.id)}
+              onPress={() => onRescind(item.id)}
               disabled={processing === item.id}
               accessibilityRole="button"
               accessibilityLabel={t('rescindA11y')}
@@ -367,9 +397,176 @@ export default function RequestLogScreen() {
             </TouchableOpacity>
           </View>
         )}
+      </>
+    )
+  }, [styles, t, activeTab, handleApprove, handleApproveRule, handleRescind, handleRescindRule, processing, colors])
+
+  const renderAdminAction = useCallback((item) => {
+    const isBan = item.action === 'ban'
+    return (
+      <View style={styles.requestCard}>
+        <View style={styles.cardTopRow}>
+          <View style={{ flex: 1 }} />
+          <View style={[styles.actionBadge, isBan ? styles.actionBadgeRemove : styles.actionBadgeAssign]}>
+            <ThemedText variant="badge" color="inverse" style={styles.actionBadgeText}>
+              {isBan ? t('actionBan') : t('actionUnban')}
+            </ThemedText>
+          </View>
+        </View>
+        <View style={styles.targetSection}>
+          <UserCard user={item.targetUser} avatarSize="sm" nameVariant="label" style={{ flex: 1, minWidth: 0 }} />
+        </View>
+        <View style={styles.requesterSection}>
+          <UserCard user={item.performedBy} avatarSize="sm" nameVariant="label" label={t('performedByLabel')} />
+          {item.reason && (
+            <ThemedText variant="body" color="dark" style={styles.reasonText}>
+              {item.reason}
+            </ThemedText>
+          )}
+        </View>
+        {item.createdTime && (
+          <ThemedText variant="caption" color="secondary">
+            {t('createdAt')}: {new Date(item.createdTime).toLocaleDateString()}
+          </ThemedText>
+        )}
       </View>
     )
-  }, [styles, t, activeTab, handleApprove, handleRescind, processing, colors])
+  }, [styles, t])
+
+  const renderRoleRequest = useCallback((item) => {
+    const isAssign = item.action === 'assign'
+    const statusColor = STATUS_COLORS[item.status] || colors.secondaryText
+    const roleColor = ROLE_COLORS[item.role] || colors.badgeBg
+
+    return (
+      <View style={styles.requestCard}>
+        <View style={styles.cardTopRow}>
+          <LocationCategoryBadge location={item.location} category={item.category} size="md" />
+          <View style={styles.topRowRight}>
+            <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
+              <ThemedText variant="badge" color="inverse" style={styles.statusBadgeText}>
+                {t(STATUS_KEYS[item.status] || item.status)}
+              </ThemedText>
+            </View>
+            <View style={[styles.actionBadge, isAssign ? styles.actionBadgeAssign : styles.actionBadgeRemove]}>
+              <ThemedText variant="badge" color="inverse" style={styles.actionBadgeText}>
+                {isAssign ? t('actionAssign') : t('actionRemove')}
+              </ThemedText>
+            </View>
+          </View>
+        </View>
+
+        <View style={[styles.targetSection, { backgroundColor: roleColor + '18' }]}>
+          <View style={styles.requestInfo}>
+            <UserCard user={item.targetUser} avatarSize="sm" nameVariant="label" style={{ flex: 1, minWidth: 0 }} />
+            <View style={[styles.roleBadge, { backgroundColor: roleColor + '30' }]}>
+              <ThemedText variant="badge" style={[styles.roleBadgeText, { color: roleColor }]}>
+                {t(ROLE_LABEL_KEYS[item.role] || item.role)}
+              </ThemedText>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.requesterSection}>
+          <UserCard user={item.requester} avatarSize="sm" nameVariant="label" label={t('requestedBy')} />
+          {item.reason ? (
+            <ThemedText variant="body" color="dark" style={styles.reasonText}>
+              {item.reason}
+            </ThemedText>
+          ) : null}
+        </View>
+
+        {renderRequestFooter(item, false)}
+      </View>
+    )
+  }, [styles, t, colors, renderRequestFooter])
+
+  const renderRuleRequest = useCallback((item) => {
+    const statusColor = STATUS_COLORS[item.status] || colors.secondaryText
+    const actionColor = RULE_ACTION_COLORS[item.action] || colors.secondaryText
+    const proposed = item.proposedRule || {}
+    const severityColor = SEVERITY_COLORS[proposed.severity] || SemanticColors.neutral
+
+    return (
+      <View style={styles.requestCard}>
+        {/* Top row: scope badge left, status + action right */}
+        <View style={styles.cardTopRow}>
+          {proposed.locationId ? (
+            <LocationCategoryBadge
+              location={item.requesterAuthorityLocation}
+              category={proposed.positionCategoryId ? { label: proposed.categoryLabel } : null}
+              size="md"
+            />
+          ) : (
+            <View style={[styles.ruleScopeBadge, { backgroundColor: colors.badgeBg }]}>
+              <Ionicons name="globe-outline" size={12} color={colors.badgeText} />
+              <ThemedText variant="badge" style={{ color: colors.badgeText }}>{t('ruleLocationGlobal')}</ThemedText>
+            </View>
+          )}
+          <View style={styles.topRowRight}>
+            <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
+              <ThemedText variant="badge" color="inverse" style={styles.statusBadgeText}>
+                {t(STATUS_KEYS[item.status] || item.status)}
+              </ThemedText>
+            </View>
+            <View style={[styles.actionBadge, { backgroundColor: actionColor }]}>
+              <ThemedText variant="badge" color="inverse" style={styles.actionBadgeText}>
+                {t(RULE_ACTION_KEYS[item.action] || item.action)}
+              </ThemedText>
+            </View>
+          </View>
+        </View>
+
+        {/* Rule info section */}
+        <View style={styles.ruleInfoSection}>
+          <View style={styles.ruleInfoHeader}>
+            <Ionicons name="shield-outline" size={16} color={colors.primary} />
+            <ThemedText variant="label" style={{ flex: 1 }}>{proposed.title || item.currentRule?.title || '—'}</ThemedText>
+            {proposed.severity && (
+              <View style={[styles.severityBadge, { backgroundColor: severityColor + '20' }]}>
+                <ThemedText variant="badge" style={{ color: severityColor, fontWeight: '600' }}>
+                  {t(SEVERITY_KEYS[proposed.severity])}
+                </ThemedText>
+              </View>
+            )}
+          </View>
+          {proposed.applicableContentTypes?.length > 0 && (
+            <View style={styles.contentTypeRow}>
+              {proposed.applicableContentTypes.map(ct => (
+                <View key={ct} style={[styles.contentTypeChip, { backgroundColor: colors.badgeBg }]}>
+                  <ThemedText variant="badge" style={{ color: colors.badgeText }}>
+                    {t(CONTENT_TYPE_KEYS[ct] || ct)}
+                  </ThemedText>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
+        {/* Requester + reason */}
+        <View style={styles.requesterSection}>
+          <UserCard user={item.requester} avatarSize="sm" nameVariant="label" label={t('requestedBy')} />
+          {item.reason ? (
+            <ThemedText variant="body" color="dark" style={styles.reasonText}>
+              {item.reason}
+            </ThemedText>
+          ) : null}
+        </View>
+
+        {renderRequestFooter(item, true)}
+      </View>
+    )
+  }, [styles, t, colors, renderRequestFooter])
+
+  const renderItem = useCallback(({ item }) => {
+    if (item._type === 'admin_action' || item.action === 'ban' || item.action === 'unban') {
+      return renderAdminAction(item)
+    }
+    if (item._type === 'rule_request') {
+      return renderRuleRequest(item)
+    }
+    return renderRoleRequest(item)
+  }, [renderAdminAction, renderRoleRequest, renderRuleRequest])
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -434,7 +631,7 @@ export default function RequestLogScreen() {
       {/* Deny reason modal */}
       <BottomDrawerModal
         visible={denyModalVisible}
-        onClose={() => { setDenyModalVisible(false); setDenyReason(''); setDenyTargetId(null) }}
+        onClose={() => { setDenyModalVisible(false); setDenyReason(''); setDenyTargetId(null); setDenyTargetType('role') }}
         title={t('denyReason')}
         shrink
 
@@ -686,5 +883,40 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 25,
     alignItems: 'center',
+  },
+  // Rule request styles
+  ruleScopeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  ruleInfoSection: {
+    backgroundColor: colors.background,
+    borderRadius: 10,
+    padding: 12,
+    gap: 8,
+  },
+  ruleInfoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  severityBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  contentTypeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  contentTypeChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
   },
 })

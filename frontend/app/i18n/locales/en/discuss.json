@@ -189,5 +189,15 @@
   "replyComposerPreviewEmpty": "Nothing to preview yet",
   "replyComposerInsertLinkA11y": "Insert link",
   "replyComposerCancelA11y": "Cancel reply",
-  "replyComposerSubmitA11y": "Submit reply to {{author}}"
+  "replyComposerSubmitA11y": "Submit reply to {{author}}",
+  "viewProfileA11y": "View {{author}}'s profile",
+
+  "moderate": "Moderate",
+  "moderateA11y": "Moderate this content",
+  "moderatePostA11y": "Moderate post by {{author}}",
+  "moderateCommentA11y": "Moderate comment by {{author}}",
+  "moderationSuccess": "Action taken",
+  "moderationForbidden": "You don't have permission to moderate this content",
+  "reportSuccess": "Report submitted",
+  "errorReportFailed": "Couldn't submit report"
 }

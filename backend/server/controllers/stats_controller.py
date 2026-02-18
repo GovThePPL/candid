@@ -638,6 +638,19 @@ def _get_fallback_stats(
                 "kudosCount": p.get("creator_kudos_count", 0)
             }
 
+        # Compute consensus from local vote ratios (mirroring Polis consensus)
+        consensus_type = None
+        consensus_score = None
+        if total >= 2:
+            agree_ratio = p["agree_count"] / total
+            disagree_ratio = p["disagree_count"] / total
+            if agree_ratio >= 0.65:
+                consensus_type = "agree"
+                consensus_score = round(agree_ratio, 3)
+            elif disagree_ratio >= 0.65:
+                consensus_type = "disagree"
+                consensus_score = round(disagree_ratio, 3)
+
         group_positions.append({
             "id": str(p["id"]),
             "statement": p["statement"],
@@ -656,6 +669,8 @@ def _get_fallback_stats(
             "totalVotes": total,
             "isDefining": False,
             "representativeness": 0.5,
+            "consensusType": consensus_type,
+            "consensusScore": consensus_score,
             "closureCount": closure_counts.get(str(p["id"]), 0)
         })
 
