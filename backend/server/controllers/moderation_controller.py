@@ -58,7 +58,7 @@ def get_user_moderation_history(user_id, token_info=None):  # noqa: E501
 
     :rtype: Union[List[ModerationHistoryEvent], Tuple[List[ModerationHistoryEvent], int]]
     """
-    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    authorized, auth_err = authorization_scoped("assistant_moderator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -295,7 +295,7 @@ def create_appeal(action_id, body, token_info=None):  # noqa: E501
 
 def delete_admin_response_notification(appeal_id, token_info=None):
     """Delete an admin response notification."""
-    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    authorized, auth_err = authorization_scoped("assistant_moderator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -318,7 +318,7 @@ def update_report(report_id, body, token_info=None):  # noqa: E501
 
     :rtype: Union[dict, Tuple[dict, int]]
     """
-    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    authorized, auth_err = authorization_scoped("assistant_moderator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -381,7 +381,7 @@ def get_moderation_queue(token_info=None):  # noqa: E501
 
     :rtype: Union[List[GetModerationQueue200ResponseInner], Tuple[List[GetModerationQueue200ResponseInner], int], Tuple[List[GetModerationQueue200ResponseInner], int, Dict[str, str]]
     """
-    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    authorized, auth_err = authorization_scoped("assistant_moderator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -910,7 +910,7 @@ def respond_to_appeal(appeal_id, body, token_info=None):  # noqa: E501
 
     :rtype: Union[ModActionAppealResponse, Tuple[ModActionAppealResponse, int], Tuple[ModActionAppealResponse, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    authorized, auth_err = authorization_scoped("assistant_moderator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -1166,7 +1166,7 @@ def take_moderator_action(report_id, body, token_info=None):  # noqa: E501
 
     :rtype: Union[ModAction, Tuple[ModAction, int], Tuple[ModAction, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    authorized, auth_err = authorization_scoped("assistant_moderator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -1354,7 +1354,7 @@ def inline_moderator_action(body, token_info=None):  # noqa: E501
 
     :rtype: Union[dict, Tuple[dict, int]]
     """
-    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    authorized, auth_err = authorization_scoped("assistant_moderator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 

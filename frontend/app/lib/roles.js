@@ -50,10 +50,10 @@ export function hasRole(user, requiredRole) {
 }
 
 /**
- * True for admin, moderator, or facilitator — the roles that can moderate content.
+ * True for admin, moderator, facilitator, or assistant_moderator — roles that can moderate content.
  */
 export function canModerate(user) {
-  return hasRole(user, 'facilitator')
+  return hasRole(user, 'assistant_moderator')
 }
 
 /**
@@ -289,8 +289,8 @@ export function canModerateAtScope(user, locationId, categoryId, allLocations) {
   if (!Array.isArray(user?.roles) || !user.roles.length || !locationId) return false
 
   for (const role of user.roles) {
-    // Only facilitator+ roles can moderate
-    if (!ROLE_HIERARCHY.facilitator.has(role.role)) continue
+    // Only assistant_moderator+ roles can moderate
+    if (!ROLE_HIERARCHY.assistant_moderator.has(role.role)) continue
     if (!role.locationId) continue
 
     if (role.role === 'admin' || role.role === 'moderator') {

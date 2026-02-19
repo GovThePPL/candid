@@ -1,6 +1,6 @@
 import { StyleSheet, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, TextInput, Switch } from 'react-native'
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { useFocusEffect, useRouter } from 'expo-router'
+import { useFocusEffect, useRouter, useNavigation } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
@@ -19,6 +19,7 @@ import { useToast } from '../../../components/Toast'
 export default function AccountSettings() {
   const { logout, user, refreshUser } = useUser()
   const router = useRouter()
+  const navigation = useNavigation()
   const { t } = useTranslation('settings')
   const colors = useThemeColors()
   const showToast = useToast()
@@ -146,7 +147,7 @@ export default function AccountSettings() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <Header onBack={() => router.back()} />
+        <Header onBack={() => router.back()} showSettingsButton settingsActive onSettingsBack={() => navigation.getParent()?.goBack()} />
         <LoadingView message={t('loadingAccount')} />
       </SafeAreaView>
     )
@@ -154,7 +155,7 @@ export default function AccountSettings() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <Header onBack={() => router.back()} />
+      <Header onBack={() => router.back()} showSettingsButton settingsActive onSettingsBack={() => navigation.getParent()?.goBack()} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.pageHeader}>
           <ThemedText variant="h1" title={true} style={styles.pageTitle}>

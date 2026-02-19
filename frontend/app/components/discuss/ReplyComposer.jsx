@@ -94,22 +94,6 @@ export default function ReplyComposer({ visible, comment, onSubmit, onClose, pos
         >
           <Ionicons name="close" size={24} color={colors.secondaryText} />
         </TouchableOpacity>
-        <View style={styles.headerSpacer} />
-        <TouchableOpacity
-          style={[styles.submitPill, !canSubmit && styles.submitPillDisabled]}
-          onPress={handleSubmit}
-          disabled={!canSubmit}
-          accessibilityRole="button"
-          accessibilityLabel={t('replyComposerSubmitA11y', { author: authorName })}
-        >
-          {posting ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <ThemedText variant="buttonSmall" color="inverse">
-              {t('replyComposerSubmit')}
-            </ThemedText>
-          )}
-        </TouchableOpacity>
       </View>
 
       {/* Parent comment */}
@@ -162,6 +146,22 @@ export default function ReplyComposer({ visible, comment, onSubmit, onClose, pos
           <ThemedText variant="caption" color="primary">
             {t('replyComposerPreview')}
           </ThemedText>
+        </TouchableOpacity>
+        <View style={styles.toolbarSpacer} />
+        <TouchableOpacity
+          style={[styles.submitPill, !canSubmit && styles.submitPillDisabled]}
+          onPress={handleSubmit}
+          disabled={!canSubmit}
+          accessibilityRole="button"
+          accessibilityLabel={t('replyComposerSubmitA11y', { author: authorName })}
+        >
+          {posting ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <ThemedText variant="buttonSmall" color="inverse">
+              {t('replyComposerSubmit')}
+            </ThemedText>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -291,9 +291,6 @@ const createStyles = (colors) => StyleSheet.create({
     borderBottomColor: colors.cardBorder,
     backgroundColor: colors.cardBackground,
   },
-  headerSpacer: {
-    flex: 1,
-  },
   submitPill: {
     backgroundColor: colors.primary,
     paddingVertical: Spacing.sm,
@@ -336,6 +333,9 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     padding: 4,
+  },
+  toolbarSpacer: {
+    flex: 1,
   },
   // Editor
   editorArea: {

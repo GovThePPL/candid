@@ -247,8 +247,6 @@ const createStyles = (colors) => StyleSheet.create({
     padding: Spacing.lg,
     marginHorizontal: Spacing.lg,
     marginVertical: Spacing.xs,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
     ...Shadows.card,
   },
   cardPressed: {

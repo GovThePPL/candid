@@ -484,8 +484,6 @@ const createStyles = (colors) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.cardBackground,
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
     overflow: 'hidden',
     // Drop shadow
     ...Platform.select({

@@ -1,6 +1,6 @@
 import { StyleSheet, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, Switch } from 'react-native'
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { useFocusEffect, useRouter } from 'expo-router'
+import { useFocusEffect, useRouter, useNavigation } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
@@ -33,6 +33,7 @@ const getHourLabels = (t) => Array.from({ length: 24 }, (_, i) => {
 export default function NotificationSettings() {
   const { user } = useUser()
   const router = useRouter()
+  const navigation = useNavigation()
   const colors = useThemeColors()
   const { t } = useTranslation('settings')
   const styles = useMemo(() => createStyles(colors), [colors])
@@ -220,7 +221,7 @@ export default function NotificationSettings() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <Header onBack={() => router.back()} />
+        <Header onBack={() => router.back()} showSettingsButton settingsActive onSettingsBack={() => navigation.getParent()?.goBack()} />
         <LoadingView message={t('loadingNotifications')} />
       </SafeAreaView>
     )
@@ -228,7 +229,7 @@ export default function NotificationSettings() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <Header onBack={() => router.back()} />
+      <Header onBack={() => router.back()} showSettingsButton settingsActive onSettingsBack={() => navigation.getParent()?.goBack()} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.pageHeader}>
           <ThemedText variant="h1" title={true} style={styles.pageTitle}>

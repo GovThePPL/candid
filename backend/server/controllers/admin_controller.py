@@ -182,7 +182,7 @@ def get_surveys(title=None, status=None, created_after=None, created_before=None
 
     :rtype: Union[List[Survey], Tuple[List[Survey], int], Tuple[List[Survey], int, Dict[str, str]]
     """
-    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    authorized, auth_err = authorization_scoped("assistant_moderator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -439,9 +439,9 @@ def search_users(search=None, limit=20, offset=0, token_info=None):  # noqa: E50
     """Search users by username or display name.
 
     GET /admin/users?search=&limit=&offset=
-    Auth: facilitator+ (any scoped role holder).
+    Auth: assistant_moderator+ (any scoped role holder).
     """
-    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    authorized, auth_err = authorization_scoped("assistant_moderator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -725,7 +725,7 @@ def get_pending_role_requests(token_info=None):  # noqa: E501
 
     GET /admin/roles/pending
     """
-    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    authorized, auth_err = authorization_scoped("assistant_moderator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -937,7 +937,7 @@ def get_role_requests(view=None, token_info=None):  # noqa: E501
 
     GET /admin/roles/requests?view=pending|all|mine
     """
-    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    authorized, auth_err = authorization_scoped("assistant_moderator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -978,7 +978,7 @@ def get_role_requests(view=None, token_info=None):  # noqa: E501
             if r in ('admin', 'moderator'):
                 descendants = get_location_descendants(loc_id)
                 scope_locs.update(descendants)
-            elif r == 'facilitator':
+            elif r in ('facilitator', 'assistant_moderator'):
                 scope_locs.add(loc_id)
 
         if not scope_locs:
@@ -1001,7 +1001,7 @@ def list_roles(user_id=None, location_id=None, role=None, token_info=None):  # n
 
     GET /admin/roles
     """
-    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    authorized, auth_err = authorization_scoped("assistant_moderator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -1260,9 +1260,9 @@ def get_location_categories(location_id, token_info=None):  # noqa: E501
     """Get categories assigned to a location.
 
     GET /admin/locations/{id}/categories
-    Auth: facilitator+ (any scoped role holder).
+    Auth: assistant_moderator+ (any scoped role holder).
     """
-    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    authorized, auth_err = authorization_scoped("assistant_moderator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -1488,9 +1488,9 @@ def get_category_label_survey(category_id, token_info=None):  # noqa: E501
     """Get the label survey for a category.
 
     GET /admin/categories/{categoryId}/label-survey
-    Auth: facilitator+ (scoped).
+    Auth: assistant_moderator+ (scoped).
     """
-    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    authorized, auth_err = authorization_scoped("assistant_moderator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -1578,9 +1578,9 @@ def get_admin_actions(token_info=None):  # noqa: E501
     """Get admin action log (ban/unban audit trail).
 
     GET /admin/actions
-    Auth: facilitator+ (scoped).
+    Auth: assistant_moderator+ (scoped).
     """
-    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    authorized, auth_err = authorization_scoped("assistant_moderator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -1638,9 +1638,9 @@ def get_admin_rules(status=None, location_id=None, content_type=None, token_info
     """Get rules (admin view with all statuses).
 
     GET /admin/rules?status=&location_id=&content_type=
-    Auth: facilitator+ (any scoped role holder).
+    Auth: assistant_moderator+ (any scoped role holder).
     """
-    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    authorized, auth_err = authorization_scoped("assistant_moderator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -1864,9 +1864,9 @@ def get_rule_requests(view=None, token_info=None):  # noqa: E501
     """Get rule change requests with view filter.
 
     GET /admin/rules/requests?view=pending|all|mine
-    Auth: facilitator+ (any scoped role holder).
+    Auth: assistant_moderator+ (any scoped role holder).
     """
-    authorized, auth_err = authorization_scoped("facilitator", token_info)
+    authorized, auth_err = authorization_scoped("assistant_moderator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -1906,7 +1906,7 @@ def get_rule_requests(view=None, token_info=None):  # noqa: E501
             if r in ('admin', 'moderator'):
                 descendants = get_location_descendants(loc_id)
                 scope_locs.update(descendants)
-            elif r == 'facilitator':
+            elif r in ('facilitator', 'assistant_moderator'):
                 scope_locs.add(loc_id)
 
         if not scope_locs:

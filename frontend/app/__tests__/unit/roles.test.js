@@ -88,8 +88,8 @@ describe('roles utilities', () => {
       expect(canModerate(makeUser([role('facilitator', 'loc1', 'cat1')]))).toBe(true)
     })
 
-    it('returns false for assistant_moderator', () => {
-      expect(canModerate(makeUser([role('assistant_moderator', 'loc1', 'cat1')]))).toBe(false)
+    it('returns true for assistant_moderator', () => {
+      expect(canModerate(makeUser([role('assistant_moderator', 'loc1', 'cat1')]))).toBe(true)
     })
 
     it('returns false for normal user', () => {
@@ -582,9 +582,9 @@ describe('roles utilities', () => {
       expect(canModerateAtScope(u, 2, 'catA', testLocations)).toBe(false)
     })
 
-    it('assistant_moderator cannot moderate (below facilitator threshold)', () => {
+    it('assistant_moderator can moderate at exact scope', () => {
       const u = makeUser([role('assistant_moderator', 2, 'catA')])
-      expect(canModerateAtScope(u, 2, 'catA', testLocations)).toBe(false)
+      expect(canModerateAtScope(u, 2, 'catA', testLocations)).toBe(true)
     })
   })
 })

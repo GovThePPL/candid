@@ -137,13 +137,7 @@ export default function ProfileScreen() {
     <View style={styles.profileSection}>
       <View style={styles.profileWrapper}>
         {isOwnProfile ? (
-          <TouchableOpacity
-            style={styles.profileCard}
-            onPress={() => router.push('/settings')}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel={t('profileAvatarA11y')}
-          >
+          <View style={styles.profileCard}>
             <Avatar user={user} size="lg" showKudosBadge showKudosCount />
             <View style={styles.profileInfo}>
               <ThemedText variant="h3" color="dark" numberOfLines={1}>
@@ -165,10 +159,7 @@ export default function ProfileScreen() {
                 </View>
               )}
             </View>
-            <View style={styles.profileChevron}>
-              <Ionicons name="chevron-forward" size={20} color={colors.secondaryText} />
-            </View>
-          </TouchableOpacity>
+          </View>
         ) : (
           <View style={styles.profileCard}>
             <Avatar user={displayUser} size="lg" showKudosBadge showKudosCount />
@@ -229,7 +220,7 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <Header onBack={handleBack} disableAvatarPress />
+      <Header onBack={handleBack} showSettingsButton={isOwnProfile} showAvatar={!isOwnProfile} disableAvatarPress />
 
       {/* Tab content - profile section and tab row scroll inside each tab's content */}
       <View style={styles.tabContent}>
@@ -269,9 +260,6 @@ const createStyles = (colors) => StyleSheet.create({
   profileInfo: {
     flexShrink: 1,
     gap: 2,
-  },
-  profileChevron: {
-    marginLeft: 'auto',
   },
   rolesRow: {
     flexDirection: 'row',

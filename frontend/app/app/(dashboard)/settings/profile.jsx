@@ -1,6 +1,6 @@
 import { StyleSheet, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, Image, TextInput, Alert } from 'react-native'
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { useFocusEffect, useRouter } from 'expo-router'
+import { useFocusEffect, useRouter, useNavigation } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
@@ -23,6 +23,7 @@ export default function ProfileSettings() {
   const { t } = useTranslation('settings')
   const { user, refreshUser } = useUser()
   const router = useRouter()
+  const navigation = useNavigation()
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const shared = useMemo(() => createSharedStyles(colors), [colors])
@@ -248,7 +249,7 @@ export default function ProfileSettings() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <Header onBack={() => router.back()} />
+        <Header onBack={() => router.back()} showSettingsButton settingsActive onSettingsBack={() => navigation.getParent()?.goBack()} />
         <LoadingView message={t('loadingProfile')} />
       </SafeAreaView>
     )
@@ -256,7 +257,7 @@ export default function ProfileSettings() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <Header onBack={() => router.back()} />
+      <Header onBack={() => router.back()} showSettingsButton settingsActive onSettingsBack={() => navigation.getParent()?.goBack()} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.pageHeader}>
           <ThemedText variant="h1" title={true} style={styles.pageTitle}>

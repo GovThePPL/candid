@@ -1,6 +1,6 @@
 import { StyleSheet, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable } from 'react-native'
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { useFocusEffect, useRouter } from 'expo-router'
+import { useFocusEffect, useRouter, useNavigation } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
@@ -86,6 +86,7 @@ const getSexOptions = (t) => [
 export default function DemographicsSettings() {
   const { user, refreshUser } = useUser()
   const router = useRouter()
+  const navigation = useNavigation()
   const colors = useThemeColors()
   const { t } = useTranslation('settings')
   const styles = useMemo(() => createStyles(colors), [colors])
@@ -235,7 +236,7 @@ export default function DemographicsSettings() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <Header onBack={() => router.back()} />
+        <Header onBack={() => router.back()} showSettingsButton settingsActive onSettingsBack={() => navigation.getParent()?.goBack()} />
         <LoadingView message={t('loadingDemographics')} />
       </SafeAreaView>
     )
@@ -243,7 +244,7 @@ export default function DemographicsSettings() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <Header onBack={() => router.back()} />
+      <Header onBack={() => router.back()} showSettingsButton settingsActive onSettingsBack={() => navigation.getParent()?.goBack()} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.pageHeader}>
           <ThemedText variant="h1" title={true} style={styles.pageTitle}>

@@ -2210,8 +2210,6 @@ const createStyles = (colors) => StyleSheet.create({
   topicCard: {
     borderRadius: 12,
     marginBottom: 16,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
     ...Shadows.card,
   },
   topicStatement: {

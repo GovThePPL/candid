@@ -846,12 +846,12 @@ export default function RulesScreen() {
                       return (
                         <View key={i} style={styles.defaultActionRow}>
                           <ThemedText variant="bodySmall" color="dark" style={styles.defaultActionClass}>
-                            {tMod(USER_CLASS_LABEL_KEYS[entry.userClass] || entry.userClass)}
+                            {t(USER_CLASS_LABEL_KEYS[entry.userClass] || entry.userClass, { ns: 'moderation' })}
                           </ThemedText>
                           <Ionicons name="arrow-forward" size={12} color={colors.secondaryText} />
                           <View style={[styles.defaultActionBadge, { backgroundColor: actionBg }]}>
                             <ThemedText variant="badge" style={{ color: actionColor }}>
-                              {tMod(ACTION_LABEL_KEYS[entry.action] || entry.action)}
+                              {t(ACTION_LABEL_KEYS[entry.action] || entry.action, { ns: 'moderation' })}
                             </ThemedText>
                           </View>
                           {entry.action === 'temporary_ban' && entry.duration && (

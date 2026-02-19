@@ -13,7 +13,7 @@ import ThemedText from './ThemedText'
 import { useToast } from './Toast'
 import api from '../lib/api'
 
-export default function Header({ onBack, showCreateButton, showAvatar = true, disableAvatarPress = false }) {
+export default function Header({ onBack, showCreateButton, showAvatar = true, disableAvatarPress = false, showSettingsButton = false, settingsActive = false, onSettingsBack }) {
   const { t } = useTranslation()
   const router = useRouter()
   const pathname = usePathname()
@@ -157,7 +157,17 @@ export default function Header({ onBack, showCreateButton, showAvatar = true, di
             )}
           </TouchableOpacity>
         )}
-        {showAvatar && (disableAvatarPress ? (
+        {showSettingsButton ? (
+          settingsActive ? (
+            <TouchableOpacity onPress={onSettingsBack} style={styles.settingsButtonActive} accessibilityLabel={t('settings:settingsTitle')} accessibilityRole="button">
+              <Ionicons name="settings" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity onPress={() => router.push('/settings')} style={styles.settingsButton} accessibilityLabel={t('settings:settingsTitle')} accessibilityRole="button">
+              <Ionicons name="settings-outline" size={22} color={colors.primary} />
+            </TouchableOpacity>
+          )
+        ) : showAvatar && (disableAvatarPress ? (
           <View accessibilityLabel={t('viewProfile')}>
             <Avatar user={user} size={36} showKudosBadge showKudosCount />
           </View>
@@ -247,6 +257,22 @@ const createStyles = (colors, insets) => StyleSheet.create({
   bellButton: {
     padding: 4,
     position: 'relative',
+  },
+  settingsButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.chattingListBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingsButtonActive: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.chattingListSelectedBg,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   badge: {
     position: 'absolute',

@@ -721,8 +721,6 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.cardBackground,
     borderRadius: 10,
     padding: 10,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
     ...Shadows.card,
   },
   similarHeader: {

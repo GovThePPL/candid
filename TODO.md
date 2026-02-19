@@ -24,6 +24,7 @@
 
 ## Positions & Categories
 - Location-aware categories — filter categories by location relevance
+- Statement merge tool — NLP-assisted similarity surfacing for moderators/facilitators to merge near-duplicate position statements. All statements enter the vote pool by default; moderators review NLP-suggested candidates (high cosine similarity threshold to minimize false positives) and merge manually. Votes consolidate onto the surviving statement, merged statement is retired from Polis, submitters are notified that their statement was merged, and users can appeal the merge (which unmerges and flags for facilitator review)
 
 ## Card Queue
 - Donation cards
@@ -56,13 +57,20 @@
 - Fetch moderation queue one item at a time instead of the full queue — claimed reports are locked for 15 minutes and hidden from other moderators, so bulk-fetching unnecessarily locks items that may not be reviewed in time
 - ~~Implement comment and post reporting — the three-dot menu on comments has a Report button (currently no-op). Needs: backend endpoint for reporting comments/posts, reason picker, and integration with the existing moderation queue~~
 - Comment moderation actions — ~~delete comments~~, ~~lock comment threads~~, ~~pin comments~~
+- Fix assistant moderator permissions for admin page and ensure they have access to the moderation queue in their category
+- Banned words list rule type — content containing banned words is blocked at creation time, applied per rule scope (positions, chat, posts, comments)
 
 ## Discuss
 - Show detailed score calculation option for comments
+- @mention tagging in posts and comments — `@username` mentions individual users, `@expert` mentions an expert with category-specific expertise. Limit of 3 tagged users per post/comment. Tagged users receive notifications
+- Pin up to 3 posts per location/category — pinned posts float to top of feed with "move pinned post to top" reordering
 
 ## Frontend Improvements
 - UGC Translation — runtime translation of user-generated content (positions, chat messages, surveys). See [plan](.claude-plans/2026-02-10_ugc-translation.md)
+- Move settings menu to replace user profile picture in top bar
+- Audit back button usage on web — make it close open modals instead of navigating away
 
 ## Infrastructure
 - Will eventually need frontend web servers
 - Migrate to Kubernetes?
+- Polis math worker Python reimplementation — replace the Clojure math worker (~6,200 lines) with Python using NumPy. 146 branches across 7 core modules, 27 test cases for 100% branch coverage, golden snapshot validation against Clojure output. See [plan](.claude-plans/2026-02-17_polis-math-python-reimplementation.md)

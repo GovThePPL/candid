@@ -196,7 +196,7 @@ def get_facilitator_scopes(user_id):
     """
     rows = db.execute_query("""
         SELECT location_id, position_category_id FROM user_role
-        WHERE user_id = %s AND role = 'facilitator'
+        WHERE user_id = %s AND role IN ('facilitator', 'assistant_moderator')
         AND location_id IS NOT NULL AND position_category_id IS NOT NULL
     """, (str(user_id),))
     if not rows:

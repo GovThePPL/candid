@@ -165,9 +165,11 @@ describe('Profile screen', () => {
     expect(screen.getByRole('button', { name: /adminButtonA11y/i })).toBeTruthy()
   })
 
-  test('avatar has accessible label', () => {
+  test('header shows settings button on own profile', () => {
     render(<ProfileScreen />)
-    expect(screen.getByRole('button', { name: /profileAvatarA11y/i })).toBeTruthy()
+    const header = screen.getByTestId('header')
+    expect(header.props.showSettingsButton).toBe(true)
+    expect(header.props.showAvatar).toBe(false)
   })
 })
 

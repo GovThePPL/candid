@@ -14,7 +14,7 @@ import BottomDrawerModal from '../../../components/BottomDrawerModal'
 import LocationFilterButton from '../../../components/LocationFilterButton'
 import { useToast } from '../../../components/Toast'
 import { useUser } from '../../../hooks/useUser'
-import { getHighestRole } from '../../../lib/roles'
+import { getHighestRole, hasRole } from '../../../lib/roles'
 import LocationPicker from '../../../components/LocationPicker'
 import LocationCategoryBadge from '../../../components/LocationCategoryBadge'
 import useSurveyForm from '../../../hooks/useSurveyForm'
@@ -28,6 +28,8 @@ export default function SurveysScreen() {
   const styles = useMemo(() => createStyles(colors), [colors])
   const toast = useToast()
   const { user } = useUser()
+
+  const canWrite = useMemo(() => hasRole(user, 'admin'), [user])
 
   const defaultLocationId = useMemo(() => {
     if (!user?.roles?.length) return null
@@ -170,27 +172,29 @@ export default function SurveysScreen() {
             <Ionicons name="eye-outline" size={16} color={colors.primary} />
             <ThemedText variant="caption" color="primary">{t('viewSurvey')}</ThemedText>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.deleteButton}
-            onPress={() => handleDelete(item)}
-            disabled={deleting === item.id}
-            accessibilityRole="button"
-            accessibilityLabel={t('deleteSurveyA11y', { title })}
-            accessibilityState={{ disabled: deleting === item.id }}
-          >
-            {deleting === item.id ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <>
-                <Ionicons name="trash-outline" size={16} color="#FFFFFF" />
-                <ThemedText variant="caption" color="inverse">{t('deleteAction')}</ThemedText>
-              </>
-            )}
-          </TouchableOpacity>
+          {canWrite && (
+            <TouchableOpacity
+              style={styles.deleteButton}
+              onPress={() => handleDelete(item)}
+              disabled={deleting === item.id}
+              accessibilityRole="button"
+              accessibilityLabel={t('deleteSurveyA11y', { title })}
+              accessibilityState={{ disabled: deleting === item.id }}
+            >
+              {deleting === item.id ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons name="trash-outline" size={16} color="#FFFFFF" />
+                  <ThemedText variant="caption" color="inverse">{t('deleteAction')}</ThemedText>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     )
-  }, [styles, colors, t, handleDelete, handleView, deleting])
+  }, [styles, colors, t, handleDelete, handleView, deleting, canWrite])
 
   // View modal content helpers
   const renderViewContent = () => {
@@ -277,15 +281,17 @@ export default function SurveysScreen() {
       <View style={styles.content}>
         <View style={styles.titleRow}>
           <ThemedText variant="h1" title={true} style={styles.pageTitle}>{t('surveysTitle')}</ThemedText>
-          <TouchableOpacity
-            style={styles.createButton}
-            onPress={form.openCreateForm}
-            accessibilityRole="button"
-            accessibilityLabel={t('createSurveyA11y')}
-          >
-            <Ionicons name="add" size={20} color="#FFFFFF" />
-            <ThemedText variant="buttonSmall" color="inverse">{t('createSurvey')}</ThemedText>
-          </TouchableOpacity>
+          {canWrite && (
+            <TouchableOpacity
+              style={styles.createButton}
+              onPress={form.openCreateForm}
+              accessibilityRole="button"
+              accessibilityLabel={t('createSurveyA11y')}
+            >
+              <Ionicons name="add" size={20} color="#FFFFFF" />
+              <ThemedText variant="buttonSmall" color="inverse">{t('createSurvey')}</ThemedText>
+            </TouchableOpacity>
+          )}
         </View>
 
         {locations.length > 0 && (
