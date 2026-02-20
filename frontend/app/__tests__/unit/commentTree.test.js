@@ -4,8 +4,10 @@ import {
   flattenTree,
   controversyScore,
   getAutoCollapsedIds,
+  getReplyLineStates,
   AUTO_COLLAPSE_THRESHOLD,
   THREAD_DEPTH_LIMIT,
+  THREAD_DEPTH_LIMIT_DESKTOP,
 } from '../../lib/commentTree'
 
 // Helper to create a comment with defaults
@@ -187,7 +189,7 @@ describe('flattenTree', () => {
     ])
   })
 
-  it('caps visualDepth at THREAD_DEPTH_LIMIT and stops rendering children beyond it', () => {
+  it('caps visualDepth at THREAD_DEPTH_LIMIT (default) and stops rendering children beyond it', () => {
     // Create a chain 9 levels deep (l0 through l9)
     const chain = [makeComment({ id: 'l0' })]
     for (let i = 1; i <= 9; i++) {
@@ -202,6 +204,38 @@ describe('flattenTree', () => {
     expect(flat[7].id).toBe('l7')
     // l7 still knows it has children (for "continue thread" button)
     expect(flat[7].children.length).toBeGreaterThan(0)
+  })
+
+  it('respects a custom depthLimit parameter', () => {
+    // Create a chain 5 levels deep (l0 through l5)
+    const chain = [makeComment({ id: 'l0' })]
+    for (let i = 1; i <= 5; i++) {
+      chain.push(makeComment({ id: `l${i}`, parentCommentId: `l${i - 1}` }))
+    }
+    const tree = buildTree(chain)
+    const flat = flattenTree(tree, new Set(), 3)
+    // Only items up to depth 3 are rendered (l0 through l3)
+    expect(flat).toHaveLength(4)
+    expect(flat[3].depth).toBe(3)
+    expect(flat[3].visualDepth).toBe(3)
+    expect(flat[3].id).toBe('l3')
+    expect(flat[3].children.length).toBeGreaterThan(0)
+  })
+
+  it('allows deeper nesting with THREAD_DEPTH_LIMIT_DESKTOP', () => {
+    // Create a chain 14 levels deep (l0 through l14)
+    const chain = [makeComment({ id: 'l0' })]
+    for (let i = 1; i <= 14; i++) {
+      chain.push(makeComment({ id: `l${i}`, parentCommentId: `l${i - 1}` }))
+    }
+    const tree = buildTree(chain)
+    const flat = flattenTree(tree, new Set(), THREAD_DEPTH_LIMIT_DESKTOP)
+    // Items up to depth 12 are rendered (l0 through l12)
+    expect(flat).toHaveLength(13)
+    expect(flat[12].depth).toBe(12)
+    expect(flat[12].visualDepth).toBe(12)
+    expect(flat[12].id).toBe('l12')
+    expect(flat[12].children.length).toBeGreaterThan(0)
   })
 
   it('skips children of collapsed nodes', () => {
@@ -490,5 +524,61 @@ describe('getAutoCollapsedIds', () => {
 
   it('exports THREAD_DEPTH_LIMIT as 7', () => {
     expect(THREAD_DEPTH_LIMIT).toBe(7)
+  })
+
+  it('exports THREAD_DEPTH_LIMIT_DESKTOP as 12', () => {
+    expect(THREAD_DEPTH_LIMIT_DESKTOP).toBe(12)
+  })
+})
+
+describe('getReplyLineStates', () => {
+  it('returns stub only for reply to root comment (depth 0)', () => {
+    const comment = { depth: 0, visualDepth: 0, lineStates: [] }
+    expect(getReplyLineStates(comment, 12)).toEqual(['stub'])
+  })
+
+  it('returns end + stub for reply to depth 1 comment with ending line', () => {
+    const comment = { depth: 1, visualDepth: 1, lineStates: ['end'] }
+    expect(getReplyLineStates(comment, 12)).toEqual(['end', 'stub'])
+  })
+
+  it('passes through continuing ancestor lines as full', () => {
+    const comment = { depth: 2, visualDepth: 2, lineStates: ['full', 'stub'] }
+    expect(getReplyLineStates(comment, 12)).toEqual(['full', 'end', 'stub'])
+  })
+
+  it('produces all end lines for deeply nested last-child comment', () => {
+    // Simulates a comment at depth 6 where all ancestor lines are 'end'
+    const comment = {
+      depth: 6,
+      visualDepth: 6,
+      lineStates: ['end', 'end', 'end', 'end', 'end', 'end'],
+    }
+    const result = getReplyLineStates(comment, 12)
+    expect(result).toEqual(['end', 'end', 'end', 'end', 'end', 'end', 'stub'])
+    expect(result).toHaveLength(7)
+  })
+
+  it('mixes full and end based on comment lineStates', () => {
+    // depth 3: first line continues, second ends, own depth is stub
+    const comment = {
+      depth: 3,
+      visualDepth: 3,
+      lineStates: ['full', 'end', 'start'],
+    }
+    expect(getReplyLineStates(comment, 12)).toEqual(['full', 'end', 'full', 'stub'])
+  })
+
+  it('caps reply depth at depthLimit', () => {
+    const comment = { depth: 7, visualDepth: 7, lineStates: ['end', 'end', 'end', 'end', 'end', 'end', 'end'] }
+    // depthLimit 7: reply would be depth 8 but capped at 7
+    const result = getReplyLineStates(comment, 7)
+    expect(result).toHaveLength(7)
+    expect(result[6]).toBe('stub')
+  })
+
+  it('handles missing lineStates gracefully', () => {
+    const comment = { depth: 2, visualDepth: 2 }
+    expect(getReplyLineStates(comment, 12)).toEqual(['end', 'end', 'stub'])
   })
 })

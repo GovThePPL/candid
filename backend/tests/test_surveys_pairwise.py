@@ -9,6 +9,7 @@ from conftest import (
     SURVEY_ACTIVE_ID,
     NONEXISTENT_UUID,
     NORMAL3_ID,
+    OREGON_LOCATION_ID,
     db_query_one,
     db_query,
     db_execute,
@@ -322,14 +323,15 @@ class TestCreatePairwiseSurvey:
         )
         assert resp.status_code == 403
 
-    def test_moderator_forbidden(self, moderator_headers):
-        """Moderator cannot create pairwise surveys (403)."""
+    @pytest.mark.mutation
+    def test_moderator_allowed(self, moderator_headers):
+        """Moderator (satisfies facilitator in hierarchy) can create scoped pairwise surveys."""
         resp = requests.post(
             ADMIN_PAIRWISE_URL,
             headers=moderator_headers,
-            json=self._make_payload("mod", ["A", "B"]),
+            json=self._make_payload("mod", ["A", "B"], locationId=OREGON_LOCATION_ID),
         )
-        assert resp.status_code == 403
+        assert resp.status_code == 201
 
     @pytest.mark.mutation
     def test_create_success(self, admin_headers):

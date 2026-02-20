@@ -38,7 +38,7 @@ export default function useSurveyForm({ user, locations, allCategories, defaultL
   const [locationPickerVisible, setLocationPickerVisible] = useState(false)
   const [categoryPickerVisible, setCategoryPickerVisible] = useState(false)
 
-  // Locations the user can scope surveys to (admin scope)
+  // Locations the user can scope surveys to (admin + facilitator scope)
   const allowableLocations = useMemo(() => {
     if (!user?.roles?.length || !locations.length) return []
     const allowedIds = new Set()
@@ -47,6 +47,8 @@ export default function useSurveyForm({ user, locations, allCategories, defaultL
         for (const id of getDescendantLocationIds(r.locationId, locations)) {
           allowedIds.add(id)
         }
+      } else if (r.role === 'facilitator' && r.locationId) {
+        allowedIds.add(r.locationId)
       }
     }
     // Reparent locations whose parent isn't in the filtered set so they appear at root
@@ -54,6 +56,23 @@ export default function useSurveyForm({ user, locations, allCategories, defaultL
       .filter(l => allowedIds.has(l.id))
       .map(l => allowedIds.has(l.parentLocationId) ? l : { ...l, parentLocationId: null })
   }, [user, locations])
+
+  // Categories the user can scope surveys to (admin = all, facilitator = assigned only)
+  const allowableCategories = useMemo(() => {
+    if (!user?.roles?.length || !allCategories.length) return allCategories
+    const isAdmin = user.roles.some(r => r.role === 'admin')
+    if (isAdmin) return allCategories
+    // Facilitator: only categories matching their role + selected location
+    const allowedCatIds = new Set()
+    for (const r of user.roles) {
+      if (r.role === 'facilitator' && r.positionCategoryId) {
+        if (!selectedLocationId || r.locationId === selectedLocationId) {
+          allowedCatIds.add(r.positionCategoryId)
+        }
+      }
+    }
+    return allCategories.filter(c => allowedCatIds.has(c.id))
+  }, [user, allCategories, selectedLocationId])
 
   // --- Standard form helpers ---
   const addQuestion = useCallback(() => {
@@ -187,6 +206,7 @@ export default function useSurveyForm({ user, locations, allCategories, defaultL
     locationPickerVisible, setLocationPickerVisible,
     categoryPickerVisible, setCategoryPickerVisible,
     allowableLocations,
+    allowableCategories,
     // Actions
     resetForm, handleCreate,
   }

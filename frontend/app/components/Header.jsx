@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
+import useIsDesktop from '../hooks/useIsDesktop'
 import { useAuth, useChatContext } from '../contexts/UserContext'
 import { useNotificationCount } from '../contexts/NotificationContext'
 import ChatRequestIndicator from './ChatRequestIndicator'
@@ -23,6 +24,7 @@ export default function Header({ onBack, showCreateButton, showAvatar = true, di
   const showToast = useToast()
   const { user } = useAuth()
   const { pendingChatRequest, clearPendingChatRequest } = useChatContext()
+  const isDesktop = useIsDesktop()
   const { unreadCount } = useNotificationCount()
   const [headerWidth, setHeaderWidth] = useState(0)
 
@@ -67,6 +69,27 @@ export default function Header({ onBack, showCreateButton, showAvatar = true, di
       }
     }
   }, [pendingChatRequest, clearPendingChatRequest, showToast, t])
+
+  // Desktop: tab screens don't need the header at all (DesktopNav handles navigation)
+  if (isDesktop && !onBack) return null
+
+  // Desktop sub-pages: render only a slim back button
+  if (isDesktop && onBack) {
+    return (
+      <View style={styles.desktopBackBar}>
+        <TouchableOpacity onPress={onBack} style={styles.backButton} accessibilityLabel={t('goBack')} accessibilityRole="button">
+          <Ionicons name="arrow-back" size={22} color={colors.primary} />
+        </TouchableOpacity>
+        {pendingChatRequest && (
+          <ChatRequestIndicator
+            pendingRequest={pendingChatRequest}
+            onTimeout={handleChatRequestTimeout}
+            onCancel={handleChatRequestCancel}
+          />
+        )}
+      </View>
+    )
+  }
 
   return (
     <View style={styles.header} onLayout={e => setHeaderWidth(e.nativeEvent.layout.width)}>
@@ -115,68 +138,73 @@ export default function Header({ onBack, showCreateButton, showAvatar = true, di
             <Ionicons name="add" size={18} color={colors.secondaryText} />
           </TouchableOpacity>
         )}
-        {pathname === '/notifications' ? (
-          <View
-            style={styles.bellButton}
-            accessibilityLabel={unreadCount > 0
-              ? t('notifications:bellA11y', { count: unreadCount })
-              : t('notifications:bellA11yNone')}
-          >
-            <Ionicons
-              name={unreadCount > 0 ? 'notifications' : 'notifications-outline'}
-              size={22}
-              color={colors.secondaryText}
-            />
-            {unreadCount > 0 && (
-              <View style={styles.badge}>
-                <ThemedText variant="label" style={styles.badgeText}>
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </ThemedText>
+        {/* On desktop, notifications bell and avatar/settings are in the sidebar nav */}
+        {!isDesktop && (
+          <>
+            {pathname === '/notifications' ? (
+              <View
+                style={styles.bellButton}
+                accessibilityLabel={unreadCount > 0
+                  ? t('notifications:bellA11y', { count: unreadCount })
+                  : t('notifications:bellA11yNone')}
+              >
+                <Ionicons
+                  name={unreadCount > 0 ? 'notifications' : 'notifications-outline'}
+                  size={22}
+                  color={colors.secondaryText}
+                />
+                {unreadCount > 0 && (
+                  <View style={styles.badge}>
+                    <ThemedText variant="label" style={styles.badgeText}>
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </ThemedText>
+                  </View>
+                )}
               </View>
+            ) : (
+              <TouchableOpacity
+                onPress={() => router.push('/notifications')}
+                style={styles.bellButton}
+                accessibilityLabel={unreadCount > 0
+                  ? t('notifications:bellA11y', { count: unreadCount })
+                  : t('notifications:bellA11yNone')}
+                accessibilityRole="button"
+              >
+                <Ionicons
+                  name={unreadCount > 0 ? 'notifications' : 'notifications-outline'}
+                  size={22}
+                  color={colors.secondaryText}
+                />
+                {unreadCount > 0 && (
+                  <View style={styles.badge}>
+                    <ThemedText variant="label" style={styles.badgeText}>
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </ThemedText>
+                  </View>
+                )}
+              </TouchableOpacity>
             )}
-          </View>
-        ) : (
-          <TouchableOpacity
-            onPress={() => router.push('/notifications')}
-            style={styles.bellButton}
-            accessibilityLabel={unreadCount > 0
-              ? t('notifications:bellA11y', { count: unreadCount })
-              : t('notifications:bellA11yNone')}
-            accessibilityRole="button"
-          >
-            <Ionicons
-              name={unreadCount > 0 ? 'notifications' : 'notifications-outline'}
-              size={22}
-              color={colors.secondaryText}
-            />
-            {unreadCount > 0 && (
-              <View style={styles.badge}>
-                <ThemedText variant="label" style={styles.badgeText}>
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </ThemedText>
+            {showSettingsButton ? (
+              settingsActive ? (
+                <TouchableOpacity onPress={onSettingsBack} style={styles.settingsButtonActive} accessibilityLabel={t('settings:settingsTitle')} accessibilityRole="button">
+                  <Ionicons name="settings" size={22} color="#FFFFFF" />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity onPress={() => router.push('/settings')} style={styles.settingsButton} accessibilityLabel={t('settings:settingsTitle')} accessibilityRole="button">
+                  <Ionicons name="settings-outline" size={22} color={colors.primary} />
+                </TouchableOpacity>
+              )
+            ) : showAvatar && (disableAvatarPress ? (
+              <View accessibilityLabel={t('viewProfile')}>
+                <Avatar user={user} size={36} showKudosBadge showKudosCount />
               </View>
-            )}
-          </TouchableOpacity>
+            ) : (
+              <TouchableOpacity onPress={() => router.push('/profile')} accessibilityLabel={t('viewProfile')} accessibilityRole="button">
+                <Avatar user={user} size={36} showKudosBadge showKudosCount />
+              </TouchableOpacity>
+            ))}
+          </>
         )}
-        {showSettingsButton ? (
-          settingsActive ? (
-            <TouchableOpacity onPress={onSettingsBack} style={styles.settingsButtonActive} accessibilityLabel={t('settings:settingsTitle')} accessibilityRole="button">
-              <Ionicons name="settings" size={22} color="#FFFFFF" />
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity onPress={() => router.push('/settings')} style={styles.settingsButton} accessibilityLabel={t('settings:settingsTitle')} accessibilityRole="button">
-              <Ionicons name="settings-outline" size={22} color={colors.primary} />
-            </TouchableOpacity>
-          )
-        ) : showAvatar && (disableAvatarPress ? (
-          <View accessibilityLabel={t('viewProfile')}>
-            <Avatar user={user} size={36} showKudosBadge showKudosCount />
-          </View>
-        ) : (
-          <TouchableOpacity onPress={() => router.push('/profile')} accessibilityLabel={t('viewProfile')} accessibilityRole="button">
-            <Avatar user={user} size={36} showKudosBadge showKudosCount />
-          </TouchableOpacity>
-        ))}
       </View>
     </View>
   )
@@ -208,6 +236,13 @@ const createStyles = (colors, insets) => StyleSheet.create({
         height: insets.top + 58,
       },
     }),
+  },
+  desktopBackBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 12,
   },
   headerLeft: {
     flexDirection: 'row',

@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../../../hooks/useThemeColors'
+import useIsDesktop from '../../../../hooks/useIsDesktop'
 import { useAuth } from '../../../../contexts/UserContext'
 import { hasQAAuthority } from '../../../../lib/roles'
 import useModerateChecker from '../../../../hooks/useModerateChecker'
@@ -41,6 +42,7 @@ import ReportModal from '../../../../components/ReportModal'
 import ModerationActionModal from '../../../../components/ModerationActionModal'
 import useToxicityCheck from '../../../../hooks/useToxicityCheck'
 import ReconsiderModal from '../../../../components/ReconsiderModal'
+import { THREAD_DEPTH_LIMIT, THREAD_DEPTH_LIMIT_DESKTOP, getReplyLineStates } from '../../../../lib/commentTree'
 
 const screenHeight = Dimensions.get('window').height
 
@@ -52,6 +54,8 @@ export default function PostDetail() {
   const insets = useSafeAreaInsets()
   const { t } = useTranslation('discuss')
   const colors = useThemeColors()
+  const isDesktop = useIsDesktop()
+  const threadDepthLimit = isDesktop ? THREAD_DEPTH_LIMIT_DESKTOP : THREAD_DEPTH_LIMIT
   const styles = useMemo(() => createStyles(colors), [colors])
   const { user } = useAuth()
   const showToast = useToast()
@@ -80,12 +84,14 @@ export default function PostDetail() {
     hasMore,
     totalRootCount,
     truncatedRoots,
-  } = useCommentThread(postId, { threadRootId: threadRoot || undefined, focusCommentId: focus || undefined })
+  } = useCommentThread(postId, { threadRootId: threadRoot || undefined, focusCommentId: focus || undefined, depthLimit: threadDepthLimit })
 
   // Input state
   const [inputText, setInputText] = useState('')
   const [inputHeight, setInputHeight] = useState(40)
   const [replyingTo, setReplyingTo] = useState(null)
+  const [composingTopLevel, setComposingTopLevel] = useState(false)
+  const [topLevelPosting, setTopLevelPosting] = useState(false)
   const [posting, setPosting] = useState(false)
 
   // Mute state
@@ -538,11 +544,39 @@ export default function PostDetail() {
   // Reply
   const handleReply = useCallback((comment) => {
     setReplyingTo(comment)
+    setComposingTopLevel(false)
   }, [])
 
   const cancelReply = useCallback(() => {
     setReplyingTo(null)
   }, [])
+
+  // Desktop top-level inline composer
+  const handleStartTopLevelComment = useCallback(() => {
+    setComposingTopLevel(true)
+    setReplyingTo(null)
+  }, [])
+
+  const cancelTopLevelComment = useCallback(() => {
+    setComposingTopLevel(false)
+  }, [])
+
+  const doSubmitTopLevel = useCallback(async (text) => {
+    setTopLevelPosting(true)
+    try {
+      await handleCreateComment(text, null)
+      setComposingTopLevel(false)
+    } catch {
+      showToast(t('errorCommentFailed'))
+    } finally {
+      setTopLevelPosting(false)
+    }
+  }, [handleCreateComment, showToast, t])
+
+  const handleTopLevelSubmit = useCallback(async (text) => {
+    if (topLevelPosting) return
+    toxicity.checkAndSend(text, () => doSubmitTopLevel(text))
+  }, [topLevelPosting, toxicity.checkAndSend, doSubmitTopLevel])
 
   // Actually submit a top-level comment
   const doSubmitComment = useCallback(async (text) => {
@@ -571,13 +605,13 @@ export default function PostDetail() {
     try {
       await handleCreateComment(replyText, replyingTo.id)
       setReplyingTo(null)
-      router.back()
+      if (!isDesktop) router.back()
     } catch {
       showToast(t('errorCommentFailed'))
     } finally {
       setReplyPosting(false)
     }
-  }, [replyingTo, handleCreateComment, showToast, t, router])
+  }, [replyingTo, handleCreateComment, showToast, t, router, isDesktop])
 
   // Submit reply via ReplyComposer modal (with toxicity check)
   const [replyPosting, setReplyPosting] = useState(false)
@@ -669,16 +703,34 @@ export default function PostDetail() {
     isPostLocked,
     userHasQAAuthority,
     canModerate: userCanModerate,
+    depthLimit: threadDepthLimit,
+    // Inline reply (desktop only)
+    inlineReplyTarget: isDesktop ? replyingTo : null,
+    inlineReplyProps: isDesktop && replyingTo ? {
+      onSubmit: handleReplySubmit,
+      onClose: cancelReply,
+      posting: replyPosting,
+    } : null,
   }
 
-  const renderChain = useCallback(({ item: chain }) => (
-    <ChainBlock
-      chain={chain}
-      handlersRef={chainHandlersRef}
-      mutedCommentIds={mutedCommentIds}
-      style={styles.chainBlock}
-    />
-  ), [styles.chainBlock, mutedCommentIds])
+  // Track which chain (if any) contains the inline reply target.
+  // Passing this as a prop lets memo'd ChainBlock re-render only the
+  // affected chain(s) instead of all chains or none.
+  const inlineReplyCommentId = isDesktop ? replyingTo?.id ?? null : null
+
+  const renderChain = useCallback(({ item: chain }) => {
+    const hasInlineReply = inlineReplyCommentId != null
+      && chain.some(c => c.id === inlineReplyCommentId)
+    return (
+      <ChainBlock
+        chain={chain}
+        handlersRef={chainHandlersRef}
+        mutedCommentIds={mutedCommentIds}
+        style={styles.chainBlock}
+        hasInlineReply={hasInlineReply}
+      />
+    )
+  }, [styles.chainBlock, mutedCommentIds, inlineReplyCommentId])
 
   const chainKeyExtractor = useCallback((item) => item[0].id, [])
 
@@ -686,7 +738,7 @@ export default function PostDetail() {
   if (postLoading) {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <Header onBack={handleBack} />
+        <Header onBack={isDesktop ? undefined : handleBack} />
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
@@ -697,7 +749,7 @@ export default function PostDetail() {
   if (postError || !post) {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <Header onBack={handleBack} />
+        <Header onBack={isDesktop ? undefined : handleBack} />
         <View style={styles.centered}>
           <EmptyState
             icon="alert-circle-outline"
@@ -708,6 +760,14 @@ export default function PostDetail() {
       </View>
     )
   }
+
+  // Determine input state (inline bar is for top-level comments only)
+  const inputDisabled = isPostLocked || !canPostTopLevel
+  const inputPlaceholder = isPostLocked
+    ? t('postLocked')
+    : !canPostTopLevel
+      ? t('qaOnlyExperts')
+      : t('addComment')
 
   // List header: post + comment header
   const ListHeader = (
@@ -727,12 +787,38 @@ export default function PostDetail() {
           onModerate={handleModeratePost}
         />
       </View>
+      {isDesktop && !inputDisabled && (
+        <TouchableOpacity
+          onPress={handleStartTopLevelComment}
+          style={styles.opReplyButton}
+          activeOpacity={0.6}
+          accessibilityRole="button"
+          accessibilityLabel={t('reply')}
+        >
+          <Ionicons name="chatbubble-outline" size={16} color={colors.primary} />
+          <ThemedText variant="bodySmall" color="primary">{t('reply')}</ThemedText>
+        </TouchableOpacity>
+      )}
       <View style={styles.commentSection}>
         <View style={styles.commentHeaderRow}>
           <ThemedText variant="h3">
             {t('commentsHeader', { count: post?.commentCount ?? 0 })}
           </ThemedText>
-          <CommentSortControl sort={sort} onSortChange={setSort} />
+          <View style={styles.commentHeaderRight}>
+            {isDesktop && !inputDisabled && (
+              <TouchableOpacity
+                onPress={handleStartTopLevelComment}
+                style={styles.topLevelReplyPill}
+                activeOpacity={0.6}
+                accessibilityRole="button"
+                accessibilityLabel={t('reply')}
+              >
+                <Ionicons name="chatbubble-outline" size={16} color={colors.primary} />
+                <ThemedText variant="caption" color="primary">{t('reply')}</ThemedText>
+              </TouchableOpacity>
+            )}
+            <CommentSortControl sort={sort} onSortChange={setSort} />
+          </View>
         </View>
         {threadRoot && (
           <View style={styles.threadButtonRow}>
@@ -764,6 +850,18 @@ export default function PostDetail() {
             )}
           </View>
         )}
+        {composingTopLevel && isDesktop && (
+          <View style={styles.topLevelComposerWrap}>
+            <ReplyComposer
+              visible
+              comment={null}
+              onSubmit={handleTopLevelSubmit}
+              onClose={cancelTopLevelComment}
+              posting={topLevelPosting}
+              mode="inline"
+            />
+          </View>
+        )}
         {commentsLoading && flatList.length === 0 && (
           <ActivityIndicator size="small" color={colors.primary} style={styles.commentLoading} />
         )}
@@ -779,14 +877,6 @@ export default function PostDetail() {
     </>
   )
 
-  // Determine input state (inline bar is for top-level comments only)
-  const inputDisabled = isPostLocked || !canPostTopLevel
-  const inputPlaceholder = isPostLocked
-    ? t('postLocked')
-    : !canPostTopLevel
-      ? t('qaOnlyExperts')
-      : t('addComment')
-
   const Wrapper = Platform.OS === 'web' ? View : KBAvoidingView
   const wrapperProps = Platform.OS === 'web' ? {} : {
     behavior: 'padding',
@@ -795,7 +885,7 @@ export default function PostDetail() {
 
   return (
     <Wrapper style={[styles.screen, { paddingTop: insets.top }]} {...wrapperProps}>
-      <Header onBack={handleBack} />
+      <Header onBack={isDesktop ? undefined : handleBack} />
       <FlatList
         ref={flatListRef}
         data={chains}
@@ -818,57 +908,59 @@ export default function PostDetail() {
         onScroll={(e) => { scrollOffsetRef.current = e.nativeEvent.contentOffset.y }}
       />
 
-      {/* Input bar (top-level comments only) */}
-      <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, Spacing.sm) }]}>
-        <View style={styles.inputRow}>
-          <TouchableOpacity
-            onPress={handleOpenLinkPrompt}
-            disabled={inputDisabled}
-            style={[styles.linkButton, inputDisabled && styles.inputDisabled]}
-            accessibilityRole="button"
-            accessibilityLabel={t('insertLinkA11y')}
-            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-          >
-            <Ionicons name="link" size={20} color={inputDisabled ? colors.placeholderText : colors.secondaryText} />
-          </TouchableOpacity>
-          <TextInput
-            style={[
-              styles.input,
-              { height: inputHeight, maxHeight: maxInputHeight, color: colors.text },
-              inputDisabled && styles.inputDisabled,
-            ]}
-            value={inputText}
-            onChangeText={setInputText}
-            onContentSizeChange={handleContentSizeChange}
-            placeholder={inputPlaceholder}
-            placeholderTextColor={colors.placeholderText}
-            multiline
-            maxLength={2000}
-            maxFontSizeMultiplier={1.5}
-            editable={!inputDisabled}
-            returnKeyType="default"
-            scrollEnabled={inputHeight >= maxInputHeight}
-            accessibilityLabel={inputPlaceholder}
-          />
-          <TouchableOpacity
-            style={[styles.sendButton, (!inputText.trim() || inputDisabled) && styles.sendButtonDisabled]}
-            onPress={handleSubmitComment}
-            disabled={!inputText.trim() || inputDisabled || posting}
-            accessibilityRole="button"
-            accessibilityLabel={t('postComment')}
-          >
-            {posting ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Ionicons
-                name="send"
-                size={18}
-                color={inputText.trim() && !inputDisabled ? '#FFFFFF' : colors.placeholderText}
-              />
-            )}
-          </TouchableOpacity>
+      {/* Input bar (top-level comments only — mobile) */}
+      {!isDesktop && (
+        <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, Spacing.sm) }]}>
+          <View style={styles.inputRow}>
+            <TouchableOpacity
+              onPress={handleOpenLinkPrompt}
+              disabled={inputDisabled}
+              style={[styles.linkButton, inputDisabled && styles.inputDisabled]}
+              accessibilityRole="button"
+              accessibilityLabel={t('insertLinkA11y')}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
+              <Ionicons name="link" size={20} color={inputDisabled ? colors.placeholderText : colors.secondaryText} />
+            </TouchableOpacity>
+            <TextInput
+              style={[
+                styles.input,
+                { height: inputHeight, maxHeight: maxInputHeight, color: colors.text },
+                inputDisabled && styles.inputDisabled,
+              ]}
+              value={inputText}
+              onChangeText={setInputText}
+              onContentSizeChange={handleContentSizeChange}
+              placeholder={inputPlaceholder}
+              placeholderTextColor={colors.placeholderText}
+              multiline
+              maxLength={2000}
+              maxFontSizeMultiplier={1.5}
+              editable={!inputDisabled}
+              returnKeyType="default"
+              scrollEnabled={inputHeight >= maxInputHeight}
+              accessibilityLabel={inputPlaceholder}
+            />
+            <TouchableOpacity
+              style={[styles.sendButton, (!inputText.trim() || inputDisabled) && styles.sendButtonDisabled]}
+              onPress={handleSubmitComment}
+              disabled={!inputText.trim() || inputDisabled || posting}
+              accessibilityRole="button"
+              accessibilityLabel={t('postComment')}
+            >
+              {posting ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Ionicons
+                  name="send"
+                  size={18}
+                  color={inputText.trim() && !inputDisabled ? '#FFFFFF' : colors.placeholderText}
+                />
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
+      )}
 
       {/* Link prompt modal */}
       <Modal
@@ -926,19 +1018,21 @@ export default function PostDetail() {
         </View>
       </Modal>
 
-      {/* Web keyboard spacer */}
-      {Platform.OS === 'web' && webKeyboardHeight > 0 && (
+      {/* Web keyboard spacer (mobile only — desktop has no on-screen keyboard) */}
+      {!isDesktop && Platform.OS === 'web' && webKeyboardHeight > 0 && (
         <View style={{ height: webKeyboardHeight }} />
       )}
 
-      {/* Reply composer modal */}
-      <ReplyComposer
-        visible={replyingTo != null}
-        comment={replyingTo}
-        onSubmit={handleReplySubmit}
-        onClose={cancelReply}
-        posting={replyPosting}
-      />
+      {/* Reply composer modal (mobile only — desktop uses inline mode in ChainBlock) */}
+      {!isDesktop && (
+        <ReplyComposer
+          visible={replyingTo != null}
+          comment={replyingTo}
+          onSubmit={handleReplySubmit}
+          onClose={cancelReply}
+          posting={replyPosting}
+        />
+      )}
 
       {/* Downvote reason picker */}
       <DownvoteReasonPicker
@@ -970,39 +1064,119 @@ export default function PostDetail() {
   )
 }
 
+const REPLY_INDENT_PX = 16
+
+// Static styles for inline reply depth lines (borderLeftColor set inline per theme)
+const replyLineStyles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    paddingHorizontal: Spacing.lg, // matches CommentItem container
+    marginTop: -Spacing.sm, // overlap comment's line inset gap so thread lines connect
+  },
+  linesContainer: {
+    flexDirection: 'row',
+  },
+  lineWrapper: {
+    width: REPLY_INDENT_PX,
+  },
+  lineSpacer: {
+    width: REPLY_INDENT_PX,
+  },
+  lineSegment: {
+    flex: 1,
+    borderLeftWidth: 1,
+    marginLeft: 7,
+  },
+  lineInsetTop: {
+    marginTop: Spacing.sm,
+  },
+  lineInsetBottom: {
+    marginBottom: Spacing.sm,
+  },
+  depthSpacer: {
+    width: 7,
+  },
+  composerWrap: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+  },
+})
+
 // Renders a chain of comments (root + all replies in one card).
 // Reads handlers from a ref so FlatList's renderItem stays stable.
-const ChainBlock = memo(function ChainBlock({ chain, handlersRef, mutedCommentIds, style }) {
+// hasInlineReply is a memo "dirty flag" — it forces re-render when the inline
+// reply target enters/leaves this chain, so the ref-based handlers are re-read.
+const ChainBlock = memo(function ChainBlock({ chain, handlersRef, mutedCommentIds, style, hasInlineReply }) {
   const h = handlersRef.current
+  const colors = useThemeColors()
   return (
     <View style={style}>
-      {chain.map((comment) => (
-        <CommentItem
-          key={comment.id}
-          comment={mutedCommentIds.has(comment.id) ? { ...comment, isMuted: true } : comment}
-          currentUserId={h.currentUserId}
-          isPostAuthor={h.isPostAuthor}
-          isQAPost={h.isQAPost}
-          isPostLocked={h.isPostLocked}
-          currentUserHasQAAuthority={h.userHasQAAuthority}
-          onUpvote={h.onUpvote}
-          onDownvote={h.onDownvote}
-          onReply={h.onReply}
-          onToggleCollapse={h.onToggleCollapse}
-          onToggleRole={h.onToggleRole}
-          onToggleMuteComment={h.onToggleMuteComment}
-          onPinComment={h.onPinComment}
-          onContinueThread={h.onContinueThread}
-          isTruncatedRoot={h.truncatedRoots.has(comment.id)}
-          onLoadMoreReplies={h.onLoadMoreReplies}
-          isFocused={h.focus === comment.id}
-          isScrollTarget={h.scrollTargetId === comment.id}
-          onFocusReady={h.onFocusReady}
-          canModerate={h.canModerate}
-          onReport={h.onReport}
-          onModerate={h.onModerate}
-        />
-      ))}
+      {chain.map((comment) => {
+        const showReply = h.inlineReplyTarget?.id === comment.id && h.inlineReplyProps
+        const replyLines = showReply ? getReplyLineStates(comment, h.depthLimit) : null
+        return (
+          <View key={comment.id}>
+            <CommentItem
+              comment={mutedCommentIds.has(comment.id) ? { ...comment, isMuted: true } : comment}
+              currentUserId={h.currentUserId}
+              isPostAuthor={h.isPostAuthor}
+              isQAPost={h.isQAPost}
+              isPostLocked={h.isPostLocked}
+              currentUserHasQAAuthority={h.userHasQAAuthority}
+              onUpvote={h.onUpvote}
+              onDownvote={h.onDownvote}
+              onReply={h.onReply}
+              onToggleCollapse={h.onToggleCollapse}
+              onToggleRole={h.onToggleRole}
+              onToggleMuteComment={h.onToggleMuteComment}
+              onPinComment={h.onPinComment}
+              onContinueThread={h.onContinueThread}
+              isTruncatedRoot={h.truncatedRoots.has(comment.id)}
+              onLoadMoreReplies={h.onLoadMoreReplies}
+              isFocused={h.focus === comment.id}
+              isScrollTarget={h.scrollTargetId === comment.id}
+              onFocusReady={h.onFocusReady}
+              canModerate={h.canModerate}
+              onReport={h.onReport}
+              onModerate={h.onModerate}
+              depthLimit={h.depthLimit}
+            />
+            {/* Inline reply composer (desktop only) — rendered at reply depth with thread lines */}
+            {showReply && (
+              <View style={replyLineStyles.container}>
+                {replyLines && replyLines.length > 0 && (
+                  <View style={replyLineStyles.linesContainer}>
+                    {replyLines.map((state, i) => {
+                      if (state === null) return <View key={i} style={replyLineStyles.lineSpacer} />
+                      return (
+                        <View key={i} style={replyLineStyles.lineWrapper}>
+                          <View style={[
+                            replyLineStyles.lineSegment,
+                            { borderLeftColor: colors.threadLine },
+                            (state === 'start' || state === 'stub') && replyLineStyles.lineInsetTop,
+                            (state === 'end' || state === 'stub') && replyLineStyles.lineInsetBottom,
+                          ]} />
+                        </View>
+                      )
+                    })}
+                    <View style={replyLineStyles.depthSpacer} />
+                  </View>
+                )}
+                <View style={replyLineStyles.composerWrap}>
+                  <ReplyComposer
+                    visible
+                    comment={h.inlineReplyTarget}
+                    onSubmit={h.inlineReplyProps.onSubmit}
+                    onClose={h.inlineReplyProps.onClose}
+                    posting={h.inlineReplyProps.posting}
+                    mode="inline"
+                  />
+                </View>
+              </View>
+            )}
+          </View>
+        )
+      })}
     </View>
   )
 })
@@ -1052,6 +1226,31 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  commentHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  topLevelReplyPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.pill,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  opReplyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+  },
+  topLevelComposerWrap: {
     marginBottom: Spacing.md,
   },
   commentLoading: {

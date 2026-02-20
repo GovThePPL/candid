@@ -5,6 +5,7 @@ import { useRouter, useFocusEffect } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../../../hooks/useThemeColors'
+import useIsDesktop from '../../../../hooks/useIsDesktop'
 import { Spacing } from '../../../../constants/Theme'
 import { useAuth } from '../../../../contexts/UserContext'
 import { useLocationCategory } from '../../../../contexts/LocationCategoryContext'
@@ -67,6 +68,7 @@ function FeedSkeleton({ styles }) {
 export default function DiscussFeed() {
   const { t } = useTranslation('discuss')
   const colors = useThemeColors()
+  const isDesktop = useIsDesktop()
   const styles = useMemo(() => createStyles(colors), [colors])
   const insets = useSafeAreaInsets()
   const router = useRouter()
@@ -257,7 +259,7 @@ export default function DiscussFeed() {
   ] : null
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, !isDesktop && { paddingTop: insets.top }]}>
       <Header />
 
       <FlatList
@@ -273,6 +275,12 @@ export default function DiscussFeed() {
         ListFooterComponent={renderFooter}
         ListHeaderComponent={
           <>
+            {isDesktop && (
+              <View style={styles.sectionHeader}>
+                <ThemedText variant="h1" color="primary">{t('tabDiscuss')}</ThemedText>
+                <ThemedText variant="bodySmall" color="secondary" style={styles.subtitle}>{t('feedSubtitle')}</ThemedText>
+              </View>
+            )}
             <LocationCategorySelector
               selectedLocation={selectedLocation}
               selectedCategory={selectedCategory}
@@ -366,6 +374,14 @@ const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  sectionHeader: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 4,
+  },
+  subtitle: {
+    marginTop: 2,
   },
   controlsRow: {
     flexDirection: 'row',

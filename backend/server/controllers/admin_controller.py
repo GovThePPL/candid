@@ -59,15 +59,23 @@ def create_survey(body, token_info=None):  # noqa: E501
 
     :rtype: Union[Survey, Tuple[Survey, int], Tuple[Survey, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization_site_admin(token_info)
+    create_survey_request = body
+    if connexion.request.is_json:
+        create_survey_request = CreateSurveyRequest.from_dict(connexion.request.get_json())  # noqa: E501
+
+    # Scoped surveys: facilitator+ at that scope.  Unscoped (global): site admin only.
+    loc_id = create_survey_request.location_id
+    cat_id = create_survey_request.position_category_id
+    if loc_id:
+        authorized, auth_err = authorization_scoped(
+            'facilitator', token_info, location_id=loc_id, category_id=cat_id,
+        )
+    else:
+        authorized, auth_err = authorization_site_admin(token_info)
     if not authorized:
         return auth_err, auth_err.code
 
     user = token_to_user(token_info)
-
-    create_survey_request = body
-    if connexion.request.is_json:
-        create_survey_request = CreateSurveyRequest.from_dict(connexion.request.get_json())  # noqa: E501
 
     # Validate questions array is not empty
     if not create_survey_request.questions or len(create_survey_request.questions) == 0:
@@ -121,17 +129,25 @@ def delete_survey(survey_id, token_info=None):  # noqa: E501
 
     :rtype: Union[None, Tuple[None, int], Tuple[None, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization_site_admin(token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
     # Check survey exists and is not already deleted
     survey = db.execute_query("""
-        SELECT id, status FROM survey WHERE id = %s
+        SELECT id, status, location_id, position_category_id FROM survey WHERE id = %s
     """, (survey_id,), fetchone=True)
 
     if survey is None:
         return ErrorModel(404, "Survey not found"), 404
+
+    # Scoped surveys: facilitator+ at that scope.  Unscoped (global): site admin only.
+    loc_id = str(survey['location_id']) if survey.get('location_id') else None
+    cat_id = str(survey['position_category_id']) if survey.get('position_category_id') else None
+    if loc_id:
+        authorized, auth_err = authorization_scoped(
+            'facilitator', token_info, location_id=loc_id, category_id=cat_id,
+        )
+    else:
+        authorized, auth_err = authorization_site_admin(token_info)
+    if not authorized:
+        return auth_err, auth_err.code
 
     if survey['status'] == 'deleted':
         return ErrorModel(404, "Survey not found"), 404
@@ -155,7 +171,22 @@ def get_survey_by_id_admin(survey_id, token_info=None):  # noqa: E501
 
     :rtype: Union[Survey, Tuple[Survey, int], Tuple[Survey, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization_site_admin(token_info)
+    # Look up survey scope for authorization
+    row = db.execute_query("""
+        SELECT location_id, position_category_id FROM survey WHERE id = %s
+    """, (survey_id,), fetchone=True)
+    if row is None:
+        return ErrorModel(404, "Survey not found"), 404
+
+    # Scoped surveys: facilitator+ at that scope.  Unscoped (global): site admin only.
+    loc_id = str(row['location_id']) if row.get('location_id') else None
+    cat_id = str(row['position_category_id']) if row.get('position_category_id') else None
+    if loc_id:
+        authorized, auth_err = authorization_scoped(
+            'facilitator', token_info, location_id=loc_id, category_id=cat_id,
+        )
+    else:
+        authorized, auth_err = authorization_site_admin(token_info)
     if not authorized:
         return auth_err, auth_err.code
 
@@ -256,17 +287,9 @@ def update_survey(survey_id, body, token_info=None):  # noqa: E501
 
     :rtype: Union[Survey, Tuple[Survey, int], Tuple[Survey, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization_site_admin(token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
-    update_request = body
-    if connexion.request.is_json:
-        update_request = UpdateSurveyRequest.from_dict(connexion.request.get_json())  # noqa: E501
-
     # Check survey exists and is not deleted
     existing = db.execute_query("""
-        SELECT id, status FROM survey WHERE id = %s
+        SELECT id, status, location_id, position_category_id FROM survey WHERE id = %s
     """, (survey_id,), fetchone=True)
 
     if existing is None:
@@ -274,6 +297,22 @@ def update_survey(survey_id, body, token_info=None):  # noqa: E501
 
     if existing['status'] == 'deleted':
         return ErrorModel(404, "Survey not found"), 404
+
+    # Scoped surveys: facilitator+ at that scope.  Unscoped (global): site admin only.
+    loc_id = str(existing['location_id']) if existing.get('location_id') else None
+    cat_id = str(existing['position_category_id']) if existing.get('position_category_id') else None
+    if loc_id:
+        authorized, auth_err = authorization_scoped(
+            'facilitator', token_info, location_id=loc_id, category_id=cat_id,
+        )
+    else:
+        authorized, auth_err = authorization_site_admin(token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    update_request = body
+    if connexion.request.is_json:
+        update_request = UpdateSurveyRequest.from_dict(connexion.request.get_json())  # noqa: E501
 
     # Build dynamic update query for metadata fields only
     set_clauses = []
@@ -317,12 +356,6 @@ def create_pairwise_survey(body, token_info=None):  # noqa: E501
 
     :rtype: Union[dict, Tuple[dict, int], Tuple[dict, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization_site_admin(token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
-    user = token_to_user(token_info)
-
     # Parse request body
     if connexion.request.is_json:
         body = connexion.request.get_json()
@@ -333,6 +366,18 @@ def create_pairwise_survey(body, token_info=None):  # noqa: E501
     polis_conversation_id = body.get('polisConversationId')
     location_id = body.get('locationId')
     position_category_id = body.get('positionCategoryId')
+
+    # Scoped surveys: facilitator+ at that scope.  Unscoped (global): site admin only.
+    if location_id:
+        authorized, auth_err = authorization_scoped(
+            'facilitator', token_info, location_id=location_id, category_id=position_category_id,
+        )
+    else:
+        authorized, auth_err = authorization_site_admin(token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    user = token_to_user(token_info)
     start_time = body.get('startTime')
     end_time = body.get('endTime')
     is_group_labeling = body.get('isGroupLabeling', False)

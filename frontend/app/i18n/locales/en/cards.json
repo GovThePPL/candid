@@ -153,5 +153,19 @@
   "errorDemographicFailed": "Your response couldn't be saved",
   "errorKudosFailed": "Couldn't process kudos",
   "errorDiagnosticsFailed": "Couldn't save preference",
-  "errorChattingListFailed": "Couldn't update chatting list"
+  "errorChattingListFailed": "Couldn't update chatting list",
+
+  "chatAction": "Chat",
+  "skipAction": "Skip",
+  "agreeAction": "Agree",
+  "disagreeAction": "Disagree",
+
+  "acceptAction": "Accept",
+  "declineAction": "Decline",
+  "submitAction": "Submit",
+  "dismissAction": "Dismiss",
+  "sendKudosAction": "Send Kudos",
+  "acknowledgeAction": "OK",
+  "enableAction": "Enable",
+  "noThanksAction": "No Thanks"
 }

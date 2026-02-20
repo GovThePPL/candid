@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
+import useIsDesktop from '../../hooks/useIsDesktop'
 import { Spacing } from '../../constants/Theme'
 import { useAuth } from '../../contexts/UserContext'
 import { canAccessAdmin, hasAnyRole } from '../../lib/roles'
@@ -38,6 +39,7 @@ export default function ProfileScreen() {
   const router = useRouter()
   const { user } = useAuth()
   const { tab, userId } = useLocalSearchParams()
+  const isDesktop = useIsDesktop()
   const styles = useMemo(() => createStyles(colors), [colors])
 
   const isOwnProfile = !userId || userId === user?.id
@@ -106,7 +108,7 @@ export default function ProfileScreen() {
   if (!isOwnProfile && loadingUser) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <Header onBack={handleBack} disableAvatarPress />
+        <Header onBack={isDesktop ? undefined : handleBack} disableAvatarPress />
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
@@ -118,7 +120,7 @@ export default function ProfileScreen() {
   if (!isOwnProfile && userNotFound) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <Header onBack={handleBack} disableAvatarPress />
+        <Header onBack={isDesktop ? undefined : handleBack} disableAvatarPress />
         <View style={styles.centerContainer}>
           <Ionicons name="person-outline" size={48} color={colors.placeholderText} />
           <ThemedText variant="body" color="placeholder" style={styles.notFoundTitle}>
@@ -220,7 +222,7 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <Header onBack={handleBack} showSettingsButton={isOwnProfile} showAvatar={!isOwnProfile} disableAvatarPress />
+      <Header onBack={isDesktop ? undefined : handleBack} showSettingsButton={isOwnProfile} showAvatar={!isOwnProfile} disableAvatarPress />
 
       {/* Tab content - profile section and tab row scroll inside each tab's content */}
       <View style={styles.tabContent}>

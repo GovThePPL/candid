@@ -30,6 +30,9 @@
 - Donation cards
 - Map Reveal Requests — mutual-consent sharing of opinion map positions between users. Swipeable card to accept/decline, partner management modal on stats page, revocation support. See [plan](.claude/plans/radiant-skipping-fox.md)
 
+## Kudos Spending & Awards
+- Kudos spending — let users spend earned kudos to award comments/posts (three tiers: Good Faith, Thoughtful, Bridge Builder), promote agreed chat statements as inspirational cards, and boost chat likelihood for 24 hours. Includes anti-gaming measures (per-pair daily limits, substantive discussion checks, ideological distance weighting, diminishing returns, reciprocity blocking, same-group discounts). Awards add phantom weighted upvotes to content scores. See [plan](.claude-plans/2026-02-20_14-00_kudos-spending-awards.md)
+
 ## Chat Fixes and Enhancements
 - ~~Basic markdown support in chat~~
 - ~~Quoting another user's comment~~

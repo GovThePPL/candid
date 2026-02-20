@@ -399,6 +399,20 @@ if [[ "$SKIP_SEED" == "false" ]]; then
                     log "Re-linking pairwise surveys to Polis conversations..."
                     python3 backend/scripts/backfill_polis_positions.py --relink-only && \
                         ok "Pairwise surveys linked" || warn "Pairwise survey linking failed"
+                    break
+                fi
+                sleep 5
+            done
+
+            # Wait for ALL sync items (positions + votes) to finish before
+            # resetting math.  Without this, polis-math recomputes on partial
+            # vote data and produces groups with very few members.
+            log "Waiting for Polis worker to process votes..."
+            for i in $(seq 1 120); do
+                PENDING=$(docker compose exec -T db psql -U user -d candid -tAc \
+                    "SELECT COUNT(*) FROM polis_sync_queue WHERE status IN ('pending','processing')" 2>/dev/null | tr -d '[:space:]')
+                if [ "$PENDING" = "0" ] 2>/dev/null; then
+                    ok "All Polis sync items processed"
 
                     # Force full math recompute — bulk vote seeding overwhelms
                     # the incremental math worker, causing it to miss participants.

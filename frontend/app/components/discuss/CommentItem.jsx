@@ -41,6 +41,7 @@ export default memo(function CommentItem({
   canModerate,
   onReport,
   onModerate,
+  depthLimit = THREAD_DEPTH_LIMIT,
 }) {
   const { t } = useTranslation('discuss')
   const { isDark } = useTheme()
@@ -54,7 +55,7 @@ export default memo(function CommentItem({
   const isOwnComment = currentUserId && comment.creator?.id === currentUserId
   const authorName = comment.creator?.displayName || comment.creator?.username || '?'
   const hasChildren = !!comment.hasChildren
-  const atDepthLimit = comment.depth >= THREAD_DEPTH_LIMIT
+  const atDepthLimit = comment.depth >= depthLimit
   const isEdited = comment.updatedTime && comment.createdTime &&
     new Date(comment.updatedTime).getTime() - new Date(comment.createdTime).getTime() > 1000
 
@@ -152,7 +153,6 @@ export default memo(function CommentItem({
                 <UserCard
                   compact
                   avatarSize={22}
-                  showKudosCount={false}
                   user={comment.creator}
                   discussRole={comment.creatorRole}
                   showRoleBadge={comment.showCreatorRole !== false}

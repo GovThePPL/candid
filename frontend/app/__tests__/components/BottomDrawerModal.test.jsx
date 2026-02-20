@@ -8,6 +8,9 @@ jest.mock('../../hooks/useThemeColors', () => ({
   useThemeColors: () => mockColors,
 }))
 
+let mockIsDesktop = false
+jest.mock('../../hooks/useIsDesktop', () => () => mockIsDesktop)
+
 import BottomDrawerModal, { MAX_HEIGHT_FRACTION } from '../../components/BottomDrawerModal'
 
 describe('BottomDrawerModal', () => {
@@ -22,6 +25,7 @@ describe('BottomDrawerModal', () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
+    mockIsDesktop = false
   })
 
   it('renders subtitle text', () => {
@@ -66,7 +70,7 @@ describe('BottomDrawerModal', () => {
     expect(screen.queryByLabelText('close')).toBeNull()
   })
 
-  describe('height behavior', () => {
+  describe('mobile (drawer) height behavior', () => {
     const SCREEN_HEIGHT = Dimensions.get('window').height
     const expected = 0.85 * SCREEN_HEIGHT
 
@@ -99,6 +103,34 @@ describe('BottomDrawerModal', () => {
       // Should not have a fixed height
       const heightStyle = styles.find(s => s && typeof s === 'object' && 'height' in s)
       expect(heightStyle).toBeUndefined()
+    })
+  })
+
+  describe('desktop (popup) behavior', () => {
+    beforeEach(() => {
+      mockIsDesktop = true
+    })
+
+    it('renders as centered popup on desktop', () => {
+      render(
+        <BottomDrawerModal {...defaultProps}>
+          <Text>Body</Text>
+        </BottomDrawerModal>
+      )
+      expect(screen.getByText('Drawer Title')).toBeTruthy()
+      expect(screen.getByText('Body')).toBeTruthy()
+    })
+
+    it('close button calls onClose on desktop', () => {
+      const onClose = jest.fn()
+      render(
+        <BottomDrawerModal {...defaultProps} onClose={onClose}>
+          <Text>Body</Text>
+        </BottomDrawerModal>
+      )
+      const closeBtn = screen.getByLabelText('close')
+      fireEvent.press(closeBtn)
+      expect(onClose).toHaveBeenCalledTimes(1)
     })
   })
 })

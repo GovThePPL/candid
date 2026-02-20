@@ -153,5 +153,19 @@
   "errorDemographicFailed": "No se pudo guardar tu respuesta",
   "errorKudosFailed": "No se pudieron procesar los kudos",
   "errorDiagnosticsFailed": "No se pudo guardar la preferencia",
-  "errorChattingListFailed": "No se pudo actualizar la lista de chat"
+  "errorChattingListFailed": "No se pudo actualizar la lista de chat",
+
+  "chatAction": "Chatear",
+  "skipAction": "Omitir",
+  "agreeAction": "De acuerdo",
+  "disagreeAction": "En desacuerdo",
+
+  "acceptAction": "Aceptar",
+  "declineAction": "Rechazar",
+  "submitAction": "Enviar",
+  "dismissAction": "Descartar",
+  "sendKudosAction": "Enviar Kudos",
+  "acknowledgeAction": "OK",
+  "enableAction": "Activar",
+  "noThanksAction": "No, gracias"
 }

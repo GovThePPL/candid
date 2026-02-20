@@ -19,6 +19,8 @@ import ThemedText from '../ThemedText'
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window')
 const SWIPE_THRESHOLD = 60
 const VERTICAL_THRESHOLD = 50
+// Cap horizontal exit distance so animations aren't too fast on wide screens
+const EXIT_WIDTH = Math.min(SCREEN_WIDTH, 500)
 
 // Swipe directions and their meanings:
 // Right = Agree (green)
@@ -125,6 +127,8 @@ const SwipeableCard = forwardRef(function SwipeableCard({
     xO.value = withTiming(0, { duration: 150 })
     passO.value = withTiming(0, { duration: 150 })
     chatO.value = withTiming(0, { duration: 150 })
+    submitO.value = withTiming(0, { duration: 150 })
+    plusO.value = withTiming(0, { duration: 150 })
     starO.value = withTiming(0, { duration: 150 })
   }, [])
 
@@ -144,8 +148,8 @@ const SwipeableCard = forwardRef(function SwipeableCard({
       return
     }
 
-    const x = direction === 'right' ? SCREEN_WIDTH * 1.5 :
-              direction === 'left' ? -SCREEN_WIDTH * 1.5 : 0
+    const x = direction === 'right' ? EXIT_WIDTH * 1.5 :
+              direction === 'left' ? -EXIT_WIDTH * 1.5 : 0
     const y = direction === 'up' ? -SCREEN_HEIGHT :
               direction === 'down' ? SCREEN_HEIGHT : 0
     posX.value = withTiming(x, { duration: 250 })
@@ -345,7 +349,7 @@ const SwipeableCard = forwardRef(function SwipeableCard({
       {
         rotate: `${interpolate(
           posX.value,
-          [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
+          [-EXIT_WIDTH / 2, 0, EXIT_WIDTH / 2],
           [-12, 0, 12],
         )}deg`,
       },

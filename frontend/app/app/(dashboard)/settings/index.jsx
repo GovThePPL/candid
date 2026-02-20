@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useTheme } from '../../../contexts/ThemeContext'
 import { useAuth } from '../../../contexts/UserContext'
+import useIsDesktop from '../../../hooks/useIsDesktop'
 import { SemanticColors } from '../../../constants/Colors'
 
 import ThemedText from '../../../components/ThemedText'
@@ -27,6 +28,7 @@ export default function SettingsHub() {
   const router = useRouter()
   const navigation = useNavigation()
   const { returnTo } = useLocalSearchParams()
+  const isDesktop = useIsDesktop()
   const { colors, themePreference, setThemePreference } = useTheme()
   const styles = useMemo(() => createStyles(colors), [colors])
   const MENU_ITEMS = useMemo(() => getMenuItems(t), [t])
@@ -74,7 +76,7 @@ export default function SettingsHub() {
           accessibilityRole="button"
           accessibilityLabel={t('editProfileA11y', { name: user?.displayName || t('guest') })}
         >
-          <Avatar user={user} size={64} showKudosBadge={false} />
+          <Avatar user={user} size={64} showKudosBadge showKudosCount />
           <View style={styles.userInfo}>
             <ThemedText variant="h2" color="dark">{user?.displayName || t('guest')}</ThemedText>
             <ThemedText variant="bodySmall" color="secondary" style={styles.username}>@{user?.username || t('guestUsername')}</ThemedText>
@@ -153,17 +155,19 @@ export default function SettingsHub() {
           <ThemedText variant="button" color="secondary" style={styles.menuLabel}>{t('menuReportBug')}</ThemedText>
         </TouchableOpacity>
 
-        {/* Log Out */}
-        <TouchableOpacity
-          style={styles.logoutButton}
-          onPress={handleLogout}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={t('logOutA11y')}
-        >
-          <Ionicons name="log-out-outline" size={20} color={SemanticColors.warning} />
-          <ThemedText variant="button" style={styles.logoutText}>{t('logOut')}</ThemedText>
-        </TouchableOpacity>
+        {/* Log Out — hidden on desktop (sidebar has logout) */}
+        {!isDesktop && (
+          <TouchableOpacity
+            style={styles.logoutButton}
+            onPress={handleLogout}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={t('logOutA11y')}
+          >
+            <Ionicons name="log-out-outline" size={20} color={SemanticColors.warning} />
+            <ThemedText variant="button" style={styles.logoutText}>{t('logOut')}</ThemedText>
+          </TouchableOpacity>
+        )}
       </ScrollView>
 
       <BugReportModal

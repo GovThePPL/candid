@@ -14,7 +14,7 @@ import BottomDrawerModal from '../../../components/BottomDrawerModal'
 import LocationFilterButton from '../../../components/LocationFilterButton'
 import { useToast } from '../../../components/Toast'
 import { useUser } from '../../../hooks/useUser'
-import { getHighestRole, hasRole } from '../../../lib/roles'
+import { getHighestRole, hasRole, canManageRuleScope } from '../../../lib/roles'
 import LocationPicker from '../../../components/LocationPicker'
 import LocationCategoryBadge from '../../../components/LocationCategoryBadge'
 import useSurveyForm from '../../../hooks/useSurveyForm'
@@ -29,7 +29,13 @@ export default function SurveysScreen() {
   const toast = useToast()
   const { user } = useUser()
 
-  const canWrite = useMemo(() => hasRole(user, 'admin'), [user])
+  const canWrite = useMemo(() => hasRole(user, 'facilitator'), [user])
+
+  // Per-survey delete permission: scoped surveys need facilitator+ at scope,
+  // unscoped (global) surveys need site admin.
+  const canDeleteSurvey = useCallback((survey) => {
+    return canManageRuleScope(user, survey.locationId || null, survey.positionCategoryId || null, locations)
+  }, [user, locations])
 
   const defaultLocationId = useMemo(() => {
     if (!user?.roles?.length) return null
@@ -172,7 +178,7 @@ export default function SurveysScreen() {
             <Ionicons name="eye-outline" size={16} color={colors.primary} />
             <ThemedText variant="caption" color="primary">{t('viewSurvey')}</ThemedText>
           </TouchableOpacity>
-          {canWrite && (
+          {canDeleteSurvey(item) && (
             <TouchableOpacity
               style={styles.deleteButton}
               onPress={() => handleDelete(item)}
@@ -194,7 +200,7 @@ export default function SurveysScreen() {
         </View>
       </View>
     )
-  }, [styles, colors, t, handleDelete, handleView, deleting, canWrite])
+  }, [styles, colors, t, handleDelete, handleView, deleting, canDeleteSurvey])
 
   // View modal content helpers
   const renderViewContent = () => {
@@ -414,7 +420,7 @@ export default function SurveysScreen() {
           )}
 
           {/* Category picker */}
-          {allCategories.length > 0 && (
+          {form.allowableCategories.length > 0 && (
             <>
               <ThemedText variant="label" color="secondary">{t('selectCategoryOptional')}</ThemedText>
               <TouchableOpacity
@@ -426,7 +432,7 @@ export default function SurveysScreen() {
                 <Ionicons name="pricetag-outline" size={16} color={colors.secondaryText} />
                 <ThemedText variant="body" color="dark" style={styles.pickerButtonText}>
                   {form.selectedCategoryId
-                    ? allCategories.find(c => c.id === form.selectedCategoryId)?.label || t('allCategories')
+                    ? form.allowableCategories.find(c => c.id === form.selectedCategoryId)?.label || t('allCategories')
                     : t('allCategories')}
                 </ThemedText>
                 <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
@@ -612,7 +618,7 @@ export default function SurveysScreen() {
             </ThemedText>
             {!form.selectedCategoryId && <Ionicons name="checkmark" size={20} color={colors.primary} />}
           </TouchableOpacity>
-          {allCategories.map(cat => {
+          {form.allowableCategories.map(cat => {
             const selected = form.selectedCategoryId === cat.id
             return (
               <TouchableOpacity

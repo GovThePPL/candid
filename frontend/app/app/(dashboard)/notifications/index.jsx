@@ -140,7 +140,7 @@ function NotificationRow({ notification, onPress, colors, styles, t }) {
     >
       <View style={styles.rowAvatar}>
         {actorUser ? (
-          <Avatar user={actorUser} size={36} showKudosBadge={false} />
+          <Avatar user={actorUser} size={36} showKudosBadge showKudosCount />
         ) : (
           <View style={[styles.iconCircle, { backgroundColor: colors.uiBackground }]}>
             <Ionicons name="notifications" size={18} color={colors.secondaryText} />

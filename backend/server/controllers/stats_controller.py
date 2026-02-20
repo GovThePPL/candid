@@ -1263,8 +1263,14 @@ def get_polis_report(conversation_id: str, token_info=None):
 window.__POLIS_PROXY_REPORT_ID__ = "{polis_id}";
 window.__POLIS_PROXY_ROUTE_TYPE__ = "report";
 </script>
+<style>
+/* Hide the Polis branding header — it contains a direct link to the Polis
+   server which should not be exposed to users. The report data visualizations
+   below the header are unaffected. */
+#root > div > div:first-child {{ display: none; }}
+</style>
 '''
-        # Insert the fix script before </head>
+        # Insert the fix script and styles before </head>
         html_content = html_content.replace('</head>', path_fix_script + '</head>')
 
         return Response(
@@ -1347,6 +1353,22 @@ def get_polis_asset(path: str):
                 js_content
             )
 
+            # Rewrite urlPrefix so API calls go through our proxy instead of
+            # directly to Polis.  The Polis url.js module has a hardcoded
+            # fallback of "http://localhost:5000" for localhost on non-80 ports.
+            # Replace it with "" so urlPrefix becomes "/" (relative to current
+            # origin).  API calls like /api/v3/math/pca then hit the Flask
+            # catch-all route at /api/v3/<path:path> which proxies to Polis.
+            js_content = js_content.replace(
+                '"http://localhost:5000"',
+                '""'
+            )
+            # Also handle the port-80/empty-port branch for robustness
+            js_content = js_content.replace(
+                '"http://localhost"',
+                '""'
+            )
+
             content = (path_fix + js_content).encode('utf-8')
             print(f"[POLIS ASSET] Patched report bundle, added {len(path_fix)} bytes", flush=True)
 
@@ -1363,47 +1385,3 @@ def get_polis_asset(path: str):
         return ErrorModel(502, "Failed to connect to Polis"), 502
 
 
-def proxy_polis_api(path: str):
-    """Proxy Polis API calls.
-
-    This allows the Polis report to make API calls through our API
-    without exposing the Polis server directly.
-
-    :param path: The API path (e.g., "math/pca2")
-    :rtype: Response
-    """
-    import requests
-    from flask import Response, request
-
-    if not config.POLIS_ENABLED:
-        return ErrorModel(404, "Polis is not enabled"), 404
-
-    try:
-        # Build the Polis API URL
-        polis_api_url = f"{config.POLIS_API_URL}/{path}"
-
-        # Forward query string if present
-        if request.query_string:
-            polis_api_url += f"?{request.query_string.decode('utf-8')}"
-
-        # Forward the request method and body
-        if request.method == 'POST':
-            response = requests.post(
-                polis_api_url,
-                json=request.get_json(silent=True),
-                timeout=config.POLIS_TIMEOUT
-            )
-        else:
-            response = requests.get(polis_api_url, timeout=config.POLIS_TIMEOUT)
-
-        return Response(
-            response.content,
-            status=response.status_code,
-            content_type=response.headers.get('Content-Type', 'application/json')
-        )
-
-    except requests.Timeout:
-        return ErrorModel(502, "Polis API request timed out"), 502
-    except requests.RequestException as e:
-        print(f"Error proxying Polis API: {e}", flush=True)
-        return ErrorModel(502, "Failed to connect to Polis"), 502

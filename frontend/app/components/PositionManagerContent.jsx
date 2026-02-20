@@ -664,14 +664,12 @@ const createStyles = (colors) => StyleSheet.create({
     paddingBottom: 8,
   },
   scrollContent: {
-    flexGrow: 1,
     padding: 20,
   },
   sectionHeaderAreaCompact: {
     marginBottom: 12,
   },
   form: {
-    flex: 1,
   },
   inputGroupCompact: {
     marginBottom: 12,

@@ -39,7 +39,7 @@ components/
 │   ├── MarkdownRenderer.jsx      # Markdown-to-native renderer
 │   ├── PostCard.jsx              # Discussion post card
 │   ├── PostHeader.jsx            # Post header with author info
-│   ├── ReplyComposer.jsx         # Full-screen reply modal with preview and link insertion
+│   ├── ReplyComposer.jsx         # Reply composer with modal (mobile) and inline (desktop) modes
 │   ├── RoleBadge.jsx             # User role indicator badge
 │   ├── SortDropdown.jsx          # Sort option dropdown
 │   └── VoteControl.jsx           # Upvote/downvote control
@@ -95,6 +95,10 @@ components/
 ├── ThemedText.jsx                # Theme-aware text with typography presets
 ├── ThemedTextInput.jsx           # Theme-aware text input
 ├── ThemedView.jsx                # Theme-aware view container
+├── CardQueueContent.jsx          # Card queue body extracted from cards.jsx (reused in desktop right panel)
+├── DesktopNav.jsx                # Left sidebar navigation for desktop layout (>= 1024px)
+├── DesktopRightPanel.jsx         # Right panel container with Cards/Moderation tabs for desktop layout
+├── ModerationQueueContent.jsx    # Moderation queue body extracted from moderation.jsx (reused in desktop right panel)
 ├── Toast.jsx                     # Toast notification system (provider + useToast hook)
 └── UserCard.jsx                  # User info card with avatar, name, role badge
 ```

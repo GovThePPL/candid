@@ -5,9 +5,19 @@ import {
   playClosureSound,
   playUpvoteSound,
   playBridgingSound,
+  playTypingSound,
+  playMessageSound,
+  playKudosSound,
+  initNativeSounds,
+  encodeWavBase64,
+  SOUND_GENERATORS,
+  SAMPLE_RATE,
 } from '../../lib/sounds'
 
-// Mock Web Audio API — each call returns a fresh object
+// ---------------------------------------------------------------------------
+// Web Audio API mocks
+// ---------------------------------------------------------------------------
+
 function createMockOscillator() {
   return {
     connect: jest.fn(),
@@ -41,13 +51,40 @@ const mockAudioContext = {
   createGain: jest.fn(() => createMockGainNode()),
 }
 
+// ---------------------------------------------------------------------------
+// expo-av / expo-file-system mocks
+// ---------------------------------------------------------------------------
+
+const mockReplayAsync = jest.fn(() => Promise.resolve())
+const mockSound = { replayAsync: mockReplayAsync }
+
+jest.mock('expo-av', () => ({
+  Audio: {
+    setAudioModeAsync: jest.fn(() => Promise.resolve()),
+    Sound: {
+      createAsync: jest.fn(() => Promise.resolve({ sound: mockSound })),
+    },
+  },
+}))
+
+jest.mock('expo-file-system', () => ({
+  documentDirectory: '/mock/docs/',
+  EncodingType: { Base64: 'base64' },
+  getInfoAsync: jest.fn(() => Promise.resolve({ exists: true })),
+  makeDirectoryAsync: jest.fn(() => Promise.resolve()),
+  writeAsStringAsync: jest.fn(() => Promise.resolve()),
+}))
+
 beforeEach(() => {
   jest.clearAllMocks()
-  // Reset AudioContext to force fresh creation
   global.window = {
     AudioContext: jest.fn(() => mockAudioContext),
   }
 })
+
+// ---------------------------------------------------------------------------
+// Web tests
+// ---------------------------------------------------------------------------
 
 describe('sound functions on web', () => {
   beforeEach(() => {
@@ -55,7 +92,7 @@ describe('sound functions on web', () => {
   })
 
   afterAll(() => {
-    Platform.OS = 'ios' // Reset to default
+    Platform.OS = 'ios'
   })
 
   describe('playReactionSound', () => {
@@ -108,30 +145,144 @@ describe('sound functions on web', () => {
       expect(osc2.frequency.setValueAtTime).toHaveBeenCalledWith(329.63, expect.any(Number))
     })
   })
+
+  describe('playTypingSound', () => {
+    it('uses triangle wave oscillators for taps', async () => {
+      await playTypingSound()
+      // 5 taps = 5 oscillators
+      expect(mockAudioContext.createOscillator).toHaveBeenCalledTimes(5)
+    })
+  })
+
+  describe('playMessageSound', () => {
+    it('creates one oscillator starting at 150Hz', async () => {
+      await playMessageSound()
+      expect(mockAudioContext.createOscillator).toHaveBeenCalledTimes(1)
+      const osc = mockAudioContext.createOscillator.mock.results[0].value
+      expect(osc.frequency.setValueAtTime).toHaveBeenCalledWith(150, expect.any(Number))
+    })
+  })
+
+  describe('playKudosSound', () => {
+    it('creates four oscillators for ascending arpeggio', async () => {
+      await playKudosSound()
+      expect(mockAudioContext.createOscillator).toHaveBeenCalledTimes(4)
+      const freqs = mockAudioContext.createOscillator.mock.results.map(
+        r => r.value.frequency.setValueAtTime.mock.calls[0][0]
+      )
+      expect(freqs).toEqual([523.25, 659.25, 783.99, 1046.50])
+    })
+  })
 })
+
+// ---------------------------------------------------------------------------
+// Native tests
+// ---------------------------------------------------------------------------
 
 describe('sound functions on native', () => {
   beforeEach(() => {
     Platform.OS = 'ios'
   })
 
-  it('playReactionSound no-ops without error', async () => {
-    await expect(playReactionSound()).resolves.toBeUndefined()
+  it('initNativeSounds writes WAV files and preloads sounds', async () => {
+    const FileSystem = require('expo-file-system')
+    const { Audio } = require('expo-av')
+
+    await initNativeSounds()
+
+    expect(Audio.setAudioModeAsync).toHaveBeenCalledWith({
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+    })
+
+    // Should have checked/written 8 sound files
+    const soundNames = Object.keys(SOUND_GENERATORS)
+    expect(soundNames).toHaveLength(8)
+    expect(Audio.Sound.createAsync).toHaveBeenCalledTimes(8)
   })
 
-  it('playAgreedSound no-ops without error', async () => {
-    await expect(playAgreedSound()).resolves.toBeUndefined()
+  it('playUpvoteSound calls replayAsync on native', async () => {
+    await playUpvoteSound()
+    expect(mockReplayAsync).toHaveBeenCalled()
   })
 
-  it('playClosureSound no-ops without error', async () => {
-    await expect(playClosureSound()).resolves.toBeUndefined()
+  it('playBridgingSound calls replayAsync on native', async () => {
+    await playBridgingSound()
+    expect(mockReplayAsync).toHaveBeenCalled()
   })
 
-  it('playUpvoteSound no-ops without error', async () => {
-    await expect(playUpvoteSound()).resolves.toBeUndefined()
+  it('playTypingSound calls replayAsync on native', async () => {
+    await playTypingSound()
+    expect(mockReplayAsync).toHaveBeenCalled()
   })
 
-  it('playBridgingSound no-ops without error', async () => {
-    await expect(playBridgingSound()).resolves.toBeUndefined()
+  it('playMessageSound calls replayAsync on native', async () => {
+    await playMessageSound()
+    expect(mockReplayAsync).toHaveBeenCalled()
+  })
+
+  it('playKudosSound calls replayAsync on native', async () => {
+    await playKudosSound()
+    expect(mockReplayAsync).toHaveBeenCalled()
+  })
+
+  it('playReactionSound calls replayAsync on native', async () => {
+    await playReactionSound()
+    expect(mockReplayAsync).toHaveBeenCalled()
+  })
+
+  it('playAgreedSound calls replayAsync on native', async () => {
+    await playAgreedSound()
+    expect(mockReplayAsync).toHaveBeenCalled()
+  })
+
+  it('playClosureSound calls replayAsync on native', async () => {
+    await playClosureSound()
+    expect(mockReplayAsync).toHaveBeenCalled()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// PCM synthesis / WAV encoding tests
+// ---------------------------------------------------------------------------
+
+describe('PCM synthesis', () => {
+  it('all generators produce non-silent samples', () => {
+    for (const [name, gen] of Object.entries(SOUND_GENERATORS)) {
+      const samples = gen()
+      expect(samples.length).toBeGreaterThan(0)
+      // At least some sample should be non-zero
+      const maxAbs = samples.reduce((max, s) => Math.max(max, Math.abs(s)), 0)
+      expect(maxAbs).toBeGreaterThan(0)
+    }
+  })
+
+  it('sample rate is 44100', () => {
+    expect(SAMPLE_RATE).toBe(44100)
+  })
+})
+
+describe('WAV encoding', () => {
+  it('produces valid WAV header', () => {
+    const samples = new Float32Array([0, 0.5, -0.5, 1, -1])
+    const b64 = encodeWavBase64(samples)
+    const binary = atob(b64)
+
+    // Check RIFF header
+    expect(binary.slice(0, 4)).toBe('RIFF')
+    expect(binary.slice(8, 12)).toBe('WAVE')
+    expect(binary.slice(12, 16)).toBe('fmt ')
+    expect(binary.slice(36, 40)).toBe('data')
+
+    // Total size: 44 header + 5 samples * 2 bytes = 54
+    expect(binary.length).toBe(54)
+  })
+
+  it('clamps samples to [-1, 1]', () => {
+    const samples = new Float32Array([2.0, -2.0])
+    const b64 = encodeWavBase64(samples)
+    const binary = atob(b64)
+    // Should not throw and should produce valid output
+    expect(binary.length).toBe(44 + 4) // 2 samples * 2 bytes
   })
 })

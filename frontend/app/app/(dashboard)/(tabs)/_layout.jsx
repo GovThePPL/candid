@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next"
 import { useThemeColors } from "../../../hooks/useThemeColors"
 import { canModerate } from "../../../lib/roles"
 import { useUser } from "../../../hooks/useUser"
+import useIsDesktop from "../../../hooks/useIsDesktop"
 import api from "../../../lib/api"
 
 export default function TabsLayout() {
@@ -16,6 +17,7 @@ export default function TabsLayout() {
   const { t } = useTranslation()
   const colors = useThemeColors()
   const insets = useSafeAreaInsets()
+  const isDesktop = useIsDesktop()
   const styles = useMemo(() => createStyles(colors), [colors])
   const [modQueueCount, setModQueueCount] = useState(0)
 
@@ -57,16 +59,18 @@ export default function TabsLayout() {
       sceneStyle={{ backgroundColor: colors.background }}
       screenOptions={{
         headerShown: false,
-        tabBarStyle: {
-          backgroundColor: colors.navBackground,
-          paddingBottom: Platform.OS === 'web' ? 0 : insets.bottom,
-          borderTopWidth: 0,
-          ...Platform.select({
-            ios: { shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.1, shadowRadius: 4 },
-            android: { elevation: 8 },
-            default: { boxShadow: '0 -2px 4px rgba(0, 0, 0, 0.1)' },
-          }),
-        },
+        tabBarStyle: isDesktop
+          ? { display: 'none' }
+          : {
+              backgroundColor: colors.navBackground,
+              paddingBottom: Platform.OS === 'web' ? 0 : insets.bottom,
+              borderTopWidth: 0,
+              ...Platform.select({
+                ios: { shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+                android: { elevation: 8 },
+                default: { boxShadow: '0 -2px 4px rgba(0, 0, 0, 0.1)' },
+              }),
+            },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.tabInactive,
         tabBarShowLabel: true,
@@ -74,7 +78,7 @@ export default function TabsLayout() {
     >
       <Tabs.Screen
         name="cards"
-        options={{
+        options={isDesktop ? { href: null } : {
           title: t('tabCards'),
           tabBarIcon: renderTabIcon(MaterialCommunityIcons, 'cards-outline', 'cards'),
         }}
@@ -86,7 +90,7 @@ export default function TabsLayout() {
           return {
             title: t('discuss:tabDiscuss'),
             tabBarIcon: renderTabIcon(Ionicons, 'chatbubbles-outline', 'chatbubbles'),
-            ...(focusedRoute !== 'index' ? { tabBarStyle: { display: 'none' } } : {}),
+            ...(!isDesktop && focusedRoute !== 'index' ? { tabBarStyle: { display: 'none' } } : {}),
           }
         }}
       />
@@ -100,12 +104,12 @@ export default function TabsLayout() {
       {/* Moderation queue - only visible to moderators, facilitators, and admins */}
       <Tabs.Screen
         name="moderation"
-        options={isModerator ? {
+        options={isDesktop ? { href: null } : (isModerator ? {
           title: t('tabMod'),
           tabBarIcon: renderTabIcon(Ionicons, 'shield-outline', 'shield'),
           tabBarBadge: modQueueCount > 0 ? modQueueCount : undefined,
           tabBarBadgeStyle: { backgroundColor: colors.primary, fontSize: 11 },
-        } : { href: null }}
+        } : { href: null })}
       />
     </Tabs>
   )

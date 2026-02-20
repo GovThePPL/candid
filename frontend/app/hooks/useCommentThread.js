@@ -38,7 +38,7 @@ function arrEq(a, b) {
  * @param {string} [options.threadRootId] - If set, fetches a single comment's subtree instead of full post comments
  * @returns {Object} thread state and actions
  */
-export default function useCommentThread(postId, { threadRootId, focusCommentId } = {}) {
+export default function useCommentThread(postId, { threadRootId, focusCommentId, depthLimit } = {}) {
   const { t } = useTranslation('discuss')
   const showToast = useToast()
   const { user } = useUser()
@@ -264,7 +264,7 @@ export default function useCommentThread(postId, { threadRootId, focusCommentId 
       layoutCacheRef.current = new Map()
       return []
     }
-    const flat = flattenTree(sortedTree, effectiveCollapsedIds)
+    const flat = flattenTree(sortedTree, effectiveCollapsedIds, depthLimit)
     const prevCache = layoutCacheRef.current
     const nextCache = new Map()
 
@@ -304,7 +304,7 @@ export default function useCommentThread(postId, { threadRootId, focusCommentId 
 
     layoutCacheRef.current = nextCache
     return result
-  }, [sortedTree, effectiveCollapsedIds, autoCollapsedSet, expandedIds])
+  }, [sortedTree, effectiveCollapsedIds, autoCollapsedSet, expandedIds, depthLimit])
 
   // Build final flat list with stable object references per comment.
   // Reuses previous merged objects when neither source data nor layout changed,

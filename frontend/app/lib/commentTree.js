@@ -21,6 +21,7 @@ export function controversyScore(up, down) {
  * automatically collapsed unless the user explicitly expands them.
  */
 export const THREAD_DEPTH_LIMIT = 7
+export const THREAD_DEPTH_LIMIT_DESKTOP = 12
 
 export const AUTO_COLLAPSE_THRESHOLD = -3
 
@@ -146,31 +147,35 @@ function countDescendants(node) {
  *
  * Each item gets:
  * - `depth`: actual nesting level (0 for root)
- * - `visualDepth`: Math.min(depth, THREAD_DEPTH_LIMIT) — caps indentation
+ * - `visualDepth`: Math.min(depth, depthLimit) — caps indentation
  * - `isCollapsed`: whether this node is collapsed
  * - `collapsedCount`: total hidden descendants (only set on collapsed nodes)
  * - `activeLines`: array of booleans (length = visualDepth - 1) indicating
  *   which ancestor thread lines should be drawn. A line is active when the
  *   ancestor at that depth still has siblings below.
  *
- * Children of collapsed nodes and nodes at THREAD_DEPTH_LIMIT are skipped.
+ * Children of collapsed nodes and nodes at the depth limit are skipped.
  *
  * @param {Array} tree - sorted tree nodes
  * @param {Set} collapsedIds - Set of comment IDs that are collapsed
- * @param {number} depth - current depth (used in recursion)
- * @param {boolean[]} ancestorHasNext - tracks which ancestor depths have more siblings
+ * @param {number} depthLimit - max nesting depth before "continue thread" (default: THREAD_DEPTH_LIMIT)
  * @returns {Array} flat list items
  */
-export function flattenTree(tree, collapsedIds = new Set(), depth = 0, ancestorHasNext = []) {
+export function flattenTree(tree, collapsedIds = new Set(), depthLimit = THREAD_DEPTH_LIMIT) {
   if (!Array.isArray(tree)) return []
+  const result = _flattenTree(tree, collapsedIds, 0, [], depthLimit)
+  computeLineStates(result)
+  return result
+}
 
+function _flattenTree(tree, collapsedIds, depth, ancestorHasNext, depthLimit) {
   const result = []
 
   for (let i = 0; i < tree.length; i++) {
     const node = tree[i]
     const isLast = i === tree.length - 1
     const isCollapsed = collapsedIds.has(node.id)
-    const visualDepth = Math.min(depth, THREAD_DEPTH_LIMIT)
+    const visualDepth = Math.min(depth, depthLimit)
 
     // Record whether this node has a next sibling at its depth
     ancestorHasNext[depth] = !isLast
@@ -205,15 +210,10 @@ export function flattenTree(tree, collapsedIds = new Set(), depth = 0, ancestorH
     result.push(item)
 
     // Skip children of collapsed nodes and nodes at the depth limit
-    if (!isCollapsed && depth < THREAD_DEPTH_LIMIT && node.children && node.children.length > 0) {
-      const childItems = flattenTree(node.children, collapsedIds, depth + 1, ancestorHasNext)
+    if (!isCollapsed && depth < depthLimit && node.children && node.children.length > 0) {
+      const childItems = _flattenTree(node.children, collapsedIds, depth + 1, ancestorHasNext, depthLimit)
       result.push(...childItems)
     }
-  }
-
-  // At top level, compute line rendering states
-  if (depth === 0) {
-    computeLineStates(result)
   }
 
   return result
@@ -266,4 +266,37 @@ function computeLineStates(flatList) {
     item.lineStates = lineStates
     prevBottoms = bottoms
   }
+}
+
+/**
+ * Compute line states for a virtual reply to `comment`.
+ *
+ * When a comment gains a visible child, computeLineStates would set
+ * hasVisibleChildren=true, making ALL ancestor line bottoms true. The child
+ * then sees top=true at every ancestor position. Lines that were already
+ * continuing ('full'/'start') pass through; all others end at the reply.
+ *
+ * @param {Object} comment - The comment being replied to (from flattenTree)
+ * @param {number} depthLimit - Max nesting depth
+ * @returns {Array<string|null>} Line states for the reply position
+ */
+export function getReplyLineStates(comment, depthLimit) {
+  const commentVd = comment.visualDepth ?? comment.depth ?? 0
+  const replyVd = Math.min(commentVd + 1, depthLimit)
+  const states = []
+
+  for (let p = 0; p < replyVd; p++) {
+    if (p === replyVd - 1) {
+      // Reply's own depth — stub (no children)
+      states.push('stub')
+    } else {
+      // Ancestor line: if the comment's line was continuing ('full'/'start'),
+      // it passes through the reply; otherwise it ends at the reply.
+      const commentState = comment.lineStates?.[p]
+      const continues = commentState === 'full' || commentState === 'start'
+      states.push(continues ? 'full' : 'end')
+    }
+  }
+
+  return states
 }

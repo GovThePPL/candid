@@ -3,6 +3,7 @@ import { View, StyleSheet, TouchableOpacity, Pressable, Modal, FlatList } from '
 import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
+import useIsDesktop from '../hooks/useIsDesktop'
 import { createSharedStyles } from '../constants/SharedStyles'
 import { usersApiWrapper, categoriesApiWrapper } from '../lib/api'
 import ThemedText from './ThemedText'
@@ -33,6 +34,7 @@ export default function LocationCategorySelector({
 }) {
   const { t } = useTranslation()
   const colors = useThemeColors()
+  const isDesktop = useIsDesktop()
   const styles = useMemo(() => createStyles(colors), [colors])
   const shared = useMemo(() => createSharedStyles(colors), [colors])
   const [locations, setLocations] = useState([])
@@ -181,7 +183,7 @@ export default function LocationCategorySelector({
             <Ionicons name="location-outline" size={18} color={colors.primary} />
           )}
           <ThemedText variant="bodySmall" numberOfLines={1}>
-            {getSelectedLocationDisplay()}
+            {isDesktop ? getSelectedLocationName() : getSelectedLocationDisplay()}
           </ThemedText>
           <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
         </TouchableOpacity>

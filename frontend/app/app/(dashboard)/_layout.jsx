@@ -1,17 +1,27 @@
 import { useEffect } from "react"
-import { Stack, useRouter } from "expo-router"
+import { View } from "react-native"
+import { Stack, useRouter, usePathname } from "expo-router"
 import { useThemeColors } from "../../hooks/useThemeColors"
+import useIsDesktop from "../../hooks/useIsDesktop"
 
 import UserOnly from "../../components/auth/UserOnly"
 import { useChatContext, useNavigationContext } from "../../contexts/UserContext"
 import { NotificationProvider } from "../../contexts/NotificationContext"
 import { ToastProvider } from "../../components/Toast"
+import DesktopNav from "../../components/DesktopNav"
+import DesktopRightPanel from "../../components/DesktopRightPanel"
+import CardQueueContent from "../../components/CardQueueContent"
+import ModerationQueueContent from "../../components/ModerationQueueContent"
 
 export default function DashboardLayout() {
   const router = useRouter()
+  const pathname = usePathname()
   const { activeChatNavigation, clearActiveChatNavigation, activeChat, clearActiveChat } = useChatContext()
   const { pendingDeepLink, clearPendingDeepLink } = useNavigationContext()
   const colors = useThemeColors()
+  const isDesktop = useIsDesktop()
+
+  const isChatRoute = pathname.startsWith('/chat/')
 
   // Handle navigation when a chat starts (via socket event) - works from any tab
   useEffect(() => {
@@ -39,26 +49,57 @@ export default function DashboardLayout() {
     }
   }, [pendingDeepLink, router, clearPendingDeepLink])
 
+  const stackNavigator = (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: colors.background },
+      }}
+    >
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="profile" />
+      <Stack.Screen name="settings" />
+      <Stack.Screen name="admin" />
+      <Stack.Screen name="notifications" />
+      <Stack.Screen name="post" />
+      <Stack.Screen name="chat" />
+      <Stack.Screen name="position-closures" />
+      <Stack.Screen name="setup-profile" />
+    </Stack>
+  )
+
+  if (isDesktop) {
+    return (
+      <UserOnly>
+        <NotificationProvider>
+        <ToastProvider>
+          <View style={{ flex: 1, flexDirection: 'row' }}>
+            <DesktopNav />
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <View style={{ flex: 1, flexDirection: 'row', width: '100%', maxWidth: isChatRoute ? 720 : 1100 }}>
+                <View style={{ flex: 1 }}>
+                  {stackNavigator}
+                </View>
+                {!isChatRoute && (
+                  <DesktopRightPanel
+                    renderCards={() => <CardQueueContent />}
+                    renderModeration={() => <ModerationQueueContent />}
+                  />
+                )}
+              </View>
+            </View>
+          </View>
+        </ToastProvider>
+        </NotificationProvider>
+      </UserOnly>
+    )
+  }
+
   return (
     <UserOnly>
       <NotificationProvider>
       <ToastProvider>
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: colors.background },
-        }}
-      >
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="profile" />
-        <Stack.Screen name="settings" />
-        <Stack.Screen name="admin" />
-        <Stack.Screen name="notifications" />
-        <Stack.Screen name="post" />
-        <Stack.Screen name="chat" />
-        <Stack.Screen name="position-closures" />
-        <Stack.Screen name="setup-profile" />
-      </Stack>
+        {stackNavigator}
       </ToastProvider>
       </NotificationProvider>
     </UserOnly>

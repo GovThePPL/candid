@@ -171,7 +171,7 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
       >
         <Animated.View style={[styles.wrapper, { transform: [{ scale: scaleAnim }] }]}>
           {/* Author avatar */}
-          <Avatar user={author} size={AVATAR_SIZE} showKudosBadge showKudosCount={false} />
+          <Avatar user={author} size={AVATAR_SIZE} showKudosBadge showKudosCount />
 
           {/* Author name */}
           {author && (

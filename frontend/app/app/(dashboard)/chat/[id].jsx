@@ -87,6 +87,7 @@ import ReactionBar from '../../../components/chat/ReactionBar'
 import ReactionBadges from '../../../components/chat/ReactionBadges'
 import { useTranslation } from 'react-i18next'
 import useModalBackHandler from '../../../hooks/useModalBackHandler'
+import useIsDesktop from '../../../hooks/useIsDesktop'
 
 /**
  * Parse a chat log into a sorted array of message/proposal objects.
@@ -201,6 +202,7 @@ export default function ChatScreen() {
   const { user } = useAuth()
   const { width: screenWidth, height: screenHeight } = useWindowDimensions()
   const { t } = useTranslation('chat')
+  const isDesktop = useIsDesktop()
 
   // Proposal card dimensions relative to screen width
   const proposalCardWidth = Math.min(Math.max(screenWidth * 0.7, 200), 400)
@@ -209,8 +211,13 @@ export default function ChatScreen() {
   const proposalOffset = Math.min(screenWidth * 0.1, maxOffset - 8) // 8px padding from edge
   const insets = useSafeAreaInsets()
 
-  // Max input height ≈ 4 lines (fontSize 15 × ~1.33 lineHeight × 4 + 20px padding)
-  const maxInputHeight = 100
+  // Max input height: desktop gets 8 lines, mobile gets 4 lines
+  // (fontSize 15 × ~1.33 lineHeight × lines + 20px padding)
+  const maxInputHeight = isDesktop ? 180 : 100
+
+  // Ref for positioning the popover above the + button on desktop
+  const specialMenuBtnRef = useRef(null)
+  const [menuBtnLayout, setMenuBtnLayout] = useState(null)
 
   const [messages, setMessages] = useState([])
   const [inputText, setInputText] = useState('')
@@ -1100,6 +1107,15 @@ export default function ChatScreen() {
     }
   }, [chatId, inputText, chatEnded, messageType, toxicity.checkAndSend, doSendMessage])
 
+  // Desktop: Enter sends, Shift+Enter inserts newline
+  const handleKeyPress = useCallback((e) => {
+    if (!isDesktop) return
+    if (e.nativeEvent.key === 'Enter' && !e.nativeEvent.shiftKey) {
+      e.preventDefault()
+      handleSend()
+    }
+  }, [isDesktop, handleSend])
+
   // Handle typing indicator
   const handleTextChange = useCallback((text) => {
     setInputText(text)
@@ -1327,8 +1343,14 @@ export default function ChatScreen() {
 
   // Toggle special message menu
   const handleToggleSpecialMenu = useCallback(() => {
+    // On desktop, measure + button position for popover placement
+    if (isDesktop && specialMenuBtnRef.current) {
+      specialMenuBtnRef.current.measureInWindow((x, y, width, height) => {
+        setMenuBtnLayout({ x, y, width, height })
+      })
+    }
     setShowSpecialMenu(prev => !prev)
-  }, [])
+  }, [isDesktop])
 
   // Select chat (normal text) message type
   const handleSelectChat = useCallback(() => {
@@ -1402,6 +1424,38 @@ export default function ChatScreen() {
     setMessageType('explain_request')
     setShowSpecialMenu(false)
   }, [])
+
+  // Shared menu items for both desktop popover and mobile modal
+  const renderSpecialMenuItems = useCallback(() => {
+    const items = [
+      { type: 'text', handler: handleSelectChat, label: t('menuChat'), desc: t('menuChatDesc'), icon: 'chatbubble', color: colors.primary },
+      { type: 'position_proposal', handler: handleSelectProposeStatement, label: t('menuProposeStatement'), desc: t('menuProposeStatementDesc'), icon: 'document-text', color: colors.agreeBubble, checkColor: SemanticColors.agree },
+      { type: 'closure_proposal', handler: handleSelectProposeClosure, label: t('menuProposeClosure'), desc: t('menuProposeClosureDesc'), icon: 'checkmark-done', color: colors.chat },
+      { type: 'definition_request', handler: handleSelectDefine, label: t('menuDefine'), desc: t('menuDefineDesc'), icon: 'book-outline', color: colors.definitionAccent },
+      { type: 'explain_request', handler: handleSelectExplain, label: t('menuExplain'), desc: t('menuExplainDesc'), icon: 'chatbubble-ellipses-outline', color: colors.explanationAccent },
+    ]
+    return items.map(item => (
+      <TouchableOpacity
+        key={item.type}
+        style={[styles.specialMenuItem, messageType === item.type && styles.specialMenuItemSelected]}
+        onPress={item.handler}
+        accessibilityRole="menuitem"
+        accessibilityLabel={item.label}
+        accessibilityState={{ selected: messageType === item.type }}
+      >
+        <View style={[styles.specialMenuIcon, { backgroundColor: item.color }]}>
+          <Ionicons name={item.icon} size={20} color="#fff" />
+        </View>
+        <View style={styles.specialMenuItemText}>
+          <ThemedText variant="body" style={styles.specialMenuItemTitle}>{item.label}</ThemedText>
+          <ThemedText variant="caption" style={styles.specialMenuItemDesc}>{item.desc}</ThemedText>
+        </View>
+        {messageType === item.type && (
+          <Ionicons name="checkmark-circle" size={24} color={item.checkColor || item.color} />
+        )}
+      </TouchableOpacity>
+    ))
+  }, [messageType, colors, t, handleSelectChat, handleSelectProposeStatement, handleSelectProposeClosure, handleSelectDefine, handleSelectExplain, styles])
 
   const handleRespondExplanation = useCallback((request) => {
     setExplanationModalRequest(request)
@@ -2705,6 +2759,7 @@ export default function ChatScreen() {
         <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, 8) }]}>
             {/* Special message menu button */}
             <TouchableOpacity
+              ref={specialMenuBtnRef}
               style={[styles.specialMenuButton, showSpecialMenu && styles.specialMenuButtonActive]}
               onPress={handleToggleSpecialMenu}
               accessibilityRole="button"
@@ -2717,109 +2772,37 @@ export default function ChatScreen() {
               />
             </TouchableOpacity>
 
-            {/* Special menu modal */}
-            <Modal
-              visible={showSpecialMenu}
-              transparent
-              animationType="fade"
-              onRequestClose={closeSpecialMenu}
-            >
-              <View style={styles.specialMenuBackdrop}>
-                <Pressable style={{ flex: 1 }} onPress={closeSpecialMenu} />
-                <View style={[styles.specialMenuPopup, { marginBottom: Math.max(insets.bottom, 8) + 56 }]}>
-                  <TouchableOpacity
-                    style={[styles.specialMenuItem, messageType === 'text' && styles.specialMenuItemSelected]}
-                    onPress={handleSelectChat}
-                    accessibilityRole="menuitem"
-                    accessibilityLabel={t('menuChat')}
-                    accessibilityState={{ selected: messageType === 'text' }}
-                  >
-                    <View style={[styles.specialMenuIcon, { backgroundColor: colors.primary }]}>
-                      <Ionicons name="chatbubble" size={20} color="#fff" />
+            {/* Special menu — desktop: inline popover above button; mobile: full-screen modal */}
+            {isDesktop ? (
+              showSpecialMenu && (
+                <>
+                  <Pressable style={styles.desktopPopoverBackdrop} onPress={closeSpecialMenu} />
+                  <View style={[
+                    styles.desktopPopover,
+                    menuBtnLayout && { left: menuBtnLayout.x, bottom: screenHeight - menuBtnLayout.y + 8 },
+                  ]}>
+                    <View style={styles.specialMenuPopup}>
+                      {renderSpecialMenuItems()}
                     </View>
-                    <View style={styles.specialMenuItemText}>
-                      <ThemedText variant="body" style={styles.specialMenuItemTitle}>{t('menuChat')}</ThemedText>
-                      <ThemedText variant="caption" style={styles.specialMenuItemDesc}>{t('menuChatDesc')}</ThemedText>
-                    </View>
-                    {messageType === 'text' && (
-                      <Ionicons name="checkmark-circle" size={24} color={colors.primary} />
-                    )}
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.specialMenuItem, messageType === 'position_proposal' && styles.specialMenuItemSelected]}
-                    onPress={handleSelectProposeStatement}
-                    accessibilityRole="menuitem"
-                    accessibilityLabel={t('menuProposeStatement')}
-                    accessibilityState={{ selected: messageType === 'position_proposal' }}
-                  >
-                    <View style={[styles.specialMenuIcon, { backgroundColor: colors.agreeBubble }]}>
-                      <Ionicons name="document-text" size={20} color="#fff" />
-                    </View>
-                    <View style={styles.specialMenuItemText}>
-                      <ThemedText variant="body" style={styles.specialMenuItemTitle}>{t('menuProposeStatement')}</ThemedText>
-                      <ThemedText variant="caption" style={styles.specialMenuItemDesc}>{t('menuProposeStatementDesc')}</ThemedText>
-                    </View>
-                    {messageType === 'position_proposal' && (
-                      <Ionicons name="checkmark-circle" size={24} color={SemanticColors.agree} />
-                    )}
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.specialMenuItem, messageType === 'closure_proposal' && styles.specialMenuItemSelected]}
-                    onPress={handleSelectProposeClosure}
-                    accessibilityRole="menuitem"
-                    accessibilityLabel={t('menuProposeClosure')}
-                    accessibilityState={{ selected: messageType === 'closure_proposal' }}
-                  >
-                    <View style={[styles.specialMenuIcon, { backgroundColor: colors.chat }]}>
-                      <Ionicons name="checkmark-done" size={20} color="#fff" />
-                    </View>
-                    <View style={styles.specialMenuItemText}>
-                      <ThemedText variant="body" style={styles.specialMenuItemTitle}>{t('menuProposeClosure')}</ThemedText>
-                      <ThemedText variant="caption" style={styles.specialMenuItemDesc}>{t('menuProposeClosureDesc')}</ThemedText>
-                    </View>
-                    {messageType === 'closure_proposal' && (
-                      <Ionicons name="checkmark-circle" size={24} color={colors.chat} />
-                    )}
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.specialMenuItem, messageType === 'definition_request' && styles.specialMenuItemSelected]}
-                    onPress={handleSelectDefine}
-                    accessibilityRole="menuitem"
-                    accessibilityLabel={t('menuDefine')}
-                    accessibilityState={{ selected: messageType === 'definition_request' }}
-                  >
-                    <View style={[styles.specialMenuIcon, { backgroundColor: colors.definitionAccent }]}>
-                      <Ionicons name="book-outline" size={20} color="#fff" />
-                    </View>
-                    <View style={styles.specialMenuItemText}>
-                      <ThemedText variant="body" style={styles.specialMenuItemTitle}>{t('menuDefine')}</ThemedText>
-                      <ThemedText variant="caption" style={styles.specialMenuItemDesc}>{t('menuDefineDesc')}</ThemedText>
-                    </View>
-                    {messageType === 'definition_request' && (
-                      <Ionicons name="checkmark-circle" size={24} color={colors.definitionAccent} />
-                    )}
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.specialMenuItem, messageType === 'explain_request' && styles.specialMenuItemSelected]}
-                    onPress={handleSelectExplain}
-                    accessibilityRole="menuitem"
-                    accessibilityLabel={t('menuExplain')}
-                    accessibilityState={{ selected: messageType === 'explain_request' }}
-                  >
-                    <View style={[styles.specialMenuIcon, { backgroundColor: colors.explanationAccent }]}>
-                      <Ionicons name="chatbubble-ellipses-outline" size={20} color="#fff" />
-                    </View>
-                    <View style={styles.specialMenuItemText}>
-                      <ThemedText variant="body" style={styles.specialMenuItemTitle}>{t('menuExplain')}</ThemedText>
-                      <ThemedText variant="caption" style={styles.specialMenuItemDesc}>{t('menuExplainDesc')}</ThemedText>
-                    </View>
-                    {messageType === 'explain_request' && (
-                      <Ionicons name="checkmark-circle" size={24} color={colors.explanationAccent} />
-                    )}
-                  </TouchableOpacity>
+                    <View style={styles.popoverArrow} />
+                  </View>
+                </>
+              )
+            ) : (
+              <Modal
+                visible={showSpecialMenu}
+                transparent
+                animationType="fade"
+                onRequestClose={closeSpecialMenu}
+              >
+                <View style={styles.specialMenuBackdrop}>
+                  <Pressable style={{ flex: 1 }} onPress={closeSpecialMenu} />
+                  <View style={[styles.specialMenuPopup, { marginBottom: Math.max(insets.bottom, 8) + 56 }]}>
+                    {renderSpecialMenuItems()}
+                  </View>
                 </View>
-              </View>
-            </Modal>
+              </Modal>
+            )}
 
             <View style={styles.inputFields}>
               <TextInput
@@ -2827,6 +2810,7 @@ export default function ChatScreen() {
                 style={[styles.input, { maxHeight: maxInputHeight }]}
                 value={inputText}
                 onChangeText={handleTextChange}
+                onKeyPress={isDesktop ? handleKeyPress : undefined}
                 placeholder={
                   messageType === 'definition_request' ? t('placeholderDefinitionTerm') :
                   messageType === 'explain_request' ? t('placeholderExplainPosition') :
@@ -3356,6 +3340,28 @@ const createStyles = (colors) => StyleSheet.create({
     ...(Platform.OS === 'web' && {
       boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.15)',
     }),
+  },
+  // Desktop popover: positioned absolutely above the + button
+  desktopPopoverBackdrop: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 999,
+  },
+  desktopPopover: {
+    position: 'fixed',
+    zIndex: 1000,
+  },
+  popoverArrow: {
+    width: 12,
+    height: 12,
+    backgroundColor: colors.cardBackground,
+    transform: [{ rotate: '45deg' }],
+    marginLeft: 20,
+    marginTop: -6,
+    ...Shadows.card,
   },
   specialMenuItem: {
     flexDirection: 'row',

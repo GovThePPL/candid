@@ -132,5 +132,13 @@
   "reconsiderSendAnyway": "Send Anyway",
   "reconsiderReviseA11y": "Revise your message",
   "reconsiderSendAnywayA11y": "Send message without changes",
-  "reconsiderCheckingA11y": "Checking message"
+  "reconsiderCheckingA11y": "Checking message",
+
+  "desktopExpandPanel": "Expand panel",
+  "desktopCollapsePanel": "Collapse panel",
+
+  "expandNav": "Expand",
+  "collapseNav": "Collapse",
+  "desktopExpandNav": "Expand navigation",
+  "desktopCollapseNav": "Collapse navigation"
 }

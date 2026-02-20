@@ -9,12 +9,14 @@ import {
   TextInput,
   Linking,
   Platform,
+  ActivityIndicator,
   useWindowDimensions,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../../../hooks/useThemeColors'
+import useIsDesktop from '../../../hooks/useIsDesktop'
 import useKeyboardHeight from '../../../hooks/useKeyboardHeight'
 import { Typography } from '../../../constants/Theme'
 import ThemedText from '../../../components/ThemedText'
@@ -33,7 +35,7 @@ import { CacheManager, CacheKeys, CacheDurations } from '../../../lib/cache'
 import { useAuth } from '../../../contexts/UserContext'
 import { useLocationCategory } from '../../../contexts/LocationCategoryContext'
 
-const CARD_MIN_WIDTH = 340
+const CARD_MIN_WIDTH = 280
 const SEARCH_DEBOUNCE_MS = 800
 const SEARCH_PAGE_SIZE = 20
 
@@ -94,6 +96,7 @@ export default function Stats() {
   const styles = useMemo(() => createStyles(colors), [colors])
   const { t } = useTranslation('stats')
 
+  const isDesktop = useIsDesktop()
   const { selectedLocation, selectedCategory, setSelectedLocation, setSelectedCategory, loaded: prefsLoaded } = useLocationCategory()
   const [statsData, setStatsData] = useState(null)
   const [activeTab, setActiveTab] = useState('majority')
@@ -117,6 +120,11 @@ export default function Stats() {
   const positionsSectionY = useRef(0)
   const { width: screenWidth } = useWindowDimensions()
   const { keyboardHeight, webInitialHeight } = useKeyboardHeight()
+  const [measuredWidth, setMeasuredWidth] = useState(0)
+
+  const onScrollViewLayout = useCallback((e) => {
+    setMeasuredWidth(e.nativeEvent.layout.width)
+  }, [])
 
   const isSearchActive = selectedCategory === 'all' && activeTab === 'majority'
     && searchQuery.trim().length > 0 && (searchResults.length > 0 || searchLoading || searchExecuted)
@@ -132,11 +140,12 @@ export default function Stats() {
         }, 50)
       }
 
-  // Responsive grid for search results
-  const containerWidth = screenWidth - 32
+  // On desktop, always use 2 columns with flex-based sizing (no measurement needed).
+  // On mobile, calculate columns from measured container width.
+  const availableWidth = measuredWidth > 0 ? measuredWidth - 32 : screenWidth - 32
   const gap = 12
-  const numColumns = Math.max(1, Math.floor((containerWidth + gap) / (CARD_MIN_WIDTH + gap)))
-  const cardWidth = (containerWidth - (numColumns - 1) * gap) / numColumns
+  const numColumns = isDesktop ? 2 : Math.max(1, Math.floor((availableWidth + gap) / (CARD_MIN_WIDTH + gap)))
+  const cardWidth = isDesktop ? undefined : (availableWidth - (numColumns - 1) * gap) / numColumns
 
   // Search API call
   const executeSearch = useCallback(async (query, locationId, offset = 0) => {
@@ -537,7 +546,7 @@ export default function Stats() {
               )}
               <View style={styles.searchGrid}>
                 {searchResults.map((position) => (
-                  <View key={position.id} style={[styles.searchCardWrapper, { width: cardWidth }]}>
+                  <View key={position.id} style={[styles.searchCardWrapper, isDesktop ? styles.searchCardWrapperDesktop : { width: cardWidth }]}>
                     <PositionCard
                       position={position}
                       groups={statsData?.groups || []}
@@ -585,12 +594,13 @@ export default function Stats() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={isDesktop ? [] : ['top']}>
       <Header />
 
       <ScrollView
         ref={scrollViewRef}
         style={styles.scrollView}
+        onLayout={onScrollViewLayout}
         contentContainerStyle={[
           styles.scrollContent,
           keyboardHeight > 0 && { paddingBottom: keyboardHeight },
@@ -868,7 +878,11 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 12,
   },
   searchCardWrapper: {
-    // Width set dynamically
+    // Width set dynamically on mobile
+  },
+  searchCardWrapperDesktop: {
+    flex: 1,
+    minWidth: CARD_MIN_WIDTH,
   },
   emptySearchContainer: {
     height: 150,

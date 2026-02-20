@@ -20,3 +20,4 @@ Custom React hooks used across the app.
 | `useModalBackHandler.js` | Web-only hook that integrates modal visibility with browser history and Escape key |
 | `useThemeColors.js` | Theme-aware color tokens from `ThemeContext` |
 | `useUser.js` | Current user state, refresh, and auth status from `UserContext` |
+| `useIsDesktop.js` | Reactive desktop breakpoint hook (>= 1024px) using `useWindowDimensions` |

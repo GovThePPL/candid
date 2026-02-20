@@ -1,14 +1,15 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { View, TextInput, StyleSheet, useWindowDimensions, Platform } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
+import useIsDesktop from '../../hooks/useIsDesktop'
 import { Typography } from '../../constants/Theme'
 import ThemedText from '../ThemedText'
 import PositionCard from './PositionCard'
 
 // Breakpoints for responsive grid
-const CARD_MIN_WIDTH = 340 // Minimum width for a card before wrapping to fewer columns
+const CARD_MIN_WIDTH = 280 // Minimum width for a card before wrapping to fewer columns
 
 /**
  * Responsive grid of position cards
@@ -33,20 +34,26 @@ export default function PositionCarousel({
   const { t } = useTranslation('stats')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
+  const isDesktop = useIsDesktop()
   const { width: screenWidth } = useWindowDimensions()
   const [searchQuery, setSearchQuery] = useState('')
+  const [measuredWidth, setMeasuredWidth] = useState(0)
+
+  const onContainerLayout = useCallback((e) => {
+    setMeasuredWidth(e.nativeEvent.layout.width)
+  }, [])
 
   // Scroll the focused search input into view
   const handleInputFocus = Platform.OS === 'web'
     ? (e) => { setTimeout(() => e.target?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }), 300) }
     : onSearchFocus || undefined
 
-  // Calculate number of columns based on screen width
-  const containerWidth = screenWidth - 32 // Account for horizontal padding
+  // On desktop, always use 2 columns with flex-based sizing (no measurement needed).
+  // On mobile, calculate columns from measured container width.
+  const availableWidth = measuredWidth > 0 ? measuredWidth - 32 : screenWidth - 32
   const gap = 12
-  const numColumns = Math.max(1, Math.floor((containerWidth + gap) / (CARD_MIN_WIDTH + gap)))
-  // Cards stretch to fill available width, accounting for gaps
-  const cardWidth = (containerWidth - (numColumns - 1) * gap) / numColumns
+  const numColumns = isDesktop ? 2 : Math.max(1, Math.floor((availableWidth + gap) / (CARD_MIN_WIDTH + gap)))
+  const cardWidth = isDesktop ? undefined : (availableWidth - (numColumns - 1) * gap) / numColumns
 
   // Filter positions based on active tab
   const filteredPositions = positions.filter((position) => {
@@ -118,7 +125,7 @@ export default function PositionCarousel({
         : t('noPositionsDisplay')
 
     return (
-      <View style={styles.listContainer}>
+      <View style={styles.listContainer} onLayout={onContainerLayout}>
         {activeTab === 'my_positions' && totalUserPositions > 0 && (
           <View style={styles.searchContainer}>
             <Ionicons name="search" size={18} color={colors.secondaryText} style={styles.searchIcon} />
@@ -155,7 +162,7 @@ export default function PositionCarousel({
   }
 
   return (
-    <View style={styles.listContainer}>
+    <View style={styles.listContainer} onLayout={onContainerLayout}>
       {activeTab === 'my_positions' && (
         <View style={styles.searchContainer}>
           <Ionicons name="search" size={18} color={colors.secondaryText} style={styles.searchIcon} />
@@ -186,7 +193,7 @@ export default function PositionCarousel({
       )}
       <View style={styles.gridContainer}>
         {sortedPositions.map((position) => (
-          <View key={position.id} style={[styles.cardWrapper, { width: cardWidth }]}>
+          <View key={position.id} style={[styles.cardWrapper, isDesktop ? styles.cardWrapperDesktop : { width: cardWidth }]}>
             <PositionCard
               position={position}
               groups={groups}
@@ -239,7 +246,11 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 12,
   },
   cardWrapper: {
-    // Width is set dynamically
+    // Width is set dynamically on mobile
+  },
+  cardWrapperDesktop: {
+    flex: 1,
+    minWidth: CARD_MIN_WIDTH,
   },
   emptyContainer: {
     height: 150,

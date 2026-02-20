@@ -132,5 +132,13 @@
   "reconsiderSendAnyway": "Enviar de Todos Modos",
   "reconsiderReviseA11y": "Revisar tu mensaje",
   "reconsiderSendAnywayA11y": "Enviar mensaje sin cambios",
-  "reconsiderCheckingA11y": "Verificando mensaje"
+  "reconsiderCheckingA11y": "Verificando mensaje",
+
+  "desktopExpandPanel": "Expandir panel",
+  "desktopCollapsePanel": "Contraer panel",
+
+  "expandNav": "Expandir",
+  "collapseNav": "Contraer",
+  "desktopExpandNav": "Expandir navegación",
+  "desktopCollapseNav": "Contraer navegación"
 }
