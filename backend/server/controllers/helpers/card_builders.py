@@ -251,6 +251,24 @@ def kudos_to_card(kudos_data: dict, user_id: str) -> dict:
     return {"type": "kudos", "data": data}
 
 
+def bridging_kudos_to_card(row: dict) -> dict:
+    """Convert a bridging award row to a card response."""
+    return {
+        "type": "bridging_kudos",
+        "data": {
+            "id": str(row["id"]),
+            "itemType": row["item_type"],
+            "itemId": str(row["item_id"]),
+            "itemBody": row["item_body"],
+            "threadTitle": row.get("thread_title"),
+            "upvoteCount": row.get("upvote_count") or 0,
+            "downvoteCount": row.get("downvote_count") or 0,
+            "bridgingScore": float(row["bridging_score"]) if row.get("bridging_score") else None,
+            "createdTime": row["created_time"].isoformat() if row.get("created_time") else None,
+        }
+    }
+
+
 def demographic_to_card(field: str, demographic_options: dict) -> dict:
     """Convert a demographic field to a card response.
 

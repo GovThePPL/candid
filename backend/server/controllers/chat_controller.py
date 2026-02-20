@@ -1,7 +1,11 @@
+import logging
+
 import connexion
 from typing import Dict
 from typing import Tuple
 from typing import Union
+
+logger = logging.getLogger(__name__)
 
 from candid.models.chat_request import ChatRequest
 from candid.models.error_model import ErrorModel
@@ -929,6 +933,13 @@ def send_kudos(chat_id, token_info=None):
         ON CONFLICT (sender_user_id, receiver_user_id, chat_log_id)
         DO UPDATE SET status = 'sent', created_time = CURRENT_TIMESTAMP
     """, (kudos_id, str(user.id), receiver_id, chat_id))
+
+    # Recalculate trust scores after kudos sent
+    try:
+        from candid.controllers.helpers.trust_score import recalculate_all_trust_scores
+        recalculate_all_trust_scores(db)
+    except Exception as e:
+        logger.error("Error recalculating trust scores after kudos: %s", e)
 
     # Return the created kudos (need to get the actual ID since upsert may have used existing)
     created = db.execute_query("""

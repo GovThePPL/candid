@@ -27,6 +27,11 @@ _fake_nn = types.ModuleType("nudenet")
 _fake_nn.NudeDetector = MagicMock
 sys.modules.setdefault("nudenet", _fake_nn)
 
+# Fake detoxify module (must happen before app.toxicity imports it)
+_fake_detoxify = types.ModuleType("detoxify")
+_fake_detoxify.Detoxify = MagicMock
+sys.modules.setdefault("detoxify", _fake_detoxify)
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -95,12 +100,35 @@ def mock_nudenet():
 
 
 @pytest.fixture
-def app_client(mock_sentence_transformer):
-    """FastAPI TestClient with mocked embedding model."""
+def mock_detoxify():
+    """Provide a mock Detoxify model instance."""
+    mock_model = MagicMock()
+
+    def _predict(text):
+        return {
+            "toxicity": 0.1,
+            "severe_toxicity": 0.01,
+            "obscene": 0.05,
+            "identity_attack": 0.02,
+            "insult": 0.08,
+            "threat": 0.01,
+            "sexual_explicit": 0.01,
+        }
+
+    mock_model.predict.side_effect = _predict
+    yield mock_model
+
+
+@pytest.fixture
+def app_client(mock_sentence_transformer, mock_detoxify):
+    """FastAPI TestClient with mocked embedding and toxicity models."""
     from app.embeddings import embedding_model
+    from app.toxicity import get_detector
 
     # Pre-load with mock so lifespan doesn't try real download
     embedding_model._model = mock_sentence_transformer
+    detector = get_detector()
+    detector._model = mock_detoxify
 
     from fastapi.testclient import TestClient
     from app.main import app
@@ -110,3 +138,4 @@ def app_client(mock_sentence_transformer):
 
     # Clean up global state
     embedding_model._model = None
+    detector._model = None

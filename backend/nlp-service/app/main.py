@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from .embeddings import embedding_model
 from .nsfw_detector import decode_and_validate_image, check_nsfw, process_avatar
+from .toxicity import get_detector
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -17,13 +18,15 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Load model on startup."""
+    """Load models on startup."""
     logger.info(f"Loading embedding model: {embedding_model.model_name}")
     embedding_model.load()
     logger.info(
         f"Model loaded. Dimension: {embedding_model.embedding_dimension}, "
         f"Device: {embedding_model.device}"
     )
+    toxicity_detector = get_detector()
+    toxicity_detector.load()
     yield
 
 
@@ -94,6 +97,20 @@ class NSFWCheckResponse(BaseModel):
     error: Optional[str] = Field(None, description="Error message if validation failed")
 
 
+class ToxicityCheckRequest(BaseModel):
+    """Request model for toxicity check."""
+
+    text: str = Field(..., description="Text to check for toxicity", min_length=1)
+    threshold: float = Field(0.7, description="Toxicity score threshold (0.0-1.0)", ge=0.0, le=1.0)
+
+
+class ToxicityCheckResponse(BaseModel):
+    """Response model for toxicity check."""
+
+    is_toxic: bool = Field(..., description="Whether the text exceeds the toxicity threshold")
+    toxicity_score: float = Field(..., description="Overall toxicity score (0.0-1.0)")
+
+
 class ProcessAvatarRequest(BaseModel):
     """Request model for avatar processing."""
 
@@ -116,7 +133,7 @@ async def health_check():
     """Check service health and model availability."""
     return HealthResponse(
         status="ok",
-        models=["embeddings"],
+        models=["embeddings", "toxicity"],
         embedding_model=embedding_model.model_name,
         embedding_dimension=embedding_model.embedding_dimension,
         device=embedding_model.device,
@@ -189,6 +206,26 @@ async def nsfw_check(request: NSFWCheckRequest):
         )
     except Exception as e:
         logger.error(f"Error checking NSFW content: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/toxicity-check", response_model=ToxicityCheckResponse)
+async def toxicity_check(request: ToxicityCheckRequest):
+    """
+    Check if text contains toxic content.
+
+    Uses the detoxify unbiased model to detect toxicity.
+    Returns whether the text exceeds the threshold and the toxicity score.
+    """
+    try:
+        detector = get_detector()
+        result = detector.check(request.text, threshold=request.threshold)
+        return ToxicityCheckResponse(
+            is_toxic=result["is_toxic"],
+            toxicity_score=result["toxicity_score"],
+        )
+    except Exception as e:
+        logger.error(f"Error checking toxicity: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

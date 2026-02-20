@@ -117,6 +117,15 @@ export const LightTheme = {
   warningSurface: "#EF4C45",
   warningBubble: "#EF4C45",
 
+  // Definitions
+  definitionAccent: "#1976D2",
+
+  // Explanations
+  explanationAccent: "#7B1FA2",
+
+  // FAB
+  fabBg: "#5C005C",
+
   // Chatting list button backgrounds
   chattingListBg: BrandColor + '20',
   chattingListSelectedBg: "#5C005C",
@@ -194,6 +203,15 @@ export const DarkTheme = {
   agreeBubble: "#007700",
   warningSurface: "#6E2020",
   warningBubble: "#993333",
+
+  // Definitions
+  definitionAccent: "#1565C0",
+
+  // Explanations
+  explanationAccent: "#7B1FA2",
+
+  // FAB
+  fabBg: "#6E206E",
 
   // Chatting list button backgrounds
   chattingListBg: BrandColor + '45',

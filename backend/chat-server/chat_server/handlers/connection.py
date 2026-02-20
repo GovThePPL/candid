@@ -9,7 +9,7 @@ import socketio
 from socketio.exceptions import ConnectionRefusedError
 
 from ..auth import validate_token
-from ..services import get_redis_store, get_room_manager, get_chat_exporter
+from ..services import get_redis_store, get_room_manager, get_chat_exporter, get_abandonment_tracker
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +59,23 @@ def register_connection_handlers(sio: socketio.AsyncServer) -> None:
         for chat_id in active_chats:
             await sio.enter_room(sid, room_manager.chat_room(chat_id))
 
+        # Cancel any pending abandonment timers for this user (they reconnected)
+        abandonment_tracker = get_abandonment_tracker()
+        cancelled_chats = abandonment_tracker.cancel_all_for_user(user_id)
+
+        # Notify other participants that this user reconnected
+        for cancelled_chat_id in cancelled_chats:
+            metadata = await redis_store.get_chat_metadata(cancelled_chat_id)
+            if metadata:
+                for participant_id in metadata.participant_ids:
+                    if participant_id != user_id:
+                        other_room = room_manager.user_room(participant_id)
+                        await sio.emit(
+                            "partner_reconnected",
+                            {"chatId": cancelled_chat_id, "userId": user_id},
+                            room=other_room,
+                        )
+
         logger.info(
             f"User {user_id} connected and authenticated (sid: {sid}), "
             f"active chats: {active_chats}"
@@ -91,7 +108,31 @@ def register_connection_handlers(sio: socketio.AsyncServer) -> None:
         session = room_manager.remove_session(sid)
 
         if session:
-            logger.info(f"User {session.user_id} disconnected (sid: {sid})")
+            user_id = session.user_id
+            logger.info(f"User {user_id} disconnected (sid: {sid})")
+
+            # Only start abandonment timers if user has no other active sessions
+            if not room_manager.is_user_connected(user_id):
+                redis_store = get_redis_store()
+                abandonment_tracker = get_abandonment_tracker()
+                active_chats = await redis_store.get_user_active_chats(user_id)
+
+                for chat_id in active_chats:
+                    abandonment_tracker.start(chat_id, user_id)
+
+                    # Notify the other participant
+                    metadata = await redis_store.get_chat_metadata(chat_id)
+                    if metadata:
+                        for participant_id in metadata.participant_ids:
+                            if participant_id != user_id:
+                                # Only notify if other user doesn't also have a timer
+                                if not abandonment_tracker.has_timer(chat_id, participant_id):
+                                    other_room = room_manager.user_room(participant_id)
+                                    await sio.emit(
+                                        "partner_disconnected",
+                                        {"chatId": chat_id, "userId": user_id},
+                                        room=other_room,
+                                    )
         else:
             logger.info(f"Session disconnected: {sid}")
 
@@ -128,9 +169,28 @@ def register_connection_handlers(sio: socketio.AsyncServer) -> None:
         # Update activity on join
         room_manager.update_activity(sid)
 
+        # Cancel abandonment timer if user is returning to the chat
+        abandonment_tracker = get_abandonment_tracker()
+        was_abandoning = abandonment_tracker.cancel(chat_id, user_id)
+        if was_abandoning:
+            # Notify the other participant that user returned
+            metadata_for_notify = await redis_store.get_chat_metadata(chat_id)
+            if metadata_for_notify:
+                for participant_id in metadata_for_notify.participant_ids:
+                    if participant_id != user_id:
+                        other_room = room_manager.user_room(participant_id)
+                        await sio.emit(
+                            "partner_reconnected",
+                            {"chatId": chat_id, "userId": user_id},
+                            room=other_room,
+                        )
+
         # Get chat history
         messages = await redis_store.get_messages(chat_id)
         positions = await redis_store.get_all_agreed_positions(chat_id)
+        definitions = await redis_store.get_all_definition_requests(chat_id)
+        explanations = await redis_store.get_all_explain_requests(chat_id)
+        reactions = await redis_store.get_reactions(chat_id)
 
         # Check if other participant is connected
         metadata = await redis_store.get_chat_metadata(chat_id)
@@ -148,8 +208,59 @@ def register_connection_handlers(sio: socketio.AsyncServer) -> None:
             "chatId": chat_id,
             "messages": [m.to_dict() for m in messages],
             "agreedPositions": [p.to_dict() for p in positions],
+            "definitions": [d.to_dict() for d in definitions],
+            "explanations": [e.to_dict() for e in explanations],
+            "reactions": reactions,
             "otherUserConnected": other_user_connected,
         }
+
+    @sio.event
+    async def leave_chat(sid: str, data: dict) -> None:
+        """
+        Handle user navigating away from the chat screen.
+
+        This is a safety net emitted from the frontend's useEffect cleanup
+        when the chat screen unmounts. Starts an abandonment timer.
+
+        Expected data: {"chatId": "UUID"}
+        """
+        room_manager = get_room_manager()
+        user_id = room_manager.get_user_id(sid)
+
+        if not user_id:
+            return
+
+        chat_id = data.get("chatId") if isinstance(data, dict) else None
+        if not chat_id:
+            return
+
+        redis_store = get_redis_store()
+
+        # Verify user is a participant
+        if not await redis_store.is_chat_participant(chat_id, user_id):
+            return
+
+        # Leave the chat Socket.IO room
+        await sio.leave_room(sid, room_manager.chat_room(chat_id))
+
+        # Start abandonment timer
+        abandonment_tracker = get_abandonment_tracker()
+        abandonment_tracker.start(chat_id, user_id)
+
+        # Notify the other participant
+        metadata = await redis_store.get_chat_metadata(chat_id)
+        if metadata:
+            for participant_id in metadata.participant_ids:
+                if participant_id != user_id:
+                    if not abandonment_tracker.has_timer(chat_id, participant_id):
+                        other_room = room_manager.user_room(participant_id)
+                        await sio.emit(
+                            "partner_disconnected",
+                            {"chatId": chat_id, "userId": user_id},
+                            room=other_room,
+                        )
+
+        logger.info(f"User {user_id} left chat {chat_id} screen")
 
     @sio.event
     async def ping(sid: str, data: dict = None) -> dict[str, str]:

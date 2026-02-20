@@ -164,7 +164,7 @@ function ChatHistoryCard({ chat, onPress, onSendKudos, onReport, onModerate, can
         </View>
       </View>
 
-      <TouchableOpacity onPress={onPress} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t('viewChatA11y')}>
+      <TouchableOpacity onPress={onPress} activeOpacity={0.7} accessibilityLabel={t('viewChatA11y')}>
         <CardShell
           accentColor={agreedClosure ? colors.agreeSurface : colors.cardBackground}
           bottomSection={closureBottomSection}

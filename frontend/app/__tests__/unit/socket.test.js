@@ -5,12 +5,15 @@ const mockEmit = jest.fn()
 const mockConnect = jest.fn()
 const mockDisconnect = jest.fn()
 
+const mockRemoveAllListeners = jest.fn()
+
 const mockSocket = {
   on: mockOn,
   off: mockOff,
   emit: mockEmit,
   connect: mockConnect,
   disconnect: mockDisconnect,
+  removeAllListeners: mockRemoveAllListeners,
   connected: false,
 }
 
@@ -33,6 +36,7 @@ beforeEach(() => {
   mockEmit.mockReset()
   mockConnect.mockReset()
   mockDisconnect.mockReset()
+  mockRemoveAllListeners.mockReset()
 
   jest.resetModules()
   // Re-mock after resetModules
@@ -67,9 +71,9 @@ describe('connectSocket', () => {
     // Verify auth is a dynamic callback that resolves to the token
     const authArg = io.mock.calls[0][1].auth
     expect(typeof authArg).toBe('function')
-    // Call the auth callback and verify it provides the token
-    const AsyncStorage = require('@react-native-async-storage/async-storage')
-    AsyncStorage.getItem.mockResolvedValueOnce('fresh-token')
+    // Call the auth callback and verify it uses getToken() for fresh tokens
+    const { getToken } = require('../../lib/api')
+    getToken.mockResolvedValueOnce('fresh-token')
     const cb = jest.fn()
     await authArg(cb)
     expect(cb).toHaveBeenCalledWith({ token: 'fresh-token' })
@@ -237,7 +241,86 @@ describe('emit functions without connection', () => {
     socketModule.sendReadReceipt('chat-1', 'msg-1')
     expect(mockEmit).not.toHaveBeenCalled()
   })
+})
 
+describe('exitChat with connected socket', () => {
+  beforeEach(async () => {
+    // Connect the socket first
+    mockOn.mockImplementation((event, handler) => {
+      if (event === 'authenticated') {
+        setTimeout(() => handler({ userId: 'u1', activeChats: [] }), 0)
+      }
+    })
+    mockConnect.mockImplementation(() => {
+      const authHandler = mockOn.mock.calls.find(c => c[0] === 'authenticated')?.[1]
+      if (authHandler) authHandler({ userId: 'u1', activeChats: [] })
+    })
+    await socketModule.connectSocket()
+    mockSocket.connected = true
+  })
+
+  it('resolves when server responds with status "ended"', async () => {
+    mockEmit.mockImplementation((event, data, cb) => {
+      if (event === 'exit_chat' && cb) {
+        cb({ status: 'ended', chatId: 'chat-1' })
+      }
+    })
+
+    const result = await socketModule.exitChat('chat-1')
+    expect(result).toEqual({ status: 'ended', chatId: 'chat-1' })
+  })
+
+  it('rejects when server responds with error status', async () => {
+    mockEmit.mockImplementation((event, data, cb) => {
+      if (event === 'exit_chat' && cb) {
+        cb({ status: 'error', message: 'Not a participant in this chat' })
+      }
+    })
+
+    await expect(socketModule.exitChat('chat-1')).rejects.toThrow('Not a participant in this chat')
+  })
+})
+
+describe('leaveChat', () => {
+  it('does nothing when not connected', () => {
+    socketModule.leaveChat('chat-1')
+    expect(mockEmit).not.toHaveBeenCalled()
+  })
+
+  it('emits leave_chat when connected', async () => {
+    // Connect first
+    mockOn.mockImplementation((event, handler) => {
+      if (event === 'authenticated') {
+        setTimeout(() => handler({ userId: 'u1', activeChats: [] }), 0)
+      }
+    })
+    mockConnect.mockImplementation(() => {
+      const authHandler = mockOn.mock.calls.find(c => c[0] === 'authenticated')?.[1]
+      if (authHandler) authHandler({ userId: 'u1', activeChats: [] })
+    })
+    await socketModule.connectSocket()
+    mockSocket.connected = true
+
+    socketModule.leaveChat('chat-1')
+    expect(mockEmit).toHaveBeenCalledWith('leave_chat', { chatId: 'chat-1' })
+  })
+})
+
+describe('partner disconnect/reconnect listeners', () => {
+  it('onPartnerDisconnected returns noop cleanup when no socket', () => {
+    const cleanup = socketModule.onPartnerDisconnected(jest.fn())
+    expect(typeof cleanup).toBe('function')
+    cleanup()
+  })
+
+  it('onPartnerReconnected returns noop cleanup when no socket', () => {
+    const cleanup = socketModule.onPartnerReconnected(jest.fn())
+    expect(typeof cleanup).toBe('function')
+    cleanup()
+  })
+})
+
+describe('emit functions without connection (continued)', () => {
   it('proposeAgreedPosition throws when not connected', async () => {
     await expect(socketModule.proposeAgreedPosition('chat-1', 'statement')).rejects.toThrow('Not connected')
   })

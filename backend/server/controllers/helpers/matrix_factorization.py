@@ -13,6 +13,7 @@ with 'p:' or 'c:' to keep namespaces separate.
 """
 
 import logging
+import math
 import time
 
 import numpy as np
@@ -360,6 +361,116 @@ def _store_mf_results(conversation_id, model, idx_maps):
 
 
 # ---------------------------------------------------------------------------
+# Internal: bridging award detection
+# ---------------------------------------------------------------------------
+
+def _check_bridging_awards(conversation_id, model, idx_maps):
+    """Check for items that crossed the bridging threshold and award kudos.
+
+    For each item in the model, computes the vote-adjusted threshold
+    (base + margin / sqrt(total_votes)). If intercept >= threshold and
+    item not already in bridging_award, inserts the award and sends
+    a notification to the author.
+    """
+    idx_to_item_id = idx_maps["idx_to_item_id"]
+    item_intercepts = model["item_intercepts"]
+    base = config.SCORING_BRIDGING_BASE
+    margin = config.SCORING_BRIDGING_MARGIN
+
+    for i_idx, item_id in idx_to_item_id.items():
+        intercept = float(item_intercepts[i_idx])
+
+        # Parse item type and real ID
+        if item_id.startswith("c:"):
+            item_type = "comment"
+            real_id = item_id[2:]
+        elif item_id.startswith("p:"):
+            item_type = "post"
+            real_id = item_id[2:]
+        else:
+            continue
+
+        # Get vote count for threshold calculation
+        if item_type == "comment":
+            vote_row = db.execute_query(
+                "SELECT COUNT(*) as cnt FROM comment_vote WHERE comment_id = %s",
+                (real_id,), fetchone=True)
+        else:
+            vote_row = db.execute_query(
+                "SELECT COUNT(*) as cnt FROM post_vote WHERE post_id = %s",
+                (real_id,), fetchone=True)
+
+        total_votes = vote_row["cnt"] if vote_row else 0
+        if total_votes < 1:
+            continue
+
+        threshold = base + margin / math.sqrt(total_votes)
+        if intercept < threshold:
+            continue
+
+        # Check if already awarded
+        existing = db.execute_query(
+            "SELECT 1 FROM bridging_award WHERE item_type = %s AND item_id = %s",
+            (item_type, real_id), fetchone=True)
+        if existing:
+            continue
+
+        # Look up author
+        if item_type == "comment":
+            author_row = db.execute_query(
+                "SELECT creator_user_id, body, post_id FROM comment WHERE id = %s",
+                (real_id,), fetchone=True)
+            if not author_row:
+                continue
+            author_id = str(author_row["creator_user_id"])
+            item_body = author_row["body"] or ""
+            # Get thread title
+            post_row = db.execute_query(
+                "SELECT title FROM post WHERE id = %s",
+                (author_row["post_id"],), fetchone=True)
+            thread_title = post_row["title"] if post_row else None
+        else:
+            author_row = db.execute_query(
+                "SELECT creator_user_id, body, title FROM post WHERE id = %s",
+                (real_id,), fetchone=True)
+            if not author_row:
+                continue
+            author_id = str(author_row["creator_user_id"])
+            item_body = author_row["body"] or ""
+            thread_title = author_row["title"]
+
+        # Insert award
+        db.execute_query("""
+            INSERT INTO bridging_award (item_type, item_id, user_id)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (item_type, item_id) DO NOTHING
+        """, (item_type, real_id, author_id))
+
+        # Send notification
+        snippet = item_body[:80] + "..." if len(item_body) > 80 else item_body
+        notif_title = "Your comment is bridging divides!" if item_type == "comment" else "Your post is bridging divides!"
+
+        try:
+            from candid.controllers.helpers.push_notifications import send_or_queue_notification
+            send_or_queue_notification(
+                title=notif_title,
+                body=snippet,
+                data={
+                    "action": "open_cards",
+                    "itemType": item_type,
+                    "itemId": real_id,
+                },
+                recipient_user_id=author_id,
+                db=db,
+                notification_type="bridging_kudos",
+            )
+        except Exception as e:
+            logger.error("Error sending bridging kudos notification: %s", e)
+
+    logger.info("Bridging award check completed for conversation %s", conversation_id)
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -399,6 +510,19 @@ def run_factorization(conversation_id):
     }
 
     _store_mf_results(conversation_id, model, idx_maps)
+
+    # Check for items that crossed the bridging threshold
+    try:
+        _check_bridging_awards(conversation_id, model, idx_maps)
+    except Exception as e:
+        logger.error("Error checking bridging awards for %s: %s", conversation_id, e)
+
+    # Recalculate trust scores (percentile-based, depends on bridging awards)
+    try:
+        from candid.controllers.helpers.trust_score import recalculate_all_trust_scores
+        recalculate_all_trust_scores(db)
+    except Exception as e:
+        logger.error("Error recalculating trust scores: %s", e)
 
     stats = {
         "conversation_id": conversation_id,

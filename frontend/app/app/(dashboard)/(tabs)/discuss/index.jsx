@@ -22,6 +22,47 @@ import ReportModal from '../../../../components/ReportModal'
 import ModerationActionModal from '../../../../components/ModerationActionModal'
 import EmptyState from '../../../../components/EmptyState'
 import ThemedText from '../../../../components/ThemedText'
+import { SkeletonPulse, SkeletonBox, SkeletonLine } from '../../../../components/Skeleton'
+
+function PostCardSkeleton({ styles }) {
+  return (
+    <View style={styles.skeletonCard}>
+      {/* Top row: badge pill + time */}
+      <View style={styles.skeletonTopRow}>
+        <SkeletonBox width={120} height={20} borderRadius={10} />
+        <SkeletonBox width={28} height={12} borderRadius={6} />
+      </View>
+      {/* Title: 2 lines */}
+      <View style={{ gap: 6, marginTop: 10 }}>
+        <SkeletonLine width="90%" height={16} />
+        <SkeletonLine width="65%" height={16} />
+      </View>
+      {/* Body preview: 2 lines */}
+      <View style={{ gap: 5, marginTop: 10 }}>
+        <SkeletonLine width="100%" height={12} />
+        <SkeletonLine width="80%" height={12} />
+      </View>
+      {/* Bottom row: author + actions */}
+      <View style={styles.skeletonBottomRow}>
+        <SkeletonBox width={80} height={12} borderRadius={6} />
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <SkeletonBox width={40} height={22} borderRadius={11} />
+          <SkeletonBox width={50} height={22} borderRadius={11} />
+        </View>
+      </View>
+    </View>
+  )
+}
+
+function FeedSkeleton({ styles }) {
+  return (
+    <SkeletonPulse>
+      {Array.from({ length: 4 }).map((_, i) => (
+        <PostCardSkeleton key={i} styles={styles} />
+      ))}
+    </SkeletonPulse>
+  )
+}
 
 export default function DiscussFeed() {
   const { t } = useTranslation('discuss')
@@ -264,11 +305,9 @@ export default function DiscussFeed() {
               </View>
             )}
 
-            {/* Loading indicator for initial load */}
+            {/* Skeleton loading for initial load */}
             {loading && !refreshing && (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={colors.primary} />
-              </View>
+              <FeedSkeleton styles={styles} />
             )}
           </>
         }
@@ -357,9 +396,23 @@ const createStyles = (colors) => StyleSheet.create({
   emptyContainer: {
     flexGrow: 1,
   },
-  loadingContainer: {
-    padding: Spacing.xxl,
+  skeletonCard: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: 12,
+    padding: Spacing.lg,
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.sm,
+  },
+  skeletonTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  skeletonBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 14,
   },
   footer: {
     paddingVertical: Spacing.lg,
@@ -372,7 +425,7 @@ const createStyles = (colors) => StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.fabBg,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 6,

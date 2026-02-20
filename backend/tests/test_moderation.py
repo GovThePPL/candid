@@ -1342,3 +1342,46 @@ class TestFacilitatorModerationQueue:
             json={"claimedBy": NORMAL1_ID},
         )
         assert resp.status_code == 403
+
+
+class TestToxicityCheck:
+    """POST /toxicity-check"""
+
+    def test_requires_auth(self):
+        """Unauthenticated request returns 401."""
+        resp = requests.post(f"{BASE_URL}/toxicity-check", json={"text": "hello"})
+        assert resp.status_code == 401
+
+    def test_success_clean_text(self, normal_headers):
+        """Normal user can check clean text."""
+        resp = requests.post(
+            f"{BASE_URL}/toxicity-check",
+            headers=normal_headers,
+            json={"text": "I respectfully disagree with your position"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "isToxic" in data
+        assert "toxicityScore" in data
+        assert isinstance(data["isToxic"], bool)
+        assert isinstance(data["toxicityScore"], (int, float))
+
+    def test_returns_expected_shape(self, normal_headers):
+        """Response has isToxic and toxicityScore fields."""
+        resp = requests.post(
+            f"{BASE_URL}/toxicity-check",
+            headers=normal_headers,
+            json={"text": "test message"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert set(data.keys()) == {"isToxic", "toxicityScore"}
+
+    def test_empty_text_returns_400(self, normal_headers):
+        """Empty text returns 400."""
+        resp = requests.post(
+            f"{BASE_URL}/toxicity-check",
+            headers=normal_headers,
+            json={"text": ""},
+        )
+        assert resp.status_code == 400

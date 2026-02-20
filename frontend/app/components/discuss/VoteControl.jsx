@@ -1,5 +1,5 @@
-import { memo, useMemo } from 'react'
-import { View, TouchableOpacity, StyleSheet } from 'react-native'
+import { memo, useMemo, useRef, useEffect } from 'react'
+import { View, TouchableOpacity, Animated, Platform, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
@@ -38,6 +38,28 @@ export default memo(function VoteControl({
 
   const isUpvoted = userVote?.voteType === 'upvote'
   const isDownvoted = userVote?.voteType === 'downvote'
+
+  // Scale pulse animation for sm pill on upvote transition
+  const scaleAnim = useRef(new Animated.Value(1)).current
+  const prevUpvotedRef = useRef(isUpvoted)
+  useEffect(() => {
+    if (isUpvoted && !prevUpvotedRef.current && size === 'sm') {
+      Animated.spring(scaleAnim, {
+        toValue: 1.15,
+        friction: 5,
+        tension: 200,
+        useNativeDriver: Platform.OS !== 'web',
+      }).start(() => {
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          friction: 5,
+          tension: 150,
+          useNativeDriver: Platform.OS !== 'web',
+        }).start()
+      })
+    }
+    prevUpvotedRef.current = isUpvoted
+  }, [isUpvoted, size, scaleAnim])
 
   const upvoteA11yKey = targetType === 'post' ? 'upvotePostA11y' : 'upvoteCommentA11y'
   const downvoteA11yKey = targetType === 'post' ? 'downvotePostA11y' : 'downvoteCommentA11y'
@@ -98,59 +120,61 @@ export default memo(function VoteControl({
   const isActive = isUpvoted || isDownvoted
 
   return (
-    <View style={[
-      styles.smPill,
-      isUpvoted && styles.smPillUpvoted,
-      isDownvoted && styles.smPillDownvoted,
-      disabled && styles.disabled,
-    ]}>
-      <TouchableOpacity
-        onPress={onUpvote}
-        disabled={disabled}
-        activeOpacity={0.6}
-        accessibilityRole="button"
-        accessibilityLabel={t(upvoteA11yKey, { author: authorName })}
-        accessibilityState={{ selected: isUpvoted, disabled }}
-        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-      >
-        <Ionicons
-          name="chevron-up"
-          size={18}
-          color={isActive ? OnBrandColors.text : colors.secondaryText}
-        />
-      </TouchableOpacity>
-
-      <ThemedText
-        variant="caption"
-        style={[
-          styles.smScore,
-          isActive && styles.smScoreActive,
-        ]}
-      >
-        {netScore}
-      </ThemedText>
-
+    <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
       <View style={[
-        styles.smDivider,
-        isActive && styles.smDividerActive,
-      ]} />
+        styles.smPill,
+        isUpvoted && styles.smPillUpvoted,
+        isDownvoted && styles.smPillDownvoted,
+        disabled && styles.disabled,
+      ]}>
+        <TouchableOpacity
+          onPress={onUpvote}
+          disabled={disabled}
+          activeOpacity={0.6}
+          accessibilityRole="button"
+          accessibilityLabel={t(upvoteA11yKey, { author: authorName })}
+          accessibilityState={{ selected: isUpvoted, disabled }}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+        >
+          <Ionicons
+            name="chevron-up"
+            size={18}
+            color={isActive ? OnBrandColors.text : colors.secondaryText}
+          />
+        </TouchableOpacity>
 
-      <TouchableOpacity
-        onPress={onDownvote}
-        disabled={disabled}
-        activeOpacity={0.6}
-        accessibilityRole="button"
-        accessibilityLabel={t(downvoteA11yKey, { author: authorName })}
-        accessibilityState={{ selected: isDownvoted, disabled }}
-        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-      >
-        <Ionicons
-          name="chevron-down"
-          size={18}
-          color={isActive ? OnBrandColors.text : colors.secondaryText}
-        />
-      </TouchableOpacity>
-    </View>
+        <ThemedText
+          variant="caption"
+          style={[
+            styles.smScore,
+            isActive && styles.smScoreActive,
+          ]}
+        >
+          {netScore}
+        </ThemedText>
+
+        <View style={[
+          styles.smDivider,
+          isActive && styles.smDividerActive,
+        ]} />
+
+        <TouchableOpacity
+          onPress={onDownvote}
+          disabled={disabled}
+          activeOpacity={0.6}
+          accessibilityRole="button"
+          accessibilityLabel={t(downvoteA11yKey, { author: authorName })}
+          accessibilityState={{ selected: isDownvoted, disabled }}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+        >
+          <Ionicons
+            name="chevron-down"
+            size={18}
+            color={isActive ? OnBrandColors.text : colors.secondaryText}
+          />
+        </TouchableOpacity>
+      </View>
+    </Animated.View>
   )
 })
 

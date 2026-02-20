@@ -26,9 +26,11 @@ class ChatMessage:
     content: str
     target_id: Optional[str]  # For position references
     timestamp: str
+    toxicity_score: Optional[float] = None
+    was_sent_anyway: Optional[bool] = None
 
     def to_dict(self) -> dict:
-        return {
+        d = {
             "id": self.id,
             "senderId": self.sender_id,
             "type": self.type,
@@ -36,6 +38,11 @@ class ChatMessage:
             "targetId": self.target_id,
             "timestamp": self.timestamp,
         }
+        if self.toxicity_score is not None:
+            d["toxicityScore"] = self.toxicity_score
+        if self.was_sent_anyway is not None:
+            d["wasSentAnyway"] = self.was_sent_anyway
+        return d
 
     @classmethod
     def from_dict(cls, data: dict) -> "ChatMessage":
@@ -46,6 +53,8 @@ class ChatMessage:
             content=data["content"],
             target_id=data.get("targetId", data.get("target_id")),
             timestamp=data["timestamp"],
+            toxicity_score=data.get("toxicityScore", data.get("toxicity_score")),
+            was_sent_anyway=data.get("wasSentAnyway", data.get("was_sent_anyway")),
         )
 
 
@@ -136,6 +145,103 @@ class ChatMetadata:
         )
 
 
+@dataclass
+class DefinitionRequest:
+    """A definition request with request-response negotiation flow."""
+
+    id: str
+    requester_id: str
+    term: str
+    status: str  # 'pending', 'defined', 'accepted', 'both_defined'
+    timestamp: str
+    definer_id: Optional[str] = None
+    definition: Optional[str] = None
+    defined_at: Optional[str] = None
+    counter_definer_id: Optional[str] = None
+    counter_definition: Optional[str] = None
+    counter_defined_at: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        d = {
+            "id": self.id,
+            "requesterId": self.requester_id,
+            "term": self.term,
+            "status": self.status,
+            "timestamp": self.timestamp,
+            "definerId": self.definer_id,
+            "definition": self.definition,
+            "definedAt": self.defined_at,
+            "counterDefinerId": self.counter_definer_id,
+            "counterDefinition": self.counter_definition,
+            "counterDefinedAt": self.counter_defined_at,
+        }
+        return d
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "DefinitionRequest":
+        return cls(
+            id=data["id"],
+            requester_id=data.get("requesterId", data.get("requester_id")),
+            term=data["term"],
+            status=data["status"],
+            timestamp=data["timestamp"],
+            definer_id=data.get("definerId", data.get("definer_id")),
+            definition=data.get("definition"),
+            defined_at=data.get("definedAt", data.get("defined_at")),
+            counter_definer_id=data.get("counterDefinerId", data.get("counter_definer_id")),
+            counter_definition=data.get("counterDefinition", data.get("counter_definition")),
+            counter_defined_at=data.get("counterDefinedAt", data.get("counter_defined_at")),
+        )
+
+
+@dataclass
+class ExplainRequest:
+    """An explain-my-position request with negotiation flow."""
+
+    id: str
+    requester_id: str          # User A (position holder)
+    position: str              # Free text describing position to explain
+    status: str                # 'pending','explained','good_faith','completed','corrected'
+    timestamp: str
+    explainer_id: Optional[str] = None      # User B
+    explanation: Optional[str] = None
+    explained_at: Optional[str] = None
+    good_faith: Optional[bool] = None       # True once User A confirms
+    correction: Optional[str] = None        # User A's corrected version
+    corrected_at: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "requesterId": self.requester_id,
+            "position": self.position,
+            "status": self.status,
+            "timestamp": self.timestamp,
+            "explainerId": self.explainer_id,
+            "explanation": self.explanation,
+            "explainedAt": self.explained_at,
+            "goodFaith": self.good_faith,
+            "correction": self.correction,
+            "correctedAt": self.corrected_at,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "ExplainRequest":
+        return cls(
+            id=data["id"],
+            requester_id=data.get("requesterId", data.get("requester_id")),
+            position=data["position"],
+            status=data["status"],
+            timestamp=data["timestamp"],
+            explainer_id=data.get("explainerId", data.get("explainer_id")),
+            explanation=data.get("explanation"),
+            explained_at=data.get("explainedAt", data.get("explained_at")),
+            good_faith=data.get("goodFaith", data.get("good_faith")),
+            correction=data.get("correction"),
+            corrected_at=data.get("correctedAt", data.get("corrected_at")),
+        )
+
+
 class RedisStore:
     """Redis storage for active chat data."""
 
@@ -168,6 +274,12 @@ class RedisStore:
 
     def _closure_key(self, chat_id: str) -> str:
         return config.CHAT_CLOSURE_KEY.format(chat_id=chat_id)
+
+    def _definitions_key(self, chat_id: str) -> str:
+        return config.CHAT_DEFINITIONS_KEY.format(chat_id=chat_id)
+
+    def _explanations_key(self, chat_id: str) -> str:
+        return config.CHAT_EXPLANATIONS_KEY.format(chat_id=chat_id)
 
     def _metadata_key(self, chat_id: str) -> str:
         return config.CHAT_METADATA_KEY.format(chat_id=chat_id)
@@ -241,6 +353,8 @@ class RedisStore:
         content: str,
         message_type: str = "text",
         target_id: Optional[str] = None,
+        toxicity_score: Optional[float] = None,
+        was_sent_anyway: Optional[bool] = None,
     ) -> ChatMessage:
         """Add a message to a chat."""
         message = ChatMessage(
@@ -250,6 +364,8 @@ class RedisStore:
             content=content,
             target_id=target_id,
             timestamp=datetime.utcnow().isoformat(),
+            toxicity_score=toxicity_score,
+            was_sent_anyway=was_sent_anyway,
         )
 
         await self._redis.rpush(
@@ -374,20 +490,189 @@ class RedisStore:
         """Clear the pending closure proposal."""
         await self._redis.delete(self._closure_key(chat_id))
 
+    # ===== Definition Requests =====
+
+    async def add_definition_request(
+        self,
+        chat_id: str,
+        requester_id: str,
+        term: str,
+    ) -> DefinitionRequest:
+        """Create a pending definition request."""
+        req = DefinitionRequest(
+            id=str(uuid.uuid4()),
+            requester_id=requester_id,
+            term=term,
+            status="pending",
+            timestamp=datetime.utcnow().isoformat(),
+        )
+
+        await self._redis.hset(
+            self._definitions_key(chat_id),
+            req.id,
+            json.dumps(req.to_dict()),
+        )
+
+        # Refresh TTL
+        await self._redis.expire(
+            self._definitions_key(chat_id), config.REDIS_MESSAGE_TTL
+        )
+
+        return req
+
+    async def get_definition_request(
+        self, chat_id: str, request_id: str
+    ) -> Optional[DefinitionRequest]:
+        """Get a specific definition request."""
+        data = await self._redis.hget(self._definitions_key(chat_id), request_id)
+        if not data:
+            return None
+        return DefinitionRequest.from_dict(json.loads(data))
+
+    async def update_definition_request(
+        self, chat_id: str, req: DefinitionRequest
+    ) -> None:
+        """Persist an updated definition request to Redis."""
+        await self._redis.hset(
+            self._definitions_key(chat_id),
+            req.id,
+            json.dumps(req.to_dict()),
+        )
+
+        # Refresh TTL
+        await self._redis.expire(
+            self._definitions_key(chat_id), config.REDIS_MESSAGE_TTL
+        )
+
+    async def get_all_definition_requests(self, chat_id: str) -> list[DefinitionRequest]:
+        """Get all definition requests for a chat."""
+        definitions_data = await self._redis.hgetall(self._definitions_key(chat_id))
+        return [
+            DefinitionRequest.from_dict(json.loads(data))
+            for data in definitions_data.values()
+        ]
+
+    # ===== Explain Requests =====
+
+    async def add_explain_request(
+        self,
+        chat_id: str,
+        requester_id: str,
+        position: str,
+    ) -> ExplainRequest:
+        """Create a pending explain request."""
+        req = ExplainRequest(
+            id=str(uuid.uuid4()),
+            requester_id=requester_id,
+            position=position,
+            status="pending",
+            timestamp=datetime.utcnow().isoformat(),
+        )
+
+        await self._redis.hset(
+            self._explanations_key(chat_id),
+            req.id,
+            json.dumps(req.to_dict()),
+        )
+
+        # Refresh TTL
+        await self._redis.expire(
+            self._explanations_key(chat_id), config.REDIS_MESSAGE_TTL
+        )
+
+        return req
+
+    async def get_explain_request(
+        self, chat_id: str, request_id: str
+    ) -> Optional[ExplainRequest]:
+        """Get a specific explain request."""
+        data = await self._redis.hget(self._explanations_key(chat_id), request_id)
+        if not data:
+            return None
+        return ExplainRequest.from_dict(json.loads(data))
+
+    async def update_explain_request(
+        self, chat_id: str, req: ExplainRequest
+    ) -> None:
+        """Persist an updated explain request to Redis."""
+        await self._redis.hset(
+            self._explanations_key(chat_id),
+            req.id,
+            json.dumps(req.to_dict()),
+        )
+
+        # Refresh TTL
+        await self._redis.expire(
+            self._explanations_key(chat_id), config.REDIS_MESSAGE_TTL
+        )
+
+    async def get_all_explain_requests(self, chat_id: str) -> list[ExplainRequest]:
+        """Get all explain requests for a chat."""
+        explanations_data = await self._redis.hgetall(self._explanations_key(chat_id))
+        return [
+            ExplainRequest.from_dict(json.loads(data))
+            for data in explanations_data.values()
+        ]
+
+    # ===== Reactions =====
+
+    def _reactions_key(self, chat_id: str) -> str:
+        return f"chat:{chat_id}:reactions"
+
+    async def add_reaction(
+        self, chat_id: str, message_id: str, user_id: str, emoji: str
+    ) -> None:
+        """Set a user's reaction on a message (replaces any previous)."""
+        await self._redis.hset(
+            self._reactions_key(chat_id),
+            f"{message_id}:{user_id}",
+            json.dumps({"emoji": emoji, "timestamp": datetime.utcnow().isoformat()}),
+        )
+        await self._redis.expire(
+            self._reactions_key(chat_id), config.REDIS_MESSAGE_TTL
+        )
+
+    async def remove_reaction(
+        self, chat_id: str, message_id: str, user_id: str
+    ) -> None:
+        """Remove a user's reaction from a message."""
+        await self._redis.hdel(
+            self._reactions_key(chat_id), f"{message_id}:{user_id}"
+        )
+
+    async def get_reactions(self, chat_id: str) -> dict[str, list[dict]]:
+        """Get all reactions for a chat, grouped by message ID."""
+        raw = await self._redis.hgetall(self._reactions_key(chat_id))
+        grouped: dict[str, list[dict]] = {}
+        for field, value in raw.items():
+            field_str = field if isinstance(field, str) else field.decode()
+            msg_id, user_id = field_str.rsplit(":", 1)
+            data = json.loads(value)
+            grouped.setdefault(msg_id, []).append(
+                {"userId": user_id, "emoji": data["emoji"], "timestamp": data["timestamp"]}
+            )
+        return grouped
+
     # ===== Chat Export / Cleanup =====
 
     async def get_chat_export_data(self, chat_id: str) -> dict[str, Any]:
         """Get all chat data for export to PostgreSQL."""
         messages = await self.get_messages(chat_id)
         positions = await self.get_all_agreed_positions(chat_id)
+        definitions = await self.get_all_definition_requests(chat_id)
+        explanations = await self.get_all_explain_requests(chat_id)
         metadata = await self.get_chat_metadata(chat_id)
         closure = await self.get_closure_proposal(chat_id)
+        reactions = await self.get_reactions(chat_id)
 
         return {
             "messages": [m.to_dict() for m in messages],
             "agreedPositions": [p.to_dict() for p in positions],
+            "definitions": [d.to_dict() for d in definitions],
+            "explanations": [e.to_dict() for e in explanations],
             "agreedClosure": closure.to_dict() if closure else None,
             "metadata": metadata.to_dict() if metadata else None,
+            "reactions": reactions,
             "exportTime": datetime.utcnow().isoformat(),
         }
 
@@ -400,7 +685,10 @@ class RedisStore:
             self._messages_key(chat_id),
             self._positions_key(chat_id),
             self._closure_key(chat_id),
+            self._definitions_key(chat_id),
+            self._explanations_key(chat_id),
             self._metadata_key(chat_id),
+            self._reactions_key(chat_id),
         )
 
         # Remove chat from users' active chats

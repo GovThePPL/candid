@@ -68,7 +68,7 @@ class ChatExporter:
         Args:
             chat_id: The chat log ID
             export_data: Dict containing messages, agreedPositions, agreedClosure, etc.
-            end_type: Either 'user_exit' or 'agreed_closure'
+            end_type: 'user_exit', 'agreed_closure', or 'abandoned'
 
         Returns:
             True if successful, False otherwise

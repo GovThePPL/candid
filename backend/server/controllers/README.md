@@ -181,6 +181,7 @@ Separate from roles. `users.status = 'banned'` blocks all authorized endpoints e
 | `rate_limiting.py` | Sliding-window rate limiting using Redis sorted sets |
 | `redis_pool.py` | Shared Redis connection pool |
 | `scoring.py` | Wilson score, hot score, controversial score, vote weighting by ideological distance |
+| `trust_score.py` | Trust score computation from pro-social signals (bridging, chat kudos, toxicity), batch percentile ranking |
 | `stats.py` | Stats computation helpers (opinion groups, vote distributions) |
 | `user_mappers.py` | User object serialization helpers (profile, public view, admin view) |
 | `user_summary.py` | Fetch user dict with fields needed for UserCard display (displayName, avatarIconUrl, trustScore, kudosCount) |

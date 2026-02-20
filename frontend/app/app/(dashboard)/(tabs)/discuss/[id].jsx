@@ -39,6 +39,8 @@ import ThemedText from '../../../../components/ThemedText'
 import ReplyComposer from '../../../../components/discuss/ReplyComposer'
 import ReportModal from '../../../../components/ReportModal'
 import ModerationActionModal from '../../../../components/ModerationActionModal'
+import useToxicityCheck from '../../../../hooks/useToxicityCheck'
+import ReconsiderModal from '../../../../components/ReconsiderModal'
 
 const screenHeight = Dimensions.get('window').height
 
@@ -112,12 +114,19 @@ export default function PostDetail() {
   const [webKeyboardHeight, setWebKeyboardHeight] = useState(0)
   useEffect(() => {
     if (Platform.OS !== 'web') return
+    // Only needed on mobile web (touch-primary devices with on-screen keyboards).
+    // Desktop browsers have pointer: fine — no on-screen keyboard to track.
+    if (!window.matchMedia('(pointer: coarse)').matches) return
     const vv = window.visualViewport
     if (!vv) return
     const initialHeight = window.innerHeight
     let focusTimeout = null
+    // Ignore resize events during keyboard open animation to prevent
+    // intermediate small diff values from briefly zeroing the spacer.
+    let skipResizeUntil = 0
 
     const update = () => {
+      if (Date.now() < skipResizeUntil) return
       const diff = initialHeight - vv.height
       setWebKeyboardHeight(diff > 150 ? diff : 0)
     }
@@ -128,6 +137,7 @@ export default function PostDetail() {
     const onFocusIn = (e) => {
       if (!e.target?.tagName?.match?.(/INPUT|TEXTAREA/i)) return
       clearTimeout(focusTimeout)
+      skipResizeUntil = Date.now() + 300
       setWebKeyboardHeight(Math.round(initialHeight * 0.4))
       setTimeout(update, 300)
     }
@@ -305,6 +315,9 @@ export default function PostDetail() {
   const [moderateRule, setModerateRule] = useState(null)
   const [moderateComment, setModerateComment] = useState(null)
   const [actionModalVisible, setActionModalVisible] = useState(false)
+
+  // Toxicity reconsider
+  const toxicity = useToxicityCheck()
 
   const handleReportPost = useCallback((postId) => {
     setReportTarget({ type: 'post', id: postId })
@@ -531,11 +544,8 @@ export default function PostDetail() {
     setReplyingTo(null)
   }, [])
 
-  // Submit top-level comment (inline input bar)
-  const handleSubmitComment = useCallback(async () => {
-    const text = inputText.trim()
-    if (!text || posting) return
-
+  // Actually submit a top-level comment
+  const doSubmitComment = useCallback(async (text) => {
     setPosting(true)
     try {
       await handleCreateComment(text, null)
@@ -546,22 +556,35 @@ export default function PostDetail() {
     } finally {
       setPosting(false)
     }
-  }, [inputText, posting, handleCreateComment])
+  }, [handleCreateComment, showToast, t])
 
-  // Submit reply via ReplyComposer modal
-  const [replyPosting, setReplyPosting] = useState(false)
-  const handleReplySubmit = useCallback(async (replyText) => {
-    if (!replyingTo || replyPosting) return
+  // Submit top-level comment (with toxicity check)
+  const handleSubmitComment = useCallback(async () => {
+    const text = inputText.trim()
+    if (!text || posting) return
+    toxicity.checkAndSend(text, () => doSubmitComment(text))
+  }, [inputText, posting, toxicity.checkAndSend, doSubmitComment])
+
+  // Actually submit a reply
+  const doSubmitReply = useCallback(async (replyText) => {
     setReplyPosting(true)
     try {
       await handleCreateComment(replyText, replyingTo.id)
       setReplyingTo(null)
+      router.back()
     } catch {
       showToast(t('errorCommentFailed'))
     } finally {
       setReplyPosting(false)
     }
-  }, [replyingTo, replyPosting, handleCreateComment, showToast, t])
+  }, [replyingTo, handleCreateComment, showToast, t, router])
+
+  // Submit reply via ReplyComposer modal (with toxicity check)
+  const [replyPosting, setReplyPosting] = useState(false)
+  const handleReplySubmit = useCallback(async (replyText) => {
+    if (!replyingTo || replyPosting) return
+    toxicity.checkAndSend(replyText, () => doSubmitReply(replyText))
+  }, [replyingTo, replyPosting, toxicity.checkAndSend, doSubmitReply])
 
   const handleContentSizeChange = useCallback((event) => {
     const contentHeight = event.nativeEvent.contentSize.height
@@ -941,6 +964,8 @@ export default function PostDetail() {
         reportType={moderateTarget?.type}
         rule={moderateRule}
       />
+
+      <ReconsiderModal {...toxicity.modalProps} />
     </Wrapper>
   )
 }

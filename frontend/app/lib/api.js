@@ -364,6 +364,13 @@ export const cardsApiWrapper = {
     )
   },
 
+  async dismissBridgingKudos(awardId) {
+    return await promisify(
+      cardsApi.dismissBridgingKudos.bind(cardsApi),
+      awardId
+    )
+  },
+
 }
 
 // Positions API
@@ -879,6 +886,13 @@ export const moderationApiWrapper = {
     return await promisify(
       moderationApi.getUserModerationHistory.bind(moderationApi),
       userId
+    )
+  },
+
+  async checkToxicity(text) {
+    return await promisify(
+      moderationApi.checkToxicity.bind(moderationApi),
+      { text }
     )
   },
 

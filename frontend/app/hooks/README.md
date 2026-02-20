@@ -16,5 +16,7 @@ Custom React hooks used across the app.
 | `useModerateChecker.js` | Per-item moderation scope checker using cached location tree |
 | `useNotifications.js` | Notification inbox state: fetch, cursor pagination, mark read, real-time prepend |
 | `usePostsFeed.js` | Paginated post feed with sort, filter, and optimistic upvote |
+| `useToxicityCheck.js` | Pre-send toxicity check with ReconsiderModal integration (checkAndSend + modalProps) |
+| `useModalBackHandler.js` | Web-only hook that integrates modal visibility with browser history and Escape key |
 | `useThemeColors.js` | Theme-aware color tokens from `ThemeContext` |
 | `useUser.js` | Current user state, refresh, and auth status from `UserContext` |

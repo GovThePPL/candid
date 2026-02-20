@@ -16,6 +16,7 @@ import * as ImageManipulator from 'expo-image-manipulator'
 
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../hooks/useThemeColors'
+import useModalBackHandler from '../hooks/useModalBackHandler'
 import ThemedText from './ThemedText'
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window')
@@ -35,6 +36,7 @@ export default function ImageCropModal({ visible, imageUri, onCancel, onConfirm 
   const { t } = useTranslation('settings')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
+  useModalBackHandler(visible, onCancel)
 
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 })
   const [displaySize, setDisplaySize] = useState({ width: 0, height: 0 })

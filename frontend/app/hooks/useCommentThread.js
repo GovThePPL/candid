@@ -6,6 +6,9 @@ import { useToast } from '../components/Toast'
 import { useUser } from './useUser'
 import { buildTree, sortTree, flattenTree, getAutoCollapsedIds } from '../lib/commentTree'
 import { isConnected, joinPost, leavePost, onNewComment, onVoteUpdate } from '../lib/socket'
+import { isBridging } from '../lib/bridging'
+import { playUpvoteSound, playBridgingSound } from '../lib/sounds'
+import { hapticTap, hapticSuccess } from '../lib/haptics'
 
 /** Shallow array equality for short arrays (activeLines, lineStates). */
 function arrEq(a, b) {
@@ -380,6 +383,21 @@ export default function useCommentThread(postId, { threadRootId, focusCommentId 
     const wasUpvoted = comment.userVote?.voteType === 'upvote'
     const wasDownvoted = comment.userVote?.voteType === 'downvote'
 
+    // Sound + haptic on new upvotes only
+    let playedBridging = false
+    if (voteType === 'upvote' && !wasUpvoted) {
+      const wasBridging = isBridging(comment)
+      const afterComment = { ...comment, upvoteCount: (comment.upvoteCount || 0) + 1 }
+      if (!wasBridging && isBridging(afterComment)) {
+        playBridgingSound()
+        hapticSuccess()
+        playedBridging = true
+      } else {
+        playUpvoteSound()
+        hapticTap()
+      }
+    }
+
     // Determine optimistic new state
     let newUpvoteCount = comment.upvoteCount || 0
     let newDownvoteCount = comment.downvoteCount || 0
@@ -420,6 +438,11 @@ export default function useCommentThread(postId, { threadRootId, focusCommentId 
       const body = { voteType }
       if (voteType === 'downvote' && reason) body.downvoteReason = reason
       const result = await api.comments.voteOnComment(commentId, body)
+      // Upgrade feedback if cross-group and we didn't already play bridging
+      if (result && result.isCrossGroup && voteType === 'upvote' && !wasUpvoted && !playedBridging) {
+        playBridgingSound()
+        hapticSuccess()
+      }
       // Reconcile with server response — no re-sort
       if (mountedRef.current && result) {
         setRawComments(prev => prev.map(c =>

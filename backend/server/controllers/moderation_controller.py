@@ -1,8 +1,12 @@
+import logging
+
 import connexion
 from typing import Dict
 from typing import Tuple
 from typing import Union
 import uuid
+
+logger = logging.getLogger(__name__)
 
 from candid.models.error_model import ErrorModel  # noqa: E501
 from candid.models.mod_action import ModAction  # noqa: E501
@@ -24,6 +28,7 @@ from candid.controllers.helpers.auth import (
     is_admin_at_location, is_moderator_at_location,
     get_highest_role_at_location, get_location_ancestors,
 )
+from candid.controllers.helpers.nlp import check_toxicity as _check_toxicity
 from candid.controllers.helpers.user_summary import build_user_summary as _build_user_summary
 from candid.controllers.helpers.moderation import (
     get_user_card as _get_user_card,
@@ -46,6 +51,42 @@ from candid.controllers.helpers.moderation import (
     get_admin_response_notifications as _get_admin_response_notifications,
     get_target_users as _get_target_users,
 )
+
+
+def check_toxicity(body, token_info=None):  # noqa: E501
+    """Check text for toxicity
+
+     # noqa: E501
+
+    :param body:
+    :type body: dict | bytes
+
+    :rtype: Union[ToxicityCheckResult, Tuple[ToxicityCheckResult, int]]
+    """
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    user = token_to_user(token_info)
+
+    # Rate limit
+    allowed, _ = check_rate_limit_for(str(user.id), "toxicity_check")
+    if not allowed:
+        return ErrorModel(429, "Rate limit exceeded"), 429
+
+    if connexion.request.is_json:
+        body = connexion.request.get_json()
+
+    text = body.get('text', '').strip()
+    if not text:
+        return ErrorModel(400, "Text is required"), 400
+
+    result = _check_toxicity(text)
+
+    return {
+        'isToxic': result.get('is_toxic', False),
+        'toxicityScore': result.get('toxicity_score', 0.0),
+    }
 
 
 def get_user_moderation_history(user_id, token_info=None):  # noqa: E501
@@ -1333,6 +1374,13 @@ def take_moderator_action(report_id, body, token_info=None):  # noqa: E501
                     db.execute_query("""
                         UPDATE comment SET status = 'removed' WHERE id = %s
                     """, (report['target_object_id'],))
+
+    # Recalculate trust scores after moderation action
+    try:
+        from candid.controllers.helpers.trust_score import recalculate_all_trust_scores
+        recalculate_all_trust_scores(db)
+    except Exception as e:
+        logger.error("Error recalculating trust scores after moderation: %s", e)
 
     # Build response
     responder = _get_user_card(user.id)

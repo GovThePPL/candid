@@ -32,21 +32,21 @@ describe('BridgingBadge', () => {
 
   it('renders badge when item qualifies', () => {
     render(
-      <BridgingBadge item={{ bridgingScore: 0.5, upvoteCount: 8, downvoteCount: 2 }} />
+      <BridgingBadge item={{ bridgingScore: 0.6, upvoteCount: 30, downvoteCount: 10 }} />
     )
     expect(screen.getByText('bridgingBadge')).toBeTruthy()
   })
 
   it('has accessibility label', () => {
     render(
-      <BridgingBadge item={{ bridgingScore: 0.5, upvoteCount: 8, downvoteCount: 2 }} />
+      <BridgingBadge item={{ bridgingScore: 0.6, upvoteCount: 30, downvoteCount: 10 }} />
     )
     expect(screen.getByLabelText('bridgingBadgeA11y')).toBeTruthy()
   })
 
   it('works for post objects (same shape as comments)', () => {
     render(
-      <BridgingBadge item={{ bridgingScore: 0.4, upvoteCount: 15, downvoteCount: 5 }} />
+      <BridgingBadge item={{ bridgingScore: 0.55, upvoteCount: 40, downvoteCount: 10 }} />
     )
     expect(screen.getByText('bridgingBadge')).toBeTruthy()
   })

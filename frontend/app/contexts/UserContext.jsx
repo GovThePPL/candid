@@ -1,8 +1,9 @@
 import { createContext, useEffect, useState, useCallback, useRef, useMemo } from "react"
+import { AppState } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import api, { getStoredUser, initializeAuth, getToken, setToken, setStoredUser, bugReportsApiWrapper } from "../lib/api"
 import * as keycloak from "../lib/keycloak"
-import socket, { connectSocket, disconnectSocket, onChatRequestResponse, onChatRequestReceived, onChatStarted } from "../lib/socket"
+import socket, { connectSocket, disconnectSocket, isConnected, getSocket, onChatRequestResponse, onChatRequestReceived, onChatStarted } from "../lib/socket"
 import { setupNotificationHandler, addNotificationResponseListener } from "../lib/notifications"
 import { install as installErrorCollector, drain as drainErrors } from "../lib/errorCollector"
 
@@ -168,10 +169,25 @@ export function UserProvider({ children }) {
         clearPendingChatRequest()
       })
 
+      // Listen for socket reconnections to re-check for active chats
+      // (handles app restart within the 2-minute abandonment window)
+      const sock = getSocket()
+      const onReconnect = () => {
+        console.debug('[UserContext] Socket reconnected, checking for active chat')
+        const storedUser = getStoredUser()
+        if (storedUser?.then) {
+          storedUser.then(u => { if (u?.id) checkForActiveChat(u.id) })
+        }
+      }
+      if (sock) {
+        sock.on('connect', onReconnect)
+      }
+
       socketCleanupRef.current = () => {
         requestCleanup()
         chatRequestReceivedCleanup()
         chatStartedCleanup()
+        if (sock) sock.off('connect', onReconnect)
       }
 
       // Set up push notification handling
@@ -252,8 +268,8 @@ export function UserProvider({ children }) {
       const currentUser = await api.auth.getCurrentUser()
       await setStoredUser(currentUser)
       setUser(currentUser)
-      // Initialize socket after successful login
-      initializeSocket()
+      // Initialize socket before checking for active chats (socket must be ready first)
+      await initializeSocket()
       startDiagnosticsTimer()
       // Check for any active chats to rejoin
       checkForActiveChat(currentUser.id)
@@ -322,8 +338,8 @@ export function UserProvider({ children }) {
         try {
           const currentUser = await api.auth.getCurrentUser()
           setUser(currentUser)
-          // Initialize socket for authenticated user
-          initializeSocket()
+          // Initialize socket before checking for active chats (socket must be ready first)
+          await initializeSocket()
           startDiagnosticsTimer()
           // Check for any active chats to rejoin
           checkForActiveChat(currentUser.id)
@@ -347,7 +363,7 @@ export function UserProvider({ children }) {
             try {
               const currentUser = await api.auth.getCurrentUser()
               setUser(currentUser)
-              initializeSocket()
+              await initializeSocket()
               startDiagnosticsTimer()
               checkForActiveChat(currentUser.id)
             } catch {
@@ -370,7 +386,23 @@ export function UserProvider({ children }) {
   useEffect(() => {
     installErrorCollector()
     getInitialUserValue()
-    return () => stopDiagnosticsTimer()
+
+    // Reconnect socket when app returns to foreground
+    const appStateSubscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active' && !isConnected()) {
+        getToken().then(token => {
+          if (token) {
+            console.debug('[UserContext] App foregrounded, reconnecting socket')
+            initializeSocket()
+          }
+        })
+      }
+    })
+
+    return () => {
+      stopDiagnosticsTimer()
+      appStateSubscription.remove()
+    }
   }, [])
 
   const isBanned = user?.status === 'banned'

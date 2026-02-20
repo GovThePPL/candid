@@ -15,7 +15,7 @@ jest.mock('expo-router', () => ({
 jest.mock('@expo/vector-icons', () => {
   const { Text } = require('react-native')
   const Icon = (props) => <Text {...props}>{props.name}</Text>
-  return { Ionicons: Icon, MaterialIcons: Icon }
+  return { Ionicons: Icon, MaterialIcons: Icon, MaterialCommunityIcons: Icon }
 })
 
 // Mock expo-font

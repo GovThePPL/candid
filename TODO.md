@@ -13,13 +13,13 @@
 - Implement bot detection system
 - Captcha cards when necessary (triggered by suspicious behavior)
 - Only allow responses to items sent in the card queue (outside of dev mode)
-- Add toxicity checks and cooldown to chat
-- API rate limiting with backoff
+- ~~Add toxicity checks and cooldown to chat~~
+- ~~API rate limiting with backoff~~
 - Anti-gaming features
 - ~~Only allow one report per user per item~~
 
 ## Trust System
-- Design and implement whole trust system
+- ~~Design and implement whole trust system~~
 - Take trust into account in chat matching
 
 ## Positions & Categories
@@ -32,11 +32,11 @@
 
 ## Chat Fixes and Enhancements
 - ~~Basic markdown support in chat~~
-- Quoting another user's comment
-- Option selection emojis
-- Define message type
-- Restore quotes
-- Add emoji reactions
+- ~~Quoting another user's comment~~
+- ~~Option selection emojis~~
+- ~~Define message type~~
+- ~~Restore quotes~~
+- ~~Add emoji reactions~~
 - Make chat connection more robust
 - Address users disappearing from chat
 - Improve agreed position layout
@@ -57,7 +57,7 @@
 - Fetch moderation queue one item at a time instead of the full queue — claimed reports are locked for 15 minutes and hidden from other moderators, so bulk-fetching unnecessarily locks items that may not be reviewed in time
 - ~~Implement comment and post reporting — the three-dot menu on comments has a Report button (currently no-op). Needs: backend endpoint for reporting comments/posts, reason picker, and integration with the existing moderation queue~~
 - Comment moderation actions — ~~delete comments~~, ~~lock comment threads~~, ~~pin comments~~
-- Fix assistant moderator permissions for admin page and ensure they have access to the moderation queue in their category
+- ~~Fix assistant moderator permissions for admin page and ensure they have access to the moderation queue in their category~~
 - Banned words list rule type — content containing banned words is blocked at creation time, applied per rule scope (positions, chat, posts, comments)
 
 ## Discuss
@@ -67,7 +67,7 @@
 
 ## Frontend Improvements
 - UGC Translation — runtime translation of user-generated content (positions, chat messages, surveys). See [plan](.claude-plans/2026-02-10_ugc-translation.md)
-- Move settings menu to replace user profile picture in top bar
+- ~~Move settings menu to replace user profile picture in top bar~~
 - Audit back button usage on web — make it close open modals instead of navigating away
 
 ## Infrastructure

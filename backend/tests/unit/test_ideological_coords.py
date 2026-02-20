@@ -9,6 +9,7 @@ import pytest
 from candid.controllers.helpers.ideological_coords import (
     project_user,
     blended_coords,
+    _lookup_group_id,
 )
 
 pytestmark = pytest.mark.unit
@@ -132,6 +133,10 @@ class TestGetPcaCache:
                     "comps": [[1, 0], [0, 1]],
                     "center": [0.5, 0.5],
                     "base-clusters": {"x": [0.0, 3.0], "y": [0.0, 4.0]},
+                    "group-clusters": [
+                        {"members": [0, 1, 2]},
+                        {"members": [3, 4]},
+                    ],
                 }
             },
             "math_tick": 7,
@@ -148,6 +153,7 @@ class TestGetPcaCache:
         assert result["comps"] == [[1, 0], [0, 1]]
         assert abs(result["max_distance"] - 5.0) < 1e-9
         assert result["math_tick"] == 7
+        assert result["group_members"] == [[0, 1, 2], [3, 4]]
 
         # Verify cached
         cached = mock_r.get("pca:conv456")
@@ -181,6 +187,82 @@ class TestGetPcaCache:
 
 
 # ---------------------------------------------------------------------------
+# _lookup_group_id
+# ---------------------------------------------------------------------------
+
+class TestLookupGroupId:
+    def test_returns_correct_group_index(self):
+        """Returns group index when PID found in group members."""
+        mock_db = MagicMock()
+        mock_db.execute_query.return_value = {"polis_pid": 3}
+
+        pca_cache = {"group_members": [[0, 1, 2], [3, 4]]}
+
+        with patch(f"{IC}.db", mock_db):
+            result = _lookup_group_id("user1", "conv1", pca_cache)
+
+        assert result == 1
+
+    def test_returns_first_group(self):
+        """Returns 0 when PID found in first group."""
+        mock_db = MagicMock()
+        mock_db.execute_query.return_value = {"polis_pid": 1}
+
+        pca_cache = {"group_members": [[0, 1, 2], [3, 4]]}
+
+        with patch(f"{IC}.db", mock_db):
+            result = _lookup_group_id("user1", "conv1", pca_cache)
+
+        assert result == 0
+
+    def test_returns_none_pid_not_in_any_group(self):
+        """Returns None when PID not in any group member list."""
+        mock_db = MagicMock()
+        mock_db.execute_query.return_value = {"polis_pid": 99}
+
+        pca_cache = {"group_members": [[0, 1, 2], [3, 4]]}
+
+        with patch(f"{IC}.db", mock_db):
+            result = _lookup_group_id("user1", "conv1", pca_cache)
+
+        assert result is None
+
+    def test_returns_none_no_participant_record(self):
+        """Returns None when user has no polis_participant record."""
+        mock_db = MagicMock()
+        mock_db.execute_query.return_value = None
+
+        pca_cache = {"group_members": [[0, 1, 2], [3, 4]]}
+
+        with patch(f"{IC}.db", mock_db):
+            result = _lookup_group_id("user_new", "conv1", pca_cache)
+
+        assert result is None
+
+    def test_returns_none_no_group_members(self):
+        """Returns None when pca_cache has no group_members."""
+        mock_db = MagicMock()
+        pca_cache = {"group_members": []}
+
+        with patch(f"{IC}.db", mock_db):
+            result = _lookup_group_id("user1", "conv1", pca_cache)
+
+        assert result is None
+        # Should not even query DB
+        mock_db.execute_query.assert_not_called()
+
+    def test_returns_none_missing_group_members_key(self):
+        """Returns None when pca_cache doesn't have group_members key."""
+        mock_db = MagicMock()
+        pca_cache = {"comps": [[1, 0]], "center": [0]}
+
+        with patch(f"{IC}.db", mock_db):
+            result = _lookup_group_id("user1", "conv1", pca_cache)
+
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
 # get_or_compute_coords
 # ---------------------------------------------------------------------------
 
@@ -191,6 +273,7 @@ class TestGetOrComputeCoords:
             "center": [0.0, 0.0],
             "max_distance": 5.0,
             "math_tick": math_tick,
+            "group_members": [[0, 1], [2, 3]],
         })
 
     def test_cache_hit_db(self):
@@ -200,7 +283,7 @@ class TestGetOrComputeCoords:
 
         def db_side_effect(sql, params=None, fetchone=False, **kw):
             if "user_ideological_coords" in sql and "SELECT" in sql:
-                return {"x": 1.5, "y": -0.3, "n_position_votes": 8, "math_tick": 42}
+                return {"x": 1.5, "y": -0.3, "n_position_votes": 8, "math_tick": 42, "polis_group_id": 1}
             return None
 
         mock_db.execute_query.side_effect = db_side_effect
@@ -210,7 +293,26 @@ class TestGetOrComputeCoords:
             from candid.controllers.helpers.ideological_coords import get_or_compute_coords
             result = get_or_compute_coords("user1", "conv1")
 
-        assert result == {"x": 1.5, "y": -0.3, "n_position_votes": 8, "math_tick": 42}
+        assert result == {"x": 1.5, "y": -0.3, "n_position_votes": 8, "math_tick": 42, "polis_group_id": 1}
+
+    def test_cache_hit_returns_polis_group_id(self):
+        """Returns polis_group_id from DB cache when present."""
+        mock_r = _make_mock_redis({"pca:conv1": self._pca_cache_json(42)})
+        mock_db = MagicMock()
+
+        def db_side_effect(sql, params=None, fetchone=False, **kw):
+            if "user_ideological_coords" in sql and "SELECT" in sql:
+                return {"x": 1.0, "y": 2.0, "n_position_votes": 5, "math_tick": 42, "polis_group_id": 0}
+            return None
+
+        mock_db.execute_query.side_effect = db_side_effect
+
+        with patch(f"{IC}.get_redis", return_value=mock_r), \
+             patch(f"{IC}.db", mock_db):
+            from candid.controllers.helpers.ideological_coords import get_or_compute_coords
+            result = get_or_compute_coords("user1", "conv1")
+
+        assert result["polis_group_id"] == 0
 
     def test_cache_miss_computes(self):
         """Computes coords from votes if not cached."""
@@ -225,6 +327,8 @@ class TestGetOrComputeCoords:
                     {"tid": 0, "vote_value": 1},
                     {"tid": 1, "vote_value": -1},
                 ]
+            if "polis_participant" in sql:
+                return {"polis_pid": 2}
             if "polis_conversation" in sql and "SELECT" in sql:
                 return {"location_id": "loc1", "category_id": "cat1"}
             return None
@@ -240,6 +344,7 @@ class TestGetOrComputeCoords:
         assert "x" in result and "y" in result
         assert result["n_position_votes"] == 2
         assert result["math_tick"] == 42
+        assert result["polis_group_id"] == 1  # PID 2 is in group 1: [2, 3]
 
     def test_stale_math_tick_recomputes(self):
         """Recomputes if DB coords have old math_tick."""
@@ -248,9 +353,11 @@ class TestGetOrComputeCoords:
 
         def db_side_effect(sql, params=None, fetchone=False, **kw):
             if "user_ideological_coords" in sql and "SELECT" in sql:
-                return {"x": 1.0, "y": 2.0, "n_position_votes": 5, "math_tick": 42}
+                return {"x": 1.0, "y": 2.0, "n_position_votes": 5, "math_tick": 42, "polis_group_id": None}
             if "response" in sql and "polis_comment" in sql:
                 return [{"tid": 0, "vote_value": 1}]
+            if "polis_participant" in sql:
+                return None  # no participant record
             if "polis_conversation" in sql and "SELECT" in sql:
                 return {"location_id": "loc1", "category_id": "cat1"}
             return None
@@ -310,13 +417,14 @@ class TestGetEffectiveCoords:
             "center": [0.0, 0.0],
             "max_distance": 5.0,
             "math_tick": 42,
+            "group_members": [[0, 1], [2, 3]],
         })
 
-    def _setup(self, mock_db_obj, n_comment_votes=0, polis_x=1.0, polis_y=2.0):
+    def _setup(self, mock_db_obj, n_comment_votes=0, polis_x=1.0, polis_y=2.0, polis_group_id=0):
         """Configure mock DB for effective coords tests."""
         def db_side_effect(sql, params=None, fetchone=False, **kw):
             if "user_ideological_coords" in sql and "SELECT x, y, n_position_votes" in sql:
-                return {"x": polis_x, "y": polis_y, "n_position_votes": 10, "math_tick": 42}
+                return {"x": polis_x, "y": polis_y, "n_position_votes": 10, "math_tick": 42, "polis_group_id": polis_group_id}
             if "n_comment_votes" in sql:
                 return {"n_comment_votes": n_comment_votes}
             return None
@@ -398,6 +506,21 @@ class TestGetEffectiveCoords:
             result = get_effective_coords("user_new", "conv_empty")
 
         assert result is None
+
+    def test_returns_polis_group_id(self):
+        """Returns polis_group_id from underlying coords."""
+        mock_r = _make_mock_redis({"pca:conv1": self._pca_cache_json()})
+        mock_db = MagicMock()
+        self._setup(mock_db, n_comment_votes=0, polis_group_id=1)
+
+        with patch(f"{IC}.get_redis", return_value=mock_r), \
+             patch(f"{IC}.db", mock_db), \
+             patch(f"{IC}.mf") as mock_mf:
+            mock_mf.get_mf_coords.return_value = None
+            from candid.controllers.helpers.ideological_coords import get_effective_coords
+            result = get_effective_coords("user1", "conv1")
+
+        assert result["polis_group_id"] == 1
 
 
 # ---------------------------------------------------------------------------

@@ -10,6 +10,7 @@ from .redis_store import RedisStore
 from .chat_export import ChatExporter
 from .room_manager import RoomManager, SESSION_TIMEOUT_SECONDS
 from .pubsub import PubSubService
+from .abandonment import AbandonmentTracker
 
 logger = logging.getLogger(__name__)
 
@@ -18,16 +19,18 @@ redis_store: RedisStore = None
 chat_exporter: ChatExporter = None
 room_manager: RoomManager = None
 pubsub_service: PubSubService = None
+abandonment_tracker: AbandonmentTracker = None
 _sio = None  # Socket.IO server reference
 _timeout_check_task = None  # Background task for checking timed-out sessions
+_abandonment_check_task = None  # Background task for checking abandoned chats
 
-# How often to check for timed-out sessions (30 seconds)
+# How often to check for timed-out sessions and abandoned chats (30 seconds)
 TIMEOUT_CHECK_INTERVAL = 30
 
 
 async def initialize_services(app: web.Application) -> None:
     """Initialize all services on application startup."""
-    global redis_store, chat_exporter, room_manager, pubsub_service, _sio, _timeout_check_task
+    global redis_store, chat_exporter, room_manager, pubsub_service, abandonment_tracker, _sio, _timeout_check_task, _abandonment_check_task
 
     logger.info("Initializing services...")
 
@@ -45,6 +48,9 @@ async def initialize_services(app: web.Application) -> None:
     # Initialize room manager
     room_manager = RoomManager()
 
+    # Initialize abandonment tracker
+    abandonment_tracker = AbandonmentTracker()
+
     # Initialize pub/sub service and start listener
     pubsub_service = PubSubService()
     await pubsub_service.connect()
@@ -60,11 +66,15 @@ async def initialize_services(app: web.Application) -> None:
     # Start background task for checking timed-out sessions
     _timeout_check_task = asyncio.create_task(_check_timed_out_sessions())
 
+    # Start background task for checking abandoned chats
+    _abandonment_check_task = asyncio.create_task(_check_abandoned_chats())
+
     # Store services in app for access
     app["redis_store"] = redis_store
     app["chat_exporter"] = chat_exporter
     app["room_manager"] = room_manager
     app["pubsub_service"] = pubsub_service
+    app["abandonment_tracker"] = abandonment_tracker
 
     # Register cleanup on shutdown
     app.on_cleanup.append(cleanup_services)
@@ -74,7 +84,7 @@ async def initialize_services(app: web.Application) -> None:
 
 async def cleanup_services(app: web.Application) -> None:
     """Cleanup services on application shutdown."""
-    global redis_store, chat_exporter, pubsub_service, _timeout_check_task
+    global redis_store, chat_exporter, pubsub_service, _timeout_check_task, _abandonment_check_task
 
     logger.info("Cleaning up services...")
 
@@ -83,6 +93,14 @@ async def cleanup_services(app: web.Application) -> None:
         _timeout_check_task.cancel()
         try:
             await _timeout_check_task
+        except asyncio.CancelledError:
+            pass
+
+    # Cancel abandonment check task
+    if _abandonment_check_task:
+        _abandonment_check_task.cancel()
+        try:
+            await _abandonment_check_task
         except asyncio.CancelledError:
             pass
 
@@ -135,6 +153,98 @@ async def _check_timed_out_sessions() -> None:
             break
         except Exception as e:
             logger.error(f"Error in session timeout checker: {e}")
+
+
+async def _check_abandoned_chats() -> None:
+    """Background task to check for and auto-end abandoned chats."""
+    logger.info("Starting abandoned chat checker (interval: %ds)", TIMEOUT_CHECK_INTERVAL)
+
+    while True:
+        try:
+            await asyncio.sleep(TIMEOUT_CHECK_INTERVAL)
+
+            if not abandonment_tracker or not redis_store or not chat_exporter or not _sio:
+                continue
+
+            expired = abandonment_tracker.get_expired()
+
+            for chat_id, user_id in expired:
+                logger.warning(
+                    f"Chat {chat_id} abandoned by user {user_id}, auto-ending"
+                )
+
+                try:
+                    # Verify chat still exists in Redis (might have been ended normally)
+                    metadata = await redis_store.get_chat_metadata(chat_id)
+                    if not metadata:
+                        logger.debug(f"Chat {chat_id} already cleaned up, skipping")
+                        abandonment_tracker.cancel_all_for_chat(chat_id)
+                        continue
+
+                    # Get export data
+                    export_data = await redis_store.get_chat_export_data(chat_id)
+                    export_data["endedByUserId"] = user_id
+                    export_data["abandonedByUserId"] = user_id
+
+                    # Export to PostgreSQL
+                    success = await chat_exporter.export_chat(
+                        chat_id=chat_id,
+                        export_data=export_data,
+                        end_type="abandoned",
+                    )
+
+                    if not success:
+                        logger.error(f"Failed to export abandoned chat {chat_id}")
+                        continue
+
+                    # Notify remaining participants
+                    chat_room = room_manager.chat_room(chat_id)
+                    await _sio.emit(
+                        "status",
+                        {
+                            "chatId": chat_id,
+                            "status": "ended",
+                            "endType": "abandoned",
+                            "abandonedByUserId": user_id,
+                        },
+                        room=chat_room,
+                    )
+
+                    # Also emit to each participant's personal room (in case they're not in the chat room)
+                    for participant_id in metadata.participant_ids:
+                        participant_room = room_manager.user_room(participant_id)
+                        await _sio.emit(
+                            "status",
+                            {
+                                "chatId": chat_id,
+                                "status": "ended",
+                                "endType": "abandoned",
+                                "abandonedByUserId": user_id,
+                            },
+                            room=participant_room,
+                        )
+
+                    # Remove participants from chat room
+                    for participant_id in metadata.participant_ids:
+                        for participant_sid in room_manager.get_user_sids(participant_id):
+                            await _sio.leave_room(participant_sid, chat_room)
+
+                    # Cancel any other timers for this chat
+                    abandonment_tracker.cancel_all_for_chat(chat_id)
+
+                    # Delete Redis data
+                    await redis_store.delete_chat(chat_id)
+
+                    logger.info(f"Chat {chat_id} auto-ended (abandoned by user {user_id})")
+
+                except Exception as e:
+                    logger.error(f"Error auto-ending abandoned chat {chat_id}: {e}")
+
+        except asyncio.CancelledError:
+            logger.info("Abandoned chat checker cancelled")
+            break
+        except Exception as e:
+            logger.error(f"Error in abandoned chat checker: {e}")
 
 
 async def _handle_chat_accepted(data: dict) -> None:
@@ -356,3 +466,10 @@ def get_pubsub_service() -> PubSubService:
     if pubsub_service is None:
         raise RuntimeError("Pub/sub service not initialized")
     return pubsub_service
+
+
+def get_abandonment_tracker() -> AbandonmentTracker:
+    """Get the abandonment tracker instance."""
+    if abandonment_tracker is None:
+        raise RuntimeError("Abandonment tracker not initialized")
+    return abandonment_tracker

@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   Pressable,
   FlatList,
-  KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
   Modal,
@@ -14,7 +13,13 @@ import {
   UIManager,
   useWindowDimensions,
   Alert,
+  KeyboardAvoidingView,
 } from 'react-native'
+// react-native-keyboard-controller tracks actual keyboard frame (handles emoji
+// keyboard, different keyboard heights, smooth transitions). Native only.
+const KBAvoidingView = Platform.OS !== 'web'
+  ? require('react-native-keyboard-controller').KeyboardAvoidingView
+  : null
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -24,7 +29,7 @@ import { useState, useEffect, useRef, useCallback, useContext, useMemo } from 'r
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
-import { SemanticColors, OnBrandColors } from '../../../constants/Colors'
+import { SemanticColors } from '../../../constants/Colors'
 import { Shadows } from '../../../constants/Theme'
 import { useThemeColors } from '../../../hooks/useThemeColors'
 import { UserContext } from '../../../contexts/UserContext'
@@ -33,6 +38,7 @@ import api, { translateError } from '../../../lib/api'
 import { CacheManager, CacheKeys } from '../../../lib/cache'
 import {
   joinChat,
+  leaveChat,
   sendMessage,
   onMessage,
   sendTyping,
@@ -40,22 +46,47 @@ import {
   exitChat,
   onChatStatus,
   isConnected,
+  connectSocket,
   sendReadReceipt,
   onReadReceipt,
   proposeAgreedPosition,
   respondToAgreedPosition,
   onAgreedPosition,
+  onPartnerDisconnected,
+  onPartnerReconnected,
+  sendReaction,
+  onReaction,
+  requestDefinition,
+  respondDefinition,
+  acceptDefinition,
+  counterDefine,
+  onDefinition,
+  requestExplanation,
+  respondExplanation,
+  confirmGoodFaith,
+  rejectExplanation,
+  acceptExplanation,
+  correctExplanation,
+  onExplainPosition,
 } from '../../../lib/socket'
-import { playTypingSound, playMessageSound } from '../../../lib/sounds'
-import { getTrustBadgeInfo } from '../../../lib/avatarUtils'
+import { playTypingSound, playMessageSound, playReactionSound, playAgreedSound, playClosureSound } from '../../../lib/sounds'
+import { hapticTap, hapticSuccess } from '../../../lib/haptics'
 import Avatar from '../../../components/Avatar'
 import ThemedText from '../../../components/ThemedText'
-import ChatMarkdown from '../../../components/ChatMarkdown'
+import ChatMessageContent from '../../../components/chat/ChatMessageContent'
+import ChatSidebar from '../../../components/chat/ChatSidebar'
+import TextSelectionModal from '../../../components/chat/TextSelectionModal'
+import { buildQuoteMarkup, stripQuoteMarkup } from '../../../lib/quoteUtils'
 import PositionInfoCard from '../../../components/PositionInfoCard'
 import ReportModal from '../../../components/ReportModal'
 import ModerationActionModal from '../../../components/ModerationActionModal'
 import useModerateChecker from '../../../hooks/useModerateChecker'
+import useToxicityCheck from '../../../hooks/useToxicityCheck'
+import ReconsiderModal from '../../../components/ReconsiderModal'
+import ReactionBar from '../../../components/chat/ReactionBar'
+import ReactionBadges from '../../../components/chat/ReactionBadges'
 import { useTranslation } from 'react-i18next'
+import useModalBackHandler from '../../../hooks/useModalBackHandler'
 
 /**
  * Parse a chat log into a sorted array of message/proposal objects.
@@ -99,6 +130,34 @@ function parseHistoricalMessages(chatLog) {
         proposalId: pos.id,
         isClosure: pos.is_closure || pos.isClosure || false,
         parentId: pos.parent_id || pos.parentId || null,
+      })
+    }
+  }
+
+  // Load definition requests
+  const defs = chatLog.log?.definitions || []
+  if (Array.isArray(defs)) {
+    for (const defn of defs) {
+      historicalMessages.push({
+        id: defn.id || `def-${defn.timestamp || Date.now()}`,
+        isDefinitionRequest: true,
+        definitionRequest: defn,
+        sender_id: defn.requesterId || defn.requester_id,
+        timestamp: defn.timestamp,
+      })
+    }
+  }
+
+  // Load explanation requests
+  const expls = chatLog.log?.explanations || []
+  if (Array.isArray(expls)) {
+    for (const expl of expls) {
+      historicalMessages.push({
+        id: expl.id || `expl-${expl.timestamp || Date.now()}`,
+        isExplainRequest: true,
+        explainRequest: expl,
+        sender_id: expl.requesterId || expl.requester_id,
+        timestamp: expl.timestamp,
       })
     }
   }
@@ -150,11 +209,8 @@ export default function ChatScreen() {
   const proposalOffset = Math.min(screenWidth * 0.1, maxOffset - 8) // 8px padding from edge
   const insets = useSafeAreaInsets()
 
-  // Max input height is 40% of screen
-  const maxInputHeight = screenHeight * 0.4
-
-  // Header is approximately 64px + top inset
-  const keyboardOffset = Platform.OS === 'ios' ? 64 + insets.top : 0
+  // Max input height ≈ 4 lines (fontSize 15 × ~1.33 lineHeight × 4 + 20px padding)
+  const maxInputHeight = 100
 
   const [messages, setMessages] = useState([])
   const [inputText, setInputText] = useState('')
@@ -165,11 +221,11 @@ export default function ChatScreen() {
   const [chatEnded, setChatEnded] = useState(false)
   const [chatEndedWithClosure, setChatEndedWithClosure] = useState(false)
   const [otherUserLeft, setOtherUserLeft] = useState(false)
+  const [partnerDisconnected, setPartnerDisconnected] = useState(false)
   const [isHistoricalView, setIsHistoricalView] = useState(false) // True when viewing archived chat from history
   const [isModerationView, setIsModerationView] = useState(false) // True when moderator is viewing a reported chat
   const [participants, setParticipants] = useState(null) // Both participants when in moderation view
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
-  const [inputHeight, setInputHeight] = useState(40)
   const [otherUserLastRead, setOtherUserLastRead] = useState(null) // Message ID other user has read up to
   const [showSpecialMenu, setShowSpecialMenu] = useState(false) // Show menu for special message types
   const [messageType, setMessageType] = useState('text') // 'text', 'position_proposal', 'closure_proposal'
@@ -179,6 +235,28 @@ export default function ChatScreen() {
   const [proposalHeights, setProposalHeights] = useState({}) // Track heights of proposal cards for stacking
   const [kudosStatus, setKudosStatus] = useState(null) // null = show prompt, 'sent' = kudos sent, 'dismissed' = dismissed
   const [reportModalVisible, setReportModalVisible] = useState(false)
+
+  // Quote system state
+  const [sidebarVisible, setSidebarVisible] = useState(false)
+  const [quoteButtonsMessageId, setQuoteButtonsMessageId] = useState(null) // Which message shows inline quote buttons
+  const [textSelectionVisible, setTextSelectionVisible] = useState(false)
+  const [textSelectionMessage, setTextSelectionMessage] = useState(null)
+  const [highlightedMessageId, setHighlightedMessageId] = useState(null)
+
+  // Definitions state
+  const [definitions, setDefinitions] = useState([]) // DefinitionRequest objects
+  const [definitionModalRequest, setDefinitionModalRequest] = useState(null) // null = closed
+  const [definitionModalMode, setDefinitionModalMode] = useState('respond') // 'respond' | 'counter_define'
+  const [definitionModalText, setDefinitionModalText] = useState('')
+
+  // Explanations state
+  const [explanations, setExplanations] = useState([]) // ExplainRequest objects
+  const [explanationModalRequest, setExplanationModalRequest] = useState(null) // null = closed
+  const [explanationModalMode, setExplanationModalMode] = useState('explain') // 'explain' | 'correct'
+  const [explanationModalText, setExplanationModalText] = useState('')
+
+  // Reactions state: { messageId: [{userId, emoji, timestamp}] }
+  const [reactions, setReactions] = useState({})
 
   // Moderation state
   const checkModerateScope = useModerateChecker()
@@ -190,7 +268,62 @@ export default function ChatScreen() {
   const [moderateComment, setModerateComment] = useState(null)
   const [actionModalVisible, setActionModalVisible] = useState(false)
 
+  // Toxicity reconsider
+  const toxicity = useToxicityCheck()
+
+  // Close special menu on back gesture/button
+  const closeSpecialMenu = useCallback(() => setShowSpecialMenu(false), [])
+  useModalBackHandler(showSpecialMenu, closeSpecialMenu)
+
+  // Web: track keyboard height via visualViewport (native handled by KBAvoidingView)
+  const [webKeyboardHeight, setWebKeyboardHeight] = useState(0)
+  useEffect(() => {
+    if (Platform.OS !== 'web') return
+    // Only needed on mobile web (touch-primary devices with on-screen keyboards).
+    // Desktop browsers have pointer: fine — no on-screen keyboard to track.
+    if (!window.matchMedia('(pointer: coarse)').matches) return
+    const vv = window.visualViewport
+    if (!vv) return
+    const initialHeight = window.innerHeight
+    let focusTimeout = null
+    // Ignore resize events during keyboard open animation to prevent
+    // intermediate small diff values from briefly zeroing the spacer.
+    let skipResizeUntil = 0
+
+    const update = () => {
+      if (Date.now() < skipResizeUntil) return
+      const diff = initialHeight - vv.height
+      setWebKeyboardHeight(diff > 150 ? diff : 0)
+    }
+
+    vv.addEventListener('resize', update)
+
+    // Firefox fires no visualViewport resize on keyboard open — use focus events
+    const onFocusIn = (e) => {
+      if (!e.target?.tagName?.match?.(/INPUT|TEXTAREA/i)) return
+      clearTimeout(focusTimeout)
+      skipResizeUntil = Date.now() + 300
+      setWebKeyboardHeight(Math.round(initialHeight * 0.4))
+      setTimeout(update, 300)
+    }
+    const onFocusOut = () => {
+      focusTimeout = setTimeout(() => {
+        if (vv.height >= initialHeight - 150) setWebKeyboardHeight(0)
+      }, 300)
+    }
+
+    document.addEventListener('focusin', onFocusIn)
+    document.addEventListener('focusout', onFocusOut)
+    return () => {
+      vv.removeEventListener('resize', update)
+      document.removeEventListener('focusin', onFocusIn)
+      document.removeEventListener('focusout', onFocusOut)
+      clearTimeout(focusTimeout)
+    }
+  }, [])
+
   const flatListRef = useRef(null)
+  const inputRef = useRef(null)
   const typingTimeoutRef = useRef(null)
   const isTypingRef = useRef(false)
   const isNearBottomRef = useRef(true) // Track if user is near bottom of chat
@@ -206,6 +339,62 @@ export default function ChatScreen() {
 
   // Get other user from chat info
   const otherUser = chatInfo?.otherUser
+
+  // Quote system: computed maps for message/position lookup
+  const textMessages = useMemo(
+    () => messages.filter(m => !m.isProposal && !m.isDefinitionRequest && !m.isExplainRequest),
+    [messages]
+  )
+  const acceptedPositions = useMemo(
+    () => messages.filter(m => m.isProposal && m.type === 'accepted'),
+    [messages]
+  )
+  // M1 = textMessages[0], M2 = textMessages[1], etc.
+  const messageMap = useMemo(
+    () => Object.fromEntries(textMessages.map((m, i) => [i + 1, m])),
+    [textMessages]
+  )
+  // S1 = acceptedPositions[0], S2 = acceptedPositions[1], etc.
+  const positionMap = useMemo(
+    () => Object.fromEntries(acceptedPositions.map((p, i) => [i + 1, p])),
+    [acceptedPositions]
+  )
+  // Flatten resolved definition requests into individual definitions for D-numbering
+  const flatDefinitions = useMemo(() => {
+    const flat = []
+    for (const req of definitions) {
+      const status = req.status
+      if (status === 'accepted') {
+        flat.push({ id: req.id, term: req.term, definition: req.definition, definerId: req.definerId || req.definer_id, status: 'accepted' })
+      } else if (status === 'both_defined') {
+        flat.push({ id: req.id, term: req.term, definition: req.definition, definerId: req.definerId || req.definer_id, status: 'both_defined' })
+        flat.push({ id: `${req.id}-counter`, term: req.term, definition: req.counterDefinition || req.counter_definition, definerId: req.counterDefinerId || req.counter_definer_id, status: 'both_defined' })
+      }
+    }
+    return flat
+  }, [definitions])
+  // D1 = flatDefinitions[0], D2 = flatDefinitions[1], etc.
+  const definitionMap = useMemo(
+    () => Object.fromEntries(flatDefinitions.map((d, i) => [i + 1, d])),
+    [flatDefinitions]
+  )
+  // Flatten resolved explanation requests into individual explanations for E-numbering
+  const flatExplanations = useMemo(() => {
+    const flat = []
+    for (const req of explanations) {
+      if (req.status === 'completed') {
+        flat.push({ id: req.id, position: req.position, explanation: req.explanation, explainerId: req.explainerId || req.explainer_id })
+      } else if (req.status === 'corrected') {
+        flat.push({ id: req.id, position: req.position, explanation: req.correction, explainerId: req.requesterId || req.requester_id })
+      }
+    }
+    return flat
+  }, [explanations])
+  // E1 = flatExplanations[0], E2 = flatExplanations[1], etc.
+  const explanationMap = useMemo(
+    () => Object.fromEntries(flatExplanations.map((e, i) => [i + 1, e])),
+    [flatExplanations]
+  )
 
   // Hide tab bar when chat screen is active
   useEffect(() => {
@@ -342,6 +531,12 @@ export default function ChatScreen() {
     let cleanupStatus = null
     let cleanupReadReceipt = null
     let cleanupAgreedPosition = null
+    let cleanupPartnerDisconnected = null
+    let cleanupPartnerReconnected = null
+    let cleanupReaction = null
+    let cleanupDefinition = null
+    let cleanupExplanation = null
+    let isActiveChat = false // Track whether we joined a live chat (for leave_chat on unmount)
 
     async function initChat() {
       try {
@@ -371,6 +566,8 @@ export default function ChatScreen() {
             }
 
             setMessages(parseHistoricalMessages(chatLog))
+            setDefinitions(chatLog.log?.definitions || [])
+            setExplanations(chatLog.log?.explanations || [])
             setLoading(false)
             return
           } catch (err) {
@@ -382,11 +579,15 @@ export default function ChatScreen() {
         }
 
         // For active chats, use WebSocket
-        // Check socket connection
+        // If socket isn't connected yet, try to connect before giving up
         if (!isConnected()) {
-          setError(t('notConnected'))
-          setLoading(false)
-          return
+          try {
+            await connectSocket()
+          } catch {
+            setError(t('notConnected'))
+            setLoading(false)
+            return
+          }
         }
 
         // Join the chat room
@@ -402,10 +603,10 @@ export default function ChatScreen() {
               return {
                 ...msg,
                 isProposal: true,
-                // Ensure we have all necessary proposal fields with snake_case fallbacks
-                proposalId: msg.proposal_id || msg.proposalId || msg.id,
-                isClosure: msg.is_closure || msg.isClosure || false,
-                parentId: msg.parent_id || msg.parentId || null,
+                // Ensure we have all necessary proposal fields (camelCase from backend, snake_case fallback)
+                proposalId: msg.proposalId || msg.proposal_id || msg.id,
+                isClosure: msg.isClosure || msg.is_closure || false,
+                parentId: msg.parentId || msg.parent_id || null,
               }
             }
             return msg
@@ -413,17 +614,22 @@ export default function ChatScreen() {
 
           // Also check if agreedPositions are returned separately and need to be merged
           const agreedPositions = joinResponse.agreedPositions || []
-          const proposalMessages = agreedPositions.map(pos => ({
-            id: pos.id || `proposal-${pos.proposal_id || Date.now()}`,
-            content: pos.content,
-            type: pos.status || 'proposed', // status could be 'proposed', 'accepted', 'rejected', 'modified'
-            sender_id: pos.proposer_id,
-            timestamp: pos.created_at || pos.updated_at,
-            isProposal: true,
-            isClosure: pos.is_closure || false,
-            proposalId: pos.id || pos.proposal_id,
-            parentId: pos.parent_id || null,
-          }))
+          const proposalMessages = agreedPositions.map(pos => {
+            // Backend returns camelCase: proposerId, isClosure, parentId, timestamp
+            let displayType = pos.status || 'proposed'
+            if (displayType === 'pending') displayType = 'proposed'
+            return {
+              id: pos.id || `proposal-${Date.now()}`,
+              content: pos.content,
+              type: displayType,
+              sender_id: pos.proposerId || pos.proposer_id,
+              timestamp: pos.timestamp,
+              isProposal: true,
+              isClosure: pos.isClosure || pos.is_closure || false,
+              proposalId: pos.id,
+              parentId: pos.parentId || pos.parent_id || null,
+            }
+          })
 
           // Merge messages and proposals, sorted by timestamp
           const allMessages = [...processedMessages, ...proposalMessages].sort((a, b) => {
@@ -433,6 +639,49 @@ export default function ChatScreen() {
           })
 
           setMessages(allMessages)
+
+          // Load reactions from join response
+          if (joinResponse.reactions) {
+            setReactions(joinResponse.reactions)
+          }
+
+          // Load definition requests from join response
+          const joinDefinitions = joinResponse.definitions || []
+          if (joinDefinitions.length > 0) {
+            setDefinitions(joinDefinitions)
+            // Add definition requests as items in the messages array for inline rendering
+            const defMessages = joinDefinitions.map(req => ({
+              id: req.id || `def-${Date.now()}`,
+              isDefinitionRequest: true,
+              definitionRequest: req,
+              sender_id: req.requesterId || req.requester_id,
+              timestamp: req.timestamp,
+            }))
+            setMessages(prev => [...prev, ...defMessages].sort((a, b) => {
+              const timeA = new Date(a.timestamp || a.sendTime || 0).getTime()
+              const timeB = new Date(b.timestamp || b.sendTime || 0).getTime()
+              return timeA - timeB
+            }))
+          }
+
+          // Load explanation requests from join response
+          const joinExplanations = joinResponse.explanations || []
+          if (joinExplanations.length > 0) {
+            setExplanations(joinExplanations)
+            // Add explanation requests as items in the messages array for inline rendering
+            const explMessages = joinExplanations.map(req => ({
+              id: req.id || `expl-${Date.now()}`,
+              isExplainRequest: true,
+              explainRequest: req,
+              sender_id: req.requesterId || req.requester_id,
+              timestamp: req.timestamp,
+            }))
+            setMessages(prev => [...prev, ...explMessages].sort((a, b) => {
+              const timeA = new Date(a.timestamp || a.sendTime || 0).getTime()
+              const timeB = new Date(b.timestamp || b.sendTime || 0).getTime()
+              return timeA - timeB
+            }))
+          }
         } catch (joinErr) {
           // If join fails (e.g., chat already ended), check if it's archived in PostgreSQL
           console.debug('Join failed, checking if chat is archived:', joinErr.message)
@@ -528,6 +777,8 @@ export default function ChatScreen() {
               setChatEnded(true)
             } else if (data.status === 'ended' || data.type === 'chat_ended') {
               setChatEnded(true)
+              isActiveChat = false
+              setPartnerDisconnected(false)
               // If ended with agreed closure, mark all pending closure proposals as accepted
               if (data.endType === 'agreed_closure' || data.agreedClosure) {
                 setChatEndedWithClosure(true)
@@ -537,6 +788,10 @@ export default function ChatScreen() {
                   }
                   return msg
                 }))
+              }
+              // If ended by abandonment, mark the chat appropriately
+              if (data.endType === 'abandoned') {
+                setOtherUserLeft(true)
               }
             }
           }
@@ -559,7 +814,8 @@ export default function ChatScreen() {
           console.debug('[Chat] Agreed position event:', data)
           const proposal = data.proposal || {}
           const action = data.action
-          const proposerId = proposal.proposer_id || data.proposerId
+          // Backend emits camelCase (proposerId) in both proposal.to_dict() and top-level
+          const proposerId = proposal.proposerId || data.proposerId || proposal.proposer_id
 
           // Hide typing indicator when we receive a proposal from the other user
           if (proposerId && proposerId !== user?.id) {
@@ -576,12 +832,12 @@ export default function ChatScreen() {
               id: proposal.id || `proposal-${Date.now()}`,
               content: proposal.content || data.content,
               type: 'proposed',
-              sender_id: proposal.proposer_id || data.proposerId,
-              timestamp: proposal.created_at || new Date().toISOString(),
+              sender_id: proposerId,
+              timestamp: proposal.timestamp || new Date().toISOString(),
               isProposal: true,
-              isClosure: proposal.is_closure || data.isClosure,
+              isClosure: proposal.isClosure || data.isClosure || false,
               proposalId: proposal.id,
-              parentId: proposal.parent_id || null,
+              parentId: proposal.parentId || null,
             }
             setMessages(prev => [...prev, proposalMessage])
           } else if (action === 'accept' || action === 'reject') {
@@ -596,8 +852,19 @@ export default function ChatScreen() {
               return msg
             }))
 
+            // Sound + haptic on acceptance (both participants hear via socket)
+            if (action === 'accept') {
+              const isClosure = proposal.isClosure || data.isClosure
+              if (isClosure) {
+                playClosureSound()
+              } else {
+                playAgreedSound()
+              }
+              hapticSuccess()
+            }
+
             // If closure was accepted, mark chat as ended
-            if (action === 'accept' && (proposal.is_closure || data.isClosure)) {
+            if (action === 'accept' && (proposal.isClosure || data.isClosure)) {
               setChatEnded(true)
               setChatEndedWithClosure(true)
             }
@@ -615,10 +882,10 @@ export default function ChatScreen() {
                 id: proposal.id || `proposal-${Date.now()}`,
                 content: proposal.content || data.content,
                 type: 'proposed',
-                sender_id: proposal.proposer_id || data.proposerId,
-                timestamp: proposal.created_at || new Date().toISOString(),
+                sender_id: proposerId,
+                timestamp: proposal.timestamp || new Date().toISOString(),
                 isProposal: true,
-                isClosure: proposal.is_closure || data.isClosure,
+                isClosure: proposal.isClosure || data.isClosure || false,
                 proposalId: proposal.id,
                 parentId: data.originalProposalId, // Link to the original proposal
               }
@@ -627,6 +894,123 @@ export default function ChatScreen() {
           }
         })
 
+        // Set up partner disconnected/reconnected listeners
+        cleanupPartnerDisconnected = onPartnerDisconnected((data) => {
+          if (data.chatId === chatId || String(data.chatId) === String(chatId)) {
+            console.debug('[Chat] Partner disconnected:', data)
+            setPartnerDisconnected(true)
+          }
+        })
+
+        cleanupPartnerReconnected = onPartnerReconnected((data) => {
+          if (data.chatId === chatId || String(data.chatId) === String(chatId)) {
+            console.debug('[Chat] Partner reconnected:', data)
+            setPartnerDisconnected(false)
+          }
+        })
+
+        // Set up reaction listener
+        cleanupReaction = onReaction((data) => {
+          if (data.chatId !== chatId && String(data.chatId) !== String(chatId)) return
+          // Sound + haptic when partner reacts (not own echoes, not removes)
+          if (data.userId !== user?.id && data.emoji) {
+            playReactionSound()
+            hapticSuccess()
+          }
+          setReactions(prev => {
+            const next = { ...prev }
+            const msgReactions = (next[data.messageId] || []).filter(
+              r => r.userId !== data.userId
+            )
+            if (data.emoji) {
+              msgReactions.push({
+                userId: data.userId,
+                emoji: data.emoji,
+                timestamp: data.timestamp,
+              })
+            }
+            if (msgReactions.length > 0) {
+              next[data.messageId] = msgReactions
+            } else {
+              delete next[data.messageId]
+            }
+            return next
+          })
+        })
+
+        // Set up definition listener
+        cleanupDefinition = onDefinition((data) => {
+          console.debug('[Chat] Definition event:', data)
+          const req = data.request || {}
+          const senderId = data.requesterId || data.definerId || data.counterDefinerId || data.accepterId
+
+          // Hide typing indicator when we receive a definition event from the other user
+          if (senderId && senderId !== user?.id) {
+            if (otherTypingTimeoutRef.current) {
+              clearTimeout(otherTypingTimeoutRef.current)
+              otherTypingTimeoutRef.current = null
+            }
+            setOtherUserTyping(false)
+          }
+
+          if (data.action === 'request') {
+            // New definition request — add to definitions and messages
+            setDefinitions(prev => [...prev, req])
+            setMessages(prev => [...prev, {
+              id: req.id || `def-${Date.now()}`,
+              isDefinitionRequest: true,
+              definitionRequest: req,
+              sender_id: req.requesterId || req.requester_id,
+              timestamp: req.timestamp || new Date().toISOString(),
+            }])
+          } else {
+            // Update existing request (define, accept, counter_define)
+            setDefinitions(prev => prev.map(d => d.id === req.id ? req : d))
+            setMessages(prev => prev.map(m =>
+              m.isDefinitionRequest && m.definitionRequest?.id === req.id
+                ? { ...m, definitionRequest: req }
+                : m
+            ))
+          }
+        })
+
+        // Set up explanation listener
+        cleanupExplanation = onExplainPosition((data) => {
+          console.debug('[Chat] Explain position event:', data)
+          const req = data.request || {}
+          const senderId = data.requesterId || data.explainerId || data.confirmerId || data.rejecterId || data.accepterId || data.correcterId
+
+          // Hide typing indicator when we receive an explanation event from the other user
+          if (senderId && senderId !== user?.id) {
+            if (otherTypingTimeoutRef.current) {
+              clearTimeout(otherTypingTimeoutRef.current)
+              otherTypingTimeoutRef.current = null
+            }
+            setOtherUserTyping(false)
+          }
+
+          if (data.action === 'request') {
+            // New explanation request — add to explanations and messages
+            setExplanations(prev => [...prev, req])
+            setMessages(prev => [...prev, {
+              id: req.id || `expl-${Date.now()}`,
+              isExplainRequest: true,
+              explainRequest: req,
+              sender_id: req.requesterId || req.requester_id,
+              timestamp: req.timestamp || new Date().toISOString(),
+            }])
+          } else {
+            // Update existing request
+            setExplanations(prev => prev.map(e => e.id === req.id ? req : e))
+            setMessages(prev => prev.map(m =>
+              m.isExplainRequest && m.explainRequest?.id === req.id
+                ? { ...m, explainRequest: req }
+                : m
+            ))
+          }
+        })
+
+        isActiveChat = true
         setLoading(false)
       } catch (err) {
         console.error('Failed to join chat:', err)
@@ -643,6 +1027,15 @@ export default function ChatScreen() {
       if (cleanupStatus) cleanupStatus()
       if (cleanupReadReceipt) cleanupReadReceipt()
       if (cleanupAgreedPosition) cleanupAgreedPosition()
+      if (cleanupPartnerDisconnected) cleanupPartnerDisconnected()
+      if (cleanupPartnerReconnected) cleanupPartnerReconnected()
+      if (cleanupReaction) cleanupReaction()
+      if (cleanupDefinition) cleanupDefinition()
+      if (cleanupExplanation) cleanupExplanation()
+      // Emit leave_chat when unmounting if this was an active chat
+      if (isActiveChat) {
+        leaveChat(chatId)
+      }
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current)
       }
@@ -652,39 +1045,57 @@ export default function ChatScreen() {
     }
   }, [chatId, user?.id, mode])
 
-  // Handle sending a message
+  // Actually dispatch the message over the socket
+  const doSendMessage = useCallback(async (text, msgType, { wasFlaggedToxic } = {}) => {
+    try {
+      setInputText('')
+      setMessageType('text')
+
+      if (Platform.OS === 'web') {
+        setTimeout(() => inputRef.current?.focus(), 0)
+      }
+
+      if (isTypingRef.current) {
+        sendTyping(chatId, false)
+        isTypingRef.current = false
+      }
+
+      if (msgType === 'definition_request') {
+        await requestDefinition(chatId, text)
+      } else if (msgType === 'explain_request') {
+        await requestExplanation(chatId, text)
+      } else if (msgType === 'position_proposal' || msgType === 'closure_proposal') {
+        const isClosure = msgType === 'closure_proposal'
+        await proposeAgreedPosition(chatId, text, isClosure)
+      } else {
+        await sendMessage(chatId, text, msgType, { wasFlaggedToxic })
+      }
+      if (user?.id) CacheManager.invalidate(CacheKeys.userChats(user.id))
+    } catch (err) {
+      console.error('Failed to send message:', err)
+      setInputText(text)
+      setMessageType(msgType)
+    }
+  }, [chatId])
+
+  // Handle sending a message (with toxicity check for plain text messages)
   const handleSend = useCallback(async () => {
     const text = inputText.trim()
     if (!text || chatEnded) return
 
     const currentMessageType = messageType
 
-    try {
-      setInputText('')
-      setInputHeight(40) // Reset input height
-      setMessageType('text') // Reset to default chat type after sending
-
-      // Stop typing indicator
-      if (isTypingRef.current) {
-        sendTyping(chatId, false)
-        isTypingRef.current = false
-      }
-
-      // Send via socket - use proposeAgreedPosition for proposals, sendMessage for regular chat
-      if (currentMessageType === 'position_proposal' || currentMessageType === 'closure_proposal') {
-        const isClosure = currentMessageType === 'closure_proposal'
-        await proposeAgreedPosition(chatId, text, isClosure)
-      } else {
-        await sendMessage(chatId, text, currentMessageType)
-      }
-      if (user?.id) CacheManager.invalidate(CacheKeys.userChats(user.id))
-    } catch (err) {
-      console.error('Failed to send message:', err)
-      // Restore the input text and message type on error
-      setInputText(text)
-      setMessageType(currentMessageType)
+    // Only check toxicity for regular text messages (not proposals or definitions)
+    if (currentMessageType === 'text') {
+      toxicity.checkAndSend(
+        text,
+        () => doSendMessage(text, currentMessageType),
+        () => doSendMessage(text, currentMessageType, { wasFlaggedToxic: true }),
+      )
+    } else {
+      doSendMessage(text, currentMessageType)
     }
-  }, [chatId, inputText, chatEnded, messageType])
+  }, [chatId, inputText, chatEnded, messageType, toxicity.checkAndSend, doSendMessage])
 
   // Handle typing indicator
   const handleTextChange = useCallback((text) => {
@@ -710,19 +1121,12 @@ export default function ChatScreen() {
     }, 2000)
   }, [chatId])
 
-  // Handle input content size change for dynamic height
-  const handleContentSizeChange = useCallback((event) => {
-    const contentHeight = event.nativeEvent.contentSize.height
-    // Clamp between minHeight (40) and maxHeight
-    const newHeight = Math.min(Math.max(40, contentHeight), maxInputHeight)
-    setInputHeight(newHeight)
-  }, [maxInputHeight])
 
   const safeBack = useCallback(() => {
     if (router.canGoBack()) {
       router.back()
     } else {
-      router.replace('/chats')
+      router.replace('/(tabs)/cards')
     }
   }, [router])
 
@@ -814,6 +1218,110 @@ export default function ChatScreen() {
     }
   }, [moderateTarget, moderateRule, moderateComment, t])
 
+  // Reaction handler
+  const handleReact = useCallback((messageId, emoji) => {
+    if (emoji) hapticTap()
+    sendReaction(chatId, messageId, emoji).catch(err => {
+      console.error('Failed to send reaction:', err)
+    })
+    // Optimistic update
+    setReactions(prev => {
+      const next = { ...prev }
+      const msgReactions = (next[messageId] || []).filter(
+        r => r.userId !== user?.id
+      )
+      if (emoji) {
+        msgReactions.push({
+          userId: user?.id,
+          emoji,
+          timestamp: new Date().toISOString(),
+        })
+      }
+      if (msgReactions.length > 0) {
+        next[messageId] = msgReactions
+      } else {
+        delete next[messageId]
+      }
+      return next
+    })
+    // Dismiss the action bar (quote buttons + reaction picker)
+    setQuoteButtonsMessageId(null)
+  }, [chatId, user?.id])
+
+  // Quote handlers
+  const handleMessageTap = useCallback((item) => {
+    // Toggle inline quote buttons for this message
+    setQuoteButtonsMessageId(prev => prev === item.id ? null : item.id)
+  }, [])
+
+  const handleQuoteFull = useCallback((item) => {
+    // Use ID-based lookup (not indexOf) — object references can break after state updates
+    const mNumber = textMessages.findIndex(m => m.id === item.id) + 1
+    if (mNumber <= 0) return
+    const plainText = stripQuoteMarkup(item.content || '')
+    const markup = buildQuoteMarkup('M', mNumber, plainText)
+    setInputText(prev => markup + '\n' + prev)
+    setQuoteButtonsMessageId(null)
+  }, [textMessages])
+
+  const handleSelectPart = useCallback((item) => {
+    setTextSelectionMessage(item)
+    setTextSelectionVisible(true)
+    setQuoteButtonsMessageId(null)
+  }, [])
+
+  const handleQuotePartial = useCallback((selectedText, start, end) => {
+    if (!textSelectionMessage) return
+    // Use ID-based lookup (not indexOf) — object references can break after state updates
+    const mNumber = textMessages.findIndex(m => m.id === textSelectionMessage.id) + 1
+    if (mNumber <= 0) return
+    const plainText = stripQuoteMarkup(textSelectionMessage.content || '')
+    const markup = buildQuoteMarkup('M', mNumber, plainText, { start, end })
+    setInputText(prev => markup + '\n' + prev)
+    setTextSelectionVisible(false)
+    setTextSelectionMessage(null)
+  }, [textSelectionMessage, textMessages])
+
+  const handleQuoteAgreedPosition = useCallback((pos, sNum) => {
+    const markup = buildQuoteMarkup('S', sNum, pos.content || '')
+    setInputText(prev => markup + '\n' + prev)
+    setSidebarVisible(false)
+  }, [])
+
+  const handleQuoteDefinition = useCallback((defn, dNum) => {
+    const markup = buildQuoteMarkup('D', dNum, defn.definition || '')
+    setInputText(prev => markup + '\n' + prev)
+    setSidebarVisible(false)
+  }, [])
+
+  const handleQuotePress = useCallback((prefix, num) => {
+    // Find the index of the referenced item in the FlatList data (use ID-based lookup)
+    let targetId = null
+    if (prefix === 'M') {
+      targetId = messageMap[num]?.id
+    } else if (prefix === 'S') {
+      targetId = positionMap[num]?.id
+    } else if (prefix === 'D') {
+      targetId = definitionMap[num]?.id
+    } else if (prefix === 'E') {
+      targetId = explanationMap[num]?.id
+    }
+
+    if (!targetId) return
+
+    const targetIndex = messages.findIndex(m => m.id === targetId)
+    if (targetIndex >= 0) {
+      flatListRef.current?.scrollToIndex({
+        index: targetIndex,
+        animated: true,
+        viewPosition: 0.5,
+      })
+      // Brief highlight flash
+      setHighlightedMessageId(targetId)
+      setTimeout(() => setHighlightedMessageId(null), 1500)
+    }
+  }, [messages, messageMap, positionMap, definitionMap, explanationMap])
+
   // Toggle special message menu
   const handleToggleSpecialMenu = useCallback(() => {
     setShowSpecialMenu(prev => !prev)
@@ -835,6 +1343,125 @@ export default function ChatScreen() {
   const handleSelectProposeClosure = useCallback(() => {
     setMessageType('closure_proposal')
     setShowSpecialMenu(false)
+  }, [])
+
+  // Select define term message type
+  const handleSelectDefine = useCallback(() => {
+    setMessageType('definition_request')
+    setShowSpecialMenu(false)
+  }, [])
+
+  // Definition request actions
+  const handleRespondDefinition = useCallback((request) => {
+    setDefinitionModalRequest(request)
+    setDefinitionModalMode('respond')
+    setDefinitionModalText('')
+  }, [])
+
+  const handleAcceptDefinition = useCallback(async (requestId) => {
+    try {
+      await acceptDefinition(chatId, requestId)
+    } catch (err) {
+      console.error('Failed to accept definition:', err)
+    }
+  }, [chatId])
+
+  const handleStartCounterDefine = useCallback((request) => {
+    setDefinitionModalRequest(request)
+    setDefinitionModalMode('counter_define')
+    setDefinitionModalText('')
+  }, [])
+
+  const handleCancelDefinitionModal = useCallback(() => {
+    setDefinitionModalRequest(null)
+    setDefinitionModalText('')
+  }, [])
+
+  const handleSubmitDefinitionModal = useCallback(async () => {
+    const text = definitionModalText.trim()
+    if (!text || !definitionModalRequest) return
+
+    try {
+      if (definitionModalMode === 'respond') {
+        await respondDefinition(chatId, definitionModalRequest.id, text)
+      } else {
+        await counterDefine(chatId, definitionModalRequest.id, text)
+      }
+      setDefinitionModalRequest(null)
+      setDefinitionModalText('')
+    } catch (err) {
+      console.error('Failed to submit definition:', err)
+    }
+  }, [chatId, definitionModalRequest, definitionModalMode, definitionModalText])
+
+  // Explanation request actions
+  const handleSelectExplain = useCallback(() => {
+    setMessageType('explain_request')
+    setShowSpecialMenu(false)
+  }, [])
+
+  const handleRespondExplanation = useCallback((request) => {
+    setExplanationModalRequest(request)
+    setExplanationModalMode('explain')
+    setExplanationModalText('')
+  }, [])
+
+  const handleConfirmGoodFaith = useCallback(async (requestId) => {
+    try {
+      await confirmGoodFaith(chatId, requestId)
+    } catch (err) {
+      console.error('Failed to confirm good faith:', err)
+    }
+  }, [chatId])
+
+  const handleRejectExplanation = useCallback(async (requestId) => {
+    try {
+      await rejectExplanation(chatId, requestId)
+    } catch (err) {
+      console.error('Failed to reject explanation:', err)
+    }
+  }, [chatId])
+
+  const handleAcceptExplanation = useCallback(async (requestId) => {
+    try {
+      await acceptExplanation(chatId, requestId)
+    } catch (err) {
+      console.error('Failed to accept explanation:', err)
+    }
+  }, [chatId])
+
+  const handleStartCorrection = useCallback((request) => {
+    setExplanationModalRequest(request)
+    setExplanationModalMode('correct')
+    setExplanationModalText('')
+  }, [])
+
+  const handleCancelExplanationModal = useCallback(() => {
+    setExplanationModalRequest(null)
+    setExplanationModalText('')
+  }, [])
+
+  const handleSubmitExplanationModal = useCallback(async () => {
+    const text = explanationModalText.trim()
+    if (!text || !explanationModalRequest) return
+
+    try {
+      if (explanationModalMode === 'explain') {
+        await respondExplanation(chatId, explanationModalRequest.id, text)
+      } else {
+        await correctExplanation(chatId, explanationModalRequest.id, text)
+      }
+      setExplanationModalRequest(null)
+      setExplanationModalText('')
+    } catch (err) {
+      console.error('Failed to submit explanation:', err)
+    }
+  }, [chatId, explanationModalRequest, explanationModalMode, explanationModalText])
+
+  const handleQuoteExplanation = useCallback((expl, eNum) => {
+    const markup = buildQuoteMarkup('E', eNum, expl.explanation || '')
+    setInputText(prev => markup + '\n' + prev)
+    setSidebarVisible(false)
   }, [])
 
   // Handle accepting a proposal
@@ -905,6 +1532,284 @@ export default function ChatScreen() {
     const messageTime = rawTime
       ? new Date(rawTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       : ''
+
+    // Check if this is a definition request card
+    if (item.isDefinitionRequest) {
+      const req = item.definitionRequest || {}
+      const reqStatus = req.status || 'pending'
+      const isRequester = String(req.requesterId || req.requester_id || '') === currentUserId
+      const isDefiner = String(req.definerId || req.definer_id || '') === currentUserId
+
+      return (
+        <View
+          style={[
+            styles.definitionCardWrapper,
+            highlightedMessageId === item.id && styles.highlightedMessage,
+          ]}
+        >
+          <View style={[styles.proposalCard, { backgroundColor: colors.definitionAccent }]}>
+            {/* Type badge row */}
+            <View style={styles.proposalTypeRow}>
+              <View style={[styles.proposalTypeBadge, { backgroundColor: colors.definitionAccent }]}>
+                <Ionicons name="book-outline" size={12} color="#fff" />
+                <ThemedText variant="badge" style={styles.proposalTypeBadgeText}>{t('defineLabel')}</ThemedText>
+              </View>
+              {reqStatus === 'accepted' && (
+                <View style={styles.proposalStatusInline}>
+                  <MaterialCommunityIcons name="handshake-outline" size={14} color="#fff" />
+                </View>
+              )}
+            </View>
+
+            {/* Term */}
+            <ThemedText variant="body" color="inverse" style={styles.proposalCardContent}>
+              {req.term}
+            </ThemedText>
+
+            {/* Defined: show definition text */}
+            {(reqStatus === 'defined' || reqStatus === 'accepted') && req.definition && (
+              <ThemedText variant="body" color="inverse" style={styles.definitionText}>
+                {req.definition}
+              </ThemedText>
+            )}
+
+            {/* Both defined: show both definitions with attribution */}
+            {reqStatus === 'both_defined' && (
+              <>
+                <ThemedText variant="body" color="inverse" style={styles.definitionText}>
+                  {req.definition}
+                </ThemedText>
+                <ThemedText variant="caption" style={styles.proposalCardWaiting}>
+                  {t('definedBy', { name: isDefiner ? t('youLower') : (otherUser?.displayName || t('theOtherUserLower')) })}
+                </ThemedText>
+                <ThemedText variant="body" color="inverse" style={[styles.definitionText, { marginTop: 8 }]}>
+                  {req.counterDefinition || req.counter_definition}
+                </ThemedText>
+                <ThemedText variant="caption" style={styles.proposalCardWaiting}>
+                  {t('counterDefinedBy', { name: isRequester ? t('youLower') : (otherUser?.displayName || t('theOtherUserLower')) })}
+                </ThemedText>
+              </>
+            )}
+
+            {/* Pending: action buttons */}
+            {reqStatus === 'pending' && !isRequester && !chatEnded && (
+              <View style={styles.proposalCardActions}>
+                <TouchableOpacity
+                  style={[styles.proposalCardButton, styles.proposalCardButtonAccept]}
+                  onPress={() => handleRespondDefinition(req)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('respondButtonA11y')}
+                >
+                  <Ionicons name="create-outline" size={16} color={colors.definitionAccent} />
+                </TouchableOpacity>
+              </View>
+            )}
+            {reqStatus === 'pending' && isRequester && (
+              <ThemedText variant="caption" style={styles.proposalCardWaiting}>
+                {t('waitingForDefinition')}
+              </ThemedText>
+            )}
+
+            {/* Defined: requester can accept or counter-define */}
+            {reqStatus === 'defined' && isRequester && !chatEnded && (
+              <View style={styles.proposalCardActions}>
+                <TouchableOpacity
+                  style={[styles.proposalCardLabelButton, styles.proposalCardButtonAccept]}
+                  onPress={() => handleAcceptDefinition(req.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('acceptDefinitionA11y')}
+                >
+                  <ThemedText variant="button" style={styles.proposalCardLabelText}>{t('acceptDefinitionButton')}</ThemedText>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.proposalCardLabelButton}
+                  onPress={() => handleStartCounterDefine(req)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('counterDefineA11y')}
+                >
+                  <ThemedText variant="button" style={styles.proposalCardLabelTextInverse}>{t('counterDefineButton')}</ThemedText>
+                </TouchableOpacity>
+              </View>
+            )}
+            {reqStatus === 'defined' && isDefiner && (
+              <ThemedText variant="caption" style={styles.proposalCardWaiting}>
+                {t('waitingForDefinition')}
+              </ThemedText>
+            )}
+
+            {/* Accepted: both user avatars */}
+            {reqStatus === 'accepted' && (
+              <View style={styles.proposalAvatarsRow}>
+                <View style={styles.proposalAvatarLeft}>
+                  <Avatar user={isModerationView && participants ? participants[1] : otherUser} size={28} showKudosBadge={false} borderStyle={styles.proposalAvatarBorder} />
+                  <Ionicons name="checkmark-circle" size={14} color={SemanticColors.agree} style={styles.proposalAvatarCheck} />
+                </View>
+                <View style={styles.proposalAvatarRight}>
+                  <Avatar user={isModerationView && participants ? participants[0] : user} size={28} showKudosBadge={false} borderStyle={styles.proposalAvatarBorder} />
+                  <Ionicons name="checkmark-circle" size={14} color={SemanticColors.agree} style={styles.proposalAvatarCheck} />
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+      )
+    }
+
+    // Check if this is an explanation request card
+    if (item.isExplainRequest) {
+      const req = item.explainRequest || {}
+      const reqStatus = req.status || 'pending'
+      const isRequester = String(req.requesterId || req.requester_id || '') === currentUserId
+      const isExplainer = String(req.explainerId || req.explainer_id || '') === currentUserId
+
+      return (
+        <View
+          style={[
+            styles.definitionCardWrapper,
+            highlightedMessageId === item.id && styles.highlightedMessage,
+          ]}
+        >
+          <View style={[styles.proposalCard, { backgroundColor: colors.explanationAccent }]}>
+            {/* Type badge row */}
+            <View style={styles.proposalTypeRow}>
+              <View style={[styles.proposalTypeBadge, { backgroundColor: colors.explanationAccent }]}>
+                <Ionicons name="chatbubble-ellipses-outline" size={12} color="#fff" />
+                <ThemedText variant="badge" style={styles.proposalTypeBadgeText}>{t('explainLabel')}</ThemedText>
+              </View>
+              {(reqStatus === 'good_faith' || reqStatus === 'completed' || reqStatus === 'corrected') && (
+                <View style={styles.proposalStatusInline}>
+                  <MaterialCommunityIcons name="handshake-outline" size={14} color="#fff" />
+                </View>
+              )}
+            </View>
+
+            {/* Position text */}
+            <ThemedText variant="body" color="inverse" style={styles.proposalCardContent}>
+              {req.position}
+            </ThemedText>
+
+            {/* Explained: show explanation text */}
+            {(reqStatus === 'explained' || reqStatus === 'good_faith' || reqStatus === 'completed') && req.explanation && (
+              <ThemedText variant="body" color="inverse" style={styles.definitionText}>
+                {req.explanation}
+              </ThemedText>
+            )}
+
+            {/* Corrected: show correction text with attribution */}
+            {reqStatus === 'corrected' && (
+              <>
+                {req.explanation && (
+                  <ThemedText variant="body" color="inverse" style={styles.definitionText}>
+                    {req.explanation}
+                  </ThemedText>
+                )}
+                <ThemedText variant="caption" style={styles.proposalCardWaiting}>
+                  {t('explainedBy', { name: isExplainer ? t('youLower') : (otherUser?.displayName || t('theOtherUserLower')) })}
+                </ThemedText>
+                <ThemedText variant="body" color="inverse" style={[styles.definitionText, { marginTop: 8 }]}>
+                  {req.correction}
+                </ThemedText>
+                <ThemedText variant="caption" style={styles.proposalCardWaiting}>
+                  {t('correctedBy', { name: isRequester ? t('youLower') : (otherUser?.displayName || t('theOtherUserLower')) })}
+                </ThemedText>
+              </>
+            )}
+
+            {/* Pending: action buttons for non-requester */}
+            {reqStatus === 'pending' && !isRequester && !chatEnded && (
+              <View style={styles.proposalCardActions}>
+                <TouchableOpacity
+                  style={[styles.proposalCardButton, styles.proposalCardButtonAccept]}
+                  onPress={() => handleRespondExplanation(req)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('respondExplanationA11y')}
+                >
+                  <Ionicons name="create-outline" size={16} color={colors.explanationAccent} />
+                </TouchableOpacity>
+              </View>
+            )}
+            {reqStatus === 'pending' && isRequester && (
+              <ThemedText variant="caption" style={styles.proposalCardWaiting}>
+                {t('waitingForExplanation')}
+              </ThemedText>
+            )}
+
+            {/* Explained: requester decides good faith or reject */}
+            {reqStatus === 'explained' && isRequester && !chatEnded && (
+              <>
+                <ThemedText variant="caption" style={styles.proposalCardWaiting}>
+                  {t('wasGoodFaith')}
+                </ThemedText>
+                <View style={styles.proposalCardActions}>
+                  <TouchableOpacity
+                    style={[styles.proposalCardLabelButton, styles.proposalCardButtonAccept]}
+                    onPress={() => handleConfirmGoodFaith(req.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('confirmGoodFaithA11y')}
+                  >
+                    <ThemedText variant="button" style={styles.proposalCardLabelText}>{t('confirmGoodFaith')}</ThemedText>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.proposalCardLabelButton}
+                    onPress={() => handleRejectExplanation(req.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('rejectExplanationA11y')}
+                  >
+                    <ThemedText variant="button" style={styles.proposalCardLabelTextInverse}>{t('rejectGoodFaith')}</ThemedText>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+            {reqStatus === 'explained' && isExplainer && (
+              <ThemedText variant="caption" style={styles.proposalCardWaiting}>
+                {t('waitingForReview')}
+              </ThemedText>
+            )}
+
+            {/* Good faith: requester can accept or correct */}
+            {reqStatus === 'good_faith' && isRequester && !chatEnded && (
+              <View style={styles.proposalCardActions}>
+                <TouchableOpacity
+                  style={[styles.proposalCardButton, styles.proposalCardButtonAccept]}
+                  onPress={() => handleAcceptExplanation(req.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('acceptExplanationA11y')}
+                >
+                  <Ionicons name="checkmark" size={16} color={SemanticColors.agree} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.proposalCardButton}
+                  onPress={() => handleStartCorrection(req)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('correctExplanationA11y')}
+                >
+                  <Ionicons name="create-outline" size={16} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            )}
+            {reqStatus === 'good_faith' && isExplainer && (
+              <ThemedText variant="caption" style={styles.proposalCardWaiting}>
+                {t('waitingForReview')}
+              </ThemedText>
+            )}
+
+            {/* Completed/Corrected: both user avatars + handshake */}
+            {(reqStatus === 'completed' || reqStatus === 'corrected') && (
+              <View style={styles.proposalAvatarsRow}>
+                <View style={styles.proposalAvatarLeft}>
+                  <Avatar user={isModerationView && participants ? participants[1] : otherUser} size={28} showKudosBadge={false} borderStyle={styles.proposalAvatarBorder} />
+                  <Ionicons name="checkmark-circle" size={14} color={SemanticColors.agree} style={styles.proposalAvatarCheck} />
+                </View>
+                <View style={styles.proposalAvatarRight}>
+                  <Avatar user={isModerationView && participants ? participants[0] : user} size={28} showKudosBadge={false} borderStyle={styles.proposalAvatarBorder} />
+                  <Ionicons name="checkmark-circle" size={14} color={SemanticColors.agree} style={styles.proposalAvatarCheck} />
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+      )
+    }
 
     // Check if this is a proposal message
     if (item.isProposal) {
@@ -1179,6 +2084,10 @@ export default function ChatScreen() {
       )
     }
 
+    // Compute M-number for text messages (use ID-based lookup for stability)
+    const mNumber = !item.isProposal ? textMessages.findIndex(m => m.id === item.id) + 1 : 0
+    const isHighlighted = item.id === highlightedMessageId
+
     if (isOwnMessage) {
       // Check if this is the last message the other user has read
       const isLastRead = item.id === otherUserLastRead
@@ -1192,24 +2101,94 @@ export default function ChatScreen() {
       const prevSenderId = prevMessage ? String(prevMessage.sender_id || prevMessage.sender || prevMessage.senderId || '') : null
       const isFirstInGroup = !prevMessage || prevSenderId !== senderId || prevMessage.isProposal
 
+      const ownCanQuote = !chatEnded && !isModerationView
+      const ownShowActions = ownCanQuote && quoteButtonsMessageId === item.id
+      const msgReactions = reactions[item.id] || []
+
       return (
-        <View style={styles.ownMessageRow}>
-          <View style={styles.ownMessageContainer}>
-            <View style={[styles.messageBubble, styles.ownMessage]}>
-              <ChatMarkdown content={item.content} />
-              {messageTime && (
-                <ThemedText variant="badge" style={[styles.messageTime, styles.ownMessageTime]}>
-                  {messageTime}
-                </ThemedText>
-              )}
-            </View>
-            {/* Read indicator - small avatar bubble */}
-            {isLastRead && otherUser && (
-              <View style={styles.readIndicator}>
-                <Avatar user={otherUser} size={16} showKudosBadge={false} borderStyle={styles.readIndicatorBorder} />
+        <View style={[styles.ownMessageWrapper, isHighlighted && styles.highlightedMessage]}>
+          <View style={styles.ownMessageRow}>
+            {/* Inline quote buttons — to the left of own bubble */}
+            {ownShowActions && (
+              <View style={[styles.quoteButtonsColumn, { marginLeft: 0, marginRight: 4 }]}>
+                <TouchableOpacity
+                  style={styles.quoteButton}
+                  onPress={() => handleQuoteFull(item)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('quoteFull')}
+                >
+                  <ThemedText style={styles.quoteButtonIcon}>{'\u201C'}</ThemedText>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.quoteButton}
+                  onPress={() => handleSelectPart(item)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('selectPart')}
+                >
+                  <ThemedText style={styles.quoteButtonIcon}>{'\u2026'}</ThemedText>
+                </TouchableOpacity>
               </View>
             )}
+            <View style={styles.ownMessageContainer}>
+              {ownCanQuote ? (
+                <Pressable
+                  onPress={() => handleMessageTap(item)}
+                  accessibilityRole="button"
+                  accessibilityHint={t('tapToQuoteA11y')}
+                >
+                  <View style={[styles.messageBubble, styles.ownMessage]}>
+                    <ChatMessageContent
+                      content={item.content}
+                      messageMap={messageMap}
+                      positionMap={positionMap}
+                      definitionMap={definitionMap}
+                      explanationMap={explanationMap}
+                      currentUserId={currentUserId}
+                      otherUser={otherUser}
+                      colors={colors}
+                      onQuotePress={handleQuotePress}
+                    />
+                    {messageTime && (
+                      <ThemedText variant="badge" style={[styles.messageTime, styles.ownMessageTime]}>
+                        {mNumber > 0 ? `M${mNumber}  ` : ''}{messageTime}
+                      </ThemedText>
+                    )}
+                  </View>
+                </Pressable>
+              ) : (
+                <View style={[styles.messageBubble, styles.ownMessage]}>
+                  <ChatMessageContent
+                    content={item.content}
+                    messageMap={messageMap}
+                    positionMap={positionMap}
+                    definitionMap={definitionMap}
+                    explanationMap={explanationMap}
+                    currentUserId={currentUserId}
+                    otherUser={otherUser}
+                    colors={colors}
+                    onQuotePress={handleQuotePress}
+                  />
+                  {messageTime && (
+                    <ThemedText variant="badge" style={[styles.messageTime, styles.ownMessageTime]}>
+                      {mNumber > 0 ? `M${mNumber}  ` : ''}{messageTime}
+                    </ThemedText>
+                  )}
+                </View>
+              )}
+              {/* Read indicator - small avatar bubble */}
+              {isLastRead && otherUser && (
+                <View style={styles.readIndicator}>
+                  <Avatar user={otherUser} size={16} showKudosBadge={false} borderStyle={styles.readIndicatorBorder} />
+                </View>
+              )}
+            </View>
           </View>
+          {/* Persistent reaction badges (read-only on own messages) */}
+          {msgReactions.length > 0 && (
+            <View style={styles.ownReactionBadgesRow}>
+              <ReactionBadges reactions={msgReactions} currentUserId={currentUserId} onToggle={() => {}} />
+            </View>
+          )}
         </View>
       )
     }
@@ -1238,27 +2217,102 @@ export default function ChatScreen() {
     // Use correct user for avatar: in moderation view, use the sender participant
     const messageUser = isModerationView ? moderationSender : otherUser
 
-    // Other user's message
+    // Other user's message — tappable for quoting (only in active chats, not own messages)
+    const canQuote = !chatEnded && !isModerationView
+    const showActions = canQuote && quoteButtonsMessageId === item.id
+    const msgReactions = reactions[item.id] || []
+    const ownReaction = msgReactions.find(r => r.userId === currentUserId)?.emoji || null
+
     return (
-      <View style={styles.otherMessageRow}>
-        {isLastInGroup ? (
-          <Avatar user={messageUser} size={28} showKudosBadge={false} />
-        ) : (
-          <View style={styles.messageAvatarSpacer} />
-        )}
-        <View style={styles.otherMessageContainer}>
-          <View style={[styles.messageBubble, styles.otherMessage]}>
-            <ChatMarkdown content={item.content} />
-            {messageTime && (
-              <ThemedText variant="badge" style={[styles.messageTime, styles.otherMessageTime]}>
-                {messageTime}
-              </ThemedText>
+      <View style={[styles.otherMessageWrapper, isHighlighted && styles.highlightedMessage]}>
+        <View style={styles.otherMessageRow}>
+          {isLastInGroup ? (
+            <Avatar user={messageUser} size={28} showKudosBadge={false} />
+          ) : (
+            <View style={styles.messageAvatarSpacer} />
+          )}
+          <View style={styles.otherMessageContainer}>
+            {canQuote ? (
+              <Pressable
+                onPress={() => handleMessageTap(item)}
+                accessibilityRole="button"
+                accessibilityHint={t('tapToQuoteA11y')}
+              >
+                <View style={[styles.messageBubble, styles.otherMessage]}>
+                  <ChatMessageContent
+                    content={item.content}
+                    messageMap={messageMap}
+                    positionMap={positionMap}
+                    definitionMap={definitionMap}
+                    explanationMap={explanationMap}
+                    currentUserId={currentUserId}
+                    otherUser={otherUser}
+                    colors={colors}
+                    onQuotePress={handleQuotePress}
+                  />
+                  {messageTime && (
+                    <ThemedText variant="badge" style={[styles.messageTime, styles.otherMessageTime]}>
+                      {mNumber > 0 ? `M${mNumber}  ` : ''}{messageTime}
+                    </ThemedText>
+                  )}
+                </View>
+              </Pressable>
+            ) : (
+              <View style={[styles.messageBubble, styles.otherMessage]}>
+                <ChatMessageContent
+                  content={item.content}
+                  messageMap={messageMap}
+                  positionMap={positionMap}
+                  currentUserId={currentUserId}
+                  otherUser={otherUser}
+                  colors={colors}
+                  onQuotePress={handleQuotePress}
+                />
+                {messageTime && (
+                  <ThemedText variant="badge" style={[styles.messageTime, styles.otherMessageTime]}>
+                    {mNumber > 0 ? `M${mNumber}  ` : ''}{messageTime}
+                  </ThemedText>
+                )}
+              </View>
             )}
           </View>
+          {/* Inline quote buttons — to the right of the bubble */}
+          {showActions && (
+            <View style={styles.quoteButtonsColumn}>
+              <TouchableOpacity
+                style={styles.quoteButton}
+                onPress={() => handleQuoteFull(item)}
+                accessibilityRole="button"
+                accessibilityLabel={t('quoteFull')}
+              >
+                <ThemedText style={styles.quoteButtonIcon}>{'\u201C'}</ThemedText>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.quoteButton}
+                onPress={() => handleSelectPart(item)}
+                accessibilityRole="button"
+                accessibilityLabel={t('selectPart')}
+              >
+                <ThemedText style={styles.quoteButtonIcon}>{'\u2026'}</ThemedText>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
+        {/* Reaction bar below message when tapped */}
+        {showActions && (
+          <View style={styles.otherReactionsRow}>
+            <ReactionBar currentReaction={ownReaction} onReact={(emoji) => handleReact(item.id, emoji)} />
+          </View>
+        )}
+        {/* Persistent reaction badges */}
+        {msgReactions.length > 0 && (
+          <View style={styles.otherReactionBadgesRow}>
+            <ReactionBadges reactions={msgReactions} currentUserId={currentUserId} onToggle={(emoji) => handleReact(item.id, emoji)} />
+          </View>
+        )}
       </View>
     )
-  }, [user, otherUser, otherUserLastRead, messages, chatEnded, expandedProposalStack, proposalHeights, proposalCardWidth, proposalOffset, handleAcceptProposal, handleRejectProposal, handleStartModify, isModerationView, participants])
+  }, [user, otherUser, otherUserLastRead, messages, chatEnded, expandedProposalStack, proposalHeights, proposalCardWidth, proposalOffset, handleAcceptProposal, handleRejectProposal, handleStartModify, isModerationView, participants, textMessages, messageMap, positionMap, handleQuotePress, handleMessageTap, handleQuoteFull, handleSelectPart, highlightedMessageId, quoteButtonsMessageId, reactions, handleReact, colors])
 
   // Leave confirmation modal
   const renderLeaveConfirmModal = () => (
@@ -1309,6 +2363,7 @@ export default function ChatScreen() {
       animationType="fade"
       onRequestClose={handleCancelModify}
     >
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Pressable
         style={styles.modalOverlay}
         onPress={handleCancelModify}
@@ -1359,6 +2414,7 @@ export default function ChatScreen() {
           </View>
         </Pressable>
       </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   )
 
@@ -1416,8 +2472,14 @@ export default function ChatScreen() {
     )
   }
 
+  const Wrapper = Platform.OS === 'web' ? View : KBAvoidingView
+  const wrapperProps = Platform.OS === 'web' ? {} : {
+    behavior: 'padding',
+    keyboardVerticalOffset: 0,
+  }
+
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <Wrapper style={[styles.container, { paddingTop: insets.top }]} {...wrapperProps}>
       {/* Header */}
       {isHistoricalView ? (
         <Header onBack={handleBackPress} />
@@ -1440,12 +2502,36 @@ export default function ChatScreen() {
             )}
           </View>
           <View style={styles.headerRight}>
-            <View style={[styles.headerKudosBadge, { backgroundColor: getTrustBadgeInfo(user?.trustScore).color }]}>
-              <Ionicons name="star" size={14} color={getTrustBadgeInfo(user?.trustScore).tier === 'purple' ? OnBrandColors.text : colors.primary} />
-              <ThemedText variant="badgeLg" style={{ color: getTrustBadgeInfo(user?.trustScore).tier === 'purple' ? OnBrandColors.text : colors.primary }}>{user?.kudosCount || 0}</ThemedText>
-            </View>
-            <Avatar user={user} size={32} showKudosBadge={false} />
+            <TouchableOpacity
+              onPress={() => setSidebarVisible(true)}
+              style={styles.sidebarToggle}
+              accessibilityRole="button"
+              accessibilityLabel={t('agreedStatementsA11y')}
+            >
+              <Ionicons name="document-text-outline" size={22} color={colors.primary} />
+              {acceptedPositions.length > 0 && (
+                <View style={styles.sidebarBadge}>
+                  <ThemedText variant="badge" style={styles.sidebarBadgeText}>
+                    {acceptedPositions.length}
+                  </ThemedText>
+                </View>
+              )}
+            </TouchableOpacity>
           </View>
+        </View>
+      )}
+
+      {/* Partner disconnected warning banner */}
+      {partnerDisconnected && !chatEnded && (
+        <View
+          style={styles.disconnectedBanner}
+          accessibilityRole="alert"
+          accessibilityLabel={t('partnerDisconnectedA11y')}
+        >
+          <Ionicons name="cloud-offline-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
+          <ThemedText variant="bodySmall" color="inverse" style={styles.disconnectedText}>
+            {t('partnerDisconnected')}
+          </ThemedText>
         </View>
       )}
 
@@ -1553,72 +2639,67 @@ export default function ChatScreen() {
       )}
 
       {/* Messages list */}
-      <KeyboardAvoidingView
-        style={styles.chatContainer}
-        behavior="padding"
-        keyboardVerticalOffset={keyboardOffset}
-      >
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          renderItem={renderMessage}
-          keyExtractor={(item, index) => item.id || `msg-${index}`}
-          contentContainerStyle={styles.messagesList}
-          inverted={false}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="interactive"
-          onScroll={handleScroll}
-          scrollEventThrottle={100}
-          onViewableItemsChanged={onViewableItemsChanged}
-          viewabilityConfig={viewabilityConfig}
-          removeClippedSubviews={Platform.OS !== 'web'}
-          maxToRenderPerBatch={15}
-          windowSize={11}
-          initialNumToRender={20}
-          ListHeaderComponent={
-            chatInfo?.position ? (
-              <PositionInfoCard
-                position={chatInfo.position}
-                label={t('topicOfDiscussion')}
-                authorSubtitle="username"
-                style={styles.topicCard}
-                statementStyle={styles.topicStatement}
-              />
-            ) : null
-          }
-          ListEmptyComponent={
-            <View style={styles.emptyChat}>
-              <Ionicons name="chatbubbles-outline" size={48} color={colors.secondaryText} />
-              <ThemedText variant="button" style={styles.emptyChatText}>
-                {t('startConversation')}
+      <FlatList
+        ref={flatListRef}
+        data={messages}
+        renderItem={renderMessage}
+        keyExtractor={(item, index) => item.id || `msg-${index}`}
+        contentContainerStyle={styles.messagesList}
+        inverted={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        onScroll={handleScroll}
+        scrollEventThrottle={100}
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={viewabilityConfig}
+        removeClippedSubviews={Platform.OS !== 'web'}
+        maxToRenderPerBatch={15}
+        windowSize={11}
+        initialNumToRender={20}
+        ListHeaderComponent={
+          chatInfo?.position ? (
+            <PositionInfoCard
+              position={chatInfo.position}
+              label={t('topicOfDiscussion')}
+              authorSubtitle="username"
+              style={styles.topicCard}
+              statementStyle={styles.topicStatement}
+            />
+          ) : null
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyChat}>
+            <Ionicons name="chatbubbles-outline" size={48} color={colors.secondaryText} />
+            <ThemedText variant="button" style={styles.emptyChatText}>
+              {t('startConversation')}
+            </ThemedText>
+          </View>
+        }
+        ListFooterComponent={
+          otherUserTyping ? (
+            <View style={styles.typingRow}>
+              <Avatar user={otherUser} size={28} showKudosBadge={false} />
+              <View style={styles.typingBubble}>
+                <Animated.View style={[styles.typingDot, { transform: [{ translateY: dot1Anim.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }] }]} />
+                <Animated.View style={[styles.typingDot, { transform: [{ translateY: dot2Anim.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }] }]} />
+                <Animated.View style={[styles.typingDot, { transform: [{ translateY: dot3Anim.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }] }]} />
+              </View>
+            </View>
+          ) : isHistoricalView && chatInfo?.endType === 'user_exit' ? (
+            <View style={styles.chatEndedRow}>
+              <ThemedText variant="bodySmall" style={styles.chatEndedText}>
+                {chatInfo?.endedByUserId === user?.id
+                  ? t('youLeftChat')
+                  : t('otherLeftChat', { name: otherUser?.displayName || t('theOtherUser') })}
               </ThemedText>
             </View>
-          }
-          ListFooterComponent={
-            otherUserTyping ? (
-              <View style={styles.typingRow}>
-                <Avatar user={otherUser} size={28} showKudosBadge={false} />
-                <View style={styles.typingBubble}>
-                  <Animated.View style={[styles.typingDot, { transform: [{ translateY: dot1Anim.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }] }]} />
-                  <Animated.View style={[styles.typingDot, { transform: [{ translateY: dot2Anim.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }] }]} />
-                  <Animated.View style={[styles.typingDot, { transform: [{ translateY: dot3Anim.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }] }]} />
-                </View>
-              </View>
-            ) : isHistoricalView && chatInfo?.endType === 'user_exit' ? (
-              <View style={styles.chatEndedRow}>
-                <ThemedText variant="bodySmall" style={styles.chatEndedText}>
-                  {chatInfo?.endedByUserId === user?.id
-                    ? t('youLeftChat')
-                    : t('otherLeftChat', { name: otherUser?.displayName || t('theOtherUser') })}
-                </ThemedText>
-              </View>
-            ) : null
-          }
-        />
+          ) : null
+        }
+      />
 
-        {/* Input area */}
-        {!chatEnded && (
-          <View style={styles.inputContainer}>
+      {/* Input area */}
+      {!chatEnded && (
+        <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, 8) }]}>
             {/* Special message menu button */}
             <TouchableOpacity
               style={[styles.specialMenuButton, showSpecialMenu && styles.specialMenuButtonActive]}
@@ -1629,18 +2710,22 @@ export default function ChatScreen() {
               <Ionicons
                 name={showSpecialMenu ? 'close' : 'add'}
                 size={24}
-                color={showSpecialMenu ? '#FFFFFF' : colors.primary}
+                color={showSpecialMenu ? '#FFFFFF' : colors.title}
               />
             </TouchableOpacity>
 
-            {/* Special menu popup with backdrop */}
-            {showSpecialMenu && (
-              <>
-                <Pressable
-                  style={styles.specialMenuBackdrop}
-                  onPress={() => setShowSpecialMenu(false)}
-                />
-                <View style={styles.specialMenuPopup}>
+            {/* Special menu modal */}
+            <Modal
+              visible={showSpecialMenu}
+              transparent
+              animationType="fade"
+              onRequestClose={closeSpecialMenu}
+            >
+              <Pressable
+                style={styles.specialMenuBackdrop}
+                onPress={closeSpecialMenu}
+              >
+                <View style={[styles.specialMenuPopup, { bottom: Math.max(insets.bottom, 8) + 56 }]}>
                   <TouchableOpacity
                     style={[styles.specialMenuItem, messageType === 'text' && styles.specialMenuItemSelected]}
                     onPress={handleSelectChat}
@@ -1695,42 +2780,75 @@ export default function ChatScreen() {
                       <Ionicons name="checkmark-circle" size={24} color={colors.chat} />
                     )}
                   </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.specialMenuItem, messageType === 'definition_request' && styles.specialMenuItemSelected]}
+                    onPress={handleSelectDefine}
+                    accessibilityRole="menuitem"
+                    accessibilityLabel={t('menuDefine')}
+                    accessibilityState={{ selected: messageType === 'definition_request' }}
+                  >
+                    <View style={[styles.specialMenuIcon, { backgroundColor: colors.definitionAccent }]}>
+                      <Ionicons name="book-outline" size={20} color="#fff" />
+                    </View>
+                    <View style={styles.specialMenuItemText}>
+                      <ThemedText variant="body" style={styles.specialMenuItemTitle}>{t('menuDefine')}</ThemedText>
+                      <ThemedText variant="caption" style={styles.specialMenuItemDesc}>{t('menuDefineDesc')}</ThemedText>
+                    </View>
+                    {messageType === 'definition_request' && (
+                      <Ionicons name="checkmark-circle" size={24} color={colors.definitionAccent} />
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.specialMenuItem, messageType === 'explain_request' && styles.specialMenuItemSelected]}
+                    onPress={handleSelectExplain}
+                    accessibilityRole="menuitem"
+                    accessibilityLabel={t('menuExplain')}
+                    accessibilityState={{ selected: messageType === 'explain_request' }}
+                  >
+                    <View style={[styles.specialMenuIcon, { backgroundColor: colors.explanationAccent }]}>
+                      <Ionicons name="chatbubble-ellipses-outline" size={20} color="#fff" />
+                    </View>
+                    <View style={styles.specialMenuItemText}>
+                      <ThemedText variant="body" style={styles.specialMenuItemTitle}>{t('menuExplain')}</ThemedText>
+                      <ThemedText variant="caption" style={styles.specialMenuItemDesc}>{t('menuExplainDesc')}</ThemedText>
+                    </View>
+                    {messageType === 'explain_request' && (
+                      <Ionicons name="checkmark-circle" size={24} color={colors.explanationAccent} />
+                    )}
+                  </TouchableOpacity>
                 </View>
-              </>
-            )}
+              </Pressable>
+            </Modal>
 
-            <TextInput
-              style={[styles.input, { height: inputHeight, maxHeight: maxInputHeight }]}
-              value={inputText}
-              onChangeText={handleTextChange}
-              onContentSizeChange={handleContentSizeChange}
-              placeholder={
-                messageType === 'position_proposal' ? t('placeholderProposal') :
-                messageType === 'closure_proposal' ? t('placeholderClosure') :
-                t('placeholderMessage')
-              }
-              placeholderTextColor={colors.placeholderText}
-              multiline
-              maxLength={1000}
-              maxFontSizeMultiplier={1.5}
-              returnKeyType="send"
-              blurOnSubmit={false}
-              scrollEnabled={inputHeight >= maxInputHeight}
-              onSubmitEditing={Platform.OS !== 'web' ? handleSend : undefined}
-              onKeyPress={(e) => {
-                // On web: Enter sends, Shift+Enter adds newline
-                if (Platform.OS === 'web' && e.nativeEvent.key === 'Enter' && !e.nativeEvent.shiftKey) {
-                  e.preventDefault()
-                  handleSend()
+            <View style={styles.inputFields}>
+              <TextInput
+                ref={inputRef}
+                style={[styles.input, { maxHeight: maxInputHeight }]}
+                value={inputText}
+                onChangeText={handleTextChange}
+                placeholder={
+                  messageType === 'definition_request' ? t('placeholderDefinitionTerm') :
+                  messageType === 'explain_request' ? t('placeholderExplainPosition') :
+                  messageType === 'position_proposal' ? t('placeholderProposal') :
+                  messageType === 'closure_proposal' ? t('placeholderClosure') :
+                  t('placeholderMessage')
                 }
-              }}
-            />
+                placeholderTextColor={colors.placeholderText}
+                multiline
+                numberOfLines={1}
+                maxLength={messageType === 'definition_request' ? 100 : messageType === 'explain_request' ? 200 : 1000}
+                maxFontSizeMultiplier={1.5}
+                blurOnSubmit={false}
+              />
+            </View>
             <TouchableOpacity
               style={[
                 styles.sendButton,
                 !inputText.trim() && messageType === 'text' && styles.sendButtonDisabled,
                 messageType === 'position_proposal' && (inputText.trim() ? styles.sendButtonStatement : styles.sendButtonStatementDisabled),
                 messageType === 'closure_proposal' && (inputText.trim() ? styles.sendButtonClosure : styles.sendButtonClosureDisabled),
+                messageType === 'definition_request' && (inputText.trim() ? styles.sendButtonDefinition : styles.sendButtonDefinitionDisabled),
+                messageType === 'explain_request' && (inputText.trim() ? styles.sendButtonExplanation : styles.sendButtonExplanationDisabled),
               ]}
               onPress={handleSend}
               disabled={!inputText.trim()}
@@ -1739,6 +2857,8 @@ export default function ChatScreen() {
             >
               <Ionicons
                 name={
+                  messageType === 'definition_request' ? 'book-outline' :
+                  messageType === 'explain_request' ? 'chatbubble-ellipses-outline' :
                   messageType === 'position_proposal' ? 'document-text' :
                   messageType === 'closure_proposal' ? 'checkmark-done' :
                   'send'
@@ -1747,12 +2867,138 @@ export default function ChatScreen() {
                 color={inputText.trim() ? '#FFFFFF' : colors.pass}
               />
             </TouchableOpacity>
-          </View>
-        )}
-      </KeyboardAvoidingView>
+        </View>
+      )}
+
+      {/* Web keyboard spacer */}
+      {Platform.OS === 'web' && webKeyboardHeight > 0 && (
+        <View style={{ height: webKeyboardHeight }} />
+      )}
 
       {renderLeaveConfirmModal()}
       {renderModifyModal()}
+
+      {/* Definition respond / counter-define modal */}
+      <Modal
+        visible={!!definitionModalRequest}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCancelDefinitionModal}
+      >
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={handleCancelDefinitionModal}
+          accessibilityLabel={definitionModalMode === 'respond' ? t('respondDefinitionTitle') : t('counterDefineTitle')}
+        >
+          <Pressable style={styles.modifyModalCard} onPress={(e) => e.stopPropagation()} accessible={false}>
+            <View style={styles.modifyModalHeader}>
+              <View style={[styles.proposalTypeBadge, { backgroundColor: colors.definitionAccent }]}>
+                <Ionicons name="book-outline" size={12} color="#fff" />
+                <ThemedText variant="badge" style={styles.proposalTypeBadgeText}>{t('defineLabel')}</ThemedText>
+              </View>
+              <ThemedText variant="h2" color="primary" style={styles.modifyModalTitle}>
+                {definitionModalMode === 'respond' ? t('respondDefinitionTitle') : t('counterDefineTitle')}
+              </ThemedText>
+            </View>
+            <ThemedText variant="body" style={styles.definitionModalTerm}>
+              {definitionModalRequest?.term}
+            </ThemedText>
+            <TextInput
+              style={styles.modifyInput}
+              value={definitionModalText}
+              onChangeText={setDefinitionModalText}
+              placeholder={t('placeholderDefinition')}
+              placeholderTextColor={colors.placeholderText}
+              multiline
+              autoFocus
+              maxLength={500}
+              maxFontSizeMultiplier={1.5}
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={handleCancelDefinitionModal}
+                accessibilityRole="button"
+                accessibilityLabel={t('cancel')}
+              >
+                <ThemedText variant="button" color="primary" style={styles.modalCancelText}>{t('cancel')}</ThemedText>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.definitionSubmitButton, !definitionModalText.trim() && styles.definitionSubmitButtonDisabled]}
+                onPress={handleSubmitDefinitionModal}
+                disabled={!definitionModalText.trim()}
+                accessibilityRole="button"
+                accessibilityLabel={t('send')}
+              >
+                <ThemedText variant="button" color="inverse">{t('send')}</ThemedText>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Explanation respond / correct modal */}
+      <Modal
+        visible={!!explanationModalRequest}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCancelExplanationModal}
+      >
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={handleCancelExplanationModal}
+          accessibilityLabel={explanationModalMode === 'explain' ? t('respondExplanationTitle') : t('correctExplanationTitle')}
+        >
+          <Pressable style={styles.modifyModalCard} onPress={(e) => e.stopPropagation()} accessible={false}>
+            <View style={styles.modifyModalHeader}>
+              <View style={[styles.proposalTypeBadge, { backgroundColor: colors.explanationAccent }]}>
+                <Ionicons name="chatbubble-ellipses-outline" size={12} color="#fff" />
+                <ThemedText variant="badge" style={styles.proposalTypeBadgeText}>{t('explainLabel')}</ThemedText>
+              </View>
+              <ThemedText variant="h2" color="primary" style={styles.modifyModalTitle}>
+                {explanationModalMode === 'explain' ? t('respondExplanationTitle') : t('correctExplanationTitle')}
+              </ThemedText>
+            </View>
+            <ThemedText variant="body" style={styles.definitionModalTerm}>
+              {explanationModalRequest?.position}
+            </ThemedText>
+            <TextInput
+              style={styles.modifyInput}
+              value={explanationModalText}
+              onChangeText={setExplanationModalText}
+              placeholder={explanationModalMode === 'explain' ? t('placeholderExplanation') : t('placeholderCorrection')}
+              placeholderTextColor={colors.placeholderText}
+              multiline
+              autoFocus
+              maxLength={500}
+              maxFontSizeMultiplier={1.5}
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={handleCancelExplanationModal}
+                accessibilityRole="button"
+                accessibilityLabel={t('cancel')}
+              >
+                <ThemedText variant="button" color="primary" style={styles.modalCancelText}>{t('cancel')}</ThemedText>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.explanationSubmitButton, !explanationModalText.trim() && styles.explanationSubmitButtonDisabled]}
+                onPress={handleSubmitExplanationModal}
+                disabled={!explanationModalText.trim()}
+                accessibilityRole="button"
+                accessibilityLabel={t('send')}
+              >
+                <ThemedText variant="button" color="inverse">{t('send')}</ThemedText>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+        </KeyboardAvoidingView>
+      </Modal>
 
       <ReportModal
         visible={reportModalVisible}
@@ -1769,7 +3015,29 @@ export default function ChatScreen() {
         reportType={moderateTarget?.type}
         rule={moderateRule}
       />
-    </SafeAreaView>
+
+      <ChatSidebar
+        visible={sidebarVisible}
+        onClose={() => setSidebarVisible(false)}
+        acceptedPositions={acceptedPositions}
+        definitions={flatDefinitions}
+        explanations={flatExplanations}
+        currentUserId={user?.id}
+        otherUser={otherUser}
+        onQuotePosition={handleQuoteAgreedPosition}
+        onQuoteDefinition={handleQuoteDefinition}
+        onQuoteExplanation={handleQuoteExplanation}
+      />
+
+      <TextSelectionModal
+        visible={textSelectionVisible}
+        onClose={() => { setTextSelectionVisible(false); setTextSelectionMessage(null) }}
+        messageText={textSelectionMessage ? stripQuoteMarkup(textSelectionMessage.content || '') : ''}
+        onConfirm={handleQuotePartial}
+      />
+
+      <ReconsiderModal {...toxicity.modalProps} />
+    </Wrapper>
   )
 }
 
@@ -1807,15 +3075,27 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  headerKudosBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
-    gap: 2,
+  sidebarToggle: {
+    padding: 6,
+    position: 'relative',
   },
-  headerKudosCount: {},
+  sidebarBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: colors.agreeBubble,
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 3,
+  },
+  sidebarBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+  },
   backButton: {
     padding: 4,
   },
@@ -1829,18 +3109,43 @@ const createStyles = (colors) => StyleSheet.create({
     color: colors.pass,
     marginTop: 2,
   },
-  chatContainer: {
-    flex: 1,
-  },
   messagesList: {
     padding: 16,
     paddingBottom: 8,
     flexGrow: 1,
   },
+  highlightedMessage: {
+    backgroundColor: 'rgba(92, 0, 92, 0.1)',
+    borderRadius: 12,
+  },
+  quoteButtonsColumn: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 4,
+    marginLeft: 4,
+    paddingBottom: 2,
+  },
+  quoteButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.buttonDefault,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  quoteButtonIcon: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.primary,
+    lineHeight: 22,
+  },
+  ownMessageWrapper: {
+    marginBottom: 8,
+    alignItems: 'flex-end',
+  },
   ownMessageRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    marginBottom: 8,
   },
   ownMessageContainer: {
     position: 'relative',
@@ -1855,11 +3160,25 @@ const createStyles = (colors) => StyleSheet.create({
     borderWidth: 1.5,
     borderColor: '#FFFFFF',
   },
+  ownReactionBadgesRow: {
+    alignItems: 'flex-end',
+    paddingRight: 4,
+  },
+  otherMessageWrapper: {
+    marginBottom: 8,
+  },
   otherMessageRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    marginBottom: 8,
     gap: 8,
+  },
+  otherReactionsRow: {
+    marginTop: 4,
+    marginLeft: 36,
+    alignSelf: 'flex-start',
+  },
+  otherReactionBadgesRow: {
+    marginLeft: 36,
   },
   otherMessageContainer: {
     flexShrink: 1,
@@ -1936,11 +3255,20 @@ const createStyles = (colors) => StyleSheet.create({
     color: colors.pass,
     textAlign: 'center',
   },
+  definitionCardWrapper: {
+    alignItems: 'center',
+    marginVertical: 8,
+    paddingHorizontal: 24,
+  },
+  definitionText: {
+    lineHeight: 20,
+    marginTop: 6,
+  },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingTop: 8,
     backgroundColor: colors.navBackground,
     ...Platform.select({
       ios: { shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.1, shadowRadius: 4 },
@@ -1948,8 +3276,10 @@ const createStyles = (colors) => StyleSheet.create({
       default: { boxShadow: '0 -2px 4px rgba(0, 0, 0, 0.1)' },
     }),
   },
-  input: {
+  inputFields: {
     flex: 1,
+  },
+  input: {
     backgroundColor: colors.background,
     borderRadius: 20,
     paddingHorizontal: 16,
@@ -1958,7 +3288,7 @@ const createStyles = (colors) => StyleSheet.create({
     fontSize: 15,
     minHeight: 40,
     color: colors.text,
-    textAlignVertical: 'top',
+    ...(Platform.OS !== 'web' && { textAlignVertical: 'top' }),
   },
   sendButton: {
     width: 40,
@@ -1986,11 +3316,23 @@ const createStyles = (colors) => StyleSheet.create({
   sendButtonClosureDisabled: {
     backgroundColor: colors.chat + '40', // Light yellow (40% opacity)
   },
+  sendButtonDefinition: {
+    backgroundColor: colors.definitionAccent,
+  },
+  sendButtonDefinitionDisabled: {
+    backgroundColor: colors.definitionAccent + '40',
+  },
+  sendButtonExplanation: {
+    backgroundColor: colors.explanationAccent,
+  },
+  sendButtonExplanationDisabled: {
+    backgroundColor: colors.explanationAccent + '40',
+  },
   specialMenuButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: colors.primaryLight,
+    backgroundColor: colors.buttonDefault,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 8,
@@ -2000,21 +3342,14 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.primarySurface,
   },
   specialMenuBackdrop: {
-    position: 'absolute',
-    top: -1000,
-    left: -1000,
-    right: -1000,
-    bottom: -1000,
+    flex: 1,
     backgroundColor: 'transparent',
-    zIndex: 1,
   },
   specialMenuPopup: {
     position: 'absolute',
-    bottom: 56,
     left: 12,
     backgroundColor: colors.cardBackground,
     borderRadius: 12,
-    zIndex: 2,
     padding: 8,
     ...Shadows.elevated,
     minWidth: 260,
@@ -2030,7 +3365,7 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 12,
   },
   specialMenuItemSelected: {
-    backgroundColor: colors.primaryLight,
+    backgroundColor: colors.buttonDefault,
   },
   specialMenuIcon: {
     width: 40,
@@ -2047,7 +3382,7 @@ const createStyles = (colors) => StyleSheet.create({
     color: colors.darkText,
   },
   specialMenuItemDesc: {
-    color: colors.pass,
+    color: colors.secondaryText,
     marginTop: 2,
   },
   centerContent: {
@@ -2087,6 +3422,18 @@ const createStyles = (colors) => StyleSheet.create({
   emptyChatText: {
     marginTop: 12,
     color: colors.pass,
+  },
+  disconnectedBanner: {
+    backgroundColor: colors.warningBubble,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  disconnectedText: {
+    flex: 1,
+    fontWeight: '500',
   },
   endedBanner: {
     backgroundColor: colors.pass,
@@ -2320,6 +3667,22 @@ const createStyles = (colors) => StyleSheet.create({
   proposalCardButtonAccept: {
     backgroundColor: '#FFFFFF',
   },
+  proposalCardLabelButton: {
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  proposalCardLabelText: {
+    color: colors.darkText,
+    fontWeight: '700',
+  },
+  proposalCardLabelTextInverse: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
   closureWarningText: {
     fontStyle: 'italic',
     textAlign: 'center',
@@ -2395,6 +3758,31 @@ const createStyles = (colors) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  // Definition modal styles
+  definitionModalTerm: {
+    fontWeight: '700',
+    fontSize: 16,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  definitionSubmitButton: {
+    paddingVertical: 14,
+    borderRadius: 25,
+    backgroundColor: colors.definitionAccent,
+    alignItems: 'center',
+  },
+  definitionSubmitButtonDisabled: {
+    backgroundColor: colors.cardBorder,
+  },
+  explanationSubmitButton: {
+    paddingVertical: 14,
+    borderRadius: 25,
+    backgroundColor: colors.explanationAccent,
+    alignItems: 'center',
+  },
+  explanationSubmitButtonDisabled: {
+    backgroundColor: colors.cardBorder,
   },
   // Moderation view styles
   moderationParticipants: {

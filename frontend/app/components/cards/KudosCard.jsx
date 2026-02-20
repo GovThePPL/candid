@@ -1,14 +1,13 @@
 import { StyleSheet, View } from 'react-native'
 import { forwardRef, useMemo } from 'react'
-import { MaterialCommunityIcons } from '@expo/vector-icons'
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
-import { BrandColor, OnBrandColors, SemanticColors } from '../../constants/Colors'
+import { BrandColor, OnBrandColors } from '../../constants/Colors'
 import ThemedText from '../ThemedText'
 import SwipeableCard from './SwipeableCard'
 import CardShell from '../CardShell'
 import PositionInfoCard from '../PositionInfoCard'
-import KudosMedallion from '../KudosMedallion'
 import UserCard from '../UserCard'
 
 const KudosCard = forwardRef(function KudosCard({
@@ -32,10 +31,8 @@ const KudosCard = forwardRef(function KudosCard({
 
   const headerContent = (
     <View style={styles.headerRow}>
-      {/* Kudos Icon */}
-      <View style={styles.iconContainer}>
-        <KudosMedallion active={true} size={48} />
-      </View>
+      {/* Kudos Icon — white star */}
+      <Ionicons name="star" size={36} color="#FFFFFF" />
 
       {/* Title and Subtitle */}
       <View style={styles.titleContainer}>
@@ -53,20 +50,30 @@ const KudosCard = forwardRef(function KudosCard({
 
   const footerContent = (
     <View style={styles.footerInner}>
-      {/* Sender info */}
-      <View style={styles.senderRow}>
-        <UserCard
-          user={otherParticipant}
-          colorScheme="onBrand"
-          label={userAlreadySentKudos ? t('kudosFrom') : t('kudosSentBy')}
-        />
+      {/* Handshake (left) + Sender info (right) */}
+      <View style={styles.footerRow}>
+        <MaterialCommunityIcons name="handshake-outline" size={38} color={OnBrandColors.text} />
+        <View>
+          <UserCard
+            user={otherParticipant}
+            colorScheme="onBrand"
+            label={userAlreadySentKudos ? t('kudosFrom') : t('kudosSentBy')}
+          />
+        </View>
       </View>
 
-      {/* Agreed closure */}
+      {/* Agreed-upon statement — centered in remaining space */}
       {parsedClosingStatement && (
-        <View style={styles.closureRow}>
-          <MaterialCommunityIcons name="handshake-outline" size={18} color={OnBrandColors.text} />
-          <ThemedText variant="bodySmall" color="inverse" style={styles.closureText}>{parsedClosingStatement}</ThemedText>
+        <View style={styles.closureWrapper}>
+          <ThemedText
+            variant="statement"
+            color="inverse"
+            style={styles.closureText}
+            adjustsFontSizeToFit
+            minimumFontScale={0.6}
+          >
+            {parsedClosingStatement}
+          </ThemedText>
         </View>
       )}
     </View>
@@ -92,6 +99,7 @@ const KudosCard = forwardRef(function KudosCard({
         header={headerContent}
         footerColor={colors.agreeSurface}
         footer={footerContent}
+        bottomStyle={styles.footerSection}
       >
         <PositionInfoCard
           size="full"
@@ -116,10 +124,6 @@ const createStyles = (colors) => StyleSheet.create({
     paddingBottom: 18,
     paddingHorizontal: 4,
   },
-  iconContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   titleContainer: {
     flexDirection: 'column',
   },
@@ -129,36 +133,27 @@ const createStyles = (colors) => StyleSheet.create({
   headerSubtext: {
     color: OnBrandColors.textSecondary,
   },
-  // Footer
+  // Footer — grows into available space but yields to body when tight
+  footerSection: {
+    flexGrow: 0.5,
+    flexShrink: 1,
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+  },
   footerInner: {
-    gap: 8,
+    flex: 1,
+    gap: 16,
   },
-  senderRow: {
+  closureWrapper: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  footerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-  },
-  footerLabel: {
-    color: OnBrandColors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  senderInfo: {
-    flexDirection: 'column',
-  },
-  senderUsername: {
-    color: OnBrandColors.textSecondary,
-  },
-  closureRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: OnBrandColors.overlay,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    justifyContent: 'space-between',
   },
   closureText: {
-    flex: 1,
+    textAlign: 'center',
   },
 })

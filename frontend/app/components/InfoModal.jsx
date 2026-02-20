@@ -9,6 +9,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
+import useModalBackHandler from '../hooks/useModalBackHandler'
 import { createSharedStyles } from '../constants/SharedStyles'
 import ThemedText from './ThemedText'
 
@@ -42,6 +43,7 @@ export default function InfoModal({
   const styles = useMemo(() => createStyles(colors), [colors])
   const shared = useMemo(() => createSharedStyles(colors), [colors])
 
+  useModalBackHandler(visible, onClose)
   const resolvedIconColor = iconColor || colors.primary
   const hasHeroIcon = !!icon
   const hasCustomContent = !!children

@@ -104,6 +104,14 @@
   "positionRemovedSubtitle": "Esta posición fue eliminada por violar las normas de la comunidad.",
   "positionRemovedDismiss": "Descartar",
 
+  "bridgingKudosTitle": "¡Une las divisiones!",
+  "bridgingKudosSubtitle": "Tu voz cruzó barreras ideológicas",
+  "bridgingKudosComment": "Tu comentario",
+  "bridgingKudosPost": "Tu publicación",
+  "bridgingKudosThread": "en el hilo",
+  "bridgingKudosA11yLabel": "Tu contenido une divisiones ideológicas",
+  "bridgingKudosA11yHint": "Desliza para confirmar",
+
   "diagnosticsTitle": "Diagnósticos",
   "diagnosticsSubtitle": "Ayuda a mejorar Candid",
   "diagnosticsQuestion": "¿Enviar reportes de errores anónimos para ayudarnos a corregir problemas?",

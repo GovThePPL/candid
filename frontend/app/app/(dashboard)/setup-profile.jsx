@@ -1,7 +1,11 @@
-import { StyleSheet, View, TouchableOpacity, ActivityIndicator, Image, Alert, Platform, KeyboardAvoidingView, ScrollView } from 'react-native'
+import { StyleSheet, View, TouchableOpacity, ActivityIndicator, Image, Alert, Platform, ScrollView } from 'react-native'
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'expo-router'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+// react-native-keyboard-controller tracks actual keyboard frame. Native only.
+const KBAvoidingView = Platform.OS !== 'web'
+  ? require('react-native-keyboard-controller').KeyboardAvoidingView
+  : null
 import { Ionicons } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
 import { useTranslation } from 'react-i18next'
@@ -22,6 +26,7 @@ import LocationPicker from '../../components/LocationPicker'
 export default function SetupProfile() {
   const { user, refreshUser, clearNewUser } = useUser()
   const router = useRouter()
+  const insets = useSafeAreaInsets()
 
   const { t } = useTranslation('auth')
   const colors = useThemeColors()
@@ -37,6 +42,53 @@ export default function SetupProfile() {
   const [userLocations, setUserLocations] = useState([])
   const [locationPickerOpen, setLocationPickerOpen] = useState(false)
   const [savingLocation, setSavingLocation] = useState(false)
+
+  // Web: track keyboard height via visualViewport (native handled by KBAvoidingView)
+  const [webKeyboardHeight, setWebKeyboardHeight] = useState(0)
+  useEffect(() => {
+    if (Platform.OS !== 'web') return
+    // Only needed on mobile web (touch-primary devices with on-screen keyboards).
+    // Desktop browsers have pointer: fine — no on-screen keyboard to track.
+    if (!window.matchMedia('(pointer: coarse)').matches) return
+    const vv = window.visualViewport
+    if (!vv) return
+    const initialHeight = window.innerHeight
+    let focusTimeout = null
+    // Ignore resize events during keyboard open animation to prevent
+    // intermediate small diff values from briefly zeroing the spacer.
+    let skipResizeUntil = 0
+
+    const update = () => {
+      if (Date.now() < skipResizeUntil) return
+      const diff = initialHeight - vv.height
+      setWebKeyboardHeight(diff > 150 ? diff : 0)
+    }
+
+    vv.addEventListener('resize', update)
+
+    // Firefox fires no visualViewport resize on keyboard open — use focus events
+    const onFocusIn = (e) => {
+      if (!e.target?.tagName?.match?.(/INPUT|TEXTAREA/i)) return
+      clearTimeout(focusTimeout)
+      skipResizeUntil = Date.now() + 300
+      setWebKeyboardHeight(Math.round(initialHeight * 0.4))
+      setTimeout(update, 300)
+    }
+    const onFocusOut = () => {
+      focusTimeout = setTimeout(() => {
+        if (vv.height >= initialHeight - 150) setWebKeyboardHeight(0)
+      }, 300)
+    }
+
+    document.addEventListener('focusin', onFocusIn)
+    document.addEventListener('focusout', onFocusOut)
+    return () => {
+      vv.removeEventListener('resize', update)
+      document.removeEventListener('focusin', onFocusIn)
+      document.removeEventListener('focusout', onFocusOut)
+      clearTimeout(focusTimeout)
+    }
+  }, [])
 
   // Image crop state
   const [imageToCrop, setImageToCrop] = useState(null)
@@ -125,16 +177,18 @@ export default function SetupProfile() {
     }
   }
 
+  const Wrapper = Platform.OS === 'web' ? View : KBAvoidingView
+  const wrapperProps = Platform.OS === 'web' ? {} : {
+    behavior: 'padding',
+    keyboardVerticalOffset: 0,
+  }
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
+    <Wrapper style={[styles.container, { paddingTop: insets.top }]} {...wrapperProps}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
       >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-        >
           <Spacer height={40} />
           <ThemedText variant="h1" title={true} style={styles.title}>
             {t('setupTitle')}
@@ -225,7 +279,11 @@ export default function SetupProfile() {
 
           <Spacer height={40} />
         </ScrollView>
-      </KeyboardAvoidingView>
+
+      {/* Web keyboard spacer */}
+      {Platform.OS === 'web' && webKeyboardHeight > 0 && (
+        <View style={{ height: webKeyboardHeight }} />
+      )}
 
       <ImageCropModal
         visible={cropModalVisible}
@@ -242,7 +300,7 @@ export default function SetupProfile() {
         onSelect={handleSetLocation}
         saving={savingLocation}
       />
-    </SafeAreaView>
+    </Wrapper>
   )
 }
 
@@ -250,9 +308,6 @@ const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-  keyboardView: {
-    flex: 1,
   },
   scrollContent: {
     flexGrow: 1,

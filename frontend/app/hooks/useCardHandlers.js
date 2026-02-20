@@ -231,6 +231,18 @@ export default function useCardHandlers({ currentCard, goToNextCard }) {
 
   const handlePairwiseSkip = useCallback(() => { goToNextCard() }, [goToNextCard])
 
+  // Bridging kudos handler
+  const handleDismissBridgingKudos = useCallback(async () => {
+    if (currentCard?.type !== 'bridging_kudos') return
+    goToNextCard()
+    try {
+      await api.cards.dismissBridgingKudos(currentCard.data.id)
+    } catch (err) {
+      console.error('Failed to dismiss bridging kudos:', err)
+      showToast(t('errorDismissFailed'))
+    }
+  }, [currentCard, goToNextCard, showToast, t])
+
   // Diagnostics consent handlers
   const handleDiagnosticsAccept = useCallback(async () => {
     goToNextCard()
@@ -261,6 +273,7 @@ export default function useCardHandlers({ currentCard, goToNextCard }) {
     handleDemographicResponse, handleDemographicSkip,
     handleSendKudos, handleDismissKudos, handleAcknowledgeKudos,
     handlePairwiseResponse, handlePairwiseSkip,
+    handleDismissBridgingKudos,
     handleDiagnosticsAccept, handleDiagnosticsDecline,
   }
 }

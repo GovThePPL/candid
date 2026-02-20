@@ -19,6 +19,7 @@ from candid.controllers.helpers.card_builders import (
     survey_to_card as _survey_to_card,
     chat_request_to_card as _chat_request_to_card,
     kudos_to_card as _kudos_to_card,
+    bridging_kudos_to_card as _bridging_kudos_to_card,
     demographic_to_card as _demographic_to_card,
 )
 from candid.controllers.moderation_controller import _get_target_content
@@ -278,13 +279,25 @@ def get_card_queue(limit=None, token_info=None):  # noqa: E501
     # Check for position removal notifications - prepend to queue
     removal_cards = _get_position_removed_notifications(str(user.id))
 
-    # 1. Priority cards - kudos appear at front
+    # 1. Priority cards - time-sensitive items appear at front
     priority_cards = list(removal_cards)
 
-    # Kudos cards first (only where other participant sent kudos first)
+    # Pending chat requests (fallback for missed real-time delivery)
+    chat_request_rows = _get_pending_chat_requests(str(user.id), limit=2)
+    for row in chat_request_rows:
+        card = _chat_request_to_card(row)
+        card['data']['createdTime'] = row.get('created_time')
+        priority_cards.append(card)
+
+    # Kudos cards (only where other participant sent kudos first)
     kudos_prompts = _get_pending_kudos_cards(user.id, limit=2)
     for kudos in kudos_prompts:
         priority_cards.append(_kudos_to_card(kudos, user.id))
+
+    # Bridging kudos cards
+    bridging_kudos = _get_pending_bridging_kudos(str(user.id), limit=2)
+    for bk in bridging_kudos:
+        priority_cards.append(_bridging_kudos_to_card(bk))
 
     # 2. Get positions first to determine if we need to fill with other content
     position_cards = []
@@ -882,6 +895,58 @@ def _get_pending_kudos_cards(user_id: str, limit: int = 2) -> List[dict]:
     """, (user_id, user_id, user_id, user_id, user_id, user_id, user_id, user_id, user_id, user_id, user_id, user_id, limit))
 
     return [dict(r) for r in (kudos_prompts or [])]
+
+
+def _get_pending_bridging_kudos(user_id: str, limit: int = 2) -> List[dict]:
+    """Get undismissed bridging kudos awards for the user."""
+    rows = db.execute_query("""
+        SELECT ba.id, ba.item_type, ba.item_id, ba.created_time,
+               CASE ba.item_type
+                   WHEN 'comment' THEN c.body
+                   WHEN 'post' THEN p.body
+               END as item_body,
+               CASE ba.item_type
+                   WHEN 'comment' THEN cp.title
+                   WHEN 'post' THEN p.title
+               END as thread_title,
+               CASE ba.item_type
+                   WHEN 'comment' THEN (SELECT COUNT(*) FROM comment_vote cv WHERE cv.comment_id = ba.item_id AND cv.vote_type = 'upvote')
+                   WHEN 'post' THEN (SELECT COUNT(*) FROM post_vote pv WHERE pv.post_id = ba.item_id AND pv.vote_type = 'upvote')
+               END as upvote_count,
+               CASE ba.item_type
+                   WHEN 'comment' THEN (SELECT COUNT(*) FROM comment_vote cv WHERE cv.comment_id = ba.item_id AND cv.vote_type = 'downvote')
+                   WHEN 'post' THEN (SELECT COUNT(*) FROM post_vote pv WHERE pv.post_id = ba.item_id AND pv.vote_type = 'downvote')
+               END as downvote_count,
+               CASE ba.item_type
+                   WHEN 'comment' THEN c.mf_intercept
+                   WHEN 'post' THEN p.mf_intercept
+               END as bridging_score
+        FROM bridging_award ba
+        LEFT JOIN comment c ON ba.item_type = 'comment' AND ba.item_id = c.id
+        LEFT JOIN post p ON ba.item_type = 'post' AND ba.item_id = p.id
+        LEFT JOIN post cp ON c.post_id = cp.id
+        WHERE ba.user_id = %s
+          AND ba.dismissed = false
+        ORDER BY ba.created_time DESC
+        LIMIT %s
+    """, (user_id, limit))
+
+    return [dict(r) for r in (rows or [])]
+
+
+def dismiss_bridging_kudos(award_id, token_info=None):
+    """Dismiss a bridging kudos card."""
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    user = token_to_user(token_info)
+    db.execute_query("""
+        UPDATE bridging_award SET dismissed = true
+        WHERE id = %s AND user_id = %s
+    """, (award_id, str(user.id)))
+
+    return '', 204
 
 
 def _get_unanswered_demographics(user_id: str, limit: int = 1) -> List[str]:

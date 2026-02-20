@@ -1235,6 +1235,52 @@ components:
                     type: string
                     nullable: true
 
+    BridgingKudosCard:
+      type: object
+      required:
+        - id
+        - itemType
+        - itemBody
+      properties:
+        id:
+          type: string
+          format: uuid
+        itemType:
+          type: string
+          enum: [post, comment]
+        itemId:
+          type: string
+          format: uuid
+        itemBody:
+          type: string
+        threadTitle:
+          type: string
+          nullable: true
+        upvoteCount:
+          type: integer
+        downvoteCount:
+          type: integer
+        bridgingScore:
+          type: number
+          format: float
+          nullable: true
+        createdTime:
+          type: string
+          format: date-time
+          nullable: true
+
+    BridgingKudosCardItem:
+      type: object
+      required:
+        - type
+        - data
+      properties:
+        type:
+          type: string
+          enum: [bridging_kudos]
+        data:
+          $ref: '#/components/schemas/BridgingKudosCard'
+
     DiagnosticsConsentCardItem:
       type: object
       required:
@@ -2600,6 +2646,20 @@ components:
           nullable: true
           description: ID of the user who ended the chat
 
+    ToxicityCheckResult:
+      type: object
+      required:
+        - isToxic
+        - toxicityScore
+      properties:
+        isToxic:
+          type: boolean
+          description: Whether the text exceeds the toxicity threshold
+        toxicityScore:
+          type: number
+          format: float
+          description: Overall toxicity score (0.0-1.0)
+
     ErrorModel:
       type: object
       properties:
@@ -3259,6 +3319,12 @@ components:
         score:
           type: number
           format: double
+        isCrossGroup:
+          type: boolean
+          description: >-
+            True when the voter and content author belong to different
+            opinion groups. False when group data is unavailable or
+            same group.
 
 security:
   - BearerAuth: []
@@ -3491,6 +3557,7 @@ paths:
                     - $ref: '#/components/schemas/BanNotificationCardItem'
                     - $ref: '#/components/schemas/PositionRemovedCardItem'
                     - $ref: '#/components/schemas/DiagnosticsConsentCardItem'
+                    - $ref: '#/components/schemas/BridgingKudosCardItem'
                   discriminator:
                     propertyName: type
                     mapping:
@@ -3503,6 +3570,7 @@ paths:
                       ban_notification: '#/components/schemas/BanNotificationCardItem'
                       position_removed_notification: '#/components/schemas/PositionRemovedCardItem'
                       diagnostics_consent: '#/components/schemas/DiagnosticsConsentCardItem'
+                      bridging_kudos: '#/components/schemas/BridgingKudosCardItem'
 
   /cards/notifications/{positionId}:
     delete:
@@ -3520,6 +3588,23 @@ paths:
       responses:
         '204':
           description: Notification dismissed
+
+  /card-queue/bridging-kudos/{awardId}:
+    delete:
+      operationId: dismissBridgingKudos
+      summary: Dismiss a bridging kudos card
+      tags:
+        - Cards
+      parameters:
+        - name: awardId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Bridging kudos card dismissed
 
   /moderation/notifications/{appealId}:
     delete:
@@ -5831,6 +5916,48 @@ paths:
                 $ref: '#/components/schemas/ErrorModel'
         '403':
           description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /toxicity-check:
+    post:
+      operationId: checkToxicity
+      summary: Check text for toxicity
+      description: Checks text against a toxicity model. Returns whether the text is toxic and the score. Fails open if the NLP service is unavailable.
+      tags:
+        - Moderation
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - text
+              properties:
+                text:
+                  type: string
+                  description: Text to check for toxicity
+                  minLength: 1
+      responses:
+        '200':
+          description: Toxicity check result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToxicityCheckResult'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '429':
+          description: Rate limit exceeded
           content:
             application/json:
               schema:

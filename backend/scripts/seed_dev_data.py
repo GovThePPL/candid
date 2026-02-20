@@ -1298,9 +1298,62 @@ def phase_6_chats(api, all_users, positions, dry_run=False):
                 "Common ground: we both want better outcomes for people",
                 "Both sides made valid points — closing with agreement",
             ]
+            # Build explanations — some chats have good-faith explain-position exchanges
+            explanations = []
+            if i % 3 == 0:
+                explanations.append({
+                    "id": f"exp1-{chat_id[:8]}",
+                    "explainerId": str(initiator_id),
+                    "requesterId": str(responder_id),
+                    "status": "good_faith",
+                    "timestamp": (closure_time - timedelta(minutes=8)).isoformat(),
+                })
+            if i % 3 <= 1 and i >= 2:
+                explanations.append({
+                    "id": f"exp2-{chat_id[:8]}",
+                    "explainerId": str(responder_id),
+                    "requesterId": str(initiator_id),
+                    "status": "completed",
+                    "timestamp": (closure_time - timedelta(minutes=6)).isoformat(),
+                })
+
+            # Build definitions — term clarifications
+            definitions = []
+            if i % 4 == 0:
+                definitions.append({
+                    "id": f"def1-{chat_id[:8]}",
+                    "term": "social justice",
+                    "requesterId": str(responder_id),
+                    "status": "accepted",
+                    "timestamp": (closure_time - timedelta(minutes=10)).isoformat(),
+                })
+            if i % 5 == 0:
+                definitions.append({
+                    "id": f"def2-{chat_id[:8]}",
+                    "term": "personal responsibility",
+                    "requesterId": str(initiator_id),
+                    "status": "both_defined",
+                    "timestamp": (closure_time - timedelta(minutes=9)).isoformat(),
+                })
+
+            # Build reactions — positive reactions on messages
+            reactions = {}
+            positive_emojis = ["agree", "appreciate", "grateful", "considering", "respect"]
+            for j in range(min(3, len(messages))):
+                msg_id = messages[j]["id"]
+                reactor = str(responder_id) if messages[j]["senderId"] == str(initiator_id) else str(initiator_id)
+                reactions[msg_id] = [{
+                    "userId": reactor,
+                    "emoji": positive_emojis[(i + j) % len(positive_emojis)],
+                    "timestamp": (base_time + timedelta(minutes=j * 3 + 1)).isoformat(),
+                }]
+
             log_json = {
                 "messages": messages,
                 "agreedPositions": agreed_positions,
+                "explanations": explanations,
+                "definitions": definitions,
+                "reactions": reactions,
                 "agreedClosure": {
                     "id": f"closure-{chat_id[:8]}",
                     "proposerId": str(initiator_id),
@@ -1311,14 +1364,62 @@ def phase_6_chats(api, all_users, positions, dry_run=False):
             }
             end_type = "agreed_closure"
         else:
+            # Some chats are true abandonments (user disconnected and never
+            # returned).  The chat server sets both endedByUserId AND
+            # abandonedByUserId for abandonments (end_type='abandoned'),
+            # but only endedByUserId for explicit exits (end_type='user_exit').
+            # Make roughly half of these abandonments.
+            is_abandonment = (i % 2 == 0)
+
+            # Even non-closure chats may have had some productive exchanges
+            # before ending.  Add reactions on messages and occasional
+            # definitions/explanations so trust score signals are richer.
+            exit_reactions = {}
+            positive_emojis = ["agree", "appreciate", "grateful", "considering", "respect"]
+            for j in range(min(2, len(messages))):
+                msg_id = messages[j]["id"]
+                reactor = str(responder_id) if messages[j]["senderId"] == str(initiator_id) else str(initiator_id)
+                exit_reactions[msg_id] = [{
+                    "userId": reactor,
+                    "emoji": positive_emojis[(i + j) % len(positive_emojis)],
+                    "timestamp": (base_time + timedelta(minutes=j * 3 + 1)).isoformat(),
+                }]
+
+            exit_explanations = []
+            if i % 3 == 1:
+                exit_explanations.append({
+                    "id": f"exp-exit-{chat_id[:8]}",
+                    "explainerId": str(responder_id),
+                    "requesterId": str(initiator_id),
+                    "status": "good_faith",
+                    "timestamp": (base_time + timedelta(minutes=len(messages_template) * 3)).isoformat(),
+                })
+
+            exit_definitions = []
+            if i % 4 == 1:
+                exit_definitions.append({
+                    "id": f"def-exit-{chat_id[:8]}",
+                    "term": "common ground",
+                    "requesterId": str(initiator_id),
+                    "status": "accepted",
+                    "timestamp": (base_time + timedelta(minutes=len(messages_template) * 3 - 2)).isoformat(),
+                })
+
             log_json = {
                 "messages": messages,
                 "agreedPositions": [],
+                "explanations": exit_explanations,
+                "definitions": exit_definitions,
+                "reactions": exit_reactions,
                 "agreedClosure": None,
                 "endedByUserId": str(initiator_id),
                 "exportTime": (base_time + timedelta(minutes=len(messages_template) * 3 + 5)).isoformat(),
             }
-            end_type = "user_exit"
+            if is_abandonment:
+                log_json["abandonedByUserId"] = str(initiator_id)
+                end_type = "abandoned"
+            else:
+                end_type = "user_exit"
 
         end_time = base_time + timedelta(minutes=len(messages_template) * 3 + 5)
         db_execute("""
@@ -1379,23 +1480,9 @@ def phase_7_kudos(api, dry_run=False):
 
         print(f"  Total kudos: {count}")
 
-    # Assign trust scores to all generated users that don't have one yet.
-    # Deterministic from username so re-runs are stable. Spread across the
-    # full range so all badge tiers (gray/bronze/silver/gold) are represented.
-    existing_ts = db_query_one("SELECT count(*) as cnt FROM users WHERE trust_score IS NOT NULL AND username LIKE '%%_user_%%'")
-    if existing_ts and existing_ts['cnt'] > 0:
-        print(f"  Trust scores already set for {existing_ts['cnt']} generated users, skipping")
-    else:
-        db_execute("""
-            UPDATE users SET trust_score = (
-                abs(('x' || substring(md5(username) from 1 for 8))::bit(32)::int)
-                % 90 + 10
-            )::decimal / 100
-            WHERE trust_score IS NULL
-            AND username NOT LIKE 'guest%%'
-        """)
-        count = db_query_one("SELECT count(*) as cnt FROM users WHERE trust_score IS NOT NULL AND username LIKE '%%_user_%%'")
-        print(f"  Trust scores assigned to {count['cnt'] if count else 0} generated users")
+    # Trust scores are computed later in dev.sh, after Polis backfill creates
+    # conversations and MF training populates bridging data.  See
+    # backend/scripts/compute_trust_scores.py (called from dev.sh).
 
 
 # ---------------------------------------------------------------------------

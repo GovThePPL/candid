@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
+import useModalBackHandler from '../../hooks/useModalBackHandler'
 import useKeyboardHeight from '../../hooks/useKeyboardHeight'
 import { Spacing, BorderRadius, Typography } from '../../constants/Theme'
 import ThemedText from '../ThemedText'
@@ -34,6 +35,7 @@ export default function ReplyComposer({ visible, comment, onSubmit, onClose, pos
   const styles = useMemo(() => createStyles(colors), [colors])
   const insets = useSafeAreaInsets()
   const { keyboardHeight } = useKeyboardHeight()
+  useModalBackHandler(visible, onClose)
 
   const [text, setText] = useState('')
   const [showPreview, setShowPreview] = useState(false)

@@ -71,7 +71,8 @@ class Config:
 	SCORING_HOT_GRAVITY = float(os.environ.get('SCORING_HOT_GRAVITY', '1.5'))
 	SCORING_WEIGHT_MIN = float(os.environ.get('SCORING_WEIGHT_MIN', '1.0'))
 	SCORING_WEIGHT_MAX = float(os.environ.get('SCORING_WEIGHT_MAX', '2.0'))
-	SCORING_BRIDGING_THRESHOLD = float(os.environ.get('SCORING_BRIDGING_THRESHOLD', '0.3'))
+	SCORING_BRIDGING_BASE = float(os.environ.get('SCORING_BRIDGING_BASE', '0.40'))
+	SCORING_BRIDGING_MARGIN = float(os.environ.get('SCORING_BRIDGING_MARGIN', '0.45'))
 
 class DevelopmentConfig(Config):
 	DEV = True

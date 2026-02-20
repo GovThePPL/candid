@@ -124,5 +124,13 @@
   "loadingSkeleton": "Cargando contenido",
 
   "errorAlreadyReported": "Ya has reportado este contenido",
-  "errorReportFailed": "No se pudo enviar el reporte"
+  "errorReportFailed": "No se pudo enviar el reporte",
+
+  "reconsiderTitle": "T\u00f3mate un momento",
+  "reconsiderMessage": "Las personas que leen esto son tus vecinos. \u00bfTe gustar\u00eda tomarte un momento para revisar tu mensaje?",
+  "reconsiderRevise": "Revisar Mensaje",
+  "reconsiderSendAnyway": "Enviar de Todos Modos",
+  "reconsiderReviseA11y": "Revisar tu mensaje",
+  "reconsiderSendAnywayA11y": "Enviar mensaje sin cambios",
+  "reconsiderCheckingA11y": "Verificando mensaje"
 }

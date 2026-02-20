@@ -94,8 +94,8 @@ services:
             test: ["CMD-SHELL", "wget -qO- http://localhost:5000/api/v3/participationInit || exit 1"]
             interval: 10s
             timeout: 5s
-            start_period: 30s
-            retries: 3
+            start_period: 90s
+            retries: 5
         depends_on:
             db:
                 condition: service_healthy
@@ -164,6 +164,7 @@ services:
             KEYCLOAK_URL: http://keycloak:8180
             KEYCLOAK_REALM: candid
             PORT: 8002
+            NLP_SERVICE_URL: http://nlp:5001
         healthcheck:
             test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
             interval: 10s

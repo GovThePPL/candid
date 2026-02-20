@@ -9,9 +9,17 @@ components/
 ├── auth/                         # Auth route guards
 │   ├── GuestOnly.jsx             # Redirects authenticated users away from auth screens
 │   └── UserOnly.jsx              # Redirects unauthenticated users to login
+├── chat/                         # Chat screen sub-components
+│   ├── ChatMessageContent.jsx    # Renders message content with quote references
+│   ├── ChatSidebar.jsx           # Agreed statements and definitions sidebar panel
+│   ├── QuotedBlock.jsx           # Styled block for quoted message excerpts
+│   ├── ReactionBar.jsx           # Emoji reaction picker row (6 curated reactions)
+│   ├── ReactionBadges.jsx        # Persistent reaction count badges below messages
+│   └── TextSelectionModal.jsx    # Text selection modal for partial quoting
 ├── cards/                        # Card queue card types (see cards/index.js for registry)
 │   ├── AdminResponseCard.jsx     # Admin response to user requests
 │   ├── BanNotificationCard.jsx   # Ban notification display
+│   ├── BridgingKudosCard.jsx     # Bridging kudos reward card (cross-group content)
 │   ├── ChatRequestCard.jsx       # Incoming chat request card
 │   ├── DemographicCard.jsx       # Demographic survey card
 │   ├── DiagnosticsConsentCard.jsx # Diagnostics consent prompt
@@ -75,6 +83,7 @@ components/
 ├── PositionListManager.jsx       # Position list with search, chat/delete/add modes
 ├── PositionManagerContent.jsx    # Position management view with create form and list
 ├── PostsContent.jsx              # User's post history list with vote counts and comment counts; optional userId prop for public profiles
+├── ReconsiderModal.jsx            # Toxicity reconsider modal with empathy prompt and countdown timer
 ├── ReportModal.jsx               # Content reporting and moderation modal (isModerating prop switches title/mode)
 ├── Skeleton.jsx                  # Skeleton loading primitives (SkeletonPulse, SkeletonBox, SkeletonCircle, SkeletonLine)
 ├── Spacer.jsx                    # Configurable spacing component

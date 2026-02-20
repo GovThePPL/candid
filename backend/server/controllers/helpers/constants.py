@@ -74,6 +74,7 @@ class ChatLogStatus:
 class ChatEndType:
     USER_EXIT = 'user_exit'
     AGREED_CLOSURE = 'agreed_closure'
+    ABANDONED = 'abandoned'
 
 class DeliveryContext:
     SWIPING = 'swiping'

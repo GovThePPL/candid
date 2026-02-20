@@ -144,6 +144,36 @@ def check_nsfw(image_base64: str, threshold: float = 0.6) -> dict:
         raise NLPServiceError(f"NLP service error: {e}")
 
 
+def check_toxicity(text: str, threshold: float = 0.7) -> dict:
+    """
+    Check if text contains toxic content.
+
+    Args:
+        text: Text string to check
+        threshold: Toxicity score threshold (0.0-1.0)
+
+    Returns:
+        Dict with 'is_toxic' and 'toxicity_score' fields.
+        Fails open: returns is_toxic=False on connection/timeout errors.
+    """
+    try:
+        response = requests.post(
+            f"{Config.NLP_SERVICE_URL}/toxicity-check",
+            json={"text": text, "threshold": threshold},
+            timeout=Config.NLP_SERVICE_TIMEOUT
+        )
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.ConnectionError:
+        print("NLP service unavailable - toxicity check skipped", flush=True)
+        return {"is_toxic": False, "toxicity_score": 0.0}
+    except requests.exceptions.Timeout:
+        print("NLP service timeout - toxicity check skipped", flush=True)
+        return {"is_toxic": False, "toxicity_score": 0.0}
+    except requests.exceptions.RequestException as e:
+        raise NLPServiceError(f"NLP service error: {e}")
+
+
 def process_avatar(image_base64: str, threshold: float = 0.6) -> dict:
     """
     Process an avatar image: validate NSFW and resize to full/icon sizes.

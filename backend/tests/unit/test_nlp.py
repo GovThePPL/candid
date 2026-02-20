@@ -166,6 +166,59 @@ class TestProcessAvatar:
 
 
 # ---------------------------------------------------------------------------
+# check_toxicity
+# ---------------------------------------------------------------------------
+
+class TestCheckToxicity:
+    def test_clean_text(self):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"is_toxic": False, "toxicity_score": 0.1}
+        mock_resp.raise_for_status = MagicMock()
+
+        with patch("candid.controllers.helpers.nlp.requests.post", return_value=mock_resp):
+            from candid.controllers.helpers.nlp import check_toxicity
+            result = check_toxicity("I respectfully disagree")
+            assert result["is_toxic"] is False
+            assert result["toxicity_score"] == 0.1
+
+    def test_toxic_text(self):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"is_toxic": True, "toxicity_score": 0.95}
+        mock_resp.raise_for_status = MagicMock()
+
+        with patch("candid.controllers.helpers.nlp.requests.post", return_value=mock_resp):
+            from candid.controllers.helpers.nlp import check_toxicity
+            result = check_toxicity("you are terrible")
+            assert result["is_toxic"] is True
+            assert result["toxicity_score"] == 0.95
+
+    def test_fail_open_on_connection_error(self):
+        """Toxicity check should fail open if service unavailable."""
+        with patch("candid.controllers.helpers.nlp.requests.post",
+                    side_effect=requests.exceptions.ConnectionError()):
+            from candid.controllers.helpers.nlp import check_toxicity
+            result = check_toxicity("some text")
+            assert result["is_toxic"] is False
+            assert result["toxicity_score"] == 0.0
+
+    def test_fail_open_on_timeout(self):
+        with patch("candid.controllers.helpers.nlp.requests.post",
+                    side_effect=requests.exceptions.Timeout()):
+            from candid.controllers.helpers.nlp import check_toxicity
+            result = check_toxicity("some text")
+            assert result["is_toxic"] is False
+            assert result["toxicity_score"] == 0.0
+
+    def test_http_error_raises(self):
+        from candid.controllers.helpers.nlp import NLPServiceError
+        with patch("candid.controllers.helpers.nlp.requests.post",
+                    side_effect=requests.exceptions.HTTPError("500")):
+            from candid.controllers.helpers.nlp import check_toxicity
+            with pytest.raises(NLPServiceError):
+                check_toxicity("some text")
+
+
+# ---------------------------------------------------------------------------
 # health_check
 # ---------------------------------------------------------------------------
 

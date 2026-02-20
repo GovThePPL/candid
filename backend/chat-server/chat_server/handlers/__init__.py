@@ -11,6 +11,9 @@ from .agreed_positions import register_agreed_position_handlers
 from .chat_lifecycle import register_lifecycle_handlers
 from .read_receipts import register_read_receipt_handlers
 from .discuss import register_discuss_handlers
+from .reactions import register_reaction_handlers
+from .definitions import register_definition_handlers
+from .explain_position import register_explain_position_handlers
 
 
 def register_handlers(sio: socketio.AsyncServer) -> None:
@@ -22,3 +25,6 @@ def register_handlers(sio: socketio.AsyncServer) -> None:
     register_lifecycle_handlers(sio)
     register_read_receipt_handlers(sio)
     register_discuss_handlers(sio)
+    register_reaction_handlers(sio)
+    register_definition_handlers(sio)
+    register_explain_position_handlers(sio)

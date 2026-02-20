@@ -517,6 +517,41 @@ class TestVoteOnPost:
         )
         assert resp.status_code == 400
 
+    def test_vote_response_includes_is_cross_group(self, normal_headers, normal2_headers):
+        """Vote response includes isCrossGroup boolean field."""
+        create_resp = _create_post(normal_headers, title="TEST cross group")
+        post_id = create_resp.json()["id"]
+
+        resp = requests.post(
+            f"{POSTS_URL}/{post_id}/vote",
+            headers=normal2_headers,
+            json={"voteType": "upvote"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "isCrossGroup" in data
+        assert isinstance(data["isCrossGroup"], bool)
+
+    def test_toggle_off_is_cross_group_false(self, normal_headers, normal2_headers):
+        """Toggle-off vote returns isCrossGroup=false."""
+        create_resp = _create_post(normal_headers, title="TEST toggle cross group")
+        post_id = create_resp.json()["id"]
+
+        # Vote
+        requests.post(
+            f"{POSTS_URL}/{post_id}/vote",
+            headers=normal2_headers,
+            json={"voteType": "upvote"},
+        )
+        # Toggle off
+        resp = requests.post(
+            f"{POSTS_URL}/{post_id}/vote",
+            headers=normal2_headers,
+            json={"voteType": "upvote"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["isCrossGroup"] is False
+
     def test_denormalized_counts_correct(self, normal_headers, normal2_headers, normal3_headers):
         create_resp = _create_post(normal_headers, title="TEST count check")
         post_id = create_resp.json()["id"]

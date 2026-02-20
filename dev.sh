@@ -411,6 +411,12 @@ if [[ "$SKIP_SEED" == "false" ]]; then
                     " >/dev/null 2>&1
                     docker compose restart polis-math >/dev/null 2>&1
                     ok "Polis math reset — will recompute in background"
+
+                    # Run MF training + trust score computation now that
+                    # polis_conversation records exist and votes are loaded.
+                    log "Running MF training and trust score computation..."
+                    python3 backend/scripts/compute_trust_scores.py && \
+                        ok "Trust scores computed from signals" || warn "Trust score computation failed (non-fatal)"
                     break
                 fi
                 sleep 5
@@ -419,6 +425,11 @@ if [[ "$SKIP_SEED" == "false" ]]; then
             warn "Polis is not available. Skipping Polis backfill."
             echo "    To backfill Polis data later, run:"
             echo "    python3 backend/scripts/backfill_polis_positions.py"
+
+            # Still compute trust scores from non-bridging signals (kudos, chats, moderation)
+            log "Computing trust scores (without bridging data)..."
+            python3 backend/scripts/compute_trust_scores.py && \
+                ok "Trust scores computed" || warn "Trust score computation failed (non-fatal)"
         fi
         echo ""
     else

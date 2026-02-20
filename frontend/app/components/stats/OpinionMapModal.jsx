@@ -6,6 +6,7 @@ import { GROUP_COLORS, SemanticColors, BrandColor } from '../../constants/Colors
 import { Typography } from '../../constants/Theme'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
+import useModalBackHandler from '../../hooks/useModalBackHandler'
 import { createSharedStyles } from '../../constants/SharedStyles'
 import ThemedText from '../ThemedText'
 import { getAvatarImageUrl, getInitials, getInitialsColor } from '../../lib/avatarUtils'
@@ -40,6 +41,7 @@ export default function OpinionMapModal({
   const styles = useMemo(() => createStyles(colors), [colors])
   const shared = useMemo(() => createSharedStyles(colors), [colors])
   const { width: screenWidth } = useWindowDimensions()
+  useModalBackHandler(visible, onClose)
   const [showAllCategories, setShowAllCategories] = useState(false)
 
   // Select which data to render based on toggle

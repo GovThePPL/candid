@@ -124,5 +124,13 @@
   "loadingSkeleton": "Loading content",
 
   "errorAlreadyReported": "You have already reported this content",
-  "errorReportFailed": "Report couldn't be submitted"
+  "errorReportFailed": "Report couldn't be submitted",
+
+  "reconsiderTitle": "Take a moment",
+  "reconsiderMessage": "The people reading this are your neighbors. Would you like to take a moment to revise your message?",
+  "reconsiderRevise": "Revise Message",
+  "reconsiderSendAnyway": "Send Anyway",
+  "reconsiderReviseA11y": "Revise your message",
+  "reconsiderSendAnywayA11y": "Send message without changes",
+  "reconsiderCheckingA11y": "Checking message"
 }

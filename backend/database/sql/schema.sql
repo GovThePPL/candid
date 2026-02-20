@@ -196,7 +196,7 @@ CREATE TABLE chat_log (
     start_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     end_time TIMESTAMPTZ,
     log JSONB,  -- JSON blob: {"messages": [...], "agreedPositions": [...], "agreedClosure": {...} or null, "exportTime": "ISO8601"} — all keys use camelCase
-    end_type VARCHAR(50) CHECK (end_type IN ('user_exit', 'agreed_closure')),
+    end_type VARCHAR(50) CHECK (end_type IN ('user_exit', 'agreed_closure', 'abandoned')),
     status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'deleted', 'archived'))
 );
 
@@ -568,7 +568,7 @@ CREATE TABLE notification_type_preferences (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     notification_type VARCHAR(50) NOT NULL CHECK (notification_type IN (
-        'comment_reply', 'post_comment', 'chat_request', 'role_change', 'rule_change', 'admin_action', 'moderation'
+        'comment_reply', 'post_comment', 'chat_request', 'role_change', 'rule_change', 'admin_action', 'moderation', 'bridging_kudos'
     )),
     enabled BOOLEAN NOT NULL DEFAULT true,
     created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -592,7 +592,7 @@ CREATE TABLE notification_inbox (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     notification_type VARCHAR(50) NOT NULL CHECK (notification_type IN (
-        'comment_reply', 'post_comment', 'chat_request', 'role_change', 'rule_change', 'admin_action', 'moderation'
+        'comment_reply', 'post_comment', 'chat_request', 'role_change', 'rule_change', 'admin_action', 'moderation', 'bridging_kudos'
     )),
     actor_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     title TEXT NOT NULL,
@@ -859,6 +859,21 @@ CREATE INDEX idx_user_ideological_coords_location_id ON user_ideological_coords(
 CREATE INDEX idx_user_location_location_id ON user_location(location_id);
 CREATE INDEX idx_user_position_categories_category ON user_position_categories(position_category_id);
 CREATE INDEX idx_user_role_assigned_by ON user_role(assigned_by);
+
+-- ========== Bridging Award Tracking ==========
+
+CREATE TABLE bridging_award (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    item_type VARCHAR(10) NOT NULL CHECK (item_type IN ('post', 'comment')),
+    item_id UUID NOT NULL,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    dismissed BOOLEAN NOT NULL DEFAULT false,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(item_type, item_id)
+);
+
+CREATE INDEX idx_bridging_award_user ON bridging_award(user_id) WHERE dismissed = false;
+CREATE INDEX idx_bridging_award_item ON bridging_award(item_type, item_id);
 
 -- ========== Counter Triggers ==========
 

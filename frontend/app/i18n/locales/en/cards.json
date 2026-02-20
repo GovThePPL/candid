@@ -104,6 +104,14 @@
   "positionRemovedSubtitle": "This position was removed for violating community guidelines.",
   "positionRemovedDismiss": "Dismiss",
 
+  "bridgingKudosTitle": "Bridges Divides!",
+  "bridgingKudosSubtitle": "Your voice reached across the aisle",
+  "bridgingKudosComment": "Your comment",
+  "bridgingKudosPost": "Your post",
+  "bridgingKudosThread": "in thread",
+  "bridgingKudosA11yLabel": "Your content bridges ideological divides",
+  "bridgingKudosA11yHint": "Swipe to acknowledge",
+
   "diagnosticsTitle": "Diagnostics",
   "diagnosticsSubtitle": "Help improve Candid",
   "diagnosticsQuestion": "Send anonymous error reports to help us fix bugs?",

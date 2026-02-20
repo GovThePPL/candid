@@ -52,7 +52,6 @@ export default function PostCard({ post, onPress, onUpvote, onDownvote, onToggle
     <Pressable
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
       onPress={onPress}
-      accessibilityRole="button"
       accessibilityLabel={t('postCardA11y', { author: displayName, title: post.title })}
     >
       {/* Top row: badges left, age right */}

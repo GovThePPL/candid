@@ -126,11 +126,20 @@ def _refresh_pca_cache(conversation_id):
 
     math_tick = math_data.get("math_tick")
 
+    # Extract group-cluster member lists for cross-group detection.
+    # Store only member PIDs (list of lists) — minimal data for group lookup.
+    group_clusters_raw = pca_pojo.get("group-clusters", [])
+    group_members = [
+        cluster.get("members", []) if cluster else []
+        for cluster in group_clusters_raw
+    ]
+
     cache_data = {
         "comps": comps,
         "center": center,
         "max_distance": max_dist,
         "math_tick": math_tick,
+        "group_members": group_members,
     }
 
     # Store in Redis with TTL
@@ -139,6 +148,44 @@ def _refresh_pca_cache(conversation_id):
     r.setex(cache_key, PCA_CACHE_TTL, json.dumps(cache_data))
 
     return cache_data
+
+
+# ---------------------------------------------------------------------------
+# Group lookup
+# ---------------------------------------------------------------------------
+
+def _lookup_group_id(user_id, conversation_id, pca_cache):
+    """Look up a user's Polis opinion group from the cached group-cluster members.
+
+    Args:
+        user_id: Candid user UUID string.
+        conversation_id: Polis conversation ID string.
+        pca_cache: Dict from get_pca_cache (must contain "group_members").
+
+    Returns:
+        Integer group index, or None if user not found in any group.
+    """
+    group_members = pca_cache.get("group_members")
+    if not group_members:
+        return None
+
+    # Look up the user's Polis participant ID (PID)
+    row = db.execute_query("""
+        SELECT polis_pid FROM polis_participant
+        WHERE user_id = %s AND polis_conversation_id = %s
+    """, (user_id, conversation_id), fetchone=True)
+
+    if not row or row.get("polis_pid") is None:
+        return None
+
+    pid = row["polis_pid"]
+
+    # Search group member lists for this PID
+    for group_idx, members in enumerate(group_members):
+        if pid in members:
+            return group_idx
+
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -168,7 +215,7 @@ def get_or_compute_coords(user_id, conversation_id):
 
     # Check DB for cached coords
     row = db.execute_query("""
-        SELECT x, y, n_position_votes, math_tick
+        SELECT x, y, n_position_votes, math_tick, polis_group_id
         FROM user_ideological_coords
         WHERE user_id = %s AND polis_conversation_id = %s
     """, (user_id, conversation_id), fetchone=True)
@@ -179,6 +226,7 @@ def get_or_compute_coords(user_id, conversation_id):
             "y": row["y"],
             "n_position_votes": row["n_position_votes"],
             "math_tick": row["math_tick"],
+            "polis_group_id": row.get("polis_group_id"),
         }
 
     # Stale or missing — recompute
@@ -220,6 +268,9 @@ def _compute_and_cache_coords(user_id, conversation_id, pca_cache):
 
     x, y = project_user(user_votes, comps, center)
 
+    # Look up user's opinion group from cached cluster data
+    polis_group_id = _lookup_group_id(user_id, conversation_id, pca_cache)
+
     # Look up location_id and category_id for this conversation
     conv_row = db.execute_query("""
         SELECT location_id, category_id
@@ -234,8 +285,8 @@ def _compute_and_cache_coords(user_id, conversation_id, pca_cache):
     db.execute_query("""
         INSERT INTO user_ideological_coords
             (user_id, polis_conversation_id, location_id, category_id,
-             x, y, n_position_votes, math_tick, computed_at)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+             x, y, n_position_votes, math_tick, polis_group_id, computed_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
         ON CONFLICT (user_id, polis_conversation_id) DO UPDATE SET
             x = EXCLUDED.x,
             y = EXCLUDED.y,
@@ -243,15 +294,17 @@ def _compute_and_cache_coords(user_id, conversation_id, pca_cache):
             math_tick = EXCLUDED.math_tick,
             location_id = EXCLUDED.location_id,
             category_id = EXCLUDED.category_id,
+            polis_group_id = EXCLUDED.polis_group_id,
             computed_at = CURRENT_TIMESTAMP
     """, (user_id, conversation_id, location_id, category_id,
-          x, y, len(user_votes), math_tick))
+          x, y, len(user_votes), math_tick, polis_group_id))
 
     return {
         "x": x,
         "y": y,
         "n_position_votes": len(user_votes),
         "math_tick": math_tick,
+        "polis_group_id": polis_group_id,
     }
 
 
@@ -315,7 +368,7 @@ def get_effective_coords(user_id, conversation_id):
 
     bx, by = blended_coords(polis_xy, mf_coords, n_comment_votes)
 
-    return {"x": bx, "y": by}
+    return {"x": bx, "y": by, "polis_group_id": polis.get("polis_group_id")}
 
 
 # ---------------------------------------------------------------------------

@@ -14,6 +14,7 @@ RATE_LIMITS = {
     "position_create": (5,   3600),   # 5 per hour per user
     "comment_create":  (30,  3600),   # 30 per hour per user
     "vote":            (100, 3600),   # 100 per hour per user
+    "toxicity_check":  (60,  60),     # 60 per minute per user
 }
 
 

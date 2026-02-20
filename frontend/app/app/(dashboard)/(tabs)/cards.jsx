@@ -25,6 +25,7 @@ import {
   BanNotificationCard,
   PositionRemovedCard,
   DiagnosticsConsentCard,
+  BridgingKudosCard,
 } from '../../../components/cards'
 import Header from '../../../components/Header'
 import { SkeletonPulse, SkeletonBox, SkeletonCircle, SkeletonLine } from '../../../components/Skeleton'
@@ -401,6 +402,7 @@ export default function CardQueue() {
     handleDemographicResponse, handleDemographicSkip,
     handleSendKudos, handleDismissKudos, handleAcknowledgeKudos,
     handlePairwiseResponse, handlePairwiseSkip,
+    handleDismissBridgingKudos,
     handleDiagnosticsAccept, handleDiagnosticsDecline,
   } = useCardHandlers({ currentCard, goToNextCard })
 
@@ -957,6 +959,18 @@ export default function CardQueue() {
             key={key}
             onAccept={isBackCard ? undefined : handleDiagnosticsAccept}
             onDecline={isBackCard ? undefined : handleDiagnosticsDecline}
+            isBackCard={isBackCard}
+            backCardAnimatedValue={backCardProgress}
+          />
+        )
+
+      case 'bridging_kudos':
+        return (
+          <BridgingKudosCard
+            ref={isBackCard ? undefined : currentCardRef}
+            key={key}
+            bridgingKudos={card.data}
+            onDismiss={isBackCard ? undefined : handleDismissBridgingKudos}
             isBackCard={isBackCard}
             backCardAnimatedValue={backCardProgress}
           />

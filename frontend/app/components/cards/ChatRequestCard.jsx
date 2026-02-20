@@ -96,6 +96,7 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
   },
   userPill: {
+    flexShrink: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.cardBackground,

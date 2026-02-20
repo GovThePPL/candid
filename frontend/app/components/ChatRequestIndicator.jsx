@@ -148,7 +148,7 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
 
   const bubbleBackground = colorAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [colors.chat, SemanticColors.disagree],
+    outputRange: [colors.primarySurface, SemanticColors.disagree],
   })
 
   // Purple ring shows time remaining: starts full, empties counterclockwise
@@ -205,7 +205,7 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
                     cx={INDICATOR_SIZE / 2}
                     cy={INDICATOR_SIZE / 2}
                     r={RADIUS}
-                    stroke={colors.primary}
+                    stroke="#FFFFFF"
                     strokeWidth={STROKE_WIDTH}
                     fill="transparent"
                     strokeDasharray={CIRCUMFERENCE}

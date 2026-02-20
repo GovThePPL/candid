@@ -628,6 +628,8 @@ def vote_on_post(post_id, body, token_info=None):  # noqa: E501
         (post_id, user_id), fetchone=True,
     )
 
+    is_cross_group = False
+
     if existing and existing["vote_type"] == vote_type:
         # Toggle off — remove the vote
         db.execute_query(
@@ -650,6 +652,15 @@ def vote_on_post(post_id, body, token_info=None):  # noqa: E501
                 pca = get_pca_cache(conversation_id)
                 max_distance = pca.get("max_distance") if pca else None
                 weight = vote_weight(voter_coords, author_coords, max_distance)
+
+                # Cross-group detection
+                is_cross_group = (
+                    voter_coords is not None
+                    and author_coords is not None
+                    and voter_coords.get("polis_group_id") is not None
+                    and author_coords.get("polis_group_id") is not None
+                    and voter_coords["polis_group_id"] != author_coords["polis_group_id"]
+                )
             except Exception:
                 weight = 1.0
 
@@ -694,6 +705,7 @@ def vote_on_post(post_id, body, token_info=None):  # noqa: E501
         "upvoteCount": up_count,
         "downvoteCount": down_count,
         "score": new_score,
+        "isCrossGroup": is_cross_group,
     }, 200
 
 

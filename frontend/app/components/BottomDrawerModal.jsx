@@ -10,6 +10,7 @@ import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS } from 
 import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
+import useModalBackHandler from '../hooks/useModalBackHandler'
 import { SemanticColors } from '../constants/Colors'
 import ThemedText from './ThemedText'
 
@@ -45,6 +46,7 @@ export default function BottomDrawerModal({
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const [modalVisible, setModalVisible] = useState(false)
+  useModalBackHandler(visible, onClose)
   const overlayOpacity = useSharedValue(0)
   const slideY = useSharedValue(SCREEN_HEIGHT)
   const maxHeight = MAX_HEIGHT_FRACTION * SCREEN_HEIGHT

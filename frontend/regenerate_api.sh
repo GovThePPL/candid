@@ -32,6 +32,7 @@ patch_card_item() {
 [ -f src/model/KudosCardItem.js ] && patch_card_item src/model/KudosCardItem.js "kudos"
 [ -f src/model/DemographicCardItem.js ] && patch_card_item src/model/DemographicCardItem.js "demographic"
 [ -f src/model/PairwiseCardItem.js ] && patch_card_item src/model/PairwiseCardItem.js "pairwise"
+[ -f src/model/BridgingKudosCardItem.js ] && patch_card_item src/model/BridgingKudosCardItem.js "bridging_kudos"
 
 # Remove User-Agent default header — browsers forbid setting it (causes
 # "Refused to set unsafe header" console errors on every API call)

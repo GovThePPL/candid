@@ -3,13 +3,91 @@ Message handling for chat.
 """
 
 import logging
-from typing import Any
+from typing import Any, Optional
 
+import aiohttp
 import socketio
 
+from ..config import config
 from ..services import get_redis_store, get_room_manager
+from ..services.quote_validator import parse_quotes, validate_quotes
 
 logger = logging.getLogger(__name__)
+
+
+async def _check_toxicity(text: str) -> Optional[float]:
+    """Check text toxicity via the NLP service.
+
+    Returns the toxicity_score float, or None on connection error (fail open).
+    """
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{config.NLP_SERVICE_URL}/toxicity-check",
+                json={"text": text, "threshold": config.TOXICITY_THRESHOLD},
+                timeout=aiohttp.ClientTimeout(total=config.NLP_SERVICE_TIMEOUT),
+            ) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    return data.get("toxicity_score")
+                logger.warning("NLP toxicity check returned status %d", resp.status)
+                return None
+    except (aiohttp.ClientError, TimeoutError) as e:
+        logger.debug("NLP toxicity check unavailable: %s", e)
+        return None
+
+
+def _flatten_definitions(requests: list) -> list[dict]:
+    """
+    Flatten resolved definition requests into individual definition dicts.
+
+    - 'accepted' requests produce 1 entry (the definer's definition)
+    - 'both_defined' requests produce 2 entries (definer's first, then counter-definer's)
+    - 'pending' and 'defined' requests are not yet resolved, so they produce 0 entries
+
+    Each entry is a dict with keys: id, term, definition, definerId.
+    """
+    flat = []
+    for req in requests:
+        # Support both dataclass objects and dicts
+        if isinstance(req, dict):
+            status = req.get("status", "")
+            req_id = req.get("id", "")
+            term = req.get("term", "")
+            definition = req.get("definition")
+            definer_id = req.get("definerId", req.get("definer_id"))
+            counter_definition = req.get("counterDefinition", req.get("counter_definition"))
+            counter_definer_id = req.get("counterDefinerId", req.get("counter_definer_id"))
+        else:
+            status = getattr(req, "status", "")
+            req_id = getattr(req, "id", "")
+            term = getattr(req, "term", "")
+            definition = getattr(req, "definition", None)
+            definer_id = getattr(req, "definer_id", None)
+            counter_definition = getattr(req, "counter_definition", None)
+            counter_definer_id = getattr(req, "counter_definer_id", None)
+
+        if status == "accepted":
+            flat.append({
+                "id": req_id,
+                "term": term,
+                "definition": definition,
+                "definerId": definer_id,
+            })
+        elif status == "both_defined":
+            flat.append({
+                "id": req_id,
+                "term": term,
+                "definition": definition,
+                "definerId": definer_id,
+            })
+            flat.append({
+                "id": f"{req_id}-counter",
+                "term": term,
+                "definition": counter_definition,
+                "definerId": counter_definer_id,
+            })
+    return flat
 
 
 def register_message_handlers(sio: socketio.AsyncServer) -> None:
@@ -88,26 +166,68 @@ def register_message_handlers(sio: socketio.AsyncServer) -> None:
                 "message": "Not a participant in this chat",
             }
 
+        # Validate quote references if the message contains any
+        quotes = parse_quotes(content)
+        if quotes:
+            all_messages = await redis_store.get_messages(chat_id)
+            # Filter to non-proposal (text/system) messages for M-references
+            text_messages = [
+                m for m in all_messages
+                if getattr(m, 'type', 'text') in ('text', 'system')
+            ]
+            # Get accepted agreed positions for S-references
+            positions = await redis_store.get_all_agreed_positions(chat_id)
+            accepted_positions = [
+                p for p in positions
+                if getattr(p, 'status', '') == 'accepted'
+            ]
+            # Get definitions for D-references (flatten requests into individual defs)
+            definition_requests = await redis_store.get_all_definition_requests(chat_id)
+            definitions = _flatten_definitions(definition_requests)
+
+            valid, error_code = validate_quotes(
+                content, text_messages, accepted_positions, definitions
+            )
+            if not valid:
+                return {
+                    "status": "error",
+                    "code": error_code,
+                    "message": f"Invalid quote reference: {error_code}",
+                }
+
+        # Server-side toxicity check (synchronous, fail-open)
+        toxicity_score = None
+        was_sent_anyway = None
+        if message_type == "text":
+            toxicity_score = await _check_toxicity(content)
+            if data.get("wasFlaggedToxic"):
+                was_sent_anyway = True
+
         # Store message in Redis
         msg = await redis_store.add_message(
             chat_id=chat_id,
             sender_id=user_id,
             content=content,
             message_type=message_type,
+            toxicity_score=toxicity_score,
+            was_sent_anyway=was_sent_anyway,
         )
 
         # Broadcast to chat room
         chat_room = room_manager.chat_room(chat_id)
+        broadcast_payload = {
+            "id": msg.id,
+            "chatLogId": chat_id,
+            "sender": msg.sender_id,
+            "type": msg.type,
+            "content": msg.content,
+            "sendTime": msg.timestamp,
+        }
+        if msg.toxicity_score is not None:
+            broadcast_payload["toxicityScore"] = msg.toxicity_score
         await sio.emit(
             "message",
-            {
-                "id": msg.id,
-                "chatLogId": chat_id,
-                "sender": msg.sender_id,
-                "type": msg.type,
-                "content": msg.content,
-                "sendTime": msg.timestamp,
-            },
+            broadcast_payload,
             room=chat_room,
         )
 

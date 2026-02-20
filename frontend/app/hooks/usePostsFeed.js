@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import api from '../lib/api'
 import { useToast } from '../components/Toast'
+import { isBridging } from '../lib/bridging'
+import { playUpvoteSound, playBridgingSound } from '../lib/sounds'
+import { hapticTap, hapticSuccess } from '../lib/haptics'
 
 /**
  * Hook for paginated post feed with sort and filter support.
@@ -93,6 +96,23 @@ export default function usePostsFeed(locationId, categoryId, postType) {
   }, [fetchPosts])
 
   const handleUpvote = useCallback(async (postId) => {
+    // Sound + haptic on new upvotes (not toggles/removes)
+    const post = posts.find(p => p.id === postId)
+    const wasUpvoted = post?.userVote?.voteType === 'upvote'
+    let playedBridging = false
+    if (!wasUpvoted && post) {
+      const wasBridging = isBridging(post)
+      const afterPost = { ...post, upvoteCount: post.upvoteCount + 1 }
+      if (!wasBridging && isBridging(afterPost)) {
+        playBridgingSound()
+        hapticSuccess()
+        playedBridging = true
+      } else {
+        playUpvoteSound()
+        hapticTap()
+      }
+    }
+
     // Snapshot for rollback
     const prevPosts = posts
 
@@ -109,6 +129,13 @@ export default function usePostsFeed(locationId, categoryId, postType) {
 
     try {
       const result = await api.posts.voteOnPost(postId, { voteType: 'upvote' })
+
+      // Upgrade feedback if cross-group and we didn't already play bridging
+      if (result.isCrossGroup && !wasUpvoted && !playedBridging) {
+        playBridgingSound()
+        hapticSuccess()
+      }
+
       // Update with server response
       setPosts(prev => prev.map(p => {
         if (p.id !== postId) return p

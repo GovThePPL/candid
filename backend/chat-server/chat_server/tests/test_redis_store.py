@@ -634,3 +634,60 @@ class TestDataClasses:
         assert "chat_id" not in d
         assert "participant_ids" not in d
         assert "start_time" not in d
+
+
+class TestChatMessageToxicity:
+    """Tests for toxicity fields on ChatMessage."""
+
+    def test_to_dict_without_toxicity(self):
+        """to_dict omits toxicity fields when not set."""
+        msg = ChatMessage(
+            id="m1", sender_id="u1", type="text",
+            content="hello", target_id=None, timestamp="t",
+        )
+        d = msg.to_dict()
+        assert "toxicityScore" not in d
+        assert "wasSentAnyway" not in d
+
+    def test_to_dict_with_toxicity(self):
+        """to_dict includes toxicity fields when set."""
+        msg = ChatMessage(
+            id="m1", sender_id="u1", type="text",
+            content="bad msg", target_id=None, timestamp="t",
+            toxicity_score=0.85, was_sent_anyway=True,
+        )
+        d = msg.to_dict()
+        assert d["toxicityScore"] == 0.85
+        assert d["wasSentAnyway"] is True
+
+    def test_from_dict_with_toxicity(self):
+        """from_dict reads toxicity fields."""
+        data = {
+            "id": "m1", "senderId": "u1", "type": "text",
+            "content": "msg", "targetId": None, "timestamp": "t",
+            "toxicityScore": 0.75, "wasSentAnyway": True,
+        }
+        msg = ChatMessage.from_dict(data)
+        assert msg.toxicity_score == 0.75
+        assert msg.was_sent_anyway is True
+
+    def test_from_dict_without_toxicity(self):
+        """from_dict defaults toxicity fields to None."""
+        data = {
+            "id": "m1", "senderId": "u1", "type": "text",
+            "content": "msg", "targetId": None, "timestamp": "t",
+        }
+        msg = ChatMessage.from_dict(data)
+        assert msg.toxicity_score is None
+        assert msg.was_sent_anyway is None
+
+    def test_roundtrip(self):
+        """to_dict → from_dict preserves toxicity data."""
+        original = ChatMessage(
+            id="m1", sender_id="u1", type="text",
+            content="msg", target_id=None, timestamp="t",
+            toxicity_score=0.92, was_sent_anyway=True,
+        )
+        restored = ChatMessage.from_dict(original.to_dict())
+        assert restored.toxicity_score == original.toxicity_score
+        assert restored.was_sent_anyway == original.was_sent_anyway
