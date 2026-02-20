@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useContext, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   StyleSheet,
@@ -30,7 +30,7 @@ import InfoModal from '../../../components/InfoModal'
 import { SkeletonPulse, SkeletonBox, SkeletonLine } from '../../../components/Skeleton'
 import api, { statsApiWrapper, surveysApiWrapper, API_BASE_URL, translateError } from '../../../lib/api'
 import { CacheManager, CacheKeys, CacheDurations } from '../../../lib/cache'
-import { UserContext } from '../../../contexts/UserContext'
+import { useAuth } from '../../../contexts/UserContext'
 import { useLocationCategory } from '../../../contexts/LocationCategoryContext'
 
 const CARD_MIN_WIDTH = 340
@@ -89,7 +89,7 @@ function StatsContentSkeleton({ styles }) {
 }
 
 export default function Stats() {
-  const { user } = useContext(UserContext)
+  const { user } = useAuth()
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const { t } = useTranslation('stats')

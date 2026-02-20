@@ -53,10 +53,7 @@ def get_chatting_list(token_info=None):
             u.username as creator_username,
             u.status as creator_status,
             u.trust_score as creator_trust_score,
-            COALESCE((
-                SELECT COUNT(*) FROM kudos k
-                WHERE k.receiver_user_id = u.id AND k.status = 'sent'
-            ), 0) as creator_kudos_count,
+            u.kudos_count as creator_kudos_count,
             -- Category
             pc.label as category_name,
             -- Location
@@ -462,10 +459,7 @@ def _get_chatting_list_item(item_id: str, user_id: str) -> dict:
             u.username as creator_username,
             u.status as creator_status,
             u.trust_score as creator_trust_score,
-            COALESCE((
-                SELECT COUNT(*) FROM kudos k
-                WHERE k.receiver_user_id = u.id AND k.status = 'sent'
-            ), 0) as creator_kudos_count,
+            u.kudos_count as creator_kudos_count,
             -- Category
             pc.label as category_name,
             -- Location

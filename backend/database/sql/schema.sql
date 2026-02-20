@@ -42,7 +42,9 @@ CREATE TABLE users (
     -- Diagnostics consent: NULL = never asked, true = opted in, false = opted out
     diagnostics_consent BOOLEAN DEFAULT NULL,
     -- Role badge visibility: whether to display role badge on posts and comments
-    show_role_badge BOOLEAN NOT NULL DEFAULT true
+    show_role_badge BOOLEAN NOT NULL DEFAULT true,
+    -- Denormalized kudos count (maintained by trigger on kudos table)
+    kudos_count INTEGER NOT NULL DEFAULT 0
 );
 
 COMMENT ON COLUMN users.chat_request_likelihood IS '0=off, 1=rarely, 2=less, 3=normal, 4=more, 5=often';
@@ -1076,6 +1078,54 @@ BEGIN
     rows_fixed := fixed_count;
     RETURN NEXT;
 
+    -- 6. User kudos counts (from kudos table, status = 'sent')
+    WITH counts AS (
+        SELECT receiver_user_id, COUNT(*) AS cnt
+        FROM kudos WHERE status = 'sent'
+        GROUP BY receiver_user_id
+    ), updated AS (
+        UPDATE users u SET kudos_count = COALESCE(c.cnt, 0)
+        FROM counts c
+        WHERE u.id = c.receiver_user_id AND u.kudos_count IS DISTINCT FROM c.cnt
+        RETURNING 1
+    )
+    SELECT COUNT(*) INTO fixed_count FROM updated;
+    counter_name := 'users.kudos_count';
+    rows_fixed := fixed_count;
+    RETURN NEXT;
+
     RETURN;
 END;
 $$ LANGUAGE plpgsql;
+
+-- Trigger: kudos insert/update/delete → update users.kudos_count
+-- Only kudos with status = 'sent' are counted.
+CREATE OR REPLACE FUNCTION update_user_kudos_count() RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        IF NEW.status = 'sent' THEN
+            UPDATE users SET kudos_count = kudos_count + 1 WHERE id = NEW.receiver_user_id;
+        END IF;
+        RETURN NEW;
+    ELSIF TG_OP = 'UPDATE' THEN
+        -- Handle status changes and receiver changes
+        IF OLD.status = 'sent' AND (NEW.status <> 'sent' OR OLD.receiver_user_id <> NEW.receiver_user_id) THEN
+            UPDATE users SET kudos_count = GREATEST(kudos_count - 1, 0) WHERE id = OLD.receiver_user_id;
+        END IF;
+        IF NEW.status = 'sent' AND (OLD.status <> 'sent' OR OLD.receiver_user_id <> NEW.receiver_user_id) THEN
+            UPDATE users SET kudos_count = kudos_count + 1 WHERE id = NEW.receiver_user_id;
+        END IF;
+        RETURN NEW;
+    ELSIF TG_OP = 'DELETE' THEN
+        IF OLD.status = 'sent' THEN
+            UPDATE users SET kudos_count = GREATEST(kudos_count - 1, 0) WHERE id = OLD.receiver_user_id;
+        END IF;
+        RETURN OLD;
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_user_kudos_count
+    AFTER INSERT OR UPDATE OR DELETE ON kudos
+    FOR EACH ROW EXECUTE FUNCTION update_user_kudos_count();

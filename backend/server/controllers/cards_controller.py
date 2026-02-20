@@ -429,10 +429,7 @@ def _get_chatting_list_cards(user_id: str, limit: int = 3) -> List[dict]:
             u.trust_score as creator_trust_score,
             u.avatar_url as creator_avatar_url,
             u.avatar_icon_url as creator_avatar_icon_url,
-            COALESCE((
-                SELECT COUNT(*) FROM kudos k
-                WHERE k.receiver_user_id = u.id AND k.status = 'sent'
-            ), 0) as creator_kudos_count,
+            u.kudos_count as creator_kudos_count,
             -- Category
             pc.label as category_name,
             -- Location
@@ -605,10 +602,7 @@ def _get_unvoted_positions_fallback(user_id: str, location_id: str, limit: int =
             u.trust_score as creator_trust_score,
             u.avatar_url as creator_avatar_url,
             u.avatar_icon_url as creator_avatar_icon_url,
-            COALESCE((
-                SELECT COUNT(*) FROM kudos k
-                WHERE k.receiver_user_id = u.id AND k.status = 'sent'
-            ), 0) as creator_kudos_count,
+            u.kudos_count as creator_kudos_count,
             pc.label as category_name,
             l.id as location_id,
             l.code as location_code,
@@ -757,10 +751,7 @@ def _get_pending_chat_requests(user_id: str, limit: int = 2) -> List[dict]:
             u.trust_score as initiator_trust_score,
             u.avatar_url as initiator_avatar_url,
             u.avatar_icon_url as initiator_avatar_icon_url,
-            COALESCE((
-                SELECT COUNT(*) FROM kudos k
-                WHERE k.receiver_user_id = u.id AND k.status = 'sent'
-            ), 0) as initiator_kudos_count,
+            u.kudos_count as initiator_kudos_count,
             -- Position details
             p.id as position_id,
             p.statement as position_statement,
@@ -776,10 +767,7 @@ def _get_pending_chat_requests(user_id: str, limit: int = 2) -> List[dict]:
             author.trust_score as author_trust_score,
             author.avatar_url as author_avatar_url,
             author.avatar_icon_url as author_avatar_icon_url,
-            COALESCE((
-                SELECT COUNT(*) FROM kudos k
-                WHERE k.receiver_user_id = author.id AND k.status = 'sent'
-            ), 0) as author_kudos_count
+            author.kudos_count as author_kudos_count
         FROM chat_request cr
         JOIN user_position up ON cr.user_position_id = up.id
         JOIN users u ON cr.initiator_user_id = u.id
@@ -834,12 +822,8 @@ def _get_pending_kudos_cards(user_id: str, limit: int = 2) -> List[dict]:
                 ELSE initiator.trust_score
             END as other_trust_score,
             CASE
-                WHEN cr.initiator_user_id = %s THEN (
-                    SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = responder.id AND k.status = 'sent'
-                )
-                ELSE (
-                    SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = initiator.id AND k.status = 'sent'
-                )
+                WHEN cr.initiator_user_id = %s THEN responder.kudos_count
+                ELSE initiator.kudos_count
             END as other_kudos_count,
             CASE
                 WHEN cr.initiator_user_id = %s THEN responder.avatar_url
@@ -865,7 +849,7 @@ def _get_pending_kudos_cards(user_id: str, limit: int = 2) -> List[dict]:
             responder.trust_score as position_author_trust_score,
             responder.avatar_url as position_author_avatar_url,
             responder.avatar_icon_url as position_author_avatar_icon_url,
-            (SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = responder.id AND k.status = 'sent') as position_author_kudos_count
+            responder.kudos_count as position_author_kudos_count
         FROM chat_log cl
         JOIN chat_request cr ON cl.chat_request_id = cr.id
         JOIN user_position up ON cr.user_position_id = up.id

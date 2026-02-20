@@ -25,14 +25,14 @@ const KBAvoidingView = Platform.OS !== 'web'
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true)
 }
-import { useState, useEffect, useRef, useCallback, useContext, useMemo } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { SemanticColors } from '../../../constants/Colors'
 import { Shadows } from '../../../constants/Theme'
 import { useThemeColors } from '../../../hooks/useThemeColors'
-import { UserContext } from '../../../contexts/UserContext'
+import { useAuth } from '../../../contexts/UserContext'
 import Header from '../../../components/Header'
 import api, { translateError } from '../../../lib/api'
 import { CacheManager, CacheKeys } from '../../../lib/cache'
@@ -69,7 +69,7 @@ import {
   correctExplanation,
   onExplainPosition,
 } from '../../../lib/socket'
-import { playTypingSound, playMessageSound, playReactionSound, playAgreedSound, playClosureSound } from '../../../lib/sounds'
+import { playTypingSound, playMessageSound, playReactionSound, playAgreedSound, playClosureSound, initNativeSounds } from '../../../lib/sounds'
 import { hapticTap, hapticSuccess } from '../../../lib/haptics'
 import Avatar from '../../../components/Avatar'
 import ThemedText from '../../../components/ThemedText'
@@ -198,7 +198,7 @@ export default function ChatScreen() {
   const { id: chatId, mode, reporterId } = useLocalSearchParams()
   const router = useRouter()
   const navigation = useNavigation()
-  const { user } = useContext(UserContext)
+  const { user } = useAuth()
   const { width: screenWidth, height: screenHeight } = useWindowDimensions()
   const { t } = useTranslation('chat')
 
@@ -406,6 +406,9 @@ export default function ChatScreen() {
       parent?.setOptions({ tabBarStyle: undefined })
     }
   }, [navigation])
+
+  // Pre-initialize native sounds so they're ready for instant playback
+  useEffect(() => { initNativeSounds() }, [])
 
   // Intercept gesture/hardware back when chat is live — show leave confirmation
   useEffect(() => {
@@ -2721,11 +2724,9 @@ export default function ChatScreen() {
               animationType="fade"
               onRequestClose={closeSpecialMenu}
             >
-              <Pressable
-                style={styles.specialMenuBackdrop}
-                onPress={closeSpecialMenu}
-              >
-                <View style={[styles.specialMenuPopup, { bottom: Math.max(insets.bottom, 8) + 56 }]}>
+              <View style={styles.specialMenuBackdrop}>
+                <Pressable style={{ flex: 1 }} onPress={closeSpecialMenu} />
+                <View style={[styles.specialMenuPopup, { marginBottom: Math.max(insets.bottom, 8) + 56 }]}>
                   <TouchableOpacity
                     style={[styles.specialMenuItem, messageType === 'text' && styles.specialMenuItemSelected]}
                     onPress={handleSelectChat}
@@ -2817,7 +2818,7 @@ export default function ChatScreen() {
                     )}
                   </TouchableOpacity>
                 </View>
-              </Pressable>
+              </View>
             </Modal>
 
             <View style={styles.inputFields}>
@@ -2835,7 +2836,6 @@ export default function ChatScreen() {
                 }
                 placeholderTextColor={colors.placeholderText}
                 multiline
-                numberOfLines={1}
                 maxLength={messageType === 'definition_request' ? 100 : messageType === 'explain_request' ? 200 : 1000}
                 maxFontSizeMultiplier={1.5}
                 blurOnSubmit={false}
@@ -3346,8 +3346,8 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: 'transparent',
   },
   specialMenuPopup: {
-    position: 'absolute',
-    left: 12,
+    marginLeft: 12,
+    alignSelf: 'flex-start',
     backgroundColor: colors.cardBackground,
     borderRadius: 12,
     padding: 8,

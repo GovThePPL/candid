@@ -4,6 +4,9 @@ Service layer for the chat server.
 
 import asyncio
 import logging
+from typing import Optional
+
+import aiohttp
 from aiohttp import web
 
 from .redis_store import RedisStore
@@ -20,6 +23,7 @@ chat_exporter: ChatExporter = None
 room_manager: RoomManager = None
 pubsub_service: PubSubService = None
 abandonment_tracker: AbandonmentTracker = None
+_nlp_session: Optional[aiohttp.ClientSession] = None
 _sio = None  # Socket.IO server reference
 _timeout_check_task = None  # Background task for checking timed-out sessions
 _abandonment_check_task = None  # Background task for checking abandoned chats
@@ -30,7 +34,7 @@ TIMEOUT_CHECK_INTERVAL = 30
 
 async def initialize_services(app: web.Application) -> None:
     """Initialize all services on application startup."""
-    global redis_store, chat_exporter, room_manager, pubsub_service, abandonment_tracker, _sio, _timeout_check_task, _abandonment_check_task
+    global redis_store, chat_exporter, room_manager, pubsub_service, abandonment_tracker, _nlp_session, _sio, _timeout_check_task, _abandonment_check_task
 
     logger.info("Initializing services...")
 
@@ -50,6 +54,9 @@ async def initialize_services(app: web.Application) -> None:
 
     # Initialize abandonment tracker
     abandonment_tracker = AbandonmentTracker()
+
+    # Initialize shared HTTP session for NLP service calls
+    _nlp_session = aiohttp.ClientSession()
 
     # Initialize pub/sub service and start listener
     pubsub_service = PubSubService()
@@ -84,7 +91,7 @@ async def initialize_services(app: web.Application) -> None:
 
 async def cleanup_services(app: web.Application) -> None:
     """Cleanup services on application shutdown."""
-    global redis_store, chat_exporter, pubsub_service, _timeout_check_task, _abandonment_check_task
+    global redis_store, chat_exporter, pubsub_service, _nlp_session, _timeout_check_task, _abandonment_check_task
 
     logger.info("Cleaning up services...")
 
@@ -104,6 +111,8 @@ async def cleanup_services(app: web.Application) -> None:
         except asyncio.CancelledError:
             pass
 
+    if _nlp_session:
+        await _nlp_session.close()
     if pubsub_service:
         await pubsub_service.close()
     if redis_store:
@@ -473,3 +482,10 @@ def get_abandonment_tracker() -> AbandonmentTracker:
     if abandonment_tracker is None:
         raise RuntimeError("Abandonment tracker not initialized")
     return abandonment_tracker
+
+
+def get_nlp_session() -> aiohttp.ClientSession:
+    """Get the shared NLP HTTP session."""
+    if _nlp_session is None:
+        raise RuntimeError("NLP session not initialized")
+    return _nlp_session

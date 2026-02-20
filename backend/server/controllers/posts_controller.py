@@ -204,7 +204,7 @@ def create_post(body, token_info=None):  # noqa: E501
                u.username AS creator_username, u.display_name AS creator_display_name,
                u.avatar_icon_url AS creator_avatar_icon_url, u.status AS creator_status,
                u.trust_score AS creator_trust_score,
-               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u.id AND k.status = 'sent'), 0) AS creator_kudos_count,
+               u.kudos_count AS creator_kudos_count,
                pc.label AS category_label,
                l.code AS location_code, l.name AS location_name
         FROM post p
@@ -325,7 +325,7 @@ def get_posts(location_id, category_id=None, post_type=None, sort=None,
                u.avatar_icon_url AS creator_avatar_icon_url, u.status AS creator_status,
                u.trust_score AS creator_trust_score,
                u.show_role_badge AS creator_show_role_badge,
-               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u.id AND k.status = 'sent'), 0) AS creator_kudos_count,
+               u.kudos_count AS creator_kudos_count,
                pc.label AS category_label,
                l.code AS location_code, l.name AS location_name,
                ({sort_expr}) AS sort_value,
@@ -421,7 +421,7 @@ def get_post(post_id, token_info=None):  # noqa: E501
                u.avatar_icon_url AS creator_avatar_icon_url, u.status AS creator_status,
                u.trust_score AS creator_trust_score,
                u.show_role_badge AS creator_show_role_badge,
-               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u.id AND k.status = 'sent'), 0) AS creator_kudos_count,
+               u.kudos_count AS creator_kudos_count,
                pc.label AS category_label,
                l.code AS location_code, l.name AS location_name,
                (SELECT ur_cr.role FROM user_role ur_cr
@@ -540,7 +540,7 @@ def update_post(post_id, body, token_info=None):  # noqa: E501
                u.username AS creator_username, u.display_name AS creator_display_name,
                u.avatar_icon_url AS creator_avatar_icon_url, u.status AS creator_status,
                u.trust_score AS creator_trust_score,
-               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u.id AND k.status = 'sent'), 0) AS creator_kudos_count,
+               u.kudos_count AS creator_kudos_count,
                pc.label AS category_label,
                l.code AS location_code, l.name AS location_name,
                NULL AS user_vote_type, NULL AS user_vote_reason
@@ -770,7 +770,7 @@ def patch_post(post_id, body, token_info=None):  # noqa: E501
                u.username AS creator_username, u.display_name AS creator_display_name,
                u.avatar_icon_url AS creator_avatar_icon_url, u.status AS creator_status,
                u.trust_score AS creator_trust_score,
-               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u.id AND k.status = 'sent'), 0) AS creator_kudos_count,
+               u.kudos_count AS creator_kudos_count,
                pc.label AS category_label,
                l.code AS location_code, l.name AS location_name,
                NULL AS user_vote_type, NULL AS user_vote_reason

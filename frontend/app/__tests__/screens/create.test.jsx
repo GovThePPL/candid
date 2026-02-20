@@ -13,8 +13,16 @@ const mockUserContext = {
   positionsVersion: 0,
   isBanned: false,
 }
+let mockCurrentContext = { ...mockUserContext }
 jest.mock('../../contexts/UserContext', () => ({
   UserContext: require('react').createContext(null),
+  useAuth: () => ({
+    user: mockCurrentContext.user,
+    isBanned: mockCurrentContext.isBanned,
+  }),
+  useNavigationContext: () => ({
+    positionsVersion: mockCurrentContext.positionsVersion,
+  }),
 }))
 
 const { UserContext } = require('../../contexts/UserContext')
@@ -143,7 +151,7 @@ jest.mock('expo-router', () => ({
 import PositionManagerContent from '../../components/PositionManagerContent'
 
 function renderCreate(contextOverrides = {}) {
-  const contextValue = { ...mockUserContext, ...contextOverrides }
+  mockCurrentContext = { ...mockUserContext, ...contextOverrides }
   // Suppress act() warnings from async effects — these are expected in smoke tests
   const errSpy = jest.spyOn(console, 'error').mockImplementation((msg) => {
     if (typeof msg === 'string' && msg.includes('not wrapped in act')) return
@@ -151,7 +159,7 @@ function renderCreate(contextOverrides = {}) {
     console.error(msg)
   })
   const result = render(
-    <UserContext.Provider value={contextValue}>
+    <UserContext.Provider value={mockCurrentContext}>
       <PositionManagerContent />
     </UserContext.Provider>
   )

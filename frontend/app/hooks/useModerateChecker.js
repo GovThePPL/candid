@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useContext } from 'react'
-import { UserContext } from '../contexts/UserContext'
+import { useState, useEffect, useCallback } from 'react'
+import { useAuth } from '../contexts/UserContext'
 import { canModerate, canModerateAtScope } from '../lib/roles'
 import api from '../lib/api'
 import { CacheManager } from '../lib/cache'
@@ -15,7 +15,7 @@ const LOCATIONS_TTL = 5 * 60 * 1000 // 5 minutes
  * Only fetches locations if the user has any facilitator+ role.
  */
 export default function useModerateChecker() {
-  const { user } = useContext(UserContext)
+  const { user } = useAuth()
   const hasModerationRole = canModerate(user)
   const [locations, setLocations] = useState([])
 

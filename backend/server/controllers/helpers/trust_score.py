@@ -134,7 +134,7 @@ def _get_chat_signals(user_id: str, db: Database) -> dict:
 
     # Kudos received (from kudos table, not JSONB)
     kudos_row = db.execute_query(
-        "SELECT COUNT(*) AS cnt FROM kudos WHERE receiver_user_id = %s AND status = 'sent'",
+        "SELECT kudos_count AS cnt FROM users WHERE id = %s",
         (user_id,),
         fetchone=True,
     )

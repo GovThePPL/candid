@@ -1,11 +1,11 @@
 import { StyleSheet, View, TouchableOpacity, Platform } from 'react-native'
-import { useContext, useState, useCallback, useRef, useMemo } from 'react'
+import { useState, useCallback, useRef, useMemo } from 'react'
 import { useRouter, usePathname } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
-import { UserContext } from '../contexts/UserContext'
+import { useAuth, useChatContext } from '../contexts/UserContext'
 import { useNotificationCount } from '../contexts/NotificationContext'
 import ChatRequestIndicator from './ChatRequestIndicator'
 import Avatar from './Avatar'
@@ -21,7 +21,8 @@ export default function Header({ onBack, showCreateButton, showAvatar = true, di
   const insets = useSafeAreaInsets()
   const styles = useMemo(() => createStyles(colors, insets), [colors, insets])
   const showToast = useToast()
-  const { user, pendingChatRequest, clearPendingChatRequest } = useContext(UserContext)
+  const { user } = useAuth()
+  const { pendingChatRequest, clearPendingChatRequest } = useChatContext()
   const { unreadCount } = useNotificationCount()
   const [headerWidth, setHeaderWidth] = useState(0)
 

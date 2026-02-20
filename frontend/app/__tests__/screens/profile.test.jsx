@@ -48,6 +48,17 @@ jest.mock('../../contexts/UserContext', () => ({
     positionsVersion: 0,
     isBanned: false,
   }),
+  useAuth: () => ({
+    user: {
+      id: 'u1',
+      displayName: 'TestUser',
+      username: 'testuser',
+      kudosCount: 5,
+      roles: [{ role: 'admin', locationId: 1, locationCode: 'US', categoryLabel: null }],
+    },
+    logout: jest.fn(),
+    isBanned: false,
+  }),
 }))
 
 let mockSearchParams = {}

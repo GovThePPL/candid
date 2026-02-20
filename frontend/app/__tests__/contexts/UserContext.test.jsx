@@ -72,11 +72,18 @@ jest.mock('../../lib/api', () => {
   }
 })
 
-import { UserProvider, UserContext } from '../../contexts/UserContext'
+import { UserProvider, UserContext, useAuth, useChatContext, useNavigationContext } from '../../contexts/UserContext'
 
 function useUserContext() {
   const ctx = React.useContext(UserContext)
   return ctx
+}
+
+function useAllSplitContexts() {
+  const auth = useAuth()
+  const chat = useChatContext()
+  const nav = useNavigationContext()
+  return { auth, chat, nav }
 }
 
 beforeEach(() => {
@@ -353,5 +360,131 @@ describe('pendingChatRequest', () => {
 
     expect(result.current.pendingChatRequest).toBeNull()
     expect(AsyncStorage.removeItem).toHaveBeenCalledWith('candid_pending_chat_request')
+  })
+})
+
+describe('split context hooks', () => {
+  function renderSplitHook() {
+    return renderHook(() => useAllSplitContexts(), {
+      wrapper: ({ children }) => <UserProvider>{children}</UserProvider>,
+    })
+  }
+
+  it('useAuth provides auth-related values', async () => {
+    const { result } = renderSplitHook()
+    await act(async () => {
+      jest.runAllTimers()
+    })
+    await waitFor(() => {
+      expect(result.current.auth.authChecked).toBe(true)
+    })
+    expect(result.current.auth).toHaveProperty('user')
+    expect(result.current.auth).toHaveProperty('login')
+    expect(result.current.auth).toHaveProperty('logout')
+    expect(result.current.auth).toHaveProperty('register')
+    expect(result.current.auth).toHaveProperty('refreshUser')
+    expect(result.current.auth).toHaveProperty('isBanned')
+    expect(result.current.auth).toHaveProperty('isNewUser')
+    expect(result.current.auth).toHaveProperty('clearNewUser')
+  })
+
+  it('useChatContext provides chat-related values', async () => {
+    const { result } = renderSplitHook()
+    await act(async () => {
+      jest.runAllTimers()
+    })
+    await waitFor(() => {
+      expect(result.current.auth.authChecked).toBe(true)
+    })
+    expect(result.current.chat).toHaveProperty('pendingChatRequest')
+    expect(result.current.chat).toHaveProperty('setPendingChatRequest')
+    expect(result.current.chat).toHaveProperty('clearPendingChatRequest')
+    expect(result.current.chat).toHaveProperty('updateChatRequestStatus')
+    expect(result.current.chat).toHaveProperty('incomingChatRequest')
+    expect(result.current.chat).toHaveProperty('clearIncomingChatRequest')
+    expect(result.current.chat).toHaveProperty('activeChatNavigation')
+    expect(result.current.chat).toHaveProperty('clearActiveChatNavigation')
+    expect(result.current.chat).toHaveProperty('activeChat')
+    expect(result.current.chat).toHaveProperty('clearActiveChat')
+  })
+
+  it('useNavigationContext provides navigation-related values', async () => {
+    const { result } = renderSplitHook()
+    await act(async () => {
+      jest.runAllTimers()
+    })
+    await waitFor(() => {
+      expect(result.current.auth.authChecked).toBe(true)
+    })
+    expect(result.current.nav).toHaveProperty('pendingDeepLink')
+    expect(result.current.nav).toHaveProperty('clearPendingDeepLink')
+    expect(result.current.nav).toHaveProperty('positionsVersion')
+    expect(result.current.nav).toHaveProperty('invalidatePositions')
+  })
+
+  it('auth values do not include chat or navigation values', async () => {
+    const { result } = renderSplitHook()
+    await act(async () => {
+      jest.runAllTimers()
+    })
+    await waitFor(() => {
+      expect(result.current.auth.authChecked).toBe(true)
+    })
+    expect(result.current.auth).not.toHaveProperty('pendingChatRequest')
+    expect(result.current.auth).not.toHaveProperty('positionsVersion')
+    expect(result.current.auth).not.toHaveProperty('pendingDeepLink')
+  })
+
+  it('login via useAuth works correctly', async () => {
+    const user = { id: 'u1', username: 'alice', status: 'active' }
+    mockLoginWithCredentials.mockResolvedValue({ accessToken: 'at-1' })
+    mockGetCurrentUser.mockResolvedValue(user)
+
+    const { result } = renderSplitHook()
+    await act(async () => {
+      jest.runAllTimers()
+    })
+    await waitFor(() => {
+      expect(result.current.auth.authChecked).toBe(true)
+    })
+
+    await act(async () => {
+      await result.current.auth.login('alice', 'pass')
+    })
+
+    expect(result.current.auth.user).toEqual(user)
+  })
+
+  it('invalidatePositions via useNavigationContext works correctly', async () => {
+    const { result } = renderSplitHook()
+    await act(async () => {
+      jest.runAllTimers()
+    })
+    await waitFor(() => {
+      expect(result.current.auth.authChecked).toBe(true)
+    })
+
+    const initial = result.current.nav.positionsVersion
+    act(() => {
+      result.current.nav.invalidatePositions()
+    })
+    expect(result.current.nav.positionsVersion).toBe(initial + 1)
+  })
+
+  it('setPendingChatRequest via useChatContext works correctly', async () => {
+    const { result } = renderSplitHook()
+    await act(async () => {
+      jest.runAllTimers()
+    })
+    await waitFor(() => {
+      expect(result.current.auth.authChecked).toBe(true)
+    })
+
+    const request = { id: 'r1', status: 'pending' }
+    act(() => {
+      result.current.chat.setPendingChatRequest(request)
+    })
+
+    expect(result.current.chat.pendingChatRequest).toEqual(request)
   })
 })

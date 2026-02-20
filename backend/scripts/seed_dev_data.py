@@ -1480,6 +1480,19 @@ def phase_7_kudos(api, dry_run=False):
 
         print(f"  Total kudos: {count}")
 
+    # Reconcile denormalized kudos_count on users table (safety net)
+    if not dry_run:
+        db_execute("""
+            UPDATE users SET kudos_count = COALESCE(sub.cnt, 0)
+            FROM (
+                SELECT receiver_user_id, COUNT(*) AS cnt
+                FROM kudos WHERE status = 'sent'
+                GROUP BY receiver_user_id
+            ) sub
+            WHERE users.id = sub.receiver_user_id
+              AND users.kudos_count IS DISTINCT FROM sub.cnt
+        """)
+
     # Trust scores are computed later in dev.sh, after Polis backfill creates
     # conversations and MF training populates bridging data.  See
     # backend/scripts/compute_trust_scores.py (called from dev.sh).

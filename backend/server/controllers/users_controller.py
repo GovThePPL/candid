@@ -188,10 +188,7 @@ def get_current_user(token_info=None):  # noqa: E501
             u.avatar_url,
             u.avatar_icon_url,
             u.diagnostics_consent,
-            COALESCE((
-                SELECT COUNT(*) FROM kudos k
-                WHERE k.receiver_user_id = u.id AND k.status = 'sent'
-            ), 0) as kudos_count
+            u.kudos_count
         FROM users u
         WHERE u.id = %s
         """,
@@ -522,10 +519,7 @@ def get_user_by_id(user_id, token_info=None):  # noqa: E501
             u.username,
             u.avatar_url,
             u.avatar_icon_url,
-            COALESCE((
-                SELECT COUNT(*) FROM kudos k
-                WHERE k.receiver_user_id = u.id AND k.status = 'sent'
-            ), 0) as kudos_count
+            u.kudos_count
         FROM users u
         WHERE u.id = %s
         """,
@@ -807,10 +801,7 @@ def update_user_profile(body, token_info=None):  # noqa: E501
             u.avatar_url,
             u.avatar_icon_url,
             u.diagnostics_consent,
-            COALESCE((
-                SELECT COUNT(*) FROM kudos k
-                WHERE k.receiver_user_id = u.id AND k.status = 'sent'
-            ), 0) as kudos_count
+            u.kudos_count
         FROM users u
         WHERE u.id = %s
         """,

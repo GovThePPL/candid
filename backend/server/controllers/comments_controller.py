@@ -188,7 +188,7 @@ def get_comments(post_id, cursor=None, limit=None, max_descendants=None, token_i
                    u.avatar_icon_url AS creator_avatar_icon_url, u.status AS creator_status,
                    u.trust_score AS creator_trust_score,
                    u.show_role_badge AS creator_show_role_badge,
-                   COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u.id AND k.status = 'sent'), 0) AS creator_kudos_count
+                   u.kudos_count AS creator_kudos_count
                    {vote_select}
             FROM comment c
             JOIN users u ON c.creator_user_id = u.id
@@ -391,9 +391,7 @@ def create_comment(post_id, body, token_info=None):  # noqa: E501
                u.username AS creator_username, u.display_name AS creator_display_name,
                u.avatar_icon_url AS creator_avatar_icon_url, u.status AS creator_status,
                u.trust_score AS creator_trust_score,
-               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u.id AND k.status = 'sent'), 0) AS creator_kudos_count,
-               u.trust_score AS creator_trust_score,
-               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u.id AND k.status = 'sent'), 0) AS creator_kudos_count,
+               u.kudos_count AS creator_kudos_count,
                NULL AS user_vote_type, NULL AS user_vote_reason
         FROM comment c
         JOIN users u ON c.creator_user_id = u.id
@@ -462,9 +460,7 @@ def update_comment(comment_id, body, token_info=None):  # noqa: E501
                u.username AS creator_username, u.display_name AS creator_display_name,
                u.avatar_icon_url AS creator_avatar_icon_url, u.status AS creator_status,
                u.trust_score AS creator_trust_score,
-               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u.id AND k.status = 'sent'), 0) AS creator_kudos_count,
-               u.trust_score AS creator_trust_score,
-               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u.id AND k.status = 'sent'), 0) AS creator_kudos_count,
+               u.kudos_count AS creator_kudos_count,
                NULL AS user_vote_type, NULL AS user_vote_reason
         FROM comment c
         JOIN users u ON c.creator_user_id = u.id
@@ -716,7 +712,7 @@ def get_comment_thread(post_id, comment_id, max_descendants=None, include_ancest
                u.avatar_icon_url AS creator_avatar_icon_url, u.status AS creator_status,
                u.trust_score AS creator_trust_score,
                u.show_role_badge AS creator_show_role_badge,
-               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u.id AND k.status = 'sent'), 0) AS creator_kudos_count
+               u.kudos_count AS creator_kudos_count
                {vote_select}
         FROM comment c
         JOIN users u ON c.creator_user_id = u.id
@@ -839,7 +835,7 @@ def patch_comment(comment_id, body, token_info=None):  # noqa: E501
                u.username AS creator_username, u.display_name AS creator_display_name,
                u.avatar_icon_url AS creator_avatar_icon_url, u.status AS creator_status,
                u.trust_score AS creator_trust_score,
-               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u.id AND k.status = 'sent'), 0) AS creator_kudos_count,
+               u.kudos_count AS creator_kudos_count,
                NULL AS user_vote_type, NULL AS user_vote_reason
         FROM comment c
         JOIN users u ON c.creator_user_id = u.id

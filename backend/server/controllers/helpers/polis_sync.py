@@ -562,10 +562,7 @@ def _get_unvoted_positions_from_db(
                u.status as creator_status, u.trust_score as creator_trust_score,
                u.avatar_url as creator_avatar_url,
                u.avatar_icon_url as creator_avatar_icon_url,
-               COALESCE((
-                   SELECT COUNT(*) FROM kudos k
-                   WHERE k.receiver_user_id = u.id AND k.status = 'sent'
-               ), 0) as creator_kudos_count,
+               u.kudos_count as creator_kudos_count,
                pc.label as category_name, l.id as location_id, l.code as location_code, l.name as location_name,
                up.id as user_position_id
         FROM position p
@@ -626,10 +623,7 @@ def _batch_polis_comments_to_positions(
         SELECT pc.polis_comment_tid, pc.position_id, p.statement, p.creator_user_id,
                u.display_name, u.username, u.status, u.trust_score,
                u.avatar_url, u.avatar_icon_url,
-               COALESCE((
-                   SELECT COUNT(*) FROM kudos k
-                   WHERE k.receiver_user_id = u.id AND k.status = 'sent'
-               ), 0) as kudos_count,
+               u.kudos_count,
                pcat.label as category_name, l.id as location_id, l.code as location_code, l.name as location_name,
                up.id as user_position_id
         FROM polis_comment pc

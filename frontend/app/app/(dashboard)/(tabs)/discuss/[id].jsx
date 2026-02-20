@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef, useContext, memo } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef, memo } from 'react'
 import {
   View,
   FlatList,
@@ -21,7 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../../../hooks/useThemeColors'
-import { UserContext } from '../../../../contexts/UserContext'
+import { useAuth } from '../../../../contexts/UserContext'
 import { hasQAAuthority } from '../../../../lib/roles'
 import useModerateChecker from '../../../../hooks/useModerateChecker'
 import { Spacing, BorderRadius, Shadows } from '../../../../constants/Theme'
@@ -53,7 +53,7 @@ export default function PostDetail() {
   const { t } = useTranslation('discuss')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
-  const { user } = useContext(UserContext)
+  const { user } = useAuth()
   const showToast = useToast()
 
   // Post state

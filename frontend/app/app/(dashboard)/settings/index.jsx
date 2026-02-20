@@ -1,12 +1,11 @@
 import { StyleSheet, View, ScrollView, TouchableOpacity, Platform } from 'react-native'
-import { useMemo, useState, useEffect, useCallback, useContext } from 'react'
+import { useMemo, useState, useEffect, useCallback } from 'react'
 import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useTheme } from '../../../contexts/ThemeContext'
-import { useUser } from '../../../hooks/useUser'
-import { UserContext } from '../../../contexts/UserContext'
+import { useAuth } from '../../../contexts/UserContext'
 import { SemanticColors } from '../../../constants/Colors'
 
 import ThemedText from '../../../components/ThemedText'
@@ -24,8 +23,7 @@ const getMenuItems = (t) => [
 
 export default function SettingsHub() {
   const { t } = useTranslation('settings')
-  const { user } = useUser()
-  const { logout } = useContext(UserContext)
+  const { user, logout } = useAuth()
   const router = useRouter()
   const navigation = useNavigation()
   const { returnTo } = useLocalSearchParams()

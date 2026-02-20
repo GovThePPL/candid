@@ -4,15 +4,15 @@
  * Handles: fetching chat list, metadata-based cache invalidation,
  * kudos sending, and pull-to-refresh.
  */
-import { useState, useEffect, useCallback, useRef, useContext } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { UserContext } from '../contexts/UserContext'
+import { useAuth } from '../contexts/UserContext'
 import api, { translateError } from '../lib/api'
 import { CacheManager, CacheKeys } from '../lib/cache'
 import { useToast } from '../components/Toast'
 
 export default function useChatHistory() {
-  const { user } = useContext(UserContext)
+  const { user } = useAuth()
   const { t } = useTranslation('chat')
   const showToast = useToast()
 

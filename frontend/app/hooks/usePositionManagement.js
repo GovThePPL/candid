@@ -4,11 +4,11 @@
  * Handles: fetching, CRUD operations, cache invalidation, and data normalization
  * for both "My Positions" and "Chatting List" sections.
  */
-import { useState, useEffect, useCallback, useRef, useContext, useMemo } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Platform, Alert as RNAlert } from 'react-native'
 import { useFocusEffect } from 'expo-router'
 import { useTranslation } from 'react-i18next'
-import { UserContext } from '../contexts/UserContext'
+import { useAuth, useNavigationContext } from '../contexts/UserContext'
 import api, { translateError } from '../lib/api'
 import { CacheManager, CacheKeys, CacheDurations } from '../lib/cache'
 
@@ -35,7 +35,8 @@ const Alert = {
 
 export default function usePositionManagement() {
   const { t } = useTranslation('create')
-  const { user, positionsVersion } = useContext(UserContext)
+  const { user } = useAuth()
+  const { positionsVersion } = useNavigationContext()
 
   const [myPositions, setMyPositions] = useState([])
   const [chattingList, setChattingList] = useState([])

@@ -1,5 +1,5 @@
 import { StyleSheet, View, TouchableOpacity, Platform, Dimensions, Alert } from 'react-native'
-import { useState, useEffect, useCallback, useRef, useContext, useMemo } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, interpolate, runOnJS } from 'react-native-reanimated'
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -13,7 +13,7 @@ import useModerateChecker from '../../../hooks/useModerateChecker'
 import api from '../../../lib/api'
 import ThemedText from '../../../components/ThemedText'
 import { useToast } from '../../../components/Toast'
-import { UserContext } from '../../../contexts/UserContext'
+import { useAuth, useChatContext } from '../../../contexts/UserContext'
 import { CacheManager, CacheKeys, CacheDurations } from '../../../lib/cache'
 import {
   PositionCard,
@@ -89,7 +89,8 @@ function CardQueueSkeleton({ styles, colors }) {
 export default function CardQueue() {
   const router = useRouter()
   const { t } = useTranslation('cards')
-  const { user, incomingChatRequest, clearIncomingChatRequest } = useContext(UserContext)
+  const { user } = useAuth()
+  const { incomingChatRequest, clearIncomingChatRequest } = useChatContext()
   const [cards, setCards] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [initialLoading, setInitialLoading] = useState(true)

@@ -14,6 +14,7 @@ Polis coords.
 import json
 import logging
 import math
+import time
 
 from candid.controllers import db
 from candid.controllers.helpers.polis_client import get_client
@@ -25,6 +26,11 @@ logger = logging.getLogger(__name__)
 
 # Redis cache TTL for PCA components (seconds)
 PCA_CACHE_TTL = 300  # 5 minutes
+
+# Process-local cache for conversation lookups (location+category → conversation_id)
+# Conversation mappings rarely change, so a 5-minute TTL is safe.
+_CONVERSATION_CACHE_TTL = 300  # 5 minutes
+_conversation_cache: dict[tuple, tuple[str | None, float]] = {}  # key → (conv_id, expire_time)
 
 
 # ---------------------------------------------------------------------------
@@ -215,7 +221,7 @@ def get_or_compute_coords(user_id, conversation_id):
 
     # Check DB for cached coords
     row = db.execute_query("""
-        SELECT x, y, n_position_votes, math_tick, polis_group_id
+        SELECT x, y, n_position_votes, n_comment_votes, math_tick, polis_group_id
         FROM user_ideological_coords
         WHERE user_id = %s AND polis_conversation_id = %s
     """, (user_id, conversation_id), fetchone=True)
@@ -225,6 +231,7 @@ def get_or_compute_coords(user_id, conversation_id):
             "x": row["x"],
             "y": row["y"],
             "n_position_votes": row["n_position_votes"],
+            "n_comment_votes": row.get("n_comment_votes", 0),
             "math_tick": row["math_tick"],
             "polis_group_id": row.get("polis_group_id"),
         }
@@ -303,6 +310,7 @@ def _compute_and_cache_coords(user_id, conversation_id, pca_cache):
         "x": x,
         "y": y,
         "n_position_votes": len(user_votes),
+        "n_comment_votes": 0,
         "math_tick": math_tick,
         "polis_group_id": polis_group_id,
     }
@@ -357,14 +365,8 @@ def get_effective_coords(user_id, conversation_id):
     # Get MF coords (stub returns None in Phase 1)
     mf_coords = mf.get_mf_coords(user_id, conversation_id)
 
-    # Get n_comment_votes from DB
-    row = db.execute_query("""
-        SELECT n_comment_votes
-        FROM user_ideological_coords
-        WHERE user_id = %s AND polis_conversation_id = %s
-    """, (user_id, conversation_id), fetchone=True)
-
-    n_comment_votes = row["n_comment_votes"] if row else 0
+    # n_comment_votes is returned by get_or_compute_coords (from the same DB row)
+    n_comment_votes = polis.get("n_comment_votes", 0)
 
     bx, by = blended_coords(polis_xy, mf_coords, n_comment_votes)
 
@@ -395,9 +397,8 @@ def invalidate_coords(user_id, conversation_id):
 def get_conversation_for_post(location_id, category_id):
     """Look up the active Polis conversation for a location+category.
 
-    Uses the polis_conversation table directly (same data as
-    polis_sync.get_active_conversations but returns just the
-    conversation_id string).
+    Uses a process-local cache with 5-minute TTL to avoid repeated DB queries.
+    Conversation mappings rarely change.
 
     Args:
         location_id: Location UUID string.
@@ -406,6 +407,16 @@ def get_conversation_for_post(location_id, category_id):
     Returns:
         Polis conversation_id string, or None if none active.
     """
+    cache_key = (location_id, category_id)
+    now = time.monotonic()
+
+    # Check process-local cache
+    cached = _conversation_cache.get(cache_key)
+    if cached is not None:
+        conv_id, expire_time = cached
+        if now < expire_time:
+            return conv_id
+
     if category_id:
         row = db.execute_query("""
             SELECT polis_conversation_id
@@ -431,4 +442,6 @@ def get_conversation_for_post(location_id, category_id):
             LIMIT 1
         """, (location_id,), fetchone=True)
 
-    return row["polis_conversation_id"] if row else None
+    result = row["polis_conversation_id"] if row else None
+    _conversation_cache[cache_key] = (result, now + _CONVERSATION_CACHE_TTL)
+    return result

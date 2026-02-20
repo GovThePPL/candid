@@ -1,4 +1,4 @@
-import { createContext, useEffect, useState, useCallback, useRef, useMemo } from "react"
+import { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo } from "react"
 import { AppState } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import api, { getStoredUser, initializeAuth, getToken, setToken, setStoredUser, bugReportsApiWrapper } from "../lib/api"
@@ -10,6 +10,12 @@ import { install as installErrorCollector, drain as drainErrors } from "../lib/e
 const PENDING_CHAT_REQUEST_KEY = 'candid_pending_chat_request'
 const DIAGNOSTICS_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 
+// Split contexts for granular subscriptions
+export const AuthContext = createContext()
+export const ChatContext = createContext()
+export const NavigationContext = createContext()
+
+// Backward-compatible combined context (deprecated — use useAuth/useChatContext/useNavigationContext instead)
 export const UserContext = createContext()
 
 export function UserProvider({ children }) {
@@ -407,31 +413,77 @@ export function UserProvider({ children }) {
 
   const isBanned = user?.status === 'banned'
 
-  const providerValue = useMemo(() => ({
+  const authValue = useMemo(() => ({
     user, login, logout, register, authChecked, refreshUser,
     isBanned,
     isNewUser, clearNewUser,
-    positionsVersion, invalidatePositions,
-    pendingChatRequest, setPendingChatRequest, clearPendingChatRequest, updateChatRequestStatus,
-    incomingChatRequest, clearIncomingChatRequest,
-    activeChatNavigation, clearActiveChatNavigation,
-    activeChat, clearActiveChat,
-    pendingDeepLink, clearPendingDeepLink,
   }), [
     user, login, logout, register, authChecked, refreshUser,
     isBanned,
     isNewUser, clearNewUser,
-    positionsVersion, invalidatePositions,
+  ])
+
+  const chatValue = useMemo(() => ({
     pendingChatRequest, setPendingChatRequest, clearPendingChatRequest, updateChatRequestStatus,
     incomingChatRequest, clearIncomingChatRequest,
     activeChatNavigation, clearActiveChatNavigation,
     activeChat, clearActiveChat,
-    pendingDeepLink, clearPendingDeepLink,
+  }), [
+    pendingChatRequest, setPendingChatRequest, clearPendingChatRequest, updateChatRequestStatus,
+    incomingChatRequest, clearIncomingChatRequest,
+    activeChatNavigation, clearActiveChatNavigation,
+    activeChat, clearActiveChat,
   ])
 
+  const navigationValue = useMemo(() => ({
+    pendingDeepLink, clearPendingDeepLink,
+    positionsVersion, invalidatePositions,
+  }), [
+    pendingDeepLink, clearPendingDeepLink,
+    positionsVersion, invalidatePositions,
+  ])
+
+  // Combined value for backward-compatible UserContext
+  const combinedValue = useMemo(() => ({
+    ...authValue,
+    ...chatValue,
+    ...navigationValue,
+  }), [authValue, chatValue, navigationValue])
+
   return (
-    <UserContext.Provider value={providerValue}>
-      {children}
+    <UserContext.Provider value={combinedValue}>
+      <AuthContext.Provider value={authValue}>
+        <ChatContext.Provider value={chatValue}>
+          <NavigationContext.Provider value={navigationValue}>
+            {children}
+          </NavigationContext.Provider>
+        </ChatContext.Provider>
+      </AuthContext.Provider>
     </UserContext.Provider>
   )
+}
+
+// Hooks for granular context subscriptions
+export function useAuth() {
+  const context = useContext(AuthContext)
+  if (!context) {
+    throw new Error('useAuth must be used within a UserProvider')
+  }
+  return context
+}
+
+export function useChatContext() {
+  const context = useContext(ChatContext)
+  if (!context) {
+    throw new Error('useChatContext must be used within a UserProvider')
+  }
+  return context
+}
+
+export function useNavigationContext() {
+  const context = useContext(NavigationContext)
+  if (!context) {
+    throw new Error('useNavigationContext must be used within a UserProvider')
+  }
+  return context
 }

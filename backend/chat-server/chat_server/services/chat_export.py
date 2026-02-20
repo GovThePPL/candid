@@ -172,10 +172,7 @@ class ChatExporter:
                         u.trust_score as initiator_trust_score,
                         u.avatar_url as initiator_avatar_url,
                         u.avatar_icon_url as initiator_avatar_icon_url,
-                        COALESCE((
-                            SELECT COUNT(*) FROM kudos k
-                            WHERE k.receiver_user_id = u.id AND k.status = 'sent'
-                        ), 0) as initiator_kudos_count,
+                        u.kudos_count as initiator_kudos_count,
                         p.id as position_id,
                         p.statement as position_statement,
                         pc.label as position_category_name,
@@ -188,10 +185,7 @@ class ChatExporter:
                         author.trust_score as author_trust_score,
                         author.avatar_url as author_avatar_url,
                         author.avatar_icon_url as author_avatar_icon_url,
-                        COALESCE((
-                            SELECT COUNT(*) FROM kudos k
-                            WHERE k.receiver_user_id = author.id AND k.status = 'sent'
-                        ), 0) as author_kudos_count
+                        author.kudos_count as author_kudos_count
                     FROM chat_request cr
                     JOIN user_position up ON cr.user_position_id = up.id
                     JOIN users u ON cr.initiator_user_id = u.id

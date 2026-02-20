@@ -233,6 +233,28 @@ class TestMessages:
         await store.delete_chat(chat_id)
 
 
+    @pytest.mark.asyncio
+    async def test_get_message_count(self, redis_client):
+        """Test getting message count via LLEN."""
+        store = RedisStore()
+        store._redis = redis_client
+
+        chat_id = str(uuid.uuid4())
+        user_id = str(uuid.uuid4())
+
+        await store.create_chat(chat_id, [user_id, str(uuid.uuid4())])
+
+        assert await store.get_message_count(chat_id) == 0
+
+        await store.add_message(chat_id, user_id, "Message 1")
+        await store.add_message(chat_id, user_id, "Message 2")
+
+        assert await store.get_message_count(chat_id) == 2
+
+        # Cleanup
+        await store.delete_chat(chat_id)
+
+
 class TestAgreedPositions:
     """Tests for agreed position operations."""
 

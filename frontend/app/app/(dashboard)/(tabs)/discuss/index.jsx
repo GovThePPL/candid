@@ -1,4 +1,4 @@
-import { useState, useMemo, useContext, useCallback, useRef } from 'react'
+import { useState, useMemo, useCallback, useRef } from 'react'
 import { View, FlatList, ActivityIndicator, StyleSheet, TouchableOpacity, Alert } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter, useFocusEffect } from 'expo-router'
@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../../../hooks/useThemeColors'
 import { Spacing } from '../../../../constants/Theme'
-import { UserContext } from '../../../../contexts/UserContext'
+import { useAuth } from '../../../../contexts/UserContext'
 import { useLocationCategory } from '../../../../contexts/LocationCategoryContext'
 import { hasQAAuthority } from '../../../../lib/roles'
 import useModerateChecker from '../../../../hooks/useModerateChecker'
@@ -70,7 +70,7 @@ export default function DiscussFeed() {
   const styles = useMemo(() => createStyles(colors), [colors])
   const insets = useSafeAreaInsets()
   const router = useRouter()
-  const { user } = useContext(UserContext)
+  const { user } = useAuth()
   const { selectedLocation, selectedCategory, setSelectedLocation, setSelectedCategory } = useLocationCategory()
 
   const [postType, setPostType] = useState('discussion')
@@ -211,6 +211,14 @@ export default function DiscussFeed() {
 
   const keyExtractor = useCallback((item) => item.id, [])
 
+  // Estimated item height for FlatList optimization (avoids measuring on scroll)
+  const POST_ITEM_HEIGHT = 160
+  const getItemLayout = useCallback((data, index) => ({
+    length: POST_ITEM_HEIGHT,
+    offset: POST_ITEM_HEIGHT * index,
+    index,
+  }), [])
+
   const renderEmpty = useCallback(() => {
     if (loading) return null
     if (error) {
@@ -256,6 +264,7 @@ export default function DiscussFeed() {
         data={posts}
         renderItem={renderPostCard}
         keyExtractor={keyExtractor}
+        getItemLayout={getItemLayout}
         onEndReached={hasMore ? loadMore : undefined}
         onEndReachedThreshold={0.5}
         refreshing={refreshing}

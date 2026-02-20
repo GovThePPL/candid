@@ -1,5 +1,5 @@
 import { StyleSheet, View, TouchableOpacity, RefreshControl, Alert } from 'react-native'
-import { useCallback, useState, useContext, useMemo } from 'react'
+import { useCallback, useState, useMemo } from 'react'
 import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
@@ -13,7 +13,7 @@ import EmptyState from '../components/EmptyState'
 import CardShell from '../components/CardShell'
 import PositionInfoCard from '../components/PositionInfoCard'
 import { SkeletonPulse, SkeletonBox, SkeletonCircle, SkeletonLine } from '../components/Skeleton'
-import { UserContext } from '../contexts/UserContext'
+import { useAuth } from '../contexts/UserContext'
 import useModerateChecker from '../hooks/useModerateChecker'
 import api from '../lib/api'
 import ReportModal from '../components/ReportModal'
@@ -216,7 +216,7 @@ function ChatListSkeleton({ styles, colors }) {
 }
 
 export default function ChatHistoryContent({ showHeader = true, onScroll, listHeader, stickyHeader }) {
-  const { user } = useContext(UserContext)
+  const { user } = useAuth()
   const router = useRouter()
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])

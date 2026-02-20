@@ -1,5 +1,5 @@
 import { StyleSheet, View, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native'
-import { useState, useEffect, useCallback, useContext, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
@@ -8,7 +8,7 @@ import { SemanticColors } from '../constants/Colors'
 import { Spacing } from '../constants/Theme'
 import { CacheManager, CacheKeys, CacheDurations } from '../lib/cache'
 import api from '../lib/api'
-import { UserContext } from '../contexts/UserContext'
+import { useAuth } from '../contexts/UserContext'
 
 import ThemedText from './ThemedText'
 import LocationCategoryBadge from './LocationCategoryBadge'
@@ -72,7 +72,7 @@ export default function CommentsContent({ onScroll, listHeader, stickyHeader, us
   const { t } = useTranslation(['settings', 'discuss'])
   const colors = useThemeColors()
   const router = useRouter()
-  const { user } = useContext(UserContext)
+  const { user } = useAuth()
   const styles = useMemo(() => createStyles(colors), [colors])
   const userId = targetUserId || user?.id
   const isOtherUser = !!targetUserId && targetUserId !== user?.id

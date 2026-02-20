@@ -283,7 +283,7 @@ class TestGetOrComputeCoords:
 
         def db_side_effect(sql, params=None, fetchone=False, **kw):
             if "user_ideological_coords" in sql and "SELECT" in sql:
-                return {"x": 1.5, "y": -0.3, "n_position_votes": 8, "math_tick": 42, "polis_group_id": 1}
+                return {"x": 1.5, "y": -0.3, "n_position_votes": 8, "n_comment_votes": 3, "math_tick": 42, "polis_group_id": 1}
             return None
 
         mock_db.execute_query.side_effect = db_side_effect
@@ -293,7 +293,7 @@ class TestGetOrComputeCoords:
             from candid.controllers.helpers.ideological_coords import get_or_compute_coords
             result = get_or_compute_coords("user1", "conv1")
 
-        assert result == {"x": 1.5, "y": -0.3, "n_position_votes": 8, "math_tick": 42, "polis_group_id": 1}
+        assert result == {"x": 1.5, "y": -0.3, "n_position_votes": 8, "n_comment_votes": 3, "math_tick": 42, "polis_group_id": 1}
 
     def test_cache_hit_returns_polis_group_id(self):
         """Returns polis_group_id from DB cache when present."""
@@ -423,10 +423,9 @@ class TestGetEffectiveCoords:
     def _setup(self, mock_db_obj, n_comment_votes=0, polis_x=1.0, polis_y=2.0, polis_group_id=0):
         """Configure mock DB for effective coords tests."""
         def db_side_effect(sql, params=None, fetchone=False, **kw):
-            if "user_ideological_coords" in sql and "SELECT x, y, n_position_votes" in sql:
-                return {"x": polis_x, "y": polis_y, "n_position_votes": 10, "math_tick": 42, "polis_group_id": polis_group_id}
-            if "n_comment_votes" in sql:
-                return {"n_comment_votes": n_comment_votes}
+            if "user_ideological_coords" in sql and "SELECT" in sql:
+                return {"x": polis_x, "y": polis_y, "n_position_votes": 10,
+                        "n_comment_votes": n_comment_votes, "math_tick": 42, "polis_group_id": polis_group_id}
             return None
         mock_db_obj.execute_query.side_effect = db_side_effect
 
@@ -583,6 +582,11 @@ class TestInvalidateCoords:
 # ---------------------------------------------------------------------------
 
 class TestGetConversationForPost:
+    def setup_method(self):
+        """Clear the process-local conversation cache between tests."""
+        from candid.controllers.helpers import ideological_coords
+        ideological_coords._conversation_cache.clear()
+
     def test_with_category(self):
         mock_db = MagicMock()
         mock_db.execute_query.return_value = {"polis_conversation_id": "conv_abc"}

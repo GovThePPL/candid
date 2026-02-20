@@ -46,16 +46,8 @@ jest.mock('../../contexts/UserContext', () => ({
   UserContext: {
     _currentValue: { user: { id: 'user-1' } },
   },
+  useAuth: () => ({ user: { id: 'user-1' } }),
 }))
-
-const React = require('react')
-const originalUseContext = React.useContext
-jest.spyOn(React, 'useContext').mockImplementation((context) => {
-  if (context === require('../../contexts/UserContext').UserContext) {
-    return { user: { id: 'user-1' } }
-  }
-  return originalUseContext(context)
-})
 
 import useChatHistory from '../../hooks/useChatHistory'
 

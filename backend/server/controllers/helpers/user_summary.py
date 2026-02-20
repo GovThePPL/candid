@@ -8,8 +8,7 @@ def build_user_summary(user_id):
     row = db.execute_query("""
         SELECT u.id, u.username, u.display_name, u.status,
                u.trust_score, u.avatar_url, u.avatar_icon_url,
-               COALESCE((SELECT COUNT(*) FROM kudos k
-                         WHERE k.receiver_user_id = u.id AND k.status = 'sent'), 0) AS kudos_count
+               u.kudos_count
         FROM users u WHERE u.id = %s
     """, (user_id,), fetchone=True)
     if row:

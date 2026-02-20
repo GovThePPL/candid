@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import api from '../lib/api'
 import { useToast } from '../components/Toast'
 import { isBridging } from '../lib/bridging'
-import { playUpvoteSound, playBridgingSound } from '../lib/sounds'
+import { playUpvoteSound, playBridgingSound, initNativeSounds } from '../lib/sounds'
 import { hapticTap, hapticSuccess } from '../lib/haptics'
 
 /**
@@ -17,6 +17,7 @@ import { hapticTap, hapticSuccess } from '../lib/haptics'
 export default function usePostsFeed(locationId, categoryId, postType) {
   const { t } = useTranslation('discuss')
   const showToast = useToast()
+  useEffect(() => { initNativeSounds() }, [])
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)

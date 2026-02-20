@@ -284,3 +284,36 @@ class TestValidateQuotes:
         content = "[a](M1)\n[b](S2)\n[c](D3)\n[d](E1)"
         valid, err = validate_quotes(content, msgs, positions, defs, expls)
         assert valid is True
+
+    # --- message_count parameter tests ---
+
+    def test_count_based_m_ref_valid(self):
+        """M-ref without range validated by count alone (no messages needed)."""
+        valid, err = validate_quotes("[text](M3)", [], [], message_count=5)
+        assert valid is True
+
+    def test_count_based_m_ref_out_of_range(self):
+        """M-ref exceeding count is invalid."""
+        valid, err = validate_quotes("[text](M6)", [], [], message_count=5)
+        assert valid is False
+        assert err == 'INVALID_QUOTE_REF'
+
+    def test_count_based_m_ref_zero(self):
+        """M0 is invalid regardless of count."""
+        valid, err = validate_quotes("[text](M0)", [], [], message_count=10)
+        assert valid is False
+        assert err == 'INVALID_QUOTE_REF'
+
+    def test_count_based_with_range_needs_messages(self):
+        """M-ref with range still needs actual messages for content validation."""
+        msgs = self._make_messages(5, content_len=100)
+        valid, err = validate_quotes("[text](M3:10-50)", msgs, [], message_count=5)
+        assert valid is True
+
+    def test_count_based_mixed_with_s_ref(self):
+        """Count-based M-ref works alongside S-refs."""
+        positions = self._make_positions(3)
+        valid, err = validate_quotes(
+            "[a](M2)\n[b](S1)", [], positions, message_count=5,
+        )
+        assert valid is True

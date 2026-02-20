@@ -50,6 +50,7 @@ def validate_quotes(
     positions: list,
     definitions: list | None = None,
     explanations: list | None = None,
+    message_count: int | None = None,
 ) -> tuple[bool, str | None]:
     """
     Validate all quote references in a message.
@@ -58,12 +59,17 @@ def validate_quotes(
         content: The message content to validate.
         messages: List of non-proposal messages in the chat (0-indexed, but
                   quote refs are 1-based: M1 = messages[0]).
+                  Can be empty if message_count is provided and no M-reference
+                  has a character range.
         positions: List of accepted agreed positions (0-indexed, but
                    quote refs are 1-based: S1 = positions[0]).
         definitions: List of definitions in the chat (0-indexed, but
                      quote refs are 1-based: D1 = definitions[0]).
         explanations: List of explanations in the chat (0-indexed, but
                       quote refs are 1-based: E1 = explanations[0]).
+        message_count: Total non-proposal message count (from LLEN).
+                       When provided, M-references without ranges are validated
+                       via count alone, avoiding loading all messages.
 
     Returns:
         (valid, error_code) — valid=True if all quotes are valid,
@@ -82,23 +88,32 @@ def validate_quotes(
     if explanations is None:
         explanations = []
 
+    # Determine effective message count
+    effective_count = message_count if message_count is not None else len(messages)
+
     for q in quotes:
         if q['prefix'] == 'M':
             idx = q['num'] - 1
-            if idx < 0 or idx >= len(messages):
+            if idx < 0 or idx >= effective_count:
                 logger.debug(
-                    f"Invalid quote ref M{q['num']}: only {len(messages)} messages"
+                    f"Invalid quote ref M{q['num']}: only {effective_count} messages"
                 )
                 return False, 'INVALID_QUOTE_REF'
 
-            source = messages[idx]
-            source_content = (
-                source.get('content', '')
-                if isinstance(source, dict)
-                else getattr(source, 'content', '')
-            )
-
+            # Range validation requires the actual message content
             if q['start'] is not None and q['end'] is not None:
+                if idx >= len(messages):
+                    # Shouldn't happen — caller should pass messages when ranges exist
+                    logger.debug(
+                        f"Cannot validate range for M{q['num']}: messages not loaded"
+                    )
+                    return False, 'INVALID_QUOTE_REF'
+                source = messages[idx]
+                source_content = (
+                    source.get('content', '')
+                    if isinstance(source, dict)
+                    else getattr(source, 'content', '')
+                )
                 if q['start'] < 0 or q['end'] < 0:
                     return False, 'QUOTE_RANGE_INVALID'
                 if q['start'] >= q['end']:

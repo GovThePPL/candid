@@ -42,10 +42,7 @@ def _get_user_card(user_id):
             u.id,
             u.status,
             u.username,
-            COALESCE((
-                SELECT COUNT(*) FROM kudos k
-                WHERE k.receiver_user_id = u.id AND k.status = 'sent'
-            ), 0) as kudos_count
+            u.kudos_count as kudos_count
         FROM users u
         WHERE u.id = %s
     """, (user_id,), fetchone=True)
@@ -618,10 +615,7 @@ def get_position_agreed_closures(position_id, token_info=None):  # noqa: E501
             u.trust_score as creator_trust_score,
             u.avatar_url as creator_avatar_url,
             u.avatar_icon_url as creator_avatar_icon_url,
-            COALESCE((
-                SELECT COUNT(*) FROM kudos k
-                WHERE k.receiver_user_id = u.id AND k.status = 'sent'
-            ), 0) as creator_kudos_count
+            u.kudos_count as creator_kudos_count
         FROM position p
         LEFT JOIN position_category c ON p.category_id = c.id
         LEFT JOIN location l ON p.location_id = l.id
@@ -647,20 +641,14 @@ def get_position_agreed_closures(position_id, token_info=None):  # noqa: E501
             ph.avatar_url as ph_avatar_url,
             ph.avatar_icon_url as ph_avatar_icon_url,
             ph.trust_score as ph_trust_score,
-            COALESCE((
-                SELECT COUNT(*) FROM kudos k
-                WHERE k.receiver_user_id = ph.id AND k.status = 'sent'
-            ), 0) as ph_kudos_count,
+            ph.kudos_count as ph_kudos_count,
             -- Initiator user info
             iu.display_name as iu_display_name,
             iu.username as iu_username,
             iu.avatar_url as iu_avatar_url,
             iu.avatar_icon_url as iu_avatar_icon_url,
             iu.trust_score as iu_trust_score,
-            COALESCE((
-                SELECT COUNT(*) FROM kudos k
-                WHERE k.receiver_user_id = iu.id AND k.status = 'sent'
-            ), 0) as iu_kudos_count,
+            iu.kudos_count as iu_kudos_count,
             -- Kudos sent status
             EXISTS(
                 SELECT 1 FROM kudos k

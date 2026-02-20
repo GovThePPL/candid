@@ -7,7 +7,7 @@ import { useUser } from './useUser'
 import { buildTree, sortTree, flattenTree, getAutoCollapsedIds } from '../lib/commentTree'
 import { isConnected, joinPost, leavePost, onNewComment, onVoteUpdate } from '../lib/socket'
 import { isBridging } from '../lib/bridging'
-import { playUpvoteSound, playBridgingSound } from '../lib/sounds'
+import { playUpvoteSound, playBridgingSound, initNativeSounds } from '../lib/sounds'
 import { hapticTap, hapticSuccess } from '../lib/haptics'
 
 /** Shallow array equality for short arrays (activeLines, lineStates). */
@@ -42,6 +42,7 @@ export default function useCommentThread(postId, { threadRootId, focusCommentId 
   const { t } = useTranslation('discuss')
   const showToast = useToast()
   const { user } = useUser()
+  useEffect(() => { initNativeSounds() }, [])
   const [rawComments, setRawComments] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)

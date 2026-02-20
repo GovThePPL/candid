@@ -538,10 +538,7 @@ def _get_fallback_stats(
                    u.trust_score as creator_trust_score,
                    u.avatar_url as creator_avatar_url,
                    u.avatar_icon_url as creator_avatar_icon_url,
-                   COALESCE((
-                       SELECT COUNT(*) FROM kudos k
-                       WHERE k.receiver_user_id = u.id AND k.status = 'sent'
-                   ), 0) as creator_kudos_count,
+                   u.kudos_count as creator_kudos_count,
                    COALESCE(SUM(CASE WHEN r.response = 'agree' THEN 1 ELSE 0 END), 0) as agree_count,
                    COALESCE(SUM(CASE WHEN r.response = 'disagree' THEN 1 ELSE 0 END), 0) as disagree_count,
                    COALESCE(SUM(CASE WHEN r.response = 'pass' THEN 1 ELSE 0 END), 0) as pass_count
@@ -574,10 +571,7 @@ def _get_fallback_stats(
                    u.trust_score as creator_trust_score,
                    u.avatar_url as creator_avatar_url,
                    u.avatar_icon_url as creator_avatar_icon_url,
-                   COALESCE((
-                       SELECT COUNT(*) FROM kudos k
-                       WHERE k.receiver_user_id = u.id AND k.status = 'sent'
-                   ), 0) as creator_kudos_count,
+                   u.kudos_count as creator_kudos_count,
                    COALESCE(SUM(CASE WHEN r.response = 'agree' THEN 1 ELSE 0 END), 0) as agree_count,
                    COALESCE(SUM(CASE WHEN r.response = 'disagree' THEN 1 ELSE 0 END), 0) as disagree_count,
                    COALESCE(SUM(CASE WHEN r.response = 'pass' THEN 1 ELSE 0 END), 0) as pass_count
@@ -906,10 +900,7 @@ def _extract_positions(
             u.trust_score as creator_trust_score,
             u.avatar_url as creator_avatar_url,
             u.avatar_icon_url as creator_avatar_icon_url,
-            COALESCE((
-                SELECT COUNT(*) FROM kudos k
-                WHERE k.receiver_user_id = u.id AND k.status = 'sent'
-            ), 0) as creator_kudos_count
+            u.kudos_count as creator_kudos_count
         FROM polis_comment pc
         JOIN position p ON pc.position_id = p.id
         LEFT JOIN position_category cat ON p.category_id = cat.id
@@ -1095,10 +1086,7 @@ def _extract_positions(
                     u.trust_score as creator_trust_score,
                     u.avatar_url as creator_avatar_url,
                     u.avatar_icon_url as creator_avatar_icon_url,
-                    COALESCE((
-                        SELECT COUNT(*) FROM kudos k
-                        WHERE k.receiver_user_id = u.id AND k.status = 'sent'
-                    ), 0) as creator_kudos_count,
+                    u.kudos_count as creator_kudos_count,
                     pc.polis_comment_tid
                 FROM position p
                 LEFT JOIN position_category cat ON p.category_id = cat.id

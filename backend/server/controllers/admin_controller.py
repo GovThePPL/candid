@@ -743,11 +743,11 @@ def get_pending_role_requests(token_info=None):  # noqa: E501
                u_target.username AS target_username, u_target.display_name AS target_display_name,
                u_target.avatar_icon_url AS target_avatar_icon_url,
                u_target.status AS target_status, u_target.trust_score AS target_trust_score,
-               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u_target.id AND k.status = 'sent'), 0) AS target_kudos_count,
+               u_target.kudos_count AS target_kudos_count,
                u_req.username AS requester_username, u_req.display_name AS requester_display_name,
                u_req.avatar_icon_url AS requester_avatar_icon_url,
                u_req.status AS requester_status, u_req.trust_score AS requester_trust_score,
-               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u_req.id AND k.status = 'sent'), 0) AS requester_kudos_count,
+               u_req.kudos_count AS requester_kudos_count,
                l.name AS location_name, l.code AS location_code,
                pc.label AS category_label
         FROM role_change_request rcr
@@ -911,18 +911,18 @@ _ROLE_REQUEST_SELECT = """
            u_target.username AS target_username, u_target.display_name AS target_display_name,
            u_target.avatar_icon_url AS target_avatar_icon_url,
            u_target.status AS target_status, u_target.trust_score AS target_trust_score,
-           COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u_target.id AND k.status = 'sent'), 0) AS target_kudos_count,
+           u_target.kudos_count AS target_kudos_count,
            u_req.username AS requester_username, u_req.display_name AS requester_display_name,
            u_req.avatar_icon_url AS requester_avatar_icon_url,
            u_req.status AS requester_status, u_req.trust_score AS requester_trust_score,
-           COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u_req.id AND k.status = 'sent'), 0) AS requester_kudos_count,
+           u_req.kudos_count AS requester_kudos_count,
            l.name AS location_name, l.code AS location_code,
            pc.label AS category_label,
            u_rev.id AS reviewer_id, u_rev.username AS reviewer_username,
            u_rev.display_name AS reviewer_display_name,
            u_rev.avatar_icon_url AS reviewer_avatar_icon_url,
            u_rev.status AS reviewer_status, u_rev.trust_score AS reviewer_trust_score,
-           COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u_rev.id AND k.status = 'sent'), 0) AS reviewer_kudos_count
+           u_rev.kudos_count AS reviewer_kudos_count
     FROM role_change_request rcr
     JOIN users u_target ON rcr.target_user_id = u_target.id
     JOIN users u_req ON rcr.requested_by = u_req.id
@@ -1026,8 +1026,7 @@ def list_roles(user_id=None, location_id=None, role=None, token_info=None):  # n
         SELECT ur.id, ur.user_id, ur.role, ur.location_id, ur.position_category_id,
                ur.assigned_by, ur.created_time,
                u.username, u.display_name, u.avatar_icon_url, u.trust_score,
-               COALESCE((SELECT COUNT(*) FROM kudos k
-                         WHERE k.receiver_user_id = u.id AND k.status = 'sent'), 0) AS kudos_count,
+               u.kudos_count,
                l.name AS location_name, l.code AS location_code,
                pc.label AS category_label
         FROM user_role ur
@@ -1589,11 +1588,11 @@ def get_admin_actions(token_info=None):  # noqa: E501
                u_target.username AS target_username, u_target.display_name AS target_display_name,
                u_target.avatar_icon_url AS target_avatar_icon_url,
                u_target.status AS target_status, u_target.trust_score AS target_trust_score,
-               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u_target.id AND k.status = 'sent'), 0) AS target_kudos_count,
+               u_target.kudos_count AS target_kudos_count,
                u_performer.username AS performer_username, u_performer.display_name AS performer_display_name,
                u_performer.avatar_icon_url AS performer_avatar_icon_url,
                u_performer.status AS performer_status, u_performer.trust_score AS performer_trust_score,
-               COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u_performer.id AND k.status = 'sent'), 0) AS performer_kudos_count
+               u_performer.kudos_count AS performer_kudos_count
         FROM admin_action_log aal
         JOIN users u_target ON aal.target_user_id = u_target.id
         JOIN users u_performer ON aal.performed_by = u_performer.id
@@ -1842,12 +1841,12 @@ _RULE_REQUEST_SELECT = """
            u_req.username AS requester_username, u_req.display_name AS requester_display_name,
            u_req.avatar_icon_url AS requester_avatar_icon_url,
            u_req.status AS requester_status, u_req.trust_score AS requester_trust_score,
-           COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u_req.id AND k.status = 'sent'), 0) AS requester_kudos_count,
+           u_req.kudos_count AS requester_kudos_count,
            u_rev.id AS reviewer_id, u_rev.username AS reviewer_username,
            u_rev.display_name AS reviewer_display_name,
            u_rev.avatar_icon_url AS reviewer_avatar_icon_url,
            u_rev.status AS reviewer_status, u_rev.trust_score AS reviewer_trust_score,
-           COALESCE((SELECT COUNT(*) FROM kudos k WHERE k.receiver_user_id = u_rev.id AND k.status = 'sent'), 0) AS reviewer_kudos_count,
+           u_rev.kudos_count AS reviewer_kudos_count,
            l_auth.name AS authority_location_name,
            r_rule.id AS current_rule_id, r_rule.title AS current_rule_title,
            r_rule.text AS current_rule_text, r_rule.severity AS current_rule_severity,

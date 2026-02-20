@@ -1,6 +1,6 @@
 import { StyleSheet, View, ScrollView, TouchableOpacity, Platform, ActivityIndicator, Animated, LayoutAnimation, UIManager } from 'react-native'
 import { useRouter } from 'expo-router'
-import { useState, useEffect, useCallback, useRef, useContext, useMemo } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -13,7 +13,7 @@ import { Shadows, Typography } from '../constants/Theme'
 import { useThemeColors } from '../hooks/useThemeColors'
 import useKeyboardHeight from '../hooks/useKeyboardHeight'
 import usePositionManagement from '../hooks/usePositionManagement'
-import { UserContext } from '../contexts/UserContext'
+import { useAuth } from '../contexts/UserContext'
 import api from '../lib/api'
 
 import ThemedText from './ThemedText'
@@ -72,7 +72,7 @@ export default function PositionManagerContent({ onScroll, listHeader, stickyHea
   const searchTimeoutRef = useRef(null)
   const myPosAddTimeoutRef = useRef(null)
   const chattingAddTimeoutRef = useRef(null)
-  const { user, isBanned } = useContext(UserContext)
+  const { user, isBanned } = useAuth()
 
   // Position and chatting list data management
   const {

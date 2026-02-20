@@ -9,7 +9,7 @@ import aiohttp
 import socketio
 
 from ..config import config
-from ..services import get_redis_store, get_room_manager
+from ..services import get_redis_store, get_room_manager, get_nlp_session
 from ..services.quote_validator import parse_quotes, validate_quotes
 
 logger = logging.getLogger(__name__)
@@ -19,19 +19,20 @@ async def _check_toxicity(text: str) -> Optional[float]:
     """Check text toxicity via the NLP service.
 
     Returns the toxicity_score float, or None on connection error (fail open).
+    Uses a shared aiohttp.ClientSession to reuse TCP connections.
     """
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{config.NLP_SERVICE_URL}/toxicity-check",
-                json={"text": text, "threshold": config.TOXICITY_THRESHOLD},
-                timeout=aiohttp.ClientTimeout(total=config.NLP_SERVICE_TIMEOUT),
-            ) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    return data.get("toxicity_score")
-                logger.warning("NLP toxicity check returned status %d", resp.status)
-                return None
+        session = get_nlp_session()
+        async with session.post(
+            f"{config.NLP_SERVICE_URL}/toxicity-check",
+            json={"text": text, "threshold": config.TOXICITY_THRESHOLD},
+            timeout=aiohttp.ClientTimeout(total=config.NLP_SERVICE_TIMEOUT),
+        ) as resp:
+            if resp.status == 200:
+                data = await resp.json()
+                return data.get("toxicity_score")
+            logger.warning("NLP toxicity check returned status %d", resp.status)
+            return None
     except (aiohttp.ClientError, TimeoutError) as e:
         logger.debug("NLP toxicity check unavailable: %s", e)
         return None
@@ -169,24 +170,51 @@ def register_message_handlers(sio: socketio.AsyncServer) -> None:
         # Validate quote references if the message contains any
         quotes = parse_quotes(content)
         if quotes:
-            all_messages = await redis_store.get_messages(chat_id)
-            # Filter to non-proposal (text/system) messages for M-references
-            text_messages = [
-                m for m in all_messages
-                if getattr(m, 'type', 'text') in ('text', 'system')
-            ]
+            # Check if any M-reference has a character range (needs full message load)
+            has_m_range = any(
+                q['prefix'] == 'M' and q['start'] is not None
+                for q in quotes
+            )
+            has_m_ref = any(q['prefix'] == 'M' for q in quotes)
+
+            if has_m_range:
+                # Need full messages for range validation
+                all_messages = await redis_store.get_messages(chat_id)
+                text_messages = [
+                    m for m in all_messages
+                    if getattr(m, 'type', 'text') in ('text', 'system')
+                ]
+                text_message_count = len(text_messages)
+            elif has_m_ref:
+                # Count-based validation only (O(1) via LLEN)
+                text_messages = []
+                text_message_count = await redis_store.get_message_count(chat_id)
+            else:
+                text_messages = []
+                text_message_count = 0
+
             # Get accepted agreed positions for S-references
-            positions = await redis_store.get_all_agreed_positions(chat_id)
-            accepted_positions = [
-                p for p in positions
-                if getattr(p, 'status', '') == 'accepted'
-            ]
+            has_s_ref = any(q['prefix'] == 'S' for q in quotes)
+            if has_s_ref:
+                positions = await redis_store.get_all_agreed_positions(chat_id)
+                accepted_positions = [
+                    p for p in positions
+                    if getattr(p, 'status', '') == 'accepted'
+                ]
+            else:
+                accepted_positions = []
+
             # Get definitions for D-references (flatten requests into individual defs)
-            definition_requests = await redis_store.get_all_definition_requests(chat_id)
-            definitions = _flatten_definitions(definition_requests)
+            has_d_ref = any(q['prefix'] == 'D' for q in quotes)
+            if has_d_ref:
+                definition_requests = await redis_store.get_all_definition_requests(chat_id)
+                definitions = _flatten_definitions(definition_requests)
+            else:
+                definitions = []
 
             valid, error_code = validate_quotes(
-                content, text_messages, accepted_positions, definitions
+                content, text_messages, accepted_positions, definitions,
+                message_count=text_message_count,
             )
             if not valid:
                 return {

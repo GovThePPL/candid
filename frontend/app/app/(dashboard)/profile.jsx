@@ -1,12 +1,12 @@
 import { StyleSheet, View, TouchableOpacity, ActivityIndicator } from 'react-native'
-import { useState, useEffect, useContext, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { Spacing } from '../../constants/Theme'
-import { UserContext } from '../../contexts/UserContext'
+import { useAuth } from '../../contexts/UserContext'
 import { canAccessAdmin, hasAnyRole } from '../../lib/roles'
 import api from '../../lib/api'
 
@@ -36,7 +36,7 @@ export default function ProfileScreen() {
   const { t } = useTranslation(['settings', 'admin'])
   const colors = useThemeColors()
   const router = useRouter()
-  const { user } = useContext(UserContext)
+  const { user } = useAuth()
   const { tab, userId } = useLocalSearchParams()
   const styles = useMemo(() => createStyles(colors), [colors])
 

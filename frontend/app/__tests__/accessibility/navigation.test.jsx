@@ -56,6 +56,14 @@ jest.mock('../../contexts/UserContext', () => ({
     pendingChatRequest: null,
     clearPendingChatRequest: jest.fn(),
   }),
+  useAuth: () => ({
+    user: { displayName: 'Test User', username: 'testuser', kudosCount: 5 },
+    logout: jest.fn(),
+  }),
+  useChatContext: () => ({
+    pendingChatRequest: null,
+    clearPendingChatRequest: jest.fn(),
+  }),
 }))
 
 jest.mock('../../components/ChatRequestIndicator', () => {

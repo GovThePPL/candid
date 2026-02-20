@@ -299,24 +299,20 @@ class RedisStore:
             start_time=datetime.utcnow().isoformat(),
         )
 
-        # Store metadata
-        await self._redis.hset(
-            self._metadata_key(chat_id),
-            mapping={
-                "chatId": metadata.chat_id,
-                "participantIds": json.dumps(metadata.participant_ids),
-                "startTime": metadata.start_time,
-            },
-        )
-
-        # Set TTL
-        await self._redis.expire(
-            self._metadata_key(chat_id), config.REDIS_MESSAGE_TTL
-        )
-
-        # Add chat to each user's active chats
-        for user_id in participant_ids:
-            await self._redis.sadd(self._user_chats_key(user_id), chat_id)
+        # Pipeline: store metadata + set TTL + add to each user's active chats
+        async with self._redis.pipeline(transaction=False) as pipe:
+            pipe.hset(
+                self._metadata_key(chat_id),
+                mapping={
+                    "chatId": metadata.chat_id,
+                    "participantIds": json.dumps(metadata.participant_ids),
+                    "startTime": metadata.start_time,
+                },
+            )
+            pipe.expire(self._metadata_key(chat_id), config.REDIS_MESSAGE_TTL)
+            for user_id in participant_ids:
+                pipe.sadd(self._user_chats_key(user_id), chat_id)
+            await pipe.execute()
 
         logger.info(f"Created chat {chat_id} with participants {participant_ids}")
         return metadata
@@ -368,15 +364,11 @@ class RedisStore:
             was_sent_anyway=was_sent_anyway,
         )
 
-        await self._redis.rpush(
-            self._messages_key(chat_id),
-            json.dumps(message.to_dict()),
-        )
-
-        # Refresh TTL
-        await self._redis.expire(
-            self._messages_key(chat_id), config.REDIS_MESSAGE_TTL
-        )
+        key = self._messages_key(chat_id)
+        async with self._redis.pipeline(transaction=False) as pipe:
+            pipe.rpush(key, json.dumps(message.to_dict()))
+            pipe.expire(key, config.REDIS_MESSAGE_TTL)
+            await pipe.execute()
 
         return message
 
@@ -410,16 +402,11 @@ class RedisStore:
             timestamp=datetime.utcnow().isoformat(),
         )
 
-        await self._redis.hset(
-            self._positions_key(chat_id),
-            position.id,
-            json.dumps(position.to_dict()),
-        )
-
-        # Refresh TTL
-        await self._redis.expire(
-            self._positions_key(chat_id), config.REDIS_MESSAGE_TTL
-        )
+        key = self._positions_key(chat_id)
+        async with self._redis.pipeline(transaction=False) as pipe:
+            pipe.hset(key, position.id, json.dumps(position.to_dict()))
+            pipe.expire(key, config.REDIS_MESSAGE_TTL)
+            await pipe.execute()
 
         return position
 
@@ -507,16 +494,11 @@ class RedisStore:
             timestamp=datetime.utcnow().isoformat(),
         )
 
-        await self._redis.hset(
-            self._definitions_key(chat_id),
-            req.id,
-            json.dumps(req.to_dict()),
-        )
-
-        # Refresh TTL
-        await self._redis.expire(
-            self._definitions_key(chat_id), config.REDIS_MESSAGE_TTL
-        )
+        key = self._definitions_key(chat_id)
+        async with self._redis.pipeline(transaction=False) as pipe:
+            pipe.hset(key, req.id, json.dumps(req.to_dict()))
+            pipe.expire(key, config.REDIS_MESSAGE_TTL)
+            await pipe.execute()
 
         return req
 
@@ -533,16 +515,11 @@ class RedisStore:
         self, chat_id: str, req: DefinitionRequest
     ) -> None:
         """Persist an updated definition request to Redis."""
-        await self._redis.hset(
-            self._definitions_key(chat_id),
-            req.id,
-            json.dumps(req.to_dict()),
-        )
-
-        # Refresh TTL
-        await self._redis.expire(
-            self._definitions_key(chat_id), config.REDIS_MESSAGE_TTL
-        )
+        key = self._definitions_key(chat_id)
+        async with self._redis.pipeline(transaction=False) as pipe:
+            pipe.hset(key, req.id, json.dumps(req.to_dict()))
+            pipe.expire(key, config.REDIS_MESSAGE_TTL)
+            await pipe.execute()
 
     async def get_all_definition_requests(self, chat_id: str) -> list[DefinitionRequest]:
         """Get all definition requests for a chat."""
@@ -569,16 +546,11 @@ class RedisStore:
             timestamp=datetime.utcnow().isoformat(),
         )
 
-        await self._redis.hset(
-            self._explanations_key(chat_id),
-            req.id,
-            json.dumps(req.to_dict()),
-        )
-
-        # Refresh TTL
-        await self._redis.expire(
-            self._explanations_key(chat_id), config.REDIS_MESSAGE_TTL
-        )
+        key = self._explanations_key(chat_id)
+        async with self._redis.pipeline(transaction=False) as pipe:
+            pipe.hset(key, req.id, json.dumps(req.to_dict()))
+            pipe.expire(key, config.REDIS_MESSAGE_TTL)
+            await pipe.execute()
 
         return req
 
@@ -595,16 +567,11 @@ class RedisStore:
         self, chat_id: str, req: ExplainRequest
     ) -> None:
         """Persist an updated explain request to Redis."""
-        await self._redis.hset(
-            self._explanations_key(chat_id),
-            req.id,
-            json.dumps(req.to_dict()),
-        )
-
-        # Refresh TTL
-        await self._redis.expire(
-            self._explanations_key(chat_id), config.REDIS_MESSAGE_TTL
-        )
+        key = self._explanations_key(chat_id)
+        async with self._redis.pipeline(transaction=False) as pipe:
+            pipe.hset(key, req.id, json.dumps(req.to_dict()))
+            pipe.expire(key, config.REDIS_MESSAGE_TTL)
+            await pipe.execute()
 
     async def get_all_explain_requests(self, chat_id: str) -> list[ExplainRequest]:
         """Get all explain requests for a chat."""
@@ -623,14 +590,15 @@ class RedisStore:
         self, chat_id: str, message_id: str, user_id: str, emoji: str
     ) -> None:
         """Set a user's reaction on a message (replaces any previous)."""
-        await self._redis.hset(
-            self._reactions_key(chat_id),
-            f"{message_id}:{user_id}",
-            json.dumps({"emoji": emoji, "timestamp": datetime.utcnow().isoformat()}),
-        )
-        await self._redis.expire(
-            self._reactions_key(chat_id), config.REDIS_MESSAGE_TTL
-        )
+        key = self._reactions_key(chat_id)
+        async with self._redis.pipeline(transaction=False) as pipe:
+            pipe.hset(
+                key,
+                f"{message_id}:{user_id}",
+                json.dumps({"emoji": emoji, "timestamp": datetime.utcnow().isoformat()}),
+            )
+            pipe.expire(key, config.REDIS_MESSAGE_TTL)
+            await pipe.execute()
 
     async def remove_reaction(
         self, chat_id: str, message_id: str, user_id: str
@@ -655,15 +623,54 @@ class RedisStore:
 
     # ===== Chat Export / Cleanup =====
 
+    async def get_message_count(self, chat_id: str) -> int:
+        """Get the number of messages in a chat (O(1) via LLEN)."""
+        return await self._redis.llen(self._messages_key(chat_id))
+
     async def get_chat_export_data(self, chat_id: str) -> dict[str, Any]:
-        """Get all chat data for export to PostgreSQL."""
-        messages = await self.get_messages(chat_id)
-        positions = await self.get_all_agreed_positions(chat_id)
-        definitions = await self.get_all_definition_requests(chat_id)
-        explanations = await self.get_all_explain_requests(chat_id)
-        metadata = await self.get_chat_metadata(chat_id)
-        closure = await self.get_closure_proposal(chat_id)
-        reactions = await self.get_reactions(chat_id)
+        """Get all chat data for export to PostgreSQL.
+
+        Uses a Redis pipeline to fetch all keys in a single round-trip.
+        """
+        async with self._redis.pipeline(transaction=False) as pipe:
+            pipe.lrange(self._messages_key(chat_id), 0, -1)
+            pipe.hgetall(self._positions_key(chat_id))
+            pipe.hgetall(self._definitions_key(chat_id))
+            pipe.hgetall(self._explanations_key(chat_id))
+            pipe.hgetall(self._metadata_key(chat_id))
+            pipe.get(self._closure_key(chat_id))
+            pipe.hgetall(self._reactions_key(chat_id))
+            results = await pipe.execute()
+
+        messages_json, positions_data, definitions_data, explanations_data, \
+            metadata_data, closure_data, reactions_raw = results
+
+        messages = [ChatMessage.from_dict(json.loads(m)) for m in messages_json]
+        positions = [AgreedPosition.from_dict(json.loads(d)) for d in positions_data.values()]
+        definitions = [DefinitionRequest.from_dict(json.loads(d)) for d in definitions_data.values()]
+        explanations = [ExplainRequest.from_dict(json.loads(d)) for d in explanations_data.values()]
+
+        metadata = None
+        if metadata_data:
+            metadata = ChatMetadata(
+                chat_id=metadata_data.get("chatId", metadata_data.get("chat_id")),
+                participant_ids=json.loads(metadata_data.get("participantIds", metadata_data.get("participant_ids", "[]"))),
+                start_time=metadata_data.get("startTime", metadata_data.get("start_time")),
+            )
+
+        closure = None
+        if closure_data:
+            closure = ClosureProposal.from_dict(json.loads(closure_data))
+
+        # Parse reactions
+        grouped: dict[str, list[dict]] = {}
+        for field, value in reactions_raw.items():
+            field_str = field if isinstance(field, str) else field.decode()
+            msg_id, user_id = field_str.rsplit(":", 1)
+            data = json.loads(value)
+            grouped.setdefault(msg_id, []).append(
+                {"userId": user_id, "emoji": data["emoji"], "timestamp": data["timestamp"]}
+            )
 
         return {
             "messages": [m.to_dict() for m in messages],
@@ -672,7 +679,7 @@ class RedisStore:
             "explanations": [e.to_dict() for e in explanations],
             "agreedClosure": closure.to_dict() if closure else None,
             "metadata": metadata.to_dict() if metadata else None,
-            "reactions": reactions,
+            "reactions": grouped,
             "exportTime": datetime.utcnow().isoformat(),
         }
 
@@ -680,20 +687,20 @@ class RedisStore:
         """Delete all Redis data for a chat after export."""
         metadata = await self.get_chat_metadata(chat_id)
 
-        # Delete all chat keys
-        await self._redis.delete(
-            self._messages_key(chat_id),
-            self._positions_key(chat_id),
-            self._closure_key(chat_id),
-            self._definitions_key(chat_id),
-            self._explanations_key(chat_id),
-            self._metadata_key(chat_id),
-            self._reactions_key(chat_id),
-        )
-
-        # Remove chat from users' active chats
-        if metadata:
-            for user_id in metadata.participant_ids:
-                await self._redis.srem(self._user_chats_key(user_id), chat_id)
+        # Pipeline: delete all chat keys + remove from users' active chats
+        async with self._redis.pipeline(transaction=False) as pipe:
+            pipe.delete(
+                self._messages_key(chat_id),
+                self._positions_key(chat_id),
+                self._closure_key(chat_id),
+                self._definitions_key(chat_id),
+                self._explanations_key(chat_id),
+                self._metadata_key(chat_id),
+                self._reactions_key(chat_id),
+            )
+            if metadata:
+                for user_id in metadata.participant_ids:
+                    pipe.srem(self._user_chats_key(user_id), chat_id)
+            await pipe.execute()
 
         logger.info(f"Deleted chat {chat_id} from Redis")

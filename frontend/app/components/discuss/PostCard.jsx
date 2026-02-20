@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, memo } from 'react'
 import { View, TouchableOpacity, Pressable, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
@@ -24,7 +24,7 @@ import BottomDrawerModal from '../BottomDrawerModal'
  * @param {Function} props.onToggleRole - Called with (postId, showCreatorRole)
  * @param {string} [props.currentUserId] - Current user's ID (disables voting on own posts)
  */
-export default function PostCard({ post, onPress, onUpvote, onDownvote, onToggleRole, onLock, currentUserId, canModerate, onReport, onModerate }) {
+export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onToggleRole, onLock, currentUserId, canModerate, onReport, onModerate }) {
   const { t } = useTranslation('discuss')
   const colors = useThemeColors()
   const router = useRouter()
@@ -237,7 +237,24 @@ export default function PostCard({ post, onPress, onUpvote, onDownvote, onToggle
       </BottomDrawerModal>
     </Pressable>
   )
-}
+}, (prev, next) => {
+  // Custom comparison: skip re-render if post data hasn't changed
+  const p = prev.post
+  const n = next.post
+  return (
+    p.id === n.id &&
+    p.userVote?.voteType === n.userVote?.voteType &&
+    p.upvoteCount === n.upvoteCount &&
+    p.downvoteCount === n.downvoteCount &&
+    p.commentCount === n.commentCount &&
+    p.status === n.status &&
+    p.showCreatorRole === n.showCreatorRole &&
+    p.bridgingScore === n.bridgingScore &&
+    p.isAnswered === n.isAnswered &&
+    prev.currentUserId === next.currentUserId &&
+    prev.canModerate === next.canModerate
+  )
+})
 
 const createStyles = (colors) => StyleSheet.create({
   card: {

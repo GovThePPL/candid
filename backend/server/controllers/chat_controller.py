@@ -745,12 +745,11 @@ def get_user_chats(user_id, position_id=None, limit=None, offset=None, token_inf
     kudos_counts = {}
     if user_ids:
         kudos_results = db.execute_query("""
-            SELECT receiver_user_id, COUNT(*) as kudos_count
-            FROM kudos WHERE status = 'sent' AND receiver_user_id = ANY(%s::uuid[])
-            GROUP BY receiver_user_id
+            SELECT id, kudos_count
+            FROM users WHERE id = ANY(%s::uuid[])
         """, (list(user_ids),))
         for kr in kudos_results:
-            kudos_counts[str(kr["receiver_user_id"])] = kr["kudos_count"]
+            kudos_counts[str(kr["id"])] = kr["kudos_count"]
 
     # Get kudos status for each chat (who sent kudos to whom)
     chat_ids = [str(row["id"]) for row in results]

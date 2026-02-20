@@ -3,10 +3,10 @@
  *
  * Each handler advances optimistically then fires the API in the background.
  */
-import { useCallback, useContext } from 'react'
+import { useCallback } from 'react'
 import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
-import { UserContext } from '../contexts/UserContext'
+import { useChatContext, useNavigationContext } from '../contexts/UserContext'
 import { useToast } from '../components/Toast'
 import api from '../lib/api'
 
@@ -16,7 +16,8 @@ export default function useCardHandlers({ currentCard, goToNextCard }) {
   const router = useRouter()
   const showToast = useToast()
   const { t } = useTranslation('cards')
-  const { pendingChatRequest, setPendingChatRequest, invalidatePositions } = useContext(UserContext)
+  const { pendingChatRequest, setPendingChatRequest } = useChatContext()
+  const { invalidatePositions } = useNavigationContext()
 
   // Position card handlers
   const handleAgree = useCallback(async () => {

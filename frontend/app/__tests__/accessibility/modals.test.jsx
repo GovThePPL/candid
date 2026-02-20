@@ -44,6 +44,19 @@ jest.mock('../../contexts/UserContext', () => ({
     positionsVersion: 0,
     isBanned: false,
   }),
+  useAuth: () => ({
+    user: { id: 'u1', displayName: 'TestUser', username: 'test', kudosCount: 5 },
+    logout: jest.fn(),
+    isBanned: false,
+  }),
+  useChatContext: () => ({
+    pendingChatRequest: null,
+    clearPendingChatRequest: jest.fn(),
+  }),
+  useNavigationContext: () => ({
+    positionsVersion: 0,
+    invalidatePositions: jest.fn(),
+  }),
 }))
 
 jest.mock('expo-router', () => ({

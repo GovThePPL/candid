@@ -33,21 +33,14 @@ jest.mock('../../contexts/UserContext', () => ({
       invalidatePositions: jest.fn(),
     },
   },
+  useChatContext: () => ({
+    pendingChatRequest: null,
+    setPendingChatRequest: mockSetPendingChatRequest,
+  }),
+  useNavigationContext: () => ({
+    invalidatePositions: mockInvalidatePositions,
+  }),
 }))
-
-// Override useContext to return our mock values
-const React = require('react')
-const originalUseContext = React.useContext
-jest.spyOn(React, 'useContext').mockImplementation((context) => {
-  if (context === require('../../contexts/UserContext').UserContext) {
-    return {
-      pendingChatRequest: null,
-      setPendingChatRequest: mockSetPendingChatRequest,
-      invalidatePositions: mockInvalidatePositions,
-    }
-  }
-  return originalUseContext(context)
-})
 
 const mockRespond = jest.fn()
 const mockReport = jest.fn()

@@ -40,6 +40,10 @@ jest.mock('../../contexts/UserContext', () => ({
     pendingChatRequest: null,
     clearPendingChatRequest: jest.fn(),
   }),
+  useAuth: () => ({
+    user: { displayName: 'TestUser', username: 'test', kudosCount: 5 },
+    logout: jest.fn(),
+  }),
 }))
 
 // Mock navigation
