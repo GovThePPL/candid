@@ -79,6 +79,7 @@ export default function useCardHandlers({ currentCard, goToNextCard }) {
       const author = currentCard.data.creator || {}
       setPendingChatRequest({
         id: response.id,
+        positionId: currentCard.data.id,
         createdTime: now.toISOString(),
         expiresAt: new Date(now.getTime() + CHAT_REQUEST_TIMEOUT_MS).toISOString(),
         positionStatement: currentCard.data.statement,

@@ -1247,13 +1247,22 @@ export default function CardQueueContent() {
   // Desktop: chat request timeout/cancel handlers for the indicator
   const handleChatRequestTimeout = useCallback(async () => {
     const requestId = pendingChatCtx?.id
+    const positionId = pendingChatCtx?.positionId
     clearPendingChatRequest()
     if (requestId) {
       try {
         await api.chat.rescindChatRequest(requestId)
       } catch (err) {
         console.error('Failed to rescind chat request:', err)
-        showToast(t('common:errorChatRequestRescindFailed'))
+      }
+    }
+    // Auto-add to chatting list so user gets notified when someone is available
+    if (positionId) {
+      showToast(t('addedToChattingList'))
+      try {
+        await api.chattingList.addPosition(positionId)
+      } catch (err) {
+        console.error('Failed to add to chatting list:', err)
       }
     }
   }, [pendingChatCtx, clearPendingChatRequest, showToast, t])

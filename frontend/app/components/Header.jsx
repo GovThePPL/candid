@@ -42,16 +42,25 @@ export default function Header({ onBack, showCreateButton, showAvatar = true, di
   const showLogo = !pendingChatRequest ||
     (!onBack && availableWidth >= logoWidthRef.current + SECTION_GAPS + COMFORTABLE_INDICATOR_WIDTH)
 
-  // Handle chat request timeout - rescind the request
+  // Handle chat request timeout - rescind and add to chatting list
   const handleChatRequestTimeout = useCallback(async () => {
     const requestId = pendingChatRequest?.id
+    const positionId = pendingChatRequest?.positionId
     clearPendingChatRequest()
     if (requestId) {
       try {
         await api.chat.rescindChatRequest(requestId)
       } catch (err) {
         console.error('Failed to rescind chat request:', err)
-        showToast(t('errorChatRequestRescindFailed'))
+      }
+    }
+    // Auto-add to chatting list so user gets notified when someone is available
+    if (positionId) {
+      showToast(t('cards:addedToChattingList'))
+      try {
+        await api.chattingList.addPosition(positionId)
+      } catch (err) {
+        console.error('Failed to add to chatting list:', err)
       }
     }
   }, [pendingChatRequest, clearPendingChatRequest, showToast, t])
