@@ -447,9 +447,6 @@ export default function Stats() {
                     </View>
                     {topLabels.map((item, idx) => (
                       <View key={item.label} style={styles.labelRankingRow}>
-                        {item.isCondorcetWinner && (
-                          <Ionicons name="trophy" size={14} color={colors.primary} style={{ marginRight: 4 }} />
-                        )}
                         <ThemedText
                           variant={idx === 0 ? 'h3' : 'bodySmall'}
                           color={idx === 0 ? 'primary' : undefined}
@@ -460,6 +457,9 @@ export default function Stats() {
                         >
                           {idx + 1}. {item.label}
                         </ThemedText>
+                        {item.isCondorcetWinner && (
+                          <Ionicons name="trophy" size={14} color={colors.primary} style={{ marginLeft: 4 }} />
+                        )}
                       </View>
                     ))}
                   </View>
@@ -668,10 +668,10 @@ export default function Stats() {
         <InfoModal.Item icon="swap-horizontal-outline">
           {t('labelHelpPairwise')}
         </InfoModal.Item>
-        <InfoModal.Item icon="trophy-outline">
+        <InfoModal.Item icon="podium-outline">
           {t('labelHelpRanked')}
         </InfoModal.Item>
-        <InfoModal.Item icon="ribbon-outline">
+        <InfoModal.Item icon="trophy-outline">
           {t('labelHelpCondorcet')}
         </InfoModal.Item>
         <InfoModal.Item icon="people-outline">
@@ -760,7 +760,6 @@ const createStyles = (colors) => StyleSheet.create({
   labelRankingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     marginTop: 4,
   },
   labelRankingLeft: {

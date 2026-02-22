@@ -570,7 +570,7 @@ CREATE TABLE notification_type_preferences (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     notification_type VARCHAR(50) NOT NULL CHECK (notification_type IN (
-        'comment_reply', 'post_comment', 'chat_request', 'role_change', 'rule_change', 'admin_action', 'moderation', 'bridging_kudos'
+        'comment_reply', 'post_comment', 'chat_request', 'role_change', 'rule_change', 'admin_action', 'moderation', 'bridging_kudos', 'wiki_suggestion'
     )),
     enabled BOOLEAN NOT NULL DEFAULT true,
     created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -594,7 +594,7 @@ CREATE TABLE notification_inbox (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     notification_type VARCHAR(50) NOT NULL CHECK (notification_type IN (
-        'comment_reply', 'post_comment', 'chat_request', 'role_change', 'rule_change', 'admin_action', 'moderation', 'bridging_kudos'
+        'comment_reply', 'post_comment', 'chat_request', 'role_change', 'rule_change', 'admin_action', 'moderation', 'bridging_kudos', 'wiki_suggestion'
     )),
     actor_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     title TEXT NOT NULL,
@@ -632,7 +632,8 @@ CREATE TABLE post (
     created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     show_creator_role BOOLEAN NOT NULL DEFAULT false,
-    pinned_comment_id UUID
+    pinned_comment_id UUID,
+    glossary_highlight BOOLEAN NOT NULL DEFAULT true
 );
 
 CREATE INDEX idx_post_location ON post(location_id);
@@ -663,7 +664,8 @@ CREATE TABLE comment (
     mf_intercept DOUBLE PRECISION,
     created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    show_creator_role BOOLEAN NOT NULL DEFAULT false
+    show_creator_role BOOLEAN NOT NULL DEFAULT false,
+    glossary_highlight BOOLEAN NOT NULL DEFAULT true
 );
 
 CREATE INDEX idx_comment_post ON comment(post_id);
@@ -1129,3 +1131,142 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER trg_user_kudos_count
     AFTER INSERT OR UPDATE OR DELETE ON kudos
     FOR EACH ROW EXECUTE FUNCTION update_user_kudos_count();
+
+-- ========== Glossary / Knowledgebase ==========
+
+CREATE TABLE glossary_term (
+    id              SERIAL PRIMARY KEY,
+    slug            TEXT UNIQUE NOT NULL,
+    term            TEXT NOT NULL,
+    aliases         TEXT[] DEFAULT '{}',
+    summary         TEXT,
+    content         TEXT,
+    wiki_category   TEXT,
+    scope_combine   TEXT NOT NULL DEFAULT 'or' CHECK (scope_combine IN ('and', 'or')),
+    created_by      UUID REFERENCES users(id) ON DELETE SET NULL,
+    updated_by      UUID REFERENCES users(id) ON DELETE SET NULL,
+    updated_at      TIMESTAMPTZ DEFAULT NOW(),
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Many-to-many scope tags: a term can belong to multiple locations and categories
+CREATE TABLE glossary_term_scope (
+    term_id       INTEGER NOT NULL REFERENCES glossary_term(id) ON DELETE CASCADE,
+    scope_type    TEXT NOT NULL CHECK (scope_type IN ('location', 'category')),
+    scope_id      UUID NOT NULL,
+    PRIMARY KEY (term_id, scope_type, scope_id)
+);
+CREATE INDEX idx_glossary_term_scope_type ON glossary_term_scope(scope_type, scope_id);
+
+-- Wiki pages (standalone pages, previously stored only in Wiki.js)
+CREATE TABLE wiki_page (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    slug            TEXT UNIQUE NOT NULL,
+    title           TEXT NOT NULL,
+    description     TEXT,
+    content         TEXT,
+    wiki_category   TEXT,
+    scope_combine   TEXT NOT NULL DEFAULT 'or' CHECK (scope_combine IN ('and', 'or')),
+    created_by      UUID REFERENCES users(id) ON DELETE SET NULL,
+    updated_by      UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Wiki page scope (same pattern as glossary_term_scope)
+CREATE TABLE wiki_page_scope (
+    page_id     UUID NOT NULL REFERENCES wiki_page(id) ON DELETE CASCADE,
+    scope_type  TEXT NOT NULL CHECK (scope_type IN ('location', 'category')),
+    scope_id    UUID NOT NULL,
+    PRIMARY KEY (page_id, scope_type, scope_id)
+);
+CREATE INDEX idx_wiki_page_scope_type ON wiki_page_scope(scope_type, scope_id);
+
+-- Wiki page version history (snapshot on every edit)
+CREATE TABLE wiki_page_version (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    page_id     UUID NOT NULL REFERENCES wiki_page(id) ON DELETE CASCADE,
+    title       TEXT NOT NULL,
+    description TEXT,
+    content     TEXT,
+    wiki_category TEXT,
+    edited_by   UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_wiki_page_version_page ON wiki_page_version(page_id, created_at DESC);
+
+-- Glossary term version history (snapshot on every edit)
+CREATE TABLE glossary_term_version (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    term_id     INTEGER NOT NULL REFERENCES glossary_term(id) ON DELETE CASCADE,
+    term        TEXT NOT NULL,
+    aliases     TEXT[] DEFAULT '{}',
+    summary     TEXT,
+    content     TEXT,
+    wiki_category TEXT,
+    edited_by   UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_glossary_term_version_term ON glossary_term_version(term_id, created_at DESC);
+
+-- Wiki image storage
+CREATE TABLE wiki_image (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    filename        TEXT NOT NULL,
+    content_type    TEXT NOT NULL,
+    data            BYTEA NOT NULL,
+    uploaded_by     UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Wiki suggestions: users propose new terms/pages or edits, reviewed by credentialed users
+CREATE TABLE wiki_suggestion (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    suggestion_type     TEXT NOT NULL CHECK (suggestion_type IN (
+        'new_term', 'edit_term', 'new_page', 'edit_page'
+    )),
+
+    -- Reference to existing item (for edits)
+    glossary_term_id    INTEGER REFERENCES glossary_term(id) ON DELETE SET NULL,
+    wiki_page_path      TEXT,
+    wiki_page_id        UUID REFERENCES wiki_page(id) ON DELETE SET NULL,
+
+    -- Proposed content (full snapshot — not a diff)
+    proposed_title      TEXT NOT NULL,
+    proposed_aliases    TEXT[] DEFAULT '{}',
+    proposed_summary    TEXT,
+    proposed_content    TEXT,
+    proposed_wiki_category TEXT,
+    proposed_scopes     JSONB DEFAULT '[]',
+    proposed_scope_combine TEXT DEFAULT 'or' CHECK (proposed_scope_combine IN ('and', 'or')),
+
+    -- Original content snapshot (captured at creation for edit types; NULL for new)
+    original_title          TEXT,
+    original_aliases        TEXT[] DEFAULT '{}',
+    original_summary        TEXT,
+    original_content        TEXT,
+    original_wiki_category  TEXT,
+    original_scopes         JSONB DEFAULT '[]',
+    original_scope_combine  TEXT DEFAULT 'or',
+
+    -- Snapshot of the original at time of suggestion (for conflict detection)
+    original_updated_at TIMESTAMPTZ,
+
+    -- Submitter
+    suggested_by        UUID NOT NULL REFERENCES users(id),
+    suggestion_reason   TEXT,
+
+    -- Review
+    status              TEXT NOT NULL DEFAULT 'pending'
+                        CHECK (status IN ('pending', 'approved', 'denied', 'withdrawn', 'superseded')),
+    reviewed_by         UUID REFERENCES users(id),
+    review_note         TEXT,
+    reviewed_at         TIMESTAMPTZ,
+
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_wiki_suggestion_status ON wiki_suggestion(status);
+CREATE INDEX idx_wiki_suggestion_by ON wiki_suggestion(suggested_by);
+CREATE INDEX idx_wiki_suggestion_term ON wiki_suggestion(glossary_term_id) WHERE glossary_term_id IS NOT NULL;
+CREATE INDEX idx_wiki_suggestion_page ON wiki_suggestion(wiki_page_path) WHERE wiki_page_path IS NOT NULL;

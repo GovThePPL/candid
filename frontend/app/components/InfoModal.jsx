@@ -120,9 +120,11 @@ InfoModal.Paragraph = function Paragraph({ style, children }) {
 
 /** Convenience sub-component for icon+text item rows inside InfoModal children */
 InfoModal.Item = function Item({ icon, iconColor, children }) {
+  const colors = useThemeColors()
+  const resolvedColor = iconColor || colors.primary
   return (
     <View style={staticStyles.item}>
-      <Ionicons name={icon} size={20} color={iconColor} />
+      <Ionicons name={icon} size={20} color={resolvedColor} />
       <ThemedText variant="bodySmall" style={staticStyles.itemText}>{children}</ThemedText>
     </View>
   )

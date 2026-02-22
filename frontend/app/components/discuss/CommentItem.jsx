@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { useTheme } from '../../contexts/ThemeContext'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { Spacing } from '../../constants/Theme'
+import { SemanticColors } from '../../constants/Colors'
 import ThemedText from '../ThemedText'
 import UserCard from '../UserCard'
 import VoteControl from './VoteControl'
@@ -28,6 +29,8 @@ export default memo(function CommentItem({
   onUpvote,
   onDownvote,
   onReply,
+  onEdit,
+  onDelete,
   onToggleCollapse,
   onToggleRole,
   onToggleMuteComment,
@@ -42,6 +45,7 @@ export default memo(function CommentItem({
   onReport,
   onModerate,
   depthLimit = THREAD_DEPTH_LIMIT,
+  glossaryRules,
 }) {
   const { t } = useTranslation('discuss')
   const { isDark } = useTheme()
@@ -58,6 +62,8 @@ export default memo(function CommentItem({
   const atDepthLimit = comment.depth >= depthLimit
   const isEdited = comment.updatedTime && comment.createdTime &&
     new Date(comment.updatedTime).getTime() - new Date(comment.createdTime).getTime() > 1000
+  const canEdit = isOwnComment && !isDeleted && comment.createdTime &&
+    (Date.now() - new Date(comment.createdTime).getTime() < 15 * 60 * 1000)
 
   // Q&A reply visibility: non-authority can only reply to authority comments
   const canReply = !isPostLocked && !isDeleted && (() => {
@@ -225,11 +231,11 @@ export default memo(function CommentItem({
                 : t('collapseButtonA11y', { count: comment.children?.length || 0 })
             }
           >
-            <MarkdownRenderer content={comment.body} variant="comment" />
+            <MarkdownRenderer content={comment.body} variant="comment" glossaryRules={glossaryRules} />
           </TouchableOpacity>
         ) : (
           <View style={styles.body}>
-            <MarkdownRenderer content={comment.body} variant="comment" />
+            <MarkdownRenderer content={comment.body} variant="comment" glossaryRules={glossaryRules} />
           </View>
         )}
 
@@ -378,6 +384,36 @@ export default memo(function CommentItem({
                 <ThemedText variant="body">
                   {comment.isMuted ? t('unmuteCommentNotifications') : t('muteCommentNotifications')}
                 </ThemedText>
+              </TouchableOpacity>
+            )}
+            {canEdit && (
+              <TouchableOpacity
+                style={styles.optionRow}
+                onPress={() => {
+                  setOptionsVisible(false)
+                  onEdit?.(comment)
+                }}
+                activeOpacity={0.7}
+                accessibilityRole="menuitem"
+                accessibilityLabel={t('editCommentA11y')}
+              >
+                <Ionicons name="create-outline" size={20} color={colors.secondaryText} />
+                <ThemedText variant="body">{t('editComment')}</ThemedText>
+              </TouchableOpacity>
+            )}
+            {isOwnComment && !isDeleted && (
+              <TouchableOpacity
+                style={styles.optionRow}
+                onPress={() => {
+                  setOptionsVisible(false)
+                  onDelete?.(comment.id)
+                }}
+                activeOpacity={0.7}
+                accessibilityRole="menuitem"
+                accessibilityLabel={t('deleteCommentA11y')}
+              >
+                <Ionicons name="trash-outline" size={20} color={SemanticColors.warning} />
+                <ThemedText variant="body" style={{ color: SemanticColors.warning }}>{t('deleteComment')}</ThemedText>
               </TouchableOpacity>
             )}
             {(isPostAuthor || canModerate) && comment.depth === 0 && (

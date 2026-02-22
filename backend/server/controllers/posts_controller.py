@@ -44,6 +44,7 @@ def _row_to_post(row, user_vote_row=None):
         "weightedDownvotes": float(row.get("weighted_downvotes", 0)),
         "score": float(row.get("score", 0)),
         "commentCount": row.get("comment_count", 0),
+        "glossaryHighlight": row.get("glossary_highlight", True),
         "createdTime": row["created_time"].isoformat() if row.get("created_time") else None,
         "updatedTime": row["updated_time"].isoformat() if row.get("updated_time") else None,
     }
@@ -193,10 +194,11 @@ def create_post(body, token_info=None):  # noqa: E501
     post_id = str(uuid.uuid4())
     # Q&A posts default to showing role badge; discussion posts default to hiding it
     show_creator_role = post_type == "question"
+    glossary_highlight = body.get("glossary_highlight", True)
     db.execute_query("""
-        INSERT INTO post (id, creator_user_id, location_id, category_id, post_type, title, body, show_creator_role)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-    """, (post_id, user_id, location_id, category_id, post_type, title, body_text, show_creator_role))
+        INSERT INTO post (id, creator_user_id, location_id, category_id, post_type, title, body, show_creator_role, glossary_highlight)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """, (post_id, user_id, location_id, category_id, post_type, title, body_text, show_creator_role, glossary_highlight))
 
     # Fetch the created post with joins
     row = db.execute_query("""

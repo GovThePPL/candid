@@ -97,6 +97,19 @@
           }
         }
       ]
+    },
+    {
+      "clientId": "wikijs",
+      "name": "Wiki.js Knowledgebase",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "wikijs-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:3000/*"],
+      "webOrigins": ["+"],
+      "protocol": "openid-connect"
     }
   ],
   "clientScopeMappings": {

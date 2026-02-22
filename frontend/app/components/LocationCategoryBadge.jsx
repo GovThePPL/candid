@@ -38,24 +38,29 @@ const SIZE_CONFIG = {
  * @param {{ code: string, name?: string } | null} props.location
  * @param {{ label: string } | null} props.category
  * @param {'lg'|'md'|'sm'} [props.size='sm']
+ * @param {string} [props.locationFallback] - Text for the location pill when location is null (e.g. "All")
+ * @param {string} [props.categoryFallback] - Text for the category when category is null (e.g. "All Categories")
  */
-export default memo(function LocationCategoryBadge({ location, category, size = 'sm' }) {
+export default memo(function LocationCategoryBadge({ location, category, size = 'sm', locationFallback, categoryFallback }) {
   const colors = useThemeColors()
   const cfg = SIZE_CONFIG[size] || SIZE_CONFIG.sm
   const styles = useMemo(() => createStyles(colors, cfg), [colors, cfg])
 
-  if (!location?.code && !category?.label) return null
+  const locText = location?.code || locationFallback
+  const catText = category?.label || categoryFallback
+
+  if (!locText && !catText) return null
 
   return (
     <View style={styles.row}>
-      {location?.code && (
+      {locText ? (
         <View style={styles.pill}>
-          <ThemedText variant={cfg.locationVariant} color="badge" style={cfg.locationStyle}>{location.code}</ThemedText>
+          <ThemedText variant={cfg.locationVariant} color="badge" style={cfg.locationStyle}>{locText}</ThemedText>
         </View>
-      )}
-      {category?.label && (
-        <ThemedText variant={cfg.categoryVariant} color="badge" style={cfg.categoryStyle}>{category.label}</ThemedText>
-      )}
+      ) : null}
+      {catText ? (
+        <ThemedText variant={cfg.categoryVariant} color="badge" style={cfg.categoryStyle}>{catText}</ThemedText>
+      ) : null}
     </View>
   )
 })

@@ -47,6 +47,15 @@ navigation where back should return to the discuss feed.
 ├── notifications/             # Notification inbox
 │   ├── _layout.jsx            # Stack navigator (headerless)
 │   └── index.jsx              # Notification list with deep linking
+├── wiki/                      # Wiki knowledgebase
+│   ├── _layout.jsx            # Stack navigator (headerless)
+│   ├── [slug].jsx             # Wiki page detail
+│   ├── glossary/
+│   │   └── [slug].jsx         # Glossary term detail
+│   ├── suggestions.jsx        # Wiki suggestions list (my + review)
+│   ├── suggestion-form.jsx    # Create/edit wiki suggestion form
+│   ├── history.jsx            # Version history list (page or term)
+│   └── version.jsx            # Version detail with diff view
 ├── position-closures/         # Position closure details
 │   ├── _layout.jsx            # Stack navigator (headerless)
 │   └── [id].jsx               # Closure detail

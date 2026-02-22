@@ -2685,7 +2685,7 @@ components:
           format: uuid
         type:
           type: string
-          enum: [comment_reply, post_comment, chat_request, role_change, rule_change, admin_action, moderation]
+          enum: [comment_reply, post_comment, chat_request, role_change, rule_change, admin_action, moderation, wiki_suggestion]
         actorUserId:
           type: string
           format: uuid
@@ -3002,6 +3002,9 @@ components:
         createdTime:
           type: string
           format: date-time
+        glossaryHighlight:
+          type: boolean
+          description: Whether glossary terms should be highlighted in this post
         updatedTime:
           type: string
           format: date-time
@@ -3046,6 +3049,9 @@ components:
           type: string
           enum: [discussion, question]
           default: discussion
+        glossaryHighlight:
+          type: boolean
+          default: true
 
     UpdatePostRequest:
       type: object
@@ -3138,6 +3144,9 @@ components:
         isPinned:
           type: boolean
           description: Whether this comment is pinned on the post
+        glossaryHighlight:
+          type: boolean
+          description: Whether glossary terms should be highlighted in this comment
         createdTime:
           type: string
           format: date-time
@@ -3272,6 +3281,9 @@ components:
           type: string
           format: uuid
           nullable: true
+        glossaryHighlight:
+          type: boolean
+          default: true
 
     UpdateCommentRequest:
       type: object
@@ -3325,6 +3337,480 @@ components:
             True when the voter and content author belong to different
             opinion groups. False when group data is unavailable or
             same group.
+
+    GlossaryTermSummary:
+      type: object
+      required:
+        - slug
+        - term
+      properties:
+        slug:
+          type: string
+        term:
+          type: string
+        summary:
+          type: string
+          nullable: true
+        aliases:
+          type: array
+          items:
+            type: string
+        wikiCategory:
+          type: string
+          nullable: true
+        locationIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        categoryIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        scopeCombine:
+          type: string
+          enum: [and, or]
+
+    GlossaryTermDetail:
+      allOf:
+        - $ref: '#/components/schemas/GlossaryTermSummary'
+        - type: object
+          properties:
+            content:
+              type: string
+              nullable: true
+            updatedAt:
+              type: string
+              format: date-time
+            canEdit:
+              type: boolean
+              description: Whether the current user can directly edit this term
+
+    WikiPageSummary:
+      type: object
+      required:
+        - id
+        - slug
+        - title
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        wikiCategory:
+          type: string
+          nullable: true
+        locationIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        categoryIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        updatedAt:
+          type: string
+          format: date-time
+
+    WikiPageDetail:
+      allOf:
+        - $ref: '#/components/schemas/WikiPageSummary'
+        - type: object
+          properties:
+            content:
+              type: string
+              nullable: true
+            scopeCombine:
+              type: string
+              enum: [and, or]
+            canEdit:
+              type: boolean
+              description: Whether the current user can directly edit this page
+
+    WikiSuggestionCreate:
+      type: object
+      required:
+        - suggestionType
+        - proposedTitle
+      properties:
+        suggestionType:
+          type: string
+          enum: [new_term, edit_term, new_page, edit_page]
+        glossaryTermId:
+          type: integer
+          nullable: true
+          description: Reference to existing term (for edit_term)
+        wikiPagePath:
+          type: string
+          nullable: true
+          description: Wiki.js page path (for edit_page)
+        proposedTitle:
+          type: string
+        proposedAliases:
+          type: array
+          items:
+            type: string
+        proposedSummary:
+          type: string
+          nullable: true
+        proposedContent:
+          type: string
+          nullable: true
+        proposedWikiCategory:
+          type: string
+          nullable: true
+        proposedScopes:
+          type: array
+          items:
+            type: object
+            required:
+              - type
+              - id
+            properties:
+              type:
+                type: string
+                enum: [location, category]
+              id:
+                type: string
+                format: uuid
+        proposedScopeCombine:
+          type: string
+          enum: [and, or]
+          default: or
+        suggestionReason:
+          type: string
+          nullable: true
+
+    WikiSuggestion:
+      type: object
+      required:
+        - id
+        - suggestionType
+        - proposedTitle
+        - suggestedBy
+        - status
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        suggestionType:
+          type: string
+          enum: [new_term, edit_term, new_page, edit_page]
+        glossaryTermId:
+          type: integer
+          nullable: true
+        glossaryTermSlug:
+          type: string
+          nullable: true
+          description: Slug of the referenced glossary term (for linking)
+        wikiPagePath:
+          type: string
+          nullable: true
+        proposedTitle:
+          type: string
+        proposedAliases:
+          type: array
+          items:
+            type: string
+        proposedSummary:
+          type: string
+          nullable: true
+        proposedContent:
+          type: string
+          nullable: true
+        proposedWikiCategory:
+          type: string
+          nullable: true
+        proposedScopes:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+                enum: [location, category]
+              id:
+                type: string
+                format: uuid
+              label:
+                type: string
+                description: Human-readable name of the location or category
+        proposedScopeCombine:
+          type: string
+          enum: [and, or]
+        originalTitle:
+          type: string
+          nullable: true
+          description: Original title at time of suggestion (for diff display)
+        originalAliases:
+          type: array
+          items:
+            type: string
+          description: Original aliases at time of suggestion
+        originalSummary:
+          type: string
+          nullable: true
+        originalContent:
+          type: string
+          nullable: true
+        originalWikiCategory:
+          type: string
+          nullable: true
+        originalScopes:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+                enum: [location, category]
+              id:
+                type: string
+                format: uuid
+              label:
+                type: string
+        originalScopeCombine:
+          type: string
+          enum: [and, or]
+          nullable: true
+        suggestedBy:
+          $ref: '#/components/schemas/User'
+        suggestionReason:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [pending, approved, denied, withdrawn, superseded]
+        reviewedBy:
+          $ref: '#/components/schemas/User'
+          nullable: true
+        reviewNote:
+          type: string
+          nullable: true
+        reviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+        originalUpdatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        isStale:
+          type: boolean
+          description: True if underlying item changed since suggestion was created
+        createdAt:
+          type: string
+          format: date-time
+
+    WikiSuggestionReview:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [approved, denied, withdrawn]
+        reviewNote:
+          type: string
+          nullable: true
+        proposedTitle:
+          type: string
+          nullable: true
+          description: Reviewer override for proposed title
+        proposedAliases:
+          type: array
+          items:
+            type: string
+          description: Reviewer override for proposed aliases
+        proposedSummary:
+          type: string
+          nullable: true
+          description: Reviewer override for proposed summary
+        proposedContent:
+          type: string
+          nullable: true
+          description: Reviewer override for proposed content
+        proposedWikiCategory:
+          type: string
+          nullable: true
+          description: Reviewer override for proposed wiki category
+        proposedScopes:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+                enum: [location, category]
+              id:
+                type: string
+                format: uuid
+          description: Reviewer override for proposed scopes
+        proposedScopeCombine:
+          type: string
+          enum: [and, or]
+          nullable: true
+          description: Reviewer override for proposed scope combine
+
+    WikiSuggestionCount:
+      type: object
+      required:
+        - count
+      properties:
+        count:
+          type: integer
+
+    WikiPageEdit:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        content:
+          type: string
+          nullable: true
+        wikiCategory:
+          type: string
+          nullable: true
+        scopeCombine:
+          type: string
+          enum: [and, or]
+        scopes:
+          type: array
+          items:
+            type: object
+            required:
+              - type
+              - id
+            properties:
+              type:
+                type: string
+                enum: [location, category]
+              id:
+                type: string
+                format: uuid
+
+    GlossaryTermEdit:
+      type: object
+      properties:
+        term:
+          type: string
+        aliases:
+          type: array
+          items:
+            type: string
+        summary:
+          type: string
+          nullable: true
+        content:
+          type: string
+          nullable: true
+        wikiCategory:
+          type: string
+          nullable: true
+        scopeCombine:
+          type: string
+          enum: [and, or]
+        scopes:
+          type: array
+          items:
+            type: object
+            required:
+              - type
+              - id
+            properties:
+              type:
+                type: string
+                enum: [location, category]
+              id:
+                type: string
+                format: uuid
+
+    VersionSummary:
+      type: object
+      required:
+        - id
+        - title
+        - editedBy
+        - editedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        editedBy:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            username:
+              type: string
+            displayName:
+              type: string
+            avatarIconUrl:
+              type: string
+              nullable: true
+        editedAt:
+          type: string
+          format: date-time
+
+    VersionDetail:
+      allOf:
+        - $ref: '#/components/schemas/VersionSummary'
+        - type: object
+          properties:
+            beforeSnapshot:
+              type: object
+              nullable: true
+              properties:
+                title:
+                  type: string
+                summary:
+                  type: string
+                  nullable: true
+                content:
+                  type: string
+                  nullable: true
+                wikiCategory:
+                  type: string
+                  nullable: true
+                aliases:
+                  type: array
+                  items:
+                    type: string
+            afterSnapshot:
+              type: object
+              nullable: true
+              properties:
+                title:
+                  type: string
+                summary:
+                  type: string
+                  nullable: true
+                content:
+                  type: string
+                  nullable: true
+                wikiCategory:
+                  type: string
+                  nullable: true
+                aliases:
+                  type: array
+                  items:
+                    type: string
 
 security:
   - BearerAuth: []
@@ -8537,3 +9023,564 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
+
+  /glossary/terms:
+    get:
+      operationId: getGlossaryTerms
+      summary: Get glossary terms for highlighting
+      description: >-
+        Returns lightweight term list for client-side glossary highlighting.
+        Includes global terms and terms scoped to the user's location ancestry.
+      tags:
+        - Glossary
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: locationId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Filter terms to this location's ancestry chain
+      responses:
+        '200':
+          description: Term list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GlossaryTermSummary'
+
+  /glossary/terms/{slug}:
+    get:
+      operationId: getGlossaryTerm
+      summary: Get full glossary term definition
+      description: Returns full definition including content for drawer display.
+      tags:
+        - Glossary
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Term detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GlossaryTermDetail'
+        '404':
+          description: Term not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+    put:
+      operationId: updateGlossaryTerm
+      summary: Direct edit a glossary term
+      description: Authorized users can directly edit a glossary term. Creates a version snapshot before applying changes.
+      tags:
+        - Glossary
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GlossaryTermEdit'
+      responses:
+        '200':
+          description: Term updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GlossaryTermDetail'
+        '403':
+          description: Not authorized to edit
+        '404':
+          description: Term not found
+
+  /wiki/pages:
+    get:
+      operationId: getWikiPages
+      summary: Browse wiki pages
+      description: Returns browsable list of wiki pages with optional category and search filters.
+      tags:
+        - Glossary
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by wiki category
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Search text filter
+        - name: locationId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Filter by location (includes descendant locations)
+        - name: categoryId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Filter by position category
+      responses:
+        '200':
+          description: Page list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WikiPageSummary'
+
+  /wiki/page:
+    get:
+      operationId: getWikiPage
+      summary: Get full wiki page content
+      description: Returns full wiki page content for reading.
+      tags:
+        - Glossary
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: slug
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Page path (e.g. "filibuster" or "guides/how-voting-works-in-oregon")
+      responses:
+        '200':
+          description: Page detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WikiPageDetail'
+        '404':
+          description: Page not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+    put:
+      operationId: updateWikiPage
+      summary: Direct edit a wiki page
+      description: Authorized users can directly edit a wiki page. Creates a version snapshot before applying changes.
+      tags:
+        - Glossary
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: slug
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Page path (e.g. "filibuster" or "guides/how-voting-works-in-oregon")
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WikiPageEdit'
+      responses:
+        '200':
+          description: Page updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WikiPageDetail'
+        '403':
+          description: Not authorized to edit
+        '404':
+          description: Page not found
+
+  /wiki/page/history:
+    get:
+      operationId: getWikiPageHistory
+      summary: Get wiki page version history
+      description: >
+        Returns a list of version snapshots for a wiki page, ordered newest-first.
+        Uses a query param for slug because wiki page slugs can contain slashes
+        (e.g. "topics/gun-policy-in-america") which break path-based routing.
+      tags:
+        - Glossary
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: slug
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Page slug (may contain slashes for hierarchical paths)
+      responses:
+        '200':
+          description: Version history list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VersionSummary'
+        '404':
+          description: Page not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /wiki/page/history/{versionId}:
+    get:
+      operationId: getWikiPageVersion
+      summary: Get wiki page version detail with diff snapshots
+      description: >
+        Returns a version with before/after snapshots for client-side diffing.
+        Uses a query param for slug because wiki page slugs can contain slashes.
+      tags:
+        - Glossary
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: versionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: slug
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Page slug (may contain slashes for hierarchical paths)
+      responses:
+        '200':
+          description: Version detail with snapshots
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionDetail'
+        '404':
+          description: Version or page not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /glossary/terms/{slug}/history:
+    get:
+      operationId: getGlossaryTermHistory
+      summary: Get glossary term version history
+      description: Returns a list of version snapshots for a glossary term, ordered newest-first.
+      tags:
+        - Glossary
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Version history list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VersionSummary'
+        '404':
+          description: Term not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /glossary/terms/{slug}/history/{versionId}:
+    get:
+      operationId: getGlossaryTermVersion
+      summary: Get glossary term version detail with diff snapshots
+      description: Returns a version with before/after snapshots for client-side diffing.
+      tags:
+        - Glossary
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Version detail with snapshots
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionDetail'
+        '404':
+          description: Version or term not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /wiki/categories:
+    get:
+      operationId: getWikiCategories
+      summary: List wiki page categories
+      description: Returns distinct categories from wiki pages for filtering.
+      tags:
+        - Glossary
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Category list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+  /wiki/suggestions:
+    post:
+      operationId: createWikiSuggestion
+      summary: Submit a wiki suggestion
+      description: Submit a new term, page, or edit suggestion for review.
+      tags:
+        - Glossary
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WikiSuggestionCreate'
+      responses:
+        '201':
+          description: Suggestion created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WikiSuggestion'
+        '400':
+          description: Validation error
+        '401':
+          description: Not authenticated
+        '403':
+          description: Banned user
+        '429':
+          description: Rate limit exceeded (max 5 pending per user)
+    get:
+      operationId: getWikiSuggestions
+      summary: List wiki suggestions
+      description: List suggestions filtered by view (mine, pending for review, or all within authority).
+      tags:
+        - Glossary
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: view
+          in: query
+          schema:
+            type: string
+            enum: [mine, pending, all]
+            default: mine
+          description: Filter view — mine (by current user), pending (reviewable), all (within authority)
+      responses:
+        '200':
+          description: Suggestion list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WikiSuggestion'
+        '401':
+          description: Not authenticated
+
+  /wiki/suggestions/{suggestionId}:
+    get:
+      operationId: getWikiSuggestion
+      summary: Get suggestion detail
+      description: Returns full suggestion with isStale flag for conflict detection.
+      tags:
+        - Glossary
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: suggestionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Suggestion detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WikiSuggestion'
+        '401':
+          description: Not authenticated
+        '404':
+          description: Suggestion not found
+    put:
+      operationId: updateWikiSuggestion
+      summary: Review a suggestion
+      description: Approve, deny, or withdraw a suggestion. Approve applies changes and supersedes other pending suggestions for the same item.
+      tags:
+        - Glossary
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: suggestionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WikiSuggestionReview'
+      responses:
+        '200':
+          description: Suggestion updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WikiSuggestion'
+        '400':
+          description: Invalid status transition
+        '401':
+          description: Not authenticated
+        '403':
+          description: Not authorized to review
+        '404':
+          description: Suggestion not found
+
+  /wiki/suggestions/count:
+    get:
+      operationId: getWikiSuggestionCount
+      summary: Get pending reviewable count
+      description: Returns count of pending suggestions the current user can review.
+      tags:
+        - Glossary
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Pending count
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WikiSuggestionCount'
+        '401':
+          description: Not authenticated
+
+  /wiki/images:
+    post:
+      operationId: uploadWikiImage
+      summary: Upload an image for wiki content
+      description: Uploads an image file and returns its URL. Accepts png, jpg, gif, webp, svg up to 5MB.
+      tags:
+        - Glossary
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                folder:
+                  type: string
+                  default: uploads
+      responses:
+        '201':
+          description: Image uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+        '400':
+          description: Invalid file type or size
+        '401':
+          description: Not authenticated
+
+  /wiki/images/{imageId}:
+    get:
+      operationId: getWikiImage
+      summary: Serve a wiki image
+      description: Returns the binary image data with appropriate content type.
+      tags:
+        - Glossary
+      security: []
+      parameters:
+        - name: imageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Image binary data
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Image not found

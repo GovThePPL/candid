@@ -212,6 +212,8 @@ export function UserProvider({ children }) {
           setPendingDeepLink('/admin/organization')
         } else if (data?.action === 'open_admin') {
           setPendingDeepLink('/admin')
+        } else if (data?.action === 'open_wiki_suggestions') {
+          setPendingDeepLink('/wiki/suggestions')
         } else if (data?.action === 'open_post' && data?.postId) {
           if (data.commentId) {
             setPendingDeepLink({ pathname: '/discuss/[id]', params: { id: data.postId, threadRoot: data.commentId, focus: data.commentId } })

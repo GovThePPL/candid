@@ -9,6 +9,8 @@ import {
   StyleSheet,
   Dimensions,
   Modal,
+  Alert,
+  RefreshControl,
 } from 'react-native'
 // react-native-keyboard-controller tracks actual keyboard frame (handles emoji
 // keyboard, different keyboard heights, smooth transitions). Native only.
@@ -42,6 +44,10 @@ import ReportModal from '../../../../components/ReportModal'
 import ModerationActionModal from '../../../../components/ModerationActionModal'
 import useToxicityCheck from '../../../../hooks/useToxicityCheck'
 import ReconsiderModal from '../../../../components/ReconsiderModal'
+import EditPostModal from '../../../../components/discuss/EditPostModal'
+import EditCommentModal from '../../../../components/discuss/EditCommentModal'
+import GlossaryDrawer from '../../../../components/GlossaryDrawer'
+import { useGlossaryDrawer, useGlossaryRules } from '../../../../hooks/useGlossaryDrawer'
 import { THREAD_DEPTH_LIMIT, THREAD_DEPTH_LIMIT_DESKTOP, getReplyLineStates } from '../../../../lib/commentTree'
 
 const screenHeight = Dimensions.get('window').height
@@ -55,6 +61,8 @@ export default function PostDetail() {
   const { t } = useTranslation('discuss')
   const colors = useThemeColors()
   const isDesktop = useIsDesktop()
+  const [glossaryDrawer, onGlossaryTermPress] = useGlossaryDrawer()
+  const glossaryRules = useGlossaryRules(onGlossaryTermPress)
   const threadDepthLimit = isDesktop ? THREAD_DEPTH_LIMIT_DESKTOP : THREAD_DEPTH_LIMIT
   const styles = useMemo(() => createStyles(colors), [colors])
   const { user } = useAuth()
@@ -77,6 +85,8 @@ export default function PostDetail() {
     handleVote: handleCommentVote,
     handleToggleRole: handleCommentToggleRole,
     handleCreateComment,
+    handleUpdateComment,
+    handleDeleteComment,
     setCommentPinned,
     loadMore,
     loadMoreReplies,
@@ -84,7 +94,22 @@ export default function PostDetail() {
     hasMore,
     totalRootCount,
     truncatedRoots,
+    refetch: refetchComments,
   } = useCommentThread(postId, { threadRootId: threadRoot || undefined, focusCommentId: focus || undefined, depthLimit: threadDepthLimit })
+
+  // Pull-to-refresh
+  const [refreshing, setRefreshing] = useState(false)
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true)
+    try {
+      const [data] = await Promise.all([
+        api.posts.getPost(postId),
+        refetchComments(),
+      ])
+      setPost(data)
+    } catch { /* keep existing data */ }
+    setRefreshing(false)
+  }, [postId, refetchComments])
 
   // Input state
   const [inputText, setInputText] = useState('')
@@ -97,6 +122,16 @@ export default function PostDetail() {
   // Mute state
   const [postMuted, setPostMuted] = useState(false)
   const [mutedCommentIds, setMutedCommentIds] = useState(() => new Set())
+
+  // Edit/delete state
+  const [editingPost, setEditingPost] = useState(false)
+  const [editingComment, setEditingComment] = useState(null)
+  const [editSaving, setEditSaving] = useState(false)
+  // Deferred delete targets — set by the options menu onPress, consumed by
+  // useEffect after the BottomDrawerModal has closed (Alert.alert called from
+  // inside a closing modal is swallowed on some platforms).
+  const [pendingDeletePostId, setPendingDeletePostId] = useState(null)
+  const [pendingDeleteCommentId, setPendingDeleteCommentId] = useState(null)
 
   // Downvote picker
   const [downvoteTarget, setDownvoteTarget] = useState(null)
@@ -487,6 +522,110 @@ export default function PostDetail() {
     }
   }, [showToast, t])
 
+  // Edit/delete handlers
+  const handleEditPost = useCallback(() => {
+    setEditingPost(true)
+  }, [])
+
+  const handleEditPostSubmit = useCallback(async ({ title, body }) => {
+    setEditSaving(true)
+    try {
+      const result = await api.posts.updatePost(postId, { title, body })
+      if (result) {
+        setPost(prev => prev ? { ...prev, ...result } : prev)
+      }
+      setEditingPost(false)
+    } catch (err) {
+      if (err?.status === 403) {
+        showToast(t('errorEditExpired'))
+      } else {
+        showToast(t('errorEditPost'))
+      }
+    } finally {
+      setEditSaving(false)
+    }
+  }, [postId, showToast, t])
+
+  const handleDeletePost = useCallback((id) => {
+    setPendingDeletePostId(id || postId)
+  }, [postId])
+
+  const handleEditComment = useCallback((comment) => {
+    setEditingComment(comment)
+  }, [])
+
+  const handleEditCommentSubmit = useCallback(async (body) => {
+    if (!editingComment) return
+    setEditSaving(true)
+    try {
+      await handleUpdateComment(editingComment.id, body)
+      setEditingComment(null)
+    } catch {
+      // Toast already shown by hook
+    } finally {
+      setEditSaving(false)
+    }
+  }, [editingComment, handleUpdateComment])
+
+  const handleDeleteCommentConfirm = useCallback((commentId) => {
+    setPendingDeleteCommentId(commentId)
+  }, [])
+
+  // Cross-platform confirm helper — Alert.alert with custom buttons doesn't
+  // work reliably on web (maps to window.confirm with no button callbacks).
+  const confirmAction = useCallback((title, message, onConfirm, onCancel) => {
+    if (Platform.OS === 'web') {
+      if (window.confirm(`${title}\n\n${message}`)) {
+        onConfirm()
+      } else {
+        onCancel?.()
+      }
+    } else {
+      Alert.alert(title, message, [
+        { text: t('common:cancel'), style: 'cancel', onPress: onCancel },
+        { text: t('common:delete'), style: 'destructive', onPress: onConfirm },
+      ])
+    }
+  }, [t])
+
+  // Deferred delete confirmation — fires after the options modal has closed
+  useEffect(() => {
+    if (!pendingDeletePostId) return
+    const timer = setTimeout(() => {
+      confirmAction(
+        t('deletePostConfirmTitle'),
+        t('deletePostConfirmMessage'),
+        async () => {
+          setPendingDeletePostId(null)
+          try {
+            await api.posts.deletePost(pendingDeletePostId)
+            router.back()
+          } catch {
+            showToast(t('errorDeletePost'))
+          }
+        },
+        () => setPendingDeletePostId(null),
+      )
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [pendingDeletePostId, confirmAction, t, router, showToast])
+
+  useEffect(() => {
+    if (!pendingDeleteCommentId) return
+    const timer = setTimeout(() => {
+      confirmAction(
+        t('deleteCommentConfirmTitle'),
+        t('deleteCommentConfirmMessage'),
+        () => {
+          setPendingDeleteCommentId(null)
+          handleDeleteComment(pendingDeleteCommentId)
+        },
+        () => setPendingDeleteCommentId(null),
+      )
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [pendingDeleteCommentId, confirmAction, t, handleDeleteComment])
+
   // Ref for reading current comment data without adding flatList to deps
   const flatListDataRef = useRef(flatList)
   useEffect(() => { flatListDataRef.current = flatList }, [flatList])
@@ -605,13 +744,12 @@ export default function PostDetail() {
     try {
       await handleCreateComment(replyText, replyingTo.id)
       setReplyingTo(null)
-      if (!isDesktop) router.back()
     } catch {
       showToast(t('errorCommentFailed'))
     } finally {
       setReplyPosting(false)
     }
-  }, [replyingTo, handleCreateComment, showToast, t, router, isDesktop])
+  }, [replyingTo, handleCreateComment, showToast, t])
 
   // Submit reply via ReplyComposer modal (with toxicity check)
   const [replyPosting, setReplyPosting] = useState(false)
@@ -692,6 +830,8 @@ export default function PostDetail() {
     onContinueThread: handleContinueThread,
     onLoadMoreReplies: loadMoreReplies,
     onFocusReady: handleFocusReady,
+    onEditComment: handleEditComment,
+    onDeleteComment: handleDeleteCommentConfirm,
     onReport: handleReportComment,
     onModerate: handleModerateComment,
     truncatedRoots,
@@ -704,6 +844,7 @@ export default function PostDetail() {
     userHasQAAuthority,
     canModerate: userCanModerate,
     depthLimit: threadDepthLimit,
+    glossaryRules,
     // Inline reply (desktop only)
     inlineReplyTarget: isDesktop ? replyingTo : null,
     inlineReplyProps: isDesktop && replyingTo ? {
@@ -781,10 +922,13 @@ export default function PostDetail() {
           onToggleRole={handleTogglePostRole}
           onToggleMute={handleTogglePostMute}
           onLock={handleLockPost}
+          onEdit={handleEditPost}
+          onDelete={handleDeletePost}
           isMuted={postMuted}
           canModerate={userCanModerate}
           onReport={handleReportPost}
           onModerate={handleModeratePost}
+          glossaryRules={glossaryRules}
         />
       </View>
       {isDesktop && !inputDisabled && (
@@ -906,6 +1050,13 @@ export default function PostDetail() {
         onEndReachedThreshold={0.5}
         scrollEventThrottle={16}
         onScroll={(e) => { scrollOffsetRef.current = e.nativeEvent.contentOffset.y }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={colors.primary}
+          />
+        }
       />
 
       {/* Input bar (top-level comments only — mobile) */}
@@ -1060,6 +1211,23 @@ export default function PostDetail() {
       />
 
       <ReconsiderModal {...toxicity.modalProps} />
+      <GlossaryDrawer {...glossaryDrawer} />
+
+      {/* Edit modals */}
+      <EditPostModal
+        visible={editingPost}
+        post={post}
+        onSubmit={handleEditPostSubmit}
+        onClose={() => setEditingPost(false)}
+        saving={editSaving}
+      />
+      <EditCommentModal
+        visible={editingComment != null}
+        comment={editingComment}
+        onSubmit={handleEditCommentSubmit}
+        onClose={() => setEditingComment(null)}
+        saving={editSaving}
+      />
     </Wrapper>
   )
 }
@@ -1126,6 +1294,8 @@ const ChainBlock = memo(function ChainBlock({ chain, handlersRef, mutedCommentId
               onUpvote={h.onUpvote}
               onDownvote={h.onDownvote}
               onReply={h.onReply}
+              onEdit={h.onEditComment}
+              onDelete={h.onDeleteComment}
               onToggleCollapse={h.onToggleCollapse}
               onToggleRole={h.onToggleRole}
               onToggleMuteComment={h.onToggleMuteComment}
@@ -1140,6 +1310,7 @@ const ChainBlock = memo(function ChainBlock({ chain, handlersRef, mutedCommentId
               onReport={h.onReport}
               onModerate={h.onModerate}
               depthLimit={h.depthLimit}
+              glossaryRules={h.glossaryRules}
             />
             {/* Inline reply composer (desktop only) — rendered at reply depth with thread lines */}
             {showReply && (

@@ -88,6 +88,8 @@ import ReactionBadges from '../../../components/chat/ReactionBadges'
 import { useTranslation } from 'react-i18next'
 import useModalBackHandler from '../../../hooks/useModalBackHandler'
 import useIsDesktop from '../../../hooks/useIsDesktop'
+import { useGlossaryDrawer, useGlossaryRules } from '../../../hooks/useGlossaryDrawer'
+import GlossaryDrawer from '../../../components/GlossaryDrawer'
 
 /**
  * Parse a chat log into a sorted array of message/proposal objects.
@@ -203,6 +205,8 @@ export default function ChatScreen() {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions()
   const { t } = useTranslation('chat')
   const isDesktop = useIsDesktop()
+  const [glossaryDrawer, onGlossaryTermPress] = useGlossaryDrawer()
+  const glossaryRules = useGlossaryRules(onGlossaryTermPress, { inverse: true })
 
   // Proposal card dimensions relative to screen width
   const proposalCardWidth = Math.min(Math.max(screenWidth * 0.7, 200), 400)
@@ -2204,6 +2208,7 @@ export default function ChatScreen() {
                       otherUser={otherUser}
                       colors={colors}
                       onQuotePress={handleQuotePress}
+                      glossaryRules={glossaryRules}
                     />
                     {messageTime && (
                       <ThemedText variant="badge" style={[styles.messageTime, styles.ownMessageTime]}>
@@ -2224,6 +2229,7 @@ export default function ChatScreen() {
                     otherUser={otherUser}
                     colors={colors}
                     onQuotePress={handleQuotePress}
+                    glossaryRules={glossaryRules}
                   />
                   {messageTime && (
                     <ThemedText variant="badge" style={[styles.messageTime, styles.ownMessageTime]}>
@@ -2306,6 +2312,7 @@ export default function ChatScreen() {
                     otherUser={otherUser}
                     colors={colors}
                     onQuotePress={handleQuotePress}
+                    glossaryRules={glossaryRules}
                   />
                   {messageTime && (
                     <ThemedText variant="badge" style={[styles.messageTime, styles.otherMessageTime]}>
@@ -2324,6 +2331,7 @@ export default function ChatScreen() {
                   otherUser={otherUser}
                   colors={colors}
                   onQuotePress={handleQuotePress}
+                  glossaryRules={glossaryRules}
                 />
                 {messageTime && (
                   <ThemedText variant="badge" style={[styles.messageTime, styles.otherMessageTime]}>
@@ -3021,6 +3029,7 @@ export default function ChatScreen() {
       />
 
       <ReconsiderModal {...toxicity.modalProps} />
+      <GlossaryDrawer {...glossaryDrawer} showActions={false} />
     </Wrapper>
   )
 }

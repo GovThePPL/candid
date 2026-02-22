@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { SemanticColors } from '../../constants/Colors'
 import ThemedText from '../ThemedText'
+import HighlightedText from '../HighlightedText'
 import SwipeableCard from './SwipeableCard'
 import CardShell from '../CardShell'
 import UserCard from '../UserCard'
@@ -26,6 +27,7 @@ const PositionCard = forwardRef(function PositionCard({
   hasPendingRequests = false,
   onRemoveFromChattingList,
   onAddToChattingList,
+  onTermPress,
 }, ref) {
   const { t } = useTranslation('cards')
   const colors = useThemeColors()
@@ -75,7 +77,7 @@ const PositionCard = forwardRef(function PositionCard({
 
         {/* Statement */}
         <View style={styles.statementContainer}>
-          <ThemedText variant="statement" color="dark">{statement}</ThemedText>
+          <HighlightedText variant="statement" color="dark" onTermPress={onTermPress}>{statement}</HighlightedText>
         </View>
 
         {/* Availability indicator */}

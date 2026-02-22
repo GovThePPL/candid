@@ -27,6 +27,9 @@ Phases (all run by default):
    11  admin          Role requests, bans, admin surveys
    12  posts          Posts, nested comments, and votes (direct SQL)
    13  notifications  Populate notification inbox from seeded data
+   14  glossary       Glossary terms with scopes
+   15  wiki_pages     Standalone wiki pages with scopes
+   16  suggestions    Wiki suggestions (pending, approved, denied, various scopes)
 """
 
 import argparse
@@ -706,6 +709,7 @@ def db_conn():
     return psycopg2.connect(DB_URL)
 
 
+
 def db_query(query, params=None):
     conn = db_conn()
     try:
@@ -732,6 +736,19 @@ def db_execute(query, params=None):
         with conn.cursor() as cur:
             cur.execute(query, params)
             conn.commit()
+    finally:
+        conn.close()
+
+
+def db_execute_returning(query, params=None):
+    """Execute a query with RETURNING clause and return the first row."""
+    conn = db_conn()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, params)
+            row = cur.fetchone()
+            conn.commit()
+            return row
     finally:
         conn.close()
 
@@ -3457,6 +3474,892 @@ def phase_13_notifications(dry_run=False):
     print("  Phase 13 complete")
 
 
+# Phase 14: Glossary terms
+def phase_14_glossary(location_id, category_map, dry_run=False):
+    """Seed glossary terms with scope tags demonstrating multi-tag usage."""
+    print("\n  Phase 14: Glossary terms")
+
+    # Look up US location for nationally-scoped terms
+    us_row = db_query_one("SELECT id FROM location WHERE code = 'US'")
+    us_location_id = str(us_row["id"]) if us_row else None
+
+    # Look up category IDs (use actual category labels from basic.sql)
+    elections_id = category_map.get("Government & Democracy")
+    governance_id = category_map.get("Civil Rights & Liberties")
+    economy_id = category_map.get("Economy & Taxation")
+    immigration_id = category_map.get("Immigration")
+    foreign_id = category_map.get("Foreign Policy & Defense")
+    environment_id = category_map.get("Environment & Climate")
+    criminal_id = category_map.get("Criminal Justice")
+    social_id = category_map.get("Social Issues")
+
+    terms = [
+        {
+            "slug": "filibuster",
+            "term": "Filibuster",
+            "aliases": ["filibustering"],
+            "summary": "A legislative tactic used to delay or block a vote on a bill by extending debate.",
+            "content": "# Filibuster\n\nA **filibuster** is a parliamentary procedure where debate is extended, allowing one or more members to delay or entirely prevent a vote on a given proposal.\n\n## History\n\nThe filibuster has been a feature of the United States Senate since the early 19th century. The term comes from the Spanish *filibustero*, meaning pirate.\n\n## Modern Usage\n\nIn the modern Senate, a filibuster can be ended by invoking [cloture](/en/cloture), which requires 60 votes (three-fifths of the Senate). This effectively means that most major legislation needs 60 votes to pass, rather than a simple majority of 51.\n\n## Related\n\n- [Caucus](/en/caucus) — party coordination that often determines filibuster strategy\n- [Initiative Process](/en/initiative-process) — a way citizens can bypass legislative gridlock",
+            "scope_combine": "or",
+            "locations": [us_location_id],
+            "categories": [elections_id],
+        },
+        {
+            "slug": "cloture",
+            "term": "Cloture",
+            "aliases": [],
+            "summary": "A Senate procedure to end a filibuster by invoking a vote requiring a three-fifths supermajority.",
+            "content": "# Cloture\n\n**Cloture** is a parliamentary procedure used in the United States Senate to end debate on a bill and bring it to a vote. It is the primary mechanism for overcoming a [filibuster](/en/filibuster).\n\n## How It Works\n\n1. A senator files a cloture motion, which must be signed by at least 16 senators\n2. After a one-day waiting period, the Senate votes on the motion\n3. If 60 senators (three-fifths) vote in favor, debate is limited to an additional 30 hours\n4. After the 30 hours expire, the Senate proceeds to a final vote on the underlying measure\n\n## History\n\nThe cloture rule was adopted in 1917 (Senate Rule XXII) after a group of senators filibustered a bill to arm merchant ships during World War I. Originally requiring a two-thirds vote, the threshold was lowered to three-fifths (60 votes) in 1975.\n\n## The Nuclear Option\n\nThe Senate can change its rules by simple majority to lower the cloture threshold for specific types of votes. This has been done for executive nominations (2013) and Supreme Court nominations (2017), eliminating the [filibuster](/en/filibuster) for those categories.",
+            "scope_combine": "or",
+            "locations": [us_location_id],
+            "categories": [elections_id],
+        },
+        {
+            "slug": "gerrymandering",
+            "term": "Gerrymandering",
+            "aliases": ["gerrymander", "gerrymandered"],
+            "summary": "The practice of drawing electoral district boundaries to favor a particular political party or group.",
+            "content": "# Gerrymandering\n\n**Gerrymandering** is the practice of manipulating the boundaries of electoral districts to create an unfair advantage for a particular party or group. It occurs during the [redistricting](/en/redistricting) process that follows each census.\n\n## Types\n\n- **Cracking**: Splitting voters of a type across many districts to dilute their power\n- **Packing**: Concentrating voters of a type into a single district to reduce their influence in surrounding districts\n\n## Legal Status\n\nWhile racial gerrymandering has been ruled unconstitutional, partisan gerrymandering has been more difficult to challenge in courts.\n\n## Related\n\n- [Redistricting](/en/redistricting) — the process through which gerrymandering occurs\n- [Voter ID](/en/voter-id) — another election access issue often discussed alongside gerrymandering",
+            "scope_combine": "or",
+            "locations": [us_location_id],
+            "categories": [elections_id, governance_id],
+        },
+        {
+            "slug": "redistricting",
+            "term": "Redistricting",
+            "aliases": ["redistrict", "reapportionment"],
+            "summary": "The process of redrawing electoral district boundaries, typically after each census.",
+            "content": "# Redistricting\n\n**Redistricting** is the process of redrawing the boundaries of electoral districts, typically after each decennial census to account for population changes.\n\n## Why It Matters\n\nDistrict boundaries determine which voters are grouped together for representation. When done fairly, redistricting ensures equal representation. When manipulated, it becomes [gerrymandering](/en/gerrymandering).\n\n## Who Draws the Lines\n\n- **State legislatures**: In most states, the legislature draws both congressional and state legislative districts\n- **Independent commissions**: Some states (e.g., California, Arizona) use nonpartisan or bipartisan commissions\n- **Hybrid models**: The legislature draws maps but an advisory commission provides input\n\n## Legal Requirements\n\n- **Equal population**: Districts must have roughly equal population (*Reynolds v. Sims*, 1964)\n- **Voting Rights Act**: Districts cannot dilute minority voting power\n- **Contiguity**: Districts must be geographically connected\n\n## Oregon\n\nOregon's legislative districts are drawn by the state legislature. If they fail to agree, the task falls to the Secretary of State. Oregon has considered but not adopted an independent redistricting commission.\n\n## Related\n\n- [Electoral College](/en/electoral-college) — redistricting affects the allocation of electoral votes\n- [Gerrymandering](/en/gerrymandering) — the manipulation of redistricting for partisan advantage",
+            "scope_combine": "or",
+            "locations": [us_location_id],
+            "categories": [elections_id, governance_id],
+        },
+        {
+            "slug": "initiative-process",
+            "term": "Initiative Process",
+            "aliases": ["ballot initiative", "citizen initiative"],
+            "summary": "A process allowing citizens to propose legislation or constitutional amendments through petition.",
+            "content": "# Initiative Process\n\nThe **initiative process** allows citizens to propose new laws or constitutional amendments by gathering a specified number of signatures on a petition.\n\n## Oregon's Initiative Process\n\nOregon was one of the first states to adopt the initiative process in 1902. Citizens can place proposed laws (statutory initiatives) or constitutional amendments on the ballot by collecting signatures equal to a percentage of votes cast in the most recent gubernatorial election.\n\n## Requirements\n\n- Statutory initiatives: 6% of votes cast\n- Constitutional amendments: 8% of votes cast\n- Signatures must be collected within a two-year period\n\n## Notable Oregon Ballot Measures\n\n- [Ballot Measure 118](/en/ballot-measure-118) — proposed corporate tax for universal rebates\n- Oregon's Measure 110 (2020) — [decriminalization](/en/decriminalization) of personal drug possession",
+            "scope_combine": "or",
+            "locations": [location_id],
+            "categories": [elections_id],
+        },
+        {
+            "slug": "ballot-measure-118",
+            "term": "Ballot Measure 118",
+            "aliases": ["Measure 118", "Oregon Rebate"],
+            "summary": "A 2024 Oregon ballot measure proposing a 3% corporate tax to fund universal rebates to residents.",
+            "content": "# Ballot Measure 118\n\n**Ballot Measure 118** was a proposed Oregon [ballot initiative](/en/initiative-process) that would have imposed a 3% tax on corporate sales exceeding $25 million and distributed the revenue equally to all Oregon residents as a rebate.\n\n## Key Details\n\n- Estimated annual rebate: ~$1,600 per resident\n- Funded by: 3% minimum tax on C-corporations with Oregon sales over $25 million\n- The measure was defeated in the November 2024 election\n\n## Related\n\n- [Universal Basic Income](/en/universal-basic-income) — a similar concept of unconditional cash payments to citizens\n- [Initiative Process](/en/initiative-process) — how this measure reached the ballot",
+            "scope_combine": "and",
+            "locations": [location_id],
+            "categories": [elections_id],
+        },
+        {
+            "slug": "caucus",
+            "term": "Caucus",
+            "aliases": ["caucuses", "party caucus"],
+            "summary": "A meeting of party members to select candidates, plan policy, or coordinate legislative strategy.",
+            "content": "# Caucus\n\nA **caucus** is a meeting of members of a political party or movement, typically used to select candidates for elections, coordinate policy positions, or strategize legislative action.\n\n## Types\n\n- **Electoral caucus**: A local meeting where party members gather to select delegates or vote on candidates (e.g., Iowa caucuses). This contrasts with [primary elections](/en/primary-election), which use a standard ballot process\n- **Legislative caucus**: A group of legislators within a party who meet to discuss strategy and coordinate votes, including [filibuster](/en/filibuster) strategy\n- **Issue caucus**: A bipartisan group organized around a specific policy area (e.g., Congressional Black Caucus)\n\n## Related\n\n- [Primary Election](/en/primary-election) — the alternative to caucuses for selecting candidates\n- [Ranked Choice Voting](/en/ranked-choice-voting) — an alternative voting method used in some primaries",
+            "scope_combine": "or",
+            "locations": [us_location_id],
+            "categories": [elections_id],
+        },
+        {
+            "slug": "primary-election",
+            "term": "Primary Election",
+            "aliases": ["primary", "primaries"],
+            "summary": "An election in which voters choose a party's candidate for the general election.",
+            "content": "# Primary Election\n\nA **primary election** is an election held to determine a political party's nominee for a general election. Unlike [caucuses](/en/caucus), primaries use a standard secret ballot.\n\n## Types\n\n- **Closed primary**: Only registered party members can vote in that party's primary\n- **Open primary**: Any registered voter can participate in any party's primary\n- **Semi-closed (or semi-open)**: Registered party members and unaffiliated voters can participate, but voters registered with another party cannot\n- **Top-two primary**: All candidates appear on a single ballot regardless of party; the top two advance to the general election\n\n## Oregon\n\nOregon uses a closed primary system — voters must be registered with a party to vote in that party's primary. Unaffiliated voters cannot participate in major-party primaries.\n\n## Alternative Methods\n\nSome jurisdictions have adopted [Ranked Choice Voting](/en/ranked-choice-voting) for their primaries, allowing voters to rank candidates by preference rather than choosing just one.\n\n## Related\n\n- [Caucus](/en/caucus) — the alternative to primaries for selecting candidates\n- [Electoral College](/en/electoral-college) — the system that ultimately selects the president after primaries and general elections",
+            "scope_combine": "or",
+            "locations": [us_location_id],
+            "categories": [elections_id],
+        },
+        {
+            "slug": "electoral-college",
+            "term": "Electoral College",
+            "aliases": ["electors", "electoral votes"],
+            "summary": "The system of electors that formally selects the President and Vice President of the United States.",
+            "content": "# Electoral College\n\nThe **Electoral College** is the body of electors established by the U.S. Constitution that formally selects the President and Vice President every four years.\n\n## How It Works\n\n- Each state receives a number of electors equal to its total congressional representation (House seats + 2 senators)\n- There are 538 total electoral votes (435 House + 100 Senate + 3 for Washington, D.C.)\n- A candidate needs 270 electoral votes to win\n- Most states use a winner-take-all system: the candidate who wins the state's popular vote receives all its electoral votes\n\n## Criticism\n\n- A candidate can win the presidency without winning the national popular vote (this happened in 2000 and 2016)\n- Candidates focus campaign efforts on a small number of competitive \"swing states\"\n- Smaller states are slightly overrepresented per capita\n\n## Reform Proposals\n\n- **National Popular Vote Interstate Compact**: States pledge their electors to the national popular vote winner\n- **Proportional allocation**: Award electors proportionally rather than winner-take-all\n- **[Ranked Choice Voting](/en/ranked-choice-voting)**: Maine and Alaska use RCV for presidential elections, awarding electoral votes based on ranked preferences\n\n## Related\n\n- [Redistricting](/en/redistricting) — affects the number of House seats (and thus electoral votes) each state receives\n- [Primary Election](/en/primary-election) — the process that determines each party's presidential nominee",
+            "scope_combine": "or",
+            "locations": [us_location_id],
+            "categories": [elections_id],
+        },
+        {
+            "slug": "ranked-choice-voting",
+            "term": "Ranked Choice Voting",
+            "aliases": ["RCV", "instant-runoff voting", "preferential voting"],
+            "summary": "An electoral system where voters rank candidates by preference, with rounds of elimination until one candidate has a majority.",
+            "content": "# Ranked Choice Voting\n\n**Ranked Choice Voting (RCV)** is an electoral system in which voters rank candidates in order of preference. If no candidate receives a majority of first-choice votes, the candidate with the fewest votes is eliminated, and their voters' second choices are redistributed. This process continues until one candidate achieves a majority.\n\n## Advantages\n\n- Reduces the spoiler effect\n- Encourages more civil campaigning\n- Ensures winners have broader support\n\n## Adoption\n\nRCV is used in several US cities and states, including Alaska, Maine, and New York City. It has been proposed as a reform to the [Electoral College](/en/electoral-college) system.\n\n## Related\n\n- [Primary Election](/en/primary-election) — some jurisdictions use RCV in primaries\n- [Caucus](/en/caucus) — an alternative candidate selection method\n- [Electoral College](/en/electoral-college) — the presidential election system RCV could reform",
+            "scope_combine": "or",
+            "locations": [us_location_id],
+            "categories": [elections_id],
+        },
+        # --- Terms that appear in position card statements ---
+        {
+            "slug": "tariff",
+            "term": "Tariff",
+            "aliases": ["tariffs"],
+            "summary": "A tax imposed by a government on imported or exported goods.",
+            "content": "# Tariff\n\nA **tariff** is a tax or duty levied on goods crossing international borders, most commonly on imports. Tariffs serve two main purposes:\n\n## Types\n\n- **Protective tariffs**: Designed to shield domestic industries from foreign competition by making imported goods more expensive\n- **Revenue tariffs**: Primarily intended to generate government income\n\n## Arguments For\n\n- Protects domestic jobs and industries\n- Can be used as leverage in trade negotiations\n- Reduces trade deficits\n\n## Arguments Against\n\n- Raises prices for consumers\n- Can provoke retaliatory tariffs (trade wars)\n- Reduces economic efficiency by distorting markets\n- Often harms the industries they aim to protect through higher input costs\n\n## Related\n\n- [Minimum Wage](/en/minimum-wage) — another economic policy affecting workers and prices\n- [NATO](/en/nato) — trade policy and military alliances often intersect in foreign relations",
+            "scope_combine": "or",
+            "locations": [],
+            "categories": [economy_id],
+        },
+        {
+            "slug": "universal-basic-income",
+            "term": "Universal Basic Income",
+            "aliases": ["UBI", "basic income"],
+            "summary": "A government program providing every citizen with a regular, unconditional cash payment.",
+            "content": "# Universal Basic Income\n\n**Universal Basic Income (UBI)** is a social welfare proposal in which all citizens receive a regular, unconditional sum of money from the government, regardless of employment status or income level.\n\n## Key Features\n\n- **Universal**: Given to all citizens, not means-tested\n- **Unconditional**: No work requirements or behavior conditions\n- **Regular**: Paid on a recurring basis (monthly, annually)\n- **Cash**: Recipients choose how to spend it\n\n## Notable Experiments\n\n- Finland's 2017-2018 basic income experiment\n- Stockton, California's SEED program (2019-2021)\n- Alaska's Permanent Fund Dividend (since 1982)\n- Oregon's [Ballot Measure 118](/en/ballot-measure-118), which proposed a corporate-tax-funded universal rebate\n\n## Debate\n\nSupporters argue UBI would reduce poverty, simplify welfare bureaucracy, and provide a safety net for workers displaced by automation. Critics worry about cost, inflation, and reduced work incentives.\n\n## Related\n\n- [Minimum Wage](/en/minimum-wage) — an alternative approach to ensuring a baseline income\n- [Ballot Measure 118](/en/ballot-measure-118) — a UBI-style proposal at the state level\n- [Housing First](/en/housing-first) — another unconditional-support approach to social welfare",
+            "scope_combine": "or",
+            "locations": [],
+            "categories": [economy_id],
+        },
+        {
+            "slug": "minimum-wage",
+            "term": "Minimum Wage",
+            "aliases": ["minimum wages", "wage floor"],
+            "summary": "The lowest hourly pay rate an employer is legally required to pay workers.",
+            "content": "# Minimum Wage\n\nThe **minimum wage** is the lowest hourly compensation that employers are legally required to pay workers. It is set by federal, state, and sometimes local governments.\n\n## Federal Minimum Wage\n\nThe federal minimum wage has been $7.25 per hour since 2009. Many states and cities set higher minimums.\n\n## Arguments For\n\n- Ensures workers earn enough to meet basic needs\n- Reduces income inequality\n- Stimulates consumer spending\n- Reduces reliance on government assistance programs\n\n## Arguments Against\n\n- May lead to job losses, especially for low-skilled workers\n- Can increase costs for small businesses\n- May accelerate automation of low-wage jobs\n- One-size-fits-all rates ignore regional cost-of-living differences\n\n## Oregon\n\nOregon has a tiered minimum wage system:\n- **Portland metro**: $15.95/hr (highest tier)\n- **Standard counties**: $14.70/hr\n- **Nonurban counties**: $13.70/hr\n\nRates are adjusted annually based on inflation (CPI).\n\n## Related\n\n- [Universal Basic Income](/en/universal-basic-income) — an alternative approach to ensuring a baseline income\n- [Rent Control](/en/rent-control) — another policy addressing the cost of living",
+            "scope_combine": "or",
+            "locations": [],
+            "categories": [economy_id],
+        },
+        {
+            "slug": "sanctuary-city",
+            "term": "Sanctuary City",
+            "aliases": ["sanctuary cities", "sanctuary state"],
+            "summary": "A jurisdiction that limits cooperation with federal immigration enforcement.",
+            "content": "# Sanctuary City\n\nA **sanctuary city** (or sanctuary state) is a jurisdiction that adopts policies limiting cooperation between local law enforcement and federal immigration authorities, particularly U.S. Immigration and Customs Enforcement (ICE).\n\n## Common Policies\n\n- Local police do not ask about immigration status during routine encounters\n- Jails do not honor ICE detainer requests without a judicial warrant\n- City resources are not used to enforce federal immigration law\n\n## Arguments For\n\n- Encourages immigrant communities to report crimes without fear of deportation\n- Improves public safety by building trust between police and communities\n- Protects [due process](/en/due-process) rights\n\n## Arguments Against\n\n- May shield individuals who have committed serious crimes\n- Creates tension between local and federal law\n- Could threaten federal funding\n\n## Oregon\n\nOregon has been a sanctuary state since 1987, one of the first in the nation. ORS 181A.820 prohibits state and local law enforcement from using resources to detect or apprehend persons whose only violation is federal immigration law.\n\n## Related\n\n- [DACA](/en/daca) — a federal program protecting certain undocumented immigrants\n- [Due Process](/en/due-process) — the constitutional protections often cited in sanctuary city debates",
+            "scope_combine": "or",
+            "locations": [location_id],
+            "categories": [immigration_id],
+        },
+        {
+            "slug": "daca",
+            "term": "DACA",
+            "aliases": ["Deferred Action for Childhood Arrivals", "Dreamers"],
+            "summary": "A federal policy deferring deportation for undocumented immigrants who arrived in the U.S. as children.",
+            "content": "# DACA\n\n**Deferred Action for Childhood Arrivals (DACA)** is a U.S. immigration policy established by executive action in 2012 that allows certain undocumented immigrants who were brought to the country as children to receive a renewable two-year period of deferred action from deportation and eligibility for a work permit.\n\n## Eligibility Requirements\n\n- Arrived in the U.S. before age 16\n- Continuously resided in the U.S. since June 15, 2007\n- Were under 31 as of June 15, 2012\n- Enrolled in school, graduated, or served in the military\n- No felony convictions, significant misdemeanors, or three or more misdemeanors\n\n## Legal Status\n\nDACA has faced ongoing legal challenges. Federal courts have ruled the program was created without proper administrative procedure, but existing recipients have generally been allowed to renew. The program's long-term future remains uncertain without congressional action.\n\n## By the Numbers\n\n- Approximately 580,000 active DACA recipients as of 2024\n- Recipients are often called \"Dreamers\" after the proposed DREAM Act\n\n## Related\n\n- [Sanctuary City](/en/sanctuary-city) — local policies that complement DACA by limiting immigration enforcement\n- [Due Process](/en/due-process) — constitutional protections relevant to immigration proceedings",
+            "scope_combine": "or",
+            "locations": [us_location_id],
+            "categories": [immigration_id, governance_id],
+        },
+        {
+            "slug": "due-process",
+            "term": "Due Process",
+            "aliases": ["due process clause", "procedural due process", "substantive due process"],
+            "summary": "The constitutional guarantee that the government must respect legal rights before depriving a person of life, liberty, or property.",
+            "content": "# Due Process\n\n**Due process** is a constitutional principle, enshrined in the Fifth and Fourteenth Amendments, that guarantees fair treatment through the normal judicial system. The government cannot deprive any person of life, liberty, or property without following established legal procedures.\n\n## Two Types\n\n- **Procedural due process**: Requires fair procedures before the government acts — notice, a hearing, and an impartial decision-maker\n- **Substantive due process**: Protects certain fundamental rights from government interference regardless of the procedures used\n\n## Applications\n\n- Criminal proceedings: Right to an attorney, right to confront witnesses, right against self-incrimination\n- Civil proceedings: Notice and opportunity to be heard before property can be taken\n- Immigration: Immigrants, including undocumented individuals, have due process rights in removal proceedings (see [DACA](/en/daca) and [Sanctuary City](/en/sanctuary-city))\n- Gun rights: [Background check](/en/background-check) requirements balance [Second Amendment](/en/second-amendment) rights with due process protections\n\n## Related\n\n- [Second Amendment](/en/second-amendment) — gun regulations must satisfy due process requirements\n- [Decriminalization](/en/decriminalization) — shifts enforcement from criminal to civil due process",
+            "scope_combine": "or",
+            "locations": [us_location_id],
+            "categories": [governance_id],
+        },
+        {
+            "slug": "nato",
+            "term": "NATO",
+            "aliases": ["North Atlantic Treaty Organization"],
+            "summary": "A military alliance of 32 North American and European countries committed to mutual defense.",
+            "content": "# NATO\n\n**NATO** (North Atlantic Treaty Organization) is an intergovernmental military alliance established in 1949 by the North Atlantic Treaty (also called the Washington Treaty).\n\n## Core Principle\n\nArticle 5 of the NATO treaty states that an armed attack against one member is considered an attack against all members — the principle of collective defense. It has been invoked only once, after the September 11, 2001 attacks.\n\n## Members\n\nNATO has grown from 12 founding members to 32, most recently adding Finland (2023) and Sweden (2024).\n\n## Debate\n\nSupporters argue NATO has maintained peace in Europe for over 75 years and deters aggression. Critics argue it is costly, provokes adversaries, and that European allies should bear more of the defense burden.\n\n## Related\n\n- [Paris Climate Agreement](/en/paris-climate-agreement) — another major multilateral agreement involving U.S. participation debates\n- [Tariff](/en/tariff) — trade policy often intersects with alliance politics",
+            "scope_combine": "or",
+            "locations": [],
+            "categories": [foreign_id],
+        },
+        {
+            "slug": "second-amendment",
+            "term": "Second Amendment",
+            "aliases": ["2nd Amendment", "right to bear arms"],
+            "summary": "The amendment to the U.S. Constitution protecting the right to keep and bear arms.",
+            "content": "# Second Amendment\n\nThe **Second Amendment** to the United States Constitution reads: *\"A well regulated Militia, being necessary to the security of a free State, the right of the people to keep and bear Arms, shall not be infringed.\"*\n\n## Interpretation\n\nThe Supreme Court has ruled that the Second Amendment protects an individual right to keep and bear arms, not merely a collective right tied to militia service. This was established in *District of Columbia v. Heller* (2008) and further extended in subsequent rulings.\n\nThe scope and limits of this right remain subjects of ongoing legal and political debate, particularly regarding which regulations are constitutionally permissible under [due process](/en/due-process) requirements.\n\n## Key Supreme Court Cases\n\n- *District of Columbia v. Heller* (2008): Individual right to possess firearms for self-defense in the home\n- *McDonald v. City of Chicago* (2010): Second Amendment applies to state and local governments\n- *New York State Rifle & Pistol Association v. Bruen* (2022): Right to carry firearms in public for self-defense; regulations must be consistent with historical tradition\n\n## Related\n\n- [Background Check](/en/background-check) — the primary regulatory mechanism for firearm purchases\n- [Due Process](/en/due-process) — constitutional requirements that gun regulations must satisfy",
+            "scope_combine": "or",
+            "locations": [us_location_id],
+            "categories": [governance_id],
+        },
+        {
+            "slug": "paris-climate-agreement",
+            "term": "Paris Climate Agreement",
+            "aliases": ["Paris Agreement", "Paris Accord", "Paris Climate Accord"],
+            "summary": "An international treaty on climate change committing nations to limit global warming.",
+            "content": "# Paris Climate Agreement\n\nThe **Paris Agreement** is an international treaty on climate change adopted in 2015 at COP21 in Paris. It entered into force on November 4, 2016.\n\n## Goals\n\n- Limit global temperature increase to well below 2°C above pre-industrial levels\n- Pursue efforts to limit the increase to 1.5°C\n- Achieve net-zero greenhouse gas emissions by mid-century\n\n## How It Works\n\nEach country submits **Nationally Determined Contributions (NDCs)** — voluntary pledges to reduce emissions. Countries are expected to strengthen their commitments over time. Many countries use market-based mechanisms like [cap and trade](/en/cap-and-trade) to meet their targets.\n\n## U.S. Involvement\n\nThe U.S. joined under President Obama in 2016, withdrew under President Trump in 2020, and rejoined under President Biden in 2021. The agreement remains politically contentious, with debates over economic costs, national sovereignty, and whether voluntary pledges are sufficient.\n\n## Related\n\n- [Cap and Trade](/en/cap-and-trade) — a market-based approach to reducing emissions\n- [NATO](/en/nato) — another major multilateral agreement debated in U.S. politics",
+            "scope_combine": "or",
+            "locations": [],
+            "categories": [environment_id],
+        },
+        {
+            "slug": "cap-and-trade",
+            "term": "Cap and Trade",
+            "aliases": ["emissions trading", "carbon trading", "carbon market"],
+            "summary": "A market-based system that sets a limit on emissions and allows companies to buy and sell emission allowances.",
+            "content": "# Cap and Trade\n\n**Cap and trade** is a market-based approach to controlling pollution by setting a firm limit (cap) on total emissions and allowing companies to buy and sell emission allowances.\n\n## How It Works\n\n1. **Cap**: The government sets a maximum total amount of emissions allowed across the covered sector\n2. **Allocate**: Emission allowances are distributed (free or auctioned) to companies\n3. **Trade**: Companies that reduce emissions below their allowance can sell surplus permits to companies that exceed theirs\n4. **Reduce**: The cap is lowered over time, driving total emissions down\n\n## Advantages\n\n- Guarantees a specific emission reduction (the cap)\n- Lets the market find the cheapest reductions\n- Generates revenue if allowances are auctioned\n- Creates financial incentive for innovation\n\n## Criticism\n\n- Complex to administer and monitor\n- Permit prices can be volatile, creating uncertainty for businesses\n- May allow pollution to concentrate in disadvantaged communities\n- Can be weakened by political pressure to set caps too high\n\n## Examples\n\n- **EU Emissions Trading System (EU ETS)**: The world's largest cap-and-trade program, covering power generation and heavy industry\n- **California**: Operates a cap-and-trade program linked with Quebec\n- **RGGI**: Nine northeastern U.S. states cooperate on a power-sector cap-and-trade system\n\n## Related\n\n- [Paris Climate Agreement](/en/paris-climate-agreement) — the international framework that cap-and-trade programs help implement",
+            "scope_combine": "or",
+            "locations": [],
+            "categories": [environment_id],
+        },
+        {
+            "slug": "voter-id",
+            "term": "Voter ID",
+            "aliases": ["voter identification"],
+            "summary": "Laws requiring voters to present identification before casting a ballot.",
+            "content": "# Voter ID\n\n**Voter ID laws** require voters to present some form of identification before being allowed to vote. These laws vary significantly by state.\n\n## Types of Laws\n\n- **Strict photo ID**: Must show government-issued photo ID (e.g., driver's license, passport)\n- **Non-strict photo ID**: Photo ID requested but alternatives available (e.g., signing an affidavit)\n- **Strict non-photo ID**: Must show ID but it does not need to include a photo\n- **Non-strict non-photo ID**: ID requested but voters can still cast a regular ballot without one\n\n## Arguments For\n\n- Prevents voter impersonation fraud\n- Increases public confidence in elections\n- Aligns with common practices (ID required for many daily activities)\n\n## Arguments Against\n\n- In-person voter fraud is extremely rare\n- Disproportionately affects minority, elderly, and low-income voters who are less likely to have qualifying ID\n- Can function as a barrier to voting access\n\n## Oregon\n\nOregon does not require photo ID to vote. As a vote-by-mail state, identity is verified through signature matching.\n\n## Related\n\n- [Gerrymandering](/en/gerrymandering) — another election access issue affecting representation\n- [Electoral College](/en/electoral-college) — the broader system through which votes translate to presidential outcomes",
+            "scope_combine": "or",
+            "locations": [us_location_id],
+            "categories": [elections_id],
+        },
+        # --- Terms that appear in posts and comments ---
+        {
+            "slug": "rent-control",
+            "term": "Rent Control",
+            "aliases": ["rent stabilization", "rent cap"],
+            "summary": "Government regulations limiting how much landlords can increase rent.",
+            "content": "# Rent Control\n\n**Rent control** (also called rent stabilization) refers to government regulations that limit the amount landlords can increase rent on existing tenants.\n\n## Types\n\n- **Hard rent control**: Freezes rents at a specific level (rare today)\n- **Rent stabilization**: Caps annual increases, often tied to inflation (more common)\n- **Vacancy decontrol**: Allows landlords to reset rent to market rate when a tenant moves out\n\n## Oregon's Law\n\nIn 2019, Oregon became the first state to enact statewide rent control (SB 608). Key provisions:\n- Annual rent increases capped at 7% plus inflation (CPI)\n- Does not apply to buildings less than 15 years old (to encourage new construction)\n- No-cause evictions prohibited after the first year of tenancy\n\n## Debate\n\nSupporters argue rent control prevents displacement and provides housing stability. Critics argue it reduces housing supply by discouraging investment and new construction, and can lead to deteriorating building conditions.\n\n## Related\n\n- [Housing First](/en/housing-first) — another approach to housing affordability and homelessness\n- [Minimum Wage](/en/minimum-wage) — a related cost-of-living policy",
+            "scope_combine": "or",
+            "locations": [location_id],
+            "categories": [economy_id],
+        },
+        {
+            "slug": "housing-first",
+            "term": "Housing First",
+            "aliases": ["housing-first"],
+            "summary": "An approach to homelessness that prioritizes providing permanent housing before addressing other issues.",
+            "content": "# Housing First\n\n**Housing First** is an approach to ending homelessness that prioritizes providing people with permanent housing as quickly as possible, without preconditions like sobriety or employment.\n\n## Core Principles\n\n- Immediate access to permanent housing with no preconditions\n- Consumer choice in housing and services\n- Separation of housing and treatment (housing is not contingent on participation in services)\n- Support services are available but voluntary\n\n## Evidence\n\nResearch consistently shows Housing First programs achieve housing retention rates of 80-90%. Studies in multiple countries (US, Canada, Finland) demonstrate cost savings compared to emergency services, hospitals, and incarceration.\n\n## Criticism\n\n- Does not address root causes of homelessness for all populations\n- May be less effective for individuals with severe untreated mental illness or addiction\n- Requires significant upfront investment in affordable housing stock\n\n## Related\n\n- [Rent Control](/en/rent-control) — policies addressing housing affordability that can prevent homelessness\n- [Universal Basic Income](/en/universal-basic-income) — another unconditional-support approach to social welfare\n- [Decriminalization](/en/decriminalization) — intersects with Housing First through substance use policy",
+            "scope_combine": "or",
+            "locations": [],
+            "categories": [social_id],
+        },
+        {
+            "slug": "decriminalization",
+            "term": "Decriminalization",
+            "aliases": ["decriminalize", "decriminalized"],
+            "summary": "Reducing or eliminating criminal penalties for certain acts, typically reclassifying them as civil violations.",
+            "content": "# Decriminalization\n\n**Decriminalization** is the process of reducing or removing criminal penalties for certain acts, typically reclassifying them from criminal offenses to civil violations (like a fine).\n\n## Key Distinction\n\nDecriminalization is different from **legalization**:\n- **Decriminalization**: The act is still prohibited but penalties are reduced (e.g., fine instead of jail)\n- **Legalization**: The act is no longer prohibited by law\n\n## Drug Decriminalization\n\nThe most common context is drug policy. Portugal decriminalized personal drug possession in 2001, focusing on treatment rather than punishment. Oregon's Measure 110 (2020), passed through the [initiative process](/en/initiative-process), decriminalized personal possession of small amounts of drugs, making it a civil citation with a $100 fine. The measure was later modified in 2024 to restore some criminal penalties.\n\n## Arguments For\n\n- Reduces incarceration for nonviolent offenses\n- Directs people to treatment instead of jail\n- Reduces racial disparities in enforcement\n\n## Arguments Against\n\n- May increase drug use by reducing deterrence\n- Implementation challenges (treatment capacity)\n- Public safety concerns\n\n## Related\n\n- [Due Process](/en/due-process) — shifts penalties from criminal to civil due process\n- [Housing First](/en/housing-first) — intersects with decriminalization through homelessness and substance use policy\n- [Initiative Process](/en/initiative-process) — Oregon's Measure 110 reached the ballot through this process",
+            "scope_combine": "or",
+            "locations": [location_id],
+            "categories": [criminal_id],
+        },
+        {
+            "slug": "background-check",
+            "term": "Background Check",
+            "aliases": ["background checks", "universal background checks"],
+            "summary": "A screening process to verify a person's history before they can purchase a firearm.",
+            "content": "# Background Check\n\nA **background check** in the context of firearms is a screening process conducted before a gun sale to verify the buyer is not prohibited from owning a firearm under the [Second Amendment](/en/second-amendment) regulatory framework.\n\n## Federal System (NICS)\n\nThe National Instant Criminal Background Check System (NICS), established by the Brady Handgun Violence Prevention Act (1993), checks buyers against databases of:\n- Felony convictions\n- Domestic violence convictions or restraining orders\n- Involuntary mental health commitments\n- Dishonorable military discharges\n- Unlawful immigration status\n\n## The Private Sale Gap\n\nFederal law only requires background checks for sales through licensed dealers. Private sales (gun shows, online listings, person-to-person) do not require federal background checks in many states.\n\n## Universal Background Checks\n\n**Universal background checks** would require a background check for all firearm sales, including private transactions. Polling consistently shows 80-90% public support. Oregon requires background checks on all gun sales, including private transfers, under SB 941 (2015).\n\n## Related\n\n- [Second Amendment](/en/second-amendment) — the constitutional right that background checks regulate\n- [Due Process](/en/due-process) — ensures background check denials can be challenged",
+            "scope_combine": "or",
+            "locations": [us_location_id],
+            "categories": [criminal_id, governance_id],
+        },
+    ]
+
+    if dry_run:
+        print(f"    Would seed {len(terms)} glossary terms")
+        return
+
+    seeded = 0
+    for t in terms:
+        # Filter out None category IDs
+        cat_ids = [c for c in t["categories"] if c]
+        loc_ids = [l for l in t["locations"] if l]
+
+        db_execute("""
+            INSERT INTO glossary_term (slug, term, aliases, summary, content, scope_combine, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, NOW())
+            ON CONFLICT (slug) DO UPDATE SET
+                term = EXCLUDED.term,
+                aliases = EXCLUDED.aliases,
+                summary = EXCLUDED.summary,
+                content = EXCLUDED.content,
+                scope_combine = EXCLUDED.scope_combine,
+                updated_at = NOW()
+        """, (t["slug"], t["term"], t["aliases"], t["summary"], t["content"], t["scope_combine"]))
+
+        row = db_query_one("SELECT id FROM glossary_term WHERE slug = %s", (t["slug"],))
+        if not row:
+            continue
+
+        term_id = row["id"]
+        for loc_id in loc_ids:
+            db_execute("""
+                INSERT INTO glossary_term_scope (term_id, scope_type, scope_id)
+                VALUES (%s, 'location', %s)
+                ON CONFLICT DO NOTHING
+            """, (term_id, loc_id))
+        for cat_id in cat_ids:
+            db_execute("""
+                INSERT INTO glossary_term_scope (term_id, scope_type, scope_id)
+                VALUES (%s, 'category', %s)
+                ON CONFLICT DO NOTHING
+            """, (term_id, cat_id))
+        seeded += 1
+
+    print(f"    Seeded {seeded} glossary terms")
+    print("  Phase 14 complete")
+
+
+# Phase 15: Wiki pages (native PostgreSQL)
+def phase_15_wiki_pages(dry_run=False):
+    """Seed standalone wiki pages into wiki_page + wiki_page_scope tables."""
+    print("\n  Phase 15: Wiki pages")
+
+    # Look up location/category IDs for scope tags
+    us_row = db_query_one("SELECT id FROM location WHERE code = 'US'")
+    or_row = db_query_one("SELECT id FROM location WHERE code = 'OR'")
+    us_id = str(us_row["id"]) if us_row else None
+    or_id = str(or_row["id"]) if or_row else None
+    cat_rows = db_query("SELECT id, label FROM position_category")
+    cat_map = {r["label"]: str(r["id"]) for r in (cat_rows or [])}
+
+    standalone_pages = [
+        {
+            "slug": "guides/how-voting-works-in-oregon",
+            "title": "How Voting Works in Oregon",
+            "description": "A guide to Oregon's vote-by-mail system, registration, and key deadlines.",
+            "wiki_category": "Guides",
+            "location_ids": [or_id],
+            "category_ids": [cat_map.get("Government & Democracy")],
+            "content": "# How Voting Works in Oregon\n\nOregon pioneered **vote-by-mail** in 1998, becoming the first state to conduct all elections entirely by mail. Here's how it works.\n\n## Registration\n\n- Register online at [Oregon Secretary of State](https://sos.oregon.gov/voting)\n- Deadline: 21 days before election day\n- You must be a U.S. citizen, Oregon resident, and at least 16 to pre-register (18 to vote)\n- Oregon has **automatic voter registration** — you're registered when you get or renew a driver's license\n\n## Receiving Your Ballot\n\n- Ballots are mailed 14–18 days before election day\n- Each ballot includes a voter's pamphlet with candidate statements and measure arguments\n\n## Returning Your Ballot\n\n- **Drop boxes**: Available across every county, no postage needed\n- **Mail**: Must be received (not postmarked) by 8 PM on election day\n- You can track your ballot status online\n\n## Key Dates\n\n| Event | Deadline |\n|-------|----------|\n| Registration | 21 days before |\n| Ballots mailed | 14–18 days before |\n| Ballot due | 8 PM election day |\n\n## Related Terms\n\n- [Primary Election](/en/primary-election) — Oregon uses a closed primary system\n- [Ranked Choice Voting](/en/ranked-choice-voting) — an alternative voting method under discussion\n- [Initiative Process](/en/initiative-process) — how citizens place measures on the ballot",
+        },
+        {
+            "slug": "guides/understanding-the-federal-budget",
+            "title": "Understanding the Federal Budget",
+            "description": "How the U.S. federal budget process works, from proposal to appropriation.",
+            "wiki_category": "Guides",
+            "location_ids": [us_id],
+            "category_ids": [cat_map.get("Economy & Taxation"), cat_map.get("Government & Democracy")],
+            "content": "# Understanding the Federal Budget\n\nThe U.S. federal budget is one of the most consequential policy documents in the world. Here's how it comes together.\n\n## The Budget Process\n\n1. **President's Budget Request** (February): The executive branch submits a proposed budget to Congress\n2. **Congressional Budget Resolution** (April): House and Senate budget committees set spending targets\n3. **Appropriations** (October 1 deadline): 12 appropriations bills fund federal agencies\n4. **Continuing Resolutions**: If appropriations aren't passed by Oct 1, temporary funding extends current levels\n\n## Mandatory vs. Discretionary Spending\n\n| Type | % of Budget | Examples |\n|------|------------|----------|\n| Mandatory | ~63% | Social Security, Medicare, Medicaid |\n| Discretionary | ~30% | Defense, education, infrastructure |\n| Interest on debt | ~7% | Payments on national debt |\n\n## The National Debt\n\nThe national debt is the total accumulated borrowing by the federal government. The **deficit** is the annual gap between spending and revenue. These are often confused but are distinct concepts.\n\n## Related Terms\n\n- [Tariff](/en/tariff) — one source of federal revenue\n- [Universal Basic Income](/en/universal-basic-income) — a proposed social spending program\n- [Minimum Wage](/en/minimum-wage) — affected by federal labor policy",
+        },
+        {
+            "slug": "guides/how-a-bill-becomes-law",
+            "title": "How a Bill Becomes Law",
+            "description": "The step-by-step process of federal legislation in the United States.",
+            "wiki_category": "Guides",
+            "location_ids": [us_id],
+            "category_ids": [cat_map.get("Government & Democracy")],
+            "content": "# How a Bill Becomes Law\n\nThe legislative process in the U.S. Congress involves multiple stages, committees, and votes before a proposal becomes law.\n\n## The Process\n\n### 1. Introduction\nAny member of Congress can introduce a bill. Bills starting in the House are numbered H.R., and Senate bills are numbered S.\n\n### 2. Committee Review\nThe bill is referred to a committee with relevant jurisdiction. Most bills never make it past this stage.\n\n### 3. Floor Debate and Vote\nIf a bill passes committee, it goes to the full House or Senate for debate and a vote.\n\n- **House**: Debate is usually time-limited by the Rules Committee\n- **Senate**: Debate is unlimited unless [cloture](/en/cloture) is invoked to end a [filibuster](/en/filibuster), requiring 60 votes\n\n### 4. Conference Committee\nIf the House and Senate pass different versions, a conference committee reconciles the differences.\n\n### 5. Presidential Action\nThe President can sign the bill, veto it, or pocket veto it.\n\n## Related Terms\n\n- [Filibuster](/en/filibuster) — a tactic to block bills in the Senate\n- [Cloture](/en/cloture) — the procedure to end a filibuster\n- [Caucus](/en/caucus) — party groups that coordinate legislative strategy",
+        },
+        {
+            "slug": "topics/immigration-policy-overview",
+            "title": "Immigration Policy Overview",
+            "description": "Key concepts, debates, and policies shaping U.S. immigration.",
+            "wiki_category": "Topics",
+            "location_ids": [us_id],
+            "category_ids": [cat_map.get("Immigration")],
+            "content": "# Immigration Policy Overview\n\nImmigration policy in the United States involves a complex web of federal laws, executive actions, and state-level responses.\n\n## Legal Immigration Pathways\n\n- **Family-sponsored**: U.S. citizens and permanent residents can sponsor relatives\n- **Employment-based**: Employers sponsor workers with specific skills (H-1B, EB visas)\n- **Diversity Visa Lottery**: 50,000 visas annually for underrepresented countries\n- **Refugees and asylum seekers**: Protection for those fleeing persecution\n\n## Key Policy Debates\n\nThe tension between securing borders and treating migrants humanely is central to the immigration debate.\n\n## Related Terms\n\n- [DACA](/en/daca) — protections for undocumented immigrants brought as children\n- [Sanctuary City](/en/sanctuary-city) — jurisdictions limiting cooperation with federal immigration enforcement\n- [Due Process](/en/due-process) — constitutional protections in immigration proceedings",
+        },
+        {
+            "slug": "topics/climate-policy-landscape",
+            "title": "Climate Policy Landscape",
+            "description": "An overview of major climate policies, international agreements, and market-based approaches.",
+            "wiki_category": "Topics",
+            "location_ids": [],
+            "category_ids": [cat_map.get("Environment & Climate")],
+            "content": "# Climate Policy Landscape\n\nClimate change policy spans international agreements, national legislation, and market-based mechanisms.\n\n## International Frameworks\n\nThe [Paris Climate Agreement](/en/paris-climate-agreement) (2015) is the primary international framework.\n\n## Market-Based Approaches\n\n[Cap and trade](/en/cap-and-trade) systems set a firm limit on emissions and allow companies to trade allowances.\n\n## Related Terms\n\n- [Paris Climate Agreement](/en/paris-climate-agreement) — the primary international framework\n- [Cap and Trade](/en/cap-and-trade) — a market-based emissions reduction approach",
+        },
+        {
+            "slug": "topics/gun-policy-in-america",
+            "title": "Gun Policy in America",
+            "description": "Overview of gun rights, regulations, and the ongoing policy debate in the United States.",
+            "wiki_category": "Topics",
+            "location_ids": [us_id],
+            "category_ids": [cat_map.get("Civil Rights & Liberties"), cat_map.get("Criminal Justice")],
+            "content": "# Gun Policy in America\n\nGun policy in the United States sits at the intersection of constitutional rights, public safety, and deeply held cultural values.\n\n## Constitutional Framework\n\nThe [Second Amendment](/en/second-amendment) protects the right to keep and bear arms.\n\n## Current Federal Law\n\n- Licensed dealers must conduct [background checks](/en/background-check) via the NICS system\n- Private sales in many states do not require background checks\n- Fully automatic weapons manufactured after 1986 are banned\n\n## Related Terms\n\n- [Second Amendment](/en/second-amendment) — the constitutional right to keep and bear arms\n- [Background Check](/en/background-check) — screening before firearm purchases\n- [Due Process](/en/due-process) — constitutional requirements for gun regulations",
+        },
+        {
+            "slug": "guides/oregon-ballot-measures-explained",
+            "title": "Oregon Ballot Measures Explained",
+            "description": "How ballot measures work in Oregon and notable recent examples.",
+            "wiki_category": "Guides",
+            "location_ids": [or_id],
+            "category_ids": [cat_map.get("Government & Democracy")],
+            "content": "# Oregon Ballot Measures Explained\n\nOregon has one of the most active [initiative processes](/en/initiative-process) in the country.\n\n## Types of Ballot Measures\n\n- **Initiative**: Citizens gather signatures to place a new law or constitutional amendment on the ballot\n- **Referendum**: Citizens can challenge a law passed by the legislature\n- **Legislative referral**: The legislature refers a proposed constitutional amendment to voters\n\n## Notable Recent Measures\n\n### Measure 110 (2020) — Drug [Decriminalization](/en/decriminalization)\nReclassified personal drug possession from a criminal offense to a civil violation.\n\n### [Ballot Measure 118](/en/ballot-measure-118) (2024) — Corporate Tax Rebate\nDefeated by voters.\n\n## Related Terms\n\n- [Initiative Process](/en/initiative-process) — the mechanism behind citizen-initiated measures\n- [Ballot Measure 118](/en/ballot-measure-118) — a recent high-profile ballot initiative\n- [Decriminalization](/en/decriminalization) — Measure 110's approach to drug policy",
+        },
+    ]
+
+    if dry_run:
+        print(f"    Would seed {len(standalone_pages)} wiki pages")
+        return
+
+    seeded = 0
+    for sp in standalone_pages:
+        slug = sp["slug"]
+        loc_ids = [l for l in (sp.get("location_ids") or []) if l]
+        cat_ids = [c for c in (sp.get("category_ids") or []) if c]
+
+        row = db_execute_returning("""
+            INSERT INTO wiki_page (slug, title, description, content, wiki_category, scope_combine)
+            VALUES (%s, %s, %s, %s, %s, 'or')
+            ON CONFLICT (slug) DO UPDATE SET
+                title = EXCLUDED.title,
+                description = EXCLUDED.description,
+                content = EXCLUDED.content,
+                wiki_category = EXCLUDED.wiki_category,
+                updated_at = NOW()
+            RETURNING id
+        """, (slug, sp["title"], sp["description"], sp["content"], sp.get("wiki_category")))
+
+        if not row:
+            continue
+        page_id = str(row["id"])
+
+        for loc_id in loc_ids:
+            db_execute("""
+                INSERT INTO wiki_page_scope (page_id, scope_type, scope_id)
+                VALUES (%s, 'location', %s)
+                ON CONFLICT DO NOTHING
+            """, (page_id, loc_id))
+        for cat_id in cat_ids:
+            db_execute("""
+                INSERT INTO wiki_page_scope (page_id, scope_type, scope_id)
+                VALUES (%s, 'category', %s)
+                ON CONFLICT DO NOTHING
+            """, (page_id, cat_id))
+        seeded += 1
+
+    print(f"    Seeded {seeded} wiki pages")
+    print("  Phase 15 complete")
+
+
+# Phase 16: Wiki suggestions
+def phase_16_wiki_suggestions(location_id, category_map, dry_run=False):
+    """Seed wiki suggestions with various scopes, types, and statuses."""
+    print("\n  Phase 16: Wiki suggestions")
+
+    # Check if already seeded
+    existing = db_query_one("SELECT count(*) as cnt FROM wiki_suggestion")
+    if existing and existing["cnt"] > 0:
+        print(f"    Already have {existing['cnt']} suggestions, skipping")
+        print("  Phase 16 complete")
+        return
+
+    # Look up user IDs
+    users = {}
+    for uname in ["normal1", "normal2", "normal3", "normal5",
+                   "admin1", "moderator1"]:
+        row = db_query_one("SELECT id FROM users WHERE username = %s", (uname,))
+        if row:
+            users[uname] = str(row["id"])
+    if len(users) < 4:
+        print("    Not enough users found, skipping")
+        return
+
+    # Look up location IDs
+    us_row = db_query_one("SELECT id FROM location WHERE code = 'US'")
+    or_row = db_query_one("SELECT id FROM location WHERE code = 'OR'")
+    us_id = str(us_row["id"]) if us_row else None
+    or_id = str(or_row["id"]) if or_row else None
+
+    # Look up category IDs
+    cat_rows = db_query("SELECT id, label FROM position_category")
+    cat_map = {r["label"]: str(r["id"]) for r in (cat_rows or [])}
+    healthcare_id = cat_map.get("Healthcare")
+    elections_id = cat_map.get("Government & Democracy")
+    economy_id = cat_map.get("Economy & Taxation")
+    environment_id = cat_map.get("Environment & Climate")
+    immigration_id = cat_map.get("Immigration")
+
+    # Look up existing glossary terms and wiki pages for edit suggestions
+    filibuster = db_query_one(
+        "SELECT id, term, aliases, summary, content, wiki_category, scope_combine, updated_at "
+        "FROM glossary_term WHERE slug = 'filibuster'")
+    rent_control = db_query_one(
+        "SELECT id, term, aliases, summary, content, wiki_category, scope_combine, updated_at "
+        "FROM glossary_term WHERE slug = 'rent-control'")
+    gun_page = db_query_one(
+        "SELECT id, slug, title, description, content, wiki_category, scope_combine, updated_at "
+        "FROM wiki_page WHERE slug = 'topics/gun-policy-in-america'")
+    voting_page = db_query_one(
+        "SELECT id, slug, title, description, content, wiki_category, scope_combine, updated_at "
+        "FROM wiki_page WHERE slug = 'guides/how-voting-works-in-oregon'")
+
+    def get_term_scopes(term_id):
+        rows = db_query(
+            "SELECT scope_type, scope_id FROM glossary_term_scope WHERE term_id = %s",
+            (term_id,))
+        return [{"type": r["scope_type"], "id": str(r["scope_id"])} for r in (rows or [])]
+
+    def get_page_scopes(page_id):
+        rows = db_query(
+            "SELECT scope_type, scope_id FROM wiki_page_scope WHERE page_id = %s",
+            (str(page_id),))
+        return [{"type": r["scope_type"], "id": str(r["scope_id"])} for r in (rows or [])]
+
+    if dry_run:
+        print("    Would seed ~8 wiki suggestions")
+        return
+
+    suggestions = []
+
+    # 1. Pending new_term — Healthcare scoped with OR combine (normal2 suggests)
+    suggestions.append({
+        "suggestion_type": "new_term",
+        "glossary_term_id": None,
+        "wiki_page_path": None,
+        "wiki_page_id": None,
+        "proposed_title": "Single-Payer Healthcare",
+        "proposed_aliases": ["single payer", "Medicare for All"],
+        "proposed_summary": "A healthcare system where a single public body finances healthcare for all residents.",
+        "proposed_content": (
+            "# Single-Payer Healthcare\n\n"
+            "**Single-payer healthcare** is a system in which a single public agency handles health insurance "
+            "financing, while the delivery of care remains largely in private hands.\n\n"
+            "## How It Works\n\n"
+            "- All residents are covered by a single government health insurance plan\n"
+            "- Funded through taxes rather than private premiums\n"
+            "- Providers (hospitals, doctors) remain independent\n"
+            "- The government negotiates prices with providers and drug companies\n\n"
+            "## Arguments For\n\n"
+            "- Universal coverage — no uninsured population\n"
+            "- Lower administrative costs\n"
+            "- Stronger negotiating power on drug prices\n\n"
+            "## Arguments Against\n\n"
+            "- Higher taxes to fund the system\n"
+            "- Potential wait times for non-emergency procedures\n"
+            "- Reduced choice in insurance plans\n"
+            "- Disruption to existing employer-based coverage\n\n"
+            "## Examples\n\n"
+            "- Canada's Medicare system\n"
+            "- Taiwan's National Health Insurance\n"
+            "- The proposed U.S. Medicare for All Act"
+        ),
+        "proposed_wiki_category": "Healthcare",
+        "proposed_scopes": json.dumps([
+            {"type": "location", "id": us_id},
+            {"type": "category", "id": healthcare_id},
+        ]) if us_id and healthcare_id else "[]",
+        "proposed_scope_combine": "or",
+        "original_title": None,
+        "original_aliases": "{}",
+        "original_summary": None,
+        "original_content": None,
+        "original_wiki_category": None,
+        "original_scopes": "[]",
+        "original_scope_combine": "or",
+        "original_updated_at": None,
+        "suggested_by": users["normal2"],
+        "suggestion_reason": "Healthcare is a major policy topic and single-payer is central to the debate.",
+        "status": "pending",
+        "reviewed_by": None,
+        "review_note": None,
+        "reviewed_at": None,
+    })
+
+    # 2. Pending edit_term — Edit filibuster to add more content (normal3 suggests)
+    if filibuster:
+        fili_scopes = get_term_scopes(filibuster["id"])
+        suggestions.append({
+            "suggestion_type": "edit_term",
+            "glossary_term_id": filibuster["id"],
+            "wiki_page_path": None,
+            "wiki_page_id": None,
+            "proposed_title": filibuster["term"],
+            "proposed_aliases": filibuster["aliases"] or [],
+            "proposed_summary": filibuster["summary"],
+            "proposed_content": (
+                filibuster["content"] +
+                "\n\n## Reform Proposals\n\n"
+                "- **Talking filibuster**: Require senators to actually hold the floor and speak\n"
+                "- **Lower threshold**: Reduce cloture votes from 60 to 55 or simple majority\n"
+                "- **Carve-outs**: Exempt certain legislation (e.g., voting rights) from filibuster rules"
+            ),
+            "proposed_wiki_category": filibuster.get("wiki_category") or "Governance",
+            "proposed_scopes": json.dumps(fili_scopes),
+            "proposed_scope_combine": filibuster.get("scope_combine", "or"),
+            "original_title": filibuster["term"],
+            "original_aliases": filibuster["aliases"] or [],
+            "original_summary": filibuster["summary"],
+            "original_content": filibuster["content"],
+            "original_wiki_category": filibuster.get("wiki_category"),
+            "original_scopes": json.dumps(fili_scopes),
+            "original_scope_combine": filibuster.get("scope_combine", "or"),
+            "original_updated_at": filibuster["updated_at"],
+            "suggested_by": users["normal3"],
+            "suggestion_reason": "Adding reform proposals section for completeness.",
+            "status": "pending",
+            "reviewed_by": None,
+            "review_note": None,
+            "reviewed_at": None,
+        })
+
+    # 3. Pending edit_page — Edit gun policy page (normal1 suggests)
+    if gun_page:
+        gun_scopes = get_page_scopes(gun_page["id"])
+        suggestions.append({
+            "suggestion_type": "edit_page",
+            "glossary_term_id": None,
+            "wiki_page_path": gun_page["slug"],
+            "wiki_page_id": str(gun_page["id"]),
+            "proposed_title": gun_page["title"],
+            "proposed_aliases": [],
+            "proposed_summary": "Overview of gun rights, regulations, and the ongoing policy debate in the United States.",
+            "proposed_content": (
+                gun_page["content"] +
+                "\n\n## State-Level Variation\n\n"
+                "Gun laws vary enormously by state. Some states require permits for all purchases "
+                "and have red flag laws, while others have constitutional carry with minimal regulation.\n\n"
+                "### Oregon\n\n"
+                "Oregon requires background checks on all gun sales (including private) and has a "
+                "red flag law (Extreme Risk Protection Orders) allowing courts to temporarily remove "
+                "firearms from individuals deemed a risk."
+            ),
+            "proposed_wiki_category": gun_page.get("wiki_category") or "Topics",
+            "proposed_scopes": json.dumps(gun_scopes),
+            "proposed_scope_combine": gun_page.get("scope_combine", "or"),
+            "original_title": gun_page["title"],
+            "original_aliases": [],
+            "original_summary": gun_page.get("description"),
+            "original_content": gun_page["content"],
+            "original_wiki_category": gun_page.get("wiki_category"),
+            "original_scopes": json.dumps(gun_scopes),
+            "original_scope_combine": gun_page.get("scope_combine", "or"),
+            "original_updated_at": gun_page["updated_at"],
+            "suggested_by": users["normal1"],
+            "suggestion_reason": "Adding state-level variation section with Oregon details.",
+            "status": "pending",
+            "reviewed_by": None,
+            "review_note": None,
+            "reviewed_at": None,
+        })
+
+    # 4. Pending new_page — Global scope (Environment, no location) (normal5 suggests)
+    suggestions.append({
+        "suggestion_type": "new_page",
+        "glossary_term_id": None,
+        "wiki_page_path": None,
+        "wiki_page_id": None,
+        "proposed_title": "Renewable Energy Transition",
+        "proposed_aliases": [],
+        "proposed_summary": "How the global energy system is shifting from fossil fuels to renewable sources.",
+        "proposed_content": (
+            "# Renewable Energy Transition\n\n"
+            "The global shift from fossil fuels to renewable energy sources is one of the defining "
+            "policy challenges of the 21st century.\n\n"
+            "## Key Technologies\n\n"
+            "- **Solar photovoltaic**: Fastest-growing energy source globally\n"
+            "- **Wind power**: Onshore and offshore installations\n"
+            "- **Battery storage**: Enabling intermittent renewables to provide reliable power\n"
+            "- **Green hydrogen**: Potential fuel for hard-to-electrify sectors\n\n"
+            "## Policy Mechanisms\n\n"
+            "- [Cap and Trade](/en/cap-and-trade) — market-based emissions pricing\n"
+            "- Tax credits and subsidies for clean energy investment\n"
+            "- Renewable portfolio standards requiring utilities to source from renewables\n\n"
+            "## Challenges\n\n"
+            "- Grid modernization and transmission infrastructure\n"
+            "- Intermittency and energy storage at scale\n"
+            "- Supply chain for critical minerals (lithium, cobalt, rare earths)\n"
+            "- Just transition for fossil fuel workers and communities\n\n"
+            "## Related\n\n"
+            "- [Paris Climate Agreement](/en/paris-climate-agreement) — the international climate framework\n"
+            "- [Cap and Trade](/en/cap-and-trade) — a market-based emissions reduction approach"
+        ),
+        "proposed_wiki_category": "Topics",
+        "proposed_scopes": json.dumps([
+            {"type": "category", "id": environment_id},
+        ]) if environment_id else "[]",
+        "proposed_scope_combine": "or",
+        "original_title": None,
+        "original_aliases": "{}",
+        "original_summary": None,
+        "original_content": None,
+        "original_wiki_category": None,
+        "original_scopes": "[]",
+        "original_scope_combine": "or",
+        "original_updated_at": None,
+        "suggested_by": users["normal5"],
+        "suggestion_reason": "Important topic that connects several existing glossary terms.",
+        "status": "pending",
+        "reviewed_by": None,
+        "review_note": None,
+        "reviewed_at": None,
+    })
+
+    # 5. Approved edit_term — Rent control edit approved by admin1 (normal1 suggested)
+    if rent_control:
+        rc_scopes = get_term_scopes(rent_control["id"])
+        suggestions.append({
+            "suggestion_type": "edit_term",
+            "glossary_term_id": rent_control["id"],
+            "wiki_page_path": None,
+            "wiki_page_id": None,
+            "proposed_title": rent_control["term"],
+            "proposed_aliases": ["rent stabilization", "rent cap", "rent ceiling"],
+            "proposed_summary": rent_control["summary"],
+            "proposed_content": rent_control["content"],
+            "proposed_wiki_category": rent_control.get("wiki_category") or "Economy",
+            "proposed_scopes": json.dumps(rc_scopes),
+            "proposed_scope_combine": rent_control.get("scope_combine", "or"),
+            "original_title": rent_control["term"],
+            "original_aliases": rent_control["aliases"] or [],
+            "original_summary": rent_control["summary"],
+            "original_content": rent_control["content"],
+            "original_wiki_category": rent_control.get("wiki_category"),
+            "original_scopes": json.dumps(rc_scopes),
+            "original_scope_combine": rent_control.get("scope_combine", "or"),
+            "original_updated_at": rent_control["updated_at"],
+            "suggested_by": users["normal1"],
+            "suggestion_reason": "Adding 'rent ceiling' as an additional alias.",
+            "status": "approved",
+            "reviewed_by": users["admin1"],
+            "review_note": "Good addition.",
+            "reviewed_at": "NOW()",
+        })
+
+    # 6. Denied new_term — normal2 tried to add something low quality (denied by moderator1)
+    suggestions.append({
+        "suggestion_type": "new_term",
+        "glossary_term_id": None,
+        "wiki_page_path": None,
+        "wiki_page_id": None,
+        "proposed_title": "Political Parties",
+        "proposed_aliases": ["parties"],
+        "proposed_summary": "Organizations that seek political power through elections.",
+        "proposed_content": "# Political Parties\n\nPolitical parties are groups of people who share similar ideas about government.",
+        "proposed_wiki_category": "Governance",
+        "proposed_scopes": json.dumps([
+            {"type": "location", "id": us_id},
+            {"type": "category", "id": elections_id},
+        ]) if us_id and elections_id else "[]",
+        "proposed_scope_combine": "or",
+        "original_title": None,
+        "original_aliases": "{}",
+        "original_summary": None,
+        "original_content": None,
+        "original_wiki_category": None,
+        "original_scopes": "[]",
+        "original_scope_combine": "or",
+        "original_updated_at": None,
+        "suggested_by": users["normal2"],
+        "suggestion_reason": "Seems like an important topic.",
+        "status": "denied",
+        "reviewed_by": users.get("moderator1", users["admin1"]),
+        "review_note": "Too broad — consider focusing on a specific aspect like party primaries, third parties, or party platforms.",
+        "reviewed_at": "NOW()",
+    })
+
+    # 7. Pending new_term — AND scope combine (Oregon + Immigration) (normal3 suggests)
+    suggestions.append({
+        "suggestion_type": "new_term",
+        "glossary_term_id": None,
+        "wiki_page_path": None,
+        "wiki_page_id": None,
+        "proposed_title": "Oregon Immigrant Worker Program",
+        "proposed_aliases": ["OIWP"],
+        "proposed_summary": "A proposed state program to provide work permits for undocumented agricultural workers in Oregon.",
+        "proposed_content": (
+            "# Oregon Immigrant Worker Program\n\n"
+            "The **Oregon Immigrant Worker Program (OIWP)** is a proposed state-level initiative "
+            "to create a pathway for undocumented agricultural workers to obtain state work authorization.\n\n"
+            "## Background\n\n"
+            "Oregon's agricultural sector relies heavily on immigrant labor. An estimated 80,000+ "
+            "undocumented workers are employed in the state's farms and food processing facilities.\n\n"
+            "## Proposed Features\n\n"
+            "- State-issued agricultural work permits\n"
+            "- Worker protection standards and wage guarantees\n"
+            "- Path to state residency documentation\n\n"
+            "## Related\n\n"
+            "- [DACA](/en/daca) — federal protection for childhood arrivals\n"
+            "- [Sanctuary City](/en/sanctuary-city) — Oregon's sanctuary state law"
+        ),
+        "proposed_wiki_category": "Policy",
+        "proposed_scopes": json.dumps([
+            {"type": "location", "id": or_id},
+            {"type": "category", "id": immigration_id},
+        ]) if or_id and immigration_id else "[]",
+        "proposed_scope_combine": "and",
+        "original_title": None,
+        "original_aliases": "{}",
+        "original_summary": None,
+        "original_content": None,
+        "original_wiki_category": None,
+        "original_scopes": "[]",
+        "original_scope_combine": "or",
+        "original_updated_at": None,
+        "suggested_by": users["normal3"],
+        "suggestion_reason": "Relevant to Oregon immigration policy discussions.",
+        "status": "pending",
+        "reviewed_by": None,
+        "review_note": None,
+        "reviewed_at": None,
+    })
+
+    # 8. Withdrawn edit_page — normal2 withdrew their own suggestion
+    if voting_page:
+        vp_scopes = get_page_scopes(voting_page["id"])
+        suggestions.append({
+            "suggestion_type": "edit_page",
+            "glossary_term_id": None,
+            "wiki_page_path": voting_page["slug"],
+            "wiki_page_id": str(voting_page["id"]),
+            "proposed_title": voting_page["title"],
+            "proposed_aliases": [],
+            "proposed_summary": voting_page.get("description"),
+            "proposed_content": voting_page["content"] + "\n\n## Unofficial note\n\nThis was going to be a change but I realized it was wrong.",
+            "proposed_wiki_category": voting_page.get("wiki_category") or "Guides",
+            "proposed_scopes": json.dumps(vp_scopes),
+            "proposed_scope_combine": voting_page.get("scope_combine", "or"),
+            "original_title": voting_page["title"],
+            "original_aliases": [],
+            "original_summary": voting_page.get("description"),
+            "original_content": voting_page["content"],
+            "original_wiki_category": voting_page.get("wiki_category"),
+            "original_scopes": json.dumps(vp_scopes),
+            "original_scope_combine": voting_page.get("scope_combine", "or"),
+            "original_updated_at": voting_page["updated_at"],
+            "suggested_by": users["normal2"],
+            "suggestion_reason": "Adding a note about early voting.",
+            "status": "withdrawn",
+            "reviewed_by": None,
+            "review_note": None,
+            "reviewed_at": None,
+        })
+
+    seeded = 0
+    for s in suggestions:
+        reviewed_at_val = None
+        if s["reviewed_at"] == "NOW()":
+            # Use raw SQL for NOW()
+            reviewed_at_sql = "NOW()"
+        else:
+            reviewed_at_sql = "%s"
+
+        # Build the query dynamically for NOW() vs NULL reviewed_at
+        query = f"""
+            INSERT INTO wiki_suggestion (
+                suggestion_type, glossary_term_id, wiki_page_path, wiki_page_id,
+                proposed_title, proposed_aliases, proposed_summary, proposed_content,
+                proposed_wiki_category, proposed_scopes, proposed_scope_combine,
+                original_title, original_aliases, original_summary, original_content,
+                original_wiki_category, original_scopes, original_scope_combine,
+                original_updated_at, suggested_by, suggestion_reason,
+                status, reviewed_by, review_note, reviewed_at
+            ) VALUES (
+                %s, %s, %s, %s,
+                %s, %s, %s, %s,
+                %s, %s, %s,
+                %s, %s, %s, %s,
+                %s, %s, %s,
+                %s, %s, %s,
+                %s, %s, %s, {reviewed_at_sql}
+            )
+        """
+        params = [
+            s["suggestion_type"], s["glossary_term_id"], s["wiki_page_path"], s["wiki_page_id"],
+            s["proposed_title"], s["proposed_aliases"], s["proposed_summary"], s["proposed_content"],
+            s["proposed_wiki_category"], s["proposed_scopes"], s["proposed_scope_combine"],
+            s["original_title"], s["original_aliases"], s["original_summary"], s["original_content"],
+            s["original_wiki_category"], s["original_scopes"], s["original_scope_combine"],
+            s["original_updated_at"], s["suggested_by"], s["suggestion_reason"],
+            s["status"], s["reviewed_by"], s["review_note"],
+        ]
+        if reviewed_at_sql == "%s":
+            params.append(None)
+
+        try:
+            db_execute(query, tuple(params))
+            seeded += 1
+        except Exception as e:
+            print(f"    Failed to seed suggestion '{s['proposed_title']}': {e}")
+
+    print(f"    Seeded {seeded} wiki suggestions")
+    print("  Phase 16 complete")
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -3465,7 +4368,7 @@ def main():
     parser = argparse.ArgumentParser(description='Seed rich dev data for Candid')
     parser.add_argument('--api-url', default=API_URL, help='Candid API URL')
     parser.add_argument('--dry-run', action='store_true', help='Show what would be done')
-    parser.add_argument('--phase', type=int, help='Run only this phase (1-13)')
+    parser.add_argument('--phase', type=int, help='Run only this phase (1-16)')
     args = parser.parse_args()
 
     random.seed(42)  # Reproducible data
@@ -3561,6 +4464,9 @@ def main():
     run_phase(11, "Admin", phase_11_admin, api, location_id, category_map, args.dry_run)
     run_phase(12, "Posts", phase_12_posts, location_id, category_map, args.dry_run)
     run_phase(13, "Notifications", phase_13_notifications, args.dry_run)
+    run_phase(14, "Glossary", phase_14_glossary, location_id, category_map, args.dry_run)
+    run_phase(15, "Wiki Pages", phase_15_wiki_pages, args.dry_run)
+    run_phase(16, "Wiki Suggestions", phase_16_wiki_suggestions, location_id, category_map, args.dry_run)
 
     print("\n" + "=" * 60)
     print("SEED COMPLETE")
@@ -3582,6 +4488,9 @@ def main():
             UNION ALL SELECT 'post_votes', count(*) FROM post_vote
             UNION ALL SELECT 'comment_votes', count(*) FROM comment_vote
             UNION ALL SELECT 'notifications', count(*) FROM notification_inbox
+            UNION ALL SELECT 'glossary_terms', count(*) FROM glossary_term
+            UNION ALL SELECT 'wiki_pages', count(*) FROM wiki_page
+            UNION ALL SELECT 'wiki_suggestions', count(*) FROM wiki_suggestion
             ORDER BY tbl
         """)
         for row in (counts or []):

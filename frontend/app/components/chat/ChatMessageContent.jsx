@@ -31,6 +31,7 @@ function ChatMessageContent({
   otherUser,
   colors,
   onQuotePress,
+  glossaryRules,
   depth = 0,
 }) {
   const MAX_DEPTH = 5
@@ -41,12 +42,12 @@ function ChatMessageContent({
 
   return segments.map((seg, i) => {
     if (seg.type === 'text') {
-      return <ChatMarkdown key={i} content={seg.content} />
+      return <ChatMarkdown key={i} content={seg.content} glossaryRules={glossaryRules} />
     }
 
     // Prevent infinite recursion
     if (depth >= MAX_DEPTH) {
-      return <ChatMarkdown key={i} content={seg.rawLine} />
+      return <ChatMarkdown key={i} content={seg.rawLine} glossaryRules={glossaryRules} />
     }
 
     // Resolve the source message, position, definition, or explanation
@@ -60,7 +61,7 @@ function ChatMessageContent({
 
     if (!source) {
       // Fallback: render as plain text if source not found
-      return <ChatMarkdown key={i} content={seg.rawLine} />
+      return <ChatMarkdown key={i} content={seg.rawLine} glossaryRules={glossaryRules} />
     }
 
     // Quote color matches the quoted source's type/sender:
@@ -104,7 +105,7 @@ function ChatMessageContent({
         >
           <View>
             <ThemedText variant="body" color="inverse" style={styles.defTerm}>{source.term}</ThemedText>
-            <ChatMarkdown content={`*${quotedText}*`} />
+            <ChatMarkdown content={`*${quotedText}*`} glossaryRules={glossaryRules} />
           </View>
         </QuotedBlock>
       )
@@ -127,6 +128,7 @@ function ChatMessageContent({
           otherUser={otherUser}
           colors={colors}
           onQuotePress={onQuotePress}
+          glossaryRules={glossaryRules}
           depth={depth + 1}
         />
       </QuotedBlock>

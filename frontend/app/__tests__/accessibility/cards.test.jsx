@@ -36,6 +36,14 @@ jest.mock('../../contexts/ThemeContext', () => ({
   useTheme: () => ({ theme: 'light', setTheme: jest.fn() }),
 }))
 
+jest.mock('../../contexts/GlossaryContext', () => ({
+  useGlossary: () => ({
+    matchPattern: null,
+    termMap: new Map(),
+    getFilteredPattern: () => null,
+  }),
+}))
+
 jest.mock('../../lib/api', () => ({
   __esModule: true,
   default: {

@@ -11,11 +11,12 @@ import { Typography } from '../constants/Theme'
  * @param {Object} props
  * @param {string} props.content - Message text (may contain markdown)
  */
-export default memo(function ChatMarkdown({ content }) {
+export default memo(function ChatMarkdown({ content, glossaryRules }) {
   const styles = useMemo(() => chatMarkdownStyles, [])
   const rules = useMemo(() => ({
+    ...glossaryRules,
     image: () => null,
-  }), [])
+  }), [glossaryRules])
 
   const handleLinkPress = useCallback((url) => {
     if (url && (url.startsWith('http://') || url.startsWith('https://'))) {

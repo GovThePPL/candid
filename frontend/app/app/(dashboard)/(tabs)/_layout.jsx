@@ -20,6 +20,7 @@ export default function TabsLayout() {
   const isDesktop = useIsDesktop()
   const styles = useMemo(() => createStyles(colors), [colors])
   const [modQueueCount, setModQueueCount] = useState(0)
+  const [wikiSuggestionCount, setWikiSuggestionCount] = useState(0)
 
   // Fetch mod queue count for badge
   const fetchModQueueCount = useCallback(() => {
@@ -29,9 +30,35 @@ export default function TabsLayout() {
       .catch(() => {})
   }, [isModerator])
 
+  // Fetch wiki suggestion count for badge
+  const fetchWikiSuggestionCount = useCallback(() => {
+    if (!user) return
+    api.wiki.getSuggestionCount()
+      .then(data => setWikiSuggestionCount(data?.count || 0))
+      .catch(() => {})
+  }, [user])
+
   useEffect(() => {
     fetchModQueueCount()
-  }, [fetchModQueueCount])
+    fetchWikiSuggestionCount()
+    // Poll badge counts every 30s so they stay fresh within a tab
+    const interval = setInterval(() => {
+      fetchModQueueCount()
+      fetchWikiSuggestionCount()
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [fetchModQueueCount, fetchWikiSuggestionCount])
+
+  // Refresh badge counts whenever any tab gains focus
+  const handleTabFocus = useCallback(() => {
+    // On web, blur the previously focused element so React Navigation can
+    // set aria-hidden on the inactive tab without the browser blocking it
+    if (Platform.OS === 'web' && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur()
+    }
+    fetchModQueueCount()
+    fetchWikiSuggestionCount()
+  }, [fetchModQueueCount, fetchWikiSuggestionCount])
 
   const renderTabIcon = (IconComponent, iconName, focusedIconName) => {
     return ({ focused, color }) => (
@@ -48,13 +75,7 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenListeners={{
-        focus: () => {
-          // On web, blur the previously focused element so React Navigation can
-          // set aria-hidden on the inactive tab without the browser blocking it
-          if (Platform.OS === 'web' && document.activeElement instanceof HTMLElement) {
-            document.activeElement.blur()
-          }
-        },
+        focus: handleTabFocus,
       }}
       sceneStyle={{ backgroundColor: colors.background }}
       screenOptions={{
@@ -92,6 +113,15 @@ export default function TabsLayout() {
             tabBarIcon: renderTabIcon(Ionicons, 'chatbubbles-outline', 'chatbubbles'),
             ...(!isDesktop && focusedRoute !== 'index' ? { tabBarStyle: { display: 'none' } } : {}),
           }
+        }}
+      />
+      <Tabs.Screen
+        name="wiki"
+        options={{
+          title: t('glossary:tabWiki'),
+          tabBarIcon: renderTabIcon(Ionicons, 'book-outline', 'book'),
+          tabBarBadge: wikiSuggestionCount > 0 ? wikiSuggestionCount : undefined,
+          tabBarBadgeStyle: { backgroundColor: colors.primary, fontSize: 11 },
         }}
       />
       <Tabs.Screen

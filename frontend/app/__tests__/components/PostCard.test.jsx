@@ -17,6 +17,14 @@ jest.mock('react-native-markdown-display', () => {
   }
 })
 
+jest.mock('../../contexts/GlossaryContext', () => ({
+  useGlossary: () => ({
+    matchPattern: null,
+    termMap: new Map(),
+    getFilteredPattern: () => null,
+  }),
+}))
+
 jest.mock('../../components/BottomDrawerModal', () => {
   const { View, Text } = require('react-native')
   return function BottomDrawerModal({ visible, title, children }) {
@@ -95,7 +103,8 @@ describe('PostCard', () => {
   })
 
   it('shows bridging badge when post has qualifying bridgingScore', () => {
-    const post = { ...basePost, bridgingScore: 0.5, upvoteCount: 10, downvoteCount: 2 }
+    // Threshold at 50 votes: 0.40 + 0.45/sqrt(50) ≈ 0.464, so 0.5 qualifies
+    const post = { ...basePost, bridgingScore: 0.5, upvoteCount: 40, downvoteCount: 10 }
     render(<PostCard {...defaultProps} post={post} />)
     expect(screen.getByText('bridgingBadge')).toBeTruthy()
   })
@@ -173,8 +182,11 @@ describe('PostCard', () => {
     expect(screen.getByLabelText('postCardA11y TestUser Test Post Title')).toBeTruthy()
   })
 
-  it('shows "Show more" button when body exists', () => {
+  it('shows "Show more" button when body exceeds collapsed height', () => {
     render(<PostCard {...defaultProps} />)
+    // Simulate onLayout reporting content taller than COLLAPSED_HEIGHT (80)
+    const bodyContent = screen.getByText('This is the post body text that should be displayed.')
+    fireEvent(bodyContent.parent, 'layout', { nativeEvent: { layout: { height: 200 } } })
     expect(screen.getByText('expandPost')).toBeTruthy()
   })
 
@@ -186,6 +198,10 @@ describe('PostCard', () => {
 
   it('expands body with markdown on tap and toggles back', () => {
     render(<PostCard {...defaultProps} />)
+
+    // Simulate onLayout reporting content taller than COLLAPSED_HEIGHT (80)
+    const bodyContent = screen.getByText('This is the post body text that should be displayed.')
+    fireEvent(bodyContent.parent, 'layout', { nativeEvent: { layout: { height: 200 } } })
 
     // Initially shows "Show more"
     expect(screen.getByText('expandPost')).toBeTruthy()
@@ -347,5 +363,73 @@ describe('PostCard', () => {
     fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
     fireEvent.press(screen.getByText('unlockPost'))
     expect(onLock).toHaveBeenCalledWith('p1', false)
+  })
+
+  // Edit/Delete tests
+  it('shows Edit option for own post within 15 min', () => {
+    const post = { ...basePost, createdTime: new Date().toISOString() }
+    render(<PostCard {...defaultProps} post={post} currentUserId="u1" onEdit={jest.fn()} />)
+    fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
+    expect(screen.getByText('editPost')).toBeTruthy()
+    expect(screen.getByLabelText('editPostA11y')).toBeTruthy()
+  })
+
+  it('does not show Edit option after 15 min', () => {
+    const post = { ...basePost, createdTime: new Date(Date.now() - 16 * 60 * 1000).toISOString() }
+    render(<PostCard {...defaultProps} post={post} currentUserId="u1" onEdit={jest.fn()} />)
+    fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
+    expect(screen.queryByText('editPost')).toBeNull()
+  })
+
+  it('does not show Edit option for other users posts', () => {
+    const post = { ...basePost, createdTime: new Date().toISOString() }
+    render(<PostCard {...defaultProps} post={post} currentUserId="u2" onEdit={jest.fn()} />)
+    fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
+    expect(screen.queryByText('editPost')).toBeNull()
+  })
+
+  it('shows Delete option for own post', () => {
+    render(<PostCard {...defaultProps} currentUserId="u1" onDelete={jest.fn()} />)
+    fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
+    expect(screen.getByText('deletePost')).toBeTruthy()
+    expect(screen.getByLabelText('deletePostA11y')).toBeTruthy()
+  })
+
+  it('does not show Delete option for other users posts', () => {
+    render(<PostCard {...defaultProps} currentUserId="u2" onDelete={jest.fn()} />)
+    fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
+    expect(screen.queryByText('deletePost')).toBeNull()
+  })
+
+  it('calls onEdit with post when edit tapped', () => {
+    const onEdit = jest.fn()
+    const post = { ...basePost, createdTime: new Date().toISOString() }
+    render(<PostCard {...defaultProps} post={post} currentUserId="u1" onEdit={onEdit} />)
+    fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
+    fireEvent.press(screen.getByText('editPost'))
+    expect(onEdit).toHaveBeenCalledWith(post)
+  })
+
+  it('calls onDelete with post id when delete tapped', () => {
+    const onDelete = jest.fn()
+    render(<PostCard {...defaultProps} currentUserId="u1" onDelete={onDelete} />)
+    fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
+    fireEvent.press(screen.getByText('deletePost'))
+    expect(onDelete).toHaveBeenCalledWith('p1')
+  })
+
+  it('shows (edited) indicator when post has been edited', () => {
+    const post = {
+      ...basePost,
+      createdTime: '2026-02-12T10:00:00Z',
+      updatedTime: '2026-02-12T10:05:00Z',
+    }
+    render(<PostCard {...defaultProps} post={post} />)
+    expect(screen.getByText('edited')).toBeTruthy()
+  })
+
+  it('does not show (edited) for unedited posts', () => {
+    render(<PostCard {...defaultProps} />)
+    expect(screen.queryByText('edited')).toBeNull()
   })
 })

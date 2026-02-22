@@ -60,6 +60,7 @@ export default function ClosureCard({ closure, onShowMap, onViewStatements }) {
           <UserCard
             user={positionHolderUser?.mapPosition ? positionHolderUser : { ...positionHolderUser, opinionGroup: null }}
             role="PROPOSER"
+            style={styles.userCardFlex}
           />
           <View style={styles.handshakeContainer}>
             <MaterialCommunityIcons name="handshake-outline" size={22} color={SemanticColors.agree} />
@@ -68,6 +69,7 @@ export default function ClosureCard({ closure, onShowMap, onViewStatements }) {
             user={initiatorUser?.mapPosition ? initiatorUser : { ...initiatorUser, opinionGroup: null }}
             role="OPPOSER"
             reverse
+            style={styles.userCardFlex}
           />
         </View>
 
@@ -136,6 +138,10 @@ const createStyles = (colors) => StyleSheet.create({
   usersRow: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  userCardFlex: {
+    flex: 1,
+    minWidth: 0,
   },
   handshakeContainer: {
     paddingHorizontal: 6,

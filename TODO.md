@@ -68,6 +68,10 @@
 - @mention tagging in posts and comments — `@username` mentions individual users, `@expert` mentions an expert with category-specific expertise. Limit of 3 tagged users per post/comment. Tagged users receive notifications
 - Pin up to 3 posts per location/category — pinned posts float to top of feed with "move pinned post to top" reordering
 
+## Wiki & Glossary
+- Edit & Approve two-version history — when a reviewer modifies a suggestion before approving, create two version entries (one for the submitter's original changes, one for the reviewer's modifications) so reviewer edits are visible in version history. Also fix `edited_by` attribution on edit suggestions. See [plan](.claude-plans/2026-02-22_15-00_wiki-edit-approve-two-versions.md)
+- Scope expression tree — replace flat scopes + single AND/OR operator with recursive boolean expression tree (nested AND/OR groups) for wiki terms and pages. Enables expressions like "Oregon AND (Education OR Healthcare)". JSONB storage, recursive evaluator, query-builder UI component, backward-compatible migration. See [plan](.claude-plans/2026-02-22_14-00_scope-expression-tree.md)
+
 ## Frontend Improvements
 - UGC Translation — runtime translation of user-generated content (positions, chat messages, surveys). See [plan](.claude-plans/2026-02-10_ugc-translation.md)
 - ~~Move settings menu to replace user profile picture in top bar~~

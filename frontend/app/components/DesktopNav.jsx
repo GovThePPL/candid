@@ -8,6 +8,7 @@ import { useThemeColors } from '../hooks/useThemeColors'
 import { useAuth } from '../contexts/UserContext'
 import { useNotificationCount } from '../contexts/NotificationContext'
 import { canAccessAdmin } from '../lib/roles'
+import api from '../lib/api'
 import Avatar from './Avatar'
 import ThemedText from './ThemedText'
 
@@ -30,12 +31,20 @@ export default function DesktopNav() {
 
   const [manualCollapse, setManualCollapse] = useState(null)
   const [hovered, setHovered] = useState(false)
+  const [wikiSuggestionCount, setWikiSuggestionCount] = useState(0)
 
   useEffect(() => {
     AsyncStorage.getItem(NAV_COLLAPSED_KEY).then(val => {
       if (val !== null) setManualCollapse(JSON.parse(val))
     }).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (!user) return
+    api.wiki.getSuggestionCount()
+      .then(data => setWikiSuggestionCount(data?.count || 0))
+      .catch(() => {})
+  }, [user])
 
   const autoCollapsed = screenWidth < AUTO_COLLAPSE_BREAKPOINT
   const collapsed = manualCollapse !== null ? manualCollapse : autoCollapsed
@@ -69,6 +78,7 @@ export default function DesktopNav() {
 
   const isActive = useCallback((path) => {
     if (path === '/discuss') return pathname === '/discuss' || pathname.startsWith('/discuss/')
+    if (path === '/wiki') return pathname === '/wiki' || pathname.startsWith('/wiki/')
     if (path === '/stats') return pathname === '/stats' || pathname.startsWith('/stats/')
     if (path === '/admin') return pathname === '/admin' || pathname.startsWith('/admin/')
     if (path === '/profile') return pathname === '/profile'
@@ -144,7 +154,7 @@ export default function DesktopNav() {
                 <Ionicons
                   name={isActive('/notifications') ? 'notifications' : 'notifications-outline'}
                   size={22}
-                  color={isActive('/notifications') ? colors.primary : colors.secondaryText}
+                  color={isActive('/notifications') ? colors.navActiveText : colors.secondaryText}
                 />
                 {unreadCount > 0 && (
                   <View style={styles.badge}>
@@ -172,7 +182,7 @@ export default function DesktopNav() {
           {/* Main navigation */}
           <View style={styles.navSection}>
             <NavItem
-              icon={<Ionicons name={isActive('/discuss') ? 'chatbubbles' : 'chatbubbles-outline'} size={22} color={isActive('/discuss') ? colors.primary : colors.secondaryText} />}
+              icon={<Ionicons name={isActive('/discuss') ? 'chatbubbles' : 'chatbubbles-outline'} size={22} color={isActive('/discuss') ? colors.navActiveText : colors.secondaryText} />}
               label={t('discuss:tabDiscuss')}
               active={isActive('/discuss')}
               onPress={() => navigate('/discuss')}
@@ -182,7 +192,31 @@ export default function DesktopNav() {
               activeBgWidth={activeBgWidth}
             />
             <NavItem
-              icon={<Ionicons name={isActive('/stats') ? 'stats-chart' : 'stats-chart-outline'} size={22} color={isActive('/stats') ? colors.primary : colors.secondaryText} />}
+              icon={
+                <View>
+                  <Ionicons name={isActive('/wiki') ? 'book' : 'book-outline'} size={22} color={isActive('/wiki') ? colors.navActiveText : colors.secondaryText} />
+                  {wikiSuggestionCount > 0 && (
+                    <View style={styles.badge}>
+                      <ThemedText variant="label" style={styles.badgeText}>
+                        {wikiSuggestionCount > 99 ? '99+' : wikiSuggestionCount}
+                      </ThemedText>
+                    </View>
+                  )}
+                </View>
+              }
+              label={t('glossary:tabWiki')}
+              active={isActive('/wiki')}
+              onPress={() => navigate('/wiki')}
+              colors={colors}
+              styles={styles}
+              labelStyle={labelStyle}
+              activeBgWidth={activeBgWidth}
+              accessibilityLabel={wikiSuggestionCount > 0
+                ? t('glossary:wikiTabBadgeA11y', { count: wikiSuggestionCount })
+                : t('glossary:tabWiki')}
+            />
+            <NavItem
+              icon={<Ionicons name={isActive('/stats') ? 'stats-chart' : 'stats-chart-outline'} size={22} color={isActive('/stats') ? colors.navActiveText : colors.secondaryText} />}
               label={t('tabStats')}
               active={isActive('/stats')}
               onPress={() => navigate('/stats')}
@@ -193,7 +227,7 @@ export default function DesktopNav() {
             />
             {isAdmin && (
               <NavItem
-                icon={<Ionicons name={isActive('/admin') ? 'shield' : 'shield-outline'} size={22} color={isActive('/admin') ? colors.primary : colors.secondaryText} />}
+                icon={<Ionicons name={isActive('/admin') ? 'shield' : 'shield-outline'} size={22} color={isActive('/admin') ? colors.navActiveText : colors.secondaryText} />}
                 label={t('admin:admin')}
                 active={isActive('/admin')}
                 onPress={() => navigate('/admin')}
@@ -210,7 +244,7 @@ export default function DesktopNav() {
           {/* Bottom utility items */}
           <View style={styles.navSection}>
             <NavItem
-              icon={<Ionicons name={isActive('/settings') ? 'settings' : 'settings-outline'} size={22} color={isActive('/settings') ? colors.primary : colors.secondaryText} />}
+              icon={<Ionicons name={isActive('/settings') ? 'settings' : 'settings-outline'} size={22} color={isActive('/settings') ? colors.navActiveText : colors.secondaryText} />}
               label={t('settings')}
               active={isActive('/settings')}
               onPress={() => navigate('/settings')}
@@ -278,7 +312,7 @@ function NavItem({ icon, label, active, onPress, colors, styles, labelStyle, act
       <View style={labelStyle}>
         <ThemedText
           variant="bodySmall"
-          style={[styles.navLabel, active && { color: colors.primary, fontWeight: '600' }]}
+          style={[styles.navLabel, active && { color: colors.navActiveText, fontWeight: '600' }]}
         >
           {label}
         </ThemedText>

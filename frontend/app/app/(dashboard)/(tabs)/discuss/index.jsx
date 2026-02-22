@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { View, FlatList, ActivityIndicator, StyleSheet, TouchableOpacity, Alert } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter, useFocusEffect } from 'expo-router'
@@ -21,6 +21,9 @@ import PostCard from '../../../../components/discuss/PostCard'
 import DownvoteReasonPicker from '../../../../components/discuss/DownvoteReasonPicker'
 import ReportModal from '../../../../components/ReportModal'
 import ModerationActionModal from '../../../../components/ModerationActionModal'
+import EditPostModal from '../../../../components/discuss/EditPostModal'
+import GlossaryDrawer from '../../../../components/GlossaryDrawer'
+import { useGlossaryDrawer, useGlossaryRules } from '../../../../hooks/useGlossaryDrawer'
 import EmptyState from '../../../../components/EmptyState'
 import ThemedText from '../../../../components/ThemedText'
 import { SkeletonPulse, SkeletonBox, SkeletonLine } from '../../../../components/Skeleton'
@@ -70,6 +73,8 @@ export default function DiscussFeed() {
   const colors = useThemeColors()
   const isDesktop = useIsDesktop()
   const styles = useMemo(() => createStyles(colors), [colors])
+  const [glossaryDrawer, onGlossaryTermPress] = useGlossaryDrawer()
+  const glossaryRules = useGlossaryRules(onGlossaryTermPress)
   const insets = useSafeAreaInsets()
   const router = useRouter()
   const { user } = useAuth()
@@ -97,6 +102,8 @@ export default function DiscussFeed() {
     handleDownvote,
     handleToggleRole,
     handleLockPost,
+    handleUpdatePost,
+    handleDeletePost,
   } = usePostsFeed(selectedLocation, selectedCategory, postType)
 
   // Refresh feed on focus (e.g. returning from creating a post)
@@ -108,6 +115,56 @@ export default function DiscussFeed() {
       hasMountedRef.current = true
     }
   }, [handleRefresh]))
+
+  // Edit/delete state
+  const [editingPost, setEditingPost] = useState(null)
+  const [editSaving, setEditSaving] = useState(false)
+
+  const handleEditPost = useCallback((post) => {
+    setEditingPost(post)
+  }, [])
+
+  const handleEditPostSubmit = useCallback(async ({ title, body }) => {
+    if (!editingPost) return
+    setEditSaving(true)
+    try {
+      await handleUpdatePost(editingPost.id, { title, body })
+      setEditingPost(null)
+    } catch {
+      // Toast already shown by hook
+    } finally {
+      setEditSaving(false)
+    }
+  }, [editingPost, handleUpdatePost])
+
+  // Deferred delete — set target, fire Alert after modal closes
+  const [pendingDeletePostId, setPendingDeletePostId] = useState(null)
+
+  const handleDeletePostConfirm = useCallback((postId) => {
+    setPendingDeletePostId(postId)
+  }, [])
+
+  useEffect(() => {
+    if (!pendingDeletePostId) return
+    const timer = setTimeout(() => {
+      Alert.alert(
+        t('deletePostConfirmTitle'),
+        t('deletePostConfirmMessage'),
+        [
+          { text: t('common:cancel'), style: 'cancel', onPress: () => setPendingDeletePostId(null) },
+          {
+            text: t('common:delete'),
+            style: 'destructive',
+            onPress: () => {
+              setPendingDeletePostId(null)
+              handleDeletePost(pendingDeletePostId)
+            },
+          },
+        ]
+      )
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [pendingDeletePostId])
 
   // Downvote reason picker state
   const [downvotePostId, setDownvotePostId] = useState(null)
@@ -203,13 +260,17 @@ export default function DiscussFeed() {
         onDownvote={handlePostDownvote}
         onToggleRole={handleToggleRole}
         onLock={handleLockPost}
+        onEdit={handleEditPost}
+        onDelete={handleDeletePostConfirm}
         currentUserId={user?.id}
         canModerate={canMod}
         onReport={handleReportPost}
         onModerate={handleModeratePost}
+        onTermPress={onGlossaryTermPress}
+        glossaryRules={glossaryRules}
       />
     )
-  }, [handlePostPress, handleUpvote, handlePostDownvote, handleToggleRole, handleLockPost, user?.id, checkModerateScope, handleReportPost, handleModeratePost])
+  }, [handlePostPress, handleUpvote, handlePostDownvote, handleToggleRole, handleLockPost, handleEditPost, handleDeletePostConfirm, user?.id, checkModerateScope, handleReportPost, handleModeratePost, onGlossaryTermPress, glossaryRules])
 
   const keyExtractor = useCallback((item) => item.id, [])
 
@@ -365,6 +426,17 @@ export default function DiscussFeed() {
         onSubmit={handleModerateActionSubmit}
         reportType={moderateTarget?.type}
         rule={moderateRule}
+      />
+
+      <GlossaryDrawer {...glossaryDrawer} />
+
+      {/* Edit post modal */}
+      <EditPostModal
+        visible={editingPost != null}
+        post={editingPost}
+        onSubmit={handleEditPostSubmit}
+        onClose={() => setEditingPost(null)}
+        saving={editSaving}
       />
     </View>
   )

@@ -51,6 +51,7 @@ def _row_to_comment(row, post_type=None, post_location_id=None, post_category_id
         "score": float(row.get("score", 0)),
         "bridgingScore": float(row["mf_intercept"]) if row.get("mf_intercept") is not None else None,
         "childCount": row.get("child_count", 0),
+        "glossaryHighlight": row.get("glossary_highlight", True),
         "createdTime": row["created_time"].isoformat() if row.get("created_time") else None,
         "updatedTime": row["updated_time"].isoformat() if row.get("updated_time") else None,
     }
@@ -341,10 +342,11 @@ def create_comment(post_id, body, token_info=None):  # noqa: E501
     show_creator_role = post["post_type"] == "question"
 
     # Insert comment
+    glossary_highlight = body.get("glossary_highlight", True)
     db.execute_query("""
-        INSERT INTO comment (id, post_id, parent_comment_id, creator_user_id, body, path, depth, show_creator_role)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-    """, (comment_id, post_id, parent_comment_id, user_id, body_text, path, depth, show_creator_role))
+        INSERT INTO comment (id, post_id, parent_comment_id, creator_user_id, body, path, depth, show_creator_role, glossary_highlight)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """, (comment_id, post_id, parent_comment_id, user_id, body_text, path, depth, show_creator_role, glossary_highlight))
 
     # post.comment_count and comment.child_count are maintained by trg_comment_counts trigger
 

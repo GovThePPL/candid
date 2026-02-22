@@ -213,6 +213,34 @@ export default function usePostsFeed(locationId, categoryId, postType) {
     }
   }, [showToast, t])
 
+  const handleUpdatePost = useCallback(async (postId, data) => {
+    try {
+      const result = await api.posts.updatePost(postId, data)
+      if (result) {
+        setPosts(prev => prev.map(p =>
+          p.id === postId ? { ...p, ...result } : p
+        ))
+      }
+      return result
+    } catch (err) {
+      if (err?.status === 403) {
+        showToast(t('errorEditExpired'))
+      } else {
+        showToast(t('errorEditPost'))
+      }
+      throw err
+    }
+  }, [showToast, t])
+
+  const handleDeletePost = useCallback(async (postId) => {
+    try {
+      await api.posts.deletePost(postId)
+      setPosts(prev => prev.filter(p => p.id !== postId))
+    } catch {
+      showToast(t('errorDeletePost'))
+    }
+  }, [showToast, t])
+
   // Refetch when dependencies change
   useEffect(() => {
     fetchPosts()
@@ -236,5 +264,7 @@ export default function usePostsFeed(locationId, categoryId, postType) {
     handleDownvote,
     handleToggleRole,
     handleLockPost,
+    handleUpdatePost,
+    handleDeletePost,
   }
 }

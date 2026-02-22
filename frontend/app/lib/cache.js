@@ -355,6 +355,11 @@ export const CacheKeys = {
   chattingList: (userId) => `chattinglist:user:${userId}`,
   activityPosts: (userId) => `activity:posts:${userId}`,
   activityComments: (userId) => `activity:comments:${userId}`,
+  glossaryTerms: (locationId) => `glossary:terms:v1:${locationId || 'global'}`,
+  glossaryTerm: (slug) => `glossary:term:v1:${slug}`,
+  wikiPages: (category, search, locationId, categoryId) => `wiki:pages:v2:${category || ''}:${search || ''}:${locationId || ''}:${categoryId || ''}`,
+  wikiPage: (slug) => `wiki:page:v1:${slug}`,
+  wikiCategories: () => 'wiki:categories:v1',
 };
 
 // Default cache durations (in milliseconds)
@@ -370,6 +375,11 @@ export const CacheDurations = {
   CATEGORIES: Infinity, // Static data, never expires
   CHATTING_LIST: 5 * 60 * 1000, // 5 minutes
   ACTIVITY: 5 * 60 * 1000, // 5 minutes
+  GLOSSARY_TERMS: 10 * 60 * 1000, // 10 minutes (matches context refresh interval)
+  GLOSSARY_TERM: 60 * 60 * 1000, // 1 hour (individual definitions rarely change)
+  WIKI_PAGES: 5 * 60 * 1000, // 5 minutes
+  WIKI_PAGE: 10 * 60 * 1000, // 10 minutes
+  WIKI_CATEGORIES: 60 * 60 * 1000, // 1 hour (categories rarely change)
 };
 
 export default CacheManager;

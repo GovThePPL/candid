@@ -8,6 +8,7 @@ import UserOnly from "../../components/auth/UserOnly"
 import { useChatContext, useNavigationContext } from "../../contexts/UserContext"
 import { NotificationProvider } from "../../contexts/NotificationContext"
 import { ToastProvider } from "../../components/Toast"
+import { GlossaryProvider } from "../../contexts/GlossaryContext"
 import DesktopNav from "../../components/DesktopNav"
 import DesktopRightPanel from "../../components/DesktopRightPanel"
 import CardQueueContent from "../../components/CardQueueContent"
@@ -63,6 +64,7 @@ export default function DashboardLayout() {
       <Stack.Screen name="notifications" />
       <Stack.Screen name="post" />
       <Stack.Screen name="chat" />
+      <Stack.Screen name="wiki" />
       <Stack.Screen name="position-closures" />
       <Stack.Screen name="setup-profile" />
     </Stack>
@@ -72,6 +74,7 @@ export default function DashboardLayout() {
     return (
       <UserOnly>
         <NotificationProvider>
+        <GlossaryProvider>
         <ToastProvider>
           <View style={{ flex: 1, flexDirection: 'row' }}>
             <DesktopNav />
@@ -90,6 +93,7 @@ export default function DashboardLayout() {
             </View>
           </View>
         </ToastProvider>
+        </GlossaryProvider>
         </NotificationProvider>
       </UserOnly>
     )
@@ -98,9 +102,11 @@ export default function DashboardLayout() {
   return (
     <UserOnly>
       <NotificationProvider>
+      <GlossaryProvider>
       <ToastProvider>
         {stackNavigator}
       </ToastProvider>
+      </GlossaryProvider>
       </NotificationProvider>
     </UserOnly>
   )

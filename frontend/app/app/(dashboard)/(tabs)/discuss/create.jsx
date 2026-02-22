@@ -1,12 +1,11 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useRef } from 'react'
 import { View, ScrollView, TouchableOpacity, StyleSheet, Platform, ActivityIndicator } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router'
-import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../../../hooks/useThemeColors'
 import useKeyboardHeight from '../../../../hooks/useKeyboardHeight'
-import { Spacing, BorderRadius, Typography } from '../../../../constants/Theme'
+import { Spacing, BorderRadius } from '../../../../constants/Theme'
 import { SemanticColors } from '../../../../constants/Colors'
 import api from '../../../../lib/api'
 import { CacheManager, CacheKeys } from '../../../../lib/cache'
@@ -16,7 +15,7 @@ import ThemedText from '../../../../components/ThemedText'
 import ThemedTextInput from '../../../../components/ThemedTextInput'
 import ThemedButton from '../../../../components/ThemedButton'
 import LocationCategorySelector from '../../../../components/LocationCategorySelector'
-import MarkdownRenderer from '../../../../components/discuss/MarkdownRenderer'
+import WysiwygEditor from '../../../../components/WysiwygEditor'
 
 const MAX_TITLE_LENGTH = 200
 const MAX_BODY_LENGTH = 10000
@@ -33,36 +32,35 @@ export default function CreatePost() {
 
   const [postType, setPostType] = useState(type === 'question' ? 'question' : 'discussion')
   const [title, setTitle] = useState('')
-  const [body, setBody] = useState('')
   const [selectedLocation, setSelectedLocation] = useState(null)
   const [selectedCategory, setSelectedCategory] = useState(null)
-  const [showPreview, setShowPreview] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
+  const [bodyLength, setBodyLength] = useState(0)
+  const editorRef = useRef(null)
 
   const isQuestion = postType === 'question'
 
   const titleLength = title.length
-  const bodyLength = body.length
   const isTitleOver = titleLength > MAX_TITLE_LENGTH
   const isBodyOver = bodyLength > MAX_BODY_LENGTH
 
   const canSubmit = title.trim().length > 0
-    && body.trim().length > 0
+    && bodyLength > 0
     && !isTitleOver
     && !isBodyOver
     && selectedLocation
     && (!isQuestion || selectedCategory)
     && !submitting
 
+  const handleBodyChange = useCallback((html) => {
+    const text = html?.replace(/<[^>]*>/g, '').trim() || ''
+    setBodyLength(text.length)
+  }, [])
+
   const handleSubmit = useCallback(async () => {
-    // Validate
     if (!title.trim()) {
       setError(t('errorTitleRequired'))
-      return
-    }
-    if (!body.trim()) {
-      setError(t('errorBodyRequired'))
       return
     }
     if (isTitleOver) {
@@ -78,13 +76,20 @@ export default function CreatePost() {
       return
     }
 
+    const body = await editorRef.current?.getMarkdown()
+    const trimmedBody = body?.trim()
+    if (!trimmedBody) {
+      setError(t('errorBodyRequired'))
+      return
+    }
+
     setSubmitting(true)
     setError(null)
 
     try {
       const result = await api.posts.createPost({
         title: title.trim(),
-        body: body.trim(),
+        body: trimmedBody,
         locationId: selectedLocation,
         categoryId: selectedCategory || undefined,
         postType,
@@ -99,7 +104,7 @@ export default function CreatePost() {
       }
       setSubmitting(false)
     }
-  }, [title, body, selectedLocation, selectedCategory, postType, isQuestion, isTitleOver, isBodyOver, submitting, router, t])
+  }, [title, selectedLocation, selectedCategory, postType, isQuestion, isTitleOver, isBodyOver, submitting, t])
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -177,52 +182,18 @@ export default function CreatePost() {
           </ThemedText>
         </View>
 
-        {/* Body input / preview */}
+        {/* Body editor */}
         <View style={styles.inputGroup}>
-          <View style={styles.bodyHeader}>
-            <ThemedText variant="label" color="secondary">
-              {t('bodyLabel')}
-            </ThemedText>
-            <TouchableOpacity
-              onPress={() => setShowPreview(!showPreview)}
-              style={styles.previewToggle}
-              accessibilityRole="button"
-              accessibilityState={{ selected: showPreview }}
-              accessibilityLabel={t('previewToggleA11y')}
-            >
-              <Ionicons
-                name={showPreview ? 'eye-off-outline' : 'eye-outline'}
-                size={16}
-                color={colors.primary}
-              />
-              <ThemedText variant="caption" color="primary">
-                {t('preview')}
-              </ThemedText>
-            </TouchableOpacity>
-          </View>
-
-          {showPreview ? (
-            <View style={styles.previewContainer}>
-              {body.trim() ? (
-                <MarkdownRenderer content={body} variant="post" />
-              ) : (
-                <ThemedText variant="bodySmall" color="secondary" style={styles.previewEmpty}>
-                  {t('previewEmpty')}
-                </ThemedText>
-              )}
-            </View>
-          ) : (
-            <ThemedTextInput
-              style={styles.bodyInput}
-              placeholder={isQuestion ? t('questionBodyPlaceholder') : t('bodyPlaceholder')}
-              value={body}
-              onChangeText={setBody}
-              multiline
-              maxLength={MAX_BODY_LENGTH + 100}
-              textAlignVertical="top"
-              accessibilityLabel={t('bodyInputA11y')}
-            />
-          )}
+          <ThemedText variant="label" color="secondary" style={styles.inputLabel}>
+            {t('bodyLabel')}
+          </ThemedText>
+          <WysiwygEditor
+            ref={editorRef}
+            allowImages={false}
+            placeholder={isQuestion ? t('questionBodyPlaceholder') : t('bodyPlaceholder')}
+            onContentChange={handleBodyChange}
+            minHeight={160}
+          />
           <ThemedText
             variant="caption"
             color="secondary"
@@ -299,48 +270,13 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: Spacing.xs,
   },
   titleInput: {
-    ...Typography.body,
     backgroundColor: colors.cardBackground,
     borderWidth: 1,
     borderColor: colors.cardBorder,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     color: colors.text,
-  },
-  bodyHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.xs,
-  },
-  previewToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    padding: Spacing.xs,
-  },
-  bodyInput: {
-    ...Typography.body,
-    backgroundColor: colors.cardBackground,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    minHeight: 160,
-    color: colors.text,
-  },
-  previewContainer: {
-    backgroundColor: colors.cardBackground,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    minHeight: 160,
-  },
-  previewEmpty: {
-    fontStyle: 'italic',
-    textAlign: 'center',
-    paddingVertical: Spacing.xxl,
+    fontSize: 15,
   },
   charCount: {
     textAlign: 'right',

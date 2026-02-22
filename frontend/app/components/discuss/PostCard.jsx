@@ -1,5 +1,6 @@
-import { useState, useMemo, memo } from 'react'
-import { View, TouchableOpacity, Pressable, StyleSheet } from 'react-native'
+import { useState, useRef, useMemo, useCallback, memo } from 'react'
+import { View, TouchableOpacity, Pressable, Animated, StyleSheet } from 'react-native'
+import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
@@ -13,6 +14,8 @@ import MarkdownRenderer from './MarkdownRenderer'
 import LocationCategoryBadge from '../LocationCategoryBadge'
 import BottomDrawerModal from '../BottomDrawerModal'
 
+const COLLAPSED_HEIGHT = 80
+
 /**
  * Post card for the feed list. Supports expanding the body inline.
  *
@@ -24,24 +27,46 @@ import BottomDrawerModal from '../BottomDrawerModal'
  * @param {Function} props.onToggleRole - Called with (postId, showCreatorRole)
  * @param {string} [props.currentUserId] - Current user's ID (disables voting on own posts)
  */
-export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onToggleRole, onLock, currentUserId, canModerate, onReport, onModerate }) {
+export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onToggleRole, onLock, onEdit, onDelete, currentUserId, canModerate, onReport, onModerate, onTermPress, glossaryRules }) {
   const { t } = useTranslation('discuss')
   const colors = useThemeColors()
   const router = useRouter()
   const styles = useMemo(() => createStyles(colors), [colors])
   const [expanded, setExpanded] = useState(false)
   const [optionsVisible, setOptionsVisible] = useState(false)
+  const [contentHeight, setContentHeight] = useState(0)
+  const expandAnim = useRef(new Animated.Value(0)).current
 
   const isLocked = post.status === 'locked'
   const isOwnPost = currentUserId && post.creator?.id === currentUserId
   const displayName = post.creator?.displayName || post.creator?.username || '?'
   const relativeTime = require('../../lib/timeUtils').formatRelativeTime(post.createdTime, t)
   const hasBody = !!post.body
+  const canEdit = isOwnPost && post.createdTime &&
+    (Date.now() - new Date(post.createdTime).getTime() < 15 * 60 * 1000)
+  const isEdited = post.updatedTime && post.createdTime &&
+    new Date(post.updatedTime).getTime() - new Date(post.createdTime).getTime() > 1000
+  const needsCollapse = contentHeight > COLLAPSED_HEIGHT
 
-  const handleExpand = (e) => {
+  const handleContentLayout = useCallback((e) => {
+    const h = e.nativeEvent.layout.height
+    // Use Math.max to prevent a Yoga feedback loop: when needsCollapse
+    // constrains the parent to COLLAPSED_HEIGHT, Yoga reports the child's
+    // *clipped* height, which would reset contentHeight and toggle
+    // needsCollapse off, causing an infinite expand/contract cycle.
+    if (h > 0) setContentHeight(prev => Math.max(prev, h))
+  }, [])
+
+  const handleExpand = useCallback((e) => {
     e?.stopPropagation?.()
-    setExpanded(prev => !prev)
-  }
+    const toExpanded = !expanded
+    setExpanded(toExpanded)
+    Animated.timing(expandAnim, {
+      toValue: toExpanded ? 1 : 0,
+      duration: 250,
+      useNativeDriver: false,
+    }).start()
+  }, [expanded, expandAnim])
 
   const handleOptionsPress = (e) => {
     e?.stopPropagation?.()
@@ -71,27 +96,51 @@ export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onT
             <Ionicons name="checkmark-circle" size={16} color={SemanticColors.success} accessibilityLabel={t('answered')} />
           )}
           <ThemedText variant="caption" color="secondary">{relativeTime}</ThemedText>
+          {isEdited && (
+            <ThemedText variant="caption" color="secondary">{t('edited')}</ThemedText>
+          )}
         </View>
       </View>
 
       {/* Title */}
       <ThemedText variant="h3" numberOfLines={2} style={styles.title}>{post.title}</ThemedText>
 
-      {/* Body: collapsed preview or expanded markdown */}
+      {/* Body: markdown with animated height + fade gradient */}
       {hasBody && (
-        expanded ? (
-          <View style={styles.body}>
-            <MarkdownRenderer content={post.body} variant="post" />
-          </View>
-        ) : (
-          <ThemedText variant="body" color="secondary" numberOfLines={3} style={styles.body}>
-            {post.body}
-          </ThemedText>
-        )
+        <View style={styles.body}>
+          <Animated.View style={[
+            styles.bodyClip,
+            needsCollapse && {
+              height: expandAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [COLLAPSED_HEIGHT, contentHeight],
+              }),
+              opacity: expandAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.5, 1],
+              }),
+            },
+          ]}>
+            <View onLayout={handleContentLayout}>
+              <MarkdownRenderer content={post.body} variant="post" glossaryRules={glossaryRules} />
+            </View>
+          </Animated.View>
+          {needsCollapse && (
+            <Animated.View
+              style={[styles.fadeOverlay, { opacity: expandAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]}
+              pointerEvents="none"
+            >
+              <LinearGradient
+                colors={[colors.cardBackground + '00', colors.cardBackground]}
+                style={styles.fadeGradient}
+              />
+            </Animated.View>
+          )}
+        </View>
       )}
 
       {/* Expand/collapse toggle */}
-      {hasBody && (
+      {hasBody && needsCollapse && (
         <TouchableOpacity
           style={styles.expandButton}
           onPress={handleExpand}
@@ -189,6 +238,38 @@ export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onT
               </ThemedText>
             </TouchableOpacity>
           )}
+          {canEdit && (
+            <TouchableOpacity
+              style={styles.optionRow}
+              onPress={(e) => {
+                e?.stopPropagation?.()
+                setOptionsVisible(false)
+                onEdit?.(post)
+              }}
+              activeOpacity={0.7}
+              accessibilityRole="menuitem"
+              accessibilityLabel={t('editPostA11y')}
+            >
+              <Ionicons name="create-outline" size={20} color={colors.secondaryText} />
+              <ThemedText variant="body">{t('editPost')}</ThemedText>
+            </TouchableOpacity>
+          )}
+          {isOwnPost && (
+            <TouchableOpacity
+              style={styles.optionRow}
+              onPress={(e) => {
+                e?.stopPropagation?.()
+                setOptionsVisible(false)
+                onDelete?.(post.id)
+              }}
+              activeOpacity={0.7}
+              accessibilityRole="menuitem"
+              accessibilityLabel={t('deletePostA11y')}
+            >
+              <Ionicons name="trash-outline" size={20} color={SemanticColors.warning} />
+              <ThemedText variant="body" style={{ color: SemanticColors.warning }}>{t('deletePost')}</ThemedText>
+            </TouchableOpacity>
+          )}
           {(isOwnPost || canModerate) && (
             <TouchableOpacity
               style={styles.optionRow}
@@ -251,8 +332,13 @@ export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onT
     p.showCreatorRole === n.showCreatorRole &&
     p.bridgingScore === n.bridgingScore &&
     p.isAnswered === n.isAnswered &&
+    p.title === n.title &&
+    p.body === n.body &&
+    p.updatedTime === n.updatedTime &&
     prev.currentUserId === next.currentUserId &&
-    prev.canModerate === next.canModerate
+    prev.canModerate === next.canModerate &&
+    prev.onEdit === next.onEdit &&
+    prev.onDelete === next.onDelete
   )
 })
 
@@ -300,13 +386,27 @@ const createStyles = (colors) => StyleSheet.create({
   },
   body: {
     marginBottom: Spacing.sm,
+    position: 'relative',
+  },
+  bodyClip: {
+    overflow: 'hidden',
+  },
+  fadeOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 64,
+  },
+  fadeGradient: {
+    flex: 1,
   },
   expandButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.xs,
   },
   expandText: {
     fontWeight: '600',

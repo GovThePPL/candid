@@ -266,7 +266,7 @@ function BlockVariant({
           variant={resolvedNameVariant}
           color={nameColor}
           style={[compact && resolvedNameVariant === 'caption' && styles.blockDisplayNameCompact, { textAlign }]}
-          numberOfLines={1}
+          numberOfLines={2}
         >
           {displayName || t('common:anonymous')}
         </ThemedText>

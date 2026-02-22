@@ -381,9 +381,6 @@ export default function GroupDemographicsModal({
                         ]}
                       >
                         <View style={styles.identityRankingLeft}>
-                          {item.isCondorcetWinner && (
-                            <Ionicons name="trophy" size={14} color={colors.primary} style={{ marginRight: 4 }} />
-                          )}
                           <ThemedText variant="buttonSmall" color="secondary" style={styles.identityRankingRank}>{index + 1}.</ThemedText>
                           <ThemedText variant="body" style={[
                             styles.identityRankingLabel,
@@ -391,6 +388,9 @@ export default function GroupDemographicsModal({
                           ]}>
                             {item.label}
                           </ThemedText>
+                          {item.isCondorcetWinner && (
+                            <Ionicons name="trophy" size={14} color={colors.primary} style={{ marginLeft: 4 }} />
+                          )}
                         </View>
                       </View>
                     ))}

@@ -16,6 +16,7 @@ import {
   PostsApi,
   CommentsApi,
   NotificationsApi,
+  GlossaryApi,
 } from 'candid_api'
 import { CacheManager } from './cache'
 import { recordApiError } from './errorCollector'
@@ -66,6 +67,7 @@ const authenticationApi = new AuthenticationApi(apiClient)
 const postsApi = new PostsApi(apiClient)
 const commentsApi = new CommentsApi(apiClient)
 const notificationsApi = new NotificationsApi(apiClient)
+const glossaryApi = new GlossaryApi(apiClient)
 
 // Token management
 export async function getToken() {
@@ -1250,6 +1252,99 @@ export const notificationsApiWrapper = {
   },
 }
 
+// Glossary API
+export const glossaryApiWrapper = {
+  async getTerms(opts = {}) {
+    return await promisify(glossaryApi.getGlossaryTerms.bind(glossaryApi), opts)
+  },
+
+  async getTerm(slug) {
+    return await promisify(glossaryApi.getGlossaryTerm.bind(glossaryApi), slug)
+  },
+
+  async updateTerm(slug, body) {
+    return await promisify(glossaryApi.updateGlossaryTerm.bind(glossaryApi), slug, body)
+  },
+
+  async getTermHistory(slug) {
+    return await promisify(glossaryApi.getGlossaryTermHistory.bind(glossaryApi), slug)
+  },
+
+  async getTermVersion(slug, versionId) {
+    return await promisify(glossaryApi.getGlossaryTermVersion.bind(glossaryApi), slug, versionId)
+  },
+}
+
+// Wiki API (browsable knowledgebase — all routed through GlossaryApi by Connexion first-tag)
+export const wikiApiWrapper = {
+  async getPages(opts = {}) {
+    return await promisify(glossaryApi.getWikiPages.bind(glossaryApi), opts)
+  },
+
+  async getPage(slug) {
+    return await promisify(glossaryApi.getWikiPage.bind(glossaryApi), slug)
+  },
+
+  async getCategories() {
+    return await promisify(glossaryApi.getWikiCategories.bind(glossaryApi))
+  },
+
+  async createSuggestion(body) {
+    return await promisify(glossaryApi.createWikiSuggestion.bind(glossaryApi), body)
+  },
+
+  async getSuggestions(opts = {}) {
+    return await promisify(glossaryApi.getWikiSuggestions.bind(glossaryApi), opts)
+  },
+
+  async getSuggestion(suggestionId) {
+    return await promisify(glossaryApi.getWikiSuggestion.bind(glossaryApi), suggestionId)
+  },
+
+  async updateSuggestion(suggestionId, body) {
+    return await promisify(glossaryApi.updateWikiSuggestion.bind(glossaryApi), suggestionId, body)
+  },
+
+  async getSuggestionCount() {
+    return await promisify(glossaryApi.getWikiSuggestionCount.bind(glossaryApi))
+  },
+
+  async updatePage(slug, body) {
+    return await promisify(glossaryApi.updateWikiPage.bind(glossaryApi), slug, body)
+  },
+
+  async getPageHistory(slug) {
+    return await promisify(glossaryApi.getWikiPageHistory.bind(glossaryApi), slug)
+  },
+
+  async getPageVersion(versionId, slug) {
+    return await promisify(glossaryApi.getWikiPageVersion.bind(glossaryApi), versionId, slug)
+  },
+
+  async uploadImage(formData) {
+    const token = await getToken()
+    const response = await fetch(`${API_BASE_URL}/wiki/images`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    })
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.detail || 'Image upload failed')
+    }
+    const data = await response.json()
+    // Backend returns relative URL like "/api/v1/wiki/images/{id}"
+    // Make it absolute so it works in rendered markdown on any platform
+    if (data.url?.startsWith('/')) {
+      const origin = new URL(API_BASE_URL).origin
+      return origin + data.url
+    }
+    return data.url
+  },
+}
+
 export default {
   auth: authApi,
   users: usersApiWrapper,
@@ -1266,5 +1361,7 @@ export default {
   posts: postsApiWrapper,
   comments: commentsApiWrapper,
   notifications: notificationsApiWrapper,
+  glossary: glossaryApiWrapper,
+  wiki: wikiApiWrapper,
   initializeAuth,
 }

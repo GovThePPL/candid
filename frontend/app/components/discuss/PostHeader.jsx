@@ -25,7 +25,7 @@ import LocationCategoryBadge from '../LocationCategoryBadge'
  * @param {Function} props.onDownvote - Called when downvote is tapped
  * @param {Function} props.onToggleRole - Called with (postId, showCreatorRole)
  */
-export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, onToggleRole, onToggleMute, onLock, isMuted, canModerate, onReport, onModerate }) {
+export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, onToggleRole, onToggleMute, onLock, onEdit, onDelete, isMuted, canModerate, onReport, onModerate, glossaryRules }) {
   const { t } = useTranslation('discuss')
   const router = useRouter()
   const colors = useThemeColors()
@@ -36,6 +36,10 @@ export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, 
   const isOwnPost = currentUserId && post.creator?.id === currentUserId
   const isLocked = post.status === 'locked'
   const relativeTime = formatRelativeTime(post.createdTime, t)
+  const canEdit = isOwnPost && post.createdTime &&
+    (Date.now() - new Date(post.createdTime).getTime() < 15 * 60 * 1000)
+  const isEdited = post.updatedTime && post.createdTime &&
+    new Date(post.updatedTime).getTime() - new Date(post.createdTime).getTime() > 1000
 
   return (
     <View style={styles.container}>
@@ -53,6 +57,9 @@ export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, 
             </View>
           )}
           <ThemedText variant="caption" color="secondary">{relativeTime}</ThemedText>
+          {isEdited && (
+            <ThemedText variant="caption" color="secondary">{t('edited')}</ThemedText>
+          )}
         </View>
       </View>
 
@@ -65,7 +72,7 @@ export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, 
       {/* Body */}
       {post.body && (
         <>
-          <MarkdownRenderer content={post.body} variant="post" />
+          <MarkdownRenderer content={post.body} variant="post" glossaryRules={glossaryRules} />
           <View style={styles.divider} />
         </>
       )}
@@ -179,6 +186,36 @@ export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, 
               <ThemedText variant="body">
                 {isMuted ? t('unmutePostNotifications') : t('mutePostNotifications')}
               </ThemedText>
+            </TouchableOpacity>
+          )}
+          {canEdit && (
+            <TouchableOpacity
+              style={styles.optionRow}
+              onPress={() => {
+                setOptionsVisible(false)
+                onEdit?.(post)
+              }}
+              activeOpacity={0.7}
+              accessibilityRole="menuitem"
+              accessibilityLabel={t('editPostA11y')}
+            >
+              <Ionicons name="create-outline" size={20} color={colors.secondaryText} />
+              <ThemedText variant="body">{t('editPost')}</ThemedText>
+            </TouchableOpacity>
+          )}
+          {isOwnPost && (
+            <TouchableOpacity
+              style={styles.optionRow}
+              onPress={() => {
+                setOptionsVisible(false)
+                onDelete?.(post.id)
+              }}
+              activeOpacity={0.7}
+              accessibilityRole="menuitem"
+              accessibilityLabel={t('deletePostA11y')}
+            >
+              <Ionicons name="trash-outline" size={20} color={SemanticColors.warning} />
+              <ThemedText variant="body" style={{ color: SemanticColors.warning }}>{t('deletePost')}</ThemedText>
             </TouchableOpacity>
           )}
           {(isOwnPost || canModerate) && (

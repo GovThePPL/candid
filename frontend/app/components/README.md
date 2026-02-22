@@ -35,14 +35,26 @@ components/
 │   ├── CommentItem.jsx           # Threaded comment with voting
 │   ├── CommentSortControl.jsx    # Comment sort order picker
 │   ├── DownvoteReasonPicker.jsx  # Reason selector for downvotes
+│   ├── EditCommentModal.jsx      # Modal for editing an existing comment's body
+│   ├── EditPostModal.jsx         # Modal for editing an existing post's title and body
 │   ├── FeedTabBar.jsx            # Post feed tab switcher
-│   ├── MarkdownRenderer.jsx      # Markdown-to-native renderer
+│   ├── MarkdownRenderer.jsx      # Markdown-to-native renderer (variant: post/comment/wiki)
 │   ├── PostCard.jsx              # Discussion post card
 │   ├── PostHeader.jsx            # Post header with author info
-│   ├── ReplyComposer.jsx         # Reply composer with modal (mobile) and inline (desktop) modes
+│   ├── ReplyComposer.jsx         # WYSIWYG reply composer with modal and inline modes
 │   ├── RoleBadge.jsx             # User role indicator badge
 │   ├── SortDropdown.jsx          # Sort option dropdown
 │   └── VoteControl.jsx           # Upvote/downvote control
+├── wiki/                         # Wiki and glossary sub-components
+│   ├── ContentPreviewModal.jsx   # Full-screen rendered markdown preview with Original/Changes/Diff tabs
+│   ├── DiffView.jsx              # Line-by-line diff view (added/removed/same lines, themed)
+│   ├── ReviewChanges.jsx          # Comprehensive field-by-field diff viewer for edit review (uses ReviewDiffContent)
+│   ├── ReviewDiffContent.jsx     # Standalone diff computation and rendering (title, aliases, content, scopes, images)
+│   ├── SuggestionCard.jsx        # Suggestion list item card with status badge
+│   ├── SuggestionDetail.jsx      # Suggestion detail view with review actions
+│   ├── VersionCard.jsx           # Version history list item card with editor name and timestamp
+│   ├── SuggestionForm.jsx        # Form for creating/editing wiki suggestions (WYSIWYG + full-screen editor)
+│   └── WikiPageCard.jsx          # Wiki page list item card
 ├── stats/                        # Statistics and analytics components
 │   ├── AgreedStatementsModal.jsx # Modal showing agreed statements
 │   ├── ClosureCard.jsx           # Position closure summary card
@@ -100,5 +112,9 @@ components/
 ├── DesktopRightPanel.jsx         # Right panel container with Cards/Moderation tabs for desktop layout
 ├── ModerationQueueContent.jsx    # Moderation queue body extracted from moderation.jsx (reused in desktop right panel)
 ├── Toast.jsx                     # Toast notification system (provider + useToast hook)
-└── UserCard.jsx                  # User info card with avatar, name, role badge
+├── UserCard.jsx                  # User info card with avatar, name, role badge
+├── WysiwygEditor.jsx             # WYSIWYG rich text editor with Visual/Markdown mode toggle (uses useWysiwygVisual hook)
+├── GlossaryDrawer.jsx            # Glossary term drawer overlay
+├── HighlightedText.jsx           # Text with highlighted term matches
+└── TagSelectorModal.jsx          # Reusable tag selector modal with search, multi/single select, and create new
 ```

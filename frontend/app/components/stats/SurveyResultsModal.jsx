@@ -301,9 +301,6 @@ export default function SurveyResultsModal({
                         ]}
                       >
                         <View style={styles.rankingLeft}>
-                          {item.isCondorcetWinner && (
-                            <Ionicons name="trophy" size={14} color={colors.primary} />
-                          )}
                           <ThemedText variant="buttonSmall" color="secondary" style={styles.rankingRank}>{index + 1}.</ThemedText>
                           <ThemedText variant="body" style={[
                             styles.rankingLabel,
@@ -311,6 +308,9 @@ export default function SurveyResultsModal({
                           ]}>
                             {item.itemText}
                           </ThemedText>
+                          {item.isCondorcetWinner && (
+                            <Ionicons name="trophy" size={14} color={colors.primary} style={{ marginLeft: 4 }} />
+                          )}
                         </View>
                       </View>
                     ))}
@@ -400,9 +400,6 @@ export default function SurveyResultsModal({
                           ]}
                         >
                           <View style={styles.rankingLeft}>
-                            {item.isCondorcetWinner && (
-                              <Ionicons name="trophy" size={14} color={colors.primary} />
-                            )}
                             <ThemedText variant="buttonSmall" color="secondary" style={styles.rankingRank}>{index + 1}.</ThemedText>
                             <ThemedText variant="body" style={[
                               styles.rankingLabel,
@@ -410,6 +407,9 @@ export default function SurveyResultsModal({
                             ]}>
                               {item.itemText}
                             </ThemedText>
+                            {item.isCondorcetWinner && (
+                              <Ionicons name="trophy" size={14} color={colors.primary} style={{ marginLeft: 4 }} />
+                            )}
                           </View>
                         </View>
                       ))}
@@ -777,7 +777,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   rankingLabel: {
     fontWeight: '500',
-    flex: 1,
+    flexShrink: 1,
   },
   rankingLabelTop: {
     fontWeight: '700',

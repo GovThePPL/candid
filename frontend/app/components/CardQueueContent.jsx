@@ -33,6 +33,8 @@ import AdoptPositionExplanationModal from './AdoptPositionExplanationModal'
 import ChatRequestIndicator from './ChatRequestIndicator'
 import ReportModal from './ReportModal'
 import ModerationActionModal from './ModerationActionModal'
+import GlossaryDrawer from './GlossaryDrawer'
+import { useGlossaryDrawer } from '../hooks/useGlossaryDrawer'
 import { Ionicons } from '@expo/vector-icons'
 
 // AsyncStorage keys for tutorial tracking
@@ -114,6 +116,7 @@ export default function CardQueueContent() {
   const colors = useThemeColors()
   const isDesktop = useIsDesktop()
   const styles = useMemo(() => createStyles(colors), [colors])
+  const [glossaryDrawer, onGlossaryTermPress] = useGlossaryDrawer()
 
   // Desktop card scaling: measure available width, scale card to fit
   const [desktopCardAreaWidth, setDesktopCardAreaWidth] = useState(null)
@@ -763,13 +766,14 @@ export default function CardQueueContent() {
     }
   }, [currentCard, currentIndex, user?.id, showToast, t])
 
-  // Keyboard support for PC
+  // Keyboard support for desktop PC only
   useEffect(() => {
-    if (Platform.OS !== 'web') return
+    if (Platform.OS !== 'web' || !isDesktop) return
 
     const handleKeyDown = (event) => {
-      // Don't capture if user is typing in an input
-      if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
+      // Don't capture if user is typing in an input or contenteditable (WYSIWYG)
+      const tag = event.target.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || event.target.isContentEditable) {
         return
       }
 
@@ -810,7 +814,7 @@ export default function CardQueueContent() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [currentCard, pendingChatRequest])
+  }, [currentCard, pendingChatRequest, isDesktop])
 
   // Animated styles for card stack (runs on UI thread)
   const fourthCardStyle = useAnimatedStyle(() => ({
@@ -902,6 +906,7 @@ export default function CardQueueContent() {
             hasPendingRequests={card.data?.hasPendingRequests || false}
             onRemoveFromChattingList={isBackCard ? undefined : handleRemoveFromChattingList}
             onAddToChattingList={isBackCard ? undefined : handleAddToChattingList}
+            onTermPress={onGlossaryTermPress}
           />
         )
 
@@ -1414,6 +1419,8 @@ export default function CardQueueContent() {
         reportType={moderateTarget?.type}
         rule={moderateRule}
       />
+
+      <GlossaryDrawer {...glossaryDrawer} />
     </View>
   )
 }

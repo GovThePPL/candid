@@ -129,6 +129,9 @@ export const LightTheme = {
   // Chatting list button backgrounds
   chattingListBg: BrandColor + '20',
   chattingListSelectedBg: "#5C005C",
+
+  // Desktop nav active item text/icon
+  navActiveText: "#5C005C",
 }
 
 export const DarkTheme = {
@@ -216,5 +219,8 @@ export const DarkTheme = {
   // Chatting list button backgrounds
   chattingListBg: BrandColor + '45',
   chattingListSelectedBg: "#6E206E",
+
+  // Desktop nav active item text/icon
+  navActiveText: "#FFFFFF",
 }
 

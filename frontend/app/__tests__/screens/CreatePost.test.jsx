@@ -1,5 +1,5 @@
 import React from 'react'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react-native'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react-native'
 import { LightTheme } from '../../constants/Colors'
 
 const mockColors = LightTheme
@@ -61,11 +61,30 @@ jest.mock('../../components/LocationCategorySelector', () => {
   }
 })
 
-jest.mock('../../components/discuss/MarkdownRenderer', () => {
-  const { Text } = require('react-native')
-  return function MockMarkdownRenderer({ content }) {
-    return <Text>{content}</Text>
-  }
+// Mock WysiwygEditor with a TextInput that exposes the imperative API
+let mockEditorContent = ''
+jest.mock('../../components/WysiwygEditor', () => {
+  const React = require('react')
+  const { TextInput } = require('react-native')
+  return React.forwardRef(function MockWysiwygEditor({ onContentChange, placeholder }, ref) {
+    React.useImperativeHandle(ref, () => ({
+      getMarkdown: () => Promise.resolve(mockEditorContent),
+      getHtml: () => Promise.resolve(`<p>${mockEditorContent}</p>`),
+      focus: jest.fn(),
+      blur: jest.fn(),
+      setContent: jest.fn(),
+    }))
+    return (
+      <TextInput
+        accessibilityLabel="bodyInputA11y"
+        placeholder={placeholder}
+        onChangeText={(text) => {
+          mockEditorContent = text
+          onContentChange?.(`<p>${text}</p>`)
+        }}
+      />
+    )
+  })
 })
 
 jest.mock('../../hooks/useUser', () => ({
@@ -83,9 +102,10 @@ describe('CreatePost', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     mockSearchParams = {}
+    mockEditorContent = ''
   })
 
-  it('renders title and body inputs', () => {
+  it('renders title input and editor', () => {
     render(<CreatePost />)
     expect(screen.getByLabelText('titleInputA11y')).toBeTruthy()
     expect(screen.getByLabelText('bodyInputA11y')).toBeTruthy()
@@ -104,14 +124,11 @@ describe('CreatePost', () => {
 
   it('type toggle switches between discussion and question', () => {
     render(<CreatePost />)
-    // Initially shows "New Post"
     expect(screen.getByText('createPostTitle')).toBeTruthy()
 
-    // Tap question tab
     fireEvent.press(screen.getByText('typeQuestion'))
     expect(screen.getByText('createQuestionTitle')).toBeTruthy()
 
-    // Tap back to discussion
     fireEvent.press(screen.getByText('typeDiscussion'))
     expect(screen.getByText('createPostTitle')).toBeTruthy()
   })
@@ -121,13 +138,6 @@ describe('CreatePost', () => {
     const titleInput = screen.getByLabelText('titleInputA11y')
     fireEvent.changeText(titleInput, 'Hello World')
     expect(screen.getByText('charsRemaining 11 200')).toBeTruthy()
-  })
-
-  it('character count updates on body input', () => {
-    render(<CreatePost />)
-    const bodyInput = screen.getByLabelText('bodyInputA11y')
-    fireEvent.changeText(bodyInput, 'Some body text')
-    expect(screen.getByText('charsRemaining 14 10,000')).toBeTruthy()
   })
 
   it('submit button disabled when title empty', () => {
@@ -150,15 +160,15 @@ describe('CreatePost', () => {
     mockCreatePost.mockResolvedValue({ id: 'new-post-1' })
     render(<CreatePost />)
 
-    // Fill form
     fireEvent.changeText(screen.getByLabelText('titleInputA11y'), 'My Post Title')
     fireEvent.changeText(screen.getByLabelText('bodyInputA11y'), 'My post body text')
 
     // Location auto-set by mock, set category
     fireEvent.press(screen.getByTestId('set-category'))
 
-    // Submit
-    fireEvent.press(screen.getByLabelText('submitA11y'))
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('submitA11y'))
+    })
 
     await waitFor(() => {
       expect(mockCreatePost).toHaveBeenCalledWith({
@@ -180,7 +190,9 @@ describe('CreatePost', () => {
     fireEvent.changeText(screen.getByLabelText('titleInputA11y'), 'My Post Title')
     fireEvent.changeText(screen.getByLabelText('bodyInputA11y'), 'My post body text')
 
-    fireEvent.press(screen.getByLabelText('submitA11y'))
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('submitA11y'))
+    })
 
     await waitFor(() => {
       expect(screen.getByText('errorCreatePost')).toBeTruthy()
@@ -194,7 +206,9 @@ describe('CreatePost', () => {
     fireEvent.changeText(screen.getByLabelText('titleInputA11y'), 'My Post Title')
     fireEvent.changeText(screen.getByLabelText('bodyInputA11y'), 'My post body text')
 
-    fireEvent.press(screen.getByLabelText('submitA11y'))
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('submitA11y'))
+    })
 
     await waitFor(() => {
       expect(screen.getByText('errorRateLimited')).toBeTruthy()
@@ -204,39 +218,12 @@ describe('CreatePost', () => {
   it('category required validation for question type', async () => {
     render(<CreatePost />)
 
-    // Switch to question
     fireEvent.press(screen.getByText('typeQuestion'))
 
-    // Fill title and body but no category
     fireEvent.changeText(screen.getByLabelText('titleInputA11y'), 'My Question')
     fireEvent.changeText(screen.getByLabelText('bodyInputA11y'), 'Question details')
 
-    // Submit should be disabled since no category selected
     const submitBtn = screen.getByLabelText('submitA11y')
     expect(submitBtn.props.accessibilityState?.disabled).toBe(true)
-  })
-
-  it('shows preview when preview toggle tapped', () => {
-    render(<CreatePost />)
-
-    // Enter body text
-    fireEvent.changeText(screen.getByLabelText('bodyInputA11y'), 'Some **bold** text')
-
-    // Tap preview toggle
-    fireEvent.press(screen.getByLabelText('previewToggleA11y'))
-
-    // Body input should be replaced by markdown renderer showing the content
-    expect(screen.getByText('Some **bold** text')).toBeTruthy()
-    // Empty preview message should NOT be present
-    expect(screen.queryByText('previewEmpty')).toBeNull()
-  })
-
-  it('shows empty preview message when body is empty', () => {
-    render(<CreatePost />)
-
-    // Tap preview toggle with empty body
-    fireEvent.press(screen.getByLabelText('previewToggleA11y'))
-
-    expect(screen.getByText('previewEmpty')).toBeTruthy()
   })
 })

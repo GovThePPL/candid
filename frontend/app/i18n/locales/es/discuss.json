@@ -218,5 +218,29 @@
   "unpinCommentA11y": "Desfijar este comentario",
   "pinSuccess": "Comentario fijado",
   "unpinSuccess": "Comentario desfijado",
-  "errorPinFailed": "No se pudo actualizar el estado de fijado"
+  "errorPinFailed": "No se pudo actualizar el estado de fijado",
+
+  "replyComposerVisualEditor": "Editor Visual",
+  "replyComposerTextEditor": "Texto",
+  "replyComposerEditorToggleA11y": "Alternar editor visual",
+
+  "editPost": "Editar publicación",
+  "editPostA11y": "Editar esta publicación",
+  "editComment": "Editar comentario",
+  "editCommentA11y": "Editar este comentario",
+  "deletePost": "Eliminar publicación",
+  "deletePostA11y": "Eliminar esta publicación",
+  "deleteComment": "Eliminar comentario",
+  "deleteCommentA11y": "Eliminar este comentario",
+  "deletePostConfirmTitle": "¿Eliminar publicación?",
+  "deletePostConfirmMessage": "Esta acción no se puede deshacer.",
+  "deleteCommentConfirmTitle": "¿Eliminar comentario?",
+  "deleteCommentConfirmMessage": "Esta acción no se puede deshacer.",
+  "editPostTitle": "Editar publicación",
+  "editCommentTitle": "Editar comentario",
+  "errorEditPost": "No se pudo actualizar la publicación",
+  "errorDeletePost": "No se pudo eliminar la publicación",
+  "errorEditComment": "No se pudo actualizar el comentario",
+  "errorDeleteComment": "No se pudo eliminar el comentario",
+  "errorEditExpired": "El período de edición ha expirado"
 }

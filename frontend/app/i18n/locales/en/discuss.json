@@ -218,5 +218,29 @@
   "unpinCommentA11y": "Unpin this comment",
   "pinSuccess": "Comment pinned",
   "unpinSuccess": "Comment unpinned",
-  "errorPinFailed": "Couldn't update pin status"
+  "errorPinFailed": "Couldn't update pin status",
+
+  "replyComposerVisualEditor": "Visual Editor",
+  "replyComposerTextEditor": "Text",
+  "replyComposerEditorToggleA11y": "Toggle visual editor",
+
+  "editPost": "Edit post",
+  "editPostA11y": "Edit this post",
+  "editComment": "Edit comment",
+  "editCommentA11y": "Edit this comment",
+  "deletePost": "Delete post",
+  "deletePostA11y": "Delete this post",
+  "deleteComment": "Delete comment",
+  "deleteCommentA11y": "Delete this comment",
+  "deletePostConfirmTitle": "Delete post?",
+  "deletePostConfirmMessage": "This action cannot be undone.",
+  "deleteCommentConfirmTitle": "Delete comment?",
+  "deleteCommentConfirmMessage": "This action cannot be undone.",
+  "editPostTitle": "Edit Post",
+  "editCommentTitle": "Edit Comment",
+  "errorEditPost": "Couldn't update post",
+  "errorDeletePost": "Couldn't delete post",
+  "errorEditComment": "Couldn't update comment",
+  "errorDeleteComment": "Couldn't delete comment",
+  "errorEditExpired": "Edit window has expired"
 }

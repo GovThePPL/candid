@@ -545,6 +545,47 @@ export default function useCommentThread(postId, { threadRootId, focusCommentId,
     setStructureVersion(v => v + 1)
   }, [])
 
+  // Update a comment's body
+  const handleUpdateComment = useCallback(async (commentId, body) => {
+    try {
+      const result = await api.comments.updateComment(commentId, { body })
+      if (mountedRef.current && result) {
+        setRawComments(prev => prev.map(c =>
+          c.id === commentId
+            ? { ...c, body: result.body ?? body, updatedTime: result.updatedTime ?? new Date().toISOString() }
+            : c
+        ))
+      }
+      return result
+    } catch (err) {
+      if (err?.status === 403) {
+        showToast(t('errorEditExpired'))
+      } else {
+        showToast(t('errorEditComment'))
+      }
+      throw err
+    }
+  }, [showToast, t])
+
+  // Delete a comment — optimistic update with rollback
+  const handleDeleteComment = useCallback(async (commentId) => {
+    const snapshotForRollback = rawCommentsRef.current
+
+    // Optimistic: mark as deleted
+    setRawComments(prev => prev.map(c =>
+      c.id === commentId ? { ...c, isDeleted: true, status: 'deleted' } : c
+    ))
+
+    try {
+      await api.comments.deleteComment(commentId)
+    } catch {
+      if (mountedRef.current) {
+        setRawComments(snapshotForRollback)
+      }
+      showToast(t('errorDeleteComment'))
+    }
+  }, [showToast, t])
+
   // Create a new comment — optimistic insert, reconcile on server response
   const handleCreateComment = useCallback(async (body, parentCommentId) => {
     const payload = { body }
@@ -572,6 +613,8 @@ export default function useCommentThread(postId, { threadRootId, focusCommentId,
     handleVote,
     handleToggleRole,
     handleCreateComment,
+    handleUpdateComment,
+    handleDeleteComment,
     setCommentPinned,
     refetch: fetchComments,
     loadMore,

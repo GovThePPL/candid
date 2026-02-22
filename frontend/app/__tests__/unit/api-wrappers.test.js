@@ -135,6 +135,21 @@ jest.mock('candid_api', () => {
       markNotificationRead: jest.fn(),
       markAllNotificationsRead: jest.fn(),
     })),
+    GlossaryApi: jest.fn(() => ({
+      getGlossaryTerms: jest.fn(),
+      getGlossaryTerm: jest.fn(),
+      updateGlossaryTerm: jest.fn(),
+      getWikiPages: jest.fn(),
+      getWikiPage: jest.fn(),
+      getWikiCategories: jest.fn(),
+      updateWikiPage: jest.fn(),
+      createWikiSuggestion: jest.fn(),
+      getWikiSuggestions: jest.fn(),
+      getWikiSuggestion: jest.fn(),
+      updateWikiSuggestion: jest.fn(),
+      getWikiSuggestionCount: jest.fn(),
+      getWikiImage: jest.fn(),
+    })),
   }
 })
 

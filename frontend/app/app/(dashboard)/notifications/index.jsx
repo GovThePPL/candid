@@ -57,6 +57,9 @@ export default function NotificationsScreen() {
       router.push('/admin/organization')
     } else if (action === 'open_admin') {
       router.push('/admin')
+    } else if (action === 'open_wiki_suggestions') {
+      router.navigate('/wiki')
+      router.push('/wiki/suggestions')
     }
   }, [markRead, router])
 

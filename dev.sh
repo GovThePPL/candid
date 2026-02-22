@@ -351,6 +351,7 @@ if [[ "$SEED_ONLY" == "false" ]]; then
             echo "    Continuing without Polis..."
         fi
     fi
+
     echo ""
 fi
 
