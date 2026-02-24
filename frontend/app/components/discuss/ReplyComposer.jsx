@@ -30,7 +30,7 @@ import { formatRelativeTime } from '../../lib/timeUtils'
  *
  * Uses WysiwygEditor for WYSIWYG rich text editing (bold, italic, links, etc.)
  */
-export default function ReplyComposer({ visible, comment, onSubmit, onClose, posting, mode = 'modal' }) {
+export default function ReplyComposer({ visible, comment, onSubmit, onClose, posting, mode = 'modal', mentionParticipants }) {
   const { t } = useTranslation('discuss')
   const colors = useThemeColors()
   const isInline = mode === 'inline'
@@ -129,6 +129,7 @@ export default function ReplyComposer({ visible, comment, onSubmit, onClose, pos
           minHeight={isInline ? 80 : undefined}
           maxHeight={isInline ? 200 : undefined}
           externalMode={useVisual ? 'visual' : 'markdown'}
+          mentionParticipants={mentionParticipants}
         />
       </View>
     </>

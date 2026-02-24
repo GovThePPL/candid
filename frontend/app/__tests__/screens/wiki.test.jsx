@@ -93,7 +93,7 @@ jest.mock('expo-router', () => ({
   },
 }))
 
-import WikiScreen from '../../app/(dashboard)/(tabs)/wiki'
+import WikiScreen from '../../app/(dashboard)/(tabs)/wiki/index'
 
 const mockPages = [
   { id: 1, slug: 'filibuster', title: 'Filibuster', description: 'A delay tactic', wikiCategory: 'Governance', updatedAt: '2026-02-20T00:00:00Z' },

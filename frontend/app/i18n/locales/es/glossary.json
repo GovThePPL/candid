@@ -128,6 +128,7 @@
   "suggestionStaleWarningDetail": "El elemento subyacente ha sido actualizado desde que se creó esta sugerencia. Revisa la versión actual antes de aprobar.",
   "suggestionSupersededNotice": "Esta sugerencia fue reemplazada porque el elemento fue actualizado. Puedes volver a enviarla con contenido actualizado.",
   "suggestionBy": "por {{author}}",
+  "reviewedByLabel": "Revisado por",
   "suggestionProposedChanges": "Cambios Propuestos",
   "suggestionCurrentContent": "Actual",
   "suggestionProposedContent": "Propuesto",
@@ -179,6 +180,12 @@
   "previewTabChangesA11y": "Mostrar contenido propuesto renderizado",
   "previewTabDiff": "Diferencias",
   "previewTabDiffA11y": "Mostrar diferencias renderizadas por bloque",
+
+  "directCreateSubmit": "Crear",
+  "directCreateSubmitA11y": "Crear este elemento directamente",
+  "directCreateSuccess": "Creado exitosamente",
+  "directCreateHint": "Tienes autoridad para crear esto directamente",
+  "slugConflict": "Ya existe un elemento con este nombre",
 
   "editAndApprove": "Editar y Aprobar",
   "editAndApproveA11y": "Editar el contenido propuesto antes de aprobar",

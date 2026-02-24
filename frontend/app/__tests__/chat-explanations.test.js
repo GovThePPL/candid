@@ -30,6 +30,7 @@ jest.mock('socket.io-client', () => ({
 
 jest.mock('../lib/api', () => ({
   getToken: jest.fn(() => Promise.resolve('test-token')),
+  getOrRefreshToken: jest.fn(() => Promise.resolve('test-token')),
 }))
 
 let socketModule
@@ -50,6 +51,7 @@ beforeEach(() => {
   }))
   jest.mock('../lib/api', () => ({
     getToken: jest.fn(() => Promise.resolve('test-token')),
+    getOrRefreshToken: jest.fn(() => Promise.resolve('test-token')),
   }))
   socketModule = require('../lib/socket')
 })
@@ -297,6 +299,6 @@ describe('onExplainPosition', () => {
 
     const offCall = mockOff.mock.calls.find(c => c[0] === 'explain_position')
     expect(offCall).toBeDefined()
-    expect(offCall[1]).toBe(handler)
+    expect(typeof offCall[1]).toBe('function')
   })
 })

@@ -1,5 +1,5 @@
 import { Stack } from 'expo-router'
-import { useThemeColors } from '../../../hooks/useThemeColors'
+import { useThemeColors } from '../../../../hooks/useThemeColors'
 
 export default function WikiLayout() {
   const colors = useThemeColors()

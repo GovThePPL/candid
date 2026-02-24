@@ -219,6 +219,14 @@ export default function ChatScreen() {
   // (fontSize 15 × ~1.33 lineHeight × lines + 20px padding)
   const maxInputHeight = isDesktop ? 180 : 100
 
+  // Web textarea doesn't auto-grow — track content height explicitly
+  const [webInputHeight, setWebInputHeight] = useState(null)
+  const handleContentSizeChange = useCallback((e) => {
+    if (Platform.OS !== 'web') return
+    const h = e.nativeEvent.contentSize.height
+    setWebInputHeight(h)
+  }, [])
+
   // Ref for positioning the popover above the + button on desktop
   const specialMenuBtnRef = useRef(null)
   const [menuBtnLayout, setMenuBtnLayout] = useState(null)
@@ -2815,9 +2823,14 @@ export default function ChatScreen() {
             <View style={styles.inputFields}>
               <TextInput
                 ref={inputRef}
-                style={[styles.input, { maxHeight: maxInputHeight }]}
+                style={[
+                  styles.input,
+                  { maxHeight: maxInputHeight },
+                  Platform.OS === 'web' && webInputHeight != null && { height: Math.max(40, Math.min(webInputHeight, maxInputHeight)) },
+                ]}
                 value={inputText}
                 onChangeText={handleTextChange}
+                onContentSizeChange={Platform.OS === 'web' ? handleContentSizeChange : undefined}
                 onKeyPress={isDesktop ? handleKeyPress : undefined}
                 placeholder={
                   messageType === 'definition_request' ? t('placeholderDefinitionTerm') :
@@ -2828,6 +2841,7 @@ export default function ChatScreen() {
                 }
                 placeholderTextColor={colors.placeholderText}
                 multiline
+                numberOfLines={Platform.OS === 'web' ? 1 : undefined}
                 maxLength={messageType === 'definition_request' ? 100 : messageType === 'explain_request' ? 200 : 1000}
                 maxFontSizeMultiplier={1.5}
                 blurOnSubmit={false}
@@ -3691,7 +3705,7 @@ const createStyles = (colors) => StyleSheet.create({
     paddingHorizontal: 16,
   },
   proposalCardLabelText: {
-    color: colors.darkText,
+    color: '#1a1a1a',
     fontWeight: '700',
   },
   proposalCardLabelTextInverse: {

@@ -108,7 +108,7 @@ export default function SetupProfile() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: [ImagePicker.MediaType.image],
+      mediaTypes: ['images'],
       allowsEditing: false,
       quality: 1,
     })

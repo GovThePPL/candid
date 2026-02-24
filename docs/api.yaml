@@ -3341,9 +3341,12 @@ components:
     GlossaryTermSummary:
       type: object
       required:
+        - id
         - slug
         - term
       properties:
+        id:
+          type: integer
         slug:
           type: string
         term:
@@ -3738,6 +3741,108 @@ components:
                 type: string
                 format: uuid
 
+    GlossaryTermCreate:
+      type: object
+      required:
+        - term
+        - scopes
+      properties:
+        term:
+          type: string
+        aliases:
+          type: array
+          items:
+            type: string
+        summary:
+          type: string
+          nullable: true
+        content:
+          type: string
+          nullable: true
+        wikiCategory:
+          type: string
+          nullable: true
+        scopeCombine:
+          type: string
+          enum: [and, or]
+        scopes:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required:
+              - type
+              - id
+            properties:
+              type:
+                type: string
+                enum: [location, category]
+              id:
+                type: string
+                format: uuid
+
+    WikiPageCreate:
+      type: object
+      required:
+        - title
+        - scopes
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        content:
+          type: string
+          nullable: true
+        wikiCategory:
+          type: string
+          nullable: true
+        scopeCombine:
+          type: string
+          enum: [and, or]
+        scopes:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required:
+              - type
+              - id
+            properties:
+              type:
+                type: string
+                enum: [location, category]
+              id:
+                type: string
+                format: uuid
+
+    CreateAuthorityCheck:
+      type: object
+      properties:
+        scopes:
+          type: array
+          items:
+            type: object
+            required:
+              - type
+              - id
+            properties:
+              type:
+                type: string
+                enum: [location, category]
+              id:
+                type: string
+                format: uuid
+
+    CreateAuthorityResult:
+      type: object
+      required:
+        - canCreate
+      properties:
+        canCreate:
+          type: boolean
+
     VersionSummary:
       type: object
       required:
@@ -3792,6 +3897,21 @@ components:
                   type: array
                   items:
                     type: string
+                scopes:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      id:
+                        type: string
+                      label:
+                        type: string
+                        nullable: true
+                scopeCombine:
+                  type: string
+                  nullable: true
             afterSnapshot:
               type: object
               nullable: true
@@ -3811,6 +3931,21 @@ components:
                   type: array
                   items:
                     type: string
+                scopes:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      id:
+                        type: string
+                      label:
+                        type: string
+                        nullable: true
+                scopeCombine:
+                  type: string
+                  nullable: true
 
 security:
   - BearerAuth: []
@@ -6466,6 +6601,40 @@ paths:
                 items:
                   $ref: '#/components/schemas/Location'
 
+  /users/by-username/{username}:
+    get:
+      operationId: getUserByUsername
+      summary: Get a user by username
+      tags:
+        - Users
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9_]{1,30}$'
+          description: Username of the user to retrieve
+      responses:
+        '200':
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '403':
+          description: Forbidden - insufficient permissions to view this user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
   /users/{userId}:
     get:
       operationId: getUserById
@@ -9052,6 +9221,45 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/GlossaryTermSummary'
+    post:
+      operationId: createGlossaryTerm
+      summary: Directly create a new glossary term
+      description: Authorized users (admins, moderators, experts, etc.) can create terms directly without the suggestion workflow.
+      tags:
+        - Glossary
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GlossaryTermCreate'
+      responses:
+        '201':
+          description: Term created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GlossaryTermDetail'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '403':
+          description: Not authorized to create terms for these scopes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '409':
+          description: A term with this name already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
 
   /glossary/terms/{slug}:
     get:
@@ -9158,6 +9366,45 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/WikiPageSummary'
+    post:
+      operationId: createWikiPage
+      summary: Directly create a new wiki page
+      description: Authorized users (admins, moderators, experts, etc.) can create pages directly without the suggestion workflow.
+      tags:
+        - Glossary
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WikiPageCreate'
+      responses:
+        '201':
+          description: Page created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WikiPageDetail'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '403':
+          description: Not authorized to create pages for these scopes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '409':
+          description: A page with this title already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
 
   /wiki/page:
     get:
@@ -9378,6 +9625,29 @@ paths:
                 type: array
                 items:
                   type: string
+
+  /wiki/check-create-authority:
+    post:
+      operationId: checkCreateAuthority
+      summary: Check if user can directly create wiki items
+      description: Returns whether the authenticated user has authority to create terms or pages for the given scopes.
+      tags:
+        - Glossary
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAuthorityCheck'
+      responses:
+        '200':
+          description: Authority check result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateAuthorityResult'
 
   /wiki/suggestions:
     post:

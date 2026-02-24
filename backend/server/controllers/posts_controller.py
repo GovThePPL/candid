@@ -21,6 +21,7 @@ from candid.controllers.helpers.ideological_coords import (
     get_effective_coords, get_conversation_for_post,
 )
 from candid.controllers.helpers.scoring import vote_weight
+from candid.controllers.helpers.mentions import process_mentions
 
 
 def _strip_html(text):
@@ -215,6 +216,14 @@ def create_post(body, token_info=None):  # noqa: E501
         LEFT JOIN location l ON p.location_id = l.id
         WHERE p.id = %s
     """, (post_id,), fetchone=True)
+
+    # Process @mentions for notifications
+    try:
+        process_mentions(
+            body_text, user_id, row["creator_display_name"],
+            post_id, location_id, category_id, db)
+    except Exception:
+        pass  # Don't fail the post creation if mentions fail
 
     return _row_to_post(row), 201
 
@@ -552,6 +561,17 @@ def update_post(post_id, body, token_info=None):  # noqa: E501
         LEFT JOIN location l ON p.location_id = l.id
         WHERE p.id = %s
     """, (post_id,), fetchone=True)
+
+    # Process @mentions for notifications on edit
+    if body_text is not None:
+        try:
+            process_mentions(
+                body_text, user_id, row["creator_display_name"],
+                post_id, str(post["location_id"]),
+                str(post["category_id"]) if post.get("category_id") else None,
+                db)
+        except Exception:
+            pass
 
     return _row_to_post(row), 200
 

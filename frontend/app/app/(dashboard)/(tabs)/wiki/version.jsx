@@ -4,14 +4,14 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
-import { useThemeColors } from '../../../hooks/useThemeColors'
-import api from '../../../lib/api'
-import Header from '../../../components/Header'
-import ThemedText from '../../../components/ThemedText'
-import EmptyState from '../../../components/EmptyState'
-import ReviewDiffContent from '../../../components/wiki/ReviewDiffContent'
-import MarkdownRenderer from '../../../components/discuss/MarkdownRenderer'
-import { formatRelativeTime } from '../../../lib/timeUtils'
+import { useThemeColors } from '../../../../hooks/useThemeColors'
+import api from '../../../../lib/api'
+import Header from '../../../../components/Header'
+import ThemedText from '../../../../components/ThemedText'
+import UserCard from '../../../../components/UserCard'
+import EmptyState from '../../../../components/EmptyState'
+import ReviewDiffContent from '../../../../components/wiki/ReviewDiffContent'
+import MarkdownRenderer from '../../../../components/discuss/MarkdownRenderer'
 
 export default function WikiVersionScreen() {
   const { versionId, slug, type } = useLocalSearchParams()
@@ -56,16 +56,12 @@ export default function WikiVersionScreen() {
     router.back()
   }, [router])
 
-  const authorName = version?.editedBy?.displayName || version?.editedBy?.username || ''
-  const dateStr = version?.editedAt ? formatRelativeTime(version.editedAt, t) : ''
-  const headerTitle = authorName ? `${authorName} — ${dateStr}` : dateStr
-
   const isTerm = type === 'term'
   const hasAfter = version?.afterSnapshot != null
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <Header onBack={handleBack} title={headerTitle} />
+      <Header onBack={handleBack} />
 
       {loading ? (
         <View style={styles.centered}>
@@ -83,6 +79,18 @@ export default function WikiVersionScreen() {
           style={styles.scrollView}
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}
         >
+          {version.editedBy && (
+            <View style={styles.editorRow}>
+              <UserCard
+                user={version.editedBy}
+                variant="inline"
+                timestamp={version.editedAt}
+                showRoleBadge={false}
+                showKudosCount={false}
+              />
+            </View>
+          )}
+
           {hasAfter ? (
             <ReviewDiffContent
               original={version.beforeSnapshot}
@@ -126,6 +134,12 @@ const createStyles = (colors) => StyleSheet.create({
   },
   content: {
     padding: 16,
+  },
+  editorRow: {
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.cardBorder,
   },
   noticeBanner: {
     flexDirection: 'row',

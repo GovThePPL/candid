@@ -6,6 +6,14 @@ jest.mock('../../hooks/useThemeColors', () => ({
   useThemeColors: () => mockColors,
 }))
 
+jest.mock('../../lib/keycloak', () => ({
+  refreshToken: jest.fn(),
+  loginWithCredentials: jest.fn(),
+  login: jest.fn(),
+  register: jest.fn(),
+  logout: jest.fn(),
+}))
+
 import ReviewChanges from '../../components/wiki/ReviewChanges'
 
 const baseOriginal = {

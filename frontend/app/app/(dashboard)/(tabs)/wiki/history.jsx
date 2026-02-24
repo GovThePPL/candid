@@ -1,13 +1,13 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { View, FlatList, ActivityIndicator, StyleSheet } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useTranslation } from 'react-i18next'
-import { useThemeColors } from '../../../hooks/useThemeColors'
-import api from '../../../lib/api'
-import Header from '../../../components/Header'
-import EmptyState from '../../../components/EmptyState'
-import VersionCard from '../../../components/wiki/VersionCard'
+import { useThemeColors } from '../../../../hooks/useThemeColors'
+import api from '../../../../lib/api'
+import Header from '../../../../components/Header'
+import EmptyState from '../../../../components/EmptyState'
+import VersionCard from '../../../../components/wiki/VersionCard'
 
 export default function WikiHistoryScreen() {
   const { slug, type } = useLocalSearchParams()
@@ -20,6 +20,14 @@ export default function WikiHistoryScreen() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
 
+  // Accordion state
+  const [expandedId, setExpandedId] = useState(null)
+  const [versionDetails, setVersionDetails] = useState({})
+  const [detailLoading, setDetailLoading] = useState(null)
+  const detailLoadingRef = useRef(null)
+
+  const isTerm = type === 'term'
+
   useEffect(() => {
     if (!slug) return
     let cancelled = false
@@ -28,7 +36,7 @@ export default function WikiHistoryScreen() {
 
     const load = async () => {
       try {
-        const data = type === 'term'
+        const data = isTerm
           ? await api.glossary.getTermHistory(slug)
           : await api.wiki.getPageHistory(slug)
         if (!cancelled) {
@@ -45,22 +53,53 @@ export default function WikiHistoryScreen() {
 
     load()
     return () => { cancelled = true }
-  }, [slug, type])
+  }, [slug, isTerm])
 
   const handleBack = useCallback(() => {
     router.back()
   }, [router])
 
-  const handleVersionPress = useCallback((version) => {
-    router.push(`/wiki/version?versionId=${version.id}&slug=${encodeURIComponent(slug)}&type=${type}`)
-  }, [router, slug, type])
+  const handleToggle = useCallback(async (version) => {
+    const id = version.id
+    if (expandedId === id) {
+      setExpandedId(null)
+      return
+    }
+
+    setExpandedId(id)
+
+    // If already cached, don't re-fetch
+    if (versionDetails[id]) return
+
+    // Fetch version detail
+    setDetailLoading(id)
+    detailLoadingRef.current = id
+    try {
+      const detail = isTerm
+        ? await api.glossary.getTermVersion(slug, id)
+        : await api.wiki.getPageVersion(id, slug)
+      // Only update if this is still the pending request
+      if (detailLoadingRef.current === id) {
+        setVersionDetails(prev => ({ ...prev, [id]: detail }))
+        setDetailLoading(null)
+      }
+    } catch {
+      if (detailLoadingRef.current === id) {
+        setDetailLoading(null)
+      }
+    }
+  }, [expandedId, versionDetails, isTerm, slug])
 
   const renderItem = useCallback(({ item }) => (
     <VersionCard
       version={item}
-      onPress={() => handleVersionPress(item)}
+      expanded={expandedId === item.id}
+      onToggle={() => handleToggle(item)}
+      versionDetail={versionDetails[item.id] || null}
+      detailLoading={detailLoading === item.id}
+      isTerm={isTerm}
     />
-  ), [handleVersionPress])
+  ), [expandedId, handleToggle, versionDetails, detailLoading, isTerm])
 
   const keyExtractor = useCallback((item) => item.id, [])
 

@@ -88,6 +88,9 @@
   "chatRequestPendingLabel": "Chat request pending with {{name}}, {{seconds}} seconds remaining",
   "chatRequestDeclinedLabel": "Chat request declined with {{name}}",
   "cancelChatHint": "Tap to cancel this chat request",
+  "incomingChatRequestLabel": "{{name}} wants to chat, {{seconds}} seconds to respond",
+  "incomingChatRequestExpiredLabel": "Chat request from {{name}} expired",
+  "viewChatRequestHint": "Tap to view this chat request",
 
   "clearSearch": "Clear search",
   "filterPositions": "Filter positions...",

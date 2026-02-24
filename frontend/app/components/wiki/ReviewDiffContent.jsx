@@ -83,6 +83,17 @@ function resolveImageUrl(url) {
   return url
 }
 
+/** Replace data URIs in markdown with a short placeholder for diffing. */
+function stripDataUrls(md) {
+  return (md || '').replace(/!\[([^\]]*)\]\(data:[^)]+\)/g, '![$1](pending-upload)')
+}
+
+/** Short display label for image URLs (truncate data URIs). */
+function shortImageLabel(url) {
+  if (url?.startsWith('data:')) return '(pending upload)'
+  return url
+}
+
 /**
  * Standalone diff content component — field-by-field diff display without
  * header, footer, submit button, or error banner. Used by both ReviewChanges
@@ -131,8 +142,9 @@ export default function ReviewDiffContent({
   }, [isTerm, original.aliases, proposed.aliases])
 
   const contentDiff = useMemo(() => {
-    const origContent = original.content || ''
-    const propContent = proposed.content || ''
+    // Strip data URIs before diffing — images are shown in their own section
+    const origContent = stripDataUrls(original.content)
+    const propContent = stripDataUrls(proposed.content)
     if (origContent === propContent) return null
     const hunks = computeLineDiff(origContent, propContent)
     const hasChanges = hunks.some(h => h.type !== 'same')
@@ -385,7 +397,7 @@ export default function ReviewDiffContent({
                     style={styles.imageThumbnail}
                     accessibilityLabel={t('reviewImageA11y', { url })}
                   />
-                  <Text style={[styles.removeText, styles.imageUrl]} numberOfLines={2}>{url}</Text>
+                  <Text style={[styles.removeText, styles.imageUrl]} numberOfLines={2}>{shortImageLabel(url)}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -406,7 +418,7 @@ export default function ReviewDiffContent({
                     style={styles.imageThumbnail}
                     accessibilityLabel={t('reviewImageA11y', { url })}
                   />
-                  <Text style={[styles.addText, styles.imageUrl]} numberOfLines={2}>{url}</Text>
+                  <Text style={[styles.addText, styles.imageUrl]} numberOfLines={2}>{shortImageLabel(url)}</Text>
                 </TouchableOpacity>
               ))}
             </View>

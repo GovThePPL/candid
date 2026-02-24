@@ -9,6 +9,7 @@ for arg in "$@"; do
             echo "Usage: ./start.sh [OPTIONS]"
             echo ""
             echo "Options:"
+            echo "  --dev-client   Start for development build (push notifications, native modules)"
             echo "  -h, --help     Show this help message"
             echo ""
             echo "Environment overrides:"
@@ -17,6 +18,9 @@ for arg in "$@"; do
             echo "  EXPO_PUBLIC_CHAT_URL      Override Chat URL     (default: http://<host>:8002)"
             echo "  EXPO_PUBLIC_KEYCLOAK_URL  Override Keycloak URL (default: http://<host>:8180)"
             exit 0
+            ;;
+        --dev-client)
+            DEV_CLIENT=true
             ;;
         *)
             echo "Unknown option: $arg (use -h for help)"
@@ -128,4 +132,10 @@ echo "==========================================="
 echo ""
 
 cd "$SCRIPT_DIR/app"
-npx expo start --tunnel --port 3001
+if [ "$DEV_CLIENT" = true ]; then
+    echo "  Starting in dev-client mode (for development builds)"
+    echo ""
+    npx expo start --dev-client --lan --port 3001
+else
+    npx expo start --lan --port 3001
+fi

@@ -86,6 +86,7 @@ export default function useWysiwygVisual({ initialHtml, placeholder, onContentCh
         canUndo: false,
         canRedo: false,
         isReady: false,
+        isInTable: false,
       }
     }
     return {
@@ -116,6 +117,7 @@ export default function useWysiwygVisual({ initialHtml, placeholder, onContentCh
       canUndo: editor.can().chain().focus().undo().run(),
       canRedo: editor.can().chain().focus().redo().run(),
       isReady: true,
+      isInTable: editor.isActive('table'),
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor, editor?.state])
@@ -383,7 +385,19 @@ export default function useWysiwygVisual({ initialHtml, placeholder, onContentCh
       toggleItalic: () => editor?.chain().focus().toggleItalic().run(),
       toggleStrike: () => editor?.chain().focus().toggleStrike().run(),
       toggleHeading: (level) => editor?.chain().focus().toggleHeading({ level }).run(),
-      setLink: (url) => editor?.chain().focus().setLink({ href: url }).run(),
+      setLink: (url, text) => {
+        if (!editor) return
+        const { from, to } = editor.state.selection
+        if (from !== to) {
+          editor.chain().focus().setLink({ href: url }).run()
+        } else {
+          editor.chain().focus().insertContent({
+            type: 'text',
+            text: text || url,
+            marks: [{ type: 'link', attrs: { href: url } }],
+          }).run()
+        }
+      },
       setImage: (url) => editor?.chain().focus().setImage({ src: url }).run(),
       toggleBulletList: () => editor?.chain().focus().toggleBulletList().run(),
       toggleOrderedList: () => editor?.chain().focus().toggleOrderedList().run(),
@@ -393,6 +407,12 @@ export default function useWysiwygVisual({ initialHtml, placeholder, onContentCh
       toggleSubscript: () => editor?.chain().focus().toggleSubscript().run(),
       setHorizontalRule: () => editor?.chain().focus().setHorizontalRule().run(),
       insertTable: () => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
+      addRowBefore: () => editor?.chain().focus().addRowBefore().run(),
+      addRowAfter: () => editor?.chain().focus().addRowAfter().run(),
+      deleteRow: () => editor?.chain().focus().deleteRow().run(),
+      addColumnBefore: () => editor?.chain().focus().addColumnBefore().run(),
+      addColumnAfter: () => editor?.chain().focus().addColumnAfter().run(),
+      deleteColumn: () => editor?.chain().focus().deleteColumn().run(),
       insertFootnote: (label, text) => editor?.chain().focus().insertContent({
         type: 'footnoteRef',
         attrs: { label: String(label), text },

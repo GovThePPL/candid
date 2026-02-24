@@ -27,6 +27,7 @@ from candid.controllers.helpers.discuss_events import (
     publish_new_comment,
     publish_vote_update,
 )
+from candid.controllers.helpers.mentions import process_mentions
 
 
 def _strip_html(text):
@@ -387,6 +388,19 @@ def create_comment(post_id, body, token_info=None):  # noqa: E501
             except Exception as e:
                 logging.getLogger(__name__).error("Post comment notification error: %s", e)
 
+    # Process @mentions for notifications
+    try:
+        _mrow = db.execute_query(
+            "SELECT display_name FROM users WHERE id = %s",
+            (user_id,), fetchone=True)
+        process_mentions(
+            body_text, user_id,
+            _mrow["display_name"] if _mrow else "Someone",
+            post_id, post_location_id, post_category_id, db,
+            comment_id=comment_id)
+    except Exception as e:
+        logging.getLogger(__name__).error("Mention processing error: %s", e)
+
     # Fetch created comment
     row = db.execute_query("""
         SELECT c.*,
@@ -468,6 +482,22 @@ def update_comment(comment_id, body, token_info=None):  # noqa: E501
         JOIN users u ON c.creator_user_id = u.id
         WHERE c.id = %s
     """, (comment_id,), fetchone=True)
+
+    # Process @mentions for notifications on edit
+    try:
+        _post = db.execute_query(
+            "SELECT location_id, category_id FROM post WHERE id = %s",
+            (comment["post_id"],), fetchone=True)
+        if _post:
+            process_mentions(
+                body_text, user_id,
+                row["creator_display_name"] if row else "Someone",
+                str(comment["post_id"]),
+                str(_post["location_id"]),
+                str(_post["category_id"]) if _post.get("category_id") else None,
+                db, comment_id=comment_id)
+    except Exception as e:
+        logging.getLogger(__name__).error("Mention processing error: %s", e)
 
     # Look up post for location context
     post = db.execute_query(

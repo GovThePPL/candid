@@ -29,6 +29,7 @@ jest.mock('../../lib/socket', () => ({
 
 jest.mock('../../lib/notifications', () => ({
   setupNotificationHandler: jest.fn(),
+  registerForPushNotifications: jest.fn(() => Promise.resolve(null)),
   addNotificationResponseListener: jest.fn(() => jest.fn()),
 }))
 
@@ -402,6 +403,7 @@ describe('split context hooks', () => {
     expect(result.current.chat).toHaveProperty('updateChatRequestStatus')
     expect(result.current.chat).toHaveProperty('incomingChatRequest')
     expect(result.current.chat).toHaveProperty('clearIncomingChatRequest')
+    expect(result.current.chat).toHaveProperty('restoreIncomingChatRequest')
     expect(result.current.chat).toHaveProperty('activeChatNavigation')
     expect(result.current.chat).toHaveProperty('clearActiveChatNavigation')
     expect(result.current.chat).toHaveProperty('activeChat')
@@ -486,5 +488,22 @@ describe('split context hooks', () => {
     })
 
     expect(result.current.chat.pendingChatRequest).toEqual(request)
+  })
+
+  it('restoreIncomingChatRequest sets incomingChatRequest', async () => {
+    const { result } = renderSplitHook()
+    await act(async () => {
+      jest.runAllTimers()
+    })
+    await waitFor(() => {
+      expect(result.current.auth.authChecked).toBe(true)
+    })
+
+    const card = { type: 'chat_request', data: { id: 'cr-1' } }
+    act(() => {
+      result.current.chat.restoreIncomingChatRequest(card)
+    })
+
+    expect(result.current.chat.incomingChatRequest).toEqual(card)
   })
 })

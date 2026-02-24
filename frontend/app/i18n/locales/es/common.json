@@ -88,6 +88,9 @@
   "chatRequestPendingLabel": "Solicitud de chat pendiente con {{name}}, {{seconds}} segundos restantes",
   "chatRequestDeclinedLabel": "Solicitud de chat rechazada con {{name}}",
   "cancelChatHint": "Toca para cancelar esta solicitud de chat",
+  "incomingChatRequestLabel": "{{name}} quiere chatear, {{seconds}} segundos para responder",
+  "incomingChatRequestExpiredLabel": "La solicitud de chat de {{name}} expiró",
+  "viewChatRequestHint": "Toca para ver esta solicitud de chat",
 
   "clearSearch": "Limpiar búsqueda",
   "filterPositions": "Filtrar posturas...",

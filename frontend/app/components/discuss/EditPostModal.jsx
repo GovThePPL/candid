@@ -17,7 +17,6 @@ import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import useModalBackHandler from '../../hooks/useModalBackHandler'
-import useKeyboardHeight from '../../hooks/useKeyboardHeight'
 import { Spacing, BorderRadius } from '../../constants/Theme'
 import ThemedText from '../ThemedText'
 import WysiwygEditor from '../WysiwygEditor'
@@ -36,7 +35,6 @@ export default function EditPostModal({ visible, post, onSubmit, onClose, saving
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const insets = useSafeAreaInsets()
-  const { keyboardHeight } = useKeyboardHeight()
   useModalBackHandler(visible, onClose)
 
   const editorRef = useRef(null)
@@ -125,10 +123,6 @@ export default function EditPostModal({ visible, post, onSubmit, onClose, saving
         </View>
       </ScrollView>
 
-      {/* Web keyboard spacer */}
-      {Platform.OS === 'web' && keyboardHeight > 0 && (
-        <View style={{ height: keyboardHeight }} />
-      )}
     </View>
   )
 

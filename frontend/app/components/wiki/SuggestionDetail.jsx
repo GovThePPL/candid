@@ -12,9 +12,11 @@ import {
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
+import useKeyboardHeight from '../../hooks/useKeyboardHeight'
 import { Typography, Spacing, BorderRadius } from '../../constants/Theme'
 import { SemanticColors } from '../../constants/Colors'
 import ThemedText from '../ThemedText'
+import UserCard from '../UserCard'
 import ReviewDiffContent from './ReviewDiffContent'
 import SuggestionForm from './SuggestionForm'
 import api from '../../lib/api'
@@ -48,6 +50,7 @@ export default function SuggestionDetail({
   const { t } = useTranslation('glossary')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
+  const { keyboardHeight, webInitialHeight } = useKeyboardHeight()
 
   const [reviewNote, setReviewNote] = useState('')
   const [actionLoading, setActionLoading] = useState(null) // 'approved'|'denied'|'withdrawn'
@@ -204,7 +207,11 @@ export default function SuggestionDetail({
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.contentContainer}
+      contentContainerStyle={[
+        styles.contentContainer,
+        keyboardHeight > 0 && { paddingBottom: keyboardHeight },
+        Platform.OS === 'web' && webInitialHeight > 0 && { minHeight: webInitialHeight },
+      ]}
       keyboardShouldPersistTaps="handled"
     >
       {/* Header */}
@@ -233,9 +240,13 @@ export default function SuggestionDetail({
           </ThemedText>
         </View>
         {suggestion.suggestedBy && (
-          <ThemedText variant="caption" color="secondary">
-            {t('suggestionBy', { author: suggestion.suggestedBy.displayName || suggestion.suggestedBy.username })}
-          </ThemedText>
+          <UserCard
+            user={suggestion.suggestedBy}
+            variant="inline"
+            timestamp={suggestion.createdAt}
+            showRoleBadge={false}
+            showKudosCount={false}
+          />
         )}
       </View>
 
@@ -289,9 +300,14 @@ export default function SuggestionDetail({
           {suggestion.reviewNote && (
             <ThemedText variant="body" color="dark">{suggestion.reviewNote}</ThemedText>
           )}
-          <ThemedText variant="caption" color="secondary">
-            {t('suggestionBy', { author: suggestion.reviewedBy.displayName || suggestion.reviewedBy.username })}
-          </ThemedText>
+          <UserCard
+            user={suggestion.reviewedBy}
+            variant="inline"
+            timestamp={suggestion.reviewedAt}
+            showRoleBadge={false}
+            showKudosCount={false}
+            label={t('reviewedByLabel')}
+          />
         </View>
       )}
 

@@ -3,8 +3,8 @@ import { AppState } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import api, { getStoredUser, initializeAuth, getToken, setToken, setStoredUser, bugReportsApiWrapper } from "../lib/api"
 import * as keycloak from "../lib/keycloak"
-import socket, { connectSocket, disconnectSocket, isConnected, getSocket, onChatRequestResponse, onChatRequestReceived, onChatStarted } from "../lib/socket"
-import { setupNotificationHandler, addNotificationResponseListener } from "../lib/notifications"
+import socket, { connectSocket, disconnectSocket, isConnected, getSocket, reconnectNow, onChatRequestResponse, onChatRequestReceived, onChatStarted } from "../lib/socket"
+import { setupNotificationHandler, registerForPushNotifications, addNotificationResponseListener } from "../lib/notifications"
 import { install as installErrorCollector, drain as drainErrors } from "../lib/errorCollector"
 
 const PENDING_CHAT_REQUEST_KEY = 'candid_pending_chat_request'
@@ -30,6 +30,7 @@ export function UserProvider({ children }) {
   const socketCleanupRef = useRef(null)
   const notifCleanupRef = useRef(null)
   const diagnosticsTimerRef = useRef(null)
+  const heartbeatTimerRef = useRef(null)
 
   // Incoming chat request card delivered via socket (real-time push)
   // Shape: { type: 'chat_request', data: { id, requester, position, ... } }
@@ -38,6 +39,11 @@ export function UserProvider({ children }) {
   // Clear incoming chat request (called after card queue consumes it)
   const clearIncomingChatRequest = useCallback(() => {
     setIncomingChatRequest(null)
+  }, [])
+
+  // Restore an unconsumed chat request back to context (called on CardQueueContent unmount)
+  const restoreIncomingChatRequest = useCallback((cardData) => {
+    setIncomingChatRequest(cardData)
   }, [])
 
   // Active chat navigation state - when a chat starts, this triggers navigation
@@ -104,104 +110,125 @@ export function UserProvider({ children }) {
     setPendingChatRequestState(prev => prev ? { ...prev, status } : null)
   }, [])
 
+  // App-wide heartbeat: keeps REST API presence alive while app is active
+  const startHeartbeat = useCallback(() => {
+    if (heartbeatTimerRef.current) return
+    // Fire immediately, then every 30s
+    api.users.heartbeat().catch(() => {})
+    heartbeatTimerRef.current = setInterval(() => {
+      api.users.heartbeat().catch(() => {})
+    }, 30000)
+  }, [])
+
+  const stopHeartbeat = useCallback(() => {
+    if (heartbeatTimerRef.current) {
+      clearInterval(heartbeatTimerRef.current)
+      heartbeatTimerRef.current = null
+    }
+  }, [])
+
   // Initialize socket connection and set up event listeners
   const initializeSocket = useCallback(async () => {
     try {
       const token = await getToken()
       if (!token) return
 
-      await connectSocket(token)
+      // Use preConnectHook to register listeners BEFORE socket.connect().
+      // This ensures they exist before the server emits pending chat requests
+      // during the connection handshake.
+      let requestCleanup
+      let chatRequestReceivedCleanup
+      let chatStartedCleanup
+      let sock
+      let onReconnect
 
-      // Set up listeners for chat request responses
-      const requestCleanup = onChatRequestResponse({
-        onAccepted: (data) => {
-          console.debug('[UserContext] Chat request accepted:', data)
-          updateChatRequestStatus('accepted')
-          // Navigate using chatLogId from the accepted event
-          // This is more reliable than waiting for chat_started since it comes via REST API pub/sub
-          if (data.chatLogId) {
-            console.debug('[UserContext] Navigating to chat via chat_request_accepted:', data.chatLogId)
-            setActiveChatNavigation({
-              chatId: data.chatLogId,
-              otherUserId: null, // Will be populated when joining chat
-              positionStatement: null,
-              role: 'initiator',
+      await connectSocket(token, {
+        preConnectHook: () => {
+          // Set up listeners for chat request responses
+          requestCleanup = onChatRequestResponse({
+            onAccepted: (data) => {
+              console.debug('[UserContext] Chat request accepted:', data)
+              updateChatRequestStatus('accepted')
+              if (data.chatLogId) {
+                console.debug('[UserContext] Navigating to chat via chat_request_accepted:', data.chatLogId)
+                setActiveChatNavigation({
+                  chatId: data.chatLogId,
+                  otherUserId: null,
+                  positionStatement: null,
+                  role: 'initiator',
+                })
+              }
+              setTimeout(() => clearPendingChatRequest(), 500)
+            },
+            onDeclined: (data) => {
+              console.debug('[UserContext] Chat request declined:', data)
+              updateChatRequestStatus('declined')
+              setTimeout(() => clearPendingChatRequest(), 5000)
+            },
+          })
+
+          // Set up listener for incoming chat request cards (real-time delivery to recipient)
+          chatRequestReceivedCleanup = onChatRequestReceived((cardData) => {
+            console.debug('[UserContext] Chat request received:', cardData?.data?.id)
+            setIncomingChatRequest(cardData)
+          })
+
+          // Set up listener for chat started events
+          chatStartedCleanup = onChatStarted((data) => {
+            console.debug('[UserContext] Chat started:', data)
+            setActiveChatNavigation((prev) => {
+              if (prev?.chatId === data.chatId) {
+                console.debug('[UserContext] Updating existing navigation with full details')
+                return {
+                  ...prev,
+                  otherUserId: data.otherUserId,
+                  positionStatement: data.positionStatement,
+                  role: data.role,
+                }
+              }
+              return {
+                chatId: data.chatId,
+                otherUserId: data.otherUserId,
+                positionStatement: data.positionStatement,
+                role: data.role,
+              }
             })
-          }
-          // Clear after a brief moment to allow UI to show acceptance
-          setTimeout(() => clearPendingChatRequest(), 500)
-        },
-        onDeclined: (data) => {
-          console.debug('[UserContext] Chat request declined:', data)
-          updateChatRequestStatus('declined')
-          // Keep declined state visible for 5 seconds
-          setTimeout(() => clearPendingChatRequest(), 5000)
-        },
-      })
+            clearPendingChatRequest()
+          })
 
-      // Set up listener for incoming chat request cards (real-time delivery to recipient)
-      const chatRequestReceivedCleanup = onChatRequestReceived((cardData) => {
-        console.debug('[UserContext] Chat request received:', cardData?.data?.id)
-        setIncomingChatRequest(cardData)
-      })
-
-      // Set up listener for chat started events (triggers navigation for both users)
-      // For initiators, this may arrive after chat_request_accepted already triggered navigation
-      // For responders, this is the primary navigation trigger (though they also navigate via REST response)
-      const chatStartedCleanup = onChatStarted((data) => {
-        console.debug('[UserContext] Chat started:', data)
-        // Set navigation state - the component will handle actual navigation
-        // This will update with full details even if already set by chat_request_accepted
-        setActiveChatNavigation((prev) => {
-          // If already navigating to this chat, just update with full details
-          if (prev?.chatId === data.chatId) {
-            console.debug('[UserContext] Updating existing navigation with full details')
-            return {
-              ...prev,
-              otherUserId: data.otherUserId,
-              positionStatement: data.positionStatement,
-              role: data.role,
+          // Listen for socket reconnections to re-check for active chats
+          sock = getSocket()
+          onReconnect = () => {
+            console.debug('[UserContext] Socket reconnected, checking for active chat')
+            const storedUser = getStoredUser()
+            if (storedUser?.then) {
+              storedUser.then(u => { if (u?.id) checkForActiveChat(u.id) })
             }
           }
-          // New navigation
-          return {
-            chatId: data.chatId,
-            otherUserId: data.otherUserId,
-            positionStatement: data.positionStatement,
-            role: data.role,
+          if (sock) {
+            sock.on('connect', onReconnect)
           }
-        })
-        // Clear pending request since we're entering the chat
-        clearPendingChatRequest()
+        },
       })
 
-      // Listen for socket reconnections to re-check for active chats
-      // (handles app restart within the 2-minute abandonment window)
-      const sock = getSocket()
-      const onReconnect = () => {
-        console.debug('[UserContext] Socket reconnected, checking for active chat')
-        const storedUser = getStoredUser()
-        if (storedUser?.then) {
-          storedUser.then(u => { if (u?.id) checkForActiveChat(u.id) })
-        }
-      }
-      if (sock) {
-        sock.on('connect', onReconnect)
-      }
-
       socketCleanupRef.current = () => {
-        requestCleanup()
-        chatRequestReceivedCleanup()
-        chatStartedCleanup()
+        if (requestCleanup) requestCleanup()
+        if (chatRequestReceivedCleanup) chatRequestReceivedCleanup()
+        if (chatStartedCleanup) chatStartedCleanup()
         if (sock) sock.off('connect', onReconnect)
       }
 
+      // Start app-wide heartbeat after successful socket connection
+      startHeartbeat()
+
       // Set up push notification handling
       setupNotificationHandler()
+      registerForPushNotifications().catch(err =>
+        console.warn('[UserContext] Push token registration failed:', err)
+      )
       notifCleanupRef.current = addNotificationResponseListener((data) => {
         if (data?.action === 'open_cards') {
-          // Navigate to cards page when user taps a chat request notification
-          setActiveChatNavigation(null) // Clear any stale navigation
+          setActiveChatNavigation(null)
         } else if (data?.action === 'open_organization') {
           setPendingDeepLink('/admin/organization')
         } else if (data?.action === 'open_admin_pending') {
@@ -225,10 +252,11 @@ export function UserProvider({ children }) {
     } catch (error) {
       console.error('[UserContext] Socket connection failed:', error)
     }
-  }, [updateChatRequestStatus, clearPendingChatRequest])
+  }, [updateChatRequestStatus, clearPendingChatRequest, startHeartbeat])
 
   // Clean up socket and notifications on logout
   const cleanupSocket = useCallback(() => {
+    stopHeartbeat()
     if (socketCleanupRef.current) {
       socketCleanupRef.current()
       socketCleanupRef.current = null
@@ -239,7 +267,7 @@ export function UserProvider({ children }) {
     }
     disconnectSocket()
     clearPendingChatRequest()
-  }, [clearPendingChatRequest])
+  }, [clearPendingChatRequest, stopHeartbeat])
 
   // Auto-send collected error diagnostics if user has opted in
   const startDiagnosticsTimer = useCallback(() => {
@@ -395,15 +423,37 @@ export function UserProvider({ children }) {
     installErrorCollector()
     getInitialUserValue()
 
-    // Reconnect socket when app returns to foreground
+    // Reconnect socket and manage heartbeat when app state changes
     const appStateSubscription = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'active' && !isConnected()) {
+      if (nextState === 'active') {
+        // Restart heartbeat when foregrounded
         getToken().then(token => {
           if (token) {
-            console.debug('[UserContext] App foregrounded, reconnecting socket')
-            initializeSocket()
+            startHeartbeat()
+            if (!isConnected()) {
+              if (getSocket()) {
+                // Socket exists but disconnected — reconnect it in-place.
+                // This preserves listeners registered by the chat screen and
+                // other components (message, typing, status, etc.).
+                console.debug('[UserContext] App foregrounded, reconnecting existing socket')
+                reconnectNow()
+              } else {
+                // No socket at all (first connection or after logout)
+                console.debug('[UserContext] App foregrounded, initializing new socket')
+                initializeSocket()
+              }
+            }
+            // Always check for active chat on foreground — catches accepted
+            // requests whose socket events were missed while backgrounded
+            // (e.g., zombie connection, iOS JS suspension, network blip)
+            getStoredUser().then(u => {
+              if (u?.id) checkForActiveChat(u.id)
+            })
           }
         })
+      } else {
+        // Stop heartbeat when backgrounded/inactive
+        stopHeartbeat()
       }
     })
 
@@ -427,12 +477,12 @@ export function UserProvider({ children }) {
 
   const chatValue = useMemo(() => ({
     pendingChatRequest, setPendingChatRequest, clearPendingChatRequest, updateChatRequestStatus,
-    incomingChatRequest, clearIncomingChatRequest,
+    incomingChatRequest, clearIncomingChatRequest, restoreIncomingChatRequest,
     activeChatNavigation, clearActiveChatNavigation,
     activeChat, clearActiveChat,
   }), [
     pendingChatRequest, setPendingChatRequest, clearPendingChatRequest, updateChatRequestStatus,
-    incomingChatRequest, clearIncomingChatRequest,
+    incomingChatRequest, clearIncomingChatRequest, restoreIncomingChatRequest,
     activeChatNavigation, clearActiveChatNavigation,
     activeChat, clearActiveChat,
   ])

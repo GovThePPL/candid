@@ -8,6 +8,7 @@ import {
   playTypingSound,
   playMessageSound,
   playKudosSound,
+  playIncomingRequestSound,
   initNativeSounds,
   encodeWavBase64,
   SOUND_GENERATORS,
@@ -52,27 +53,27 @@ const mockAudioContext = {
 }
 
 // ---------------------------------------------------------------------------
-// expo-av / expo-file-system mocks
+// expo-audio / expo-file-system/legacy mocks
 // ---------------------------------------------------------------------------
 
-const mockReplayAsync = jest.fn(() => Promise.resolve())
-const mockSound = { replayAsync: mockReplayAsync }
+const mockSeekTo = jest.fn()
+const mockPlay = jest.fn()
+const mockPlayer = { seekTo: mockSeekTo, play: mockPlay }
 
-jest.mock('expo-av', () => ({
-  Audio: {
-    setAudioModeAsync: jest.fn(() => Promise.resolve()),
-    Sound: {
-      createAsync: jest.fn(() => Promise.resolve({ sound: mockSound })),
-    },
-  },
+jest.mock('expo-audio', () => ({
+  setAudioModeAsync: jest.fn(() => Promise.resolve()),
+  createAudioPlayer: jest.fn(() => mockPlayer),
 }))
 
-jest.mock('expo-file-system', () => ({
+jest.mock('expo-file-system/legacy', () => ({
   documentDirectory: '/mock/docs/',
   EncodingType: { Base64: 'base64' },
   getInfoAsync: jest.fn(() => Promise.resolve({ exists: true })),
   makeDirectoryAsync: jest.fn(() => Promise.resolve()),
   writeAsStringAsync: jest.fn(() => Promise.resolve()),
+  readAsStringAsync: jest.fn(() => Promise.resolve('4')),
+  readDirectoryAsync: jest.fn(() => Promise.resolve([])),
+  deleteAsync: jest.fn(() => Promise.resolve()),
 }))
 
 beforeEach(() => {
@@ -173,6 +174,17 @@ describe('sound functions on web', () => {
       expect(freqs).toEqual([523.25, 659.25, 783.99, 1046.50])
     })
   })
+
+  describe('playIncomingRequestSound', () => {
+    it('creates two oscillators for descending G5→C5', async () => {
+      await playIncomingRequestSound()
+      expect(mockAudioContext.createOscillator).toHaveBeenCalledTimes(2)
+      const osc1 = mockAudioContext.createOscillator.mock.results[0].value
+      const osc2 = mockAudioContext.createOscillator.mock.results[1].value
+      expect(osc1.frequency.setValueAtTime).toHaveBeenCalledWith(783.99, expect.any(Number))
+      expect(osc2.frequency.setValueAtTime).toHaveBeenCalledWith(523.25, expect.any(Number))
+    })
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -185,60 +197,76 @@ describe('sound functions on native', () => {
   })
 
   it('initNativeSounds writes WAV files and preloads sounds', async () => {
-    const FileSystem = require('expo-file-system')
-    const { Audio } = require('expo-av')
+    const FileSystem = require('expo-file-system/legacy')
+    const { setAudioModeAsync, createAudioPlayer } = require('expo-audio')
 
     await initNativeSounds()
 
-    expect(Audio.setAudioModeAsync).toHaveBeenCalledWith({
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: false,
+    expect(setAudioModeAsync).toHaveBeenCalledWith({
+      playsInSilentMode: true,
+      shouldPlayInBackground: false,
+      interruptionMode: 'duckOthers',
+      shouldRouteThroughEarpiece: false,
     })
 
-    // Should have checked/written 8 sound files
+    // Should have checked/written 9 sound files
     const soundNames = Object.keys(SOUND_GENERATORS)
-    expect(soundNames).toHaveLength(8)
-    expect(Audio.Sound.createAsync).toHaveBeenCalledTimes(8)
+    expect(soundNames).toHaveLength(9)
+    expect(createAudioPlayer).toHaveBeenCalledTimes(9)
   })
 
-  it('playUpvoteSound calls replayAsync on native', async () => {
+  it('playUpvoteSound calls seekTo+play on native', async () => {
     await playUpvoteSound()
-    expect(mockReplayAsync).toHaveBeenCalled()
+    expect(mockSeekTo).toHaveBeenCalledWith(0)
+    expect(mockPlay).toHaveBeenCalled()
   })
 
-  it('playBridgingSound calls replayAsync on native', async () => {
+  it('playBridgingSound calls seekTo+play on native', async () => {
     await playBridgingSound()
-    expect(mockReplayAsync).toHaveBeenCalled()
+    expect(mockSeekTo).toHaveBeenCalledWith(0)
+    expect(mockPlay).toHaveBeenCalled()
   })
 
-  it('playTypingSound calls replayAsync on native', async () => {
+  it('playTypingSound calls seekTo+play on native', async () => {
     await playTypingSound()
-    expect(mockReplayAsync).toHaveBeenCalled()
+    expect(mockSeekTo).toHaveBeenCalledWith(0)
+    expect(mockPlay).toHaveBeenCalled()
   })
 
-  it('playMessageSound calls replayAsync on native', async () => {
+  it('playMessageSound calls seekTo+play on native', async () => {
     await playMessageSound()
-    expect(mockReplayAsync).toHaveBeenCalled()
+    expect(mockSeekTo).toHaveBeenCalledWith(0)
+    expect(mockPlay).toHaveBeenCalled()
   })
 
-  it('playKudosSound calls replayAsync on native', async () => {
+  it('playKudosSound calls seekTo+play on native', async () => {
     await playKudosSound()
-    expect(mockReplayAsync).toHaveBeenCalled()
+    expect(mockSeekTo).toHaveBeenCalledWith(0)
+    expect(mockPlay).toHaveBeenCalled()
   })
 
-  it('playReactionSound calls replayAsync on native', async () => {
+  it('playReactionSound calls seekTo+play on native', async () => {
     await playReactionSound()
-    expect(mockReplayAsync).toHaveBeenCalled()
+    expect(mockSeekTo).toHaveBeenCalledWith(0)
+    expect(mockPlay).toHaveBeenCalled()
   })
 
-  it('playAgreedSound calls replayAsync on native', async () => {
+  it('playAgreedSound calls seekTo+play on native', async () => {
     await playAgreedSound()
-    expect(mockReplayAsync).toHaveBeenCalled()
+    expect(mockSeekTo).toHaveBeenCalledWith(0)
+    expect(mockPlay).toHaveBeenCalled()
   })
 
-  it('playClosureSound calls replayAsync on native', async () => {
+  it('playClosureSound calls seekTo+play on native', async () => {
     await playClosureSound()
-    expect(mockReplayAsync).toHaveBeenCalled()
+    expect(mockSeekTo).toHaveBeenCalledWith(0)
+    expect(mockPlay).toHaveBeenCalled()
+  })
+
+  it('playIncomingRequestSound calls seekTo+play on native', async () => {
+    await playIncomingRequestSound()
+    expect(mockSeekTo).toHaveBeenCalledWith(0)
+    expect(mockPlay).toHaveBeenCalled()
   })
 })
 

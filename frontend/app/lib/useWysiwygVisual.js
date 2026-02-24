@@ -7,6 +7,17 @@ import {
   HistoryBridge, StrikeBridge, TaskListBridge,
 } from '@10play/tentap-editor'
 
+// Custom bridges for wiki features
+import { SuperscriptBridge } from './bridges/SuperscriptBridge'
+import { SubscriptBridge } from './bridges/SubscriptBridge'
+import { HorizontalRuleBridge } from './bridges/HorizontalRuleBridge'
+import { TableBridge } from './bridges/TableBridge'
+import { FootnoteBridge } from './bridges/FootnoteBridge'
+import { LinkContentBridge } from './bridges/LinkContentBridge'
+
+// Custom WebView HTML that includes all TipTap extensions (built via Vite)
+import customEditorHtml from './customEditor/build/editorHtml'
+
 /**
  * Native (TenTap) implementation of the visual WYSIWYG hook.
  * Returns a unified API consumed by WysiwygEditor.
@@ -29,6 +40,13 @@ export default function useWysiwygVisual({ initialHtml, placeholder, onContentCh
       BlockquoteBridge,
       HistoryBridge,
       PlaceholderBridge.configureExtension?.({ placeholder: placeholder || '' }) || PlaceholderBridge,
+      // Custom bridges for wiki-specific features
+      SuperscriptBridge,
+      SubscriptBridge,
+      HorizontalRuleBridge,
+      TableBridge,
+      FootnoteBridge,
+      LinkContentBridge,
     ]
     if (allowImages) {
       extensions.push(ImageBridge)
@@ -39,6 +57,7 @@ export default function useWysiwygVisual({ initialHtml, placeholder, onContentCh
   const editor = useEditorBridge({
     initialContent: initialHtml || '',
     bridgeExtensions,
+    customSource: customEditorHtml,
     avoidIosKeyboard: true,
     autofocus: false,
     onChange: onContentChange ? () => {
@@ -103,9 +122,49 @@ export default function useWysiwygVisual({ initialHtml, placeholder, onContentCh
       .tiptap p.is-editor-empty:first-child::before {
         color: ${colors.placeholderText};
       }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 8px 0;
+      }
+      td, th {
+        border: 1px solid ${colors.cardBorder};
+        padding: 6px 10px;
+        min-width: 40px;
+        vertical-align: top;
+      }
+      th {
+        background-color: ${colors.background};
+        font-weight: 600;
+      }
+      sup { vertical-align: super; font-size: 0.75em; }
+      sub { vertical-align: sub; font-size: 0.75em; }
+      .footnote-ref {
+        color: ${colors.primary};
+        cursor: pointer;
+        font-size: 0.75em;
+        vertical-align: super;
+        font-weight: 600;
+      }
+      .footnote-defs {
+        border-top: 1px solid ${colors.cardBorder};
+        margin-top: 16px;
+        padding-top: 8px;
+        font-size: 0.85em;
+        color: ${colors.secondaryText};
+      }
+      .footnote-def { padding: 2px 0; cursor: pointer; }
+      .footnote-def:hover { background-color: ${colors.background}; }
+      .footnote-def-label { font-weight: 600; color: ${colors.primary}; margin-right: 4px; }
+      .footnote-highlight { background-color: rgba(92, 0, 92, 0.15); transition: background-color 0.3s; }
     `
     editor.injectCSS(css, 'candid-theme')
   }, [bridgeState.isReady, colors])
+
+  // Derive editingFootnote from bridge state
+  const editingFootnote = bridgeState.editingFootnoteLabel
+    ? { label: bridgeState.editingFootnoteLabel, text: bridgeState.editingFootnoteText || '' }
+    : null
 
   const editorJSX = React.createElement(RichText, {
     editor,
@@ -115,7 +174,7 @@ export default function useWysiwygVisual({ initialHtml, placeholder, onContentCh
   return {
     editorJSX,
     themeJSX: null,
-    editingFootnote: null,
+    editingFootnote,
     clearEditingFootnote: () => {},
     editorState: {
       isBoldActive: bridgeState.isBoldActive,
@@ -135,32 +194,38 @@ export default function useWysiwygVisual({ initialHtml, placeholder, onContentCh
       canToggleTaskList: bridgeState.canToggleTaskList ?? true,
       isBlockquoteActive: bridgeState.isBlockquoteActive,
       canToggleBlockquote: bridgeState.canToggleBlockquote,
-      isSuperscriptActive: false,
-      canToggleSuperscript: false,
-      isSubscriptActive: false,
-      canToggleSubscript: false,
+      isSuperscriptActive: bridgeState.isSuperscriptActive ?? false,
+      canToggleSuperscript: bridgeState.canToggleSuperscript ?? false,
+      isSubscriptActive: bridgeState.isSubscriptActive ?? false,
+      canToggleSubscript: bridgeState.canToggleSubscript ?? false,
       canUndo: bridgeState.canUndo,
       canRedo: bridgeState.canRedo,
       isReady: bridgeState.isReady,
+      isInTable: bridgeState.isInTable ?? false,
     },
     actions: {
       toggleBold: () => editor.toggleBold(),
       toggleItalic: () => editor.toggleItalic(),
       toggleStrike: () => editor.toggleStrike(),
       toggleHeading: (level) => editor.toggleHeading(level),
-      setLink: (url) => editor.setLink(url),
+      setLink: (url, text) => editor.insertLinkContent(url, text),
       setImage: (url) => editor.setImage(url),
       toggleBulletList: () => editor.toggleBulletList(),
       toggleOrderedList: () => editor.toggleOrderedList(),
       toggleTaskList: () => editor.toggleTaskList(),
       toggleBlockquote: () => editor.toggleBlockquote(),
-      // No native bridge for superscript, subscript, horizontal rule, table, or footnote
-      toggleSuperscript: () => {},
-      toggleSubscript: () => {},
-      setHorizontalRule: () => {},
-      insertTable: () => {},
-      insertFootnote: () => {},
-      updateFootnoteText: () => {},
+      toggleSuperscript: () => editor.toggleSuperscript(),
+      toggleSubscript: () => editor.toggleSubscript(),
+      setHorizontalRule: () => editor.setHorizontalRule(),
+      insertTable: (args) => editor.insertTable(args),
+      addRowBefore: () => editor.addRowBefore(),
+      addRowAfter: () => editor.addRowAfter(),
+      deleteRow: () => editor.deleteRow(),
+      addColumnBefore: () => editor.addColumnBefore(),
+      addColumnAfter: () => editor.addColumnAfter(),
+      deleteColumn: () => editor.deleteColumn(),
+      insertFootnote: (label, text) => editor.insertFootnote(label, text),
+      updateFootnoteText: (label, text) => editor.updateFootnoteText(label, text),
       undo: () => editor.undo(),
       redo: () => editor.redo(),
     },

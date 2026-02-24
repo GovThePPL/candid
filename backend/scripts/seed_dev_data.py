@@ -1094,8 +1094,8 @@ CHAT_MESSAGES = [
         ("responder", "Sure, I'm happy to chat about it. What's on your mind?"),
         ("initiator", "I think there's more nuance to this issue than people realize."),
         ("responder", "I agree. Most people seem to pick a side without understanding the trade-offs."),
-        ("initiator", "Exactly. I think we can find some common ground here."),
-        ("responder", "Let's try. What aspects do you think we agree on?"),
+        ("initiator", "[more nuance to this issue](M3)\nExactly. And I think we can find some common ground here."),
+        ("responder", "[pick a side without understanding](M4:42-77)\nLet's try. What aspects do you think we agree on?"),
     ],
     [
         ("initiator", "I wanted to understand your perspective better on this."),
@@ -1115,8 +1115,8 @@ CHAT_MESSAGES = [
         ("responder", "Fair enough. I think it comes down to lived experience."),
         ("initiator", "Can you give me an example?"),
         ("responder", "Sure. In my community, this issue plays out very differently than the national debate suggests."),
-        ("initiator", "That's eye-opening. I hadn't considered that angle."),
-        ("responder", "And I can see how from your vantage point, the concerns you raise are legitimate too."),
+        ("initiator", "[lived experience](M2)\nThat's eye-opening. I hadn't considered that angle."),
+        ("responder", "[I hadn't considered that angle](M5)\nAnd I can see how from your vantage point, the concerns you raise are legitimate too."),
         ("initiator", "Maybe the answer isn't one-size-fits-all."),
     ],
     [
@@ -1139,10 +1139,30 @@ CHAT_MESSAGES = [
         ("responder", "Oh? What made it stand out?"),
         ("initiator", "You acknowledged the downsides of your own position. That's rare."),
         ("responder", "I try to be honest about trade-offs. Nothing is free."),
-        ("initiator", "If more people thought that way, we'd get better policy."),
+        ("initiator", "[honest about trade-offs](M4)\nIf more people thought that way, we'd get better policy."),
         ("responder", "Agreed. The all-or-nothing framing in politics is exhausting."),
-        ("initiator", "Can we at least agree on what the actual trade-offs are?"),
+        ("initiator", "[all-or-nothing framing](M6:12-43)\nCan we at least agree on what the actual trade-offs are?"),
         ("responder", "Yes, let me propose something."),
+    ],
+    [
+        ("initiator", "I read your take and I think we're using the same words differently."),
+        ("responder", "That happens a lot in these debates. Which word specifically?"),
+        ("initiator", "The way we each define 'fairness' seems different."),
+        ("responder", "Good catch. I mean fairness as equal opportunity, not equal outcome."),
+        ("initiator", "[equal opportunity, not equal outcome](M4)\nInteresting — I think of fairness more as proportional to need."),
+        ("responder", "That distinction explains most of our disagreement, honestly."),
+        ("initiator", "Right. Once we agree on the definition, the policy debate gets clearer."),
+        ("responder", "[the policy debate gets clearer](M7)\nExactly. We should do this more often."),
+    ],
+    [
+        ("initiator", "Your position makes me uncomfortable, but I think that's a good thing."),
+        ("responder", "How so?"),
+        ("initiator", "It challenges assumptions I haven't examined in a while."),
+        ("responder", "I feel the same about yours. That's why I accepted this chat."),
+        ("initiator", "[challenges assumptions](M3)\nSo we're both here to learn, not to win."),
+        ("responder", "[here to learn, not to win](M5:37-63)\nYes. What's the strongest argument against your own position?"),
+        ("initiator", "Honestly? Implementation cost. The idea is right but the execution is hard."),
+        ("responder", "[Implementation cost](M7)\nThat's exactly my concern too, from the other direction."),
     ],
 ]
 
@@ -1460,8 +1480,14 @@ def phase_7_kudos(api, dry_run=False):
     print("PHASE 7: Kudos & Trust Scores")
     print("=" * 60)
 
-    # Idempotency: skip if kudos already exist
-    existing = db_query_one("SELECT count(*) as cnt FROM kudos")
+    # Idempotency: skip if seed-generated kudos already exist
+    # (exclude kudos from basic test data in 02-basic-data.sql)
+    existing = db_query_one("""
+        SELECT count(*) as cnt FROM kudos
+        WHERE chat_log_id NOT IN ('b2222222-2222-2222-2222-222222222222',
+                                  '1d06bf99-4d87-4700-8806-63de8c905eca',
+                                  '1e665c62-0dc6-45ff-acde-e32d64e5b2ea')
+    """)
     if existing and existing['cnt'] > 0:
         print(f"  Kudos already exist ({existing['cnt']}), skipping")
     else:

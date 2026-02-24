@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import * as keycloak from './keycloak'
 import {
   ApiClient,
   UsersApi,
@@ -111,6 +112,47 @@ export async function setStoredUser(user) {
     }
   } catch (error) {
     console.error('Error saving user:', error)
+  }
+}
+
+/**
+ * Return a valid token, refreshing via Keycloak if close to expiry.
+ * Decodes the JWT payload (no verification) to check the `exp` claim.
+ * If >60s remaining, returns as-is. If <=60s, refreshes and stores the new token.
+ * On any failure, returns the existing token (graceful degradation).
+ * @returns {Promise<string|null>}
+ */
+export async function getOrRefreshToken() {
+  try {
+    const token = await AsyncStorage.getItem(TOKEN_KEY)
+    if (!token) return null
+
+    // Decode JWT payload (base64url, no verification)
+    const parts = token.split('.')
+    if (parts.length !== 3) return token
+
+    // base64url → base64 → decode
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+    const payload = JSON.parse(atob(base64))
+
+    const now = Math.floor(Date.now() / 1000)
+    if (payload.exp && payload.exp - now <= 60) {
+      // Token expires within 60s — try refreshing
+      const tokens = await keycloak.refreshToken()
+      if (tokens?.accessToken) {
+        await setToken(tokens.accessToken)
+        return tokens.accessToken
+      }
+    }
+
+    return token
+  } catch {
+    // Graceful degradation: return whatever we have
+    try {
+      return await AsyncStorage.getItem(TOKEN_KEY)
+    } catch {
+      return null
+    }
   }
 }
 
@@ -332,6 +374,10 @@ export const usersApiWrapper = {
 
   async getUserById(userId) {
     return await promisify(usersApi.getUserById.bind(usersApi), userId)
+  },
+
+  async getUserByUsername(username) {
+    return await promisify(usersApi.getUserByUsername.bind(usersApi), username)
   },
 
   async getUserActivityById(userId, opts = {}) {
@@ -1266,6 +1312,10 @@ export const glossaryApiWrapper = {
     return await promisify(glossaryApi.updateGlossaryTerm.bind(glossaryApi), slug, body)
   },
 
+  async createTerm(body) {
+    return await promisify(glossaryApi.createGlossaryTerm.bind(glossaryApi), body)
+  },
+
   async getTermHistory(slug) {
     return await promisify(glossaryApi.getGlossaryTermHistory.bind(glossaryApi), slug)
   },
@@ -1311,6 +1361,14 @@ export const wikiApiWrapper = {
 
   async updatePage(slug, body) {
     return await promisify(glossaryApi.updateWikiPage.bind(glossaryApi), slug, body)
+  },
+
+  async createPage(body) {
+    return await promisify(glossaryApi.createWikiPage.bind(glossaryApi), body)
+  },
+
+  async checkCreateAuthority(body) {
+    return await promisify(glossaryApi.checkCreateAuthority.bind(glossaryApi), body)
   },
 
   async getPageHistory(slug) {

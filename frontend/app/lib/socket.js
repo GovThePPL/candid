@@ -1,22 +1,68 @@
 import { io } from 'socket.io-client'
-import { getToken } from './api'
+import { getToken, getOrRefreshToken } from './api'
+import { recordDebug } from './errorCollector'
 
 // Socket.IO configuration
 const CHAT_SERVER_URL = process.env.EXPO_PUBLIC_CHAT_URL
   || (__DEV__ ? 'http://localhost:8002' : 'https://chat.candid.app')
 
 let socket = null
-let reconnectAttempts = 0
 let keepaliveInterval = null
-const MAX_RECONNECT_ATTEMPTS = 5
 const KEEPALIVE_INTERVAL_MS = 60000 // 60s (server timeout is 120s)
+
+// Custom reconnect state (replaces Socket.IO's built-in reconnection)
+let _intentionalDisconnect = false
+let _reconnectTimer = null
+let _reconnectDelay = 1000
+const MAX_RECONNECT_DELAY = 30000
+
+/**
+ * Schedule a reconnect attempt with exponential backoff.
+ * Retries indefinitely until disconnectSocket() sets _intentionalDisconnect.
+ */
+function _scheduleReconnect() {
+  if (_intentionalDisconnect || !socket) return
+
+  clearTimeout(_reconnectTimer)
+  const delay = _reconnectDelay
+  console.debug(`[Socket] Scheduling reconnect in ${delay}ms`)
+
+  _reconnectTimer = setTimeout(async () => {
+    if (_intentionalDisconnect || !socket) return
+
+    try {
+      // Refresh token before reconnecting
+      const freshToken = await getOrRefreshToken()
+      if (!freshToken) {
+        console.warn('[Socket] No token for reconnect, retrying later')
+        _reconnectDelay = Math.min(_reconnectDelay * 2, MAX_RECONNECT_DELAY)
+        _scheduleReconnect()
+        return
+      }
+    } catch {
+      // Token refresh failed — try connecting with whatever we have
+    }
+
+    if (!_intentionalDisconnect && socket) {
+      console.debug('[Socket] Attempting reconnect')
+      socket.connect()
+    }
+  }, delay)
+
+  // Increase delay for next attempt (exponential backoff)
+  _reconnectDelay = Math.min(_reconnectDelay * 2, MAX_RECONNECT_DELAY)
+}
 
 /**
  * Connect to the chat server with authentication.
  * @param {string} token - JWT token for authentication
+ * @param {Object} [options]
+ * @param {Function} [options.preConnectHook] - Called after socket is created but
+ *   before socket.connect(). Use this to register event listeners that must exist
+ *   before the server emits pending data during the connection handshake.
  * @returns {Promise<Socket>} - Connected and authenticated socket
  */
-export async function connectSocket(token = null) {
+export async function connectSocket(token = null, { preConnectHook } = {}) {
   if (socket?.connected) {
     return socket
   }
@@ -29,54 +75,69 @@ export async function connectSocket(token = null) {
   }
 
   // Get token if not provided
-  const authToken = token || await getToken()
+  const authToken = token || await getOrRefreshToken() || await getToken()
   if (!authToken) {
     throw new Error('No authentication token available')
   }
 
-  reconnectAttempts = 0
+  _intentionalDisconnect = false
+  _reconnectDelay = 1000
+  clearTimeout(_reconnectTimer)
 
   return new Promise((resolve, reject) => {
+    let initialResolved = false
+
     socket = io(CHAT_SERVER_URL, {
       autoConnect: false,
       transports: ['websocket', 'polling'],
-      reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
-      reconnectionDelay: 1000,
+      reconnection: false, // We handle reconnection ourselves
       timeout: 10000,
       auth: (cb) => {
         // Dynamic callback: fetches fresh token on each reconnect attempt
-        getToken().then(t => cb({ token: t || authToken }))
+        getOrRefreshToken().then(t => cb({ token: t || authToken }))
       },
     })
 
-    // Server emits 'authenticated' with session data after accepting the connection
+    // Persistent lifecycle listeners (survive across reconnects)
     socket.on('authenticated', (data) => {
       console.debug('[Socket] Authenticated as user:', data.userId)
-      reconnectAttempts = 0
+      recordDebug('socket', 'Authenticated', { userId: data.userId })
+      _reconnectDelay = 1000 // Reset backoff on success
+      clearTimeout(_reconnectTimer)
       _startKeepalive()
-      resolve(socket)
+      if (!initialResolved) {
+        initialResolved = true
+        resolve(socket)
+      }
     })
 
-    // Handle connection errors (including auth rejection at handshake)
     socket.on('connect_error', (error) => {
       console.error('[Socket] Connection error:', error.message)
-      reconnectAttempts++
-      if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      recordDebug('socket', 'Connection error', { error: error.message })
+      if (!initialResolved) {
+        initialResolved = true
         reject(new Error(error.message || 'Failed to connect to chat server'))
+      } else {
+        // Ongoing reconnect failure — schedule another attempt
+        _scheduleReconnect()
       }
     })
 
-    // Handle disconnection
     socket.on('disconnect', (reason) => {
       console.debug('[Socket] Disconnected:', reason)
+      recordDebug('socket', 'Disconnected', { reason })
       _stopKeepalive()
-      // Server-initiated disconnect (e.g., session timeout) does NOT auto-reconnect,
-      // so we must manually reconnect
-      if (reason === 'io server disconnect' && socket) {
-        console.debug('[Socket] Server disconnected us, attempting reconnect')
-        socket.connect()
+      if (!_intentionalDisconnect) {
+        _scheduleReconnect()
       }
     })
+
+    // Call preConnectHook after socket is assigned but before connect().
+    // This lets callers register listeners that will exist before the server
+    // emits pending data (e.g., chat requests) during the handshake.
+    if (preConnectHook) {
+      preConnectHook()
+    }
 
     // Connect
     socket.connect()
@@ -100,15 +161,31 @@ function _stopKeepalive() {
 }
 
 /**
+ * Immediately reconnect an existing disconnected socket.
+ * Unlike initializeSocket → connectSocket, this reuses the same socket instance,
+ * preserving all registered listeners (e.g., chat screen message/typing handlers).
+ * No-op if socket is already connected, doesn't exist, or was intentionally disconnected.
+ */
+export function reconnectNow() {
+  if (!socket || socket.connected || _intentionalDisconnect) return
+  clearTimeout(_reconnectTimer)
+  _reconnectDelay = 1000
+  _intentionalDisconnect = false
+  socket.connect()
+}
+
+/**
  * Disconnect from the chat server.
  */
 export function disconnectSocket() {
+  _intentionalDisconnect = true
+  clearTimeout(_reconnectTimer)
   _stopKeepalive()
   if (socket) {
     socket.disconnect()
     socket = null
-    reconnectAttempts = 0
     console.debug('[Socket] Disconnected and cleaned up')
+    recordDebug('socket', 'Intentional disconnect')
   }
 }
 
@@ -170,9 +247,13 @@ export function onChatRequestReceived(handler) {
     return () => {}
   }
 
-  socket.on('chat_request_received', handler)
+  const wrappedHandler = (data) => {
+    recordDebug('chat:recv', 'Chat request received', { requestId: data?.data?.id, requester: data?.data?.requester?.username })
+    handler(data)
+  }
+  socket.on('chat_request_received', wrappedHandler)
   return () => {
-    if (socket) socket.off('chat_request_received', handler)
+    if (socket) socket.off('chat_request_received', wrappedHandler)
   }
 }
 
@@ -203,11 +284,14 @@ export async function joinChat(chatId) {
     throw new Error('Not connected to chat server')
   }
 
+  recordDebug('chat', 'Joining chat', { chatId })
   return new Promise((resolve, reject) => {
     socket.emit('join_chat', { chatId }, (response) => {
       if (response?.status === 'joined') {
+        recordDebug('chat', 'Joined chat', { chatId, messageCount: response.messages?.length })
         resolve(response)
       } else {
+        recordDebug('chat', 'Join failed', { chatId, error: response?.message })
         reject(new Error(response?.message || 'Failed to join chat'))
       }
     })
@@ -229,11 +313,14 @@ export async function sendMessage(chatId, content, type = 'text', { wasFlaggedTo
   const payload = { chatId, content, type }
   if (wasFlaggedToxic) payload.wasFlaggedToxic = true
 
+  recordDebug('chat:send', 'Sending message', { chatId, type, wasFlaggedToxic: !!wasFlaggedToxic })
   return new Promise((resolve, reject) => {
     socket.emit('message', payload, (response) => {
       if (response?.status === 'sent' || response?.id) {
+        recordDebug('chat:send', 'Message sent', { chatId, type, id: response?.id })
         resolve(response)
       } else {
+        recordDebug('chat:send', 'Send failed', { chatId, type, error: response?.message })
         reject(new Error(response?.message || 'Failed to send message'))
       }
     })
@@ -251,9 +338,13 @@ export function onMessage(handler) {
     return () => {}
   }
 
-  socket.on('message', handler)
+  const wrappedHandler = (data) => {
+    recordDebug('chat:recv', 'Message received', { chatId: data?.chatId, type: data?.type, sender: data?.sender_id || data?.sender })
+    handler(data)
+  }
+  socket.on('message', wrappedHandler)
   return () => {
-    if (socket) socket.off('message', handler)
+    if (socket) socket.off('message', wrappedHandler)
   }
 }
 
@@ -291,6 +382,7 @@ export function onTyping(handler) {
  */
 export function leaveChat(chatId) {
   if (!socket?.connected) return
+  recordDebug('chat', 'Leaving chat', { chatId })
   socket.emit('leave_chat', { chatId })
 }
 
@@ -304,9 +396,13 @@ export function onPartnerDisconnected(handler) {
     return () => {}
   }
 
-  socket.on('partner_disconnected', handler)
+  const wrappedHandler = (data) => {
+    recordDebug('chat:recv', 'Partner disconnected', { chatId: data?.chatId, userId: data?.userId })
+    handler(data)
+  }
+  socket.on('partner_disconnected', wrappedHandler)
   return () => {
-    if (socket) socket.off('partner_disconnected', handler)
+    if (socket) socket.off('partner_disconnected', wrappedHandler)
   }
 }
 
@@ -320,9 +416,13 @@ export function onPartnerReconnected(handler) {
     return () => {}
   }
 
-  socket.on('partner_reconnected', handler)
+  const wrappedHandler = (data) => {
+    recordDebug('chat:recv', 'Partner reconnected', { chatId: data?.chatId, userId: data?.userId })
+    handler(data)
+  }
+  socket.on('partner_reconnected', wrappedHandler)
   return () => {
-    if (socket) socket.off('partner_reconnected', handler)
+    if (socket) socket.off('partner_reconnected', wrappedHandler)
   }
 }
 
@@ -337,11 +437,14 @@ export async function exitChat(chatId, exitType = 'left') {
     throw new Error('Not connected to chat server')
   }
 
+  recordDebug('chat', 'Exiting chat', { chatId, exitType })
   return new Promise((resolve, reject) => {
     socket.emit('exit_chat', { chatId, exitType }, (response) => {
       if (response?.status === 'exited' || response?.status === 'ok' || response?.status === 'ended') {
+        recordDebug('chat', 'Exited chat', { chatId, exitType, status: response?.status })
         resolve(response)
       } else {
+        recordDebug('chat', 'Exit failed', { chatId, exitType, error: response?.message })
         reject(new Error(response?.message || 'Failed to exit chat'))
       }
     })
@@ -358,13 +461,16 @@ export function onChatStatus(handler) {
     return () => {}
   }
 
-  // Backend emits 'status' events for chat lifecycle changes
-  socket.on('status', handler)
-  socket.on('chat_ended', handler)
+  const wrappedHandler = (data) => {
+    recordDebug('chat:recv', 'Status event', { chatId: data?.chatId, status: data?.status, endType: data?.endType })
+    handler(data)
+  }
+  socket.on('status', wrappedHandler)
+  socket.on('chat_ended', wrappedHandler)
   return () => {
     if (socket) {
-      socket.off('status', handler)
-      socket.off('chat_ended', handler)
+      socket.off('status', wrappedHandler)
+      socket.off('chat_ended', wrappedHandler)
     }
   }
 }
@@ -408,6 +514,7 @@ export async function proposeAgreedPosition(chatId, content, isClosure = false) 
     throw new Error('Not connected to chat server')
   }
 
+  recordDebug('chat:send', 'Proposing position', { chatId, isClosure })
   return new Promise((resolve, reject) => {
     socket.emit('agreed_position', {
       chatId,
@@ -416,8 +523,10 @@ export async function proposeAgreedPosition(chatId, content, isClosure = false) 
       isClosure,
     }, (response) => {
       if (response?.status === 'proposed') {
+        recordDebug('chat:send', 'Position proposed', { chatId, proposalId: response?.proposalId })
         resolve(response)
       } else {
+        recordDebug('chat:send', 'Propose failed', { chatId, error: response?.message })
         reject(new Error(response?.message || 'Failed to propose position'))
       }
     })
@@ -437,6 +546,7 @@ export async function respondToAgreedPosition(chatId, proposalId, action, conten
     throw new Error('Not connected to chat server')
   }
 
+  recordDebug('chat:send', `Responding to proposal: ${action}`, { chatId, proposalId, action })
   return new Promise((resolve, reject) => {
     const data = {
       chatId,
@@ -448,10 +558,12 @@ export async function respondToAgreedPosition(chatId, proposalId, action, conten
     }
 
     socket.emit('agreed_position', data, (response) => {
-      if (response?.status === action + 'ed' || response?.status === 'ended') {
-        resolve(response)
+      if (response?.status === 'error') {
+        recordDebug('chat:send', `Proposal ${action} failed`, { chatId, proposalId, error: response.message })
+        reject(new Error(response.message || `Failed to ${action} proposal`))
       } else {
-        reject(new Error(response?.message || `Failed to ${action} proposal`))
+        recordDebug('chat:send', `Proposal ${action} OK`, { chatId, proposalId, status: response?.status })
+        resolve(response)
       }
     })
   })
@@ -467,9 +579,13 @@ export function onAgreedPosition(handler) {
     return () => {}
   }
 
-  socket.on('agreed_position', handler)
+  const wrappedHandler = (data) => {
+    recordDebug('chat:recv', 'Agreed position event', { chatId: data?.chatId, action: data?.action, proposalId: data?.proposal?.proposalId || data?.proposalId })
+    handler(data)
+  }
+  socket.on('agreed_position', wrappedHandler)
   return () => {
-    if (socket) socket.off('agreed_position', handler)
+    if (socket) socket.off('agreed_position', wrappedHandler)
   }
 }
 
@@ -548,6 +664,7 @@ export async function sendReaction(chatId, messageId, emoji) {
     throw new Error('Not connected to chat server')
   }
 
+  recordDebug('chat:send', 'Sending reaction', { chatId, messageId, emoji })
   return new Promise((resolve, reject) => {
     socket.emit('reaction', { chatId, messageId, emoji }, (response) => {
       if (response?.status === 'ok') resolve(response)
@@ -583,6 +700,7 @@ export async function requestDefinition(chatId, term) {
     throw new Error('Not connected to chat server')
   }
 
+  recordDebug('chat:send', 'Requesting definition', { chatId })
   return new Promise((resolve, reject) => {
     socket.emit('definition', {
       chatId,
@@ -590,8 +708,10 @@ export async function requestDefinition(chatId, term) {
       term,
     }, (response) => {
       if (response?.status === 'requested') {
+        recordDebug('chat:send', 'Definition requested', { chatId, requestId: response?.requestId })
         resolve(response)
       } else {
+        recordDebug('chat:send', 'Definition request failed', { chatId, error: response?.message })
         reject(new Error(response?.message || 'Failed to request definition'))
       }
     })
@@ -610,6 +730,7 @@ export async function respondDefinition(chatId, requestId, definition) {
     throw new Error('Not connected to chat server')
   }
 
+  recordDebug('chat:send', 'Responding to definition', { chatId, requestId })
   return new Promise((resolve, reject) => {
     socket.emit('definition', {
       chatId,
@@ -618,8 +739,10 @@ export async function respondDefinition(chatId, requestId, definition) {
       definition,
     }, (response) => {
       if (response?.status === 'defined') {
+        recordDebug('chat:send', 'Definition responded', { chatId, requestId })
         resolve(response)
       } else {
+        recordDebug('chat:send', 'Definition respond failed', { chatId, requestId, error: response?.message })
         reject(new Error(response?.message || 'Failed to respond to definition'))
       }
     })
@@ -637,6 +760,7 @@ export async function acceptDefinition(chatId, requestId) {
     throw new Error('Not connected to chat server')
   }
 
+  recordDebug('chat:send', 'Accepting definition', { chatId, requestId })
   return new Promise((resolve, reject) => {
     socket.emit('definition', {
       chatId,
@@ -644,8 +768,10 @@ export async function acceptDefinition(chatId, requestId) {
       requestId,
     }, (response) => {
       if (response?.status === 'accepted') {
+        recordDebug('chat:send', 'Definition accepted', { chatId, requestId })
         resolve(response)
       } else {
+        recordDebug('chat:send', 'Definition accept failed', { chatId, requestId, error: response?.message })
         reject(new Error(response?.message || 'Failed to accept definition'))
       }
     })
@@ -664,6 +790,7 @@ export async function counterDefine(chatId, requestId, definition) {
     throw new Error('Not connected to chat server')
   }
 
+  recordDebug('chat:send', 'Counter-defining', { chatId, requestId })
   return new Promise((resolve, reject) => {
     socket.emit('definition', {
       chatId,
@@ -672,8 +799,10 @@ export async function counterDefine(chatId, requestId, definition) {
       definition,
     }, (response) => {
       if (response?.status === 'both_defined') {
+        recordDebug('chat:send', 'Counter-defined', { chatId, requestId })
         resolve(response)
       } else {
+        recordDebug('chat:send', 'Counter-define failed', { chatId, requestId, error: response?.message })
         reject(new Error(response?.message || 'Failed to counter-define'))
       }
     })
@@ -690,9 +819,13 @@ export function onDefinition(handler) {
     return () => {}
   }
 
-  socket.on('definition', handler)
+  const wrappedHandler = (data) => {
+    recordDebug('chat:recv', 'Definition event', { chatId: data?.chatId, action: data?.action, requestId: data?.request?.id || data?.requestId })
+    handler(data)
+  }
+  socket.on('definition', wrappedHandler)
   return () => {
-    if (socket) socket.off('definition', handler)
+    if (socket) socket.off('definition', wrappedHandler)
   }
 }
 
@@ -707,6 +840,7 @@ export async function requestExplanation(chatId, position) {
     throw new Error('Not connected to chat server')
   }
 
+  recordDebug('chat:send', 'Requesting explanation', { chatId })
   return new Promise((resolve, reject) => {
     socket.emit('explain_position', {
       chatId,
@@ -714,8 +848,10 @@ export async function requestExplanation(chatId, position) {
       position,
     }, (response) => {
       if (response?.status === 'requested') {
+        recordDebug('chat:send', 'Explanation requested', { chatId, requestId: response?.requestId })
         resolve(response)
       } else {
+        recordDebug('chat:send', 'Explanation request failed', { chatId, error: response?.message })
         reject(new Error(response?.message || 'Failed to request explanation'))
       }
     })
@@ -734,6 +870,7 @@ export async function respondExplanation(chatId, requestId, explanation) {
     throw new Error('Not connected to chat server')
   }
 
+  recordDebug('chat:send', 'Responding to explanation', { chatId, requestId })
   return new Promise((resolve, reject) => {
     socket.emit('explain_position', {
       chatId,
@@ -742,8 +879,10 @@ export async function respondExplanation(chatId, requestId, explanation) {
       explanation,
     }, (response) => {
       if (response?.status === 'explained') {
+        recordDebug('chat:send', 'Explanation responded', { chatId, requestId })
         resolve(response)
       } else {
+        recordDebug('chat:send', 'Explanation respond failed', { chatId, requestId, error: response?.message })
         reject(new Error(response?.message || 'Failed to respond to explanation'))
       }
     })
@@ -761,6 +900,7 @@ export async function confirmGoodFaith(chatId, requestId) {
     throw new Error('Not connected to chat server')
   }
 
+  recordDebug('chat:send', 'Confirming good faith', { chatId, requestId })
   return new Promise((resolve, reject) => {
     socket.emit('explain_position', {
       chatId,
@@ -768,8 +908,10 @@ export async function confirmGoodFaith(chatId, requestId) {
       requestId,
     }, (response) => {
       if (response?.status === 'good_faith') {
+        recordDebug('chat:send', 'Good faith confirmed', { chatId, requestId })
         resolve(response)
       } else {
+        recordDebug('chat:send', 'Good faith confirm failed', { chatId, requestId, error: response?.message })
         reject(new Error(response?.message || 'Failed to confirm good faith'))
       }
     })
@@ -787,6 +929,7 @@ export async function rejectExplanation(chatId, requestId) {
     throw new Error('Not connected to chat server')
   }
 
+  recordDebug('chat:send', 'Rejecting explanation', { chatId, requestId })
   return new Promise((resolve, reject) => {
     socket.emit('explain_position', {
       chatId,
@@ -794,8 +937,10 @@ export async function rejectExplanation(chatId, requestId) {
       requestId,
     }, (response) => {
       if (response?.status === 'rejected') {
+        recordDebug('chat:send', 'Explanation rejected', { chatId, requestId })
         resolve(response)
       } else {
+        recordDebug('chat:send', 'Explanation reject failed', { chatId, requestId, error: response?.message })
         reject(new Error(response?.message || 'Failed to reject explanation'))
       }
     })
@@ -813,6 +958,7 @@ export async function acceptExplanation(chatId, requestId) {
     throw new Error('Not connected to chat server')
   }
 
+  recordDebug('chat:send', 'Accepting explanation', { chatId, requestId })
   return new Promise((resolve, reject) => {
     socket.emit('explain_position', {
       chatId,
@@ -820,8 +966,10 @@ export async function acceptExplanation(chatId, requestId) {
       requestId,
     }, (response) => {
       if (response?.status === 'completed') {
+        recordDebug('chat:send', 'Explanation accepted', { chatId, requestId })
         resolve(response)
       } else {
+        recordDebug('chat:send', 'Explanation accept failed', { chatId, requestId, error: response?.message })
         reject(new Error(response?.message || 'Failed to accept explanation'))
       }
     })
@@ -840,6 +988,7 @@ export async function correctExplanation(chatId, requestId, correction) {
     throw new Error('Not connected to chat server')
   }
 
+  recordDebug('chat:send', 'Correcting explanation', { chatId, requestId })
   return new Promise((resolve, reject) => {
     socket.emit('explain_position', {
       chatId,
@@ -848,8 +997,10 @@ export async function correctExplanation(chatId, requestId, correction) {
       correction,
     }, (response) => {
       if (response?.status === 'corrected') {
+        recordDebug('chat:send', 'Explanation corrected', { chatId, requestId })
         resolve(response)
       } else {
+        recordDebug('chat:send', 'Explanation correct failed', { chatId, requestId, error: response?.message })
         reject(new Error(response?.message || 'Failed to correct explanation'))
       }
     })
@@ -866,9 +1017,13 @@ export function onExplainPosition(handler) {
     return () => {}
   }
 
-  socket.on('explain_position', handler)
+  const wrappedHandler = (data) => {
+    recordDebug('chat:recv', 'Explain position event', { chatId: data?.chatId, action: data?.action, requestId: data?.request?.id || data?.requestId })
+    handler(data)
+  }
+  socket.on('explain_position', wrappedHandler)
   return () => {
-    if (socket) socket.off('explain_position', handler)
+    if (socket) socket.off('explain_position', wrappedHandler)
   }
 }
 
@@ -891,6 +1046,7 @@ export function onNotification(handler) {
 export default {
   connect: connectSocket,
   disconnect: disconnectSocket,
+  reconnectNow,
   getSocket,
   isConnected,
   onChatRequestResponse,

@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { SemanticColors } from '../../constants/Colors'
 import ThemedText from '../ThemedText'
-import { formatRelativeTime } from '../../lib/timeUtils'
+import UserCard from '../UserCard'
 
 const STATUS_CONFIG = {
   pending: { icon: 'time-outline', colorKey: 'pending' },
@@ -73,20 +73,15 @@ export default memo(function SuggestionCard({ suggestion, onPress }) {
         </ThemedText>
       ) : null}
 
-      <View style={styles.footer}>
-        {suggestion.suggestedBy && (
-          <ThemedText variant="caption" color="secondary">
-            {t('suggestionBy', {
-              author: suggestion.suggestedBy.displayName || suggestion.suggestedBy.username,
-            })}
-          </ThemedText>
-        )}
-        {suggestion.createdAt && (
-          <ThemedText variant="caption" color="secondary">
-            {formatRelativeTime(suggestion.createdAt, t)}
-          </ThemedText>
-        )}
-      </View>
+      {suggestion.suggestedBy && (
+        <UserCard
+          user={suggestion.suggestedBy}
+          variant="inline"
+          timestamp={suggestion.createdAt}
+          showRoleBadge={false}
+          showKudosCount={false}
+        />
+      )}
     </TouchableOpacity>
   )
 })
@@ -127,11 +122,5 @@ const createStyles = (colors) => StyleSheet.create({
   },
   title: {
     marginTop: 2,
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 4,
   },
 })

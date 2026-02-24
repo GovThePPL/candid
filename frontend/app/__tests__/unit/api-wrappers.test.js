@@ -1,5 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
+jest.mock('../../lib/keycloak', () => ({
+  refreshToken: jest.fn(),
+  loginWithCredentials: jest.fn(),
+  login: jest.fn(),
+  register: jest.fn(),
+  logout: jest.fn(),
+}))
+
 // Store mock API method references in an object that can be accessed from jest.mock factory.
 // We use a global-ish container to avoid the const TDZ problem with jest.mock hoisting.
 const _mocks = {}

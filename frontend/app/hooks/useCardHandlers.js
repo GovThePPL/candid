@@ -155,8 +155,12 @@ export default function useCardHandlers({ currentCard, goToNextCard }) {
     try {
       await api.chat.respondToRequest(currentCard.data.id, 'dismissed')
     } catch (err) {
-      console.error('Failed to decline chat:', err)
-      showToast(t('errorChatDeclineFailed'))
+      // 404 = request already rescinded by sender or expired — not a real error
+      const is404 = err?.message?.includes('404') || err?.status === 404
+      if (!is404) {
+        console.error('Failed to decline chat:', err)
+        showToast(t('errorChatDeclineFailed'))
+      }
     }
   }, [currentCard, goToNextCard, showToast, t])
 

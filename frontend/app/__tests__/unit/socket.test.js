@@ -23,6 +23,7 @@ jest.mock('socket.io-client', () => ({
 
 jest.mock('../../lib/api', () => ({
   getToken: jest.fn(() => Promise.resolve('test-token')),
+  getOrRefreshToken: jest.fn(() => Promise.resolve('test-token')),
 }))
 
 // Reset module state between tests to clear the internal `socket` variable
@@ -30,6 +31,7 @@ let socketModule
 
 beforeEach(() => {
   jest.clearAllMocks()
+  jest.useFakeTimers()
   mockSocket.connected = false
   mockOn.mockReset()
   mockOff.mockReset()
@@ -45,8 +47,13 @@ beforeEach(() => {
   }))
   jest.mock('../../lib/api', () => ({
     getToken: jest.fn(() => Promise.resolve('test-token')),
+    getOrRefreshToken: jest.fn(() => Promise.resolve('test-token')),
   }))
   socketModule = require('../../lib/socket')
+})
+
+afterEach(() => {
+  jest.useRealTimers()
 })
 
 describe('connectSocket', () => {
@@ -71,9 +78,9 @@ describe('connectSocket', () => {
     // Verify auth is a dynamic callback that resolves to the token
     const authArg = io.mock.calls[0][1].auth
     expect(typeof authArg).toBe('function')
-    // Call the auth callback and verify it uses getToken() for fresh tokens
-    const { getToken } = require('../../lib/api')
-    getToken.mockResolvedValueOnce('fresh-token')
+    // Call the auth callback and verify it uses getOrRefreshToken() for fresh tokens
+    const { getOrRefreshToken } = require('../../lib/api')
+    getOrRefreshToken.mockResolvedValueOnce('fresh-token')
     const cb = jest.fn()
     await authArg(cb)
     expect(cb).toHaveBeenCalledWith({ token: 'fresh-token' })
@@ -103,20 +110,18 @@ describe('connectSocket', () => {
   })
 
   it('throws when no token available', async () => {
-    const { getToken } = require('../../lib/api')
+    const { getToken, getOrRefreshToken } = require('../../lib/api')
     getToken.mockResolvedValueOnce(null)
+    getOrRefreshToken.mockResolvedValueOnce(null)
 
     await expect(socketModule.connectSocket()).rejects.toThrow('No authentication token available')
   })
 
-  it('rejects after max connect_error attempts', async () => {
+  it('rejects on initial connect_error', async () => {
     mockOn.mockImplementation((event, handler) => {
       if (event === 'connect_error') {
-        // Simulate 5 consecutive failures (auth rejection at handshake)
         setTimeout(() => {
-          for (let i = 0; i < 5; i++) {
-            handler(new Error('invalid or expired token'))
-          }
+          handler(new Error('invalid or expired token'))
         }, 0)
       }
     })
@@ -124,13 +129,185 @@ describe('connectSocket', () => {
     mockConnect.mockImplementation(() => {
       const errorHandler = mockOn.mock.calls.find(c => c[0] === 'connect_error')?.[1]
       if (errorHandler) {
-        for (let i = 0; i < 5; i++) {
-          errorHandler(new Error('invalid or expired token'))
-        }
+        errorHandler(new Error('invalid or expired token'))
       }
     })
 
     await expect(socketModule.connectSocket()).rejects.toThrow('invalid or expired token')
+  })
+
+  it('disables built-in reconnection', async () => {
+    const { io } = require('socket.io-client')
+
+    mockOn.mockImplementation((event, handler) => {
+      if (event === 'authenticated') {
+        setTimeout(() => handler({ userId: 'u1', activeChats: [] }), 0)
+      }
+    })
+    mockConnect.mockImplementation(() => {
+      const authHandler = mockOn.mock.calls.find(c => c[0] === 'authenticated')?.[1]
+      if (authHandler) authHandler({ userId: 'u1', activeChats: [] })
+    })
+
+    await socketModule.connectSocket()
+
+    const opts = io.mock.calls[0][1]
+    expect(opts.reconnection).toBe(false)
+  })
+})
+
+describe('preConnectHook', () => {
+  it('calls preConnectHook before socket.connect()', async () => {
+    const callOrder = []
+
+    mockOn.mockImplementation((event, handler) => {
+      if (event === 'authenticated') {
+        setTimeout(() => handler({ userId: 'u1', activeChats: [] }), 0)
+      }
+    })
+    mockConnect.mockImplementation(() => {
+      callOrder.push('connect')
+      const authHandler = mockOn.mock.calls.find(c => c[0] === 'authenticated')?.[1]
+      if (authHandler) authHandler({ userId: 'u1', activeChats: [] })
+    })
+
+    const preConnectHook = jest.fn(() => {
+      callOrder.push('preConnectHook')
+    })
+
+    await socketModule.connectSocket(null, { preConnectHook })
+
+    expect(preConnectHook).toHaveBeenCalledTimes(1)
+    expect(callOrder).toEqual(['preConnectHook', 'connect'])
+  })
+
+  it('allows registering listeners in preConnectHook', async () => {
+    mockOn.mockImplementation((event, handler) => {
+      if (event === 'authenticated') {
+        setTimeout(() => handler({ userId: 'u1', activeChats: [] }), 0)
+      }
+    })
+    mockConnect.mockImplementation(() => {
+      const authHandler = mockOn.mock.calls.find(c => c[0] === 'authenticated')?.[1]
+      if (authHandler) authHandler({ userId: 'u1', activeChats: [] })
+    })
+
+    let cleanup
+    await socketModule.connectSocket(null, {
+      preConnectHook: () => {
+        // socket is set, so on* helpers should work
+        cleanup = socketModule.onChatRequestReceived(jest.fn())
+      },
+    })
+
+    // Listener should have been registered (not noop)
+    expect(mockOn).toHaveBeenCalledWith('chat_request_received', expect.any(Function))
+    expect(typeof cleanup).toBe('function')
+  })
+})
+
+describe('reconnect behavior', () => {
+  it('schedules reconnect on disconnect (not intentional)', async () => {
+    // Use real timers for this test since reconnect uses setTimeout + async
+    jest.useRealTimers()
+
+    const handlers = {}
+    mockOn.mockImplementation((event, handler) => {
+      handlers[event] = handler
+    })
+    mockConnect.mockImplementation(() => {
+      if (handlers.authenticated) handlers.authenticated({ userId: 'u1', activeChats: [] })
+    })
+
+    await socketModule.connectSocket()
+    expect(handlers.disconnect).toBeDefined()
+    mockConnect.mockClear()
+
+    // Simulate disconnect
+    handlers.disconnect('transport close')
+
+    // Wait for the 1s backoff + async getOrRefreshToken to complete
+    await new Promise(r => setTimeout(r, 1500))
+
+    // socket.connect() should have been called for reconnect
+    expect(mockConnect).toHaveBeenCalled()
+
+    jest.useFakeTimers()
+  })
+
+  it('does not reconnect after intentional disconnectSocket()', async () => {
+    let disconnectHandler
+    mockOn.mockImplementation((event, handler) => {
+      if (event === 'authenticated') {
+        setTimeout(() => handler({ userId: 'u1', activeChats: [] }), 0)
+      }
+      if (event === 'disconnect') {
+        disconnectHandler = handler
+      }
+    })
+    mockConnect.mockImplementation(() => {
+      const authHandler = mockOn.mock.calls.find(c => c[0] === 'authenticated')?.[1]
+      if (authHandler) authHandler({ userId: 'u1', activeChats: [] })
+    })
+
+    await socketModule.connectSocket()
+
+    // Intentional disconnect
+    socketModule.disconnectSocket()
+    mockConnect.mockClear()
+
+    // Advance timers — should NOT attempt reconnect
+    jest.advanceTimersByTime(60000)
+    await Promise.resolve()
+    expect(mockConnect).not.toHaveBeenCalled()
+  })
+})
+
+describe('reconnectNow', () => {
+  it('reconnects existing disconnected socket without creating a new one', async () => {
+    const { io } = require('socket.io-client')
+
+    const handlers = {}
+    mockOn.mockImplementation((event, handler) => {
+      handlers[event] = handler
+    })
+    mockConnect.mockImplementation(() => {
+      if (handlers.authenticated) handlers.authenticated({ userId: 'u1', activeChats: [] })
+    })
+
+    await socketModule.connectSocket()
+    const initialCallCount = io.mock.calls.length
+
+    // Simulate disconnect
+    mockSocket.connected = false
+    mockConnect.mockClear()
+
+    // reconnectNow should reuse existing socket, not create a new one
+    socketModule.reconnectNow()
+    expect(mockConnect).toHaveBeenCalledTimes(1)
+    expect(io.mock.calls.length).toBe(initialCallCount) // No new io() call
+  })
+
+  it('does nothing when socket is already connected', async () => {
+    const handlers = {}
+    mockOn.mockImplementation((event, handler) => {
+      handlers[event] = handler
+    })
+    mockConnect.mockImplementation(() => {
+      if (handlers.authenticated) handlers.authenticated({ userId: 'u1', activeChats: [] })
+    })
+
+    await socketModule.connectSocket()
+    mockSocket.connected = true
+    mockConnect.mockClear()
+
+    socketModule.reconnectNow()
+    expect(mockConnect).not.toHaveBeenCalled()
+  })
+
+  it('does nothing when no socket exists', () => {
+    socketModule.reconnectNow()
+    expect(mockConnect).not.toHaveBeenCalled()
   })
 })
 

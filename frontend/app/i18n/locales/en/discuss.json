@@ -242,5 +242,16 @@
   "errorDeletePost": "Couldn't delete post",
   "errorEditComment": "Couldn't update comment",
   "errorDeleteComment": "Couldn't delete comment",
-  "errorEditExpired": "Edit window has expired"
+  "errorEditExpired": "Edit window has expired",
+
+  "mentionNoResults": "No matches",
+  "mentionLimitReached": "Mention limit reached ({{max}})",
+  "mentionA11y": "Mention {{name}}",
+  "mentionAutocompleteA11y": "Mention suggestions",
+  "mentionRoleAdmin": "Admin",
+  "mentionRoleModerator": "Moderator",
+  "mentionRoleFacilitator": "Facilitator",
+  "mentionRoleLiaison": "Liaison",
+  "mentionRoleExpert": "Expert",
+  "mentionRoleDesc": "Notify all {{role}} users"
 }

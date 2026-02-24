@@ -496,6 +496,66 @@ def create_user_position(body, token_info=None):  # noqa: E501
     return _row_to_user_position(ret), 201
 
 
+def get_user_by_username(username, token_info=None):  # noqa: E501
+    """Get a user by username
+
+     # noqa: E501
+
+    :param username: Username of the user to retrieve
+    :type username: str
+
+    :rtype: Union[User, Tuple[User, int], Tuple[User, int, Dict[str, str]]
+    """
+    authorized, auth_err = authorization("normal", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    ret = db.execute_query("""
+        SELECT
+            u.display_name,
+            u.id,
+            u.status,
+            u.trust_score,
+            u.username,
+            u.avatar_url,
+            u.avatar_icon_url,
+            u.kudos_count
+        FROM users u
+        WHERE LOWER(u.username) = LOWER(%s)
+        """,
+    (username,), fetchone=True)
+
+    if ret is None:
+        return ErrorModel(404, "User not found"), 404
+
+    user_id = ret['id']
+    roles = get_user_roles(user_id)
+    role_list = [
+        {
+            "role": r["role"],
+            "locationId": r["location_id"],
+            "positionCategoryId": r["position_category_id"],
+            "locationName": r.get("location_name"),
+            "locationCode": r.get("location_code"),
+            "categoryLabel": r.get("category_label"),
+        }
+        for r in roles
+    ]
+
+    result = User(
+        id=str(ret['id']),
+        username=ret['username'],
+        display_name=ret['display_name'],
+        status=ret['status'],
+        trust_score=float(ret['trust_score']) if ret.get('trust_score') is not None else None,
+        avatar_url=ret['avatar_url'],
+        avatar_icon_url=ret['avatar_icon_url'],
+        kudos_count=int(ret['kudos_count']),
+    )
+    result.roles = role_list
+    return result
+
+
 def get_user_by_id(user_id, token_info=None):  # noqa: E501
     """Get a user by ID
 

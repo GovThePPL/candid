@@ -6,7 +6,7 @@ import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { Spacing, BorderRadius, Shadows, Typography } from '../../constants/Theme'
-import { SemanticColors } from '../../constants/Colors'
+import { SemanticColors, OnBrandColors } from '../../constants/Colors'
 import ThemedText from '../ThemedText'
 import VoteControl from './VoteControl'
 import BridgingBadge from './BridgingBadge'
@@ -15,6 +15,8 @@ import LocationCategoryBadge from '../LocationCategoryBadge'
 import BottomDrawerModal from '../BottomDrawerModal'
 
 const COLLAPSED_HEIGHT = 80
+// Available space right of left badges below which BridgingBadge/Answered go compact
+const COMPACT_BADGES_THRESHOLD = 200
 
 /**
  * Post card for the feed list. Supports expanding the body inline.
@@ -35,6 +37,10 @@ export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onT
   const [expanded, setExpanded] = useState(false)
   const [optionsVisible, setOptionsVisible] = useState(false)
   const [contentHeight, setContentHeight] = useState(0)
+  const [measured, setMeasured] = useState(false)
+  const [availableRight, setAvailableRight] = useState(Infinity)
+  const rowWidthRef = useRef(0)
+  const leftWidthRef = useRef(0)
   const expandAnim = useRef(new Animated.Value(0)).current
 
   const isLocked = post.status === 'locked'
@@ -47,6 +53,13 @@ export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onT
   const isEdited = post.updatedTime && post.createdTime &&
     new Date(post.updatedTime).getTime() - new Date(post.createdTime).getTime() > 1000
   const needsCollapse = contentHeight > COLLAPSED_HEIGHT
+  const compactBadges = availableRight < COMPACT_BADGES_THRESHOLD
+
+  const updateAvailableRight = useCallback(() => {
+    if (rowWidthRef.current > 0 && leftWidthRef.current > 0) {
+      setAvailableRight(rowWidthRef.current - leftWidthRef.current)
+    }
+  }, [])
 
   const handleContentLayout = useCallback((e) => {
     const h = e.nativeEvent.layout.height
@@ -54,7 +67,10 @@ export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onT
     // constrains the parent to COLLAPSED_HEIGHT, Yoga reports the child's
     // *clipped* height, which would reset contentHeight and toggle
     // needsCollapse off, causing an infinite expand/contract cycle.
-    if (h > 0) setContentHeight(prev => Math.max(prev, h))
+    if (h > 0) {
+      setContentHeight(prev => Math.max(prev, h))
+      setMeasured(true)
+    }
   }, [])
 
   const handleExpand = useCallback((e) => {
@@ -80,8 +96,8 @@ export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onT
       accessibilityLabel={t('postCardA11y', { author: displayName, title: post.title })}
     >
       {/* Top row: badges left, age right */}
-      <View style={styles.topRow}>
-        <View style={styles.topRowLeft}>
+      <View style={styles.topRow} onLayout={e => { rowWidthRef.current = e.nativeEvent.layout.width; updateAvailableRight() }}>
+        <View style={styles.topRowLeft} onLayout={e => { leftWidthRef.current = e.nativeEvent.layout.width; updateAvailableRight() }}>
           <LocationCategoryBadge location={post.location} category={post.category} size="md" />
           {isLocked && (
             <View style={styles.statusBadge}>
@@ -91,10 +107,15 @@ export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onT
           )}
         </View>
         <View style={styles.topRowRight}>
-          <BridgingBadge item={post} />
-          {post.isAnswered && (
+          <BridgingBadge item={post} compact={compactBadges} />
+          {post.isAnswered && (compactBadges ? (
             <Ionicons name="checkmark-circle" size={16} color={SemanticColors.success} accessibilityLabel={t('answered')} />
-          )}
+          ) : (
+            <View style={styles.answeredBadge} accessibilityLabel={t('answered')}>
+              <Ionicons name="checkmark-circle" size={14} color={OnBrandColors.text} />
+              <ThemedText style={styles.answeredText}>{t('answered')}</ThemedText>
+            </View>
+          ))}
           <ThemedText variant="caption" color="secondary">{relativeTime}</ThemedText>
           {isEdited && (
             <ThemedText variant="caption" color="secondary">{t('edited')}</ThemedText>
@@ -105,12 +126,17 @@ export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onT
       {/* Title */}
       <ThemedText variant="h3" numberOfLines={2} style={styles.title}>{post.title}</ThemedText>
 
-      {/* Body: markdown with animated height + fade gradient */}
+      {/* Body: markdown with animated height + fade gradient.
+           Before measurement, the outer clip is fixed at COLLAPSED_HEIGHT and
+           the inner content is position-absolute so onLayout reports its true
+           intrinsic height (not the clipped value). This avoids any flash of
+           full-height content — the card always reserves COLLAPSED_HEIGHT. */}
       {hasBody && (
         <View style={styles.body}>
           <Animated.View style={[
             styles.bodyClip,
-            needsCollapse && {
+            !measured && { height: COLLAPSED_HEIGHT },
+            measured && needsCollapse && {
               height: expandAnim.interpolate({
                 inputRange: [0, 1],
                 outputRange: [COLLAPSED_HEIGHT, contentHeight],
@@ -121,13 +147,19 @@ export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onT
               }),
             },
           ]}>
-            <View onLayout={handleContentLayout}>
+            <View
+              style={!measured ? styles.measuringInner : undefined}
+              onLayout={handleContentLayout}
+            >
               <MarkdownRenderer content={post.body} variant="post" glossaryRules={glossaryRules} />
             </View>
           </Animated.View>
-          {needsCollapse && (
+          {(!measured || (needsCollapse && !expanded)) && (
             <Animated.View
-              style={[styles.fadeOverlay, { opacity: expandAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]}
+              style={[styles.fadeOverlay, measured
+                ? { opacity: expandAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }
+                : { opacity: 1 },
+              ]}
               pointerEvents="none"
             >
               <LinearGradient
@@ -139,8 +171,8 @@ export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onT
         </View>
       )}
 
-      {/* Expand/collapse toggle */}
-      {hasBody && needsCollapse && (
+      {/* Expand/collapse toggle — shown optimistically before measurement */}
+      {hasBody && (!measured || needsCollapse) && (
         <TouchableOpacity
           style={styles.expandButton}
           onPress={handleExpand}
@@ -165,12 +197,12 @@ export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onT
         <TouchableOpacity
           onPress={(e) => {
             e?.stopPropagation?.()
-            if (post.creator?.id) router.push(`/profile?userId=${post.creator.id}`)
+            if (post.creator?.username) router.push(`/user/${post.creator.username}`)
           }}
           activeOpacity={0.7}
           accessibilityRole="link"
           accessibilityLabel={t('viewProfileA11y', { author: displayName })}
-          disabled={!post.creator?.id}
+          disabled={!post.creator?.username}
         >
           <ThemedText variant="caption" color="secondary" numberOfLines={1} style={styles.authorText}>
             {post.creator?.username ? `@${post.creator.username}` : displayName}
@@ -381,6 +413,20 @@ const createStyles = (colors) => StyleSheet.create({
   statusText: {
     marginLeft: 2,
   },
+  answeredBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: SemanticColors.success,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  answeredText: {
+    ...Typography.caption,
+    color: OnBrandColors.text,
+    fontWeight: '600',
+  },
   title: {
     marginBottom: Spacing.xs,
   },
@@ -390,6 +436,12 @@ const createStyles = (colors) => StyleSheet.create({
   },
   bodyClip: {
     overflow: 'hidden',
+  },
+  measuringInner: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    opacity: 0.5,
   },
   fadeOverlay: {
     position: 'absolute',

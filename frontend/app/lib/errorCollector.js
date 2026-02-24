@@ -7,11 +7,13 @@
  */
 
 const MAX_BUFFER_SIZE = 100
+const MAX_DEBUG_BUFFER_SIZE = 200
 const DEDUP_WINDOW_MS = 5000 // Ignore identical errors within 5 seconds
 
 let _buffer = []
 let _lastErrorKey = null
 let _lastErrorTime = 0
+let _debugBuffer = []
 let _installed = false
 
 /**
@@ -66,29 +68,59 @@ export function recordApiError(endpoint, status, message) {
 }
 
 /**
- * Drain the buffer and return all collected errors, clearing the buffer.
- * Returns null if empty (nothing to send).
+ * Record a debug log entry for diagnostics.
+ * These are sent alongside errors in the periodic diagnostics payload.
+ * Do NOT include user content (message text, etc.) — only metadata.
  *
- * @returns {object|null} - { errors: [...] } or null
+ * @param {string} category - Log category (e.g. 'socket', 'chat', 'chat:send')
+ * @param {string} message - Short description of the event
+ * @param {object} [meta] - Metadata (chatId, event, status, etc.)
  */
-export function drain() {
-  if (_buffer.length === 0) return null
+export function recordDebug(category, message, meta = {}) {
+  _debugBuffer.push({
+    category,
+    message: String(message).slice(0, 300),
+    meta,
+    timestamp: new Date().toISOString(),
+  })
 
-  // Strip internal _key before sending
-  const errors = _buffer.map(({ _key, ...rest }) => rest)
-  _buffer = []
-  _lastErrorKey = null
-  _lastErrorTime = 0
-
-  return { errors }
+  if (_debugBuffer.length > MAX_DEBUG_BUFFER_SIZE) {
+    _debugBuffer = _debugBuffer.slice(-MAX_DEBUG_BUFFER_SIZE)
+  }
 }
 
 /**
- * Return current buffer size (for testing/debugging).
- * @returns {number}
+ * Drain the buffer and return all collected errors and debug logs, clearing both.
+ * Returns null if both are empty (nothing to send).
+ *
+ * @returns {object|null} - { errors: [...], debugLogs: [...] } or null
+ */
+export function drain() {
+  if (_buffer.length === 0 && _debugBuffer.length === 0) return null
+
+  const result = {}
+
+  if (_buffer.length > 0) {
+    result.errors = _buffer.map(({ _key, ...rest }) => rest)
+    _buffer = []
+    _lastErrorKey = null
+    _lastErrorTime = 0
+  }
+
+  if (_debugBuffer.length > 0) {
+    result.debugLogs = _debugBuffer
+    _debugBuffer = []
+  }
+
+  return result
+}
+
+/**
+ * Return current buffer sizes (for testing/debugging).
+ * @returns {number} - Total entries across both buffers
  */
 export function size() {
-  return _buffer.length
+  return _buffer.length + _debugBuffer.length
 }
 
 /**

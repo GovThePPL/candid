@@ -4,13 +4,15 @@ import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
-import { useThemeColors } from '../../../../hooks/useThemeColors'
-import api from '../../../../lib/api'
-import { CacheManager, CacheKeys, CacheDurations } from '../../../../lib/cache'
-import Header from '../../../../components/Header'
-import ThemedText from '../../../../components/ThemedText'
-import MarkdownRenderer from '../../../../components/discuss/MarkdownRenderer'
-import EmptyState from '../../../../components/EmptyState'
+import { useThemeColors } from '../../../../../hooks/useThemeColors'
+import { Shadows, BorderRadius, Spacing } from '../../../../../constants/Theme'
+import api from '../../../../../lib/api'
+import { CacheManager, CacheKeys, CacheDurations } from '../../../../../lib/cache'
+import Header from '../../../../../components/Header'
+import ThemedText from '../../../../../components/ThemedText'
+import MarkdownRenderer from '../../../../../components/discuss/MarkdownRenderer'
+import EmptyState from '../../../../../components/EmptyState'
+import { formatRelativeTime } from '../../../../../lib/timeUtils'
 
 export default function GlossaryTermScreen() {
   const { slug } = useLocalSearchParams()
@@ -131,33 +133,6 @@ export default function GlossaryTermScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <Header onBack={handleBack} />
 
-      {!loading && !error && term ? (
-        <View style={styles.actionBar}>
-          <TouchableOpacity
-            onPress={handleEdit}
-            style={styles.actionButton}
-            accessibilityRole="button"
-            accessibilityLabel={term.canEdit ? t('directEditA11y') : t('suggestEditA11y')}
-          >
-            <Ionicons name="create-outline" size={14} color={colors.primary} />
-            <ThemedText variant="caption" color="primary">
-              {term.canEdit ? t('directEdit') : t('suggestEdit')}
-            </ThemedText>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => router.push(`/wiki/history?slug=${encodeURIComponent(slug)}&type=term`)}
-            style={styles.actionButton}
-            accessibilityRole="button"
-            accessibilityLabel={t('historyButtonA11y')}
-          >
-            <Ionicons name="time-outline" size={14} color={colors.primary} />
-            <ThemedText variant="caption" color="primary">
-              {t('historyButton')}
-            </ThemedText>
-          </TouchableOpacity>
-        </View>
-      ) : null}
-
       {loading ? (
         <View style={styles.centered}>
           <ActivityIndicator color={colors.primary} />
@@ -182,31 +157,65 @@ export default function GlossaryTermScreen() {
             />
           }
         >
-          <ThemedText variant="h2" style={styles.title}>
-            {term.term}
-          </ThemedText>
+          <View style={styles.actionBar}>
+            <TouchableOpacity
+              onPress={handleEdit}
+              style={styles.actionButton}
+              accessibilityRole="button"
+              accessibilityLabel={term.canEdit ? t('directEditA11y') : t('suggestEditA11y')}
+            >
+              <Ionicons name="create-outline" size={14} color={colors.primary} />
+              <ThemedText variant="caption" color="primary">
+                {term.canEdit ? t('directEdit') : t('suggestEdit')}
+              </ThemedText>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => router.push(`/wiki/history?slug=${encodeURIComponent(slug)}&type=term`)}
+              style={styles.actionButton}
+              accessibilityRole="button"
+              accessibilityLabel={t('historyButtonA11y')}
+            >
+              <Ionicons name="time-outline" size={14} color={colors.primary} />
+              <ThemedText variant="caption" color="primary">
+                {t('historyButton')}
+              </ThemedText>
+            </TouchableOpacity>
+          </View>
 
-          <View style={styles.metaRow}>
-            {term.wikiCategory ? (
-              <View style={styles.categoryBadge}>
-                <ThemedText variant="label" style={styles.categoryText}>
-                  {term.wikiCategory}
+          {/* Title card */}
+          <View style={styles.titleCard}>
+            <View style={styles.metaRow}>
+              {term.wikiCategory ? (
+                <View style={styles.categoryBadge}>
+                  <ThemedText variant="label" style={styles.categoryText}>
+                    {term.wikiCategory}
+                  </ThemedText>
+                </View>
+              ) : null}
+
+              {term.updatedAt ? (
+                <ThemedText variant="caption" color="secondary">
+                  {t('wikiUpdatedAt', { date: formatRelativeTime(term.updatedAt, t) })}
                 </ThemedText>
-              </View>
-            ) : null}
+              ) : null}
+            </View>
+
+            <ThemedText variant="h2" style={styles.title}>
+              {term.term}
+            </ThemedText>
 
             {term.aliases && term.aliases.length > 0 ? (
-              <ThemedText variant="caption" color="secondary">
+              <ThemedText variant="caption" color="secondary" style={styles.aliases}>
                 {term.aliases.join(', ')}
               </ThemedText>
             ) : null}
-          </View>
 
-          {term.summary ? (
-            <ThemedText variant="body" color="secondary" style={styles.description}>
-              {term.summary}
-            </ThemedText>
-          ) : null}
+            {term.summary ? (
+              <ThemedText variant="body" color="secondary" style={styles.description}>
+                {term.summary}
+              </ThemedText>
+            ) : null}
+          </View>
 
           {term.content ? (
             <MarkdownRenderer
@@ -237,15 +246,21 @@ const createStyles = (colors) => StyleSheet.create({
   content: {
     padding: 16,
   },
+  titleCard: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    ...Shadows.card,
+  },
   title: {
-    marginBottom: 8,
+    marginBottom: Spacing.xs,
   },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 16,
-    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.sm,
   },
   categoryBadge: {
     backgroundColor: colors.badgeBg,
@@ -258,18 +273,17 @@ const createStyles = (colors) => StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
   },
+  aliases: {
+    marginBottom: Spacing.xs,
+  },
   description: {
-    marginBottom: 16,
     fontStyle: 'italic',
   },
   actionBar: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.cardBorder,
+    marginBottom: 4,
   },
   actionButton: {
     flexDirection: 'row',

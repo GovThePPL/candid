@@ -90,6 +90,56 @@ describe('markdownConvert', () => {
     })
   })
 
+  describe('htmlToMarkdownRegex bug fixes', () => {
+    it('preserves bold inside links', () => {
+      const md = htmlToMarkdown('<a href="https://example.com"><strong>bold link</strong></a>')
+      expect(md).toBe('[**bold link**](https://example.com)')
+    })
+
+    it('preserves italic inside links', () => {
+      const md = htmlToMarkdown('<a href="https://example.com"><em>italic link</em></a>')
+      expect(md).toBe('[_italic link_](https://example.com)')
+    })
+
+    it('preserves formatting inside ordered list items', () => {
+      const md = htmlToMarkdown('<ol><li><strong>bold</strong> item</li></ol>')
+      expect(md).toContain('1. **bold** item')
+    })
+
+    it('preserves formatting inside unordered list items', () => {
+      const md = htmlToMarkdown('<ul><li><em>italic</em> item</li></ul>')
+      expect(md).toContain('- _italic_ item')
+    })
+
+    it('preserves formatting inside task list items', () => {
+      const md = htmlToMarkdown(
+        '<ul class="contains-task-list"><li><input type="checkbox" checked><strong>done</strong> task</li></ul>'
+      )
+      expect(md).toContain('- [x] **done** task')
+    })
+
+    it('escapes pipes in table cells', () => {
+      const md = htmlToMarkdown('<table><tr><th>A</th><th>B</th></tr><tr><td>a|b</td><td>c</td></tr></table>')
+      expect(md).toContain('a\\|b')
+    })
+
+    it('preserves sup and sub tags', () => {
+      const md = htmlToMarkdown('<p>x<sup>2</sup> + H<sub>2</sub>O</p>')
+      expect(md).toContain('<sup>2</sup>')
+      expect(md).toContain('<sub>2</sub>')
+    })
+
+    it('preserves formatting inside headings', () => {
+      const md = htmlToMarkdown('<h2><strong>Bold</strong> heading</h2>')
+      expect(md).toContain('## **Bold** heading')
+    })
+
+    it('preserves formatting inside table cells', () => {
+      const md = htmlToMarkdown('<table><tr><td><strong>bold</strong></td></tr></table>')
+      expect(md).toContain('**bold**')
+    })
+  })
+
   describe('round-trip', () => {
     it('preserves bold through md→html→md', () => {
       const original = '**bold text**'
@@ -103,6 +153,20 @@ describe('markdownConvert', () => {
       const html = markdownToHtml(original)
       const result = htmlToMarkdown(html)
       expect(result).toContain('[link](https://example.com)')
+    })
+
+    it('preserves superscript through md→html→md', () => {
+      const original = 'x<sup>2</sup>'
+      const html = markdownToHtml(original)
+      const result = htmlToMarkdown(html)
+      expect(result).toContain('<sup>2</sup>')
+    })
+
+    it('preserves subscript through md→html→md', () => {
+      const original = 'H<sub>2</sub>O'
+      const html = markdownToHtml(original)
+      const result = htmlToMarkdown(html)
+      expect(result).toContain('<sub>2</sub>')
     })
   })
 })

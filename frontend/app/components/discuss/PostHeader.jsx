@@ -1,11 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef, useCallback } from 'react'
 import { View, TouchableOpacity, StyleSheet } from 'react-native'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { Spacing, Typography } from '../../constants/Theme'
-import { SemanticColors } from '../../constants/Colors'
+import { SemanticColors, OnBrandColors } from '../../constants/Colors'
 import { formatRelativeTime } from '../../lib/timeUtils'
 import ThemedText from '../ThemedText'
 import UserCard from '../UserCard'
@@ -31,6 +31,16 @@ export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, 
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const [optionsVisible, setOptionsVisible] = useState(false)
+  const [availableRight, setAvailableRight] = useState(Infinity)
+  const rowWidthRef = useRef(0)
+  const leftWidthRef = useRef(0)
+  const compactBadges = availableRight < 200
+
+  const updateAvailableRight = useCallback(() => {
+    if (rowWidthRef.current > 0 && leftWidthRef.current > 0) {
+      setAvailableRight(rowWidthRef.current - leftWidthRef.current)
+    }
+  }, [])
 
   const authorName = post.creator?.displayName || post.creator?.username || '?'
   const isOwnPost = currentUserId && post.creator?.id === currentUserId
@@ -44,18 +54,20 @@ export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, 
   return (
     <View style={styles.container}>
       {/* Top row: badges left, time right */}
-      <View style={styles.topRow}>
-        <View style={styles.topRowLeft}>
+      <View style={styles.topRow} onLayout={e => { rowWidthRef.current = e.nativeEvent.layout.width; updateAvailableRight() }}>
+        <View style={styles.topRowLeft} onLayout={e => { leftWidthRef.current = e.nativeEvent.layout.width; updateAvailableRight() }}>
           <LocationCategoryBadge location={post.location} category={post.category} size="lg" />
         </View>
         <View style={styles.topRowRight}>
-          <BridgingBadge item={post} />
-          {post.isAnswered && (
-            <View style={styles.answeredBadge}>
-              <Ionicons name="checkmark-circle" size={15} color="#FFFFFF" />
+          <BridgingBadge item={post} compact={compactBadges} />
+          {post.isAnswered && (compactBadges ? (
+            <Ionicons name="checkmark-circle" size={16} color={SemanticColors.success} accessibilityLabel={t('answered')} />
+          ) : (
+            <View style={styles.answeredBadge} accessibilityLabel={t('answered')}>
+              <Ionicons name="checkmark-circle" size={15} color={OnBrandColors.text} />
               <ThemedText style={styles.answeredText}>{t('answered')}</ThemedText>
             </View>
-          )}
+          ))}
           <ThemedText variant="caption" color="secondary">{relativeTime}</ThemedText>
           {isEdited && (
             <ThemedText variant="caption" color="secondary">{t('edited')}</ThemedText>
@@ -80,8 +92,8 @@ export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, 
       {/* Bottom bar: author left, actions right */}
       <View style={styles.bottomBar}>
         <TouchableOpacity
-          onPress={() => post.creator?.id && router.push(`/profile?userId=${post.creator.id}`)}
-          disabled={!post.creator?.id}
+          onPress={() => post.creator?.username && router.push(`/user/${post.creator.username}`)}
+          disabled={!post.creator?.username}
           activeOpacity={0.7}
           accessibilityRole="link"
           accessibilityLabel={t('viewProfileA11y', { author: authorName })}
@@ -336,7 +348,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   answeredText: {
     ...Typography.caption,
-    color: '#FFFFFF',
+    color: OnBrandColors.text,
     fontWeight: '600',
   },
   optionsList: {

@@ -44,4 +44,8 @@ cd "$API_DIR" && npm install
 cd "$API_DIR" && npm run build
 echo "Re-linking api in app (file: dependency)..."
 cd "$APP_DIR" && npm install
+
+echo "Building custom editor WebView HTML..."
+cd "$APP_DIR/lib/customEditor" && npx vite build && node buildEditorHtml.js
+
 echo "Done"

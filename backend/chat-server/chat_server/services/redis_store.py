@@ -287,6 +287,16 @@ class RedisStore:
     def _user_chats_key(self, user_id: str) -> str:
         return config.USER_ACTIVE_CHATS_KEY.format(user_id=user_id)
 
+    # ===== Presence =====
+
+    async def update_presence(self, user_id: str) -> None:
+        """Set/refresh the in-app presence key for a user (60s TTL).
+
+        Called on connect and on every keepalive ping so the REST API's
+        presence checks see the user as online even outside the card queue.
+        """
+        await self._redis.setex(f"presence:in_app:{user_id}", 60, "1")
+
     # ===== Chat Metadata =====
 
     async def create_chat(

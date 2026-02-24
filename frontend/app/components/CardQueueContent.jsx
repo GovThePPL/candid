@@ -1,5 +1,6 @@
 import { StyleSheet, View, TouchableOpacity, Platform, Dimensions, Alert } from 'react-native'
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useIsFocused } from '@react-navigation/native'
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, interpolate, runOnJS } from 'react-native-reanimated'
 import { useRouter } from 'expo-router'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -106,7 +107,8 @@ export default function CardQueueContent() {
   const router = useRouter()
   const { t } = useTranslation('cards')
   const { user } = useAuth()
-  const { incomingChatRequest, clearIncomingChatRequest, pendingChatRequest: pendingChatCtx, clearPendingChatRequest } = useChatContext()
+  const { incomingChatRequest, clearIncomingChatRequest, restoreIncomingChatRequest, pendingChatRequest: pendingChatCtx, clearPendingChatRequest } = useChatContext()
+  const isFocused = useIsFocused()
   const [cards, setCards] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [initialLoading, setInitialLoading] = useState(true)
@@ -389,6 +391,8 @@ export default function CardQueueContent() {
   currentIndexRef.current = currentIndex
   const cardsLengthRef = useRef(cards.length)
   cardsLengthRef.current = cards.length
+  const cardsRef = useRef(cards)
+  cardsRef.current = cards
 
   const advanceIndex = useCallback(() => {
     setCurrentIndex(prev => prev + 1)
@@ -463,9 +467,11 @@ export default function CardQueueContent() {
     })
   }, [completeSlideIn])
 
-  // Consume incoming chat request from context
+  // Consume incoming chat request from context — only when this tab is focused.
+  // Tab screens stay mounted across tab switches, so without this guard the card queue
+  // would immediately consume and clear the request before the Header indicator can show it.
   useEffect(() => {
-    if (!incomingChatRequest) return
+    if (!incomingChatRequest || !isFocused) return
 
     const cardKey = `chat_request-${incomingChatRequest?.data?.id}`
 
@@ -510,7 +516,7 @@ export default function CardQueueContent() {
     }
 
     clearIncomingChatRequest()
-  }, [incomingChatRequest, clearIncomingChatRequest, isActivelySwiping, currentIndex, triggerSlideIn])
+  }, [incomingChatRequest, isFocused, clearIncomingChatRequest, isActivelySwiping, currentIndex, triggerSlideIn])
 
   // Chat request expiration: auto-dismiss when a chat request card is current
   useEffect(() => {
@@ -585,11 +591,21 @@ export default function CardQueueContent() {
     return () => timers.forEach(t => clearTimeout(t))
   }, [cards.length, currentIndex])
 
-  // Clean up timers on unmount
+  // Clean up timers on unmount and restore unconsumed chat requests to context
   useEffect(() => {
     return () => {
       if (promotionTimerRef.current) clearTimeout(promotionTimerRef.current)
       if (expirationTimerRef.current) clearTimeout(expirationTimerRef.current)
+
+      // Restore any unconsumed chat request to context so the Header indicator shows it
+      const remaining = cardsRef.current.slice(currentIndexRef.current)
+      const pending = remaining.find(c => c.type === 'chat_request')
+      if (pending) {
+        const expiresAt = new Date(pending.data?.createdTime).getTime() + CHAT_REQUEST_TIMEOUT_MS
+        if (expiresAt > Date.now()) {
+          restoreIncomingChatRequest(pending)
+        }
+      }
     }
   }, [])
 
@@ -858,7 +874,7 @@ export default function CardQueueContent() {
   })
 
   const currentCardSlideStyle = useAnimatedStyle(() => {
-    if (!isSlidingIn.value) return {}
+    if (!isSlidingIn.value) return { transform: [{ scale: 1 }, { translateY: 0 }] }
     return {
       transform: [
         { scale: interpolate(slideInAnim.value, [0, 1], [1, 0.96]) },

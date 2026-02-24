@@ -1,20 +1,75 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { View, FlatList, TextInput, TouchableOpacity, ActivityIndicator, Modal, ScrollView, StyleSheet } from 'react-native'
+import { View, FlatList, TextInput, TouchableOpacity, Modal, ScrollView, StyleSheet } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter, useFocusEffect } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
-import { useThemeColors } from '../../../hooks/useThemeColors'
-import { Spacing } from '../../../constants/Theme'
-import api from '../../../lib/api'
-import { CacheManager, CacheKeys, CacheDurations } from '../../../lib/cache'
-import Header from '../../../components/Header'
-import WikiPageCard from '../../../components/wiki/WikiPageCard'
-import EmptyState from '../../../components/EmptyState'
-import ThemedText from '../../../components/ThemedText'
-import LocationFilterButton from '../../../components/LocationFilterButton'
-import LocationCategoryBadge from '../../../components/LocationCategoryBadge'
-import { useAuth } from '../../../contexts/UserContext'
+import { useThemeColors } from '../../../../hooks/useThemeColors'
+import { Spacing, Shadows, BorderRadius } from '../../../../constants/Theme'
+import api from '../../../../lib/api'
+import { CacheManager, CacheKeys, CacheDurations } from '../../../../lib/cache'
+import Header from '../../../../components/Header'
+import WikiPageCard from '../../../../components/wiki/WikiPageCard'
+import EmptyState from '../../../../components/EmptyState'
+import ThemedText from '../../../../components/ThemedText'
+import LocationFilterButton from '../../../../components/LocationFilterButton'
+import LocationCategoryBadge from '../../../../components/LocationCategoryBadge'
+import { SkeletonPulse, SkeletonBox, SkeletonLine } from '../../../../components/Skeleton'
+import { useAuth } from '../../../../contexts/UserContext'
+
+function WikiPageCardSkeleton({ colors }) {
+  return (
+    <View style={{
+      backgroundColor: colors.cardBackground,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      padding: 16,
+      marginHorizontal: 16,
+      marginBottom: 12,
+    }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+        <SkeletonBox width={100} height={20} borderRadius={6} />
+        <SkeletonLine width={60} height={10} />
+      </View>
+      <SkeletonLine width="80%" height={14} style={{ marginBottom: 4 }} />
+      <SkeletonLine width="60%" height={12} />
+    </View>
+  )
+}
+
+function WikiTermCardSkeleton({ colors }) {
+  return (
+    <View style={{
+      marginHorizontal: 16,
+      marginBottom: 8,
+      backgroundColor: colors.cardBackground,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      gap: 4,
+    }}>
+      <SkeletonBox width={100} height={20} borderRadius={6} />
+      <SkeletonLine width="50%" height={14} />
+      <SkeletonLine width="70%" height={12} />
+    </View>
+  )
+}
+
+function WikiListSkeleton({ colors, activeTab }) {
+  const ItemSkeleton = activeTab === 'terms' ? WikiTermCardSkeleton : WikiPageCardSkeleton
+  return (
+    <ScrollView contentContainerStyle={{ flexGrow: 1, paddingTop: 16 }}>
+      <SkeletonPulse>
+        {Array.from({ length: 5 }).map((_, i) => (
+          <ItemSkeleton key={i} colors={colors} />
+        ))}
+      </SkeletonPulse>
+    </ScrollView>
+  )
+}
 
 export default function WikiScreen() {
   const { t } = useTranslation('glossary')
@@ -542,9 +597,7 @@ export default function WikiScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <Header />
       {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator color={colors.primary} />
-        </View>
+        <WikiListSkeleton colors={colors} activeTab={activeTab} />
       ) : isError ? (
         <View style={styles.centered}>
           <EmptyState
@@ -861,14 +914,13 @@ const createStyles = (colors) => StyleSheet.create({
     fontWeight: '700',
   },
   termCard: {
-    marginHorizontal: 16,
-    marginBottom: 8,
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.sm,
     backgroundColor: colors.cardBackground,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
+    borderRadius: BorderRadius.md,
     paddingHorizontal: 14,
     paddingVertical: 12,
     gap: 4,
+    ...Shadows.card,
   },
 })

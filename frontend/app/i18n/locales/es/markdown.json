@@ -39,5 +39,17 @@
   "footnotesSection": "Notas al pie",
   "markdownPreview": "Vista previa",
   "markdownPreviewA11y": "Alternar vista previa de markdown",
-  "markdownPreviewEmpty": "Nada que mostrar todavía"
+  "markdownPreviewEmpty": "Nada que mostrar todavía",
+  "tableAddRowAbove": "+ Fila \u2191",
+  "tableAddRowBelow": "+ Fila \u2193",
+  "tableDeleteRow": "\u2212 Fila",
+  "tableAddColLeft": "+ Col \u2190",
+  "tableAddColRight": "+ Col \u2192",
+  "tableDeleteCol": "\u2212 Col",
+  "tableAddRowAboveA11y": "Agregar fila arriba",
+  "tableAddRowBelowA11y": "Agregar fila abajo",
+  "tableDeleteRowA11y": "Eliminar fila",
+  "tableAddColLeftA11y": "Agregar columna a la izquierda",
+  "tableAddColRightA11y": "Agregar columna a la derecha",
+  "tableDeleteColA11y": "Eliminar columna"
 }

@@ -1,5 +1,5 @@
 import React from 'react'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react-native'
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react-native'
 import { LightTheme } from '../../constants/Colors'
 
 const mockColors = LightTheme
@@ -22,12 +22,16 @@ jest.mock('../../components/EmptyState', () => {
 })
 
 jest.mock('../../components/wiki/VersionCard', () => {
-  const { Text, TouchableOpacity } = require('react-native')
-  return function MockVersionCard({ version, onPress }) {
+  const { Text, TouchableOpacity, View } = require('react-native')
+  return function MockVersionCard({ version, onToggle, expanded, versionDetail, detailLoading }) {
     return (
-      <TouchableOpacity onPress={onPress} accessibilityRole="button">
-        <Text>{version.title}</Text>
-      </TouchableOpacity>
+      <View>
+        <TouchableOpacity onPress={onToggle} accessibilityRole="button" testID={`toggle-${version.id}`}>
+          <Text>{version.title}</Text>
+        </TouchableOpacity>
+        {expanded && detailLoading && <Text>Loading...</Text>}
+        {expanded && versionDetail && <Text testID="diff-content">Diff shown</Text>}
+      </View>
     )
   }
 })
@@ -44,19 +48,22 @@ jest.mock('expo-router', () => ({
 }))
 
 const mockGetPageHistory = jest.fn()
+const mockGetPageVersion = jest.fn()
 jest.mock('../../lib/api', () => ({
   __esModule: true,
   default: {
     wiki: {
       getPageHistory: (...args) => mockGetPageHistory(...args),
+      getPageVersion: (...args) => mockGetPageVersion(...args),
     },
     glossary: {
       getTermHistory: jest.fn(),
+      getTermVersion: jest.fn(),
     },
   },
 }))
 
-import WikiHistoryScreen from '../../app/(dashboard)/wiki/history'
+import WikiHistoryScreen from '../../app/(dashboard)/(tabs)/wiki/history'
 
 describe('WikiHistoryScreen', () => {
   beforeEach(() => {
@@ -94,7 +101,12 @@ describe('WikiHistoryScreen', () => {
     })
   })
 
-  it('navigates to version detail on card press', async () => {
+  it('expands card on tap and fetches version detail', async () => {
+    const versionDetail = {
+      id: 'v-1',
+      beforeSnapshot: { title: 'Old', content: 'old' },
+      afterSnapshot: { title: 'New', content: 'new' },
+    }
     mockGetPageHistory.mockResolvedValue([
       {
         id: 'v-1',
@@ -103,16 +115,61 @@ describe('WikiHistoryScreen', () => {
         editedAt: '2026-02-20T10:00:00Z',
       },
     ])
+    mockGetPageVersion.mockResolvedValue(versionDetail)
 
     render(<WikiHistoryScreen />)
     await waitFor(() => {
       expect(screen.getByText('Gun Policy')).toBeTruthy()
     })
 
-    fireEvent.press(screen.getByRole('button'))
-    expect(mockPush).toHaveBeenCalledWith(
-      expect.stringContaining('/wiki/version?versionId=v-1')
-    )
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('toggle-v-1'))
+    })
+
+    expect(mockGetPageVersion).toHaveBeenCalledWith('v-1', 'gun-policy')
+
+    await waitFor(() => {
+      expect(screen.getByTestId('diff-content')).toBeTruthy()
+    })
+  })
+
+  it('collapses card on second tap', async () => {
+    mockGetPageHistory.mockResolvedValue([
+      {
+        id: 'v-1',
+        title: 'Gun Policy',
+        editedBy: { id: 'u-1', username: 'admin1', displayName: 'Admin' },
+        editedAt: '2026-02-20T10:00:00Z',
+      },
+    ])
+    mockGetPageVersion.mockResolvedValue({
+      id: 'v-1',
+      beforeSnapshot: { title: 'Old', content: 'old' },
+      afterSnapshot: { title: 'New', content: 'new' },
+    })
+
+    render(<WikiHistoryScreen />)
+    await waitFor(() => {
+      expect(screen.getByText('Gun Policy')).toBeTruthy()
+    })
+
+    // Expand
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('toggle-v-1'))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('diff-content')).toBeTruthy()
+    })
+
+    // Collapse
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('toggle-v-1'))
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('diff-content')).toBeNull()
+    })
   })
 
   it('shows error state on API failure', async () => {

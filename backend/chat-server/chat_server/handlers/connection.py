@@ -76,6 +76,9 @@ def register_connection_handlers(sio: socketio.AsyncServer) -> None:
                             room=other_room,
                         )
 
+        # Set in-app presence so the REST API sees this user as online
+        await redis_store.update_presence(user_id)
+
         logger.info(
             f"User {user_id} connected and authenticated (sid: {sid}), "
             f"active chats: {active_chats}"
@@ -264,7 +267,14 @@ def register_connection_handlers(sio: socketio.AsyncServer) -> None:
 
     @sio.event
     async def ping(sid: str, data: dict = None) -> dict[str, str]:
-        """Heartbeat handler - also updates activity timestamp."""
+        """Heartbeat handler - also updates activity timestamp and Redis presence."""
         room_manager = get_room_manager()
         room_manager.update_activity(sid)
+
+        # Refresh in-app presence so the REST API sees this user as online
+        user_id = room_manager.get_user_id(sid)
+        if user_id:
+            redis_store = get_redis_store()
+            await redis_store.update_presence(user_id)
+
         return {"type": "pong"}

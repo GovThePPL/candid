@@ -251,4 +251,25 @@ describe('WysiwygEditor', () => {
     expect(screen.getByLabelText('boldA11y')).toBeTruthy()
     expect(screen.getByLabelText('italicA11y')).toBeTruthy()
   })
+
+  it('wraps link modal content in KBAvoidingView on native', () => {
+    render(<WysiwygEditor />)
+    fireEvent.press(screen.getByLabelText('linkA11y'))
+    // On native (Platform.OS !== 'web'), the link modal inputs render
+    // inside KBAvoidingView — verify they're still accessible
+    expect(screen.getByLabelText('linkUrl')).toBeTruthy()
+    expect(screen.getByLabelText('linkText')).toBeTruthy()
+    expect(screen.getByLabelText('linkInsert')).toBeTruthy()
+    expect(screen.getByLabelText('linkCancel')).toBeTruthy()
+  })
+
+  it('wraps footnote modal content in KBAvoidingView on native', () => {
+    render(<WysiwygEditor variant="wiki" />)
+    fireEvent.press(screen.getByLabelText('footnoteA11y'))
+    // On native (Platform.OS !== 'web'), the footnote modal inputs render
+    // inside KBAvoidingView — verify they're still accessible
+    expect(screen.getByLabelText('footnotePlaceholder')).toBeTruthy()
+    expect(screen.getByLabelText('footnoteInsert')).toBeTruthy()
+    expect(screen.getByLabelText('footnoteCancel')).toBeTruthy()
+  })
 })

@@ -33,14 +33,17 @@ export default function DashboardLayout() {
     }
   }, [activeChatNavigation, router, clearActiveChatNavigation])
 
-  // Handle navigation to existing active chat on app load
+  // Handle navigation to existing active chat on app load or foreground
   useEffect(() => {
     if (activeChat?.id) {
-      console.debug('[DashboardLayout] Navigating to active chat:', activeChat.id)
-      router.push(`/chat/${activeChat.id}`)
+      // Guard against double navigation if already on this chat route
+      if (!pathname.includes(activeChat.id)) {
+        console.debug('[DashboardLayout] Navigating to active chat:', activeChat.id)
+        router.push(`/chat/${activeChat.id}`)
+      }
       clearActiveChat()
     }
-  }, [activeChat, router, clearActiveChat])
+  }, [activeChat, router, clearActiveChat, pathname])
 
   // Handle deep link navigation from push notification taps
   useEffect(() => {
@@ -59,12 +62,12 @@ export default function DashboardLayout() {
     >
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="profile" />
+      <Stack.Screen name="user" />
       <Stack.Screen name="settings" />
       <Stack.Screen name="admin" />
       <Stack.Screen name="notifications" />
       <Stack.Screen name="post" />
       <Stack.Screen name="chat" />
-      <Stack.Screen name="wiki" />
       <Stack.Screen name="position-closures" />
       <Stack.Screen name="setup-profile" />
     </Stack>

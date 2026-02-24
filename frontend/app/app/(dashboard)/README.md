@@ -6,7 +6,7 @@ Main app screens behind authentication. All routes in this group are wrapped by 
 
 The dashboard uses a **Stack + Tabs** pattern:
 - **Dashboard Stack** (`_layout.jsx`): Top-level Stack navigator with providers (`UserOnly`, `NotificationProvider`, `ToastProvider`). Handles deep links, chat auto-navigation.
-- **Tabs** (`(tabs)/_layout.jsx`): 4 visible tabs (cards, discuss, stats, moderation). The `(tabs)` group is a route group — no URL segment is added.
+- **Tabs** (`(tabs)/_layout.jsx`): 5 visible tabs (cards, discuss, wiki, stats, moderation). The `(tabs)` group is a route group — no URL segment is added.
 - **Overlays**: Profile, settings, admin, notifications, chat, etc. push onto the dashboard Stack above the tabs.
 
 Navigation patterns:
@@ -30,12 +30,24 @@ navigation where back should return to the discuss feed.
 │   ├── cards.jsx              # Card queue — swipeable card stack
 │   ├── stats.jsx              # Statistics dashboard — opinion groups, surveys
 │   ├── moderation.jsx         # Moderation queue — flagged content review
-│   └── discuss/               # Discussion forum (nested Stack)
+│   ├── discuss/               # Discussion forum (nested Stack)
+│   │   ├── _layout.jsx        # Stack navigator (headerless)
+│   │   ├── index.jsx          # Post feed with tabs and filters
+│   │   ├── create.jsx         # Create new discussion post
+│   │   └── [id].jsx           # Post detail with threaded comments
+│   └── wiki/                  # Wiki knowledgebase (nested Stack)
 │       ├── _layout.jsx        # Stack navigator (headerless)
-│       ├── index.jsx          # Post feed with tabs and filters
-│       ├── create.jsx         # Create new discussion post
-│       └── [id].jsx           # Post detail with threaded comments
-├── profile.jsx                # User profile overlay
+│       ├── index.jsx          # Wiki list (pages + terms tabs)
+│       ├── [...slug].jsx      # Wiki page detail
+│       ├── glossary/
+│       │   └── [slug].jsx     # Glossary term detail
+│       ├── suggestions.jsx    # Wiki suggestions list (my + review)
+│       ├── suggestion-form.jsx # Create/edit wiki suggestion form
+│       ├── history.jsx        # Version history list (page or term)
+│       └── version.jsx        # Version detail with diff view
+├── profile.jsx                # Own profile overlay (4 tabs: positions, posts, comments, chats)
+├── user/                      # Public profile by username
+│   └── [username].jsx         # Public profile (2 tabs: posts, comments)
 ├── setup-profile.jsx          # First-time profile setup
 ├── admin/                     # Admin panel (see admin/README.md)
 ├── post/                      # Post detail overlay (re-exports discuss/[id])
@@ -47,15 +59,6 @@ navigation where back should return to the discuss feed.
 ├── notifications/             # Notification inbox
 │   ├── _layout.jsx            # Stack navigator (headerless)
 │   └── index.jsx              # Notification list with deep linking
-├── wiki/                      # Wiki knowledgebase
-│   ├── _layout.jsx            # Stack navigator (headerless)
-│   ├── [slug].jsx             # Wiki page detail
-│   ├── glossary/
-│   │   └── [slug].jsx         # Glossary term detail
-│   ├── suggestions.jsx        # Wiki suggestions list (my + review)
-│   ├── suggestion-form.jsx    # Create/edit wiki suggestion form
-│   ├── history.jsx            # Version history list (page or term)
-│   └── version.jsx            # Version detail with diff view
 ├── position-closures/         # Position closure details
 │   ├── _layout.jsx            # Stack navigator (headerless)
 │   └── [id].jsx               # Closure detail

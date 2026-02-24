@@ -1,5 +1,5 @@
-import { memo, useMemo, useCallback, useRef } from 'react'
-import { View, Text, Image, Linking } from 'react-native'
+import { memo, useMemo, useCallback, useRef, useState, useEffect } from 'react'
+import { View, Text, Image, Linking, TouchableOpacity, Modal, ScrollView, useWindowDimensions, Platform, BackHandler } from 'react-native'
 import Markdown from 'react-native-markdown-display'
 import MarkdownIt from 'markdown-it'
 import taskListPlugin from 'markdown-it-task-lists'
@@ -81,9 +81,52 @@ function extractNodeText(node) {
  */
 export default memo(function MarkdownRenderer({ content, variant = 'post', glossaryRules, onLinkPress: onLinkPressProp, onHeadingLayout }) {
   const colors = useThemeColors()
+  const { width: screenWidth } = useWindowDimensions()
   const linkPressRef = useRef(onLinkPressProp)
   linkPressRef.current = onLinkPressProp
+  const [lightboxUrl, setLightboxUrl] = useState(null)
+  const lightboxHistoryRef = useRef(false)
   const markdownStyles = useMemo(() => createMarkdownStyles(colors, variant), [colors, variant])
+
+  const openLightbox = useCallback((url) => {
+    setLightboxUrl(url)
+    if (Platform.OS === 'web') {
+      window.history.pushState({ lightbox: true }, '')
+      lightboxHistoryRef.current = true
+    }
+  }, [])
+
+  const closeLightbox = useCallback(() => {
+    if (Platform.OS === 'web' && lightboxHistoryRef.current) {
+      lightboxHistoryRef.current = false
+      window.history.back()
+    }
+    setLightboxUrl(null)
+  }, [])
+
+  // Web: browser back button pops our history entry — close lightbox
+  useEffect(() => {
+    if (Platform.OS !== 'web') return
+    const handlePopState = () => {
+      if (lightboxHistoryRef.current) {
+        lightboxHistoryRef.current = false
+        setLightboxUrl(null)
+      }
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
+  // Native: explicit BackHandler so react-native-screens can't preempt the Modal
+  useEffect(() => {
+    if (Platform.OS === 'web' || !lightboxUrl) return
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setLightboxUrl(null)
+      return true
+    })
+    return () => sub.remove()
+  }, [lightboxUrl])
+
   const rules = useMemo(() => {
     const r = { ...glossaryRules }
     if (variant !== 'wiki') {
@@ -91,20 +134,33 @@ export default memo(function MarkdownRenderer({ content, variant = 'post', gloss
     } else {
       // Wiki images: resolve relative API URLs (e.g. /api/v1/wiki/images/{id})
       const apiOrigin = API_BASE_URL.replace(/\/api\/v1\/?$/, '')
+      // Content area width minus typical padding
+      const imgWidth = screenWidth - 48
       r.image = (node, children, parent, styles) => {
         let src = node.attributes?.src || ''
         if (src.startsWith('/')) {
           src = apiOrigin + src
         }
         return (
-          <Image
+          <TouchableOpacity
             key={node.key}
-            source={{ uri: src }}
-            style={{ width: '100%', minHeight: 200, borderRadius: 6 }}
-            resizeMode="contain"
+            onPress={() => openLightbox(src)}
+            activeOpacity={0.8}
             accessibilityRole="image"
             accessibilityLabel={node.attributes?.alt || ''}
-          />
+            accessibilityHint="Tap to view full size"
+          >
+            <Image
+              source={{ uri: src }}
+              style={{
+                width: imgWidth,
+                height: imgWidth * 0.6,
+                borderRadius: 6,
+                marginVertical: 8,
+              }}
+              resizeMode="contain"
+            />
+          </TouchableOpacity>
         )
       }
     }
@@ -160,7 +216,7 @@ export default memo(function MarkdownRenderer({ content, variant = 'post', gloss
     }
 
     return r
-  }, [glossaryRules, variant, colors, onHeadingLayout])
+  }, [glossaryRules, variant, colors, onHeadingLayout, screenWidth, openLightbox])
 
   const handleLinkPress = useCallback((url) => {
     if (onLinkPressProp) return onLinkPressProp(url)
@@ -176,11 +232,92 @@ export default memo(function MarkdownRenderer({ content, variant = 'post', gloss
   if (!processed) return null
 
   return (
-    <Markdown style={markdownStyles} rules={rules} onLinkPress={handleLinkPress} markdownit={mdParser}>
-      {processed}
-    </Markdown>
+    <>
+      <Markdown style={markdownStyles} rules={rules} onLinkPress={handleLinkPress} markdownit={mdParser}>
+        {processed}
+      </Markdown>
+
+      {/* Image lightbox modal — pinch-to-zoom + pan via ScrollView */}
+      {variant === 'wiki' && (
+        <Modal
+          visible={!!lightboxUrl}
+          transparent
+          animationType="fade"
+          onRequestClose={closeLightbox}
+        >
+          <View style={lightboxStyles.overlay}>
+            <TouchableOpacity
+              style={lightboxStyles.closeButton}
+              onPress={closeLightbox}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              hitSlop={12}
+            >
+              <Text style={lightboxStyles.closeText}>{'\u2715'}</Text>
+            </TouchableOpacity>
+            <ScrollView
+              style={lightboxStyles.scrollView}
+              contentContainerStyle={lightboxStyles.scrollContent}
+              maximumZoomScale={5}
+              minimumZoomScale={1}
+              bouncesZoom
+              centerContent
+              showsHorizontalScrollIndicator={false}
+              showsVerticalScrollIndicator={false}
+            >
+              <TouchableOpacity
+                activeOpacity={1}
+                onPress={closeLightbox}
+                style={lightboxStyles.imageTouchArea}
+              >
+                <Image
+                  source={{ uri: lightboxUrl }}
+                  style={{
+                    width: screenWidth,
+                    height: screenWidth * 1.2,
+                  }}
+                  resizeMode="contain"
+                  accessibilityRole="image"
+                />
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </Modal>
+      )}
+    </>
   )
 })
+
+const lightboxStyles = {
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 54 : 24,
+    right: 20,
+    zIndex: 10,
+    padding: 8,
+  },
+  closeText: {
+    color: '#FFFFFF',
+    fontSize: 28,
+    fontWeight: '300',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageTouchArea: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+}
 
 const createMarkdownStyles = (colors, variant) => {
   const isComment = variant === 'comment'

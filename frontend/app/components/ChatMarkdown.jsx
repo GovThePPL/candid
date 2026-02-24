@@ -41,6 +41,9 @@ const chatMarkdownStyles = {
     color: '#FFFFFF',
     lineHeight: 20,
   },
+  text: {
+    color: '#FFFFFF',
+  },
   paragraph: {
     marginTop: 0,
     marginBottom: 0,

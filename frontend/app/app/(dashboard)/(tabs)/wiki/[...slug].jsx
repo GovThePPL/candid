@@ -1,18 +1,65 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { View, ScrollView, TouchableOpacity, ActivityIndicator, Linking, StyleSheet, RefreshControl } from 'react-native'
+import { View, ScrollView, TouchableOpacity, Linking, StyleSheet, RefreshControl } from 'react-native'
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
-import { useThemeColors } from '../../../hooks/useThemeColors'
-import api from '../../../lib/api'
-import { CacheManager, CacheKeys, CacheDurations } from '../../../lib/cache'
-import Header from '../../../components/Header'
-import ThemedText from '../../../components/ThemedText'
-import MarkdownRenderer from '../../../components/discuss/MarkdownRenderer'
-import { formatRelativeTime } from '../../../lib/timeUtils'
-import EmptyState from '../../../components/EmptyState'
-import TableOfContents from '../../../components/wiki/TableOfContents'
+import { useThemeColors } from '../../../../hooks/useThemeColors'
+import { Shadows, BorderRadius, Spacing } from '../../../../constants/Theme'
+import api from '../../../../lib/api'
+import { CacheManager, CacheKeys, CacheDurations } from '../../../../lib/cache'
+import Header from '../../../../components/Header'
+import ThemedText from '../../../../components/ThemedText'
+import MarkdownRenderer from '../../../../components/discuss/MarkdownRenderer'
+import { formatRelativeTime } from '../../../../lib/timeUtils'
+import EmptyState from '../../../../components/EmptyState'
+import TableOfContents from '../../../../components/wiki/TableOfContents'
+import { SkeletonPulse, SkeletonBox, SkeletonLine } from '../../../../components/Skeleton'
+
+function WikiArticleSkeleton({ colors }) {
+  const skeletonCard = {
+    backgroundColor: colors.cardBackground,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    ...Shadows.card,
+  }
+  return (
+    <ScrollView contentContainerStyle={{ padding: 16 }}>
+      <SkeletonPulse>
+        {/* Action bar */}
+        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginBottom: 4 }}>
+          <SkeletonBox width={90} height={26} borderRadius={14} />
+          <SkeletonBox width={80} height={26} borderRadius={14} />
+        </View>
+        {/* Title card */}
+        <View style={skeletonCard}>
+          {/* Meta row (category badge + date) */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <SkeletonBox width={70} height={20} borderRadius={6} />
+            <SkeletonLine width={90} height={10} />
+          </View>
+          {/* Title */}
+          <SkeletonLine width="70%" height={22} style={{ marginBottom: 8 }} />
+          {/* Description */}
+          <SkeletonLine width="90%" height={12} style={{ marginBottom: 6 }} />
+          <SkeletonLine width="75%" height={12} />
+        </View>
+        {/* Content lines */}
+        <SkeletonLine width="100%" height={12} style={{ marginBottom: 6 }} />
+        <SkeletonLine width="95%" height={12} style={{ marginBottom: 6 }} />
+        <SkeletonLine width="85%" height={12} style={{ marginBottom: 6 }} />
+        <SkeletonLine width="100%" height={12} style={{ marginBottom: 6 }} />
+        <SkeletonLine width="60%" height={12} style={{ marginBottom: 16 }} />
+        <SkeletonLine width="100%" height={12} style={{ marginBottom: 6 }} />
+        <SkeletonLine width="90%" height={12} style={{ marginBottom: 6 }} />
+        <SkeletonLine width="80%" height={12} style={{ marginBottom: 6 }} />
+        <SkeletonLine width="95%" height={12} style={{ marginBottom: 6 }} />
+        <SkeletonLine width="50%" height={12} />
+      </SkeletonPulse>
+    </ScrollView>
+  )
+}
 
 export default function WikiArticleScreen() {
   const params = useLocalSearchParams()
@@ -158,37 +205,8 @@ export default function WikiArticleScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <Header onBack={handleBack} />
 
-      {!loading && !error && page ? (
-        <View style={styles.actionBar}>
-          <TouchableOpacity
-            onPress={handleEdit}
-            style={styles.actionButton}
-            accessibilityRole="button"
-            accessibilityLabel={page.canEdit ? t('directEditA11y') : t('suggestEditA11y')}
-          >
-            <Ionicons name="create-outline" size={14} color={colors.primary} />
-            <ThemedText variant="caption" color="primary">
-              {page.canEdit ? t('directEdit') : t('suggestEdit')}
-            </ThemedText>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => router.push(`/wiki/history?slug=${encodeURIComponent(slug)}&type=page`)}
-            style={styles.actionButton}
-            accessibilityRole="button"
-            accessibilityLabel={t('historyButtonA11y')}
-          >
-            <Ionicons name="time-outline" size={14} color={colors.primary} />
-            <ThemedText variant="caption" color="primary">
-              {t('historyButton')}
-            </ThemedText>
-          </TouchableOpacity>
-        </View>
-      ) : null}
-
       {loading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator color={colors.primary} />
-        </View>
+        <WikiArticleSkeleton colors={colors} />
       ) : error ? (
         <View style={styles.centered}>
           <EmptyState
@@ -209,31 +227,59 @@ export default function WikiArticleScreen() {
             />
           }
         >
-          <ThemedText variant="h2" style={styles.title}>
-            {page.title}
-          </ThemedText>
+          <View style={styles.actionBar}>
+            <TouchableOpacity
+              onPress={handleEdit}
+              style={styles.actionButton}
+              accessibilityRole="button"
+              accessibilityLabel={page.canEdit ? t('directEditA11y') : t('suggestEditA11y')}
+            >
+              <Ionicons name="create-outline" size={14} color={colors.primary} />
+              <ThemedText variant="caption" color="primary">
+                {page.canEdit ? t('directEdit') : t('suggestEdit')}
+              </ThemedText>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => router.push(`/wiki/history?slug=${encodeURIComponent(slug)}&type=page`)}
+              style={styles.actionButton}
+              accessibilityRole="button"
+              accessibilityLabel={t('historyButtonA11y')}
+            >
+              <Ionicons name="time-outline" size={14} color={colors.primary} />
+              <ThemedText variant="caption" color="primary">
+                {t('historyButton')}
+              </ThemedText>
+            </TouchableOpacity>
+          </View>
 
-          <View style={styles.metaRow}>
-            {page.wikiCategory ? (
-              <View style={styles.categoryBadge}>
-                <ThemedText variant="label" style={styles.categoryText}>
-                  {page.wikiCategory}
+          {/* Title card */}
+          <View style={styles.titleCard}>
+            <View style={styles.metaRow}>
+              {page.wikiCategory ? (
+                <View style={styles.categoryBadge}>
+                  <ThemedText variant="label" style={styles.categoryText}>
+                    {page.wikiCategory}
+                  </ThemedText>
+                </View>
+              ) : null}
+
+              {page.updatedAt ? (
+                <ThemedText variant="caption" color="secondary">
+                  {t('wikiUpdatedAt', { date: formatRelativeTime(page.updatedAt, t) })}
                 </ThemedText>
-              </View>
-            ) : null}
+              ) : null}
+            </View>
 
-            {page.updatedAt ? (
-              <ThemedText variant="caption" color="secondary">
-                {t('wikiUpdatedAt', { date: formatRelativeTime(page.updatedAt, t) })}
+            <ThemedText variant="h2" style={styles.title}>
+              {page.title}
+            </ThemedText>
+
+            {page.description ? (
+              <ThemedText variant="body" color="secondary" style={styles.description}>
+                {page.description}
               </ThemedText>
             ) : null}
           </View>
-
-          {page.description ? (
-            <ThemedText variant="body" color="secondary" style={styles.description}>
-              {page.description}
-            </ThemedText>
-          ) : null}
 
           {page.content ? (
             <>
@@ -270,15 +316,21 @@ const createStyles = (colors) => StyleSheet.create({
   content: {
     padding: 16,
   },
+  titleCard: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    ...Shadows.card,
+  },
   title: {
-    marginBottom: 8,
+    marginBottom: Spacing.xs,
   },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 16,
-    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.sm,
   },
   categoryBadge: {
     backgroundColor: colors.badgeBg,
@@ -292,17 +344,13 @@ const createStyles = (colors) => StyleSheet.create({
     fontWeight: '600',
   },
   description: {
-    marginBottom: 16,
     fontStyle: 'italic',
   },
   actionBar: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.cardBorder,
+    marginBottom: 4,
   },
   actionButton: {
     flexDirection: 'row',

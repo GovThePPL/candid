@@ -1,13 +1,13 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { View, StyleSheet, ActivityIndicator } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { useTranslation } from 'react-i18next'
-import { useThemeColors } from '../../../hooks/useThemeColors'
-import { useToast } from '../../../components/Toast'
-import api from '../../../lib/api'
-import { CacheManager, CacheKeys } from '../../../lib/cache'
-import SuggestionForm from '../../../components/wiki/SuggestionForm'
+import { useThemeColors } from '../../../../hooks/useThemeColors'
+import { useToast } from '../../../../components/Toast'
+import api from '../../../../lib/api'
+import { CacheManager, CacheKeys } from '../../../../lib/cache'
+import SuggestionForm from '../../../../components/wiki/SuggestionForm'
 
 export default function SuggestionFormScreen() {
   const { t } = useTranslation('glossary')
@@ -16,6 +16,14 @@ export default function SuggestionFormScreen() {
   const router = useRouter()
   const showToast = useToast()
   const params = useLocalSearchParams()
+
+  const safeBack = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back()
+    } else {
+      router.replace('/(tabs)/wiki')
+    }
+  }, [router])
 
   // Extract params
   const suggestionType = params.type || 'new_term'
@@ -81,16 +89,28 @@ export default function SuggestionFormScreen() {
     load()
   }, [isEdit, suggestionType, wikiPagePath, termSlug, termIdFromParams])
 
-  const handleSuccess = () => {
+  const handleSuccess = (result) => {
+    // Direct create returns the full item with slug — navigate to it
+    if (!isEdit && result?.slug) {
+      const isTerm = suggestionType === 'new_term'
+      showToast?.(t('directCreateSuccess'))
+      if (isTerm) {
+        router.replace(`/wiki/glossary/${result.slug}`)
+      } else {
+        router.replace(`/wiki/${result.slug}`)
+      }
+      return
+    }
+    // Existing logic for edits and suggestions
     showToast?.(directEdit ? t('directEditSuccess') : t('suggestionSuccess'))
     // Invalidate cache so the article page refetches fresh data on focus
     if (termSlug) CacheManager.invalidate(CacheKeys.glossaryTerm(termSlug))
     if (wikiPagePath) CacheManager.invalidate(CacheKeys.wikiPage(wikiPagePath))
-    router.back()
+    safeBack()
   }
 
   const handleCancel = () => {
-    router.back()
+    safeBack()
   }
 
   if (loadingExisting) {

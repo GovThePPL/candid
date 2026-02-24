@@ -137,23 +137,23 @@ def create_chat_request(body, token_info=None):
             actor_user_id=str(user.id),
         )
 
-    # For swiping/in_app contexts, publish real-time event to recipient
-    if delivery_context in ('swiping', 'in_app'):
-        # Query full chat request data and build card for socket delivery
-        chat_req_rows = _get_pending_chat_requests(
-            recipient_user_id, limit=10
-        )
-        # Find the one we just created
-        for row in chat_req_rows:
-            if str(row['id']) == request_id:
-                card_data = _chat_request_to_card(row)
-                # Include createdTime for expiration tracking on the client
-                card_data['data']['createdTime'] = row.get('created_time')
-                publish_chat_request_received(
-                    recipient_user_id=recipient_user_id,
-                    card_data=card_data,
-                )
-                break
+    # Always publish real-time socket event to recipient.
+    # When the recipient is offline this emits to an empty Socket.IO room (no-op).
+    # When they're online with expired presence, it delivers the request in real-time.
+    chat_req_rows = _get_pending_chat_requests(
+        recipient_user_id, limit=10
+    )
+    # Find the one we just created
+    for row in chat_req_rows:
+        if str(row['id']) == request_id:
+            card_data = _chat_request_to_card(row)
+            # Include createdTime for expiration tracking on the client
+            card_data['data']['createdTime'] = row.get('created_time')
+            publish_chat_request_received(
+                recipient_user_id=recipient_user_id,
+                card_data=card_data,
+            )
+            break
 
     # Add position to initiator's chatting list (or update if already exists)
     _add_to_chatting_list(str(user.id), position_id)

@@ -150,11 +150,11 @@ export default memo(function CommentItem({
           <View style={styles.headerLeft}>
             {!isDeleted ? (
               <TouchableOpacity
-                onPress={() => comment.creator?.id && router.push(`/profile?userId=${comment.creator.id}`)}
+                onPress={() => comment.creator?.username && router.push(`/user/${comment.creator.username}`)}
                 activeOpacity={0.7}
                 accessibilityRole="link"
                 accessibilityLabel={t('viewProfileA11y', { author: authorName })}
-                disabled={!comment.creator?.id}
+                disabled={!comment.creator?.username}
               >
                 <UserCard
                   compact

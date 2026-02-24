@@ -8,6 +8,7 @@ import { useThemeColors } from '../../../hooks/useThemeColors'
 import { SemanticColors } from '../../../constants/Colors'
 import { createSharedStyles } from '../../../constants/SharedStyles'
 import api, { translateError } from '../../../lib/api'
+import { registerForPushNotifications } from '../../../lib/notifications'
 import { useUser } from '../../../hooks/useUser'
 import { CacheManager, CacheKeys, CacheDurations } from '../../../lib/cache'
 
@@ -61,6 +62,7 @@ export default function NotificationSettings() {
     rule_change: true,
     admin_action: true,
     moderation: true,
+    mention: true,
   })
 
   // Quiet hours modal state
@@ -184,6 +186,12 @@ export default function NotificationSettings() {
   const handleNotificationsEnabledChange = (value) => {
     setNotificationsEnabled(value)
     notificationsEnabledRef.current = value
+    if (value) {
+      // Register push token when enabling notifications
+      registerForPushNotifications().catch(err =>
+        console.warn('[notifications] Token registration failed:', err)
+      )
+    }
     performAutoSave()
   }
 
@@ -354,6 +362,7 @@ export default function NotificationSettings() {
                 { key: 'rule_change', label: t('notifTypeRuleChange'), desc: t('notifTypeRuleChangeDesc') },
                 { key: 'admin_action', label: t('notifTypeAdminAction'), desc: t('notifTypeAdminActionDesc') },
                 { key: 'moderation', label: t('notifTypeModeration'), desc: t('notifTypeModerationDesc') },
+                { key: 'mention', label: t('notifTypeMention'), desc: t('notifTypeMentionDesc') },
               ].map((item) => (
                 <View key={item.key} style={styles.notifTypeRow}>
                   <View style={styles.notifTypeInfo}>

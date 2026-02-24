@@ -73,10 +73,15 @@ export default function DiscussFeed() {
   const colors = useThemeColors()
   const isDesktop = useIsDesktop()
   const styles = useMemo(() => createStyles(colors), [colors])
-  const [glossaryDrawer, onGlossaryTermPress] = useGlossaryDrawer()
-  const glossaryRules = useGlossaryRules(onGlossaryTermPress)
-  const insets = useSafeAreaInsets()
   const router = useRouter()
+  const [glossaryDrawer, onGlossaryTermPress] = useGlossaryDrawer()
+  const handleMentionPress = useCallback((username) => {
+    const roleKeywords = new Set(['admin', 'moderator', 'facilitator', 'liaison', 'expert'])
+    if (roleKeywords.has(username.toLowerCase())) return
+    router.push(`/user/${username}`)
+  }, [router])
+  const glossaryRules = useGlossaryRules(onGlossaryTermPress, { onMentionPress: handleMentionPress })
+  const insets = useSafeAreaInsets()
   const { user } = useAuth()
   const { selectedLocation, selectedCategory, setSelectedLocation, setSelectedCategory } = useLocationCategory()
 

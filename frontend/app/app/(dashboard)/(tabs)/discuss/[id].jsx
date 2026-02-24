@@ -62,7 +62,13 @@ export default function PostDetail() {
   const colors = useThemeColors()
   const isDesktop = useIsDesktop()
   const [glossaryDrawer, onGlossaryTermPress] = useGlossaryDrawer()
-  const glossaryRules = useGlossaryRules(onGlossaryTermPress)
+  const handleMentionPress = useCallback((username) => {
+    // Navigate to user profile (role mentions are no-op)
+    const roleKeywords = new Set(['admin', 'moderator', 'facilitator', 'liaison', 'expert'])
+    if (roleKeywords.has(username.toLowerCase())) return
+    router.push(`/user/${username}`)
+  }, [router])
+  const glossaryRules = useGlossaryRules(onGlossaryTermPress, { onMentionPress: handleMentionPress })
   const threadDepthLimit = isDesktop ? THREAD_DEPTH_LIMIT_DESKTOP : THREAD_DEPTH_LIMIT
   const styles = useMemo(() => createStyles(colors), [colors])
   const { user } = useAuth()
@@ -237,6 +243,27 @@ export default function PostDetail() {
   const isQAPost = post?.postType === 'question'
   const isPostLocked = post?.status === 'locked'
   const userHasQAAuthority = hasQAAuthority(user)
+
+  // Extract unique thread participants for @mention autocomplete
+  const mentionParticipants = useMemo(() => {
+    const seen = new Set()
+    const result = []
+    const addUser = (u) => {
+      if (!u?.id || seen.has(u.id) || u.id === user?.id) return
+      seen.add(u.id)
+      result.push({
+        id: u.id,
+        username: u.username,
+        displayName: u.displayName,
+        avatarIconUrl: u.avatarIconUrl,
+      })
+    }
+    if (post?.creator) addUser(post.creator)
+    for (const c of flatList) {
+      if (c.creator) addUser(c.creator)
+    }
+    return result
+  }, [post?.creator, flatList, user?.id])
 
   // Can the current user post a top-level comment?
   const canPostTopLevel = !isPostLocked && (!isQAPost || userHasQAAuthority)
@@ -1003,6 +1030,7 @@ export default function PostDetail() {
               onClose={cancelTopLevelComment}
               posting={topLevelPosting}
               mode="inline"
+              mentionParticipants={mentionParticipants}
             />
           </View>
         )}
@@ -1182,6 +1210,7 @@ export default function PostDetail() {
           onSubmit={handleReplySubmit}
           onClose={cancelReply}
           posting={replyPosting}
+          mentionParticipants={mentionParticipants}
         />
       )}
 
@@ -1341,6 +1370,7 @@ const ChainBlock = memo(function ChainBlock({ chain, handlersRef, mutedCommentId
                     onClose={h.inlineReplyProps.onClose}
                     posting={h.inlineReplyProps.posting}
                     mode="inline"
+                    mentionParticipants={mentionParticipants}
                   />
                 </View>
               </View>

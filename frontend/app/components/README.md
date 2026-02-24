@@ -74,7 +74,8 @@ components/
 ├── CardShell.jsx                 # Generic card container with themed styling
 ├── ChatHistoryContent.jsx        # Chat history list with position context; accepts showHeader prop
 ├── ChatMarkdown.jsx              # Markdown renderer for chat bubbles (white text on colored backgrounds)
-├── ChatRequestIndicator.jsx      # Pending chat request badge/indicator
+├── ChatRequestIndicator.jsx      # Pending (sent) chat request badge/indicator
+├── IncomingChatRequestIndicator.jsx # Incoming (received) chat request header indicator with sound/haptic alerts
 ├── ChattingListExplanationModal.jsx # Explanation modal for chatting list
 ├── CommentsContent.jsx           # User's comment history list with vote counts and post context; optional userId prop for public profiles
 ├── EmptyState.jsx                # Empty state placeholder with icon and message

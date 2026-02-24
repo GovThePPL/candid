@@ -7,23 +7,24 @@ import {
   TouchableOpacity,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useRouter, useFocusEffect } from 'expo-router'
+import { useRouter, useFocusEffect, useNavigation } from 'expo-router'
 import { useTranslation } from 'react-i18next'
-import { useThemeColors } from '../../../hooks/useThemeColors'
-import { useAuth } from '../../../contexts/UserContext'
-import { Typography, BorderRadius } from '../../../constants/Theme'
-import Header from '../../../components/Header'
-import ThemedText from '../../../components/ThemedText'
-import EmptyState from '../../../components/EmptyState'
-import SuggestionCard from '../../../components/wiki/SuggestionCard'
-import SuggestionDetail from '../../../components/wiki/SuggestionDetail'
-import api from '../../../lib/api'
+import { useThemeColors } from '../../../../hooks/useThemeColors'
+import { useAuth } from '../../../../contexts/UserContext'
+import { Typography, BorderRadius } from '../../../../constants/Theme'
+import Header from '../../../../components/Header'
+import ThemedText from '../../../../components/ThemedText'
+import EmptyState from '../../../../components/EmptyState'
+import SuggestionCard from '../../../../components/wiki/SuggestionCard'
+import SuggestionDetail from '../../../../components/wiki/SuggestionDetail'
+import api from '../../../../lib/api'
 
 export default function WikiSuggestionsScreen() {
   const { t } = useTranslation('glossary')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const router = useRouter()
+  const navigation = useNavigation()
   const { user } = useAuth()
 
   const [view, setView] = useState('mine') // 'mine' | 'pending'
@@ -33,6 +34,18 @@ export default function WikiSuggestionsScreen() {
   const [selectedSuggestion, setSelectedSuggestion] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [pendingCount, setPendingCount] = useState(null) // null = not loaded, 0 = no review rights
+
+  // Intercept hardware/browser back when viewing a suggestion detail
+  useEffect(() => {
+    if (!selectedSuggestion) return
+
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      e.preventDefault()
+      setSelectedSuggestion(null)
+    })
+
+    return unsubscribe
+  }, [selectedSuggestion, navigation])
 
   // Fetch reviewable count on mount
   useEffect(() => {

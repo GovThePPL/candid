@@ -186,9 +186,9 @@ function htmlToMarkdownRegex(html) {
     '\n```\n' + decodeEntities(code).trim() + '\n```\n'
   )
 
-  // Headings
+  // Headings — recurse for inner formatting
   md = md.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (_, level, text) =>
-    '\n' + '#'.repeat(Number(level)) + ' ' + stripTags(text).trim() + '\n'
+    '\n' + '#'.repeat(Number(level)) + ' ' + htmlToMarkdownRegex(text).trim() + '\n'
   )
 
   // Blockquotes
@@ -197,17 +197,19 @@ function htmlToMarkdownRegex(html) {
     return '\n' + text.split('\n').map(l => '> ' + l).join('\n') + '\n'
   })
 
-  // Task lists (before regular lists)
+  // Task lists (before regular lists) — recurse for inner formatting
   md = md.replace(/<ul[^>]*class="[^"]*contains-task-list[^"]*"[^>]*>([\s\S]*?)<\/ul>/gi, (_, inner) => {
     const items = inner.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, (_, li) => {
       const checked = /<input[^>]*checked[^>]*>/i.test(li)
-      const text = stripTags(li).trim()
+      // Remove the input element before recursing
+      const cleaned = li.replace(/<input[^>]*>/gi, '')
+      const text = htmlToMarkdownRegex(cleaned).trim()
       return `- [${checked ? 'x' : ' '}] ${text}\n`
     })
     return '\n' + items
   })
 
-  // Tables
+  // Tables — recurse cell content and escape pipes
   md = md.replace(/<table[^>]*>([\s\S]*?)<\/table>/gi, (_, tableInner) => {
     const rows = []
     const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi
@@ -217,7 +219,7 @@ function htmlToMarkdownRegex(html) {
       const cellRegex = /<(?:td|th)[^>]*>([\s\S]*?)<\/(?:td|th)>/gi
       let cellMatch
       while ((cellMatch = cellRegex.exec(rowMatch[1])) !== null) {
-        cells.push(stripTags(cellMatch[1]).trim())
+        cells.push(htmlToMarkdownRegex(cellMatch[1]).trim().replace(/\|/g, '\\|'))
       }
       rows.push(cells)
     }
@@ -236,20 +238,20 @@ function htmlToMarkdownRegex(html) {
     `[^${label}]`
   )
 
-  // Lists
+  // Lists — recurse for inner formatting
   md = md.replace(/<ol[^>]*>([\s\S]*?)<\/ol>/gi, (_, inner) => {
     let i = 0
     const items = inner.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, (_, li) => {
       i++
-      return i + '. ' + stripTags(li).trim() + '\n'
+      return i + '. ' + htmlToMarkdownRegex(li).trim() + '\n'
     })
-    return '\n' + stripTags(items)
+    return '\n' + items
   })
   md = md.replace(/<ul[^>]*>([\s\S]*?)<\/ul>/gi, (_, inner) => {
     const items = inner.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, (_, li) =>
-      '- ' + stripTags(li).trim() + '\n'
+      '- ' + htmlToMarkdownRegex(li).trim() + '\n'
     )
-    return '\n' + stripTags(items)
+    return '\n' + items
   })
 
   // Horizontal rule
@@ -258,12 +260,7 @@ function htmlToMarkdownRegex(html) {
   // Images (before links)
   md = md.replace(/<img[^>]+src="([^"]*)"[^>]*\/?>/gi, (_, src) => `![](${src})`)
 
-  // Links
-  md = md.replace(/<a[^>]+href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, (_, href, text) =>
-    `[${stripTags(text).trim()}](${href})`
-  )
-
-  // Strikethrough
+  // Strikethrough (before links so link text conversion works)
   md = md.replace(/<(del|s|strike)>([\s\S]*?)<\/\1>/gi, (_, _t, text) => `~~${text}~~`)
 
   // Bold
@@ -275,6 +272,19 @@ function htmlToMarkdownRegex(html) {
   // Inline code
   md = md.replace(/<code>([\s\S]*?)<\/code>/gi, (_, text) => '`' + decodeEntities(text) + '`')
 
+  // Links (after inline formatting so inner tags are already converted to markdown)
+  md = md.replace(/<a[^>]+href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, (_, href, text) =>
+    `[${text.trim()}](${href})`
+  )
+
+  // Superscript/subscript — preserve as HTML, use placeholders to survive final stripTags
+  md = md.replace(/<sup>([\s\S]*?)<\/sup>/gi, (_, text) =>
+    `\x00SUP\x00${stripTags(text)}\x00/SUP\x00`
+  )
+  md = md.replace(/<sub>([\s\S]*?)<\/sub>/gi, (_, text) =>
+    `\x00SUB\x00${stripTags(text)}\x00/SUB\x00`
+  )
+
   // Line breaks
   md = md.replace(/<br\s*\/?>/gi, '\n')
 
@@ -283,6 +293,10 @@ function htmlToMarkdownRegex(html) {
 
   // Strip remaining tags
   md = stripTags(md)
+
+  // Restore sup/sub from placeholders
+  md = md.replace(/\x00SUP\x00([\s\S]*?)\x00\/SUP\x00/g, '<sup>$1</sup>')
+  md = md.replace(/\x00SUB\x00([\s\S]*?)\x00\/SUB\x00/g, '<sub>$1</sub>')
 
   // Decode HTML entities
   md = decodeEntities(md)

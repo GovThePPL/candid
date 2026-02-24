@@ -570,7 +570,7 @@ CREATE TABLE notification_type_preferences (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     notification_type VARCHAR(50) NOT NULL CHECK (notification_type IN (
-        'comment_reply', 'post_comment', 'chat_request', 'role_change', 'rule_change', 'admin_action', 'moderation', 'bridging_kudos', 'wiki_suggestion'
+        'comment_reply', 'post_comment', 'chat_request', 'role_change', 'rule_change', 'admin_action', 'moderation', 'bridging_kudos', 'wiki_suggestion', 'mention'
     )),
     enabled BOOLEAN NOT NULL DEFAULT true,
     created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -594,7 +594,7 @@ CREATE TABLE notification_inbox (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     notification_type VARCHAR(50) NOT NULL CHECK (notification_type IN (
-        'comment_reply', 'post_comment', 'chat_request', 'role_change', 'rule_change', 'admin_action', 'moderation', 'bridging_kudos', 'wiki_suggestion'
+        'comment_reply', 'post_comment', 'chat_request', 'role_change', 'rule_change', 'admin_action', 'moderation', 'bridging_kudos', 'wiki_suggestion', 'mention'
     )),
     actor_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     title TEXT NOT NULL,
@@ -1190,6 +1190,8 @@ CREATE TABLE wiki_page_version (
     description TEXT,
     content     TEXT,
     wiki_category TEXT,
+    scopes      JSONB DEFAULT '[]',
+    scope_combine TEXT DEFAULT 'or',
     edited_by   UUID REFERENCES users(id) ON DELETE SET NULL,
     created_at  TIMESTAMPTZ DEFAULT NOW()
 );
@@ -1204,6 +1206,8 @@ CREATE TABLE glossary_term_version (
     summary     TEXT,
     content     TEXT,
     wiki_category TEXT,
+    scopes      JSONB DEFAULT '[]',
+    scope_combine TEXT DEFAULT 'or',
     edited_by   UUID REFERENCES users(id) ON DELETE SET NULL,
     created_at  TIMESTAMPTZ DEFAULT NOW()
 );

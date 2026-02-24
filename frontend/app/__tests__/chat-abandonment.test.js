@@ -31,6 +31,7 @@ jest.mock('socket.io-client', () => ({
 
 jest.mock('../lib/api', () => ({
   getToken: jest.fn(() => Promise.resolve('test-token')),
+  getOrRefreshToken: jest.fn(() => Promise.resolve('test-token')),
 }))
 
 let socketModule
@@ -51,6 +52,7 @@ beforeEach(() => {
   }))
   jest.mock('../lib/api', () => ({
     getToken: jest.fn(() => Promise.resolve('test-token')),
+    getOrRefreshToken: jest.fn(() => Promise.resolve('test-token')),
   }))
   socketModule = require('../lib/socket')
 })
@@ -95,12 +97,16 @@ describe('onPartnerDisconnected', () => {
     const handler = jest.fn()
     const cleanup = socketModule.onPartnerDisconnected(handler)
 
-    // Verify .on was called with 'partner_disconnected'
-    expect(mockOn).toHaveBeenCalledWith('partner_disconnected', handler)
+    // Verify .on was called with 'partner_disconnected' (wrapped handler)
+    const onCall = mockOn.mock.calls.find(c => c[0] === 'partner_disconnected')
+    expect(onCall).toBeDefined()
+    expect(typeof onCall[1]).toBe('function')
 
     // Cleanup should call .off
     cleanup()
-    expect(mockOff).toHaveBeenCalledWith('partner_disconnected', handler)
+    const offCall = mockOff.mock.calls.find(c => c[0] === 'partner_disconnected')
+    expect(offCall).toBeDefined()
+    expect(typeof offCall[1]).toBe('function')
   })
 })
 
@@ -117,10 +123,71 @@ describe('onPartnerReconnected', () => {
     const handler = jest.fn()
     const cleanup = socketModule.onPartnerReconnected(handler)
 
-    expect(mockOn).toHaveBeenCalledWith('partner_reconnected', handler)
+    const onCall = mockOn.mock.calls.find(c => c[0] === 'partner_reconnected')
+    expect(onCall).toBeDefined()
+    expect(typeof onCall[1]).toBe('function')
 
     cleanup()
-    expect(mockOff).toHaveBeenCalledWith('partner_reconnected', handler)
+    const offCall = mockOff.mock.calls.find(c => c[0] === 'partner_reconnected')
+    expect(offCall).toBeDefined()
+    expect(typeof offCall[1]).toBe('function')
+  })
+})
+
+describe('chat request unmount restore logic', () => {
+  // Tests the core logic used by CardQueueContent to restore unconsumed
+  // chat requests back to context when the component unmounts.
+  const CHAT_REQUEST_TIMEOUT_MS = 2 * 60 * 1000
+
+  it('finds first unconsumed chat_request at or after currentIndex', () => {
+    const cards = [
+      { type: 'position', data: { id: 'p1' } },
+      { type: 'chat_request', data: { id: 'cr-1', createdTime: new Date().toISOString() } },
+      { type: 'position', data: { id: 'p2' } },
+    ]
+    const currentIndex = 0
+    const remaining = cards.slice(currentIndex)
+    const pending = remaining.find(c => c.type === 'chat_request')
+    expect(pending).toBeTruthy()
+    expect(pending.data.id).toBe('cr-1')
+  })
+
+  it('does not restore expired chat requests', () => {
+    const expiredTime = new Date(Date.now() - CHAT_REQUEST_TIMEOUT_MS - 1000).toISOString()
+    const cards = [
+      { type: 'chat_request', data: { id: 'cr-1', createdTime: expiredTime } },
+    ]
+    const remaining = cards.slice(0)
+    const pending = remaining.find(c => c.type === 'chat_request')
+    expect(pending).toBeTruthy()
+
+    const expiresAt = new Date(pending.data.createdTime).getTime() + CHAT_REQUEST_TIMEOUT_MS
+    expect(expiresAt > Date.now()).toBe(false)
+  })
+
+  it('restores non-expired chat requests', () => {
+    const freshTime = new Date().toISOString()
+    const cards = [
+      { type: 'position', data: { id: 'p1' } },
+      { type: 'chat_request', data: { id: 'cr-1', createdTime: freshTime } },
+    ]
+    const currentIndex = 0
+    const remaining = cards.slice(currentIndex)
+    const pending = remaining.find(c => c.type === 'chat_request')
+
+    const expiresAt = new Date(pending.data.createdTime).getTime() + CHAT_REQUEST_TIMEOUT_MS
+    expect(expiresAt > Date.now()).toBe(true)
+  })
+
+  it('does not find chat_request before currentIndex', () => {
+    const cards = [
+      { type: 'chat_request', data: { id: 'cr-1', createdTime: new Date().toISOString() } },
+      { type: 'position', data: { id: 'p1' } },
+    ]
+    const currentIndex = 1
+    const remaining = cards.slice(currentIndex)
+    const pending = remaining.find(c => c.type === 'chat_request')
+    expect(pending).toBeUndefined()
   })
 })
 

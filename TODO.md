@@ -7,19 +7,14 @@
 - Make email required?
 - Require phone number for sign-up -- explore other user de-duplication options, consider cost of sending messages
 - Captcha on sign-up
-- ~~Send user back to login screen when token expires and refresh fails~~
 
 ## Security
 - Implement bot detection system
 - Captcha cards when necessary (triggered by suspicious behavior)
 - Only allow responses to items sent in the card queue (outside of dev mode)
-- ~~Add toxicity checks and cooldown to chat~~
-- ~~API rate limiting with backoff~~
 - Anti-gaming features
-- ~~Only allow one report per user per item~~
 
 ## Trust System
-- ~~Design and implement whole trust system~~
 - Take trust into account in chat matching
 
 ## Positions & Categories
@@ -34,18 +29,11 @@
 - Kudos spending — let users spend earned kudos to award comments/posts (three tiers: Good Faith, Thoughtful, Bridge Builder), promote agreed chat statements as inspirational cards, and boost chat likelihood for 24 hours. Includes anti-gaming measures (per-pair daily limits, substantive discussion checks, ideological distance weighting, diminishing returns, reciprocity blocking, same-group discounts). Awards add phantom weighted upvotes to content scores. See [plan](.claude-plans/2026-02-20_14-00_kudos-spending-awards.md)
 
 ## Chat Fixes and Enhancements
-- ~~Basic markdown support in chat~~
-- ~~Quoting another user's comment~~
-- ~~Option selection emojis~~
-- ~~Define message type~~
-- ~~Restore quotes~~
-- ~~Add emoji reactions~~
 - Make chat connection more robust
 - Address users disappearing from chat
 - Improve agreed position layout
 
 ## Admin Page
-- ~~Admin CRUD for community rules — create, edit, and delete rules, and set each rule's context (positions, chat, etc.)~~
 - Other admin-specific features
 
 ## Guest Access
@@ -58,9 +46,6 @@
 
 ## Moderation
 - Fetch moderation queue one item at a time instead of the full queue — claimed reports are locked for 15 minutes and hidden from other moderators, so bulk-fetching unnecessarily locks items that may not be reviewed in time
-- ~~Implement comment and post reporting — the three-dot menu on comments has a Report button (currently no-op). Needs: backend endpoint for reporting comments/posts, reason picker, and integration with the existing moderation queue~~
-- Comment moderation actions — ~~delete comments~~, ~~lock comment threads~~, ~~pin comments~~
-- ~~Fix assistant moderator permissions for admin page and ensure they have access to the moderation queue in their category~~
 - Banned words list rule type — content containing banned words is blocked at creation time, applied per rule scope (positions, chat, posts, comments)
 
 ## Discuss
@@ -69,12 +54,10 @@
 - Pin up to 3 posts per location/category — pinned posts float to top of feed with "move pinned post to top" reordering
 
 ## Wiki & Glossary
-- Edit & Approve two-version history — when a reviewer modifies a suggestion before approving, create two version entries (one for the submitter's original changes, one for the reviewer's modifications) so reviewer edits are visible in version history. Also fix `edited_by` attribution on edit suggestions. See [plan](.claude-plans/2026-02-22_15-00_wiki-edit-approve-two-versions.md)
 - Scope expression tree — replace flat scopes + single AND/OR operator with recursive boolean expression tree (nested AND/OR groups) for wiki terms and pages. Enables expressions like "Oregon AND (Education OR Healthcare)". JSONB storage, recursive evaluator, query-builder UI component, backward-compatible migration. See [plan](.claude-plans/2026-02-22_14-00_scope-expression-tree.md)
 
 ## Frontend Improvements
 - UGC Translation — runtime translation of user-generated content (positions, chat messages, surveys). See [plan](.claude-plans/2026-02-10_ugc-translation.md)
-- ~~Move settings menu to replace user profile picture in top bar~~
 - Audit back button usage on web — make it close open modals instead of navigating away
 
 ## Infrastructure

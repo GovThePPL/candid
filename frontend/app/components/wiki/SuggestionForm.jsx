@@ -14,6 +14,8 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
+import useKeyboardHeight from '../../hooks/useKeyboardHeight'
+import useModalBackHandler from '../../hooks/useModalBackHandler'
 import { Typography, Spacing, BorderRadius } from '../../constants/Theme'
 import ThemedText from '../ThemedText'
 import LocationPicker from '../LocationPicker'
@@ -50,6 +52,7 @@ export default function SuggestionForm({
   const { t } = useTranslation('glossary')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
+  const { keyboardHeight, webInitialHeight } = useKeyboardHeight()
 
   const isTerm = suggestionType === 'new_term' || suggestionType === 'edit_term'
   const isEdit = suggestionType === 'edit_term' || suggestionType === 'edit_page'
@@ -86,6 +89,10 @@ export default function SuggestionForm({
   const [diffText, setDiffText] = useState('')
   const [showReview, setShowReview] = useState(false)
 
+  // Direct create authority (new items only)
+  const [canDirectCreate, setCanDirectCreate] = useState(false)
+  const checkTimerRef = useRef(null)
+
   // Submission state
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
@@ -108,6 +115,27 @@ export default function SuggestionForm({
     }
     load()
   }, [])
+
+  // Check create authority when scopes change (new items only)
+  useEffect(() => {
+    if (isEdit || directEdit || reviewerEdit) return
+    if (scopes.length === 0) {
+      setCanDirectCreate(false)
+      return
+    }
+    clearTimeout(checkTimerRef.current)
+    checkTimerRef.current = setTimeout(async () => {
+      try {
+        const result = await api.wiki.checkCreateAuthority({
+          scopes: scopes.map(s => ({ type: s.type, id: s.id })),
+        })
+        setCanDirectCreate(result?.canCreate || false)
+      } catch {
+        setCanDirectCreate(false)
+      }
+    }, 500)
+    return () => clearTimeout(checkTimerRef.current)
+  }, [scopes, isEdit, directEdit, reviewerEdit])
 
   // Get form title
   const formTitle = useMemo(() => {
@@ -202,6 +230,11 @@ export default function SuggestionForm({
     setShowDiff(false)
   }, [])
 
+  // Browser back / Escape closes modals on web (Android uses onRequestClose)
+  const handleCloseReview = useCallback(() => setShowReview(false), [])
+  useModalBackHandler(showFullEditor, handleCloseFullEditor)
+  useModalBackHandler(showReview, handleCloseReview)
+
   const handleToggleDiff = useCallback(async () => {
     if (!showDiff) {
       try {
@@ -210,10 +243,12 @@ export default function SuggestionForm({
           new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1000)),
         ])
         const captured = md || ''
-        setDiffText(captured)
         setContentMarkdown(captured)
+        // Replace data URI image markdown with a short placeholder —
+        // images are shown separately, and data URIs freeze the diff
+        setDiffText(captured.replace(/!\[([^\]]*)\]\(data:[^)]+\)/g, '![$1](pending-upload)'))
       } catch {
-        setDiffText(contentMarkdown)
+        setDiffText(contentMarkdown.replace(/!\[([^\]]*)\]\(data:[^)]+\)/g, '![$1](pending-upload)'))
       }
     }
     setShowDiff(prev => !prev)
@@ -293,6 +328,7 @@ export default function SuggestionForm({
           proposedScopes: scopes.map(s => ({ type: s.type, id: s.id })),
           proposedScopeCombine: scopes.length > 0 ? scopeCombine : undefined,
         }
+        setShowReview(false)
         onSuccess?.(editedData)
         return
       }
@@ -311,6 +347,7 @@ export default function SuggestionForm({
             scopeCombine,
           }
           const result = await api.glossary.updateTerm(glossaryTermSlug, editBody)
+          setShowReview(false)
           onSuccess?.(result)
         } else {
           const editBody = {
@@ -322,6 +359,35 @@ export default function SuggestionForm({
             scopeCombine,
           }
           const result = await api.wiki.updatePage(wikiPagePath, editBody)
+          setShowReview(false)
+          onSuccess?.(result)
+        }
+      } else if (canDirectCreate && !isEdit) {
+        // Direct create — POST
+        if (isTerm) {
+          const createBody = {
+            term: title.trim(),
+            summary: summary.trim() || undefined,
+            content: finalContent,
+            wikiCategory: wikiCategory.trim() || undefined,
+            aliases,
+            scopes: scopes.map(s => ({ type: s.type, id: s.id })),
+            scopeCombine,
+          }
+          const result = await api.glossary.createTerm(createBody)
+          setShowReview(false)
+          onSuccess?.(result)
+        } else {
+          const createBody = {
+            title: title.trim(),
+            description: summary.trim() || undefined,
+            content: finalContent,
+            wikiCategory: wikiCategory.trim() || undefined,
+            scopes: scopes.map(s => ({ type: s.type, id: s.id })),
+            scopeCombine,
+          }
+          const result = await api.wiki.createPage(createBody)
+          setShowReview(false)
           onSuccess?.(result)
         }
       } else {
@@ -342,27 +408,29 @@ export default function SuggestionForm({
         if (isEdit && wikiPagePath) body.wikiPagePath = wikiPagePath
 
         const result = await api.wiki.createSuggestion(body)
+        setShowReview(false)
         onSuccess?.(result)
       }
     } catch (err) {
-      const msg = err?.body?.detail || err?.message || t('suggestionError')
-      setError(msg)
+      const status = err?.status || err?.response?.status
+      if (status === 409) {
+        setError(t('slugConflict'))
+      } else {
+        const msg = err?.body?.detail || err?.message || t('suggestionError')
+        setError(msg)
+      }
     } finally {
       setSubmitting(false)
     }
   }, [
     canSubmit, suggestionType, title, aliases, summary, contentMarkdown,
     wikiCategory, scopes, scopeCombine, reason, isEdit, isTerm,
-    glossaryTermId, glossaryTermSlug, wikiPagePath, directEdit, reviewerEdit, existing, onSuccess, t,
+    glossaryTermId, glossaryTermSlug, wikiPagePath, directEdit, reviewerEdit, canDirectCreate, existing, onSuccess, t,
   ])
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.contentContainer}
-      keyboardShouldPersistTaps="handled"
-    >
-      {/* Header */}
+    <View style={styles.outerContainer}>
+      {/* Sticky header — always visible above ScrollView */}
       <View style={styles.header}>
         <ThemedText variant="h3" color="dark">{formTitle}</ThemedText>
         <TouchableOpacity
@@ -374,6 +442,15 @@ export default function SuggestionForm({
         </TouchableOpacity>
       </View>
 
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[
+        styles.contentContainer,
+        !showFullEditor && keyboardHeight > 0 && { paddingBottom: keyboardHeight },
+        !showFullEditor && Platform.OS === 'web' && webInitialHeight > 0 && { minHeight: webInitialHeight },
+      ]}
+      keyboardShouldPersistTaps="handled"
+    >
       {/* Title */}
       <View style={styles.field}>
         <ThemedText variant="label" color="secondary">{t('suggestionTitle')}</ThemedText>
@@ -641,7 +718,7 @@ export default function SuggestionForm({
       </View>
 
       {/* Reason (suggestion mode only) */}
-      {!directEdit && !reviewerEdit && (
+      {!directEdit && !reviewerEdit && !canDirectCreate && (
         <View style={styles.field}>
           <ThemedText variant="label" color="secondary">{t('suggestionReason')}</ThemedText>
           <ThemedText variant="caption" color="secondary">{t('suggestionReasonHint')}</ThemedText>
@@ -669,6 +746,14 @@ export default function SuggestionForm({
         </View>
       )}
 
+      {/* Direct create hint */}
+      {canDirectCreate && !isEdit && (
+        <View style={styles.directCreateHint}>
+          <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+          <ThemedText variant="caption" color="secondary">{t('directCreateHint')}</ThemedText>
+        </View>
+      )}
+
       {/* Submit */}
       {isEdit ? (
         <TouchableOpacity
@@ -689,18 +774,28 @@ export default function SuggestionForm({
           onPress={handleSubmit}
           disabled={!canSubmit}
           accessibilityRole="button"
-          accessibilityLabel={reviewerEdit ? t('editAndApproveA11y') : directEdit ? t('directEditSubmitA11y') : t('suggestionSubmitA11y')}
+          accessibilityLabel={
+            reviewerEdit ? t('editAndApproveA11y')
+              : directEdit ? t('directEditSubmitA11y')
+              : canDirectCreate ? t('directCreateSubmitA11y')
+              : t('suggestionSubmitA11y')
+          }
           accessibilityState={{ disabled: !canSubmit }}
         >
           {submitting ? (
             <ActivityIndicator color="#FFFFFF" size="small" />
           ) : (
             <ThemedText variant="button" style={{ color: '#FFFFFF' }}>
-              {reviewerEdit ? t('editAndApprove') : directEdit ? t('directEditSubmit') : t('suggestionSubmit')}
+              {reviewerEdit ? t('editAndApprove')
+                : directEdit ? t('directEditSubmit')
+                : canDirectCreate ? t('directCreateSubmit')
+                : t('suggestionSubmit')}
             </ThemedText>
           )}
         </TouchableOpacity>
       )}
+
+    </ScrollView>
 
       {/* Full-Screen Markdown Editor Modal */}
       {showFullEditor && (
@@ -778,7 +873,7 @@ export default function SuggestionForm({
         <Modal
           visible
           animationType="slide"
-          onRequestClose={() => setShowReview(false)}
+          onRequestClose={handleCloseReview}
         >
           <SafeAreaView style={styles.fullEditorSafe}>
             <ReviewChanges
@@ -802,8 +897,8 @@ export default function SuggestionForm({
               }}
               isTerm={isTerm}
               onSubmit={handleSubmit}
-              onClose={() => setShowReview(false)}
-              submitLabel={reviewerEdit ? t('editAndApprove') : directEdit ? t('directEditSubmit') : t('suggestionSubmit')}
+              onClose={handleCloseReview}
+              submitLabel={reviewerEdit ? t('editAndApprove') : directEdit ? t('directEditSubmit') : canDirectCreate ? t('directCreateSubmit') : t('suggestionSubmit')}
               submitting={submitting}
               error={error}
             />
@@ -821,11 +916,15 @@ export default function SuggestionForm({
           onSelect={handleLocationSelected}
         />
       )}
-    </ScrollView>
+    </View>
   )
 }
 
 const createStyles = (colors) => StyleSheet.create({
+  outerContainer: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -839,7 +938,11 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.cardBorder,
+    backgroundColor: colors.background,
   },
   field: {
     gap: 6,
@@ -937,6 +1040,12 @@ const createStyles = (colors) => StyleSheet.create({
     padding: 12,
     backgroundColor: colors.errorBannerBg,
     borderRadius: BorderRadius.sm,
+  },
+  directCreateHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 4,
   },
   submitButton: {
     backgroundColor: colors.primary,

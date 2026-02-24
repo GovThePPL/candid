@@ -13,8 +13,13 @@ import { useThemeColors } from '../hooks/useThemeColors'
 import { Spacing, BorderRadius } from '../constants/Theme'
 import ThemedText from './ThemedText'
 import MarkdownRenderer from './discuss/MarkdownRenderer'
+import MentionAutocomplete from './discuss/MentionAutocomplete'
 import { markdownToHtml, htmlToMarkdown } from '../lib/markdownConvert'
 import useWysiwygVisual from '../lib/useWysiwygVisual'
+
+const KBAvoidingView = Platform.OS !== 'web'
+  ? require('react-native-keyboard-controller').KeyboardAvoidingView
+  : null
 
 const EDITOR_MODE_KEY = '@candid_editor_mode_preference'
 
@@ -51,6 +56,7 @@ const WysiwygEditor = forwardRef(function WysiwygEditor({
   fullScreen = false,
   externalMode,
   variant = 'discuss',
+  mentionParticipants,
 }, ref) {
   const { t } = useTranslation('markdown')
   const colors = useThemeColors()
@@ -94,7 +100,13 @@ const WysiwygEditor = forwardRef(function WysiwygEditor({
   const [showFootnoteModal, setShowFootnoteModal] = useState(false)
   const [footnoteText, setFootnoteText] = useState('')
   const [editingFootnoteLabel, setEditingFootnoteLabel] = useState(null)
+  const footnoteModalClosedAt = useRef(0) // timestamp to suppress auto-open after close
   const markdownSelectionRef = useRef({ start: 0, end: 0 })
+
+  // Mention autocomplete state
+  const [mentionVisible, setMentionVisible] = useState(false)
+  const [mentionQuery, setMentionQuery] = useState('')
+  const mentionStartRef = useRef(null) // character index of the '@'
 
   // Visual editor hook
   const initialHtml = useMemo(
@@ -160,11 +172,58 @@ const WysiwygEditor = forwardRef(function WysiwygEditor({
     handleModeToggle(externalMode)
   }, [externalMode, handleModeToggle])
 
-  // Markdown text change
+  // Markdown text change — with @mention detection
   const handleMarkdownChange = useCallback((text) => {
     setMarkdownText(text)
     // Fire onContentChange with HTML equivalent
     onContentChange?.(markdownToHtml(text))
+
+    // Mention detection: look backward from cursor for @ preceded by whitespace/start
+    if (mentionParticipants) {
+      const cursor = markdownSelectionRef.current?.start ?? text.length
+      // Find the last '@' before/at cursor that's preceded by whitespace or start-of-string
+      let atPos = -1
+      for (let i = Math.min(cursor, text.length) - 1; i >= 0; i--) {
+        const ch = text[i]
+        if (ch === ' ' || ch === '\n' || ch === '\t') break // hit whitespace before finding @
+        if (ch === '@') {
+          // Must be at start of string or preceded by whitespace
+          if (i === 0 || /\s/.test(text[i - 1])) {
+            atPos = i
+          }
+          break
+        }
+      }
+      if (atPos >= 0) {
+        const query = text.slice(atPos + 1, cursor).toLowerCase()
+        // Only show if query has no spaces (still typing a username)
+        if (!/\s/.test(query) && query.length <= 30) {
+          mentionStartRef.current = atPos
+          setMentionQuery(query)
+          setMentionVisible(true)
+          return
+        }
+      }
+      setMentionVisible(false)
+      mentionStartRef.current = null
+    }
+  }, [onContentChange, mentionParticipants])
+
+  // Handle mention selection — splice @username into text
+  const handleMentionSelect = useCallback((username) => {
+    const atPos = mentionStartRef.current
+    if (atPos == null) return
+    setMarkdownText(prev => {
+      const cursor = markdownSelectionRef.current?.start ?? prev.length
+      const before = prev.slice(0, atPos)
+      const after = prev.slice(cursor)
+      const inserted = `@${username} `
+      const newText = before + inserted + after
+      onContentChange?.(markdownToHtml(newText))
+      return newText
+    })
+    setMentionVisible(false)
+    mentionStartRef.current = null
   }, [onContentChange])
 
   // Image upload helper for deferred mode — must be defined before useImperativeHandle
@@ -253,19 +312,27 @@ const WysiwygEditor = forwardRef(function WysiwygEditor({
   const handleInsertLink = useCallback(() => {
     const url = linkUrl.trim()
     if (!url) return
-    actions.setLink(url)
+    actions.setLink(url, linkText.trim() || undefined)
     setShowLinkModal(false)
-  }, [linkUrl, actions])
+  }, [linkUrl, linkText, actions])
 
-  // Open footnote modal in edit mode when a definition is clicked
+  // Open footnote modal in edit mode when a footnote definition is clicked
+  // in the WebView. Suppressed briefly after modal close to prevent the
+  // cursor-adjacent-to-footnote bridge state from immediately re-opening it.
   useEffect(() => {
-    if (editingFootnote && editorMode === 'visual') {
+    if (editingFootnote && editorMode === 'visual' && !showFootnoteModal) {
+      if (Date.now() - footnoteModalClosedAt.current < 800) return
       setEditingFootnoteLabel(editingFootnote.label)
       setFootnoteText(editingFootnote.text)
       setShowFootnoteModal(true)
-      clearEditingFootnote()
     }
-  }, [editingFootnote, editorMode, clearEditingFootnote])
+  }, [editingFootnote, editorMode, showFootnoteModal])
+
+  const closeFootnoteModal = useCallback(() => {
+    setShowFootnoteModal(false)
+    setEditingFootnoteLabel(null)
+    footnoteModalClosedAt.current = Date.now()
+  }, [])
 
   // Footnote insertion / editing (visual + markdown mode)
   const handleOpenFootnoteModal = useCallback(() => {
@@ -310,9 +377,8 @@ const WysiwygEditor = forwardRef(function WysiwygEditor({
         handleMarkdownChange(newText)
       }
     }
-    setEditingFootnoteLabel(null)
-    setShowFootnoteModal(false)
-  }, [footnoteText, editingFootnoteLabel, editorMode, getHTML, actions, markdownText, handleMarkdownChange])
+    closeFootnoteModal()
+  }, [footnoteText, editingFootnoteLabel, editorMode, getHTML, actions, markdownText, handleMarkdownChange, closeFootnoteModal])
 
   // Image insertion — supports immediate upload or deferred (local preview + upload on submit)
   const handleInsertImage = useCallback(async () => {
@@ -355,7 +421,7 @@ const WysiwygEditor = forwardRef(function WysiwygEditor({
       if (status !== 'granted') return
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: [ImagePicker.MediaType.image],
+        mediaTypes: ['images'],
         quality: 0.8,
       })
       if (result.canceled) return
@@ -369,8 +435,17 @@ const WysiwygEditor = forwardRef(function WysiwygEditor({
       })
 
       if (deferUpload) {
-        // Use the local file URI for inline preview, defer actual upload
-        const tempUrl = asset.uri
+        // WebView can't load file:// URIs and full-res base64 freezes the
+        // bridge, so create a small thumbnail for inline preview only.
+        const { manipulateAsync, SaveFormat } = require('expo-image-manipulator')
+        const thumb = await manipulateAsync(
+          asset.uri,
+          [{ resize: { width: 600 } }],
+          { compress: 0.5, format: SaveFormat.JPEG, base64: true },
+        )
+        const tempUrl = thumb.base64
+          ? `data:image/jpeg;base64,${thumb.base64}`
+          : asset.uri // fallback
         pendingImagesRef.current.set(tempUrl, { formData, name: asset.fileName || 'image.jpg' })
         actions.setImage(tempUrl)
       } else {
@@ -511,7 +586,7 @@ const WysiwygEditor = forwardRef(function WysiwygEditor({
         key: 'table',
         icon: 'grid-outline',
         label: t('tableA11y'),
-        onPress: actions.insertTable,
+        onPress: () => actions.insertTable(),
         active: false,
         disabled: false,
       },
@@ -561,6 +636,16 @@ const WysiwygEditor = forwardRef(function WysiwygEditor({
     }
     return buttons
   }, [actions, editorState, allowImages, handleOpenLinkModal, handleInsertImage, t, variant])
+
+  // Contextual table toolbar buttons — shown only when cursor is inside a table
+  const tableButtons = useMemo(() => [
+    { key: 'addRowAbove',  label: t('tableAddRowAbove'),  a11y: t('tableAddRowAboveA11y'),  onPress: actions.addRowBefore },
+    { key: 'addRowBelow',  label: t('tableAddRowBelow'),  a11y: t('tableAddRowBelowA11y'),  onPress: actions.addRowAfter },
+    { key: 'deleteRow',    label: t('tableDeleteRow'),    a11y: t('tableDeleteRowA11y'),    onPress: actions.deleteRow },
+    { key: 'addColLeft',   label: t('tableAddColLeft'),   a11y: t('tableAddColLeftA11y'),   onPress: actions.addColumnBefore },
+    { key: 'addColRight',  label: t('tableAddColRight'),  a11y: t('tableAddColRightA11y'),  onPress: actions.addColumnAfter },
+    { key: 'deleteCol',    label: t('tableDeleteCol'),    a11y: t('tableDeleteColA11y'),    onPress: actions.deleteColumn },
+  ], [actions, t])
 
   return (
     <View style={styles.container}>
@@ -679,11 +764,47 @@ const WysiwygEditor = forwardRef(function WysiwygEditor({
       </ScrollView>
       )}
 
+      {/* Contextual table toolbar — visible when cursor is inside a table (wiki variant only) */}
+      {editorMode === 'visual' && editorState.isInTable && variant === 'wiki' && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tableToolbarContent}
+          style={styles.tableToolbar}
+          keyboardShouldPersistTaps="always"
+        >
+          {tableButtons.map(btn => (
+            <TouchableOpacity
+              key={btn.key}
+              onPress={btn.onPress}
+              style={styles.tableToolbarButton}
+              accessibilityRole="button"
+              accessibilityLabel={btn.a11y}
+              hitSlop={{ top: 4, bottom: 4, left: 2, right: 2 }}
+            >
+              <ThemedText variant="caption" style={styles.tableToolbarButtonText}>
+                {btn.label}
+              </ThemedText>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+
       {/* Editor area — both editors stay mounted to preserve state */}
       <View style={[styles.editorContainer, editorMode !== 'visual' && styles.hiddenEditor]}>
         {editorJSX}
       </View>
       <View style={[styles.editorContainer, editorMode !== 'markdown' && styles.hiddenEditor]}>
+        {/* Mention autocomplete (markdown mode only) */}
+        {mentionVisible && mentionParticipants && (
+          <MentionAutocomplete
+            visible={mentionVisible}
+            query={mentionQuery}
+            participants={mentionParticipants}
+            onSelect={handleMentionSelect}
+            onDismiss={() => setMentionVisible(false)}
+          />
+        )}
         {showMarkdownPreview ? (
           <View style={styles.markdownPreview}>
             {markdownText.trim() ? (
@@ -717,6 +838,7 @@ const WysiwygEditor = forwardRef(function WysiwygEditor({
         animationType="fade"
         onRequestClose={() => setShowLinkModal(false)}
       >
+        {Platform.OS === 'web' ? (
         <View style={styles.linkOverlay}>
           <View style={styles.linkModal}>
             <ThemedText variant="h3" style={styles.linkModalTitle}>
@@ -764,6 +886,57 @@ const WysiwygEditor = forwardRef(function WysiwygEditor({
             </View>
           </View>
         </View>
+        ) : (
+        <KBAvoidingView style={{ flex: 1 }} behavior="padding">
+          <View style={styles.linkOverlay}>
+            <View style={styles.linkModal}>
+              <ThemedText variant="h3" style={styles.linkModalTitle}>
+                {t('linkTitle')}
+              </ThemedText>
+              <TextInput
+                style={[styles.linkInput, { color: colors.text }]}
+                placeholder={t('linkUrl')}
+                placeholderTextColor={colors.placeholderText}
+                value={linkUrl}
+                onChangeText={setLinkUrl}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+                maxFontSizeMultiplier={1.5}
+                accessibilityLabel={t('linkUrl')}
+              />
+              <TextInput
+                style={[styles.linkInput, { color: colors.text }]}
+                placeholder={t('linkText')}
+                placeholderTextColor={colors.placeholderText}
+                value={linkText}
+                onChangeText={setLinkText}
+                maxFontSizeMultiplier={1.5}
+                accessibilityLabel={t('linkText')}
+              />
+              <View style={styles.linkModalActions}>
+                <TouchableOpacity
+                  onPress={() => setShowLinkModal(false)}
+                  style={styles.linkCancelButton}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('linkCancel')}
+                >
+                  <ThemedText variant="button" color="secondary">{t('linkCancel')}</ThemedText>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleInsertLink}
+                  disabled={!linkUrl.trim()}
+                  style={[styles.linkInsertButton, !linkUrl.trim() && styles.linkInsertButtonDisabled]}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('linkInsert')}
+                >
+                  <ThemedText variant="button" color="inverse">{t('linkInsert')}</ThemedText>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KBAvoidingView>
+        )}
       </Modal>
 
       {/* Footnote Modal (insert or edit) */}
@@ -771,8 +944,9 @@ const WysiwygEditor = forwardRef(function WysiwygEditor({
         visible={showFootnoteModal}
         transparent
         animationType="fade"
-        onRequestClose={() => { setShowFootnoteModal(false); setEditingFootnoteLabel(null) }}
+        onRequestClose={closeFootnoteModal}
       >
+        {Platform.OS === 'web' ? (
         <View style={styles.linkOverlay}>
           <View style={styles.linkModal}>
             <ThemedText variant="h3" style={styles.linkModalTitle}>
@@ -793,7 +967,7 @@ const WysiwygEditor = forwardRef(function WysiwygEditor({
             />
             <View style={styles.linkModalActions}>
               <TouchableOpacity
-                onPress={() => { setShowFootnoteModal(false); setEditingFootnoteLabel(null) }}
+                onPress={closeFootnoteModal}
                 style={styles.linkCancelButton}
                 accessibilityRole="button"
                 accessibilityLabel={t('footnoteCancel')}
@@ -814,6 +988,51 @@ const WysiwygEditor = forwardRef(function WysiwygEditor({
             </View>
           </View>
         </View>
+        ) : (
+        <KBAvoidingView style={{ flex: 1 }} behavior="padding">
+          <View style={styles.linkOverlay}>
+            <View style={styles.linkModal}>
+              <ThemedText variant="h3" style={styles.linkModalTitle}>
+                {editingFootnoteLabel ? t('footnoteEditTitle') : t('footnoteTitle')}
+              </ThemedText>
+              <TextInput
+                style={[styles.linkInput, styles.footnoteInput, { color: colors.text }]}
+                placeholder={t('footnotePlaceholder')}
+                placeholderTextColor={colors.placeholderText}
+                value={footnoteText}
+                onChangeText={setFootnoteText}
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+                maxFontSizeMultiplier={1.5}
+                accessibilityLabel={t('footnotePlaceholder')}
+                autoFocus
+              />
+              <View style={styles.linkModalActions}>
+                <TouchableOpacity
+                  onPress={closeFootnoteModal}
+                  style={styles.linkCancelButton}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('footnoteCancel')}
+                >
+                  <ThemedText variant="button" color="secondary">{t('footnoteCancel')}</ThemedText>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleSaveFootnote}
+                  disabled={!footnoteText.trim()}
+                  style={[styles.linkInsertButton, !footnoteText.trim() && styles.linkInsertButtonDisabled]}
+                  accessibilityRole="button"
+                  accessibilityLabel={editingFootnoteLabel ? t('footnoteSave') : t('footnoteInsert')}
+                >
+                  <ThemedText variant="button" color="inverse">
+                    {editingFootnoteLabel ? t('footnoteSave') : t('footnoteInsert')}
+                  </ThemedText>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KBAvoidingView>
+        )}
       </Modal>
     </View>
   )
@@ -882,6 +1101,31 @@ const createStyles = (colors, minHeight, maxHeight, fullScreen, externalMode) =>
     minWidth: 32,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // Table contextual toolbar
+  tableToolbar: {
+    flexShrink: 0,
+    flexGrow: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.cardBorder,
+    backgroundColor: colors.cardBackground,
+  },
+  tableToolbarContent: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    gap: 4,
+    alignItems: 'center',
+  },
+  tableToolbarButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.background,
+  },
+  tableToolbarButtonText: {
+    color: colors.text,
   },
   toolbarButtonActive: {
     backgroundColor: colors.buttonSelected,

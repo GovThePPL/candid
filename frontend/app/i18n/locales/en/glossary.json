@@ -128,6 +128,7 @@
   "suggestionStaleWarningDetail": "The underlying item has been updated since this suggestion was created. Review the current version before approving.",
   "suggestionSupersededNotice": "This suggestion was superseded because the item was updated. You may re-submit with updated content.",
   "suggestionBy": "by {{author}}",
+  "reviewedByLabel": "Reviewed by",
   "suggestionProposedChanges": "Proposed Changes",
   "suggestionCurrentContent": "Current",
   "suggestionProposedContent": "Proposed",
@@ -179,6 +180,12 @@
   "previewTabChangesA11y": "Show rendered proposed content",
   "previewTabDiff": "Diff",
   "previewTabDiffA11y": "Show block-level rendered diff",
+
+  "directCreateSubmit": "Create",
+  "directCreateSubmitA11y": "Create this item directly",
+  "directCreateSuccess": "Created successfully",
+  "directCreateHint": "You have authority to create this directly",
+  "slugConflict": "An item with this name already exists",
 
   "editAndApprove": "Edit & Approve",
   "editAndApproveA11y": "Edit the proposed content before approving",

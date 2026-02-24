@@ -94,19 +94,11 @@ jest.mock('../../components/ChatHistoryContent', () => {
   const { View } = require('react-native')
   return ({ listHeader, stickyHeader }) => <View testID="chat-history-content">{listHeader}{stickyHeader}</View>
 })
-const mockGetUserById = jest.fn(() => Promise.resolve({
-  id: 'u2',
-  displayName: 'Other User',
-  username: 'otheruser',
-  kudosCount: 3,
-  roles: [],
-}))
 
 jest.mock('../../lib/api', () => ({
   __esModule: true,
   default: {
     admin: { getPendingRequests: jest.fn(() => Promise.resolve([])) },
-    users: { getUserById: (...args) => mockGetUserById(...args) },
   },
   translateError: (msg) => msg,
 }))
@@ -128,10 +120,9 @@ import ProfileScreen from '../../app/(dashboard)/profile'
 
 beforeEach(() => {
   mockSearchParams = {}
-  mockGetUserById.mockClear()
 })
 
-describe('Profile screen', () => {
+describe('Profile screen (own profile)', () => {
   test('renders profile card with display name and username', () => {
     render(<ProfileScreen />)
     expect(screen.getByText('TestUser')).toBeTruthy()
@@ -176,61 +167,9 @@ describe('Profile screen', () => {
     expect(screen.getByRole('button', { name: /adminButtonA11y/i })).toBeTruthy()
   })
 
-  test('header shows settings button on own profile', () => {
+  test('header shows settings button', () => {
     render(<ProfileScreen />)
     const header = screen.getByTestId('header')
     expect(header.props.showSettingsButton).toBe(true)
-    expect(header.props.showAvatar).toBe(false)
-  })
-})
-
-describe('Public profile', () => {
-  beforeEach(() => {
-    mockSearchParams = { userId: 'u2' }
-    mockGetUserById.mockResolvedValue({
-      id: 'u2',
-      displayName: 'Other User',
-      username: 'otheruser',
-      kudosCount: 3,
-      roles: [],
-    })
-  })
-
-  test('shows only 2 tabs (posts and comments)', async () => {
-    render(<ProfileScreen />)
-    // Wait for user fetch to resolve
-    await screen.findByText('Other User')
-    const tabs = screen.getAllByRole('tab')
-    expect(tabs.length).toBe(2)
-  })
-
-  test('fetches target user via getUserById', async () => {
-    render(<ProfileScreen />)
-    await screen.findByText('Other User')
-    expect(mockGetUserById).toHaveBeenCalledWith('u2')
-  })
-
-  test('does not show admin button for public profile', async () => {
-    render(<ProfileScreen />)
-    await screen.findByText('Other User')
-    expect(screen.queryByRole('button', { name: /adminButtonA11y/i })).toBeNull()
-  })
-
-  test('displays other user display name and username', async () => {
-    render(<ProfileScreen />)
-    await screen.findByText('Other User')
-    expect(screen.getByText('@otheruser')).toBeTruthy()
-  })
-
-  test('posts tab active by default for public profile', async () => {
-    render(<ProfileScreen />)
-    await screen.findByText('Other User')
-    expect(screen.getByTestId('posts-content')).toBeTruthy()
-  })
-
-  test('shows not found screen when user does not exist', async () => {
-    mockGetUserById.mockRejectedValue(new Error('Not Found'))
-    render(<ProfileScreen />)
-    await screen.findByText('userProfileNotFound')
   })
 })

@@ -42,10 +42,11 @@ export function useGlossaryDrawer() {
  * @param {Object} [opts]
  * @param {string} [opts.categoryId] - Filter terms to this category
  * @param {boolean} [opts.inverse=false] - Use inverse (white) highlight style
+ * @param {Function} [opts.onMentionPress] - Called with username when @mention tapped
  * @returns {Object|undefined} Rules object to pass as glossaryRules prop
  */
 export function useGlossaryRules(onTermPress, opts = {}) {
-  const { categoryId, inverse = false } = opts
+  const { categoryId, inverse = false, onMentionPress } = opts
   const colors = useThemeColors()
   const { matchPattern, termMap, getFilteredPattern } = useGlossary()
 
@@ -58,8 +59,23 @@ export function useGlossaryRules(onTermPress, opts = {}) {
       : { backgroundColor: (inverse ? '#FFFFFF' : colors.primary) + '20', borderRadius: 2 }),
   }), [inverse, colors.primary])
 
+  const mentionStyle = useMemo(() => ({
+    color: colors.primary,
+    fontWeight: '600',
+  }), [colors.primary])
+
+  const roleStyle = useMemo(() => ({
+    color: colors.primary,
+    fontWeight: '700',
+  }), [colors.primary])
+
+  const mentionOpts = useMemo(() => {
+    if (!onMentionPress) return undefined
+    return { onMentionPress, mentionStyle, roleStyle }
+  }, [onMentionPress, mentionStyle, roleStyle])
+
   return useMemo(() => {
-    if (!pattern || !onTermPress) return undefined
-    return createGlossaryTextRule(pattern, termMap, onTermPress, highlightStyle)
-  }, [pattern, termMap, onTermPress, highlightStyle])
+    if (!pattern && !onTermPress && !onMentionPress) return undefined
+    return createGlossaryTextRule(pattern, termMap, onTermPress, highlightStyle, mentionOpts)
+  }, [pattern, termMap, onTermPress, highlightStyle, mentionOpts, onMentionPress])
 }

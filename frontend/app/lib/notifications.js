@@ -1,27 +1,14 @@
 import { Platform } from 'react-native'
+import * as Notifications from 'expo-notifications'
+import * as Device from 'expo-device'
+import Constants from 'expo-constants'
 import api from './api'
-
-let Notifications = null
-let Device = null
-
-// Lazy-load expo-notifications and expo-device (they may not be installed yet)
-try {
-  Notifications = require('expo-notifications')
-  Device = require('expo-device')
-} catch {
-  // expo-notifications not installed — push notifications won't work
-}
 
 /**
  * Request permission and register the device's Expo push token with the backend.
  * Returns the token string on success, or null if permission denied / unavailable.
  */
 export async function registerForPushNotifications() {
-  if (!Notifications || !Device) {
-    console.warn('[notifications] expo-notifications or expo-device not available')
-    return null
-  }
-
   // Push notifications don't work on simulators
   if (!Device.isDevice) {
     console.warn('[notifications] Must use physical device for push notifications')
@@ -40,9 +27,19 @@ export async function registerForPushNotifications() {
     return null
   }
 
-  // Get Expo push token
-  const tokenData = await Notifications.getExpoPushTokenAsync()
-  const token = tokenData.data
+  // Get Expo push token (projectId required for SDK 54+)
+  // This throws on Expo Go SDK 53+ (remote push removed); requires dev build.
+  let token
+  try {
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId
+    const tokenData = await Notifications.getExpoPushTokenAsync(
+      projectId ? { projectId } : undefined
+    )
+    token = tokenData.data
+  } catch (err) {
+    console.warn('[notifications] Could not get push token (dev build required for remote push):', err.message)
+    return null
+  }
 
   // Register with backend
   const platform = Platform.OS === 'web' ? 'web' : 'expo'
@@ -55,8 +52,6 @@ export async function registerForPushNotifications() {
  * Configure how notifications are displayed when the app is in the foreground.
  */
 export function setupNotificationHandler() {
-  if (!Notifications) return
-
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowAlert: true,
@@ -71,8 +66,6 @@ export function setupNotificationHandler() {
  * Returns a cleanup function.
  */
 export function addNotificationResponseListener(callback) {
-  if (!Notifications) return () => {}
-
   const subscription = Notifications.addNotificationResponseReceivedListener(response => {
     const data = response.notification.request.content.data
     callback(data)

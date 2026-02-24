@@ -9,6 +9,14 @@ jest.mock('../../contexts/ThemeContext', () => ({
   useTheme: () => ({ isDark: false }),
 }))
 
+jest.mock('../../lib/keycloak', () => ({
+  refreshToken: jest.fn(),
+  loginWithCredentials: jest.fn(),
+  login: jest.fn(),
+  register: jest.fn(),
+  logout: jest.fn(),
+}))
+
 jest.mock('../../lib/timeUtils', () => ({
   formatRelativeTime: () => '2h',
 }))

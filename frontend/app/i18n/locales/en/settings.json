@@ -99,6 +99,8 @@
   "notifTypeAdminActionDesc": "Location, category, and account changes",
   "notifTypeModeration": "Moderation",
   "notifTypeModerationDesc": "Moderation actions on your content",
+  "notifTypeMention": "Mentions",
+  "notifTypeMentionDesc": "When someone @mentions you in a post or comment",
   "notifTypeToggleA11y": "{{type}}: {{state}}",
 
   "demographics": "Demographics",

@@ -39,5 +39,17 @@
   "footnotesSection": "Footnotes",
   "markdownPreview": "Preview",
   "markdownPreviewA11y": "Toggle markdown preview",
-  "markdownPreviewEmpty": "Nothing to preview yet"
+  "markdownPreviewEmpty": "Nothing to preview yet",
+  "tableAddRowAbove": "+ Row \u2191",
+  "tableAddRowBelow": "+ Row \u2193",
+  "tableDeleteRow": "\u2212 Row",
+  "tableAddColLeft": "+ Col \u2190",
+  "tableAddColRight": "+ Col \u2192",
+  "tableDeleteCol": "\u2212 Col",
+  "tableAddRowAboveA11y": "Add row above",
+  "tableAddRowBelowA11y": "Add row below",
+  "tableDeleteRowA11y": "Delete row",
+  "tableAddColLeftA11y": "Add column to left",
+  "tableAddColRightA11y": "Add column to right",
+  "tableDeleteColA11y": "Delete column"
 }

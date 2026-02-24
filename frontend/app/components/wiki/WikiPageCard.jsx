@@ -2,6 +2,7 @@ import { memo, useMemo } from 'react'
 import { View, TouchableOpacity, StyleSheet } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
+import { Shadows, BorderRadius, Spacing } from '../../constants/Theme'
 import ThemedText from '../ThemedText'
 import LocationCategoryBadge from '../LocationCategoryBadge'
 import { formatRelativeTime } from '../../lib/timeUtils'
@@ -41,12 +42,12 @@ export default memo(function WikiPageCard({ page, onPress, scope }) {
         ) : null}
       </View>
 
-      <ThemedText variant="h4" numberOfLines={1} style={styles.title}>
+      <ThemedText variant="label" numberOfLines={1} style={styles.title}>
         {page.title}
       </ThemedText>
 
       {page.description ? (
-        <ThemedText variant="bodySmall" color="secondary" numberOfLines={2}>
+        <ThemedText variant="bodySmall" color="secondary">
           {page.description}
         </ThemedText>
       ) : null}
@@ -57,12 +58,11 @@ export default memo(function WikiPageCard({ page, onPress, scope }) {
 const createStyles = (colors) => StyleSheet.create({
   card: {
     backgroundColor: colors.cardBackground,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 12,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.lg,
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
+    ...Shadows.card,
   },
   topRow: {
     flexDirection: 'row',

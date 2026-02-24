@@ -11,6 +11,7 @@ from conftest import (
     OREGON_LOCATION_ID,
     HEALTHCARE_CAT_ID,
     db_execute,
+    db_execute_returning,
     db_query_one,
 )
 
@@ -28,15 +29,15 @@ def _cleanup_suggestions():
     yield
     db_execute("DELETE FROM wiki_suggestion WHERE proposed_title LIKE 'Test%%'")
     db_execute("DELETE FROM glossary_term_version WHERE term_id IN "
-               "(SELECT id FROM glossary_term WHERE slug LIKE 'test-suggest-%%')")
+               "(SELECT id FROM glossary_term WHERE slug LIKE 'test-%%')")
     db_execute("DELETE FROM glossary_term_scope WHERE term_id IN "
-               "(SELECT id FROM glossary_term WHERE slug LIKE 'test-suggest-%%')")
-    db_execute("DELETE FROM glossary_term WHERE slug LIKE 'test-suggest-%%'")
+               "(SELECT id FROM glossary_term WHERE slug LIKE 'test-%%')")
+    db_execute("DELETE FROM glossary_term WHERE slug LIKE 'test-%%'")
     db_execute("DELETE FROM wiki_page_version WHERE page_id IN "
-               "(SELECT id FROM wiki_page WHERE slug LIKE 'test-suggest-%%')")
+               "(SELECT id FROM wiki_page WHERE slug LIKE 'test-%%')")
     db_execute("DELETE FROM wiki_page_scope WHERE page_id IN "
-               "(SELECT id FROM wiki_page WHERE slug LIKE 'test-suggest-%%')")
-    db_execute("DELETE FROM wiki_page WHERE slug LIKE 'test-suggest-%%'")
+               "(SELECT id FROM wiki_page WHERE slug LIKE 'test-%%')")
+    db_execute("DELETE FROM wiki_page WHERE slug LIKE 'test-%%'")
 
 
 def _seed_test_term(slug="test-suggest-term", term="Test Suggest Term"):
@@ -412,3 +413,311 @@ class TestSuggestionCount:
         """Returns 401 without auth."""
         resp = requests.get(SUGGESTION_COUNT_URL)
         assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Edit & Approve: Two-version history
+# ---------------------------------------------------------------------------
+
+def _seed_test_page(slug="test-suggest-page", title="Test Suggest Page"):
+    """Seed a wiki page for edit suggestions."""
+    db_execute("""
+        INSERT INTO wiki_page (slug, title, description, content, wiki_category, scope_combine, created_by, updated_by)
+        VALUES (%s, %s, 'Page summary', 'Page content', NULL, 'or', %s, %s)
+        ON CONFLICT (slug) DO UPDATE SET title = EXCLUDED.title
+    """, (slug, title, ADMIN1_ID, ADMIN1_ID))
+    row = db_query_one("SELECT id FROM wiki_page WHERE slug = %s", (slug,))
+    if row:
+        db_execute("""
+            INSERT INTO wiki_page_scope (page_id, scope_type, scope_id)
+            VALUES (%s, 'location', %s) ON CONFLICT DO NOTHING
+        """, (str(row["id"]), OREGON_LOCATION_ID))
+    return str(row["id"]) if row else None
+
+
+class TestEditApproveVersionHistory:
+    def test_edit_approve_new_term_creates_two_versions(self, admin_headers, normal2_headers):
+        """Edit & Approve on new term creates two version entries."""
+        # Submitter creates suggestion
+        create_resp = _create_suggestion(normal2_headers,
+                                          proposedTitle="Test EA New Term",
+                                          proposedContent="Original content")
+        assert create_resp.status_code == 201
+        suggestion_id = create_resp.json()["id"]
+
+        # Reviewer approves with modified content
+        resp = requests.put(
+            f"{SUGGESTIONS_URL}/{suggestion_id}",
+            headers=admin_headers,
+            json={
+                "status": "approved",
+                "proposedContent": "Reviewer modified content",
+            })
+        assert resp.status_code == 200
+
+        # Find the created term
+        term = db_query_one(
+            "SELECT id FROM glossary_term WHERE slug = 'test-ea-new-term'")
+        assert term is not None
+
+        # Should have 2 version rows
+        versions = db_execute_returning(
+            "SELECT edited_by, content FROM glossary_term_version "
+            "WHERE term_id = %s ORDER BY created_at",
+            (term["id"],))
+        assert len(versions) == 2
+
+        # Version 1: submitter's original content, attributed to submitter
+        assert str(versions[0]["edited_by"]) == NORMAL2_ID
+        assert versions[0]["content"] == "Original content"
+
+        # Version 2: same submitter content, attributed to reviewer
+        assert str(versions[1]["edited_by"]) == ADMIN1_ID
+        assert versions[1]["content"] == "Original content"
+
+        # Live term has reviewer's modified content
+        live = db_query_one(
+            "SELECT content FROM glossary_term WHERE id = %s", (term["id"],))
+        assert live["content"] == "Reviewer modified content"
+
+    def test_edit_approve_edit_page_creates_two_versions(self, admin_headers, normal2_headers):
+        """Edit & Approve on page edit creates two version entries."""
+        page_id = _seed_test_page()
+
+        # Create edit_page suggestion
+        create_resp = _create_suggestion(
+            normal2_headers,
+            suggestionType="edit_page",
+            proposedTitle="Test EA Edit Page",
+            proposedContent="Submitter page content",
+            wikiPagePath="test-suggest-page",
+            proposedScopes=[{"type": "location", "id": OREGON_LOCATION_ID}])
+        assert create_resp.status_code == 201
+        suggestion_id = create_resp.json()["id"]
+
+        # Reviewer approves with modified content
+        resp = requests.put(
+            f"{SUGGESTIONS_URL}/{suggestion_id}",
+            headers=admin_headers,
+            json={
+                "status": "approved",
+                "proposedContent": "Reviewer page content",
+            })
+        assert resp.status_code == 200
+
+        # Should have 2 version rows
+        versions = db_execute_returning(
+            "SELECT edited_by, content FROM wiki_page_version "
+            "WHERE page_id = %s ORDER BY created_at",
+            (page_id,))
+        assert len(versions) == 2
+
+        # Version 1: pre-edit page content, attributed to submitter
+        assert str(versions[0]["edited_by"]) == NORMAL2_ID
+        assert versions[0]["content"] == "Page content"
+
+        # Version 2: submitter's proposed content, attributed to reviewer
+        assert str(versions[1]["edited_by"]) == ADMIN1_ID
+        assert versions[1]["content"] == "Submitter page content"
+
+        # Live page has reviewer's modified content
+        live = db_query_one(
+            "SELECT content FROM wiki_page WHERE id = %s", (page_id,))
+        assert live["content"] == "Reviewer page content"
+
+    def test_approve_without_edits_creates_one_version(self, admin_headers, normal2_headers):
+        """Normal approval (no reviewer edits) creates single version."""
+        create_resp = _create_suggestion(normal2_headers,
+                                          proposedTitle="Test No Edit Approve")
+        assert create_resp.status_code == 201
+        suggestion_id = create_resp.json()["id"]
+
+        resp = requests.put(
+            f"{SUGGESTIONS_URL}/{suggestion_id}",
+            headers=admin_headers,
+            json={"status": "approved"})
+        assert resp.status_code == 200
+
+        term = db_query_one(
+            "SELECT id FROM glossary_term WHERE slug = 'test-no-edit-approve'")
+        assert term is not None
+
+        versions = db_execute_returning(
+            "SELECT edited_by FROM glossary_term_version WHERE term_id = %s",
+            (term["id"],))
+        assert len(versions) == 1
+        # Single version attributed to submitter
+        assert str(versions[0]["edited_by"]) == NORMAL2_ID
+
+    def test_edit_approve_no_actual_change_creates_one_version(self, admin_headers, normal2_headers):
+        """Edit approval sending same values creates single version."""
+        create_resp = _create_suggestion(
+            normal2_headers,
+            proposedTitle="Test Same Values",
+            proposedContent="Same content",
+            proposedSummary="Same summary")
+        assert create_resp.status_code == 201
+        suggestion_id = create_resp.json()["id"]
+
+        # "Edit" approval with identical values
+        resp = requests.put(
+            f"{SUGGESTIONS_URL}/{suggestion_id}",
+            headers=admin_headers,
+            json={
+                "status": "approved",
+                "proposedTitle": "Test Same Values",
+                "proposedContent": "Same content",
+                "proposedSummary": "Same summary",
+            })
+        assert resp.status_code == 200
+
+        term = db_query_one(
+            "SELECT id FROM glossary_term WHERE slug = 'test-same-values'")
+        assert term is not None
+
+        versions = db_execute_returning(
+            "SELECT edited_by FROM glossary_term_version WHERE term_id = %s",
+            (term["id"],))
+        assert len(versions) == 1
+
+
+# ---------------------------------------------------------------------------
+# POST /glossary/terms, POST /wiki/pages, POST /wiki/check-create-authority
+# ---------------------------------------------------------------------------
+
+GLOSSARY_TERMS_URL = f"{BASE_URL}/glossary/terms"
+WIKI_PAGES_URL = f"{BASE_URL}/wiki/pages"
+CHECK_AUTHORITY_URL = f"{BASE_URL}/wiki/check-create-authority"
+
+
+class TestDirectCreate:
+    """Tests for direct create endpoints."""
+
+    def test_create_term_as_admin(self, admin_headers):
+        resp = requests.post(GLOSSARY_TERMS_URL, headers=admin_headers, json={
+            "term": "Test Direct Term",
+            "summary": "A directly created term",
+            "content": "Some content",
+            "scopes": [{"type": "location", "id": OREGON_LOCATION_ID}],
+            "scopeCombine": "or",
+            "aliases": ["TDT"],
+        })
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["slug"] == "test-direct-term"
+        assert data["term"] == "Test Direct Term"
+        assert data["aliases"] == ["TDT"]
+
+    def test_create_page_as_admin(self, admin_headers):
+        resp = requests.post(WIKI_PAGES_URL, headers=admin_headers, json={
+            "title": "Test Direct Page",
+            "description": "A directly created page",
+            "content": "Page content here",
+            "scopes": [{"type": "location", "id": OREGON_LOCATION_ID}],
+            "scopeCombine": "or",
+        })
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["slug"] == "test-direct-page"
+        assert data["title"] == "Test Direct Page"
+
+    def test_create_term_as_normal_forbidden(self, normal2_headers):
+        resp = requests.post(GLOSSARY_TERMS_URL, headers=normal2_headers, json={
+            "term": "Test Forbidden Term",
+            "scopes": [{"type": "location", "id": OREGON_LOCATION_ID}],
+        })
+        assert resp.status_code == 403
+
+    def test_create_page_as_normal_forbidden(self, normal2_headers):
+        resp = requests.post(WIKI_PAGES_URL, headers=normal2_headers, json={
+            "title": "Test Forbidden Page",
+            "scopes": [{"type": "location", "id": OREGON_LOCATION_ID}],
+        })
+        assert resp.status_code == 403
+
+    def test_create_term_duplicate_slug_409(self, admin_headers):
+        # Create first
+        resp1 = requests.post(GLOSSARY_TERMS_URL, headers=admin_headers, json={
+            "term": "Test Dup Term",
+            "scopes": [{"type": "location", "id": OREGON_LOCATION_ID}],
+        })
+        assert resp1.status_code == 201
+        # Duplicate
+        resp2 = requests.post(GLOSSARY_TERMS_URL, headers=admin_headers, json={
+            "term": "Test Dup Term",
+            "scopes": [{"type": "location", "id": OREGON_LOCATION_ID}],
+        })
+        assert resp2.status_code == 409
+
+    def test_create_page_duplicate_slug_409(self, admin_headers):
+        resp1 = requests.post(WIKI_PAGES_URL, headers=admin_headers, json={
+            "title": "Test Dup Page",
+            "scopes": [{"type": "location", "id": OREGON_LOCATION_ID}],
+        })
+        assert resp1.status_code == 201
+        resp2 = requests.post(WIKI_PAGES_URL, headers=admin_headers, json={
+            "title": "Test Dup Page",
+            "scopes": [{"type": "location", "id": OREGON_LOCATION_ID}],
+        })
+        assert resp2.status_code == 409
+
+    def test_create_term_missing_required_400(self, admin_headers):
+        # Missing term name
+        resp = requests.post(GLOSSARY_TERMS_URL, headers=admin_headers, json={
+            "scopes": [{"type": "location", "id": OREGON_LOCATION_ID}],
+        })
+        assert resp.status_code == 400
+
+        # Missing scopes
+        resp = requests.post(GLOSSARY_TERMS_URL, headers=admin_headers, json={
+            "term": "Test Missing Scopes",
+        })
+        assert resp.status_code == 400
+
+    def test_create_term_supersedes_pending_suggestion(self, admin_headers, normal2_headers):
+        # normal2 submits a suggestion for "Test Supersede Term"
+        resp = _create_suggestion(normal2_headers,
+            suggestionType="new_term",
+            proposedTitle="Test Supersede Term",
+            proposedScopes=[{"type": "location", "id": OREGON_LOCATION_ID}],
+        )
+        assert resp.status_code == 201
+        suggestion_id = resp.json()["id"]
+
+        # admin1 directly creates the same term
+        resp = requests.post(GLOSSARY_TERMS_URL, headers=admin_headers, json={
+            "term": "Test Supersede Term",
+            "scopes": [{"type": "location", "id": OREGON_LOCATION_ID}],
+        })
+        assert resp.status_code == 201
+
+        # Suggestion should be superseded
+        row = db_query_one("SELECT status FROM wiki_suggestion WHERE id = %s", (suggestion_id,))
+        assert row["status"] == "superseded"
+
+    def test_check_authority_admin_true(self, admin_headers):
+        resp = requests.post(CHECK_AUTHORITY_URL, headers=admin_headers, json={
+            "scopes": [{"type": "location", "id": OREGON_LOCATION_ID}],
+        })
+        assert resp.status_code == 200
+        assert resp.json()["canCreate"] is True
+
+    def test_check_authority_normal_false(self, normal2_headers):
+        resp = requests.post(CHECK_AUTHORITY_URL, headers=normal2_headers, json={
+            "scopes": [{"type": "location", "id": OREGON_LOCATION_ID}],
+        })
+        assert resp.status_code == 200
+        assert resp.json()["canCreate"] is False
+
+    def test_create_term_version_recorded(self, admin_headers):
+        resp = requests.post(GLOSSARY_TERMS_URL, headers=admin_headers, json={
+            "term": "Test Version Term",
+            "summary": "With version",
+            "scopes": [{"type": "location", "id": OREGON_LOCATION_ID}],
+        })
+        assert resp.status_code == 201
+        term = db_query_one("SELECT id FROM glossary_term WHERE slug = 'test-version-term'")
+        versions = db_execute_returning(
+            "SELECT * FROM glossary_term_version WHERE term_id = %s", (term["id"],))
+        assert len(versions) == 1
+        assert versions[0]["edited_by"] == ADMIN1_ID

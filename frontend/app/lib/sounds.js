@@ -1,11 +1,10 @@
 /**
  * Sound utilities for chat notifications.
- * Uses Web Audio API on web, expo-av + generated WAV files on native.
+ * Uses Web Audio API on web, expo-audio + generated WAV files on native.
  *
  * Native approach: PCM samples are synthesized in JS (same oscillator math
  * as the web version), packed into WAV format, written to the filesystem
- * once at init, then preloaded as Audio.Sound instances for low-latency
- * replay via replayAsync().
+ * once at init, then preloaded as audio players for low-latency replay.
  */
 
 import { Platform } from 'react-native'
@@ -86,7 +85,7 @@ function generateKudosSamples() {
 function generateReactionSamples() {
   const duration = 0.12
   const samples = new Float32Array(sec(duration))
-  sineSegment(samples, 0, sec(duration), 880, 660, 0.08, 0.001)
+  sineSegment(samples, 0, sec(duration), 880, 660, 0.25, 0.001)
   return samples
 }
 
@@ -119,10 +118,23 @@ function generateClosureSamples() {
 }
 
 function generateUpvoteSamples() {
-  const duration = 0.08
+  const duration = 0.12
   const samples = new Float32Array(sec(duration))
-  sineSegment(samples, 0, sec(0.01), 600, 580, 0.001, 0.1)
-  sineSegment(samples, sec(0.01), sec(0.08), 580, 400, 0.1, 0.001)
+  sineSegment(samples, 0, sec(0.015), 600, 580, 0.001, 0.3)
+  sineSegment(samples, sec(0.015), sec(0.12), 580, 400, 0.3, 0.001)
+  return samples
+}
+
+function generateIncomingRequestSamples() {
+  // Descending two-tone chime: G5 → C5 (attention-grabbing, signals "someone reaching out")
+  const duration = 0.35
+  const samples = new Float32Array(sec(duration))
+  // First note: G5 (783.99 Hz)
+  sineSegment(samples, 0, sec(0.03), 783.99, 783.99, 0.001, 0.15)
+  sineSegment(samples, sec(0.03), sec(0.15), 783.99, 783.99, 0.15, 0.001)
+  // Second note: C5 (523.25 Hz)
+  sineSegment(samples, sec(0.15), sec(0.18), 523.25, 523.25, 0.001, 0.15)
+  sineSegment(samples, sec(0.18), sec(0.35), 523.25, 523.25, 0.15, 0.001)
   return samples
 }
 
@@ -147,13 +159,15 @@ const SOUND_GENERATORS = {
   closure: generateClosureSamples,
   upvote: generateUpvoteSamples,
   bridging: generateBridgingSamples,
+  incomingRequest: generateIncomingRequestSamples,
 }
 
 // ---------------------------------------------------------------------------
 // WAV encoding
 // ---------------------------------------------------------------------------
 
-function encodeWavBase64(samples) {
+/** Build a WAV file as raw bytes (Uint8Array) from Float32 PCM samples. */
+function encodeWavBytes(samples) {
   // Clamp and convert Float32 → Int16
   const pcm = new Int16Array(samples.length)
   for (let i = 0; i < samples.length; i++) {
@@ -189,35 +203,61 @@ function encodeWavBase64(samples) {
   // PCM data
   new Uint8Array(buffer, 44).set(new Uint8Array(pcm.buffer))
 
-  // Convert to base64
-  const bytes = new Uint8Array(buffer)
-  let binary = ''
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i])
+  return new Uint8Array(buffer)
+}
+
+/** Convenience wrapper: WAV bytes → base64 string (used in tests). */
+function encodeWavBase64(samples) {
+  return uint8ArrayToBase64(encodeWavBytes(samples))
+}
+
+const B64_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+
+function uint8ArrayToBase64(bytes) {
+  let result = ''
+  const len = bytes.length
+  for (let i = 0; i < len; i += 3) {
+    const b1 = bytes[i]
+    const b2 = i + 1 < len ? bytes[i + 1] : 0
+    const b3 = i + 2 < len ? bytes[i + 2] : 0
+    result += B64_CHARS[b1 >> 2]
+    result += B64_CHARS[((b1 & 3) << 4) | (b2 >> 4)]
+    result += i + 1 < len ? B64_CHARS[((b2 & 15) << 2) | (b3 >> 6)] : '='
+    result += i + 2 < len ? B64_CHARS[b3 & 63] : '='
   }
-  return btoa(binary)
+  return result
 }
 
 // ---------------------------------------------------------------------------
-// Native playback (expo-av + expo-file-system)
+// Native playback (expo-audio + expo-file-system/legacy)
 // ---------------------------------------------------------------------------
 
-let nativeSounds = null    // { typing: Audio.Sound, ... } once initialized
+let nativeSounds = null    // { typing: AudioPlayer, ... } once initialized
 let nativeInitPromise = null
+
+// Bump this when the encoder or sound generators change to force WAV regeneration
+const SOUND_CACHE_VERSION = '4'
 
 async function initNativeSounds() {
   if (Platform.OS === 'web') return
-  if (nativeSounds) return
+  // Only skip if we actually have loaded sounds (not empty from a failed init)
+  if (nativeSounds && Object.keys(nativeSounds).length > 0) return
   if (nativeInitPromise) return nativeInitPromise
+
+  nativeSounds = null
 
   nativeInitPromise = (async () => {
     try {
-      const { Audio } = require('expo-av')
-      const FileSystem = require('expo-file-system')
+      const { createAudioPlayer, setAudioModeAsync } = require('expo-audio')
+      // Use legacy import — SDK 54 deprecated the old expo-file-system API
+      // and the default import now throws for methods like getInfoAsync.
+      const FileSystem = require('expo-file-system/legacy')
 
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        shouldPlayInBackground: false,
+        interruptionMode: 'duckOthers',
+        shouldRouteThroughEarpiece: false,
       })
 
       const sounds = {}
@@ -227,24 +267,54 @@ async function initNativeSounds() {
         await FileSystem.makeDirectoryAsync(dir, { intermediates: true })
       }
 
-      for (const [name, generator] of Object.entries(SOUND_GENERATORS)) {
-        const filePath = dir + name + '.wav'
-        const fileInfo = await FileSystem.getInfoAsync(filePath)
-        if (!fileInfo.exists) {
-          const pcm = generator()
-          const b64 = encodeWavBase64(pcm)
-          await FileSystem.writeAsStringAsync(filePath, b64, {
-            encoding: FileSystem.EncodingType.Base64,
-          })
+      // Check cache version — regenerate all WAV files when encoder changes
+      const versionFile = dir + '.version'
+      let needsRegenerate = false
+      try {
+        const storedVersion = await FileSystem.readAsStringAsync(versionFile)
+        needsRegenerate = storedVersion !== SOUND_CACHE_VERSION
+      } catch {
+        needsRegenerate = true
+      }
+      if (needsRegenerate) {
+        try {
+          const dirContents = await FileSystem.readDirectoryAsync(dir)
+          for (const file of dirContents) {
+            if (file.endsWith('.wav')) {
+              await FileSystem.deleteAsync(dir + file, { idempotent: true })
+            }
+          }
+        } catch {
+          // Directory listing failed — ignore, files will be overwritten
         }
-        const { sound } = await Audio.Sound.createAsync({ uri: filePath })
-        sounds[name] = sound
+        await FileSystem.writeAsStringAsync(versionFile, SOUND_CACHE_VERSION)
+      }
+
+      for (const [name, generator] of Object.entries(SOUND_GENERATORS)) {
+        try {
+          const filePath = dir + name + '.wav'
+          const fileInfo = await FileSystem.getInfoAsync(filePath)
+          if (!fileInfo.exists) {
+            const pcm = generator()
+            const b64 = encodeWavBase64(pcm)
+            await FileSystem.writeAsStringAsync(filePath, b64, {
+              encoding: FileSystem.EncodingType.Base64,
+            })
+          }
+          const player = createAudioPlayer({ uri: filePath })
+          sounds[name] = player
+        } catch (e) {
+          console.warn(`Failed to init sound "${name}":`, e)
+          // Continue loading other sounds — don't let one failure break all
+        }
       }
 
       nativeSounds = sounds
     } catch (e) {
       console.warn('Failed to initialize native sounds:', e)
-      nativeSounds = {}
+      // Reset so next call can retry instead of being permanently broken
+      nativeSounds = null
+      nativeInitPromise = null
     }
   })()
 
@@ -252,13 +322,15 @@ async function initNativeSounds() {
 }
 
 async function playNative(name) {
-  if (!nativeSounds) await initNativeSounds()
+  if (!nativeSounds || Object.keys(nativeSounds).length === 0) {
+    await initNativeSounds()
+  }
   const sound = nativeSounds?.[name]
   if (!sound) return
   try {
-    await sound.replayAsync()
+    sound.seekTo(0)
+    sound.play()
   } catch (e) {
-    // Sound may have been unloaded or device audio unavailable
     console.warn(`Failed to play ${name} sound:`, e)
   }
 }
@@ -448,6 +520,37 @@ export async function playUpvoteSound() {
   oscillator.stop(now + 0.08)
 }
 
+export async function playIncomingRequestSound() {
+  if (Platform.OS !== 'web') return playNative('incomingRequest')
+  const ctx = await ensureAudioReady()
+  if (!ctx) return
+  const now = ctx.currentTime
+  // G5
+  const osc1 = ctx.createOscillator()
+  const gain1 = ctx.createGain()
+  osc1.connect(gain1)
+  gain1.connect(ctx.destination)
+  osc1.frequency.setValueAtTime(783.99, now)
+  osc1.type = 'sine'
+  gain1.gain.setValueAtTime(0.001, now)
+  gain1.gain.linearRampToValueAtTime(0.15, now + 0.03)
+  gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.15)
+  osc1.start(now)
+  osc1.stop(now + 0.15)
+  // C5
+  const osc2 = ctx.createOscillator()
+  const gain2 = ctx.createGain()
+  osc2.connect(gain2)
+  gain2.connect(ctx.destination)
+  osc2.frequency.setValueAtTime(523.25, now + 0.15)
+  osc2.type = 'sine'
+  gain2.gain.setValueAtTime(0.001, now + 0.15)
+  gain2.gain.linearRampToValueAtTime(0.15, now + 0.18)
+  gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.35)
+  osc2.start(now + 0.15)
+  osc2.stop(now + 0.35)
+}
+
 export async function playBridgingSound() {
   if (Platform.OS !== 'web') return playNative('bridging')
   const ctx = await ensureAudioReady()
@@ -495,5 +598,6 @@ export default {
   playClosureSound,
   playUpvoteSound,
   playBridgingSound,
+  playIncomingRequestSound,
   initNativeSounds,
 }

@@ -14,8 +14,9 @@ import { isBridging } from '../../lib/bridging'
  *
  * @param {Object} props
  * @param {Object} props.item - Post or comment object with bridgingScore, upvoteCount, downvoteCount
+ * @param {boolean} [props.compact] - When true, show only the link icon in a circle (no text)
  */
-export default function BridgingBadge({ item }) {
+export default function BridgingBadge({ item, compact }) {
   const { t } = useTranslation('discuss')
   const scaleAnim = useRef(new Animated.Value(0)).current
 
@@ -33,11 +34,11 @@ export default function BridgingBadge({ item }) {
   return (
     <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
       <View
-        style={styles.badge}
+        style={compact ? styles.badgeCompact : styles.badge}
         accessibilityLabel={t('bridgingBadgeA11y')}
       >
-        <Ionicons name="link-outline" size={10} color={OnBrandColors.text} />
-        <ThemedText style={styles.label}>{t('bridgingBadge')}</ThemedText>
+        <Ionicons name="link-outline" size={compact ? 12 : 10} color={OnBrandColors.text} />
+        {!compact && <ThemedText style={styles.label}>{t('bridgingBadge')}</ThemedText>}
       </View>
     </Animated.View>
   )
@@ -53,6 +54,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7,
     paddingVertical: 2,
     alignSelf: 'flex-start',
+  },
+  badgeCompact: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: SemanticColors.bridging,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   label: {
     ...Typography.badgeSm,

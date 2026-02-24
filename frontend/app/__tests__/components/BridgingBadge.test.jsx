@@ -50,4 +50,19 @@ describe('BridgingBadge', () => {
     )
     expect(screen.getByText('bridgingBadge')).toBeTruthy()
   })
+
+  it('renders icon only (no text) when compact', () => {
+    const { queryByText } = render(
+      <BridgingBadge item={{ bridgingScore: 0.6, upvoteCount: 30, downvoteCount: 10 }} compact />
+    )
+    expect(screen.getByLabelText('bridgingBadgeA11y')).toBeTruthy()
+    expect(queryByText('bridgingBadge')).toBeNull()
+  })
+
+  it('renders full text when not compact', () => {
+    render(
+      <BridgingBadge item={{ bridgingScore: 0.6, upvoteCount: 30, downvoteCount: 10 }} compact={false} />
+    )
+    expect(screen.getByText('bridgingBadge')).toBeTruthy()
+  })
 })

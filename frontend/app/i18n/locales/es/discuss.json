@@ -242,5 +242,16 @@
   "errorDeletePost": "No se pudo eliminar la publicación",
   "errorEditComment": "No se pudo actualizar el comentario",
   "errorDeleteComment": "No se pudo eliminar el comentario",
-  "errorEditExpired": "El período de edición ha expirado"
+  "errorEditExpired": "El período de edición ha expirado",
+
+  "mentionNoResults": "Sin coincidencias",
+  "mentionLimitReached": "Límite de menciones alcanzado ({{max}})",
+  "mentionA11y": "Mencionar a {{name}}",
+  "mentionAutocompleteA11y": "Sugerencias de mención",
+  "mentionRoleAdmin": "Admin",
+  "mentionRoleModerator": "Moderador",
+  "mentionRoleFacilitator": "Facilitador",
+  "mentionRoleLiaison": "Enlace",
+  "mentionRoleExpert": "Experto",
+  "mentionRoleDesc": "Notificar a todos los usuarios con rol {{role}}"
 }

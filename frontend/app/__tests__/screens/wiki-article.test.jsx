@@ -73,7 +73,7 @@ jest.mock('expo-router', () => ({
   },
 }))
 
-import WikiArticleScreen from '../../app/(dashboard)/wiki/[...slug]'
+import WikiArticleScreen from '../../app/(dashboard)/(tabs)/wiki/[...slug]'
 
 const mockPage = {
   id: '550e8400-e29b-41d4-a716-446655440000',

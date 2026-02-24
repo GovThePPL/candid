@@ -1,5 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
+jest.mock('../../lib/keycloak', () => ({
+  refreshToken: jest.fn(),
+  loginWithCredentials: jest.fn(),
+  login: jest.fn(),
+  register: jest.fn(),
+  logout: jest.fn(),
+}))
+
 jest.mock('candid_api', () => {
   const mockAuth = { BearerAuth: { accessToken: null } }
   return {

@@ -149,10 +149,11 @@ jest.mock('./contexts/I18nContext', () => ({
 
 // Mock react-native-keyboard-controller
 jest.mock('react-native-keyboard-controller', () => {
-  const { ScrollView } = require('react-native')
+  const { ScrollView, View } = require('react-native')
   return {
     KeyboardProvider: ({ children }) => children,
     KeyboardAwareScrollView: ScrollView,
+    KeyboardAvoidingView: View,
   }
 })
 

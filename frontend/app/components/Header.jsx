@@ -9,6 +9,7 @@ import useIsDesktop from '../hooks/useIsDesktop'
 import { useAuth, useChatContext } from '../contexts/UserContext'
 import { useNotificationCount } from '../contexts/NotificationContext'
 import ChatRequestIndicator from './ChatRequestIndicator'
+import IncomingChatRequestIndicator from './IncomingChatRequestIndicator'
 import Avatar from './Avatar'
 import ThemedText from './ThemedText'
 import { useToast } from './Toast'
@@ -23,13 +24,17 @@ export default function Header({ onBack, showCreateButton, showAvatar = true, di
   const styles = useMemo(() => createStyles(colors, insets), [colors, insets])
   const showToast = useToast()
   const { user } = useAuth()
-  const { pendingChatRequest, clearPendingChatRequest } = useChatContext()
+  const { pendingChatRequest, clearPendingChatRequest, incomingChatRequest, clearIncomingChatRequest } = useChatContext()
   const isDesktop = useIsDesktop()
   const { unreadCount } = useNotificationCount()
   const [headerWidth, setHeaderWidth] = useState(0)
 
   const [rightWidth, setRightWidth] = useState(0)
   const logoWidthRef = useRef(0)
+
+  // Show received indicator when: incoming request exists, no sent request, not on cards page, not desktop
+  const showReceivedIndicator = !!incomingChatRequest && !pendingChatRequest && pathname !== '/cards' && !isDesktop
+  const hasActiveIndicator = !!pendingChatRequest || showReceivedIndicator
 
   // Dynamically show logo if there's room for both logo + full indicator
   // Full indicator: avatar(40) + name(~60) + bubble(40) + gaps(16) + border+padding(12) ≈ 170px
@@ -39,7 +44,7 @@ export default function Header({ onBack, showCreateButton, showAvatar = true, di
   const SECTION_GAPS = 40 // minimum breathing room between logo, indicator, and right section
   const availableWidth = headerWidth - rightWidth - HEADER_PADDING
   // On sub-pages (onBack), always hide logo when indicator is active — back arrow is enough context
-  const showLogo = !pendingChatRequest ||
+  const showLogo = !hasActiveIndicator ||
     (!onBack && availableWidth >= logoWidthRef.current + SECTION_GAPS + COMFORTABLE_INDICATOR_WIDTH)
 
   // Handle chat request timeout - rescind and add to chatting list
@@ -96,6 +101,12 @@ export default function Header({ onBack, showCreateButton, showAvatar = true, di
             onCancel={handleChatRequestCancel}
           />
         )}
+        {showReceivedIndicator && (
+          <IncomingChatRequestIndicator
+            incomingRequest={incomingChatRequest}
+            onExpire={clearIncomingChatRequest}
+          />
+        )}
       </View>
     )
   }
@@ -103,7 +114,7 @@ export default function Header({ onBack, showCreateButton, showAvatar = true, di
   return (
     <View style={styles.header} onLayout={e => setHeaderWidth(e.nativeEvent.layout.width)}>
       {/* Left section */}
-      <View style={[styles.headerLeft, pendingChatRequest && !showLogo && styles.headerLeftExpanded]}>
+      <View style={[styles.headerLeft, hasActiveIndicator && !showLogo && styles.headerLeftExpanded]}>
         {onBack && (
           <TouchableOpacity onPress={onBack} style={styles.backButton} accessibilityLabel={t('goBack')} accessibilityRole="button">
             <Ionicons name="arrow-back" size={22} color={colors.primary} />
@@ -126,6 +137,12 @@ export default function Header({ onBack, showCreateButton, showAvatar = true, di
             onCancel={handleChatRequestCancel}
           />
         )}
+        {showReceivedIndicator && !showLogo && (
+          <IncomingChatRequestIndicator
+            incomingRequest={incomingChatRequest}
+            onExpire={clearIncomingChatRequest}
+          />
+        )}
       </View>
 
       {/* Center section: indicator between logo and right when there's room */}
@@ -135,6 +152,14 @@ export default function Header({ onBack, showCreateButton, showAvatar = true, di
             pendingRequest={pendingChatRequest}
             onTimeout={handleChatRequestTimeout}
             onCancel={handleChatRequestCancel}
+          />
+        </View>
+      )}
+      {showReceivedIndicator && showLogo && (
+        <View style={styles.headerCenter}>
+          <IncomingChatRequestIndicator
+            incomingRequest={incomingChatRequest}
+            onExpire={clearIncomingChatRequest}
           />
         </View>
       )}

@@ -1,6 +1,3 @@
-// notifications.js lazy-loads expo-notifications/expo-device via require() in try/catch,
-// so we must use virtual: true for modules that aren't actually installed.
-
 const mockGetPermissions = jest.fn()
 const mockRequestPermissions = jest.fn()
 const mockGetExpoPushToken = jest.fn()
@@ -18,6 +15,13 @@ jest.mock('expo-notifications', () => ({
 
 jest.mock('expo-device', () => ({
   isDevice: true,
+}), { virtual: true })
+
+jest.mock('expo-constants', () => ({
+  __esModule: true,
+  default: {
+    expoConfig: { extra: { eas: { projectId: 'test-project-id' } } },
+  },
 }), { virtual: true })
 
 jest.mock('../../lib/api', () => ({
@@ -48,6 +52,13 @@ beforeEach(() => {
     isDevice: true,
   }), { virtual: true })
 
+  jest.mock('expo-constants', () => ({
+    __esModule: true,
+    default: {
+      expoConfig: { extra: { eas: { projectId: 'test-project-id' } } },
+    },
+  }), { virtual: true })
+
   jest.mock('../../lib/api', () => ({
     __esModule: true,
     default: {
@@ -62,24 +73,6 @@ beforeEach(() => {
 })
 
 describe('registerForPushNotifications', () => {
-  it('returns null when modules are unavailable', async () => {
-    jest.resetModules()
-    jest.mock('expo-notifications', () => {
-      throw new Error('not installed')
-    }, { virtual: true })
-    jest.mock('expo-device', () => {
-      throw new Error('not installed')
-    }, { virtual: true })
-    jest.mock('../../lib/api', () => ({
-      __esModule: true,
-      default: { users: { registerPushToken: jest.fn() } },
-    }))
-
-    const mod = require('../../lib/notifications')
-    const result = await mod.registerForPushNotifications()
-    expect(result).toBeNull()
-  })
-
   it('returns null on non-device (simulator)', async () => {
     jest.resetModules()
     jest.mock('expo-device', () => ({ isDevice: false }), { virtual: true })
@@ -89,6 +82,10 @@ describe('registerForPushNotifications', () => {
       getExpoPushTokenAsync: mockGetExpoPushToken,
       setNotificationHandler: mockSetNotificationHandler,
       addNotificationResponseReceivedListener: mockAddResponseListener,
+    }), { virtual: true })
+    jest.mock('expo-constants', () => ({
+      __esModule: true,
+      default: { expoConfig: null },
     }), { virtual: true })
     jest.mock('../../lib/api', () => ({
       __esModule: true,
@@ -132,6 +129,14 @@ describe('registerForPushNotifications', () => {
 
     await registerForPushNotifications()
     expect(mockRegisterPushToken).toHaveBeenCalledWith('ExponentPushToken[xyz]', expect.any(String))
+  })
+
+  it('passes projectId to getExpoPushTokenAsync', async () => {
+    mockGetPermissions.mockResolvedValueOnce({ status: 'granted' })
+    mockGetExpoPushToken.mockResolvedValueOnce({ data: 'ExponentPushToken[abc]' })
+
+    await registerForPushNotifications()
+    expect(mockGetExpoPushToken).toHaveBeenCalledWith({ projectId: 'test-project-id' })
   })
 })
 
