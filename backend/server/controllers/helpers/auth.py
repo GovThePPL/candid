@@ -3,7 +3,7 @@
 Role hierarchy:
   Admin (location-scoped, inherits DOWN)
     └─ Moderator (location-scoped, inherits DOWN)
-        └─ Facilitator (location + category scoped, NO inheritance)
+        └─ Facilitator (location + session scoped, NO inheritance)
             ├─ Assistant Moderator
             ├─ Expert
             └─ Liaison
@@ -11,6 +11,7 @@ Role hierarchy:
 user_type is now only 'normal' or 'guest'. All privileged roles live in user_role.
 """
 
+import functools
 import logging
 import time
 from datetime import datetime, timezone
@@ -18,7 +19,7 @@ from datetime import datetime, timezone
 from candid.models.user import User
 from candid.models.error_model import ErrorModel
 from candid.controllers import config, db
-from candid.controllers.helpers.constants import HIERARCHICAL_ROLES
+from candid.controllers.helpers.constants import HIERARCHICAL_ROLES, STAGE_ORDER, STAGE_INDEX, WRITE_STAGES
 from candid.controllers.helpers.redis_pool import get_redis
 
 logger = logging.getLogger(__name__)
@@ -135,15 +136,15 @@ def get_location_descendants(location_id):
 def get_user_roles(user_id):
     """Get all roles for a user from user_role table.
 
-    Returns list of dicts with role, location, and category info.
+    Returns list of dicts with role, location, and session info.
     """
     rows = db.execute_query("""
-        SELECT ur.role, ur.location_id, ur.position_category_id,
+        SELECT ur.role, ur.location_id, ur.session_id,
                l.name AS location_name, l.code AS location_code,
-               pc.label AS category_label
+               pc.label AS session_label
         FROM user_role ur
         LEFT JOIN location l ON ur.location_id = l.id
-        LEFT JOIN position_category pc ON ur.position_category_id = pc.id
+        LEFT JOIN session pc ON ur.session_id = pc.id
         WHERE ur.user_id = %s
     """, (str(user_id),))
     if not rows:
@@ -152,10 +153,10 @@ def get_user_roles(user_id):
         {
             "role": r["role"],
             "location_id": str(r["location_id"]) if r["location_id"] else None,
-            "position_category_id": str(r["position_category_id"]) if r["position_category_id"] else None,
+            "session_id": str(r["session_id"]) if r["session_id"] else None,
             "location_name": r.get("location_name"),
             "location_code": r.get("location_code"),
-            "category_label": r.get("category_label"),
+            "session_label": r.get("session_label"),
         }
         for r in rows
     ]
@@ -189,19 +190,19 @@ def is_moderator_anywhere(user_id):
 
 
 def get_facilitator_scopes(user_id):
-    """All (location_id, category_id) pairs where user is a facilitator.
+    """All (location_id, session_id) pairs where user is a facilitator.
 
-    Returns list of (location_id_str, category_id_str) tuples.
-    Only includes rows where both location_id and position_category_id are non-null.
+    Returns list of (location_id_str, session_id_str) tuples.
+    Only includes rows where both location_id and session_id are non-null.
     """
     rows = db.execute_query("""
-        SELECT location_id, position_category_id FROM user_role
+        SELECT location_id, session_id FROM user_role
         WHERE user_id = %s AND role IN ('facilitator', 'assistant_moderator')
-        AND location_id IS NOT NULL AND position_category_id IS NOT NULL
+        AND location_id IS NOT NULL AND session_id IS NOT NULL
     """, (str(user_id),))
     if not rows:
         return []
-    return [(str(r['location_id']), str(r['position_category_id'])) for r in rows]
+    return [(str(r['location_id']), str(r['session_id'])) for r in rows]
 
 
 def get_user_type(user_id):
@@ -253,18 +254,18 @@ def is_moderator_at_location(user_id, location_id):
     return row is not None
 
 
-def is_facilitator_for(user_id, location_id, category_id=None):
-    """Check if user is facilitator at exact location+category (no location inheritance).
+def is_facilitator_for(user_id, location_id, session_id=None):
+    """Check if user is facilitator at exact location+session (no location inheritance).
 
-    If category_id is None, checks for any facilitator role at the location.
+    If session_id is None, checks for any facilitator role at the location.
     """
-    if category_id:
+    if session_id:
         row = db.execute_query("""
             SELECT 1 FROM user_role
             WHERE user_id = %s AND role = 'facilitator'
-            AND location_id = %s AND position_category_id = %s
+            AND location_id = %s AND session_id = %s
             LIMIT 1
-        """, (str(user_id), str(location_id), str(category_id)), fetchone=True)
+        """, (str(user_id), str(location_id), str(session_id)), fetchone=True)
     else:
         row = db.execute_query("""
             SELECT 1 FROM user_role
@@ -274,11 +275,11 @@ def is_facilitator_for(user_id, location_id, category_id=None):
     return row is not None
 
 
-def get_highest_role_at_location(user_id, location_id, category_id=None):
-    """Get user's highest role relevant to a location (+ optional category).
+def get_highest_role_at_location(user_id, location_id, session_id=None):
+    """Get user's highest role relevant to a location (+ optional session).
 
     Checks hierarchical roles (admin, moderator) at location ancestors,
-    then category-scoped roles at exact location.
+    then session-scoped roles at exact location.
     Returns role name string or None.
     """
     # Check hierarchical roles (admin > moderator) at ancestors
@@ -294,11 +295,11 @@ def get_highest_role_at_location(user_id, location_id, category_id=None):
         if row:
             return row["role"]
 
-    # Check category-scoped roles at exact location
-    if category_id:
+    # Check session-scoped roles at exact location
+    if session_id:
         row = db.execute_query("""
             SELECT role FROM user_role
-            WHERE user_id = %s AND location_id = %s AND position_category_id = %s
+            WHERE user_id = %s AND location_id = %s AND session_id = %s
             ORDER BY CASE role
                 WHEN 'facilitator' THEN 1
                 WHEN 'assistant_moderator' THEN 2
@@ -306,11 +307,11 @@ def get_highest_role_at_location(user_id, location_id, category_id=None):
                 WHEN 'liaison' THEN 4
             END
             LIMIT 1
-        """, (str(user_id), str(location_id), str(category_id)), fetchone=True)
+        """, (str(user_id), str(location_id), str(session_id)), fetchone=True)
         if row:
             return row["role"]
 
-    # Check category-scoped roles without specific category
+    # Check session-scoped roles without specific session
     row = db.execute_query("""
         SELECT role FROM user_role
         WHERE user_id = %s AND location_id = %s
@@ -392,14 +393,58 @@ def authorization_allow_banned(required_level, token_info=None):
     return False, ErrorModel(403, "Unauthorized")
 
 
-def authorization_scoped(required_role, token_info=None, location_id=None, category_id=None):
+# ---------------------------------------------------------------------------
+# Auth decorator — eliminates 3-line boilerplate in endpoints
+# ---------------------------------------------------------------------------
+
+def require_auth(level="normal", allow_banned=False):
+    """Decorator that handles user_type auth check and injects ``user_id``.
+
+    Replaces the common boilerplate::
+
+        authorized, auth_err = authorization("normal", token_info)
+        if not authorized:
+            return auth_err, auth_err.code
+        user_id = token_info["sub"]
+
+    Usage::
+
+        @require_auth("normal")
+        def my_endpoint(param1, token_info=None, user_id=None):
+            # user_id is guaranteed to be set here
+            ...
+
+        @require_auth("normal", allow_banned=True)
+        def card_queue(token_info=None, user_id=None):
+            ...
+
+    The decorated function's signature is preserved for Connexion routing.
+    ``user_id`` must be declared as a keyword parameter with a default.
+    """
+    def decorator(fn):
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            token_info = kwargs.get("token_info")
+            if allow_banned:
+                ok, err = authorization_allow_banned(level, token_info)
+            else:
+                ok, err = authorization(level, token_info)
+            if not ok:
+                return err, err.code
+            kwargs["user_id"] = token_info["sub"]
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+def authorization_scoped(required_role, token_info=None, location_id=None, session_id=None):
     """Hierarchical, location-scoped authorization check.
 
     Checks whether the user has `required_role` (or higher) at the given
-    location/category scope. The hierarchy:
+    location/session scope. The hierarchy:
       1. Admin at location (or ancestor)? → pass
       2. Moderator at location (or ancestor)? → pass if required_role is moderator or below
-      3. Facilitator at location+category? → pass if required_role is facilitator or below
+      3. Facilitator at location+session? → pass if required_role is facilitator or below
       4. Exact scoped role match? → pass
 
     Returns (True, None) or (False, ErrorModel).
@@ -436,25 +481,25 @@ def authorization_scoped(required_role, token_info=None, location_id=None, categ
                     if row:
                         return True, None
 
-        # Check category-scoped roles at exact location
+        # Check session-scoped roles at exact location
         non_hierarchical = satisfying_roles - HIERARCHICAL_ROLES
         if non_hierarchical:
-            if category_id:
+            if session_id:
                 row = db.execute_query("""
                     SELECT 1 FROM user_role
                     WHERE user_id = %s AND role = ANY(%s)
-                    AND location_id = %s AND position_category_id = %s
+                    AND location_id = %s AND session_id = %s
                     LIMIT 1
-                """, (str(user_id), list(non_hierarchical), str(location_id), str(category_id)),
+                """, (str(user_id), list(non_hierarchical), str(location_id), str(session_id)),
                     fetchone=True)
                 if row:
                     return True, None
 
-            # Also check roles without category constraint
+            # Also check roles without session constraint
             row = db.execute_query("""
                 SELECT 1 FROM user_role
                 WHERE user_id = %s AND role = ANY(%s)
-                AND location_id = %s AND position_category_id IS NULL
+                AND location_id = %s AND session_id IS NULL
                 LIMIT 1
             """, (str(user_id), list(non_hierarchical), str(location_id)),
                 fetchone=True)
@@ -480,9 +525,9 @@ def authorization_scoped(required_role, token_info=None, location_id=None, categ
 QA_QUALIFYING_ROLES = {'admin', 'moderator', 'facilitator', 'expert', 'liaison'}
 
 
-def has_qa_authority(user_id, location_id, category_id):
-    """Check if user has any qualifying role for Q&A at this location+category."""
-    role = get_highest_role_at_location(user_id, location_id, category_id)
+def has_qa_authority(user_id, location_id, session_id):
+    """Check if user has any qualifying role for Q&A at this location+session."""
+    role = get_highest_role_at_location(user_id, location_id, session_id)
     return role in QA_QUALIFYING_ROLES
 
 
@@ -504,6 +549,68 @@ def token_to_user(token_info):
             kudos_count=res.get('kudos_count', 0),
         )
     return None
+
+
+# ---------------------------------------------------------------------------
+# Session stage gating
+# ---------------------------------------------------------------------------
+
+def get_session_stage(session_id):
+    """Fetch the current stage of a session.
+
+    Returns stage string or None if session not found.
+    """
+    if not session_id:
+        return None
+    row = db.execute_query(
+        "SELECT stage FROM session WHERE id = %s",
+        (str(session_id),), fetchone=True,
+    )
+    return row["stage"] if row else None
+
+
+def check_session_stage(session_id, content_type):
+    """Check if the session's current stage allows creating the given content type.
+
+    Returns (True, None) if allowed, (False, ErrorModel) if blocked.
+    None session_id always passes (unscoped content).
+    """
+    if not session_id:
+        return True, None
+
+    stage = get_session_stage(session_id)
+    if stage is None:
+        return False, ErrorModel(404, "Session not found")
+
+    allowed_stages = WRITE_STAGES.get(content_type)
+    if allowed_stages is None:
+        return True, None  # Unknown content type — don't gate
+
+    if stage in allowed_stages:
+        return True, None
+
+    return False, ErrorModel(403, f"This action is not allowed during the '{stage}' stage")
+
+
+def validate_stage_advance(current_stage, requested_stage):
+    """Validate that requested_stage is the next stage after current_stage.
+
+    Returns (True, None) if valid, (False, error_message) if invalid.
+    """
+    current_idx = STAGE_INDEX.get(current_stage)
+    requested_idx = STAGE_INDEX.get(requested_stage)
+
+    if current_idx is None:
+        return False, f"Unknown current stage: {current_stage}"
+    if requested_idx is None:
+        return False, f"Unknown requested stage: {requested_stage}"
+    if requested_idx != current_idx + 1:
+        if requested_idx <= current_idx:
+            return False, f"Cannot move backward from '{current_stage}' to '{requested_stage}'"
+        expected = STAGE_ORDER[current_idx + 1]
+        return False, f"Must advance to '{expected}', not '{requested_stage}'"
+
+    return True, None
 
 
 # ---------------------------------------------------------------------------

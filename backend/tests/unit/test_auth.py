@@ -4,6 +4,8 @@ import pytest
 from unittest.mock import patch, MagicMock, call
 from datetime import datetime, timezone, timedelta
 
+from candid.controllers.helpers.auth import check_session_stage, validate_stage_advance, get_session_stage
+
 pytestmark = pytest.mark.unit
 
 # ---------------------------------------------------------------------------
@@ -307,7 +309,7 @@ class TestIsRootAdmin:
 
 
 class TestIsFacilitatorFor:
-    def test_facilitator_at_exact_location_category(self):
+    def test_facilitator_at_exact_location_session(self):
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value={"1": 1})
 
@@ -318,14 +320,14 @@ class TestIsFacilitatorFor:
     def test_facilitator_does_not_inherit_down(self):
         """Facilitator at Oregon should NOT cover Portland."""
         mock_db = MagicMock()
-        # Query for exact location+category returns nothing
+        # Query for exact location+session returns nothing
         mock_db.execute_query = MagicMock(return_value=None)
 
         with patch("candid.controllers.helpers.auth.db", mock_db):
             from candid.controllers.helpers.auth import is_facilitator_for
             assert is_facilitator_for("user-1", PORTLAND, HEALTHCARE_CAT) is False
 
-    def test_facilitator_any_category_at_location(self):
+    def test_facilitator_any_session_at_location(self):
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value={"1": 1})
 
@@ -406,12 +408,12 @@ class TestGetHighestRoleAtLocation:
             from candid.controllers.helpers.auth import get_highest_role_at_location
             assert get_highest_role_at_location("user-1", OREGON) == "moderator"
 
-    def test_facilitator_with_category(self):
+    def test_facilitator_with_session(self):
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(side_effect=[
             [{"id": OREGON}, {"id": US_ROOT}],  # ancestors
             None,  # no admin/moderator
-            {"role": "facilitator"},  # facilitator at location+category
+            {"role": "facilitator"},  # facilitator at location+session
         ])
 
         with patch("candid.controllers.helpers.auth.db", mock_db):
@@ -423,7 +425,7 @@ class TestGetHighestRoleAtLocation:
         mock_db.execute_query = MagicMock(side_effect=[
             [{"id": OREGON}, {"id": US_ROOT}],
             None,  # no admin/moderator
-            None,  # no category-scoped role
+            None,  # no session-scoped role
         ])
 
         with patch("candid.controllers.helpers.auth.db", mock_db):
@@ -435,8 +437,8 @@ class TestGetUserRoles:
     def test_returns_roles(self):
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value=[
-            {"role": "admin", "location_id": US_ROOT, "position_category_id": None},
-            {"role": "facilitator", "location_id": OREGON, "position_category_id": HEALTHCARE_CAT},
+            {"role": "admin", "location_id": US_ROOT, "session_id": None},
+            {"role": "facilitator", "location_id": OREGON, "session_id": HEALTHCARE_CAT},
         ])
 
         with patch("candid.controllers.helpers.auth.db", mock_db):
@@ -444,7 +446,7 @@ class TestGetUserRoles:
             roles = get_user_roles("user-1")
             assert len(roles) == 2
             assert roles[0]["role"] == "admin"
-            assert roles[1]["position_category_id"] == HEALTHCARE_CAT
+            assert roles[1]["session_id"] == HEALTHCARE_CAT
 
     def test_no_roles(self):
         mock_db = MagicMock()
@@ -645,7 +647,7 @@ class TestAuthorizationScoped:
             )
             assert ok is True
 
-    def test_facilitator_at_location_category(self):
+    def test_facilitator_at_location_session(self):
         """Facilitator at Oregon+Healthcare should pass facilitator check."""
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(side_effect=[
@@ -654,7 +656,7 @@ class TestAuthorizationScoped:
             [{"id": OREGON}, {"id": US_ROOT}],  # ancestors
             None,  # no admin
             None,  # no moderator
-            {"1": 1},  # facilitator role found (with category)
+            {"1": 1},  # facilitator role found (with session)
         ])
         mock_redis = MagicMock()
         mock_redis.get = MagicMock(return_value=None)
@@ -664,7 +666,7 @@ class TestAuthorizationScoped:
             from candid.controllers.helpers.auth import authorization_scoped
             ok, err = authorization_scoped(
                 "facilitator", token_info={"sub": "user-1"},
-                location_id=OREGON, category_id=HEALTHCARE_CAT
+                location_id=OREGON, session_id=HEALTHCARE_CAT
             )
             assert ok is True
 
@@ -876,3 +878,260 @@ class TestAuthorizationAllowBanned:
             ok, err = authorization_allow_banned("normal", token_info={"sub": "user-123"})
             assert ok is False
             assert err.code == 403
+
+
+# ---------------------------------------------------------------------------
+# require_auth decorator
+# ---------------------------------------------------------------------------
+
+class TestRequireAuthDecorator:
+    def test_injects_user_id(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(
+            side_effect=[
+                {"user_type": "normal"},
+                {"status": "active"},
+            ]
+        )
+        mock_redis = MagicMock()
+        mock_redis.get = MagicMock(return_value=None)
+
+        with patch("candid.controllers.helpers.auth.db", mock_db), \
+             patch("candid.controllers.helpers.auth.get_redis", return_value=mock_redis):
+            from candid.controllers.helpers.auth import require_auth
+
+            @require_auth("normal")
+            def my_endpoint(token_info=None, user_id=None):
+                return {"user_id": user_id}, 200
+
+            result = my_endpoint(token_info={"sub": "user-123"})
+            assert result == ({"user_id": "user-123"}, 200)
+
+    def test_returns_401_without_token(self):
+        from candid.controllers.helpers.auth import require_auth
+
+        @require_auth("normal")
+        def my_endpoint(token_info=None, user_id=None):
+            return "should not reach", 200
+
+        result = my_endpoint(token_info=None)
+        assert result[1] == 401
+
+    def test_returns_403_for_insufficient_role(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value={"user_type": "guest"})
+
+        with patch("candid.controllers.helpers.auth.db", mock_db):
+            from candid.controllers.helpers.auth import require_auth
+
+            @require_auth("normal")
+            def my_endpoint(token_info=None, user_id=None):
+                return "should not reach", 200
+
+            result = my_endpoint(token_info={"sub": "user-123"})
+            assert result[1] == 403
+
+    def test_allow_banned_skips_ban_check(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value={"user_type": "normal"})
+
+        with patch("candid.controllers.helpers.auth.db", mock_db):
+            from candid.controllers.helpers.auth import require_auth
+
+            @require_auth("normal", allow_banned=True)
+            def my_endpoint(token_info=None, user_id=None):
+                return {"user_id": user_id}, 200
+
+            result = my_endpoint(token_info={"sub": "user-123"})
+            assert result == ({"user_id": "user-123"}, 200)
+            # authorization_allow_banned only queries get_user_type (1 call)
+            assert mock_db.execute_query.call_count == 1
+
+    def test_preserves_function_name(self):
+        from candid.controllers.helpers.auth import require_auth
+
+        @require_auth("normal")
+        def my_endpoint(token_info=None, user_id=None):
+            pass
+
+        assert my_endpoint.__name__ == "my_endpoint"
+
+    def test_passes_through_other_kwargs(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(
+            side_effect=[
+                {"user_type": "normal"},
+                {"status": "active"},
+            ]
+        )
+        mock_redis = MagicMock()
+        mock_redis.get = MagicMock(return_value=None)
+
+        with patch("candid.controllers.helpers.auth.db", mock_db), \
+             patch("candid.controllers.helpers.auth.get_redis", return_value=mock_redis):
+            from candid.controllers.helpers.auth import require_auth
+
+            @require_auth("normal")
+            def my_endpoint(post_id, limit=10, token_info=None, user_id=None):
+                return {"post_id": post_id, "limit": limit, "user_id": user_id}, 200
+
+            result = my_endpoint(post_id="p-1", limit=5, token_info={"sub": "user-123"})
+            assert result == ({"post_id": "p-1", "limit": 5, "user_id": "user-123"}, 200)
+
+    def test_banned_user_blocked_without_allow_banned(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(
+            side_effect=[
+                {"user_type": "normal"},
+                {"status": "banned"},
+                None,  # no active ban record
+            ]
+        )
+        mock_redis = MagicMock()
+        mock_redis.get = MagicMock(return_value=None)
+
+        with patch("candid.controllers.helpers.auth.db", mock_db), \
+             patch("candid.controllers.helpers.auth.get_redis", return_value=mock_redis):
+            from candid.controllers.helpers.auth import require_auth
+
+            @require_auth("normal")
+            def my_endpoint(token_info=None, user_id=None):
+                return "should not reach", 200
+
+            result = my_endpoint(token_info={"sub": "user-123"})
+            assert result[1] == 403
+
+
+# ---------------------------------------------------------------------------
+# Session stage gating
+# ---------------------------------------------------------------------------
+
+class TestSessionStageGating:
+    """Tests for check_session_stage() and validate_stage_advance()."""
+
+    SESSION_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+    # -- check_session_stage --
+
+    def test_null_session_always_passes(self):
+        ok, err = check_session_stage(None, 'position')
+        assert ok is True
+        assert err is None
+
+    def test_nonexistent_session_returns_404(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=None)
+
+        with patch("candid.controllers.helpers.auth.db", mock_db):
+            ok, err = check_session_stage('nonexistent-id', 'position')
+            assert ok is False
+            assert err.code == 404
+
+    def test_position_allowed_in_proposal_issue(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value={'stage': 'proposal_issue'})
+
+        with patch("candid.controllers.helpers.auth.db", mock_db):
+            ok, err = check_session_stage(self.SESSION_ID, 'position')
+            assert ok is True
+            assert err is None
+
+    def test_position_blocked_in_reflection(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value={'stage': 'reflection'})
+
+        with patch("candid.controllers.helpers.auth.db", mock_db):
+            ok, err = check_session_stage(self.SESSION_ID, 'position')
+            assert ok is False
+            assert err.code == 403
+
+    def test_proposal_post_allowed_in_proposal_qualify(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value={'stage': 'proposal_qualify'})
+
+        with patch("candid.controllers.helpers.auth.db", mock_db):
+            ok, err = check_session_stage(self.SESSION_ID, 'proposal_post')
+            assert ok is True
+            assert err is None
+
+    def test_proposal_post_allowed_in_opinion_proposals(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value={'stage': 'opinion_proposals'})
+
+        with patch("candid.controllers.helpers.auth.db", mock_db):
+            ok, err = check_session_stage(self.SESSION_ID, 'proposal_post')
+            assert ok is True
+            assert err is None
+
+    def test_proposal_post_blocked_in_opinion_discussion(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value={'stage': 'opinion_discussion'})
+
+        with patch("candid.controllers.helpers.auth.db", mock_db):
+            ok, err = check_session_stage(self.SESSION_ID, 'proposal_post')
+            assert ok is False
+            assert err.code == 403
+
+    def test_glossary_allowed_in_all_stages(self):
+        from candid.controllers.helpers.constants import STAGE_ORDER
+        for stage in STAGE_ORDER:
+            mock_db = MagicMock()
+            mock_db.execute_query = MagicMock(return_value={'stage': stage})
+
+            with patch("candid.controllers.helpers.auth.db", mock_db):
+                ok, err = check_session_stage(self.SESSION_ID, 'glossary')
+                assert ok is True, f"glossary should be allowed in {stage}"
+                assert err is None
+
+    def test_consensus_document_only_in_consensus(self):
+        from candid.controllers.helpers.constants import STAGE_ORDER
+        for stage in STAGE_ORDER:
+            mock_db = MagicMock()
+            mock_db.execute_query = MagicMock(return_value={'stage': stage})
+
+            with patch("candid.controllers.helpers.auth.db", mock_db):
+                ok, err = check_session_stage(self.SESSION_ID, 'consensus_document')
+                if stage == 'consensus':
+                    assert ok is True, f"consensus_document should be allowed in {stage}"
+                    assert err is None
+                else:
+                    assert ok is False, f"consensus_document should be blocked in {stage}"
+                    assert err.code == 403
+
+    def test_unknown_content_type_always_passes(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value={'stage': 'reflection'})
+
+        with patch("candid.controllers.helpers.auth.db", mock_db):
+            ok, err = check_session_stage(self.SESSION_ID, 'unknown_type')
+            assert ok is True
+            assert err is None
+
+    # -- validate_stage_advance --
+
+    def test_valid_next_stage(self):
+        ok, err = validate_stage_advance('proposal_issue', 'proposal_qualify')
+        assert ok is True
+        assert err is None
+
+    def test_skip_not_allowed(self):
+        ok, err = validate_stage_advance('proposal_issue', 'opinion_discussion')
+        assert ok is False
+        assert 'proposal_qualify' in err  # should mention the expected next stage
+
+    def test_backward_not_allowed(self):
+        ok, err = validate_stage_advance('consensus', 'proposal_issue')
+        assert ok is False
+        assert 'backward' in err.lower()
+
+    def test_already_at_final_stage(self):
+        ok, err = validate_stage_advance('consensus', 'anything_after')
+        assert ok is False
+        assert err is not None
+
+    def test_all_valid_sequential_advances(self):
+        from candid.controllers.helpers.constants import STAGE_ORDER
+        for i in range(len(STAGE_ORDER) - 1):
+            ok, err = validate_stage_advance(STAGE_ORDER[i], STAGE_ORDER[i + 1])
+            assert ok is True, f"Advance from {STAGE_ORDER[i]} to {STAGE_ORDER[i+1]} should be valid"
+            assert err is None

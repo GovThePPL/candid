@@ -1,0 +1,134 @@
+{
+  "session_name": "Climate Action",
+  "location_code": "CA",
+  "target_stage": "opinion_proposals",
+  "topic_vocabulary": {
+    "topic_noun": ["climate action", "climate policy", "emissions reduction"],
+    "topic_adj": ["climate", "environmental", "emissions-related"],
+    "location_name": ["California", "the West Coast"],
+    "stakeholder": ["energy companies", "environmental groups", "automakers", "farmers", "coastal communities"],
+    "specific_issue": ["carbon emissions", "renewable energy transition", "EV adoption", "wildfire smoke", "sea level rise"],
+    "policy_example": ["California's cap-and-trade program", "the Paris Climate Agreement", "the EV rebate program"],
+    "data_point": ["California cut emissions 20% since 2006", "100 companies cause 71% of global emissions", "transportation is 40% of CA emissions"]
+  },
+  "positions": {
+    "proposal_issue": [
+      {"type": "anchor", "statement": "Climate change is an urgent crisis requiring immediate government action.",
+       "votes": [1, 1, 1, 1, 1, 1, -1, -1, -1, -1]},
+      {"type": "anchor", "statement": "Environmental regulations hurt businesses and cost jobs.",
+       "votes": [-1, -1, -1, -1, -1, -1, 1, 1, 1, 1]},
+      {"type": "generated", "lean": "strong_left", "topic_focus": "governance"},
+      {"type": "generated", "lean": "center_right", "topic_focus": "funding"},
+      {"type": "generated", "lean": "center", "topic_focus": "implementation"}
+    ],
+    "proposal_qualify": [
+      {"type": "generated", "lean": "left", "topic_focus": "equity"},
+      {"type": "generated", "lean": "right", "topic_focus": "governance"},
+      {"type": "generated", "lean": "bipartisan", "topic_focus": "reform"}
+    ],
+    "proposal_stakeholders": [
+      {"type": "generated", "lean": "center_left", "topic_focus": "equity"},
+      {"type": "generated", "lean": "libertarian_cross", "topic_focus": "individual_collective"},
+      {"type": "generated", "lean": "populist_cross", "topic_focus": "funding"}
+    ],
+    "opinion_discussion": [
+      {"type": "anchor", "statement": "The US should rejoin and strengthen the Paris Climate Agreement.",
+       "votes": [1, 1, 1, 1, 1, 1, -1, -1, -1, -1]},
+      {"type": "generated", "lean": "left", "topic_focus": "governance"},
+      {"type": "generated", "lean": "center", "topic_focus": "implementation"},
+      {"type": "generated", "lean": "divisive", "topic_focus": "funding"}
+    ],
+    "opinion_curation": [
+      {"type": "generated", "lean": "center_left", "topic_focus": "reform"},
+      {"type": "generated", "lean": "center_right", "topic_focus": "implementation"},
+      {"type": "generated", "lean": "bipartisan", "topic_focus": "equity"}
+    ],
+    "opinion_proposals": [
+      {"type": "generated", "lean": "left", "topic_focus": "governance"},
+      {"type": "generated", "lean": "center", "topic_focus": "funding"},
+      {"type": "generated", "lean": "right", "topic_focus": "reform"}
+    ]
+  },
+  "posts": {
+    "proposal_issue": {
+      "anchors": [
+        {
+          "post_type": "discussion",
+          "title": "Climate action: Individual responsibility vs. systemic change",
+          "body": "When it comes to addressing climate change, there are two dominant narratives:\n\n**Individual responsibility**: Drive less, eat less meat, recycle more. Personal choices add up.\n\n**Systemic change**: Individual action is a distraction. We need to hold corporations accountable and overhaul energy infrastructure.\n\nWhere should California focus its climate action efforts? Can both approaches coexist, or does emphasizing one undermine the other?",
+          "comments": [
+            {"body": "Just 100 companies are responsible for 71% of global greenhouse gas emissions. Individual choices matter, but they're a rounding error compared to systemic reform. We need regulation with teeth.", "author_prefix": "soc", "replies": [
+              {"body": "That statistic is misleading — it counts the emissions from the *use* of fossil fuels those companies extract, not just their operations. If you drive a car with their gasoline, your emissions are in that number. It's ultimately consumer demand.", "author_prefix": "libt"},
+              {"body": "Both of you make valid points. The supply side and demand side are two halves of the same coin. We need policy that addresses both corporate accountability AND makes sustainable choices easier for individuals.", "author_prefix": "mod"}
+            ]},
+            {"body": "I installed solar panels last year and my electricity bill went to near zero. Individual action isn't just symbolic — it shifts market demand and drives down costs for everyone.", "author_prefix": "lib", "replies": [
+              {"body": "That's great if you own a home and can afford $20K upfront. Most renters and working-class families don't have that option. This is why we need government programs, not just market solutions.", "author_prefix": "pop"}
+            ]}
+          ]
+        }
+      ],
+      "generated_count": 8,
+      "generated_types": {"discussion": 5, "question": 2, "proposal": 1},
+      "comments_per_generated": [5, 4, 6, 5, 4, 5, 6, 5]
+    },
+    "proposal_qualify": {
+      "anchors": [],
+      "generated_count": 8,
+      "generated_types": {"discussion": 5, "question": 2, "proposal": 1},
+      "comments_per_generated": [5, 6, 4, 5, 5, 6, 4, 5]
+    },
+    "proposal_stakeholders": {
+      "anchors": [],
+      "generated_count": 7,
+      "generated_types": {"discussion": 4, "question": 2, "proposal": 1},
+      "comments_per_generated": [6, 5, 5, 4, 6, 5, 4]
+    },
+    "opinion_discussion": {
+      "anchors": [
+        {
+          "post_type": "discussion",
+          "title": "California's cap-and-trade: Is it working?",
+          "body": "California's cap-and-trade program has been running since 2013. Supporters say it's a market-based model that the nation should follow — emissions are down and the program has generated billions for climate investments.\n\nCritics argue it just moves pollution around. Companies buy credits instead of actually reducing emissions, and disadvantaged communities near refineries still breathe dirty air.\n\nIs cap-and-trade an effective climate tool, or does it need fundamental reform?",
+          "comments": [
+            {"body": "Cap-and-trade is working by the numbers — California's emissions have dropped steadily. But on its own it's not enough. We need it combined with direct regulation on the worst polluters.", "author_prefix": "prog"},
+            {"body": "Carbon credits are just indulgences for rich companies. They pay to pollute while communities in the Inland Empire and Richmond keep getting sick. The program needs environmental justice guardrails.", "author_prefix": "soc"}
+          ]
+        }
+      ],
+      "generated_count": 7,
+      "generated_types": {"discussion": 4, "question": 2, "proposal": 1},
+      "comments_per_generated": [5, 6, 4, 5, 5, 6, 4]
+    },
+    "opinion_curation": {
+      "anchors": [],
+      "generated_count": 8,
+      "generated_types": {"discussion": 4, "question": 2, "proposal": 2},
+      "comments_per_generated": [5, 4, 6, 5, 4, 5, 6, 5]
+    },
+    "opinion_proposals": {
+      "anchors": [
+        {
+          "post_type": "proposal",
+          "title": "Proposal: Expand California's EV rebate program to used vehicles",
+          "body": "California's Clean Vehicle Rebate Project offers up to $7,000 for new electric vehicles, but the rebates mostly benefit wealthier buyers who can afford new cars.\n\nI propose expanding the program to include **used EVs** — say, a $3,000-$4,000 rebate for used electric vehicles under $25,000. This would:\n\n- Make EVs accessible to middle- and lower-income families\n- Stimulate the used EV market\n- Accelerate the transition away from gas vehicles across all income levels\n\nThe funding could come from the existing cap-and-trade revenue earmarked for clean transportation."
+        }
+      ],
+      "generated_count": 7,
+      "generated_types": {"discussion": 3, "question": 1, "proposal": 3},
+      "comments_per_generated": [6, 5, 5, 6, 4, 5, 6]
+    }
+  },
+  "surveys": [
+    {
+      "title": "Climate Action Priorities for California",
+      "type": "standard",
+      "session_name": "Climate Action",
+      "target_stage": "opinion_discussion",
+      "questions": [
+        {"question": "Which climate issue should California prioritize most?", "options": ["Reducing transportation emissions", "Transitioning the power grid to renewables", "Wildfire prevention and resilience", "Environmental justice for disadvantaged communities"]},
+        {"question": "How should California fund its climate programs?", "options": ["Expand cap-and-trade", "Carbon tax on major emitters", "Federal grants and partnerships", "General fund budget reallocation"]},
+        {"question": "What is the biggest barrier to individual climate action?", "options": ["Cost of green alternatives", "Lack of infrastructure (charging stations, transit)", "Insufficient information", "Inconvenience compared to current habits"]}
+      ]
+    }
+  ]
+}

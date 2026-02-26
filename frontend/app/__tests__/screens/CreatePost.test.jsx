@@ -40,21 +40,21 @@ jest.mock('../../components/Header', () => {
   }
 })
 
-jest.mock('../../components/LocationCategorySelector', () => {
+jest.mock('../../components/LocationSessionSelector', () => {
   const React = require('react')
   const { View, Text, TouchableOpacity } = require('react-native')
-  return function MockLocationCategorySelector({ onLocationChange, onCategoryChange }) {
+  return function MockLocationSessionSelector({ onLocationChange, onSessionChange }) {
     React.useEffect(() => {
       onLocationChange?.('loc-1')
     }, [])
     return (
       <View>
-        <Text>LocationCategorySelector</Text>
+        <Text>LocationSessionSelector</Text>
         <TouchableOpacity
-          testID="set-category"
-          onPress={() => onCategoryChange?.('cat-1')}
+          testID="set-session"
+          onPress={() => onSessionChange?.('sess-1')}
         >
-          <Text>Set Category</Text>
+          <Text>Set Session</Text>
         </TouchableOpacity>
       </View>
     )
@@ -96,6 +96,20 @@ jest.mock('../../lib/cache', () => ({
   CacheKeys: { activityPosts: (id) => `activity-posts:${id}` },
 }))
 
+let mockCanCreateProposals = false
+jest.mock('../../contexts/LocationSessionContext', () => ({
+  useLocationSession: () => ({
+    canCreateProposals: mockCanCreateProposals,
+    selectedLocation: null,
+    selectedSession: null,
+    sessionData: null,
+    viewingStage: null,
+    isReadOnly: false,
+    currentStage: null,
+    effectiveStage: null,
+  }),
+}))
+
 import CreatePost from '../../app/(dashboard)/(tabs)/discuss/create'
 
 describe('CreatePost', () => {
@@ -103,6 +117,7 @@ describe('CreatePost', () => {
     jest.clearAllMocks()
     mockSearchParams = {}
     mockEditorContent = ''
+    mockCanCreateProposals = false
   })
 
   it('renders title input and editor', () => {
@@ -163,8 +178,8 @@ describe('CreatePost', () => {
     fireEvent.changeText(screen.getByLabelText('titleInputA11y'), 'My Post Title')
     fireEvent.changeText(screen.getByLabelText('bodyInputA11y'), 'My post body text')
 
-    // Location auto-set by mock, set category
-    fireEvent.press(screen.getByTestId('set-category'))
+    // Location auto-set by mock, set session
+    fireEvent.press(screen.getByTestId('set-session'))
 
     await act(async () => {
       fireEvent.press(screen.getByLabelText('submitA11y'))
@@ -175,7 +190,7 @@ describe('CreatePost', () => {
         title: 'My Post Title',
         body: 'My post body text',
         locationId: 'loc-1',
-        categoryId: 'cat-1',
+        sessionId: 'sess-1',
         postType: 'discussion',
       })
     })
@@ -215,7 +230,7 @@ describe('CreatePost', () => {
     })
   })
 
-  it('category required validation for question type', async () => {
+  it('session required validation for question type', async () => {
     render(<CreatePost />)
 
     fireEvent.press(screen.getByText('typeQuestion'))
@@ -225,5 +240,21 @@ describe('CreatePost', () => {
 
     const submitBtn = screen.getByLabelText('submitA11y')
     expect(submitBtn.props.accessibilityState?.disabled).toBe(true)
+  })
+
+  it('does not show proposal type toggle when canCreateProposals is false', () => {
+    mockCanCreateProposals = false
+    render(<CreatePost />)
+    expect(screen.getByText('typeDiscussion')).toBeTruthy()
+    expect(screen.getByText('typeQuestion')).toBeTruthy()
+    expect(screen.queryByText('typeProposal')).toBeNull()
+  })
+
+  it('shows proposal type toggle when canCreateProposals is true', () => {
+    mockCanCreateProposals = true
+    render(<CreatePost />)
+    expect(screen.getByText('typeDiscussion')).toBeTruthy()
+    expect(screen.getByText('typeQuestion')).toBeTruthy()
+    expect(screen.getByText('typeProposal')).toBeTruthy()
   })
 })

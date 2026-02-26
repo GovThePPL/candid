@@ -3,15 +3,40 @@ import { View, Text, Image, Linking, TouchableOpacity, Modal, ScrollView, useWin
 import Markdown from 'react-native-markdown-display'
 import MarkdownIt from 'markdown-it'
 import taskListPlugin from 'markdown-it-task-lists'
+import supPlugin from 'markdown-it-sup'
+import subPlugin from 'markdown-it-sub'
+import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { Typography } from '../../constants/Theme'
 import { API_BASE_URL } from '../../lib/api'
 
+/**
+ * Custom markdown-it inline rule to parse <fnref data-n="N"/> tags as
+ * dedicated tokens instead of relying on html: true.
+ */
+function fnrefPlugin(md) {
+  md.inline.ruler.push('fnref', (state, silent) => {
+    const src = state.src.slice(state.pos)
+    const match = src.match(/^<fnref data-n="(\d+)"\s*\/>/)
+    if (!match) return false
+    if (!silent) {
+      const token = state.push('fnref', '', 0)
+      token.content = match[1]
+    }
+    state.pos += match[0].length
+    return true
+  })
+}
+
 // No markdown-it-footnote — its tokens have block=false which breaks
 // react-native-markdown-display's groupTextTokens (corrupts the AST).
 // Footnotes are preprocessed into standard markdown instead.
-const mdParser = MarkdownIt({ typographer: true, html: true })
+// html: false prevents XSS from user-authored HTML in markdown content.
+const mdParser = MarkdownIt({ typographer: true, html: false })
   .use(taskListPlugin, { enabled: true })
+  .use(supPlugin)
+  .use(subPlugin)
+  .use(fnrefPlugin)
 
 /**
  * Preprocess footnote syntax into standard markdown before parsing.
@@ -80,6 +105,7 @@ function extractNodeText(node) {
  * @param {Function} [props.onHeadingLayout] - Called with (headingText, yPosition) when a heading is laid out
  */
 export default memo(function MarkdownRenderer({ content, variant = 'post', glossaryRules, onLinkPress: onLinkPressProp, onHeadingLayout }) {
+  const { t } = useTranslation('common')
   const colors = useThemeColors()
   const { width: screenWidth } = useWindowDimensions()
   const linkPressRef = useRef(onLinkPressProp)
@@ -182,37 +208,19 @@ export default memo(function MarkdownRenderer({ content, variant = 'post', gloss
       for (let i = 1; i <= 6; i++) r[`heading${i}`] = headingRule(i)
     }
 
-    // html_inline render rules (sup, sub, task list checkboxes, footnote refs)
-    r.html_inline = (node) => {
-      const raw = node.content || ''
-      const fnMatch = raw.match(/^<fnref data-n="(\d+)"\s*\/>$/)
-      if (fnMatch) {
-        const fnNum = fnMatch[1]
-        return (
-          <Text
-            key={node.key}
-            style={{ fontSize: 10, lineHeight: 14, color: colors.primary }}
-            onPress={() => linkPressRef.current?.(`#fn-${fnNum}`)}
-            accessibilityRole="link"
-          >
-            [{fnNum}]
-          </Text>
-        )
-      }
-      if (raw.startsWith('<sup>')) {
-        const text = raw.replace(/<\/?sup>/g, '')
-        return <Text key={node.key} style={{ fontSize: 10, lineHeight: 14 }}>{text}</Text>
-      }
-      if (raw.startsWith('<sub>')) {
-        const text = raw.replace(/<\/?sub>/g, '')
-        return <Text key={node.key} style={{ fontSize: 10, lineHeight: 14 }}>{text}</Text>
-      }
-      if (raw.includes('type="checkbox"')) {
-        const checked = raw.includes('checked')
-        return <Text key={node.key}>{checked ? '\u2611 ' : '\u2610 '}</Text>
-      }
-      if (raw.startsWith('</')) return null
-      return null
+    // Footnote ref render rule (custom fnref token from fnrefPlugin)
+    r.fnref = (node) => {
+      const fnNum = node.content || ''
+      return (
+        <Text
+          key={node.key}
+          style={{ fontSize: 10, lineHeight: 14, color: colors.primary }}
+          onPress={() => linkPressRef.current?.(`#fn-${fnNum}`)}
+          accessibilityRole="link"
+        >
+          [{fnNum}]
+        </Text>
+      )
     }
 
     return r
@@ -250,7 +258,7 @@ export default memo(function MarkdownRenderer({ content, variant = 'post', gloss
               style={lightboxStyles.closeButton}
               onPress={closeLightbox}
               accessibilityRole="button"
-              accessibilityLabel="Close"
+              accessibilityLabel={t('close')}
               hitSlop={12}
             >
               <Text style={lightboxStyles.closeText}>{'\u2715'}</Text>

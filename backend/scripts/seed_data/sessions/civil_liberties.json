@@ -1,0 +1,117 @@
+{
+  "session_name": "Civil Liberties",
+  "location_code": "OR/MULT",
+  "target_stage": "proposal_stakeholders",
+  "topic_vocabulary": {
+    "topic_noun": ["civil liberties", "civil rights", "individual freedoms"],
+    "topic_adj": ["civil", "rights-related", "constitutional"],
+    "location_name": ["Oregon", "Multnomah County", "Portland"],
+    "stakeholder": ["communities of color", "law enforcement", "civil rights organizations", "gun owners", "immigrant communities", "disability advocates"],
+    "specific_issue": ["police accountability", "Second Amendment rights", "racial equity in institutions", "voting access", "protest rights"],
+    "policy_example": ["Measure 114 firearms regulation", "Portland's police oversight board", "Oregon's sanctuary state law"],
+    "data_point": ["Black Oregonians are 2% of the population but 12% of traffic stops", "Oregon has one of the highest rates of unsheltered homelessness nationally"]
+  },
+  "positions": {
+    "proposal_issue": [
+      {"type": "anchor", "statement": "Systemic racism is a significant problem in American institutions today.",
+       "votes": [1, 1, 1, 1, 1, -1, -1, -1, -1, -1]},
+      {"type": "anchor", "statement": "The Second Amendment guarantees an individual right to own firearms with minimal restrictions.",
+       "votes": [-1, -1, -1, -1, -1, 1, 1, 1, 1, 1]},
+      {"type": "generated", "lean": "left", "topic_focus": "accountability"},
+      {"type": "generated", "lean": "center", "topic_focus": "governance"},
+      {"type": "generated", "lean": "right", "topic_focus": "individual_rights"}
+    ],
+    "proposal_qualify": [
+      {"type": "generated", "lean": "center_left", "topic_focus": "reform"},
+      {"type": "generated", "lean": "center_right", "topic_focus": "implementation"},
+      {"type": "generated", "lean": "bipartisan", "topic_focus": "compromise"}
+    ],
+    "proposal_stakeholders": [
+      {"type": "generated", "lean": "left", "topic_focus": "community_voice"},
+      {"type": "generated", "lean": "center", "topic_focus": "stakeholder_inclusion"},
+      {"type": "generated", "lean": "right", "topic_focus": "institutional_representation"},
+      {"type": "generated", "lean": "bipartisan", "topic_focus": "process"}
+    ]
+  },
+  "posts": {
+    "proposal_issue": {
+      "anchors": [
+        {
+          "post_type": "discussion",
+          "title": "Gun policy: Finding common ground in Oregon",
+          "body": "Oregon's Measure 114 has been one of the most contentious ballot measures in recent memory, with legal challenges still working through the courts. Supporters say it's a common-sense approach to reducing gun violence. Opponents argue it infringes on constitutional rights.\n\nBut beyond the legal battles, most Oregonians actually agree on some things — background checks, keeping guns from domestic abusers, safe storage. Can we find common ground on gun policy, or are the two sides too far apart?",
+          "comments": [
+            {"body": "I'm a gun owner and I support universal background checks. Most responsible gun owners do. The problem is when legislation goes beyond that into permit-to-purchase systems that create barriers for law-abiding citizens.", "author_prefix": "con", "replies": [
+              {"body": "But the data shows that permit-to-purchase states have significantly lower gun homicide rates. Isn't a minor inconvenience worth saving lives?", "author_prefix": "prog"}
+            ]},
+            {"body": "The real common ground is in enforcement. We already have laws against straw purchases and lying on background checks, but they're rarely prosecuted. Let's enforce what we have before adding new regulations.", "author_prefix": "libt", "replies": [
+              {"body": "Enforcement alone isn't enough when there are massive loopholes. Private sales at gun shows bypass background checks entirely in most states.", "author_prefix": "socdem"}
+            ]}
+          ]
+        }
+      ],
+      "generated_count": 8,
+      "generated_types": {"discussion": 5, "question": 2, "proposal": 1},
+      "comments_per_generated": [5, 6, 4, 5, 6, 5, 4, 5]
+    },
+    "proposal_qualify": {
+      "anchors": [
+        {
+          "post_type": "proposal",
+          "title": "Proposal: Mandate Independent Investigations for All Police Use-of-Force Incidents in Multnomah County",
+          "body": "Portland's police oversight system has been criticized from all sides — community members say it lacks teeth, while officers say it's politically motivated. The current system relies heavily on internal affairs investigations, which inherently create conflicts of interest when officers investigate their own colleagues.\n\nThis proposal would require that all use-of-force incidents resulting in serious injury or death be investigated by an independent body outside the Portland Police Bureau. The investigating team would be drawn from a rotating pool of retired judges, civilian investigators with law enforcement training, and community representatives selected through an application process. The body would have subpoena power and the authority to recommend disciplinary action, with findings made public within 90 days.\n\nFunding would come from reallocating a portion of the existing internal affairs budget and supplementing it with a county-level public safety grant. The estimated cost is $2.1 million annually — less than 1% of the police bureau's budget. This model draws on successful programs in cities like Austin and San Jose, where independent investigation has improved both accountability and officer morale by removing the stigma of internal cover-up accusations.",
+          "comments": [
+            {"body": "As someone who works in law enforcement, I actually support this in principle. Good officers have nothing to hide, and the perception of internal cover-ups hurts all of us. But the devil is in the details — the investigating body needs people who actually understand police procedures and use-of-force protocols, not just activists with an agenda.", "author_prefix": "con", "replies": [
+              {"body": "That's why the proposal includes investigators with law enforcement training. It's not a civilian-only panel. The rotating pool structure also prevents any single political faction from capturing the process.", "author_prefix": "mod"}
+            ]},
+            {"body": "This doesn't go far enough. Investigation without binding disciplinary power is just another toothless review board. If the body can only 'recommend' discipline, the police bureau can still ignore the findings. We need a body that can fire officers, not just write reports.", "author_prefix": "prog", "replies": [
+              {"body": "Giving an unelected body the power to fire public employees raises serious due process concerns. Officers have collective bargaining agreements and constitutional rights too. The recommendation model with public transparency is a realistic first step that can build trust over time.", "author_prefix": "cen"}
+            ]}
+          ]
+        }
+      ],
+      "generated_count": 8,
+      "generated_types": {"discussion": 5, "question": 2, "proposal": 1},
+      "comments_per_generated": [5, 4, 6, 5, 5, 6, 4, 5]
+    },
+    "proposal_stakeholders": {
+      "anchors": [
+        {
+          "post_type": "discussion",
+          "title": "Who needs to be at the table for civil liberties reform?",
+          "body": "If we're serious about making progress on civil liberties issues — police accountability, gun policy, racial equity, immigration — we need to make sure the right people are part of the conversation.\n\nWho are the key stakeholders that must be included? Are there voices that are consistently left out of these discussions? How do we ensure that reform efforts represent the full range of affected communities?",
+          "comments": [
+            {"body": "Directly affected communities must lead, not just be consulted. For police reform, that means Black and Latino community members, not just police union reps and politicians.", "author_prefix": "prog", "replies": [
+              {"body": "Agreed, but we also can't exclude law enforcement from the conversation. Reform that doesn't have buy-in from the people implementing it won't work.", "author_prefix": "mod"}
+            ]},
+            {"body": "Rural Oregonians are consistently left out of these conversations. Portland's policy priorities don't reflect the reality of life in Bend or Medford. Civil liberties means something different when the nearest police response is 45 minutes away.", "author_prefix": "con", "replies": [
+              {"body": "This is an important point. One-size-fits-all policies from Salem often ignore the massive differences between urban and rural Oregon.", "author_prefix": "cen"}
+            ]},
+            {"body": "Don't forget disability advocates. People with disabilities are disproportionately affected by police use of force and often have no seat at the reform table.", "author_prefix": "socdem"}
+          ]
+        }
+      ],
+      "generated_count": 7,
+      "generated_types": {"discussion": 4, "question": 2, "proposal": 1},
+      "comments_per_generated": [6, 5, 5, 4, 6, 5, 4]
+    }
+  },
+  "surveys": [
+    {
+      "title": "Civil Liberties Priorities for Our Community",
+      "type": "standard",
+      "session_name": "Civil Liberties",
+      "target_stage": "proposal_stakeholders",
+      "questions": [
+        {"question": "Which civil liberties issue should be our community's top priority?",
+         "options": ["Police accountability and reform", "Gun policy and public safety", "Racial equity in institutions", "Immigration and sanctuary policies"]},
+        {"question": "What is the most effective approach to police accountability?",
+         "options": ["Independent civilian oversight boards", "Body camera mandates with public access", "De-escalation training requirements", "Redirecting some police funding to social services"]},
+        {"question": "How should gun policy balance public safety and individual rights?",
+         "options": ["Strengthen background checks and enforce existing laws", "Implement permit-to-purchase systems", "Focus on mental health and community violence intervention", "Protect current rights with no additional restrictions"]},
+        {"question": "Who is most underrepresented in civil liberties policy discussions?",
+         "options": ["Communities of color", "Rural residents", "People with disabilities", "Immigrant communities"]}
+      ]
+    }
+  ]
+}

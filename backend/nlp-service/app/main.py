@@ -1,8 +1,9 @@
 """FastAPI application for NLP service."""
 
 import logging
+import os
 from contextlib import asynccontextmanager
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
@@ -126,6 +127,22 @@ class ProcessAvatarResponse(BaseModel):
     icon_base64: Optional[str] = Field(None, description="Icon size (64x64) avatar as base64 data URI")
     nsfw_score: float = Field(..., description="NSFW probability score (0.0-1.0)")
     error: Optional[str] = Field(None, description="Error message if processing failed")
+
+
+class ProposalAssistRequest(BaseModel):
+    """Request model for proposal AI assistance."""
+
+    template: str = Field(..., description="Proposal type: 'issue' or 'policy'")
+    step: str = Field(..., description="Wizard step name")
+    user_input: str = Field(..., description="User's draft text for this step", min_length=1)
+    context: str = Field("", description="Pre-assembled context (wiki, glossary, Q&A, expert content)")
+    previous_sections: Optional[Dict[str, str]] = Field(None, description="Previously completed sections")
+
+
+class ProposalAssistResponse(BaseModel):
+    """Response model for proposal AI assistance."""
+
+    content: str = Field(..., description="AI-enhanced content")
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -281,3 +298,46 @@ async def process_avatar_endpoint(request: ProcessAvatarRequest):
     except Exception as e:
         logger.error(f"Error processing avatar: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/llm/proposal-assist", response_model=ProposalAssistResponse)
+async def proposal_assist(request: ProposalAssistRequest):
+    """
+    Generate AI-enhanced content for a proposal wizard step.
+
+    Uses the configured LLM provider to enhance the user's draft.
+    """
+    from .proposal_prompts import get_prompt
+
+    try:
+        system_prompt = get_prompt(
+            template=request.template,
+            step=request.step,
+            context=request.context,
+            previous_sections=request.previous_sections,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # Check if LLM provider is configured
+    llm_provider = os.environ.get("LLM_PROVIDER", "").strip()
+    api_key = (os.environ.get("ANTHROPIC_API_KEY", "").strip()
+               or os.environ.get("OPENAI_API_KEY", "").strip())
+    if not llm_provider or not api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="LLM provider not configured. Set LLM_PROVIDER and the appropriate API key.",
+        )
+
+    try:
+        from .llm_providers import get_provider
+        provider = get_provider()
+        content = await provider.generate(
+            system_prompt=system_prompt,
+            user_message=request.user_input,
+            max_tokens=2048,
+        )
+        return ProposalAssistResponse(content=content)
+    except Exception as e:
+        logger.error(f"Error in proposal assist: {e}")
+        raise HTTPException(status_code=500, detail=f"LLM generation failed: {e}")

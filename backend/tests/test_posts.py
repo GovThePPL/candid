@@ -5,8 +5,9 @@ import requests
 from conftest import (
     BASE_URL,
     OREGON_LOCATION_ID,
-    HEALTHCARE_CAT_ID,
-    ECONOMY_CAT_ID,
+    HEALTHCARE_SESSION_ID,
+    ECONOMY_SESSION_ID,
+    EDUCATION_SESSION_ID,
     NORMAL1_ID,
     NORMAL2_ID,
     NONEXISTENT_UUID,
@@ -28,6 +29,7 @@ def _cleanup_test_posts():
     """Clear rate limits before and delete test posts after each test."""
     clear_rate_limits()
     yield
+    db_execute("DELETE FROM pinned_post WHERE post_id IN (SELECT id FROM post WHERE title LIKE 'TEST%%')")
     db_execute("DELETE FROM post_vote WHERE post_id IN (SELECT id FROM post WHERE title LIKE 'TEST%%')")
     db_execute("DELETE FROM comment_vote WHERE comment_id IN (SELECT id FROM comment WHERE post_id IN (SELECT id FROM post WHERE title LIKE 'TEST%%'))")
     db_execute("DELETE FROM comment WHERE post_id IN (SELECT id FROM post WHERE title LIKE 'TEST%%')")
@@ -35,7 +37,7 @@ def _cleanup_test_posts():
 
 
 def _create_post(headers, title="TEST discussion post", body="Test body content",
-                 location_id=OREGON_LOCATION_ID, category_id=None,
+                 location_id=OREGON_LOCATION_ID, session_id=None,
                  post_type="discussion"):
     """Helper to create a post via API."""
     payload = {
@@ -44,8 +46,8 @@ def _create_post(headers, title="TEST discussion post", body="Test body content"
         "locationId": location_id,
         "postType": post_type,
     }
-    if category_id:
-        payload["categoryId"] = category_id
+    if session_id:
+        payload["sessionId"] = session_id
     resp = requests.post(POSTS_URL, headers=headers, json=payload)
     return resp
 
@@ -68,26 +70,26 @@ class TestCreatePost:
         assert "creator" in data
         assert data["creator"]["id"] == NORMAL1_ID
 
-    def test_create_question_with_category(self, normal_headers):
+    def test_create_question_with_session(self, normal_headers):
         resp = _create_post(
             normal_headers,
             title="TEST question post",
             post_type="question",
-            category_id=HEALTHCARE_CAT_ID,
+            session_id=HEALTHCARE_SESSION_ID,
         )
         assert resp.status_code == 201
         data = resp.json()
         assert data["postType"] == "question"
-        assert data["categoryId"] == HEALTHCARE_CAT_ID
-        assert data["category"] is not None
-        assert data["category"]["id"] == HEALTHCARE_CAT_ID
+        assert data["sessionId"] == HEALTHCARE_SESSION_ID
+        assert data["session"] is not None
+        assert data["session"]["id"] == HEALTHCARE_SESSION_ID
 
-    def test_question_without_category_400(self, normal_headers):
+    def test_question_without_session_400(self, normal_headers):
         resp = _create_post(
             normal_headers,
-            title="TEST question no cat",
+            title="TEST question no session",
             post_type="question",
-            category_id=None,
+            session_id=None,
         )
         assert resp.status_code == 400
 
@@ -198,19 +200,19 @@ class TestGetPosts:
         ids2 = {p["id"] for p in data2["posts"]}
         assert ids1.isdisjoint(ids2)
 
-    def test_category_filter(self, normal_headers):
-        _create_post(normal_headers, title="TEST cat filter", category_id=HEALTHCARE_CAT_ID)
-        _create_post(normal_headers, title="TEST cat filter other", category_id=ECONOMY_CAT_ID)
+    def test_session_filter(self, normal_headers):
+        _create_post(normal_headers, title="TEST cat filter", session_id=HEALTHCARE_SESSION_ID)
+        _create_post(normal_headers, title="TEST cat filter other", session_id=ECONOMY_SESSION_ID)
 
         resp = requests.get(
             POSTS_URL,
             headers=normal_headers,
-            params={"locationId": OREGON_LOCATION_ID, "categoryId": HEALTHCARE_CAT_ID},
+            params={"locationId": OREGON_LOCATION_ID, "sessionId": HEALTHCARE_SESSION_ID},
         )
         assert resp.status_code == 200
         posts = resp.json()["posts"]
         for p in posts:
-            assert p["categoryId"] == HEALTHCARE_CAT_ID
+            assert p["sessionId"] == HEALTHCARE_SESSION_ID
 
     def test_post_type_filter(self, normal_headers):
         _create_post(normal_headers, title="TEST type filter discussion")
@@ -218,7 +220,7 @@ class TestGetPosts:
             normal_headers,
             title="TEST type filter question",
             post_type="question",
-            category_id=HEALTHCARE_CAT_ID,
+            session_id=HEALTHCARE_SESSION_ID,
         )
 
         resp = requests.get(
@@ -281,7 +283,7 @@ class TestGetPost:
 
         # normal2 upvotes
         requests.post(
-            f"{POSTS_URL}/{post_id}/vote",
+            f"{POSTS_URL}/{post_id}/votes",
             headers=normal2_headers,
             json={"voteType": "upvote"},
         )
@@ -423,14 +425,14 @@ class TestLockPost:
 
 
 class TestVoteOnPost:
-    """POST /posts/{postId}/vote"""
+    """POST /posts/{postId}/votes"""
 
     def test_upvote(self, normal_headers, normal2_headers):
         create_resp = _create_post(normal_headers, title="TEST vote up")
         post_id = create_resp.json()["id"]
 
         resp = requests.post(
-            f"{POSTS_URL}/{post_id}/vote",
+            f"{POSTS_URL}/{post_id}/votes",
             headers=normal2_headers,
             json={"voteType": "upvote"},
         )
@@ -445,7 +447,7 @@ class TestVoteOnPost:
         post_id = create_resp.json()["id"]
 
         resp = requests.post(
-            f"{POSTS_URL}/{post_id}/vote",
+            f"{POSTS_URL}/{post_id}/votes",
             headers=normal2_headers,
             json={"voteType": "downvote", "downvoteReason": "spam"},
         )
@@ -460,7 +462,7 @@ class TestVoteOnPost:
         post_id = create_resp.json()["id"]
 
         resp = requests.post(
-            f"{POSTS_URL}/{post_id}/vote",
+            f"{POSTS_URL}/{post_id}/votes",
             headers=normal2_headers,
             json={"voteType": "downvote"},
         )
@@ -472,13 +474,13 @@ class TestVoteOnPost:
 
         # Vote
         requests.post(
-            f"{POSTS_URL}/{post_id}/vote",
+            f"{POSTS_URL}/{post_id}/votes",
             headers=normal2_headers,
             json={"voteType": "upvote"},
         )
         # Toggle off (same type again)
         resp = requests.post(
-            f"{POSTS_URL}/{post_id}/vote",
+            f"{POSTS_URL}/{post_id}/votes",
             headers=normal2_headers,
             json={"voteType": "upvote"},
         )
@@ -492,13 +494,13 @@ class TestVoteOnPost:
 
         # Upvote first
         requests.post(
-            f"{POSTS_URL}/{post_id}/vote",
+            f"{POSTS_URL}/{post_id}/votes",
             headers=normal2_headers,
             json={"voteType": "upvote"},
         )
         # Change to downvote
         resp = requests.post(
-            f"{POSTS_URL}/{post_id}/vote",
+            f"{POSTS_URL}/{post_id}/votes",
             headers=normal2_headers,
             json={"voteType": "downvote", "downvoteReason": "offtopic"},
         )
@@ -511,7 +513,7 @@ class TestVoteOnPost:
         post_id = create_resp.json()["id"]
 
         resp = requests.post(
-            f"{POSTS_URL}/{post_id}/vote",
+            f"{POSTS_URL}/{post_id}/votes",
             headers=normal_headers,
             json={"voteType": "upvote"},
         )
@@ -523,7 +525,7 @@ class TestVoteOnPost:
         post_id = create_resp.json()["id"]
 
         resp = requests.post(
-            f"{POSTS_URL}/{post_id}/vote",
+            f"{POSTS_URL}/{post_id}/votes",
             headers=normal2_headers,
             json={"voteType": "upvote"},
         )
@@ -539,13 +541,13 @@ class TestVoteOnPost:
 
         # Vote
         requests.post(
-            f"{POSTS_URL}/{post_id}/vote",
+            f"{POSTS_URL}/{post_id}/votes",
             headers=normal2_headers,
             json={"voteType": "upvote"},
         )
         # Toggle off
         resp = requests.post(
-            f"{POSTS_URL}/{post_id}/vote",
+            f"{POSTS_URL}/{post_id}/votes",
             headers=normal2_headers,
             json={"voteType": "upvote"},
         )
@@ -558,12 +560,12 @@ class TestVoteOnPost:
 
         # Two upvotes
         requests.post(
-            f"{POSTS_URL}/{post_id}/vote",
+            f"{POSTS_URL}/{post_id}/votes",
             headers=normal2_headers,
             json={"voteType": "upvote"},
         )
         requests.post(
-            f"{POSTS_URL}/{post_id}/vote",
+            f"{POSTS_URL}/{post_id}/votes",
             headers=normal3_headers,
             json={"voteType": "upvote"},
         )
@@ -574,7 +576,7 @@ class TestVoteOnPost:
 
 
 class TestPinComment:
-    """POST /posts/{postId}/pin-comment"""
+    """PATCH /posts/{postId} with pinnedCommentId"""
 
     def test_author_can_pin_comment(self, normal_headers, normal2_headers):
         create_resp = _create_post(normal_headers, title="TEST pin post")
@@ -589,10 +591,10 @@ class TestPinComment:
         comment_id = comment_resp.json()["id"]
 
         # Pin it as the post author
-        resp = requests.post(
-            f"{POSTS_URL}/{post_id}/pin-comment",
+        resp = requests.patch(
+            f"{POSTS_URL}/{post_id}",
             headers=normal_headers,
-            json={"commentId": comment_id},
+            json={"pinnedCommentId": comment_id},
         )
         assert resp.status_code == 200
         assert resp.json()["pinnedCommentId"] == comment_id
@@ -613,16 +615,16 @@ class TestPinComment:
         comment_id = comment_resp.json()["id"]
 
         # Pin
-        requests.post(
-            f"{POSTS_URL}/{post_id}/pin-comment",
+        requests.patch(
+            f"{POSTS_URL}/{post_id}",
             headers=normal_headers,
-            json={"commentId": comment_id},
+            json={"pinnedCommentId": comment_id},
         )
         # Unpin
-        resp = requests.post(
-            f"{POSTS_URL}/{post_id}/pin-comment",
+        resp = requests.patch(
+            f"{POSTS_URL}/{post_id}",
             headers=normal_headers,
-            json={"commentId": None},
+            json={"pinnedCommentId": None},
         )
         assert resp.status_code == 200
         assert resp.json()["pinnedCommentId"] is None
@@ -638,10 +640,10 @@ class TestPinComment:
         )
         comment_id = comment_resp.json()["id"]
 
-        resp = requests.post(
-            f"{POSTS_URL}/{post_id}/pin-comment",
+        resp = requests.patch(
+            f"{POSTS_URL}/{post_id}",
             headers=moderator_headers,
-            json={"commentId": comment_id},
+            json={"pinnedCommentId": comment_id},
         )
         assert resp.status_code == 200
 
@@ -656,10 +658,10 @@ class TestPinComment:
         )
         comment_id = comment_resp.json()["id"]
 
-        resp = requests.post(
-            f"{POSTS_URL}/{post_id}/pin-comment",
+        resp = requests.patch(
+            f"{POSTS_URL}/{post_id}",
             headers=normal2_headers,
-            json={"commentId": comment_id},
+            json={"pinnedCommentId": comment_id},
         )
         assert resp.status_code == 403
 
@@ -667,10 +669,10 @@ class TestPinComment:
         create_resp = _create_post(normal_headers, title="TEST pin 404")
         post_id = create_resp.json()["id"]
 
-        resp = requests.post(
-            f"{POSTS_URL}/{post_id}/pin-comment",
+        resp = requests.patch(
+            f"{POSTS_URL}/{post_id}",
             headers=normal_headers,
-            json={"commentId": NONEXISTENT_UUID},
+            json={"pinnedCommentId": NONEXISTENT_UUID},
         )
         assert resp.status_code == 404
 
@@ -695,10 +697,10 @@ class TestPinComment:
         assert target["isPinned"] is False
 
         # Pin and check
-        requests.post(
-            f"{POSTS_URL}/{post_id}/pin-comment",
+        requests.patch(
+            f"{POSTS_URL}/{post_id}",
             headers=normal_headers,
-            json={"commentId": comment_id},
+            json={"pinnedCommentId": comment_id},
         )
         comments_resp = requests.get(
             f"{BASE_URL}/posts/{post_id}/comments",
@@ -741,3 +743,166 @@ class TestReportPost:
             json={"ruleId": RULE_VIOLENCE_ID},
         )
         assert resp2.status_code == 409
+
+
+class TestPhaseFilter:
+    """GET /posts with phase filter"""
+
+    def test_get_posts_with_phase_filter(self, normal_headers):
+        """Phase filter should only return posts from matching stages."""
+        # Healthcare session is in opinion_discussion stage → opinion phase
+        resp_create = _create_post(normal_headers, title="TEST opinion phase post",
+                                   body="Body", session_id=HEALTHCARE_SESSION_ID)
+        assert resp_create.status_code == 201
+
+        # Filter by opinion phase — should include the post
+        resp = requests.get(f"{POSTS_URL}?locationId={OREGON_LOCATION_ID}"
+                            f"&sessionId={HEALTHCARE_SESSION_ID}&phase=opinion",
+                            headers=normal_headers)
+        assert resp.status_code == 200
+        post_ids = [p["id"] for p in resp.json()["posts"]]
+        assert resp_create.json()["id"] in post_ids
+
+        # Filter by proposal phase — should NOT include the post
+        resp2 = requests.get(f"{POSTS_URL}?locationId={OREGON_LOCATION_ID}"
+                             f"&sessionId={HEALTHCARE_SESSION_ID}&phase=proposal",
+                             headers=normal_headers)
+        assert resp2.status_code == 200
+        post_ids2 = [p["id"] for p in resp2.json()["posts"]]
+        assert resp_create.json()["id"] not in post_ids2
+
+
+class TestPinPost:
+    """PATCH /posts/{postId} — pinned field"""
+
+    def test_pin_post_requires_authority(self, normal_headers, normal2_headers):
+        """Normal users without roles cannot pin posts."""
+        resp_create = _create_post(normal_headers, title="TEST pin auth post",
+                                   body="Body", session_id=HEALTHCARE_SESSION_ID)
+        post_id = resp_create.json()["id"]
+
+        resp = requests.patch(
+            f"{POSTS_URL}/{post_id}",
+            headers=normal2_headers,
+            json={"pinned": True, "pinSessionId": HEALTHCARE_SESSION_ID,
+                  "pinStage": "opinion_discussion"},
+        )
+        assert resp.status_code == 403
+
+    def test_pin_post_by_admin(self, admin_headers, normal_headers):
+        """Admin can pin a post."""
+        resp_create = _create_post(normal_headers, title="TEST admin pin post",
+                                   body="Body", session_id=HEALTHCARE_SESSION_ID)
+        post_id = resp_create.json()["id"]
+
+        resp = requests.patch(
+            f"{POSTS_URL}/{post_id}",
+            headers=admin_headers,
+            json={"pinned": True, "pinSessionId": HEALTHCARE_SESSION_ID,
+                  "pinStage": "opinion_discussion"},
+        )
+        assert resp.status_code == 200
+
+    def test_pinned_posts_appear_first(self, admin_headers, normal_headers):
+        """Pinned posts should be prepended on first page when filtering by phase."""
+        # Create two posts
+        resp1 = _create_post(normal_headers, title="TEST pin order A",
+                             body="Body A", session_id=HEALTHCARE_SESSION_ID)
+        resp2 = _create_post(normal_headers, title="TEST pin order B",
+                             body="Body B", session_id=HEALTHCARE_SESSION_ID)
+        assert resp1.status_code == 201
+        assert resp2.status_code == 201
+        post_a_id = resp1.json()["id"]
+
+        # Pin post A
+        pin_resp = requests.patch(
+            f"{POSTS_URL}/{post_a_id}",
+            headers=admin_headers,
+            json={"pinned": True, "pinSessionId": HEALTHCARE_SESSION_ID,
+                  "pinStage": "opinion_discussion"},
+        )
+        assert pin_resp.status_code == 200
+
+        # Get posts with opinion phase — pinned post should be first
+        resp = requests.get(f"{POSTS_URL}?locationId={OREGON_LOCATION_ID}"
+                            f"&sessionId={HEALTHCARE_SESSION_ID}&phase=opinion",
+                            headers=normal_headers)
+        assert resp.status_code == 200
+        posts = resp.json()["posts"]
+        pinned_posts = [p for p in posts if p.get("isPinned")]
+        assert len(pinned_posts) >= 1
+        assert pinned_posts[0]["id"] == post_a_id
+
+    def test_pin_post_max_three(self, admin_headers, normal_headers):
+        """Cannot pin more than 3 posts per session+stage."""
+        post_ids = []
+        for i in range(4):
+            resp = _create_post(normal_headers, title=f"TEST pin max {i}",
+                                body="Body", session_id=HEALTHCARE_SESSION_ID)
+            assert resp.status_code == 201
+            post_ids.append(resp.json()["id"])
+
+        # Pin first 3 — should succeed
+        for pid in post_ids[:3]:
+            resp = requests.patch(
+                f"{POSTS_URL}/{pid}",
+                headers=admin_headers,
+                json={"pinned": True, "pinSessionId": HEALTHCARE_SESSION_ID,
+                      "pinStage": "opinion_discussion"},
+            )
+            assert resp.status_code == 200
+
+        # Pin 4th — should fail with 409
+        resp = requests.patch(
+            f"{POSTS_URL}/{post_ids[3]}",
+            headers=admin_headers,
+            json={"pinned": True, "pinSessionId": HEALTHCARE_SESSION_ID,
+                  "pinStage": "opinion_discussion"},
+        )
+        assert resp.status_code == 409
+
+    def test_unpin_post(self, admin_headers, normal_headers):
+        """Unpin removes post from pinned list."""
+        resp_create = _create_post(normal_headers, title="TEST unpin post",
+                                   body="Body", session_id=HEALTHCARE_SESSION_ID)
+        post_id = resp_create.json()["id"]
+
+        # Pin
+        requests.patch(
+            f"{POSTS_URL}/{post_id}",
+            headers=admin_headers,
+            json={"pinned": True, "pinSessionId": HEALTHCARE_SESSION_ID,
+                  "pinStage": "opinion_discussion"},
+        )
+
+        # Unpin
+        resp = requests.patch(
+            f"{POSTS_URL}/{post_id}",
+            headers=admin_headers,
+            json={"pinned": False, "pinSessionId": HEALTHCARE_SESSION_ID,
+                  "pinStage": "opinion_discussion"},
+        )
+        assert resp.status_code == 200
+
+        # Verify not pinned in feed
+        resp = requests.get(f"{POSTS_URL}?locationId={OREGON_LOCATION_ID}"
+                            f"&sessionId={HEALTHCARE_SESSION_ID}&phase=opinion",
+                            headers=normal_headers)
+        posts = resp.json()["posts"]
+        target = [p for p in posts if p["id"] == post_id]
+        if target:
+            assert not target[0].get("isPinned")
+
+    def test_pin_post_wrong_session(self, admin_headers, normal_headers):
+        """Pinning a post with wrong session ID returns 400."""
+        resp_create = _create_post(normal_headers, title="TEST wrong session pin",
+                                   body="Body", session_id=HEALTHCARE_SESSION_ID)
+        post_id = resp_create.json()["id"]
+
+        resp = requests.patch(
+            f"{POSTS_URL}/{post_id}",
+            headers=admin_headers,
+            json={"pinned": True, "pinSessionId": ECONOMY_SESSION_ID,
+                  "pinStage": "opinion_discussion"},
+        )
+        assert resp.status_code == 400

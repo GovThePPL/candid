@@ -4,7 +4,7 @@
  * Mirrors the backend hierarchy in auth.py:
  *   Admin > Moderator > Facilitator > Assistant Moderator / Expert / Liaison
  *
- * user.roles[] is an array of { role, locationId, positionCategoryId, ... }
+ * user.roles[] is an array of { role, locationId, sessionId, ... }
  * set by the backend on GET /users/me.
  */
 
@@ -172,30 +172,30 @@ export function getAssignableLocations(user, role, allLocations) {
 }
 
 /**
- * Return category IDs the user can assign for a given role + location.
- * - For admin-assignable roles: null (categories not applicable)
- * - For facilitator-assignable roles: null if admin (all categories), otherwise category IDs from facilitator roles
+ * Return session IDs the user can assign for a given role + location.
+ * - For admin-assignable roles: null (sessions not applicable)
+ * - For facilitator-assignable roles: null if admin (all sessions), otherwise session IDs from facilitator roles
  * @param {object} user
  * @param {string} role
  * @param {number} locationId
- * @returns {Set<number>|null} Set of category IDs, or null if all are valid
+ * @returns {Set<number>|null} Set of session IDs, or null if all are valid
  */
-export function getAssignableCategories(user, role, locationId) {
+export function getAssignableSessions(user, role, locationId) {
   if (!Array.isArray(user?.roles) || !role) return new Set()
 
   if (ADMIN_ASSIGNABLE.includes(role)) {
-    return null // categories N/A for admin-assignable roles
+    return null // sessions N/A for admin-assignable roles
   }
 
   if (FACILITATOR_ASSIGNABLE.includes(role)) {
-    // Admins can assign any category at their locations
+    // Admins can assign any session at their locations
     const isAdmin = user.roles.some(r => r.role === 'admin')
     if (isAdmin) return null
 
     const ids = new Set()
     for (const r of user.roles) {
-      if (r.role === 'facilitator' && r.locationId === locationId && r.positionCategoryId) {
-        ids.add(r.positionCategoryId)
+      if (r.role === 'facilitator' && r.locationId === locationId && r.sessionId) {
+        ids.add(r.sessionId)
       }
     }
     return ids
@@ -229,9 +229,9 @@ export function isAdminAtLocation(user, locationId, allLocations) {
  * Check if the logged-in user can manage (remove) a specific role assignment.
  * Uses the same authority rules as assignment:
  *   - Admin at ancestor/self location → can manage admin/moderator/facilitator
- *   - Facilitator at exact location + category → can manage asst_mod/expert/liaison
+ *   - Facilitator at exact location + session → can manage asst_mod/expert/liaison
  * @param {object} user - the logged-in user
- * @param {object} roleAssignment - { role, location: { id }, category: { id } }
+ * @param {object} roleAssignment - { role, location: { id }, session: { id } }
  * @param {Array} allLocations - flat location list with parentLocationId
  * @returns {boolean}
  */
@@ -263,12 +263,12 @@ export function canManageRoleAssignment(user, roleAssignment, allLocations) {
         }
       }
     }
-    // Facilitator must match exact location + category
-    const categoryId = roleAssignment.category?.id
+    // Facilitator must match exact location + session
+    const sessionId = roleAssignment.session?.id
     return user.roles.some(
       r => r.role === 'facilitator' &&
            r.locationId === locationId &&
-           r.positionCategoryId === categoryId
+           r.sessionId === sessionId
     )
   }
 
@@ -276,16 +276,16 @@ export function canManageRoleAssignment(user, roleAssignment, allLocations) {
 }
 
 /**
- * Check if user can moderate content at a given location/category scope.
+ * Check if user can moderate content at a given location/session scope.
  * Moderating requires facilitator+ role with matching scope.
  *
  * @param {Object} user - User object with roles array
  * @param {string|null} locationId - Content's location ID
- * @param {string|null} categoryId - Content's category ID
+ * @param {string|null} sessionId - Content's session ID
  * @param {Array} allLocations - Full location tree [{ id, parentLocationId }]
  * @returns {boolean}
  */
-export function canModerateAtScope(user, locationId, categoryId, allLocations) {
+export function canModerateAtScope(user, locationId, sessionId, allLocations) {
   if (!Array.isArray(user?.roles) || !user.roles.length || !locationId) return false
 
   for (const role of user.roles) {
@@ -300,8 +300,8 @@ export function canModerateAtScope(user, locationId, categoryId, allLocations) {
     } else {
       // facilitator / assistant_moderator — exact location match
       if (role.locationId !== locationId) continue
-      // Category match: null category on role = all categories
-      if (!role.positionCategoryId || role.positionCategoryId === categoryId) {
+      // Session match: null session on role = all sessions
+      if (!role.sessionId || role.sessionId === sessionId) {
         return true
       }
     }
@@ -313,14 +313,14 @@ export function canModerateAtScope(user, locationId, categoryId, allLocations) {
  * Check if the user can manage rules at a given scope.
  * - Global (null location): user has admin role at root location
  * - Location-scoped: user has admin or moderator role at this location or an ancestor
- * - Location+category: above OR user has facilitator role at exact location+category
+ * - Location+session: above OR user has facilitator role at exact location+session
  * @param {object} user
  * @param {string|null} locationId - rule's location scope
- * @param {string|null} categoryId - rule's category scope
+ * @param {string|null} sessionId - rule's session scope
  * @param {Array} allLocations - flat array with { id, parentLocationId }
  * @returns {boolean}
  */
-export function canManageRuleScope(user, locationId, categoryId, allLocations) {
+export function canManageRuleScope(user, locationId, sessionId, allLocations) {
   if (!Array.isArray(user?.roles)) return false
 
   if (locationId == null) {
@@ -339,12 +339,12 @@ export function canManageRuleScope(user, locationId, categoryId, allLocations) {
     }
   }
 
-  // Category-scoped: also check facilitator at exact location+category
-  if (categoryId) {
+  // Session-scoped: also check facilitator at exact location+session
+  if (sessionId) {
     return user.roles.some(
       r => r.role === 'facilitator' &&
            r.locationId === locationId &&
-           r.positionCategoryId === categoryId
+           r.sessionId === sessionId
     )
   }
 

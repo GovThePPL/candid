@@ -59,7 +59,7 @@ export default function UserProfileScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <Header onBack={isDesktop ? undefined : handleBack} showAvatar disableAvatarPress />
+        <Header onBack={isDesktop ? undefined : handleBack} showAvatar disableAvatarPress hideSessionBar />
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
@@ -70,7 +70,7 @@ export default function UserProfileScreen() {
   if (notFound) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <Header onBack={isDesktop ? undefined : handleBack} showAvatar disableAvatarPress />
+        <Header onBack={isDesktop ? undefined : handleBack} showAvatar disableAvatarPress hideSessionBar />
         <View style={styles.centerContainer}>
           <Ionicons name="person-outline" size={48} color={colors.placeholderText} />
           <ThemedText variant="body" color="placeholder" style={styles.notFoundTitle}>
@@ -102,7 +102,7 @@ export default function UserProfileScreen() {
                   key={`${r.role}-${r.locationId}-${i}`}
                   role={r.role}
                   location={r.locationCode}
-                  category={r.categoryLabel}
+                  session={r.sessionLabel}
                 />
               ))}
             </View>
@@ -118,7 +118,7 @@ export default function UserProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <Header onBack={isDesktop ? undefined : handleBack} showAvatar disableAvatarPress />
+      <Header onBack={isDesktop ? undefined : handleBack} showAvatar disableAvatarPress hideSessionBar />
 
       <View style={styles.tabContent}>
         {activeTab === 'posts' && <PostsContent listHeader={profileHeader} stickyHeader={tabRowHeader} userId={targetUser?.id} />}

@@ -6,4 +6,5 @@ module.exports = {
   ],
   testPathIgnorePatterns: ['/node_modules/'],
   forceExit: true,
+  maxWorkers: '25%',
 }

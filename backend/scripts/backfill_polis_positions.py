@@ -3,7 +3,7 @@
 Backfill existing positions and votes to Polis.
 
 This script queues positions and votes for Polis sync, which will:
-1. Create Polis conversations for each location/category combination
+1. Create Polis conversations for each location/session combination
 2. Create comments in Polis for each position
 3. Sync existing votes to Polis conversations
 
@@ -55,10 +55,10 @@ def get_positions_to_sync(conn, limit=None):
     A position needs syncing if it doesn't have any entries in polis_comment.
     """
     query = """
-        SELECT p.id, p.statement, p.category_id, p.location_id, p.creator_user_id,
-               pc.label as category_name, l.name as location_name
+        SELECT p.id, p.statement, p.session_id, p.location_id, p.creator_user_id,
+               s.label as session_name, l.name as location_name
         FROM position p
-        JOIN position_category pc ON p.category_id = pc.id
+        JOIN session s ON p.session_id = s.id
         JOIN location l ON p.location_id = l.id
         LEFT JOIN polis_comment pcom ON p.id = pcom.position_id
         WHERE p.status = 'active'
@@ -127,7 +127,7 @@ def batch_queue_positions(conn, positions):
             payload = {
                 "position_id": str(pos["id"]),
                 "statement": pos["statement"],
-                "category_id": str(pos["category_id"]),
+                "session_id": str(pos["session_id"]),
                 "location_id": str(pos["location_id"]),
                 "creator_user_id": str(pos["creator_user_id"]),
             }
@@ -173,14 +173,14 @@ def process_positions(conn, args):
         print("All positions are already synced!")
         return 0
 
-    # Group by location/category for summary
-    location_category_counts = {}
+    # Group by location/session for summary
+    location_session_counts = {}
     for pos in positions:
-        key = f"{pos['location_name']}/{pos['category_name']}"
-        location_category_counts[key] = location_category_counts.get(key, 0) + 1
+        key = f"{pos['location_name']}/{pos['session_name']}"
+        location_session_counts[key] = location_session_counts.get(key, 0) + 1
 
-    print("\nPositions by location/category:")
-    for key, count in sorted(location_category_counts.items()):
+    print("\nPositions by location/session:")
+    for key, count in sorted(location_session_counts.items()):
         print(f"  {key}: {count}")
 
     if args.dry_run:
@@ -272,30 +272,30 @@ def relink_pairwise_surveys(conn):
 
     After a Polis reset, conversations get new IDs. This updates the
     polis_conversation_id on pairwise surveys by matching on
-    location_id + position_category_id.
+    location_id + session_id.
     """
     print("\n" + "=" * 50)
     print("PAIRWISE SURVEY LINKS")
     print("=" * 50)
 
     with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-        # Use a subquery to pick the oldest conversation per location+category,
+        # Use a subquery to pick the oldest conversation per location+session,
         # matching the behavior of get_oldest_active_conversation() in the stats endpoint.
-        # DISTINCT ON ensures one row per (location_id, category_id) combination.
+        # DISTINCT ON ensures one row per (location_id, session_id) combination.
         cur.execute("""
             UPDATE survey s
             SET polis_conversation_id = oldest.polis_conversation_id
             FROM (
-                SELECT DISTINCT ON (location_id, COALESCE(category_id, '00000000-0000-0000-0000-000000000000'))
-                    location_id, category_id, polis_conversation_id
+                SELECT DISTINCT ON (location_id, COALESCE(session_id, '00000000-0000-0000-0000-000000000000'))
+                    location_id, session_id, polis_conversation_id
                 FROM polis_conversation
                 WHERE status = 'active'
-                ORDER BY location_id, COALESCE(category_id, '00000000-0000-0000-0000-000000000000'), created_time ASC
+                ORDER BY location_id, COALESCE(session_id, '00000000-0000-0000-0000-000000000000'), created_time ASC
             ) oldest
             WHERE oldest.location_id = s.location_id
               AND (
-                (oldest.category_id = s.position_category_id)
-                OR (oldest.category_id IS NULL AND s.position_category_id IS NULL)
+                (oldest.session_id = s.session_id)
+                OR (oldest.session_id IS NULL AND s.session_id IS NULL)
               )
               AND s.survey_type = 'pairwise'
               AND s.status = 'active'

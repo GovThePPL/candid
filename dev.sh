@@ -28,6 +28,7 @@ SEED_ONLY=false
 DOWN=false
 SNAPSHOT=false
 RESTORE=false
+BUILD_ALL=false
 
 for arg in "$@"; do
     case "$arg" in
@@ -38,6 +39,7 @@ for arg in "$@"; do
         --down)       DOWN=true ;;
         --snapshot)   SNAPSHOT=true ;;
         --restore)    RESTORE=true ;;
+        --build-all)  BUILD_ALL=true ;;
         -h|--help)
             echo "Usage: ./dev.sh [OPTIONS]"
             echo ""
@@ -49,6 +51,7 @@ for arg in "$@"; do
             echo "  --down         Stop all services"
             echo "  --snapshot     Snapshot all volumes (stops services) then exit"
             echo "  --restore      Restore volumes from snapshots/ before starting"
+            echo "  --build-all    Rebuild all Docker images (including NLP)"
             echo "  -h, --help     Show this help message"
             echo ""
             echo "Examples:"
@@ -327,7 +330,18 @@ fi
 
 if [[ "$SEED_ONLY" == "false" ]]; then
     log "Starting services with docker compose..."
-    docker compose up -d --build
+    # Build only frequently-changing services; NLP image is large (~2GB of ML
+    # deps) and rarely changes, so skip rebuilding it unless --build-all is set.
+    if [[ "$BUILD_ALL" == "true" ]]; then
+        docker compose up -d --build
+    elif [[ "$RESET_DB" == "true" || "$RESET_ALL" == "true" ]]; then
+        # Rebuild db image so schema.sql changes are picked up on fresh volumes
+        docker compose build api chat db
+        docker compose up -d
+    else
+        docker compose build api chat
+        docker compose up -d
+    fi
     echo ""
 
     # Wait for critical services using Docker health status
@@ -382,8 +396,18 @@ if [[ "$SKIP_SEED" == "false" ]]; then
         echo ""
 
         # Run Polis backfill (needed for stats page)
+        # Polis may have become healthy during seeding even if it wasn't
+        # ready during the initial health check, so retry briefly.
         log "Checking Polis availability for backfill..."
-        if curl -sf http://localhost:5000/api/v3/ >/dev/null 2>&1; then
+        POLIS_READY=false
+        for _attempt in $(seq 1 30); do
+            if docker compose exec -T polis-server wget -qO- http://localhost:5000/api/v3/participationInit >/dev/null 2>&1; then
+                POLIS_READY=true
+                break
+            fi
+            sleep 2
+        done
+        if [[ "$POLIS_READY" == "true" ]]; then
             log "Running Polis backfill (positions + votes)..."
             python3 backend/scripts/backfill_polis_positions.py && \
                 ok "Polis backfill queued" || warn "Polis backfill failed (check logs)"

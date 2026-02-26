@@ -1,8 +1,11 @@
 """Unit tests for helpers/constants.py — verifying constants match schema CHECK constraints."""
 
+import os
 import re
 
 import pytest
+
+pytestmark = pytest.mark.unit
 
 from candid.controllers.helpers.constants import (
     ROLE_HIERARCHY, HIERARCHICAL_ROLES, ALL_ROLES,
@@ -15,6 +18,8 @@ from candid.controllers.helpers.constants import (
     PostType, PostStatus, CommentStatus, VoteType,
     PolisSyncStatus, PolisOperationType, PolisConversationStatus,
     RuleStatus, MOD_RESPONSE_TO_REPORT_STATUS,
+    STAGE_ORDER, STAGE_INDEX, WRITE_STAGES, STAGE_TO_PHASE, MAIN_PHASES,
+    SessionStatus, MAX_ENDORSEMENTS_PER_USER,
 )
 
 
@@ -54,7 +59,9 @@ def _schema_check_values(table, column, schema_text):
 
 @pytest.fixture(scope='module')
 def schema_text():
-    with open('backend/database/sql/schema.sql') as f:
+    schema_path = os.path.join(
+        os.path.dirname(__file__), '..', '..', 'database', 'sql', 'schema.sql')
+    with open(schema_path) as f:
         return f.read()
 
 
@@ -140,3 +147,66 @@ class TestModResponseMapping:
         report_statuses = _class_values(ReportStatus)
         for target in MOD_RESPONSE_TO_REPORT_STATUS.values():
             assert target in report_statuses
+
+
+# ---------------------------------------------------------------------------
+# Session stage constants
+# ---------------------------------------------------------------------------
+
+class TestSessionStageConstants:
+    """Verify session stage constants match the DB schema values."""
+
+    def test_stage_order_has_8_items(self):
+        assert len(STAGE_ORDER) == 8
+
+    def test_stage_order_values_match_schema(self):
+        expected = [
+            'proposal_issue', 'proposal_qualify', 'proposal_stakeholders',
+            'opinion_discussion', 'opinion_curation', 'opinion_proposals',
+            'reflection', 'consensus',
+        ]
+        assert STAGE_ORDER == expected
+
+    def test_stage_index_maps_correctly(self):
+        for i, stage in enumerate(STAGE_ORDER):
+            assert STAGE_INDEX[stage] == i
+        assert len(STAGE_INDEX) == len(STAGE_ORDER)
+
+    def test_write_stages_position_equals_active_writing_stages(self):
+        active_writing = {
+            'proposal_issue', 'proposal_qualify', 'proposal_stakeholders',
+            'opinion_discussion', 'opinion_curation', 'opinion_proposals',
+        }
+        assert WRITE_STAGES['position'] == active_writing
+
+    def test_write_stages_proposal_post(self):
+        assert WRITE_STAGES['proposal_post'] == {'proposal_qualify', 'opinion_proposals'}
+
+    def test_write_stages_glossary_covers_all_stages(self):
+        assert WRITE_STAGES['glossary'] == set(STAGE_ORDER)
+
+    def test_write_stages_consensus_document(self):
+        assert WRITE_STAGES['consensus_document'] == {'consensus'}
+
+    def test_stage_to_phase_mapping(self):
+        assert STAGE_TO_PHASE['proposal_issue'] == 'proposal'
+        assert STAGE_TO_PHASE['proposal_qualify'] == 'proposal'
+        assert STAGE_TO_PHASE['proposal_stakeholders'] == 'proposal'
+        assert STAGE_TO_PHASE['opinion_discussion'] == 'opinion'
+        assert STAGE_TO_PHASE['opinion_curation'] == 'opinion'
+        assert STAGE_TO_PHASE['opinion_proposals'] == 'opinion'
+        assert STAGE_TO_PHASE['reflection'] == 'reflection'
+        assert STAGE_TO_PHASE['consensus'] == 'consensus'
+        # Every stage must have a phase mapping
+        for stage in STAGE_ORDER:
+            assert stage in STAGE_TO_PHASE
+
+    def test_main_phases(self):
+        assert MAIN_PHASES == ['proposal', 'opinion', 'reflection', 'consensus']
+
+    def test_session_status_has_3_values(self):
+        values = _class_values(SessionStatus)
+        assert values == {'active', 'archived', 'cancelled'}
+
+    def test_max_endorsements_per_user(self):
+        assert MAX_ENDORSEMENTS_PER_USER == 3

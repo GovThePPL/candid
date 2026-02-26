@@ -5,7 +5,7 @@ import pytest
 import requests
 from conftest import (
     BASE_URL,
-    HEALTHCARE_CAT_ID,
+    HEALTHCARE_SESSION_ID,
     NONEXISTENT_UUID,
 )
 
@@ -29,12 +29,12 @@ class TestChattingListMetadata:
 
 
 class TestMarkExplanationSeen:
-    """PUT /users/me/chatting-list/explanation-seen"""
+    """PATCH /users/me/chatting-list/explanation-seen"""
 
     @pytest.mark.mutation
     def test_mark_seen_success(self, normal_headers):
         """Can mark the chatting list explanation as seen."""
-        resp = requests.put(
+        resp = requests.patch(
             f"{CHATTING_LIST_URL}/explanation-seen",
             headers=normal_headers,
         )
@@ -57,12 +57,12 @@ class TestBulkRemove:
         assert resp.status_code == 200
 
     @pytest.mark.mutation
-    def test_bulk_remove_by_category(self, normal_headers):
-        """Can bulk remove by category ID."""
+    def test_bulk_remove_by_session(self, normal_headers):
+        """Can bulk remove by session ID."""
         resp = requests.delete(
             CHATTING_LIST_URL,
             headers=normal_headers,
-            json={"categoryId": HEALTHCARE_CAT_ID},
+            json={"sessionId": HEALTHCARE_SESSION_ID},
         )
         assert resp.status_code == 200
 

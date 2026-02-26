@@ -76,8 +76,8 @@ export default function PositionCarousel({
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase().trim()
         const statement = (position.statement || '').toLowerCase()
-        const category = (position.category?.label || '').toLowerCase()
-        return statement.includes(query) || category.includes(query)
+        const session = (position.session?.label || '').toLowerCase()
+        return statement.includes(query) || session.includes(query)
       }
       return true
     }

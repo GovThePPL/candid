@@ -175,7 +175,7 @@ class ChatExporter:
                         u.kudos_count as initiator_kudos_count,
                         p.id as position_id,
                         p.statement as position_statement,
-                        pc.label as position_category_name,
+                        s.label as position_session_name,
                         loc.code as position_location_code,
                         loc.name as position_location_name,
                         author.id as author_id,
@@ -191,7 +191,7 @@ class ChatExporter:
                     JOIN users u ON cr.initiator_user_id = u.id
                     JOIN position p ON up.position_id = p.id
                     JOIN users author ON up.user_id = author.id
-                    LEFT JOIN position_category pc ON p.category_id = pc.id
+                    LEFT JOIN session s ON p.session_id = s.id
                     LEFT JOIN location loc ON p.location_id = loc.id
                     WHERE up.user_id = $1::uuid
                       AND cr.response = 'pending'
@@ -231,8 +231,8 @@ class ChatExporter:
                         "creator": creator,
                     }
 
-                    if row.get("position_category_name"):
-                        position["category"] = {"label": row["position_category_name"]}
+                    if row.get("position_session_name"):
+                        position["session"] = {"label": row["position_session_name"]}
 
                     if row.get("position_location_code"):
                         position["location"] = {

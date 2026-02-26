@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 # Redis cache TTL for PCA components (seconds)
 PCA_CACHE_TTL = 300  # 5 minutes
 
-# Process-local cache for conversation lookups (location+category → conversation_id)
+# Process-local cache for conversation lookups (location+session → conversation_id)
 # Conversation mappings rarely change, so a 5-minute TTL is safe.
 _CONVERSATION_CACHE_TTL = 300  # 5 minutes
 _conversation_cache: dict[tuple, tuple[str | None, float]] = {}  # key → (conv_id, expire_time)
@@ -278,20 +278,20 @@ def _compute_and_cache_coords(user_id, conversation_id, pca_cache):
     # Look up user's opinion group from cached cluster data
     polis_group_id = _lookup_group_id(user_id, conversation_id, pca_cache)
 
-    # Look up location_id and category_id for this conversation
+    # Look up location_id and session_id for this conversation
     conv_row = db.execute_query("""
-        SELECT location_id, category_id
+        SELECT location_id, session_id
         FROM polis_conversation
         WHERE polis_conversation_id = %s
     """, (conversation_id,), fetchone=True)
 
     location_id = conv_row["location_id"] if conv_row else None
-    category_id = conv_row.get("category_id") if conv_row else None
+    session_id = conv_row.get("session_id") if conv_row else None
 
     # Upsert to DB
     db.execute_query("""
         INSERT INTO user_ideological_coords
-            (user_id, polis_conversation_id, location_id, category_id,
+            (user_id, polis_conversation_id, location_id, session_id,
              x, y, n_position_votes, math_tick, polis_group_id, computed_at)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
         ON CONFLICT (user_id, polis_conversation_id) DO UPDATE SET
@@ -300,10 +300,10 @@ def _compute_and_cache_coords(user_id, conversation_id, pca_cache):
             n_position_votes = EXCLUDED.n_position_votes,
             math_tick = EXCLUDED.math_tick,
             location_id = EXCLUDED.location_id,
-            category_id = EXCLUDED.category_id,
+            session_id = EXCLUDED.session_id,
             polis_group_id = EXCLUDED.polis_group_id,
             computed_at = CURRENT_TIMESTAMP
-    """, (user_id, conversation_id, location_id, category_id,
+    """, (user_id, conversation_id, location_id, session_id,
           x, y, len(user_votes), math_tick, polis_group_id))
 
     return {
@@ -394,20 +394,20 @@ def invalidate_coords(user_id, conversation_id):
 # Conversation lookup
 # ---------------------------------------------------------------------------
 
-def get_conversation_for_post(location_id, category_id):
-    """Look up the active Polis conversation for a location+category.
+def get_conversation_for_post(location_id, session_id):
+    """Look up the active Polis conversation for a location+session.
 
     Uses a process-local cache with 5-minute TTL to avoid repeated DB queries.
     Conversation mappings rarely change.
 
     Args:
         location_id: Location UUID string.
-        category_id: Category UUID string, or None.
+        session_id: Session UUID string, or None.
 
     Returns:
         Polis conversation_id string, or None if none active.
     """
-    cache_key = (location_id, category_id)
+    cache_key = (location_id, session_id)
     now = time.monotonic()
 
     # Check process-local cache
@@ -417,24 +417,24 @@ def get_conversation_for_post(location_id, category_id):
         if now < expire_time:
             return conv_id
 
-    if category_id:
+    if session_id:
         row = db.execute_query("""
             SELECT polis_conversation_id
             FROM polis_conversation
             WHERE location_id = %s
-              AND category_id = %s
+              AND session_id = %s
               AND status = 'active'
               AND active_from <= CURRENT_DATE
               AND active_until > CURRENT_DATE
             ORDER BY active_from DESC
             LIMIT 1
-        """, (location_id, category_id), fetchone=True)
+        """, (location_id, session_id), fetchone=True)
     else:
         row = db.execute_query("""
             SELECT polis_conversation_id
             FROM polis_conversation
             WHERE location_id = %s
-              AND category_id IS NULL
+              AND session_id IS NULL
               AND status = 'active'
               AND active_from <= CURRENT_DATE
               AND active_until > CURRENT_DATE

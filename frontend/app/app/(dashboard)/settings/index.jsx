@@ -60,7 +60,7 @@ export default function SettingsHub() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <Header onBack={handleBack} showSettingsButton settingsActive onSettingsBack={handleBack} />
+      <Header onBack={handleBack} showSettingsButton settingsActive onSettingsBack={handleBack} hideSessionBar />
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
         <View style={styles.pageHeader}>
           <ThemedText variant="h1" title={true} style={styles.pageTitle}>

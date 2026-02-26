@@ -200,3 +200,121 @@ class TestCloseDbConnection:
         # Should not raise
         db.close_db_connection()
         assert db.pool is None
+
+
+# ---------------------------------------------------------------------------
+# Database.transaction
+# ---------------------------------------------------------------------------
+
+class TestTransaction:
+    def _make_db(self):
+        """Create a Database instance with a mocked pool."""
+        mock_pool = MagicMock()
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+
+        mock_pool.getconn.return_value = mock_conn
+
+        from candid.controllers.helpers.database import Database
+        db = Database.__new__(Database)
+        db.pool = mock_pool
+        return db, mock_pool, mock_conn, mock_cursor
+
+    def test_commits_on_success(self):
+        db, pool, conn, cursor = self._make_db()
+
+        with db.transaction() as tx:
+            tx.execute("INSERT INTO t VALUES (%s)", (1,))
+
+        conn.commit.assert_called_once()
+        conn.rollback.assert_not_called()
+        pool.putconn.assert_called_once_with(conn)
+
+    def test_rolls_back_on_exception(self):
+        db, pool, conn, cursor = self._make_db()
+
+        with pytest.raises(ValueError):
+            with db.transaction() as tx:
+                tx.execute("INSERT INTO t VALUES (%s)", (1,))
+                raise ValueError("test error")
+
+        conn.rollback.assert_called_once()
+        conn.commit.assert_not_called()
+        pool.putconn.assert_called_once_with(conn)
+
+    def test_returns_connection_to_pool_on_success(self):
+        db, pool, conn, cursor = self._make_db()
+
+        with db.transaction() as tx:
+            pass
+
+        pool.putconn.assert_called_once_with(conn)
+
+    def test_returns_connection_to_pool_on_error(self):
+        db, pool, conn, cursor = self._make_db()
+
+        with pytest.raises(RuntimeError):
+            with db.transaction() as tx:
+                raise RuntimeError("boom")
+
+        pool.putconn.assert_called_once_with(conn)
+
+    def test_raises_when_pool_is_none(self):
+        from candid.controllers.helpers.database import Database, DatabaseError
+        db = Database.__new__(Database)
+        db.pool = None
+
+        with pytest.raises(DatabaseError, match="pool not established"):
+            with db.transaction() as tx:
+                pass
+
+    def test_select_returns_rows(self):
+        db, pool, conn, cursor = self._make_db()
+        cursor.fetchall.return_value = [{"id": 1}, {"id": 2}]
+
+        with db.transaction() as tx:
+            result = tx.execute("SELECT * FROM t")
+
+        assert result == [{"id": 1}, {"id": 2}]
+
+    def test_fetchone(self):
+        db, pool, conn, cursor = self._make_db()
+        cursor.fetchone.return_value = {"id": 1}
+
+        with db.transaction() as tx:
+            result = tx.execute("SELECT * FROM t WHERE id = %s", (1,), fetchone=True)
+
+        assert result == {"id": 1}
+
+    def test_dml_returns_none(self):
+        db, pool, conn, cursor = self._make_db()
+
+        with db.transaction() as tx:
+            result = tx.execute("UPDATE t SET x = 1")
+
+        assert result is None
+
+    def test_returning_clause_fetches_results(self):
+        db, pool, conn, cursor = self._make_db()
+        cursor.fetchall.return_value = [{"id": 1}]
+
+        with db.transaction() as tx:
+            result = tx.execute("INSERT INTO t (x) VALUES (1) RETURNING id")
+
+        assert result == [{"id": 1}]
+
+    def test_multiple_statements_same_connection(self):
+        db, pool, conn, cursor = self._make_db()
+
+        with db.transaction() as tx:
+            tx.execute("INSERT INTO t VALUES (1)")
+            tx.execute("INSERT INTO t VALUES (2)")
+            tx.execute("INSERT INTO t VALUES (3)")
+
+        # Only one getconn/putconn — all on same connection
+        pool.getconn.assert_called_once()
+        pool.putconn.assert_called_once()
+        conn.commit.assert_called_once()

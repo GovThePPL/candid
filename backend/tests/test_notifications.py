@@ -4,7 +4,7 @@ import pytest
 import requests
 from conftest import (
     BASE_URL, login, auth_header, db_execute, db_execute_returning,
-    NORMAL1_ID, NORMAL2_ID,
+    NORMAL1_ID, NORMAL2_ID, US_LOCATION_ID,
 )
 
 URL = f"{BASE_URL}/notifications"
@@ -142,14 +142,14 @@ class TestGetUnreadCount:
 
 
 # ---------------------------------------------------------------------------
-# PUT /notifications/{notificationId}/read
+# PATCH /notifications/{notificationId}/read
 # ---------------------------------------------------------------------------
 
 class TestMarkRead:
     def test_marks_as_read(self, normal1_token):
         notif_id = _insert_notification(NORMAL1_ID, "Test", "Body")
 
-        resp = requests.put(
+        resp = requests.patch(
             f"{URL}/{notif_id}/read",
             headers=auth_header(normal1_token),
         )
@@ -165,7 +165,7 @@ class TestMarkRead:
     def test_idempotent(self, normal1_token):
         notif_id = _insert_notification(NORMAL1_ID, "Test", "Body", is_read=True)
 
-        resp = requests.put(
+        resp = requests.patch(
             f"{URL}/{notif_id}/read",
             headers=auth_header(normal1_token),
         )
@@ -174,7 +174,7 @@ class TestMarkRead:
     def test_cannot_mark_other_users_notification(self, normal1_token):
         notif_id = _insert_notification(NORMAL2_ID, "Other", "Body")
 
-        resp = requests.put(
+        resp = requests.patch(
             f"{URL}/{notif_id}/read",
             headers=auth_header(normal1_token),
         )
@@ -183,7 +183,7 @@ class TestMarkRead:
 
 
 # ---------------------------------------------------------------------------
-# PUT /notifications/read-all
+# PATCH /notifications/read-all
 # ---------------------------------------------------------------------------
 
 class TestMarkAllRead:
@@ -191,7 +191,7 @@ class TestMarkAllRead:
         _insert_notification(NORMAL1_ID, "Notif 1", "Body")
         _insert_notification(NORMAL1_ID, "Notif 2", "Body")
 
-        resp = requests.put(
+        resp = requests.patch(
             f"{URL}/read-all",
             headers=auth_header(normal1_token),
         )
@@ -207,7 +207,7 @@ class TestMarkAllRead:
         _insert_notification(NORMAL1_ID, "Mine", "Body")
         _insert_notification(NORMAL2_ID, "Theirs", "Body")
 
-        requests.put(f"{URL}/read-all", headers=auth_header(normal1_token))
+        requests.patch(f"{URL}/read-all", headers=auth_header(normal1_token))
 
         # normal2's notification should still be unread
         count_resp = requests.get(
@@ -215,3 +215,147 @@ class TestMarkAllRead:
             headers=auth_header(normal2_token),
         )
         assert count_resp.json()["count"] == 1
+
+
+# ---------------------------------------------------------------------------
+# PUT /users/me/notification-mutes
+# GET /users/me/notification-mutes
+# ---------------------------------------------------------------------------
+
+MUTE_URL = f"{BASE_URL}/users/me/notification-mutes"
+
+
+def _create_post(creator_id):
+    """Insert a minimal post and return its ID."""
+    rows = db_execute_returning(
+        """INSERT INTO post (creator_user_id, location_id, title, body)
+           VALUES (%s, %s, 'Mute test post', 'body')
+           RETURNING id""",
+        (creator_id, US_LOCATION_ID),
+    )
+    return str(rows[0]["id"])
+
+
+def _create_comment(creator_id, post_id):
+    """Insert a minimal root comment and return its ID."""
+    import uuid
+    comment_id = str(uuid.uuid4())
+    db_execute_returning(
+        """INSERT INTO comment (id, creator_user_id, post_id, body, path, depth)
+           VALUES (%s::uuid, %s, %s, 'Mute test comment', %s, 0)
+           RETURNING id""",
+        (comment_id, creator_id, post_id, comment_id),
+    )
+    return comment_id
+
+
+@pytest.fixture(autouse=False)
+def cleanup_mutes():
+    """Remove mutes and test posts/comments after each test."""
+    yield
+    db_execute("DELETE FROM notification_mute")
+    db_execute("DELETE FROM comment")
+    db_execute("DELETE FROM post")
+
+
+class TestNotificationMute:
+    def test_mute_post(self, normal1_token, cleanup_mutes):
+        post_id = _create_post(NORMAL1_ID)
+
+        resp = requests.put(
+            MUTE_URL,
+            json={"targetType": "post", "targetId": post_id, "muted": True},
+            headers=auth_header(normal1_token),
+        )
+        assert resp.status_code == 200
+        assert resp.json()["muted"] is True
+
+    def test_unmute_post(self, normal1_token, cleanup_mutes):
+        post_id = _create_post(NORMAL1_ID)
+
+        # Mute first
+        requests.put(
+            MUTE_URL,
+            json={"targetType": "post", "targetId": post_id, "muted": True},
+            headers=auth_header(normal1_token),
+        )
+        # Unmute
+        resp = requests.put(
+            MUTE_URL,
+            json={"targetType": "post", "targetId": post_id, "muted": False},
+            headers=auth_header(normal1_token),
+        )
+        assert resp.status_code == 200
+        assert resp.json()["muted"] is False
+
+    def test_mute_comment(self, normal1_token, cleanup_mutes):
+        post_id = _create_post(NORMAL1_ID)
+        comment_id = _create_comment(NORMAL1_ID, post_id)
+
+        resp = requests.put(
+            MUTE_URL,
+            json={"targetType": "comment", "targetId": comment_id, "muted": True},
+            headers=auth_header(normal1_token),
+        )
+        assert resp.status_code == 200
+        assert resp.json()["muted"] is True
+
+    def test_mute_idempotent(self, normal1_token, cleanup_mutes):
+        post_id = _create_post(NORMAL1_ID)
+
+        for _ in range(2):
+            resp = requests.put(
+                MUTE_URL,
+                json={"targetType": "post", "targetId": post_id, "muted": True},
+                headers=auth_header(normal1_token),
+            )
+            assert resp.status_code == 200
+
+    def test_cannot_mute_other_users_post(self, normal2_token, cleanup_mutes):
+        post_id = _create_post(NORMAL1_ID)
+
+        resp = requests.put(
+            MUTE_URL,
+            json={"targetType": "post", "targetId": post_id, "muted": True},
+            headers=auth_header(normal2_token),
+        )
+        assert resp.status_code == 403
+
+    def test_mute_nonexistent_target(self, normal1_token, cleanup_mutes):
+        resp = requests.put(
+            MUTE_URL,
+            json={"targetType": "post", "targetId": "00000000-0000-0000-0000-000000000000", "muted": True},
+            headers=auth_header(normal1_token),
+        )
+        assert resp.status_code == 404
+
+    def test_get_mute_status(self, normal1_token, cleanup_mutes):
+        post_id = _create_post(NORMAL1_ID)
+
+        # Initially not muted
+        resp = requests.get(
+            f"{MUTE_URL}?targetType=post&targetId={post_id}",
+            headers=auth_header(normal1_token),
+        )
+        assert resp.status_code == 200
+        assert resp.json()["muted"] is False
+
+        # Mute, then check
+        requests.put(
+            MUTE_URL,
+            json={"targetType": "post", "targetId": post_id, "muted": True},
+            headers=auth_header(normal1_token),
+        )
+        resp = requests.get(
+            f"{MUTE_URL}?targetType=post&targetId={post_id}",
+            headers=auth_header(normal1_token),
+        )
+        assert resp.status_code == 200
+        assert resp.json()["muted"] is True
+
+    def test_unauthenticated(self, cleanup_mutes):
+        resp = requests.put(
+            MUTE_URL,
+            json={"targetType": "post", "targetId": "00000000-0000-0000-0000-000000000000", "muted": True},
+        )
+        assert resp.status_code == 401

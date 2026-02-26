@@ -5,31 +5,31 @@ import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
 import useIsDesktop from '../hooks/useIsDesktop'
 import { createSharedStyles } from '../constants/SharedStyles'
-import { usersApiWrapper, categoriesApiWrapper } from '../lib/api'
+import { usersApiWrapper, sessionsApiWrapper } from '../lib/api'
 import ThemedText from './ThemedText'
 
 /**
- * Dropdown selectors for location and category
+ * Dropdown selectors for location and session
  *
  * @param {Object} props
  * @param {string} props.selectedLocation - Currently selected location ID
- * @param {string} props.selectedCategory - Currently selected category ID
+ * @param {string} props.selectedSession - Currently selected session ID
  * @param {Function} props.onLocationChange - Callback when location changes
- * @param {Function} props.onCategoryChange - Callback when category changes
- * @param {boolean} [props.showAllCategories=false] - Prepend "All Categories" option
+ * @param {Function} props.onSessionChange - Callback when session changes
+ * @param {boolean} [props.showAllSessions=false] - Prepend "All Sessions" option
  * @param {'first'|'last'} [props.defaultLocation='first'] - Which location to auto-select on load
- * @param {boolean} [props.showLabels=false] - Show "Location"/"Category" labels above buttons (hides left icons)
- * @param {boolean} [props.categoryAutoSelected=false] - Show sparkles icon + highlight border on category button
+ * @param {boolean} [props.showLabels=false] - Show "Location"/"Session" labels above buttons (hides left icons)
+ * @param {boolean} [props.sessionAutoSelected=false] - Show sparkles icon + highlight border on session button
  */
-export default function LocationCategorySelector({
+export default function LocationSessionSelector({
   selectedLocation,
-  selectedCategory,
+  selectedSession,
   onLocationChange,
-  onCategoryChange,
-  showAllCategories = false,
+  onSessionChange,
+  showAllSessions = false,
   defaultLocation = 'first',
   showLabels = false,
-  categoryAutoSelected = false,
+  sessionAutoSelected = false,
   style,
 }) {
   const { t } = useTranslation()
@@ -38,55 +38,70 @@ export default function LocationCategorySelector({
   const styles = useMemo(() => createStyles(colors), [colors])
   const shared = useMemo(() => createSharedStyles(colors), [colors])
   const [locations, setLocations] = useState([])
-  const [categories, setCategories] = useState([])
+  const [sessions, setSessions] = useState([])
   const [showLocationPicker, setShowLocationPicker] = useState(false)
-  const [showCategoryPicker, setShowCategoryPicker] = useState(false)
+  const [showSessionPicker, setShowSessionPicker] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [sessionsLoading, setSessionsLoading] = useState(false)
 
-  const ALL_CATEGORIES_OPTION = { id: 'all', label: t('allCategories') }
+  const ALL_SESSIONS_OPTION = { id: 'all', label: t('allSessions') }
 
+  // Load locations on mount
   useEffect(() => {
-    loadData()
+    (async () => {
+      try {
+        setLoading(true)
+        const locData = await usersApiWrapper.getLocations()
+        setLocations(locData || [])
+
+        // Auto-select location if not set or stale
+        const locIds = (locData || []).map(l => l.id)
+        if (locData?.length > 0 && (!selectedLocation || !locIds.includes(selectedLocation))) {
+          if (defaultLocation === 'last') {
+            onLocationChange(locData[locData.length - 1].id)
+          } else {
+            onLocationChange(locData[0].id)
+          }
+        }
+      } catch (error) {
+        console.error('Error loading locations:', error)
+      } finally {
+        setLoading(false)
+      }
+    })()
   }, [])
 
-  const loadData = async () => {
-    try {
-      setLoading(true)
-      const [locData, catData] = await Promise.all([
-        usersApiWrapper.getLocations(),
-        categoriesApiWrapper.getAll(),
-      ])
-      setLocations(locData || [])
+  // Load sessions when selectedLocation changes
+  useEffect(() => {
+    if (!selectedLocation) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        setSessionsLoading(true)
+        const sessData = await sessionsApiWrapper.getAll(selectedLocation)
 
-      if (showAllCategories) {
-        setCategories([ALL_CATEGORIES_OPTION, ...(catData || [])])
-      } else {
-        setCategories(catData || [])
-      }
-
-      // Auto-select location if not set or stale (e.g. DB was reset)
-      const locIds = (locData || []).map(l => l.id)
-      if (locData?.length > 0 && (!selectedLocation || !locIds.includes(selectedLocation))) {
-        if (defaultLocation === 'last') {
-          onLocationChange(locData[locData.length - 1].id)
+        if (cancelled) return
+        if (showAllSessions) {
+          setSessions([ALL_SESSIONS_OPTION, ...(sessData || [])])
         } else {
-          onLocationChange(locData[0].id)
+          setSessions(sessData || [])
         }
-      }
 
-      // Default to "All Categories" when showAllCategories is enabled, or if stored ID is stale
-      const catIds = (catData || []).map(c => c.id)
-      if (showAllCategories && (!selectedCategory || (selectedCategory !== 'all' && !catIds.includes(selectedCategory)))) {
-        onCategoryChange('all')
-      } else if (!showAllCategories && selectedCategory && !catIds.includes(selectedCategory)) {
-        if (catData?.length > 0) onCategoryChange(catData[0].id)
+        // Reset session selection if current is stale for this location
+        const sessIds = (sessData || []).map(s => s.id)
+        if (showAllSessions && (!selectedSession || (selectedSession !== 'all' && !sessIds.includes(selectedSession)))) {
+          onSessionChange('all')
+        } else if (!showAllSessions && (!selectedSession || !sessIds.includes(selectedSession))) {
+          if (sessData?.length > 0) onSessionChange(sessData[0].id)
+        }
+      } catch (error) {
+        console.error('Error loading sessions:', error)
+      } finally {
+        if (!cancelled) setSessionsLoading(false)
       }
-    } catch (error) {
-      console.error('Error loading selector data:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+    })()
+    return () => { cancelled = true }
+  }, [selectedLocation])
 
   const getSelectedLocationName = () => {
     const loc = locations.find((l) => l.id === selectedLocation)
@@ -98,12 +113,12 @@ export default function LocationCategorySelector({
     return loc?.code || loc?.name || t('selectLocation')
   }
 
-  const getSelectedCategoryName = () => {
-    if (selectedCategory === 'all') {
-      return t('allCategories')
+  const getSelectedSessionName = () => {
+    if (selectedSession === 'all') {
+      return t('allSessions')
     }
-    const cat = categories.find((c) => c.id === selectedCategory)
-    return cat?.label || cat?.name || t('selectCategory')
+    const sess = sessions.find((s) => s.id === selectedSession)
+    return sess?.label || sess?.name || t('selectSession')
   }
 
   const renderPickerModal = (
@@ -116,7 +131,7 @@ export default function LocationCategorySelector({
     labelKey = 'name'
   ) => (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={shared.modalOverlay} onPress={onClose} accessibilityLabel={t('dismissModal')}>
+      <Pressable style={shared.modalOverlay} onPress={onClose} accessibilityRole="button" accessibilityLabel={t('dismissModal')}>
         <View style={shared.modalContent}>
           <ThemedText variant="h2" color="primary" style={shared.modalTitle}>{title}</ThemedText>
           <FlatList
@@ -189,12 +204,12 @@ export default function LocationCategorySelector({
         </TouchableOpacity>
       </View>
 
-      {/* Category selector */}
-      <View style={styles.categoryWrapper}>
+      {/* Session selector */}
+      <View style={styles.sessionWrapper}>
         {showLabels && (
           <View style={styles.labelRow}>
-            <ThemedText variant="label" color="dark">{t('categoryLabel')}</ThemedText>
-            {categoryAutoSelected && (
+            <ThemedText variant="label" color="dark">{t('sessionLabel')}</ThemedText>
+            {sessionAutoSelected && (
               <Ionicons name="sparkles" size={10} color={colors.primary} style={{ marginLeft: 4 }} />
             )}
           </View>
@@ -202,17 +217,17 @@ export default function LocationCategorySelector({
         <TouchableOpacity
           style={[
             styles.selector,
-            categoryAutoSelected && styles.selectorAutoSelected,
+            sessionAutoSelected && styles.selectorAutoSelected,
           ]}
-          onPress={() => setShowCategoryPicker(true)}
+          onPress={() => setShowSessionPicker(true)}
           accessibilityRole="button"
-          accessibilityLabel={t('categorySelectorA11y', { name: getSelectedCategoryName() })}
+          accessibilityLabel={t('sessionSelectorA11y', { name: getSelectedSessionName() })}
         >
           {!showLabels && (
             <Ionicons name="folder-outline" size={18} color={colors.primary} />
           )}
           <ThemedText variant="bodySmall" style={styles.selectorText} numberOfLines={1}>
-            {getSelectedCategoryName()}
+            {getSelectedSessionName()}
           </ThemedText>
           <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
         </TouchableOpacity>
@@ -229,12 +244,12 @@ export default function LocationCategorySelector({
       )}
 
       {renderPickerModal(
-        showCategoryPicker,
-        () => setShowCategoryPicker(false),
-        categories,
-        selectedCategory,
-        onCategoryChange,
-        t('selectCategory'),
+        showSessionPicker,
+        () => setShowSessionPicker(false),
+        sessions,
+        selectedSession,
+        onSessionChange,
+        t('selectSession'),
         'label'
       )}
     </View>
@@ -251,7 +266,7 @@ const createStyles = (colors) => StyleSheet.create({
   locationWrapper: {
     flexShrink: 0,
   },
-  categoryWrapper: {
+  sessionWrapper: {
     flex: 1,
   },
   labelRow: {

@@ -193,7 +193,7 @@ function ChatListSkeleton({ styles, colors }) {
           </View>
           {/* CardShell mimic — rounded card with padding */}
           <View style={styles.skeletonChatCard}>
-            {/* Badge row (LocationCategoryBadge) */}
+            {/* Badge row (LocationSessionBadge) */}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
               <SkeletonBox width={36} height={20} borderRadius={10} />
               <SkeletonLine width={70} height={12} />
@@ -273,7 +273,7 @@ export default function ChatHistoryContent({ showHeader = true, onScroll, listHe
   const handleModerateActionSubmit = useCallback(async (actionData) => {
     if (!moderateTarget || !moderateRule) return
     try {
-      await api.moderation.inlineAction({
+      await api.moderation.createAction({
         targetType: moderateTarget.type,
         targetId: moderateTarget.id,
         ruleId: moderateRule.id,
@@ -294,7 +294,7 @@ export default function ChatHistoryContent({ showHeader = true, onScroll, listHe
   }, [moderateTarget, moderateRule, moderateComment, t, handleRefresh])
 
   const renderChatItem = useCallback(({ item }) => {
-    const canMod = checkModerateScope(item.position?.location?.id, item.position?.category?.id)
+    const canMod = checkModerateScope(item.position?.location?.id, item.position?.session?.id)
     return (
       <ChatHistoryCard
         chat={item}

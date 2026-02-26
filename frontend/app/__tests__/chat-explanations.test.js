@@ -36,6 +36,7 @@ jest.mock('../lib/api', () => ({
 let socketModule
 
 beforeEach(() => {
+  jest.useFakeTimers()
   jest.clearAllMocks()
   mockSocket.connected = false
   mockOn.mockReset()
@@ -56,6 +57,10 @@ beforeEach(() => {
   socketModule = require('../lib/socket')
 })
 
+afterEach(() => {
+  jest.useRealTimers()
+})
+
 async function connectTestSocket() {
   mockOn.mockImplementation((event, handler) => {
     if (event === 'authenticated') {
@@ -67,6 +72,7 @@ async function connectTestSocket() {
     if (authHandler) authHandler({ userId: 'u1', activeChats: [] })
   })
   await socketModule.connectSocket()
+  jest.runOnlyPendingTimers()
   mockSocket.connected = true
 }
 

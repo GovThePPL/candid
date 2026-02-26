@@ -39,8 +39,8 @@
         "http://localhost:19006/*",
         "exp://localhost:8081/*",
         "exp://localhost:3001/*",
-        "exp://*",
-        "candid://*"
+        "exp://localhost:8081/--/auth/callback",
+        "candid://auth/callback"
       ],
       "webOrigins": [
         "+"
@@ -116,7 +116,7 @@
     "realm-management": [
       {
         "client": "candid-backend",
-        "roles": ["realm-admin"]
+        "roles": ["manage-users", "view-realm"]
       }
     ]
   },
@@ -309,7 +309,7 @@
       "enabled": true,
       "serviceAccountClientId": "candid-backend",
       "clientRoles": {
-        "realm-management": ["realm-admin"]
+        "realm-management": ["manage-users", "view-realm"]
       }
     }
   ]

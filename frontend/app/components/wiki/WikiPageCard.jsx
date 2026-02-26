@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { Shadows, BorderRadius, Spacing } from '../../constants/Theme'
 import ThemedText from '../ThemedText'
-import LocationCategoryBadge from '../LocationCategoryBadge'
+import LocationSessionBadge from '../LocationSessionBadge'
 import { formatRelativeTime } from '../../lib/timeUtils'
 
 /**
@@ -13,7 +13,7 @@ import { formatRelativeTime } from '../../lib/timeUtils'
  * @param {Object} props
  * @param {Object} props.page - Wiki page summary object
  * @param {Function} props.onPress - Called when the card is pressed
- * @param {Object} [props.scope] - Resolved scope { location, category } for LocationCategoryBadge
+ * @param {Object} [props.scope] - Resolved scope { location, session } for LocationSessionBadge
  */
 export default memo(function WikiPageCard({ page, onPress, scope }) {
   const { t } = useTranslation('glossary')
@@ -28,11 +28,11 @@ export default memo(function WikiPageCard({ page, onPress, scope }) {
       accessibilityLabel={t('wikiArticleA11y', { title: page.title })}
     >
       <View style={styles.topRow}>
-        <LocationCategoryBadge
+        <LocationSessionBadge
           location={scope?.location}
-          category={scope?.category}
+          session={scope?.session}
           locationFallback={t('wikiScopeAllLocations')}
-          categoryFallback={t('wikiScopeAllCategories')}
+          sessionFallback={t('wikiScopeAllSessions')}
           size="sm"
         />
         {page.updatedAt ? (

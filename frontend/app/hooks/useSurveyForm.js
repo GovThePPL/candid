@@ -2,7 +2,7 @@
  * Hook for managing the survey creation form within the admin surveys screen.
  *
  * Handles: form state for both standard and pairwise survey types,
- * question/option/item CRUD, location/category picker state,
+ * question/option/item CRUD, location/session picker state,
  * form validation, submission, and reset.
  */
 import { useState, useMemo, useCallback } from 'react'
@@ -11,7 +11,7 @@ import api, { translateError } from '../lib/api'
 import { useToast } from '../components/Toast'
 import { getDescendantLocationIds } from '../lib/roles'
 
-export default function useSurveyForm({ user, locations, allCategories, defaultLocationId, fetchSurveys }) {
+export default function useSurveyForm({ user, locations, allSessions, defaultLocationId, fetchSurveys }) {
   const { t } = useTranslation('admin')
   const toast = useToast()
 
@@ -32,11 +32,11 @@ export default function useSurveyForm({ user, locations, allCategories, defaultL
   const [items, setItems] = useState(['', ''])
   const [comparisonQuestion, setComparisonQuestion] = useState('')
 
-  // --- Location/category pickers ---
+  // --- Location/session pickers ---
   const [selectedLocationId, setSelectedLocationId] = useState(null)
-  const [selectedCategoryId, setSelectedCategoryId] = useState(null)
+  const [selectedSessionId, setSelectedSessionId] = useState(null)
   const [locationPickerVisible, setLocationPickerVisible] = useState(false)
-  const [categoryPickerVisible, setCategoryPickerVisible] = useState(false)
+  const [sessionPickerVisible, setSessionPickerVisible] = useState(false)
 
   // Locations the user can scope surveys to (admin + facilitator scope)
   const allowableLocations = useMemo(() => {
@@ -57,22 +57,22 @@ export default function useSurveyForm({ user, locations, allCategories, defaultL
       .map(l => allowedIds.has(l.parentLocationId) ? l : { ...l, parentLocationId: null })
   }, [user, locations])
 
-  // Categories the user can scope surveys to (admin = all, facilitator = assigned only)
-  const allowableCategories = useMemo(() => {
-    if (!user?.roles?.length || !allCategories.length) return allCategories
+  // Sessions the user can scope surveys to (admin = all, facilitator = assigned only)
+  const allowableSessions = useMemo(() => {
+    if (!user?.roles?.length || !allSessions.length) return allSessions
     const isAdmin = user.roles.some(r => r.role === 'admin')
-    if (isAdmin) return allCategories
-    // Facilitator: only categories matching their role + selected location
-    const allowedCatIds = new Set()
+    if (isAdmin) return allSessions
+    // Facilitator: only sessions matching their role + selected location
+    const allowedSessionIds = new Set()
     for (const r of user.roles) {
-      if (r.role === 'facilitator' && r.positionCategoryId) {
+      if (r.role === 'facilitator' && r.sessionId) {
         if (!selectedLocationId || r.locationId === selectedLocationId) {
-          allowedCatIds.add(r.positionCategoryId)
+          allowedSessionIds.add(r.sessionId)
         }
       }
     }
-    return allCategories.filter(c => allowedCatIds.has(c.id))
-  }, [user, allCategories, selectedLocationId])
+    return allSessions.filter(c => allowedSessionIds.has(c.id))
+  }, [user, allSessions, selectedLocationId])
 
   // --- Standard form helpers ---
   const addQuestion = useCallback(() => {
@@ -115,7 +115,7 @@ export default function useSurveyForm({ user, locations, allCategories, defaultL
     setItems(['', ''])
     setComparisonQuestion('')
     setSelectedLocationId(defaultLocationId)
-    setSelectedCategoryId(null)
+    setSelectedSessionId(null)
   }, [defaultLocationId])
 
   const openCreateForm = useCallback(() => {
@@ -155,7 +155,7 @@ export default function useSurveyForm({ user, locations, allCategories, defaultL
           startTime: new Date(startTime).toISOString(),
           endTime: new Date(endTime).toISOString(),
           locationId: selectedLocationId || undefined,
-          positionCategoryId: selectedCategoryId || undefined,
+          sessionId: selectedSessionId || undefined,
           questions: questions.map(q => ({
             question: q.text.trim(),
             options: q.options.filter(o => o.trim()),
@@ -167,7 +167,7 @@ export default function useSurveyForm({ user, locations, allCategories, defaultL
           startTime: new Date(startTime).toISOString(),
           endTime: new Date(endTime).toISOString(),
           locationId: selectedLocationId || undefined,
-          positionCategoryId: selectedCategoryId || undefined,
+          sessionId: selectedSessionId || undefined,
           items: items.filter(i => i.trim()),
           comparisonQuestion: comparisonQuestion.trim() || undefined,
         })
@@ -181,7 +181,7 @@ export default function useSurveyForm({ user, locations, allCategories, defaultL
     } finally {
       setSubmitting(false)
     }
-  }, [surveyType, surveyTitle, startTime, endTime, selectedLocationId, selectedCategoryId, questions, items, comparisonQuestion, fetchSurveys, resetForm, t, toast])
+  }, [surveyType, surveyTitle, startTime, endTime, selectedLocationId, selectedSessionId, questions, items, comparisonQuestion, fetchSurveys, resetForm, t, toast])
 
   return {
     // Modal
@@ -200,13 +200,13 @@ export default function useSurveyForm({ user, locations, allCategories, defaultL
     // Pairwise items
     items, comparisonQuestion, setComparisonQuestion,
     addItem, removeItem, updateItem,
-    // Location/category pickers
+    // Location/session pickers
     selectedLocationId, setSelectedLocationId,
-    selectedCategoryId, setSelectedCategoryId,
+    selectedSessionId, setSelectedSessionId,
     locationPickerVisible, setLocationPickerVisible,
-    categoryPickerVisible, setCategoryPickerVisible,
+    sessionPickerVisible, setSessionPickerVisible,
     allowableLocations,
-    allowableCategories,
+    allowableSessions,
     // Actions
     resetForm, handleCreate,
   }

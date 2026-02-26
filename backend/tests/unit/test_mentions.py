@@ -154,7 +154,7 @@ class TestResolveRoleUsers:
         ]
         result = resolve_role_users("admin", "loc1", "cat1", mock_db)
         assert result == ["u1", "u2"]
-        # Admin is location-only, shouldn't use category_id
+        # Admin is location-only, shouldn't use session_id
         call_args = mock_db.execute_query.call_args
         assert "admin" in call_args[0][1]
         assert "loc1" in call_args[0][1]

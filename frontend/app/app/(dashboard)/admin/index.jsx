@@ -17,9 +17,9 @@ const ROLE_RANK = ['admin', 'moderator', 'facilitator', 'assistant_moderator', '
 
 const getMenuItems = (t, pendingCount) => [
   { label: t('menuOrganization'), icon: 'business-outline', route: '/admin/organization' },
+  { label: t('menuSessions'), icon: 'pricetag-outline', route: '/admin/sessions', a11yHint: t('menuSessionsA11y') },
   { label: t('menuRequestLog'), icon: 'document-text-outline', route: '/admin/request-log', badge: pendingCount },
   { label: t('menuUsers'), icon: 'person-outline', route: '/admin/users' },
-  { label: t('menuSurveys'), icon: 'clipboard-outline', route: '/admin/surveys' },
   { label: t('menuRules'), icon: 'shield-outline', route: '/admin/rules', a11yHint: t('menuRulesA11y') },
 ]
 
@@ -111,8 +111,8 @@ export default function AdminHub() {
                     {r.locationName && (
                       <ThemedText variant="caption" color="secondary">{t('atLocation', { location: r.locationName })}</ThemedText>
                     )}
-                    {r.categoryLabel && (
-                      <ThemedText variant="caption" color="secondary">{t('inCategory', { category: r.categoryLabel })}</ThemedText>
+                    {r.sessionLabel && (
+                      <ThemedText variant="caption" color="secondary">{t('inSession', { session: r.sessionLabel })}</ThemedText>
                     )}
                   </View>
                 ))}

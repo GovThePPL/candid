@@ -34,10 +34,8 @@ python3 -m pytest backend/tests/unit/ --benchmark-only -v
 | `test_users_positions.py` | User position management |
 | `test_positions.py` | Position CRUD, search, voting |
 | `test_cards.py` | Card queue (positions, surveys, chat requests) |
-| `test_categories.py` | Position categories |
 | `test_locations.py` | Location hierarchy |
 | `test_chats.py` | Chat requests, chat logs |
-| `test_chat_events.py` | Real-time chat event delivery |
 | `test_chat_matching.py` | Chat availability and matching logic |
 | `test_chatting_list_extras.py` | Chatting list management |
 | `test_surveys.py` | Survey CRUD and responses |
@@ -49,7 +47,7 @@ python3 -m pytest backend/tests/unit/ --benchmark-only -v
 | `test_bug_reports.py` | Bug report submission and diagnostics consent |
 | `test_avatars.py` | Avatar serving endpoint |
 | `test_admin_locations.py` | Admin location management, soft-delete, reparenting |
-| `test_admin_categories_users.py` | Admin category creation, user ban/unban |
+| `test_admin_categories_users.py` | Admin session creation, user ban/unban |
 | `test_posts.py` | Post CRUD, voting, locking, pagination, reporting |
 | `test_comments.py` | Comment CRUD, voting, Q&A authorization, nested replies |
 | `test_notifications.py` | Notification inbox list, unread count, mark read, mark all read |
@@ -57,6 +55,7 @@ python3 -m pytest backend/tests/unit/ --benchmark-only -v
 | `test_auth_required.py` | Consolidated 401 checks for all protected endpoints (parametrized) |
 | `test_user_activity.py` | User activity feed (posts + comments, pagination, type filtering) |
 | `test_user_activity_by_id.py` | Public user activity feed by user ID (posts + comments, 404, access control) |
+| `test_sessions.py` | Session CRUD, stage gating on write endpoints |
 | `test_counter_triggers.py` | Database counter trigger validation |
 
 ## Unit Tests (`unit/`)
@@ -66,6 +65,7 @@ python3 -m pytest backend/tests/unit/ --benchmark-only -v
 | `test_pairwise_graph.py` | `pairwise_graph.py` | Graph algorithms: preference graph, transitive closure, Tarjan's SCC, ranked pairs, entropy |
 | `test_cache_headers.py` | `cache_headers.py` | HTTP date parsing, ETag generation, conditional request handling |
 | `test_auth.py` | `auth.py` | Role hierarchy, authorization, ban checking with Redis cache |
+| `test_ballot_validation.py` | `sessions_controller.py` | Ballot rank validation, candidate checks, status gating |
 | `test_presence.py` | `presence.py` | Redis presence tracking: swiping, heartbeat, batch checks, likelihoods |
 | `test_chat_availability.py` | `chat_availability.py` | Likelihood filtering, weighted random selection, notification eligibility |
 | `test_config.py` | `config.py` | Config defaults, env var overrides, Dev/Prod subclasses |
@@ -89,15 +89,21 @@ python3 -m pytest backend/tests/unit/ --benchmark-only -v
 | `test_constants.py` | `constants.py` | Shared constants validation |
 | `test_geometry.py` | `geometry.py` | Convex hull, centroid, coordinate transform helpers |
 | `test_rate_limiting.py` | `rate_limiting.py` | Redis sliding-window rate limiter |
+| `test_rcv_tally.py` | `rcv_tally.py` | Condorcet winner detection, IRV fallback, pairwise matrix, multi-winner, edge cases |
 | `test_stats_helpers.py` | `stats.py` | Opinion group computation, vote distribution helpers |
 | `test_user_mappers.py` | `user_mappers.py` | User serialization: profile, public view, admin view |
 | `test_matrix_factorization.py` | `matrix_factorization.py` | MF SGD algorithm, convergence, group recovery, Polis regularization, DB interactions |
 | `test_approval_reminder_worker.py` | `approval_reminder_worker.py` | Auto-approve reminder worker: role/rule request reminders, peer notification, deduplication |
 | `test_mf_worker.py` | `mf_worker.py` | MF worker lifecycle, advisory locks, training trigger logic |
 | `test_discuss_events.py` | `discuss_events.py` | Redis pub/sub event publishing for discuss forum |
+| `test_endorsements.py` | `sessions_controller.py` | Endorsement constants, status gating, voting round dict helper |
 | `test_notification_events.py` | `notification_events.py` | Redis pub/sub event publishing for notification inbox |
 | `test_notifications_controller.py` | `notifications_controller.py` | Cursor encoding/decoding for notification pagination |
 | `test_user_summary.py` | `user_summary.py` | User summary fetch logic for UserCard display |
+| `test_card_queue_filtering.py` | `cards_controller.py` | Card queue session filtering logic |
+| `test_proposal_context.py` | `proposal_context.py` | Proposal context gathering: wiki, glossary, Q&A, expert content assembly |
+| `test_serializers.py` | `serializers.py` | Shared serialization: user card builder, creator dict, pagination clamping |
+| `test_sessions_controller.py` | `sessions_controller.py` | Voting round row helper for sessions controller |
 
 ## Key Files
 

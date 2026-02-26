@@ -21,7 +21,6 @@ import useKeyboardHeight from '../../../hooks/useKeyboardHeight'
 import { Typography } from '../../../constants/Theme'
 import ThemedText from '../../../components/ThemedText'
 import Header from '../../../components/Header'
-import LocationCategorySelector from '../../../components/LocationCategorySelector'
 import OpinionMapVisualization from '../../../components/stats/OpinionMapVisualization'
 import GroupTabBar from '../../../components/stats/GroupTabBar'
 import PositionCarousel from '../../../components/stats/PositionCarousel'
@@ -33,7 +32,8 @@ import { SkeletonPulse, SkeletonBox, SkeletonLine } from '../../../components/Sk
 import api, { statsApiWrapper, surveysApiWrapper, API_BASE_URL, translateError } from '../../../lib/api'
 import { CacheManager, CacheKeys, CacheDurations } from '../../../lib/cache'
 import { useAuth } from '../../../contexts/UserContext'
-import { useLocationCategory } from '../../../contexts/LocationCategoryContext'
+import { useLocationSession } from '../../../contexts/LocationSessionContext'
+import { STAGE_TO_PHASE } from '../../../constants/Sessions'
 
 const CARD_MIN_WIDTH = 280
 const SEARCH_DEBOUNCE_MS = 800
@@ -97,7 +97,7 @@ export default function Stats() {
   const { t } = useTranslation('stats')
 
   const isDesktop = useIsDesktop()
-  const { selectedLocation, selectedCategory, setSelectedLocation, setSelectedCategory, loaded: prefsLoaded } = useLocationCategory()
+  const { selectedLocation, selectedSession, sessionData, effectiveStage, loaded: prefsLoaded } = useLocationSession()
   const [statsData, setStatsData] = useState(null)
   const [activeTab, setActiveTab] = useState('majority')
   const [loading, setLoading] = useState(false)
@@ -126,7 +126,7 @@ export default function Stats() {
     setMeasuredWidth(e.nativeEvent.layout.width)
   }, [])
 
-  const isSearchActive = selectedCategory === 'all' && activeTab === 'majority'
+  const isSearchActive = selectedSession === 'all' && activeTab === 'majority'
     && searchQuery.trim().length > 0 && (searchResults.length > 0 || searchLoading || searchExecuted)
 
   // Scroll the search input into view on focus
@@ -178,7 +178,7 @@ export default function Stats() {
   useEffect(() => {
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
 
-    if (!searchQuery.trim() || searchQuery.trim().length < 2 || selectedCategory !== 'all' || activeTab !== 'majority') {
+    if (!searchQuery.trim() || searchQuery.trim().length < 2 || selectedSession !== 'all' || activeTab !== 'majority') {
       setSearchResults([])
       setSearchHasMore(false)
       setSearchOffset(0)
@@ -193,18 +193,18 @@ export default function Stats() {
     return () => {
       if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
     }
-  }, [searchQuery, selectedLocation, selectedCategory, activeTab, executeSearch])
+  }, [searchQuery, selectedLocation, selectedSession, activeTab, executeSearch])
 
-  // Clear search when switching away from all-categories majority tab
+  // Clear search when switching away from all-sessions majority tab
   useEffect(() => {
-    if (selectedCategory !== 'all' || activeTab !== 'majority') {
+    if (selectedSession !== 'all' || activeTab !== 'majority') {
       setSearchQuery('')
       setSearchResults([])
       setSearchHasMore(false)
       setSearchOffset(0)
       setSearchExecuted(false)
     }
-  }, [selectedCategory, activeTab])
+  }, [selectedSession, activeTab])
 
   const loadMoreResults = useCallback(() => {
     if (searchLoading || !searchHasMore) return
@@ -221,17 +221,24 @@ export default function Stats() {
     }
   }, [isSearchActive, searchHasMore, searchLoading, loadMoreResults])
 
-  // Fetch stats when location/category changes
+  // Derive phase from effective stage (respects archived stage viewing)
+  const phase = useMemo(() => {
+    if (!selectedSession || selectedSession === 'all') return null
+    if (!effectiveStage) return null
+    return STAGE_TO_PHASE[effectiveStage] || null
+  }, [selectedSession, effectiveStage])
+
+  // Fetch stats when location/session/phase changes
   useEffect(() => {
-    if (selectedLocation && selectedCategory) {
+    if (selectedLocation && selectedSession) {
       fetchStats()
     }
-  }, [selectedLocation, selectedCategory])
+  }, [selectedLocation, selectedSession, phase])
 
   const fetchStats = async () => {
-    if (!selectedLocation || !selectedCategory) return
+    if (!selectedLocation || !selectedSession) return
 
-    const cacheKey = CacheKeys.stats(selectedLocation, selectedCategory)
+    const cacheKey = CacheKeys.stats(selectedLocation, selectedSession, phase)
 
     try {
       setError(null)
@@ -254,7 +261,7 @@ export default function Stats() {
 
         // Background refresh
         try {
-          const data = await statsApiWrapper.getStats(selectedLocation, selectedCategory)
+          const data = await statsApiWrapper.getStats(selectedLocation, selectedSession, { phase })
           setStatsData(data)
           setActiveTab('majority')
           await CacheManager.set(cacheKey, data)
@@ -267,7 +274,7 @@ export default function Stats() {
 
       // No cache — show loading, fetch normally
       setLoading(true)
-      const data = await statsApiWrapper.getStats(selectedLocation, selectedCategory)
+      const data = await statsApiWrapper.getStats(selectedLocation, selectedSession, { phase })
       setStatsData(data)
       setActiveTab('majority')
       await CacheManager.set(cacheKey, data)
@@ -281,12 +288,12 @@ export default function Stats() {
   }
 
   const onRefresh = useCallback(async () => {
-    if (!selectedLocation || !selectedCategory) return
+    if (!selectedLocation || !selectedSession) return
     setRefreshing(true)
     try {
-      const cacheKey = CacheKeys.stats(selectedLocation, selectedCategory)
+      const cacheKey = CacheKeys.stats(selectedLocation, selectedSession, phase)
       await CacheManager.invalidate(cacheKey)
-      const data = await statsApiWrapper.getStats(selectedLocation, selectedCategory)
+      const data = await statsApiWrapper.getStats(selectedLocation, selectedSession, { phase })
       setStatsData(data)
       setActiveTab('majority')
       await CacheManager.set(cacheKey, data)
@@ -297,7 +304,7 @@ export default function Stats() {
     } finally {
       setRefreshing(false)
     }
-  }, [selectedLocation, selectedCategory])
+  }, [selectedLocation, selectedSession, phase])
 
   const handleGroupSelect = (groupId) => {
     setActiveTab(groupId)
@@ -385,7 +392,7 @@ export default function Stats() {
       )
     }
 
-    if (!selectedLocation || !selectedCategory) {
+    if (!selectedLocation || !selectedSession) {
       return (
         <View style={styles.centerContainer}>
           <ThemedText variant="bodySmall" color="secondary" style={styles.placeholderText}>
@@ -494,8 +501,8 @@ export default function Stats() {
 
         {/* Positions Section */}
         <View style={styles.section} onLayout={(e) => { positionsSectionY.current = e.nativeEvent.layout.y }}>
-          {/* Search bar — shown on All Categories + majority tab, above heading */}
-          {selectedCategory === 'all' && activeTab === 'majority' && (
+          {/* Search bar — shown on All Sessions + majority tab, above heading */}
+          {selectedSession === 'all' && activeTab === 'majority' && (
             <View style={styles.searchSection}>
               <View style={styles.searchContainer}>
                 <Ionicons name="search" size={18} color={colors.secondaryText} style={styles.searchIcon} />
@@ -623,17 +630,6 @@ export default function Stats() {
           <ThemedText variant="bodySmall" color="secondary" style={styles.subtitle}>{t('subtitle')}</ThemedText>
         </View>
 
-        {/* Location/Category Selector - scrolls with content */}
-        {prefsLoaded && (
-          <LocationCategorySelector
-            selectedLocation={selectedLocation}
-            selectedCategory={selectedCategory}
-            onLocationChange={setSelectedLocation}
-            onCategoryChange={setSelectedCategory}
-            showAllCategories
-          />
-        )}
-
         {renderContent()}
       </ScrollView>
 
@@ -644,7 +640,7 @@ export default function Stats() {
         visible={showDemographicsModal}
         onClose={() => setShowDemographicsModal(false)}
         locationId={selectedLocation}
-        categoryId={selectedCategory}
+        sessionId={selectedSession}
         groupId={activeTab === 'majority' ? 'all' : activeTab}
         groupLabel={
           activeTab === 'majority'
@@ -684,7 +680,7 @@ export default function Stats() {
         visible={showSurveyResultsModal}
         onClose={() => setShowSurveyResultsModal(false)}
         locationId={selectedLocation}
-        categoryId={selectedCategory}
+        sessionId={selectedSession}
         selectedGroup={activeTab}
         groups={statsData?.groups || []}
         polisConversationId={statsData?.conversationId}

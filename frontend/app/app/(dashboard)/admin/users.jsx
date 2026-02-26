@@ -16,7 +16,7 @@ import ModerationHistoryModal from '../../../components/ModerationHistoryModal'
 import BottomDrawerModal from '../../../components/BottomDrawerModal'
 import LocationPicker from '../../../components/LocationPicker'
 import { useToast } from '../../../components/Toast'
-import { ROLE_LABEL_KEYS, getAssignableRoles, getAssignableLocations, getAssignableCategories } from '../../../lib/roles'
+import { ROLE_LABEL_KEYS, getAssignableRoles, getAssignableLocations, getAssignableSessions } from '../../../lib/roles'
 import { useUser } from '../../../hooks/useUser'
 
 export default function UsersScreen() {
@@ -42,16 +42,16 @@ export default function UsersScreen() {
   const [assignTarget, setAssignTarget] = useState(null)
   const [selectedRole, setSelectedRole] = useState(null)
   const [selectedLocation, setSelectedLocation] = useState(null)
-  const [selectedCategory, setSelectedCategory] = useState(null)
+  const [selectedSession, setSelectedSession] = useState(null)
   const [assignReason, setAssignReason] = useState('')
   const [assignSubmitting, setAssignSubmitting] = useState(false)
   const [locations, setLocations] = useState([])
-  const [categories, setCategories] = useState([])
+  const [sessions, setSessions] = useState([])
 
   // Picker modals for assign role
   const [rolePickerVisible, setRolePickerVisible] = useState(false)
   const [locationPickerVisible, setLocationPickerVisible] = useState(false)
-  const [categoryPickerVisible, setCategoryPickerVisible] = useState(false)
+  const [sessionPickerVisible, setSessionPickerVisible] = useState(false)
 
   // Ban/unban modal
   const [banModalVisible, setBanModalVisible] = useState(false)
@@ -78,30 +78,30 @@ export default function UsersScreen() {
     return () => clearTimeout(timer)
   }, [searchQuery])
 
-  // Fetch locations + categories on mount
+  // Fetch locations + sessions on mount
   useEffect(() => {
     const load = async () => {
       try {
-        const [locs, cats] = await Promise.all([
+        const [locs, sess] = await Promise.all([
           api.users.getAllLocations(),
-          api.admin.getAllCategories(),
+          api.admin.getAllSessions(),
         ])
         setLocations(locs || [])
-        setCategories(cats || [])
+        setSessions(sess || [])
       } catch {}
     }
     load()
   }, [])
 
   // Role assignment helpers
-  const CATEGORY_REQUIRED_ROLES = new Set(['assistant_moderator', 'expert', 'liaison'])
+  const SESSION_REQUIRED_ROLES = new Set(['assistant_moderator', 'expert', 'liaison'])
   const assignableRoles = useMemo(() => getAssignableRoles(currentUser), [currentUser])
   const assignableLocations = useMemo(() => getAssignableLocations(currentUser, selectedRole, locations), [currentUser, selectedRole, locations])
-  const assignableCategoryIds = useMemo(() => getAssignableCategories(currentUser, selectedRole, selectedLocation), [currentUser, selectedRole, selectedLocation])
-  const assignableCategories = useMemo(() => {
-    if (assignableCategoryIds === null) return categories
-    return categories.filter(c => assignableCategoryIds.has(c.id))
-  }, [categories, assignableCategoryIds])
+  const assignableSessionIds = useMemo(() => getAssignableSessions(currentUser, selectedRole, selectedLocation), [currentUser, selectedRole, selectedLocation])
+  const assignableSessions = useMemo(() => {
+    if (assignableSessionIds === null) return sessions
+    return sessions.filter(s => assignableSessionIds.has(s.id))
+  }, [sessions, assignableSessionIds])
 
   const allowableLocationsForPicker = useMemo(() => {
     if (!assignableLocations.length) return []
@@ -110,14 +110,14 @@ export default function UsersScreen() {
       allowedIds.has(l.parentLocationId) ? l : { ...l, parentLocationId: null })
   }, [assignableLocations])
 
-  useEffect(() => { setSelectedLocation(null); setSelectedCategory(null) }, [selectedRole])
-  useEffect(() => { setSelectedCategory(null) }, [selectedLocation])
+  useEffect(() => { setSelectedLocation(null); setSelectedSession(null) }, [selectedRole])
+  useEffect(() => { setSelectedSession(null) }, [selectedLocation])
 
   const handleAssignRole = useCallback(async () => {
     if (!selectedRole) { toast?.(t('roleRequired'), 'error'); return }
     if (!selectedLocation) { toast?.(t('locationRequired'), 'error'); return }
-    if (CATEGORY_REQUIRED_ROLES.has(selectedRole) && !selectedCategory) {
-      toast?.(t('categoryRequired'), 'error'); return
+    if (SESSION_REQUIRED_ROLES.has(selectedRole) && !selectedSession) {
+      toast?.(t('sessionRequired'), 'error'); return
     }
     setAssignSubmitting(true)
     try {
@@ -125,7 +125,7 @@ export default function UsersScreen() {
         targetUserId: assignTarget.id,
         role: selectedRole,
         locationId: selectedLocation,
-        positionCategoryId: selectedCategory || undefined,
+        sessionId: selectedSession || undefined,
         reason: assignReason || undefined,
       })
       toast?.(t('roleAssigned'), 'success')
@@ -136,13 +136,13 @@ export default function UsersScreen() {
     } finally {
       setAssignSubmitting(false)
     }
-  }, [assignTarget, selectedRole, selectedLocation, selectedCategory, assignReason, t, toast])
+  }, [assignTarget, selectedRole, selectedLocation, selectedSession, assignReason, t, toast])
 
   const resetAssignForm = () => {
     setAssignTarget(null)
     setSelectedRole(null)
     setSelectedLocation(null)
-    setSelectedCategory(null)
+    setSelectedSession(null)
     setAssignReason('')
   }
 
@@ -350,20 +350,20 @@ export default function UsersScreen() {
             <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
           </TouchableOpacity>
 
-          {selectedRole && CATEGORY_REQUIRED_ROLES.has(selectedRole) && (
+          {selectedRole && SESSION_REQUIRED_ROLES.has(selectedRole) && (
             <>
-              <ThemedText variant="label" color="secondary" style={styles.fieldLabel}>{t('selectCategory')}</ThemedText>
+              <ThemedText variant="label" color="secondary" style={styles.fieldLabel}>{t('selectSession')}</ThemedText>
               <TouchableOpacity
                 style={styles.pickerButton}
-                onPress={() => setCategoryPickerVisible(true)}
+                onPress={() => setSessionPickerVisible(true)}
                 accessibilityRole="button"
-                accessibilityLabel={t('selectCategory')}
+                accessibilityLabel={t('selectSession')}
               >
                 <Ionicons name="pricetag-outline" size={16} color={colors.secondaryText} />
                 <ThemedText variant="body" color="dark" style={styles.pickerButtonText}>
-                  {selectedCategory
-                    ? assignableCategories.find(c => c.id === selectedCategory)?.label || t('selectCategory')
-                    : t('selectCategory')}
+                  {selectedSession
+                    ? assignableSessions.find(s => s.id === selectedSession)?.label || t('selectSession')
+                    : t('selectSession')}
                 </ThemedText>
                 <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
               </TouchableOpacity>
@@ -401,13 +401,13 @@ export default function UsersScreen() {
         onClose={() => setRolePickerVisible(false)}
         title={t('selectRole')}
       >
-        <ScrollView contentContainerStyle={styles.categoryList}>
+        <ScrollView contentContainerStyle={styles.sessionList}>
           {assignableRoles.map(r => {
             const selected = selectedRole === r
             return (
               <TouchableOpacity
                 key={r}
-                style={[styles.categoryRow, selected && styles.categoryRowSelected]}
+                style={[styles.sessionRow, selected && styles.sessionRowSelected]}
                 onPress={() => { setSelectedRole(r); setRolePickerVisible(false) }}
                 accessibilityRole="button"
                 accessibilityLabel={t(ROLE_LABEL_KEYS[r])}
@@ -432,26 +432,26 @@ export default function UsersScreen() {
         onSelect={(id) => { setSelectedLocation(id); setLocationPickerVisible(false) }}
       />
 
-      {/* Category Picker Modal */}
+      {/* Session Picker Modal */}
       <BottomDrawerModal
-        visible={categoryPickerVisible}
-        onClose={() => setCategoryPickerVisible(false)}
-        title={t('selectCategory')}
+        visible={sessionPickerVisible}
+        onClose={() => setSessionPickerVisible(false)}
+        title={t('selectSession')}
       >
-        <ScrollView contentContainerStyle={styles.categoryList}>
-          {assignableCategories.map(c => {
-            const selected = selectedCategory === c.id
+        <ScrollView contentContainerStyle={styles.sessionList}>
+          {assignableSessions.map(sess => {
+            const selected = selectedSession === sess.id
             return (
               <TouchableOpacity
-                key={c.id}
-                style={[styles.categoryRow, selected && styles.categoryRowSelected]}
-                onPress={() => { setSelectedCategory(c.id); setCategoryPickerVisible(false) }}
+                key={sess.id}
+                style={[styles.sessionRow, selected && styles.sessionRowSelected]}
+                onPress={() => { setSelectedSession(sess.id); setSessionPickerVisible(false) }}
                 accessibilityRole="button"
-                accessibilityLabel={c.label}
+                accessibilityLabel={sess.label}
                 accessibilityState={{ selected }}
               >
                 <ThemedText variant="body" color={selected ? 'primary' : 'dark'}>
-                  {c.label}
+                  {sess.label}
                 </ThemedText>
                 {selected && <Ionicons name="checkmark" size={20} color={colors.primary} />}
               </TouchableOpacity>
@@ -642,11 +642,11 @@ const createStyles = (colors) => StyleSheet.create({
   pickerButtonText: {
     flex: 1,
   },
-  categoryList: {
+  sessionList: {
     padding: 16,
     paddingBottom: 40,
   },
-  categoryRow: {
+  sessionRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -655,7 +655,7 @@ const createStyles = (colors) => StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.cardBorder,
   },
-  categoryRowSelected: {
+  sessionRowSelected: {
     backgroundColor: colors.primaryLight + '20',
   },
   reasonInput: {

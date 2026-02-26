@@ -9,7 +9,7 @@ from conftest import (
     NORMAL1_ID,
     NORMAL2_ID,
     OREGON_LOCATION_ID,
-    HEALTHCARE_CAT_ID,
+    HEALTHCARE_SESSION_ID,
     db_execute,
     db_execute_returning,
     db_query_one,
@@ -582,12 +582,12 @@ class TestEditApproveVersionHistory:
 
 
 # ---------------------------------------------------------------------------
-# POST /glossary/terms, POST /wiki/pages, POST /wiki/check-create-authority
+# POST /glossary/terms, POST /wiki/pages, GET /wiki/authority
 # ---------------------------------------------------------------------------
 
 GLOSSARY_TERMS_URL = f"{BASE_URL}/glossary/terms"
 WIKI_PAGES_URL = f"{BASE_URL}/wiki/pages"
-CHECK_AUTHORITY_URL = f"{BASE_URL}/wiki/check-create-authority"
+CHECK_AUTHORITY_URL = f"{BASE_URL}/wiki/authority"
 
 
 class TestDirectCreate:
@@ -696,15 +696,15 @@ class TestDirectCreate:
         assert row["status"] == "superseded"
 
     def test_check_authority_admin_true(self, admin_headers):
-        resp = requests.post(CHECK_AUTHORITY_URL, headers=admin_headers, json={
-            "scopes": [{"type": "location", "id": OREGON_LOCATION_ID}],
+        resp = requests.get(CHECK_AUTHORITY_URL, headers=admin_headers, params={
+            "locationIds": OREGON_LOCATION_ID,
         })
         assert resp.status_code == 200
         assert resp.json()["canCreate"] is True
 
     def test_check_authority_normal_false(self, normal2_headers):
-        resp = requests.post(CHECK_AUTHORITY_URL, headers=normal2_headers, json={
-            "scopes": [{"type": "location", "id": OREGON_LOCATION_ID}],
+        resp = requests.get(CHECK_AUTHORITY_URL, headers=normal2_headers, params={
+            "locationIds": OREGON_LOCATION_ID,
         })
         assert resp.status_code == 200
         assert resp.json()["canCreate"] is False

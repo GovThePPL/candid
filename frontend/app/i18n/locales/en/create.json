@@ -10,7 +10,7 @@
   "adoptA11y": "Adopt position: {{statement}}",
   "noSimilarFound": "No similar positions found. Create your own!",
   "errorEnterStatement": "Please enter a statement",
-  "errorSelectCategory": "Please select a category",
+  "errorSelectSession": "Please select a session",
   "errorSelectLocation": "Please select a location",
   "creating": "Creating...",
   "createPosition": "Create Position",

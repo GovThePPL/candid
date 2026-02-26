@@ -1,6 +1,6 @@
 """Tests for GET /positions/{positionId}, POST /positions, POST /positions/responses,
 POST /users/me/positions, POST /positions/search,
-GET /positions/{positionId}/agreed-closures, POST /positions/search-stats."""
+GET /positions/{positionId}/agreed-closures, GET /positions/stats."""
 # Auth tests (test_unauthenticated_returns_401) live in test_auth_required.py.
 
 import pytest
@@ -11,8 +11,8 @@ from conftest import (
     POSITION2_ID,
     POSITION3_ID,
     NONEXISTENT_UUID,
-    HEALTHCARE_CAT_ID,
-    ECONOMY_CAT_ID,
+    HEALTHCARE_SESSION_ID,
+    ECONOMY_SESSION_ID,
     OREGON_LOCATION_ID,
     NORMAL1_ID,
     NORMAL2_ID,
@@ -32,7 +32,7 @@ class TestGetPositionById:
         assert resp.status_code == 200
         body = resp.json()
         assert body["id"] == POSITION1_ID
-        assert body["categoryId"] == HEALTHCARE_CAT_ID
+        assert body["sessionId"] == HEALTHCARE_SESSION_ID
         assert "statement" in body
         assert "creator" in body
 
@@ -40,7 +40,7 @@ class TestGetPositionById:
         resp = requests.get(f"{POSITIONS_URL}/{POSITION1_ID}", headers=normal_headers)
         assert resp.status_code == 200
         body = resp.json()
-        for field in ("id", "statement", "categoryId", "status", "creator"):
+        for field in ("id", "statement", "sessionId", "status", "creator"):
             assert field in body, f"Missing field: {field}"
         # Creator should be a user object
         creator = body["creator"]
@@ -67,7 +67,7 @@ class TestCreatePosition:
         (partial implementation), so we just check the status code."""
         payload = {
             "statement": "Integration test position - should be cleaned up",
-            "categoryId": HEALTHCARE_CAT_ID,
+            "sessionId": HEALTHCARE_SESSION_ID,
             "locationId": OREGON_LOCATION_ID,
         }
         resp = requests.post(POSITIONS_URL, headers=normal_headers, json=payload)
@@ -78,16 +78,16 @@ class TestCreatePosition:
         """Statement exceeding 140 chars returns 400."""
         payload = {
             "statement": "A" * 141,
-            "categoryId": HEALTHCARE_CAT_ID,
+            "sessionId": HEALTHCARE_SESSION_ID,
             "locationId": OREGON_LOCATION_ID,
         }
         resp = requests.post(POSITIONS_URL, headers=normal_headers, json=payload)
         assert resp.status_code == 400
 
-    def test_missing_category_400(self, normal_headers):
-        """Omitting categoryId returns 400."""
+    def test_missing_session_400(self, normal_headers):
+        """Omitting sessionId returns 400."""
         payload = {
-            "statement": "This position has no category assigned to it at all",
+            "statement": "This position has no session assigned to it at all",
             "locationId": OREGON_LOCATION_ID,
         }
         resp = requests.post(POSITIONS_URL, headers=normal_headers, json=payload)
@@ -97,7 +97,7 @@ class TestCreatePosition:
         """Omitting locationId returns 400."""
         payload = {
             "statement": "This position has no location assigned to it ever",
-            "categoryId": HEALTHCARE_CAT_ID,
+            "sessionId": HEALTHCARE_SESSION_ID,
         }
         resp = requests.post(POSITIONS_URL, headers=normal_headers, json=payload)
         assert resp.status_code == 400
@@ -105,21 +105,21 @@ class TestCreatePosition:
     def test_missing_statement_400(self, normal_headers):
         """Omitting statement returns 400."""
         payload = {
-            "categoryId": HEALTHCARE_CAT_ID,
+            "sessionId": HEALTHCARE_SESSION_ID,
             "locationId": OREGON_LOCATION_ID,
         }
         resp = requests.post(POSITIONS_URL, headers=normal_headers, json=payload)
         assert resp.status_code == 400
 
-    def test_invalid_category_accepted(self, normal_headers):
-        """Nonexistent categoryId — API does not FK-validate categories."""
+    def test_invalid_session_accepted(self, normal_headers):
+        """Nonexistent sessionId — API does not FK-validate sessions."""
         payload = {
-            "statement": "Position with a nonexistent category",
-            "categoryId": NONEXISTENT_UUID,
+            "statement": "Position with a nonexistent session",
+            "sessionId": NONEXISTENT_UUID,
             "locationId": OREGON_LOCATION_ID,
         }
         resp = requests.post(POSITIONS_URL, headers=normal_headers, json=payload)
-        # API accepts any UUID for category; no FK constraint check
+        # API accepts any UUID for session; no FK constraint check
         assert resp.status_code in (201, 400, 404, 500)
 
 
@@ -276,14 +276,14 @@ class TestSearchSimilarPositions:
         else:
             assert resp.status_code in (500, 503)
 
-    def test_search_with_category_filter(self, normal_headers):
-        """Search with categoryId parameter returns filtered results."""
+    def test_search_with_session_filter(self, normal_headers):
+        """Search with sessionId parameter returns filtered results."""
         resp = requests.post(
             f"{POSITIONS_URL}/search",
             headers=normal_headers,
             json={
                 "statement": "Universal healthcare should be a fundamental right for everyone",
-                "categoryId": HEALTHCARE_CAT_ID,
+                "sessionId": HEALTHCARE_SESSION_ID,
             },
         )
         if resp.status_code == 200:
@@ -400,16 +400,16 @@ class TestGetPositionAgreedClosures:
 
 
 class TestSearchStatsPositions:
-    """POST /positions/search-stats"""
+    """GET /positions/stats"""
 
-    SEARCH_URL = f"{POSITIONS_URL}/search-stats"
+    SEARCH_URL = f"{POSITIONS_URL}/stats"
 
     def test_short_query_uses_text_search(self, normal_headers):
         """Short query (< 3 words) uses text search, matches by substring."""
-        resp = requests.post(
+        resp = requests.get(
             self.SEARCH_URL,
             headers=normal_headers,
-            json={"query": "healthcare", "locationId": OREGON_LOCATION_ID},
+            params={"query": "healthcare", "locationId": OREGON_LOCATION_ID},
         )
         assert resp.status_code == 200
         body = resp.json()
@@ -422,10 +422,10 @@ class TestSearchStatsPositions:
 
     def test_result_shape(self, normal_headers):
         """Results have GroupPosition-compatible fields."""
-        resp = requests.post(
+        resp = requests.get(
             self.SEARCH_URL,
             headers=normal_headers,
-            json={"query": "healthcare", "locationId": OREGON_LOCATION_ID},
+            params={"query": "healthcare", "locationId": OREGON_LOCATION_ID},
         )
         assert resp.status_code == 200
         pos = resp.json()["results"][0]
@@ -439,10 +439,10 @@ class TestSearchStatsPositions:
 
     def test_no_matches_returns_empty(self, normal_headers):
         """Query with no matches returns empty results."""
-        resp = requests.post(
+        resp = requests.get(
             self.SEARCH_URL,
             headers=normal_headers,
-            json={"query": "xyznonexistent", "locationId": OREGON_LOCATION_ID},
+            params={"query": "xyznonexistent", "locationId": OREGON_LOCATION_ID},
         )
         assert resp.status_code == 200
         body = resp.json()
@@ -451,11 +451,11 @@ class TestSearchStatsPositions:
 
     def test_long_query_uses_semantic_search(self, normal_headers):
         """Long query (>= 3 words) tries semantic search (or falls back to text)."""
-        resp = requests.post(
+        resp = requests.get(
             self.SEARCH_URL,
             headers=normal_headers,
-            json={"query": "government run healthcare systems",
-                   "locationId": OREGON_LOCATION_ID},
+            params={"query": "government run healthcare systems",
+                    "locationId": OREGON_LOCATION_ID},
         )
         assert resp.status_code == 200
         body = resp.json()
@@ -464,29 +464,29 @@ class TestSearchStatsPositions:
 
     def test_query_too_short_400(self, normal_headers):
         """Query shorter than 2 chars returns 400."""
-        resp = requests.post(
+        resp = requests.get(
             self.SEARCH_URL,
             headers=normal_headers,
-            json={"query": "x", "locationId": OREGON_LOCATION_ID},
+            params={"query": "x", "locationId": OREGON_LOCATION_ID},
         )
         assert resp.status_code == 400
 
     def test_missing_location_400(self, normal_headers):
         """Missing locationId returns 400."""
-        resp = requests.post(
+        resp = requests.get(
             self.SEARCH_URL,
             headers=normal_headers,
-            json={"query": "healthcare"},
+            params={"query": "healthcare"},
         )
         assert resp.status_code == 400
 
     def test_pagination(self, normal_headers):
         """Limit and offset parameters work."""
-        resp = requests.post(
+        resp = requests.get(
             self.SEARCH_URL,
             headers=normal_headers,
-            json={"query": "should", "locationId": OREGON_LOCATION_ID,
-                   "limit": 2, "offset": 0},
+            params={"query": "should", "locationId": OREGON_LOCATION_ID,
+                    "limit": 2, "offset": 0},
         )
         assert resp.status_code == 200
         body = resp.json()

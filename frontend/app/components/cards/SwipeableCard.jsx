@@ -45,6 +45,8 @@ const SwipeableCard = forwardRef(function SwipeableCard({
   rightSwipeAsKudos = false,
   // When true, left swipe shows Pass overlay (gray) instead of Disagree (red/X)
   leftSwipeAsPass = false,
+  // When true, all swipe directions use gray overlay + "Archived" text (read-only viewing)
+  archivedMode = false,
   // Custom label for right swipe text overlay (only used when rightSwipeAsSubmit is true)
   rightSwipeLabel,
   // Custom label for left/down pass text overlay (only used when leftSwipeAsPass is true)
@@ -89,6 +91,7 @@ const SwipeableCard = forwardRef(function SwipeableCard({
   const flagSubmit = useSharedValue(rightSwipeAsSubmit ? 1 : 0)
   const flagKudos = useSharedValue(rightSwipeAsKudos ? 1 : 0)
   const flagPassLeft = useSharedValue(leftSwipeAsPass ? 1 : 0)
+  const flagArchived = useSharedValue(archivedMode ? 1 : 0)
   const flagVertical = useSharedValue(enableVerticalSwipe ? 1 : 0)
   const hasUp = useSharedValue(onSwipeUp ? 1 : 0)
   const hasLeft = useSharedValue(onSwipeLeft ? 1 : 0)
@@ -98,11 +101,12 @@ const SwipeableCard = forwardRef(function SwipeableCard({
     flagSubmit.value = rightSwipeAsSubmit ? 1 : 0
     flagKudos.value = rightSwipeAsKudos ? 1 : 0
     flagPassLeft.value = leftSwipeAsPass ? 1 : 0
+    flagArchived.value = archivedMode ? 1 : 0
     flagVertical.value = enableVerticalSwipe ? 1 : 0
     hasUp.value = onSwipeUp ? 1 : 0
     hasLeft.value = onSwipeLeft ? 1 : 0
     hasDown.value = onSwipeDown ? 1 : 0
-  }, [rightSwipeAsChatAccept, rightSwipeAsSubmit, rightSwipeAsKudos, leftSwipeAsPass, enableVerticalSwipe, !!onSwipeUp, !!onSwipeLeft, !!onSwipeDown])
+  }, [rightSwipeAsChatAccept, rightSwipeAsSubmit, rightSwipeAsKudos, leftSwipeAsPass, archivedMode, enableVerticalSwipe, !!onSwipeUp, !!onSwipeLeft, !!onSwipeDown])
 
   // Stable refs for JS callbacks (accessed by swipeOffScreen on JS thread)
   const onSwipeRightRef = useRef(onSwipeRight)
@@ -157,8 +161,18 @@ const SwipeableCard = forwardRef(function SwipeableCard({
   }, [resetAll])
 
   // Expose swipe methods for keyboard control (with overlay animation)
+  // Shared imperative animation for archived mode (gray + pass text)
+  const animateArchived = (direction) => {
+    grayOverlay.value = withTiming(0.4, { duration: 150 }, (finished) => {
+      if (finished) runOnJS(swipeOffScreen)(direction)
+    })
+    passO.value = withTiming(1, { duration: 150 })
+    passS.value = withSpring(1, { damping: 15, stiffness: 100 })
+  }
+
   useImperativeHandle(ref, () => ({
     swipeRight: () => {
+      if (archivedMode) { animateArchived('right'); return }
       if (rightSwipeAsChatAccept) {
         yellowOverlay.value = withTiming(0.4, { duration: 150 }, (finished) => {
           if (finished) runOnJS(swipeOffScreen)('right')
@@ -186,6 +200,7 @@ const SwipeableCard = forwardRef(function SwipeableCard({
       }
     },
     swipeLeft: () => {
+      if (archivedMode) { animateArchived('left'); return }
       if (leftSwipeAsPass) {
         grayOverlay.value = withTiming(0.4, { duration: 150 }, (finished) => {
           if (finished) runOnJS(swipeOffScreen)('left')
@@ -201,6 +216,7 @@ const SwipeableCard = forwardRef(function SwipeableCard({
       }
     },
     swipeUp: () => {
+      if (archivedMode) { animateArchived('up'); return }
       yellowOverlay.value = withTiming(0.4, { duration: 150 }, (finished) => {
         if (finished) runOnJS(swipeOffScreen)('up')
       })
@@ -208,6 +224,7 @@ const SwipeableCard = forwardRef(function SwipeableCard({
       chatS.value = withSpring(1, { damping: 15, stiffness: 100 })
     },
     swipeDown: () => {
+      if (archivedMode) { animateArchived('down'); return }
       grayOverlay.value = withTiming(0.4, { duration: 150 }, (finished) => {
         if (finished) runOnJS(swipeOffScreen)('down')
       })
@@ -215,13 +232,14 @@ const SwipeableCard = forwardRef(function SwipeableCard({
       passS.value = withSpring(1, { damping: 15, stiffness: 100 })
     },
     swipeRightWithPlus: () => {
+      if (archivedMode) { animateArchived('right'); return }
       greenOverlay.value = withTiming(0.4, { duration: 200 }, (finished) => {
         if (finished) runOnJS(swipeOffScreen)('right')
       })
       plusO.value = withTiming(1, { duration: 200 })
       plusS.value = withSpring(1, { damping: 15, stiffness: 100 })
     },
-  }), [swipeOffScreen, rightSwipeAsChatAccept, rightSwipeAsSubmit, rightSwipeAsKudos, leftSwipeAsPass])
+  }), [swipeOffScreen, archivedMode, rightSwipeAsChatAccept, rightSwipeAsSubmit, rightSwipeAsKudos, leftSwipeAsPass])
 
   // Pan gesture — runs entirely on UI thread for smooth 60fps tracking
   const panGesture = Gesture.Pan()
@@ -261,7 +279,18 @@ const SwipeableCard = forwardRef(function SwipeableCard({
       let chkOV = 0, chkSV = 0.5, xOV = 0, xSV = 0.5, pOV = 0, pSV = 0.5
       let chatOV = 0, chatSV = 0.5, subOV = 0, subSV = 0.5, starOV = 0, starSV = 0.5
 
-      if (isHorizontal) {
+      if (flagArchived.value) {
+        // Archived mode: all directions use gray overlay + pass text
+        if (isHorizontal) {
+          grVal = horizontalProgress * 0.4
+          pOV = horizontalProgress; pSV = 0.5 + horizontalProgress * 0.5
+        } else if (canSwipeVertically) {
+          if ((e.translationY > 0 && canSwipeDown) || (e.translationY < 0 && canSwipeUp)) {
+            grVal = verticalProgress * 0.4
+            pOV = verticalProgress; pSV = 0.5 + verticalProgress * 0.5
+          }
+        }
+      } else if (isHorizontal) {
         if (e.translationX > 0) {
           if (flagChatAccept.value) {
             yVal = horizontalProgress * 0.4
@@ -441,9 +470,9 @@ const SwipeableCard = forwardRef(function SwipeableCard({
           <Animated.View style={[styles.iconOverlay, xStyle]}>
             <Ionicons name="close" size={120} color="#fff" />
           </Animated.View>
-          {/* Pass text overlay for down swipe */}
+          {/* Pass/Archived text overlay for down swipe or archived mode */}
           <Animated.View style={[styles.iconOverlay, passAnimStyle]}>
-            <ThemedText variant="overlay" color="inverse">{leftSwipeLabel || t('swipePass')}</ThemedText>
+            <ThemedText variant="overlay" color="inverse">{archivedMode ? t('swipeArchived') : (leftSwipeLabel || t('swipePass'))}</ThemedText>
           </Animated.View>
           {/* Chat icon overlay for up swipe */}
           <Animated.View style={[styles.iconOverlay, chatAnimStyle]}>

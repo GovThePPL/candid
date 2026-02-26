@@ -9,7 +9,7 @@ import HighlightedText from '../HighlightedText'
 import SwipeableCard from './SwipeableCard'
 import CardShell from '../CardShell'
 import UserCard from '../UserCard'
-import LocationCategoryBadge from '../LocationCategoryBadge'
+import LocationSessionBadge from '../LocationSessionBadge'
 
 const PositionCard = forwardRef(function PositionCard({
   position,
@@ -28,11 +28,12 @@ const PositionCard = forwardRef(function PositionCard({
   onRemoveFromChattingList,
   onAddToChattingList,
   onTermPress,
+  disabled = false,
 }, ref) {
   const { t } = useTranslation('cards')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
-  const { statement, category, location, creator: author } = position
+  const { statement, session, location, creator: author } = position
 
   return (
     <SwipeableCard
@@ -43,35 +44,38 @@ const PositionCard = forwardRef(function PositionCard({
       onSwipeDown={onPass}
       isBackCard={isBackCard}
       backCardAnimatedValue={backCardAnimatedValue}
+      archivedMode={disabled}
       accessibilityLabel={t('positionA11yLabel', { name: author?.displayName || t('anonymous'), statement })}
-      accessibilityHint={t('positionA11yHint')}
+      accessibilityHint={disabled ? t('archivedA11yHint') : t('positionA11yHint')}
     >
       <CardShell size="full" bodyStyle={styles.card}>
         {/* Header */}
         <View style={styles.header}>
-          <LocationCategoryBadge location={location} category={category} size="lg" />
+          <LocationSessionBadge location={location} session={session} size="lg" />
           <View style={styles.headerRight}>
             {author?.fastResponder && (
               <View style={styles.fastResponderBadge}>
                 <Ionicons name="flash" size={18} color={colors.chat} />
               </View>
             )}
-            <TouchableOpacity
-              onPress={isFromChattingList ? onRemoveFromChattingList : onAddToChattingList}
-              style={[
-                styles.chattingListButton,
-                isFromChattingList ? styles.chattingListButtonSelected : styles.chattingListButtonUnselected
-              ]}
-              accessibilityLabel={isFromChattingList ? t('positionRemoveFromList') : t('positionAddToList')}
-              accessibilityRole="button"
-            >
-              <Ionicons
-                name={isFromChattingList ? "chatbubbles" : "chatbubbles-outline"}
-                size={20}
-                color={isFromChattingList ? '#FFFFFF' : colors.primary}
-              />
-              {hasPendingRequests && <View style={styles.pendingDot} />}
-            </TouchableOpacity>
+            {(onAddToChattingList || onRemoveFromChattingList) && (
+              <TouchableOpacity
+                onPress={isFromChattingList ? onRemoveFromChattingList : onAddToChattingList}
+                style={[
+                  styles.chattingListButton,
+                  isFromChattingList ? styles.chattingListButtonSelected : styles.chattingListButtonUnselected
+                ]}
+                accessibilityLabel={isFromChattingList ? t('positionRemoveFromList') : t('positionAddToList')}
+                accessibilityRole="button"
+              >
+                <Ionicons
+                  name={isFromChattingList ? "chatbubbles" : "chatbubbles-outline"}
+                  size={20}
+                  color={isFromChattingList ? '#FFFFFF' : colors.primary}
+                />
+                {hasPendingRequests && <View style={styles.pendingDot} />}
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -85,14 +89,19 @@ const PositionCard = forwardRef(function PositionCard({
           <ThemedText variant="label" color="secondary" style={styles.availabilityNone}>{t('positionNoUsers')}</ThemedText>
         )}
 
+        {/* Archived label */}
+        {disabled && (
+          <ThemedText variant="label" color="secondary" style={styles.archivedLabel}>{t('archivedStageLabel')}</ThemedText>
+        )}
+
         {/* Footer */}
-        <View style={styles.footer}>
+        <View style={[styles.footer, disabled && styles.footerDisabled]}>
           {canModerate ? (
-            <TouchableOpacity onPress={onModerate} style={[styles.iconButton, styles.flagButton]} accessibilityLabel={t('positionModerate')} accessibilityRole="button">
+            <TouchableOpacity onPress={onModerate} style={[styles.iconButton, styles.flagButton]} accessibilityLabel={t('positionModerate')} accessibilityRole="button" disabled={disabled}>
               <Ionicons name="shield-outline" size={22} color="#E57373" />
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity onPress={onReport} style={[styles.iconButton, styles.flagButton]} accessibilityLabel={t('positionReport')} accessibilityRole="button">
+            <TouchableOpacity onPress={onReport} style={[styles.iconButton, styles.flagButton]} accessibilityLabel={t('positionReport')} accessibilityRole="button" disabled={disabled}>
               <Ionicons name="flag-outline" size={22} color="#E57373" />
             </TouchableOpacity>
           )}
@@ -103,7 +112,7 @@ const PositionCard = forwardRef(function PositionCard({
             </View>
           </View>
 
-          <TouchableOpacity onPress={onAddPosition} style={[styles.iconButton, styles.addButton]} accessibilityLabel={t('positionAdd')} accessibilityRole="button">
+          <TouchableOpacity onPress={onAddPosition} style={[styles.iconButton, styles.addButton]} accessibilityLabel={t('positionAdd')} accessibilityRole="button" disabled={disabled}>
             <Ionicons name="add-circle-outline" size={26} color="#81C784" />
           </TouchableOpacity>
         </View>
@@ -169,6 +178,12 @@ const createStyles = (colors) => StyleSheet.create({
     textAlign: 'center',
     marginBottom: 8,
   },
+  archivedLabel: {
+    fontWeight: '600',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
   footer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -176,6 +191,9 @@ const createStyles = (colors) => StyleSheet.create({
     paddingTop: 16,
     borderTopWidth: 1,
     borderTopColor: colors.cardBorder,
+  },
+  footerDisabled: {
+    opacity: 0.4,
   },
   footerCenter: {
     flex: 1,

@@ -7,7 +7,7 @@
 
 import * as AuthSession from 'expo-auth-session'
 import * as WebBrowser from 'expo-web-browser'
-import AsyncStorage from '@react-native-async-storage/async-storage'
+import { getSecureItem, setSecureItem, deleteSecureItem } from './secureStorage'
 
 // Complete the auth session when returning from the browser
 WebBrowser.maybeCompleteAuthSession()
@@ -58,7 +58,7 @@ export async function loginWithCredentials(username, password) {
   const data = await response.json()
 
   if (data.refresh_token) {
-    await AsyncStorage.setItem(REFRESH_TOKEN_KEY, data.refresh_token)
+    await setSecureItem(REFRESH_TOKEN_KEY, data.refresh_token)
   }
 
   return {
@@ -102,7 +102,7 @@ export async function login() {
 
   // Store refresh token for later use
   if (tokenResponse.refreshToken) {
-    await AsyncStorage.setItem(REFRESH_TOKEN_KEY, tokenResponse.refreshToken)
+    await setSecureItem(REFRESH_TOKEN_KEY, tokenResponse.refreshToken)
   }
 
   return {
@@ -149,7 +149,7 @@ export async function register() {
   )
 
   if (tokenResponse.refreshToken) {
-    await AsyncStorage.setItem(REFRESH_TOKEN_KEY, tokenResponse.refreshToken)
+    await setSecureItem(REFRESH_TOKEN_KEY, tokenResponse.refreshToken)
   }
 
   return {
@@ -165,7 +165,7 @@ export async function register() {
  *   Returns new tokens or null if refresh is not possible.
  */
 export async function refreshToken() {
-  const storedRefreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY)
+  const storedRefreshToken = await getSecureItem(REFRESH_TOKEN_KEY)
   if (!storedRefreshToken) {
     return null
   }
@@ -181,7 +181,7 @@ export async function refreshToken() {
 
     // Update stored refresh token (Keycloak may rotate it)
     if (tokenResponse.refreshToken) {
-      await AsyncStorage.setItem(REFRESH_TOKEN_KEY, tokenResponse.refreshToken)
+      await setSecureItem(REFRESH_TOKEN_KEY, tokenResponse.refreshToken)
     }
 
     return {
@@ -191,7 +191,7 @@ export async function refreshToken() {
   } catch (error) {
     console.warn('[Keycloak] Token refresh failed:', error.message)
     // Clear invalid refresh token
-    await AsyncStorage.removeItem(REFRESH_TOKEN_KEY)
+    await deleteSecureItem(REFRESH_TOKEN_KEY)
     return null
   }
 }
@@ -200,8 +200,8 @@ export async function refreshToken() {
  * Log out by ending the Keycloak session and clearing local tokens.
  */
 export async function logout() {
-  const storedRefreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY)
-  await AsyncStorage.removeItem(REFRESH_TOKEN_KEY)
+  const storedRefreshToken = await getSecureItem(REFRESH_TOKEN_KEY)
+  await deleteSecureItem(REFRESH_TOKEN_KEY)
 
   // End the Keycloak session (best-effort)
   // May return 400 if the refresh token is already expired — that's fine,

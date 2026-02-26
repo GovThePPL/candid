@@ -18,8 +18,8 @@ from conftest import (
     SURVEY_OPTION_1_ID,
     SURVEY_OPTION_2_ID,
     NONEXISTENT_UUID,
-    HEALTHCARE_CAT_ID,
-    EDUCATION_CAT_ID,
+    HEALTHCARE_SESSION_ID,
+    EDUCATION_SESSION_ID,
     NORMAL2_ID,
     NORMAL3_ID,
 )
@@ -213,7 +213,7 @@ class TestAdminCreateSurvey:
             headers=admin_headers,
             json={
                 "surveyTitle": "Test Survey",
-                "positionCategoryId": HEALTHCARE_CAT_ID,
+                "sessionId": HEALTHCARE_SESSION_ID,
                 "startTime": "2025-01-01T00:00:00Z",
                 "endTime": "2025-12-31T23:59:59Z",
                 "questions": [

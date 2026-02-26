@@ -167,9 +167,9 @@ export default function usePositionManagement() {
   }, [user?.id, fetchMyPositions])
 
   // Create a new position (returns { success, error })
-  const createPosition = useCallback(async (statement, categoryId, locationId) => {
+  const createPosition = useCallback(async (statement, sessionId, locationId) => {
     try {
-      await api.positions.create(statement, categoryId, locationId)
+      await api.positions.create(statement, sessionId, locationId)
       if (user?.id) await CacheManager.invalidate(CacheKeys.userPositions(user.id))
       await fetchMyPositions()
       return { success: true }
@@ -240,8 +240,8 @@ export default function usePositionManagement() {
       isActive: p.status === 'active',
       locationName: p.locationName || t('unknownLocation'),
       locationCode: p.locationCode || '',
-      categoryName: p.categoryName || t('uncategorized'),
-      categoryId: p.categoryId,
+      sessionName: p.sessionName || t('uncategorized'),
+      sessionId: p.sessionId,
     })),
     [myPositions]
   )
@@ -253,8 +253,8 @@ export default function usePositionManagement() {
       isActive: item.isActive,
       locationName: item.position?.location?.name || t('unknownLocation'),
       locationCode: item.position?.location?.code || '',
-      categoryName: item.position?.category?.label || t('uncategorized'),
-      categoryId: item.position?.categoryId,
+      sessionName: item.position?.session?.label || t('uncategorized'),
+      sessionId: item.position?.sessionId,
       meta: item.pendingRequestCount > 0 ? t('pendingCount', { count: item.pendingRequestCount }) : undefined,
     })),
     [chattingList]

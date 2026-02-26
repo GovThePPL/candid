@@ -30,7 +30,7 @@ const mockUser = {
   displayName: 'TestUser',
   username: 'testuser',
   kudosCount: 5,
-  roles: [{ role: 'admin', locationId: 1, locationCode: 'US', categoryLabel: null }],
+  roles: [{ role: 'admin', locationId: 1, locationCode: 'US', sessionLabel: null }],
 }
 
 jest.mock('../../contexts/UserContext', () => ({
@@ -40,7 +40,7 @@ jest.mock('../../contexts/UserContext', () => ({
       displayName: 'TestUser',
       username: 'testuser',
       kudosCount: 5,
-      roles: [{ role: 'admin', locationId: 1, locationCode: 'US', categoryLabel: null }],
+      roles: [{ role: 'admin', locationId: 1, locationCode: 'US', sessionLabel: null }],
     },
     logout: jest.fn(),
     pendingChatRequest: null,
@@ -54,7 +54,7 @@ jest.mock('../../contexts/UserContext', () => ({
       displayName: 'TestUser',
       username: 'testuser',
       kudosCount: 5,
-      roles: [{ role: 'admin', locationId: 1, locationCode: 'US', categoryLabel: null }],
+      roles: [{ role: 'admin', locationId: 1, locationCode: 'US', sessionLabel: null }],
     },
     logout: jest.fn(),
     isBanned: false,
@@ -111,8 +111,8 @@ jest.mock('../../components/ChatRequestIndicator', () => {
 })
 jest.mock('../../components/discuss/RoleBadge', () => {
   const { Text } = require('react-native')
-  return ({ role, location, category }) => (
-    <Text testID="role-badge">{[location, category, role].filter(Boolean).join(' · ')}</Text>
+  return ({ role, location, session }) => (
+    <Text testID="role-badge">{[location, session, role].filter(Boolean).join(' · ')}</Text>
   )
 })
 

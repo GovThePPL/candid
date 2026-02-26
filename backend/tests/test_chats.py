@@ -36,7 +36,7 @@ def chat_log_url(chat_id):
 
 
 def user_chats_url(user_id):
-    return f"{BASE_URL}/chats/user/{user_id}"
+    return f"{BASE_URL}/users/{user_id}/chats"
 
 
 def kudos_url(chat_id):
@@ -516,7 +516,7 @@ class TestChatLogCacheHeaders:
 
 
 class TestGetUserChats:
-    """GET /chats/user/{userId}"""
+    """GET /users/{userId}/chats"""
 
     @pytest.mark.smoke
     def test_get_own_chats_returns_list(self, normal_headers):
@@ -1195,12 +1195,12 @@ class TestChatRequestNotificationTiming:
 # ---------------------------------------------------------------------------
 
 class TestGetUserChatsMetadata:
-    """GET /chats/user/{userId}/metadata"""
+    """GET /users/{userId}/chats/metadata"""
 
     def test_get_metadata_success(self, normal_headers):
         """User can get their own chat metadata."""
         resp = requests.get(
-            f"{BASE_URL}/chats/user/{NORMAL1_ID}/metadata",
+            f"{BASE_URL}/users/{NORMAL1_ID}/chats/metadata",
             headers=normal_headers,
         )
         assert resp.status_code == 200
@@ -1212,7 +1212,7 @@ class TestGetUserChatsMetadata:
     def test_other_user_forbidden(self, normal_headers):
         """Normal user cannot view another user's chat metadata."""
         resp = requests.get(
-            f"{BASE_URL}/chats/user/{NORMAL2_ID}/metadata",
+            f"{BASE_URL}/users/{NORMAL2_ID}/chats/metadata",
             headers=normal_headers,
         )
         # Controller returns 403 but Connexion may produce 500 due to serialization
@@ -1221,7 +1221,7 @@ class TestGetUserChatsMetadata:
     def test_admin_can_view_own(self, admin_headers):
         """Admin can view their own chat metadata."""
         resp = requests.get(
-            f"{BASE_URL}/chats/user/{ADMIN1_ID}/metadata",
+            f"{BASE_URL}/users/{ADMIN1_ID}/chats/metadata",
             headers=admin_headers,
         )
         assert resp.status_code == 200

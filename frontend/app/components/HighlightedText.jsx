@@ -30,7 +30,7 @@ function resolveColor(colorName, colors) {
  * @param {Object} props - All ThemedText props plus:
  * @param {boolean} [props.highlightTerms=true] - Enable/disable glossary highlighting
  * @param {Function} [props.onTermPress] - Called with term slug when tapped
- * @param {string} [props.categoryId] - Filter terms to this category context
+ * @param {string} [props.sessionId] - Filter terms to this session context
  */
 const HighlightedText = memo(({
   style,
@@ -41,7 +41,7 @@ const HighlightedText = memo(({
   accessibilityRole,
   highlightTerms = true,
   onTermPress,
-  categoryId,
+  sessionId,
   children,
   ...props
 }) => {
@@ -66,8 +66,8 @@ const HighlightedText = memo(({
   // Choose the appropriate pattern based on category context
   const pattern = useMemo(() => {
     if (!highlightTerms || !onTermPress) return null
-    return categoryId ? getFilteredPattern(categoryId) : matchPattern
-  }, [highlightTerms, onTermPress, categoryId, getFilteredPattern, matchPattern])
+    return sessionId ? getFilteredPattern(sessionId) : matchPattern
+  }, [highlightTerms, onTermPress, sessionId, getFilteredPattern, matchPattern])
 
   // Determine highlight color based on text color context
   const isInverse = color === 'inverse'

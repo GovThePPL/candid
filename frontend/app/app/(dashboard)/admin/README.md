@@ -7,12 +7,16 @@ Admin panel screens for organization, user, survey, and rule management. Accessi
 ```
 admin/
 ├── _layout.jsx        # Stack navigator (headerless)
-├── index.jsx          # Admin hub — role badges + menu (Organization, Request Log, Users, Surveys, Rules)
-├── organization.jsx   # Combined location hierarchy + role management — edit locations, manage categories, assign/remove roles with user cards
+├── index.jsx          # Admin hub — role badges + menu (Organization, Sessions, Request Log, Users, Rules)
+├── organization.jsx   # Combined location hierarchy + role management — edit locations, assign/remove roles with user cards
+├── sessions/
+│   ├── _layout.jsx    # Stack navigator (headerless)
+│   ├── index.jsx      # Session list — view/create sessions, advance stages
+│   └── [id].jsx       # Session detail — roles, label survey, stage advance, role assignment, surveys link
 ├── request-log.jsx    # Audit log — three tabs: Needs Review, All Requests, My Requests
 ├── users.jsx          # User management — search, view moderation history, ban/unban
-├── surveys.jsx        # Survey management — create standard (multiple choice) and pairwise (top preference) surveys
-└── rules.jsx          # Rule management — create/edit/delete community rules with severity, content type, location/category scoping
+├── surveys.jsx        # Survey management — create standard/pairwise surveys, optional sessionId pre-filter from sessions page
+└── rules.jsx          # Rule management — create/edit/delete community rules with severity, content type, location/session scoping
 ```
 
 ## Organization
@@ -21,7 +25,7 @@ The Organization page merges the former separate Locations and Roles pages into 
 
 - **Location hierarchy** is the primary structure, with depth communicated through typography (h2 → h3 → label) rather than indentation
 - **Role holders** are displayed inline at each location as rich user cards (avatar with trust badge, display name, @username, role badge)
-- **Per-location actions**: assign role, manage categories, add child location, edit, delete
+- **Per-location actions**: assign role, add child location, edit, delete
 - The user's highest-role location is expanded by default; all others collapsed
 
 ## Request Log
@@ -39,7 +43,7 @@ Status-aware cards show requester, reviewer, timestamps, denial reasons, and aut
 Community rule management with the same peer-approval workflow as role assignments:
 
 - **List view** with filters: location, status (active/inactive/all), content type (position/chat/post/comment)
-- **Rule cards** display severity badge (color-coded 1-5), status badge, location/category scope, content type chips, and title/description
-- **Create/Edit form** with severity picker, content type multi-select, location/category pickers, sentencing guidelines, and change reason
+- **Rule cards** display severity badge (color-coded 1-5), status badge, location/session scope, content type chips, and title/description
+- **Create/Edit form** with severity picker, content type multi-select, location/session pickers, sentencing guidelines, and change reason
 - **Delete** submits a deletion request through the peer-approval workflow
-- Access control via `canManageRuleScope` — rules use the same location/category authority model as roles
+- Access control via `canManageRuleScope` — rules use the same location/session authority model as roles

@@ -10,11 +10,14 @@ import { hapticTap, hapticSuccess } from '../lib/haptics'
  * Hook for paginated post feed with sort and filter support.
  *
  * @param {string} locationId - Current location ID
- * @param {string} categoryId - Current category ID (or 'all')
+ * @param {string} sessionId - Current session ID (or 'all')
  * @param {string} postType - 'discussion' or 'question'
+ * @param {object} [options] - Additional options
+ * @param {string} [options.phase] - Major phase filter (proposal, opinion, reflection, consensus)
+ * @param {string} [options.effectiveStage] - Current effective stage for pin operations
  * @returns {object} Feed state and controls
  */
-export default function usePostsFeed(locationId, categoryId, postType) {
+export default function usePostsFeed(locationId, sessionId, postType, { phase, effectiveStage } = {}) {
   const { t } = useTranslation('discuss')
   const showToast = useToast()
   useEffect(() => { initNativeSounds() }, [])
@@ -43,11 +46,12 @@ export default function usePostsFeed(locationId, categoryId, postType) {
 
     try {
       const result = await api.posts.getPosts(locationId, {
-        categoryId,
+        sessionId,
         postType,
         sort,
         limit: 25,
         answered: answeredFilter,
+        phase,
       })
 
       // Stale request guard
@@ -66,7 +70,7 @@ export default function usePostsFeed(locationId, categoryId, postType) {
         setRefreshing(false)
       }
     }
-  }, [locationId, categoryId, postType, sort, answeredFilter])
+  }, [locationId, sessionId, postType, sort, answeredFilter, phase])
 
   const loadMore = useCallback(async () => {
     if (!cursorRef.current || loadingMore || !hasMore) return
@@ -74,12 +78,13 @@ export default function usePostsFeed(locationId, categoryId, postType) {
     setLoadingMore(true)
     try {
       const result = await api.posts.getPosts(locationId, {
-        categoryId,
+        sessionId,
         postType,
         sort,
         cursor: cursorRef.current,
         limit: 25,
         answered: answeredFilter,
+        phase,
       })
 
       setPosts(prev => [...prev, ...(result.posts || [])])
@@ -90,7 +95,7 @@ export default function usePostsFeed(locationId, categoryId, postType) {
     } finally {
       setLoadingMore(false)
     }
-  }, [locationId, categoryId, postType, sort, answeredFilter, loadingMore, hasMore])
+  }, [locationId, sessionId, postType, sort, answeredFilter, phase, loadingMore, hasMore])
 
   const handleRefresh = useCallback(() => {
     fetchPosts(true)
@@ -241,6 +246,31 @@ export default function usePostsFeed(locationId, categoryId, postType) {
     }
   }, [showToast, t])
 
+  const handlePinPost = useCallback(async (postId, pin) => {
+    // Optimistic update
+    const prevPosts = posts
+    setPosts(prev => prev.map(p =>
+      p.id === postId ? { ...p, isPinned: pin, pinnedStage: pin ? effectiveStage : null } : p
+    ))
+
+    try {
+      await api.posts.patchPost(postId, {
+        pinned: pin,
+        pinSessionId: sessionId && sessionId !== 'all' ? sessionId : undefined,
+        pinStage: pin ? effectiveStage : undefined,
+      })
+      showToast(pin ? t('pinSuccess') : t('unpinSuccess'))
+    } catch (err) {
+      // Rollback
+      setPosts(prevPosts)
+      if (err?.status === 409) {
+        showToast(t('errorPinMaxReached'))
+      } else {
+        showToast(t('errorPinFailed'))
+      }
+    }
+  }, [posts, sessionId, effectiveStage, showToast, t])
+
   // Refetch when dependencies change
   useEffect(() => {
     fetchPosts()
@@ -266,5 +296,6 @@ export default function usePostsFeed(locationId, categoryId, postType) {
     handleLockPost,
     handleUpdatePost,
     handleDeletePost,
+    handlePinPost,
   }
 }

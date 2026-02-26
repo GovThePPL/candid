@@ -47,7 +47,7 @@ const basePost = {
   userVote: null,
   creatorRole: null,
   isAnswered: null,
-  category: null,
+  session: null,
   location: null,
   creator: { id: 'u1', displayName: 'Author Name', username: 'authoruser', avatarUrl: null },
   createdTime: '2026-02-12T10:00:00Z',
@@ -105,10 +105,10 @@ describe('PostHeader', () => {
     expect(screen.getByText('This is the **markdown** body.')).toBeTruthy()
   })
 
-  it('shows category and location when present', () => {
+  it('shows session and location when present', () => {
     const post = {
       ...basePost,
-      category: { label: 'Environment' },
+      session: { label: 'Environment' },
       location: { code: 'OR', name: 'Oregon' },
     }
     render(<PostHeader {...defaultProps} post={post} />)

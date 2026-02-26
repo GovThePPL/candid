@@ -86,7 +86,7 @@ export default function ProfileScreen() {
                     key={`${r.role}-${r.locationId}-${i}`}
                     role={r.role}
                     location={r.locationCode}
-                    category={r.categoryLabel}
+                    session={r.sessionLabel}
                   />
                 ))}
               </View>
@@ -128,7 +128,7 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <Header onBack={isDesktop ? undefined : handleBack} showSettingsButton disableAvatarPress />
+      <Header onBack={isDesktop ? undefined : handleBack} showSettingsButton disableAvatarPress hideSessionBar />
 
       {/* Tab content - profile section and tab row scroll inside each tab's content */}
       <View style={styles.tabContent}>

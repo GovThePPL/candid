@@ -43,11 +43,11 @@ def position_to_card(pos: dict) -> dict:
         "avatarIconUrl": pos.get("creator_avatar_icon_url")
     }
 
-    category = None
-    if pos.get("category_name"):
-        category = {
-            "id": pos.get("category_id"),
-            "label": pos.get("category_name")
+    session = None
+    if pos.get("session_name"):
+        session = {
+            "id": pos.get("session_id"),
+            "label": pos.get("session_name")
         }
 
     location = None
@@ -62,8 +62,8 @@ def position_to_card(pos: dict) -> dict:
         "id": pos["id"],
         "creator": creator,
         "statement": pos["statement"],
-        "categoryId": pos.get("category_id"),
-        "category": category,
+        "sessionId": pos.get("session_id"),
+        "session": session,
         "location": location,
         "createdTime": pos.get("created_time"),
         "agreeCount": pos.get("agree_count", 0),
@@ -72,6 +72,7 @@ def position_to_card(pos: dict) -> dict:
         "chatCount": pos.get("chat_count", 0),
         "status": pos.get("status", "active"),
         "userPositionId": pos.get("user_position_id"),
+        "createdDuringStage": pos.get("created_during_stage"),
     }
 
     return {"type": "position", "data": data}
@@ -90,11 +91,11 @@ def chatting_list_position_to_card(pos: dict) -> dict:
         "avatarIconUrl": pos.get("creator_avatar_icon_url")
     }
 
-    category = None
-    if pos.get("category_name"):
-        category = {
-            "id": pos.get("category_id"),
-            "label": pos.get("category_name")
+    session = None
+    if pos.get("session_name"):
+        session = {
+            "id": pos.get("session_id"),
+            "label": pos.get("session_name")
         }
 
     location = None
@@ -109,8 +110,8 @@ def chatting_list_position_to_card(pos: dict) -> dict:
         "id": pos["id"],
         "creator": creator,
         "statement": pos["statement"],
-        "categoryId": pos.get("category_id"),
-        "category": category,
+        "sessionId": pos.get("session_id"),
+        "session": session,
         "location": location,
         "createdTime": pos.get("created_time"),
         "agreeCount": pos.get("agree_count", 0),
@@ -119,6 +120,7 @@ def chatting_list_position_to_card(pos: dict) -> dict:
         "chatCount": pos.get("chat_count", 0),
         "status": pos.get("status", "active"),
         "userPositionId": pos.get("user_position_id"),
+        "createdDuringStage": pos.get("created_during_stage"),
         # Chatting list specific fields
         "source": "chatting_list",
         "hasPendingRequests": pos.get("has_pending_requests", False),
@@ -176,8 +178,8 @@ def chat_request_to_card(chat_req: dict) -> dict:
         "creator": creator
     }
 
-    if chat_req.get("position_category_name"):
-        position["category"] = {"label": chat_req["position_category_name"]}
+    if chat_req.get("position_session_name"):
+        position["session"] = {"label": chat_req["position_session_name"]}
 
     if chat_req.get("position_location_code"):
         position["location"] = {
@@ -227,10 +229,10 @@ def kudos_to_card(kudos_data: dict, user_id: str) -> dict:
         "creator": position_creator
     }
 
-    if kudos_data.get("position_category_name"):
-        position["category"] = {
-            "id": str(kudos_data["position_category_id"]) if kudos_data.get("position_category_id") else None,
-            "label": kudos_data["position_category_name"]
+    if kudos_data.get("position_session_name"):
+        position["session"] = {
+            "id": str(kudos_data["position_session_id"]) if kudos_data.get("position_session_id") else None,
+            "label": kudos_data["position_session_name"]
         }
 
     if kudos_data.get("position_location_code"):

@@ -1,0 +1,83 @@
+{
+  "session_name": "Winter 2025-26",
+  "location_code": "TRAV",
+  "target_stage": "proposal_qualify",
+  "topic_vocabulary": {
+    "topic_noun": ["energy grid", "power infrastructure", "grid reliability"],
+    "topic_adj": ["energy", "grid-related", "power infrastructure"],
+    "location_name": ["Texas", "the Travis County area"],
+    "stakeholder": ["ERCOT", "utility companies", "homeowners", "power plant operators", "state regulators"],
+    "specific_issue": ["grid winterization", "ERCOT independence", "energy bill spikes", "power outage preparedness"],
+    "policy_example": ["Senate Bill 3 weatherization requirements", "ERCOT market reforms", "federal grid interconnection proposals"],
+    "data_point": ["246 deaths attributed to 2021 Winter Storm Uri", "TX ratepayers face $16B in securitized storm costs"]
+  },
+  "positions": {
+    "proposal_issue": [
+      {"type": "anchor", "statement": "Texas should invest in winterizing its power grid even if it raises energy bills.",
+       "votes": [1, 1, 1, 1, 1, 1, 0, 0, 0, -1]},
+      {"type": "anchor", "statement": "ERCOT should remain independent from the national grid to preserve Texas sovereignty.",
+       "votes": [-1, -1, -1, -1, -1, 0, 1, 1, 1, 1]},
+      {"type": "generated", "lean": "strong_left", "topic_focus": "governance"},
+      {"type": "generated", "lean": "right", "topic_focus": "individual_collective"},
+      {"type": "generated", "lean": "center", "topic_focus": "funding"}
+    ],
+    "proposal_qualify": [
+      {"type": "generated", "lean": "center_left", "topic_focus": "reform"},
+      {"type": "generated", "lean": "center_right", "topic_focus": "implementation"},
+      {"type": "generated", "lean": "bipartisan", "topic_focus": "funding"}
+    ]
+  },
+  "posts": {
+    "proposal_issue": {
+      "anchors": [
+        {
+          "post_type": "discussion",
+          "title": "Texas grid reliability: Are we ready for the next storm?",
+          "body": "It's been nearly five years since Winter Storm Uri exposed catastrophic failures in the Texas power grid. ERCOT remains isolated from the national grid, and while some weatherization requirements have been implemented, many experts question whether they're sufficient.\n\nAre we actually better prepared now than we were in 2021? What would another major winter storm mean for Texas families?",
+          "comments": [
+            {"body": "I lost power for 4 days during Uri. Pipes burst, $15,000 in damage to my home. My elderly neighbor had to be hospitalized. This isn't an abstract policy debate for those of us who lived through it.", "author_prefix": "mod", "replies": [
+              {"body": "My electricity bill that month was over $3,000 because I was on a variable-rate plan. A lot of people didn't even know they were on those plans until the crisis hit.", "author_prefix": "lib"}
+            ]},
+            {"body": "Connecting to the national grid means accepting federal regulation. That's the real reason Texas keeps ERCOT independent — it's about deregulation, not reliability.", "author_prefix": "con", "replies": [
+              {"body": "Energy independence means nothing when the power is off and people are dying. At some point, sovereignty becomes a talking point that costs lives.", "author_prefix": "prog"}
+            ]}
+          ]
+        }
+      ],
+      "generated_count": 7,
+      "generated_types": {"discussion": 4, "question": 2, "proposal": 1},
+      "comments_per_generated": [5, 6, 4, 5, 5, 6, 4]
+    },
+    "proposal_qualify": {
+      "anchors": [
+        {
+          "post_type": "proposal",
+          "title": "Proposal: Require weather-hardening for all Texas power plants",
+          "body": "I propose that the Texas Legislature mandate comprehensive winterization standards for all power generation facilities operating within ERCOT, with compliance verified by independent inspectors. This would include insulation of critical components, backup fuel supplies, and cold-weather operational testing.\n\nThe cost would be funded through a small surcharge on electricity bills — estimated at $3-5 per month for the average household. This is a fraction of what Texans paid during Uri.",
+          "comments": []
+        }
+      ],
+      "generated_count": 7,
+      "generated_types": {"discussion": 4, "question": 2, "proposal": 1},
+      "comments_per_generated": [6, 5, 5, 4, 6, 5, 4]
+    }
+  },
+  "surveys": [
+    {
+      "title": "Texas Energy Grid Preparedness Survey",
+      "type": "standard",
+      "session_name": "Winter 2025-26",
+      "target_stage": "proposal_qualify",
+      "questions": [
+        {"question": "How prepared is Texas for another major winter storm?",
+         "options": ["Much better prepared than 2021", "Somewhat better but significant gaps remain", "About the same level of risk", "Less prepared due to increased energy demand"]},
+        {"question": "Should Texas connect ERCOT to the national power grid?",
+         "options": ["Yes, full interconnection for reliability", "Partial interconnection with emergency-only transfers", "No, maintain independence but improve internal resilience", "No, ERCOT independence is essential for Texas sovereignty"]},
+        {"question": "How should grid winterization be funded?",
+         "options": ["Small monthly surcharge on all electricity bills", "Tax on energy companies' profits", "State general fund appropriations", "Federal infrastructure grants"]},
+        {"question": "What is your biggest energy concern for winter 2025-26?",
+         "options": ["Extended power outages during extreme cold", "Unaffordable energy bills during demand spikes", "Natural gas supply shortages", "Inadequate communication from ERCOT during emergencies"]}
+      ]
+    }
+  ]
+}

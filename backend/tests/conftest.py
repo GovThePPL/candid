@@ -42,10 +42,10 @@ NORMAL5_ID = "c922be05-e355-4052-8d3f-7774669ddd32"
 GUEST1_ID = "a82b485b-114f-44b7-aa0b-8ae8ca96e4f3"
 GUEST2_ID = "a2ec25a9-2a12-4a01-baf8-c0d1e254c3db"
 
-# Position categories
-HEALTHCARE_CAT_ID = "4d439108-2128-46ec-b4b2-80ec3dbf6aa3"
-ECONOMY_CAT_ID = "63e233e9-187e-441f-a7a9-f5f44dffadf0"
-EDUCATION_CAT_ID = "be3305f5-df1a-4cf5-855e-49a88ed3cbd3"
+# Sessions (named by topic — see basic.sql for full session list)
+HEALTHCARE_SESSION_ID = "4d439108-2128-46ec-b4b2-80ec3dbf6aa3"   # "Healthcare Access" @ Oregon, opinion_discussion
+ECONOMY_SESSION_ID = "63e233e9-187e-441f-a7a9-f5f44dffadf0"      # "Living Wage" @ Oregon, opinion_curation
+EDUCATION_SESSION_ID = "be3305f5-df1a-4cf5-855e-49a88ed3cbd3"    # "School Funding" @ Oregon, proposal_qualify
 
 # Positions (first healthcare position by admin1)
 POSITION1_ID = "772d04ed-b2ad-4f95-a630-c739811fa615"
@@ -63,6 +63,12 @@ US_LOCATION_ID = "f1a2b3c4-d5e6-7890-abcd-ef1234567890"
 OREGON_LOCATION_ID = "ba5e3dcf-af51-47f4-941d-ee3448ee826a"
 MULTNOMAH_LOCATION_ID = "c2b3a4d5-e6f7-8901-bcde-f12345678901"
 PORTLAND_LOCATION_ID = "d3c4b5a6-f7e8-9012-cdef-123456789012"
+CALIFORNIA_LOCATION_ID = "a1b2c3d4-e5f6-7890-abcd-100000000001"
+LA_COUNTY_LOCATION_ID = "a1b2c3d4-e5f6-7890-abcd-100000000002"
+LA_CITY_LOCATION_ID = "a1b2c3d4-e5f6-7890-abcd-100000000003"
+TEXAS_LOCATION_ID = "a1b2c3d4-e5f6-7890-abcd-200000000001"
+TRAVIS_COUNTY_LOCATION_ID = "a1b2c3d4-e5f6-7890-abcd-200000000002"
+AUSTIN_LOCATION_ID = "a1b2c3d4-e5f6-7890-abcd-200000000003"
 
 # User roles
 ADMIN1_ROLE_ID = "11111111-aaaa-bbbb-cccc-000000000001"    # admin at US root

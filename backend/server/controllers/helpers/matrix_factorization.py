@@ -50,7 +50,7 @@ def _load_vote_matrix(conversation_id):
         JOIN comment c ON cv.comment_id = c.id
         JOIN post p ON c.post_id = p.id
         JOIN polis_conversation pc ON p.location_id = pc.location_id
-             AND COALESCE(p.category_id::text, '') = COALESCE(pc.category_id::text, '')
+             AND COALESCE(p.session_id::text, '') = COALESCE(pc.session_id::text, '')
         WHERE pc.polis_conversation_id = %s
           AND pc.status = 'active'
           AND c.status = 'active'
@@ -66,7 +66,7 @@ def _load_vote_matrix(conversation_id):
         FROM post_vote pv
         JOIN post p ON pv.post_id = p.id
         JOIN polis_conversation pc ON p.location_id = pc.location_id
-             AND COALESCE(p.category_id::text, '') = COALESCE(pc.category_id::text, '')
+             AND COALESCE(p.session_id::text, '') = COALESCE(pc.session_id::text, '')
         WHERE pc.polis_conversation_id = %s
           AND pc.status = 'active'
           AND p.status = 'active'
@@ -315,7 +315,7 @@ def _store_mf_results(conversation_id, model, idx_maps):
                 JOIN comment c ON cv.comment_id = c.id
                 JOIN post p ON c.post_id = p.id
                 JOIN polis_conversation pc ON p.location_id = pc.location_id
-                     AND COALESCE(p.category_id::text, '') = COALESCE(pc.category_id::text, '')
+                     AND COALESCE(p.session_id::text, '') = COALESCE(pc.session_id::text, '')
                 WHERE pc.polis_conversation_id = %s
                   AND pc.status = 'active'
                 GROUP BY cv.user_id
@@ -326,7 +326,7 @@ def _store_mf_results(conversation_id, model, idx_maps):
                 FROM post_vote pv
                 JOIN post p ON pv.post_id = p.id
                 JOIN polis_conversation pc ON p.location_id = pc.location_id
-                     AND COALESCE(p.category_id::text, '') = COALESCE(pc.category_id::text, '')
+                     AND COALESCE(p.session_id::text, '') = COALESCE(pc.session_id::text, '')
                 WHERE pc.polis_conversation_id = %s
                   AND pc.status = 'active'
                 GROUP BY pv.user_id
@@ -339,21 +339,21 @@ def _store_mf_results(conversation_id, model, idx_maps):
 
     # Log training
     conv_row = db.execute_query("""
-        SELECT location_id, category_id
+        SELECT location_id, session_id
         FROM polis_conversation
         WHERE polis_conversation_id = %s
     """, (conversation_id,), fetchone=True)
 
     location_id = conv_row["location_id"] if conv_row else None
-    category_id = conv_row.get("category_id") if conv_row else None
+    session_id = conv_row.get("session_id") if conv_row else None
 
     db.execute_query("""
         INSERT INTO mf_training_log
-            (polis_conversation_id, location_id, category_id,
+            (polis_conversation_id, location_id, session_id,
              n_users, n_comments, n_votes, final_loss, epochs_run,
              duration_seconds)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-    """, (conversation_id, location_id, category_id,
+    """, (conversation_id, location_id, session_id,
           len(idx_to_user_id), len(idx_to_item_id),
           int(idx_maps["n_votes"]),
           float(model["final_loss"]), int(model["epochs"]),

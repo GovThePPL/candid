@@ -14,6 +14,7 @@ const SurveyCard = forwardRef(function SurveyCard({
   onSkip,
   isBackCard = false,
   backCardAnimatedValue,
+  disabled = false,
 }, ref) {
   const { t } = useTranslation('cards')
   const colors = useThemeColors()
@@ -72,7 +73,7 @@ const SurveyCard = forwardRef(function SurveyCard({
   const options = survey?.options || []
   const questionText = survey?.question || ''
   const surveyTitle = survey?.surveyTitle || null
-  const category = survey?.category || t('surveyDefaultCategory')
+  const session = survey?.session || t('surveyDefaultSession')
 
   // Calculate flash background color (darkens to indicate selection needed)
   const flashBackgroundColor = flashAnim.interpolate({
@@ -87,10 +88,10 @@ const SurveyCard = forwardRef(function SurveyCard({
         <Ionicons name="clipboard" size={48} color={OnBrandColors.text} />
       </View>
 
-      {/* Title and Category */}
+      {/* Title and Session */}
       <View style={styles.titleContainer}>
         <ThemedText variant="statement" color="inverse" style={styles.headerTitle}>{t('surveyTitle')}</ThemedText>
-        <ThemedText variant="button" style={styles.headerSubtitle} numberOfLines={1}>{category}</ThemedText>
+        <ThemedText variant="button" style={styles.headerSubtitle} numberOfLines={1}>{session}</ThemedText>
         {surveyTitle && (
           <ThemedText variant="bodySmall" style={styles.headerSurveyTitle} numberOfLines={1}>{surveyTitle}</ThemedText>
         )}
@@ -107,10 +108,11 @@ const SurveyCard = forwardRef(function SurveyCard({
       enableVerticalSwipe={true}
       rightSwipeAsSubmit={true}
       leftSwipeAsPass={true}
+      archivedMode={disabled}
       isBackCard={isBackCard}
       backCardAnimatedValue={backCardAnimatedValue}
       accessibilityLabel={t('surveyA11yLabel', { question: questionText })}
-      accessibilityHint={t('surveyA11yHint')}
+      accessibilityHint={disabled ? t('archivedA11yHint') : t('surveyA11yHint')}
     >
       <CardShell
         size="full"
@@ -123,15 +125,20 @@ const SurveyCard = forwardRef(function SurveyCard({
           <ThemedText variant="statement" color="dark" style={styles.question}>{questionText}</ThemedText>
         </View>
 
+        {/* Archived label */}
+        {disabled && (
+          <ThemedText variant="label" color="secondary" style={styles.archivedLabel}>{t('archivedStageLabel')}</ThemedText>
+        )}
+
         {/* Options */}
-        <View style={styles.optionsContainer}>
+        <View style={[styles.optionsContainer, disabled && styles.optionsDisabled]}>
           {options.length > 0 ? (
             options.map((option) => (
               <TouchableOpacity
                 key={option.id}
                 activeOpacity={0.7}
                 onPress={() => handleOptionPress(option)}
-                disabled={isBackCard}
+                disabled={isBackCard || disabled}
                 accessibilityRole="radio"
                 accessibilityState={{ checked: selectedOption === option.id }}
                 accessibilityLabel={option.option || option.label}
@@ -216,8 +223,17 @@ const createStyles = (colors) => StyleSheet.create({
   question: {
     textAlign: 'center',
   },
+  archivedLabel: {
+    fontWeight: '600',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
   optionsContainer: {
     gap: 12,
+  },
+  optionsDisabled: {
+    opacity: 0.4,
   },
   option: {
     backgroundColor: colors.buttonDefault,

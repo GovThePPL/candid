@@ -8,13 +8,12 @@ import { useThemeColors } from '../../../../hooks/useThemeColors'
 import useIsDesktop from '../../../../hooks/useIsDesktop'
 import { Spacing } from '../../../../constants/Theme'
 import { useAuth } from '../../../../contexts/UserContext'
-import { useLocationCategory } from '../../../../contexts/LocationCategoryContext'
+import { useLocationSession } from '../../../../contexts/LocationSessionContext'
 import { hasQAAuthority } from '../../../../lib/roles'
 import useModerateChecker from '../../../../hooks/useModerateChecker'
 import usePostsFeed from '../../../../hooks/usePostsFeed'
-import api from '../../../../lib/api'
+import api, { sessionsApiWrapper } from '../../../../lib/api'
 import Header from '../../../../components/Header'
-import LocationCategorySelector from '../../../../components/LocationCategorySelector'
 import FeedTabBar from '../../../../components/discuss/FeedTabBar'
 import SortDropdown from '../../../../components/discuss/SortDropdown'
 import PostCard from '../../../../components/discuss/PostCard'
@@ -24,6 +23,8 @@ import ModerationActionModal from '../../../../components/ModerationActionModal'
 import EditPostModal from '../../../../components/discuss/EditPostModal'
 import GlossaryDrawer from '../../../../components/GlossaryDrawer'
 import { useGlossaryDrawer, useGlossaryRules } from '../../../../hooks/useGlossaryDrawer'
+import BallotCard from '../../../../components/discuss/BallotCard'
+import ElectionResults from '../../../../components/discuss/ElectionResults'
 import EmptyState from '../../../../components/EmptyState'
 import ThemedText from '../../../../components/ThemedText'
 import { SkeletonPulse, SkeletonBox, SkeletonLine } from '../../../../components/Skeleton'
@@ -83,9 +84,40 @@ export default function DiscussFeed() {
   const glossaryRules = useGlossaryRules(onGlossaryTermPress, { onMentionPress: handleMentionPress })
   const insets = useSafeAreaInsets()
   const { user } = useAuth()
-  const { selectedLocation, selectedCategory, setSelectedLocation, setSelectedCategory } = useLocationCategory()
+  const { selectedLocation, selectedSession, canCreateProposals, viewingStage, effectiveStage, isReadOnly, votingRound, roundType } = useLocationSession()
 
-  const [postType, setPostType] = useState('discussion')
+  // Derive major phase from effective stage for filtering
+  const STAGE_TO_PHASE = {
+    proposal_issue: 'proposal', proposal_qualify: 'proposal', proposal_stakeholders: 'proposal',
+    opinion_discussion: 'opinion', opinion_curation: 'opinion', opinion_proposals: 'opinion',
+    reflection: 'reflection', consensus: 'consensus',
+  }
+  const phase = effectiveStage ? STAGE_TO_PHASE[effectiveStage] : null
+
+  // Determine if Q&A should be hidden (during proposal_* stages)
+  const isProposalStage = effectiveStage?.startsWith('proposal_')
+  const hideQA = !!isProposalStage
+
+  // Default to Proposals tab when voting round is proposals_open or finalization_open
+  const votingRoundStatus = votingRound?.status
+  const shouldDefaultToProposals = canCreateProposals
+    || (votingRoundStatus && ['proposals_open', 'finalization_open'].includes(votingRoundStatus))
+    || (viewingStage && (phase === 'proposal' || phase === 'opinion'))
+
+  const [postType, setPostType] = useState(shouldDefaultToProposals ? 'proposal' : 'discussion')
+
+  // Reset tab when stage or session changes so we don't stay on a tab that doesn't exist
+  useEffect(() => {
+    if (shouldDefaultToProposals) {
+      setPostType('proposal')
+    } else {
+      setPostType('discussion')
+    }
+  }, [effectiveStage, selectedSession])
+
+  // Proposal status filter (visible from finalization_open)
+  const [proposalStatusFilter, setProposalStatusFilter] = useState(null)
+  const showProposalFilters = postType === 'proposal' && votingRoundStatus && ['finalization_open', 'proposals_closed', 'voting_open', 'voting_closed'].includes(votingRoundStatus)
 
   const isQAAuthority = hasQAAuthority(user)
 
@@ -109,7 +141,8 @@ export default function DiscussFeed() {
     handleLockPost,
     handleUpdatePost,
     handleDeletePost,
-  } = usePostsFeed(selectedLocation, selectedCategory, postType)
+    handlePinPost,
+  } = usePostsFeed(selectedLocation, selectedSession, postType, { phase, effectiveStage })
 
   // Refresh feed on focus (e.g. returning from creating a post)
   const hasMountedRef = useRef(false)
@@ -235,7 +268,7 @@ export default function DiscussFeed() {
   const handleModerateActionSubmit = useCallback(async (actionData) => {
     if (!moderateTarget || !moderateRule) return
     try {
-      await api.moderation.inlineAction({
+      await api.moderation.createAction({
         targetType: moderateTarget.type,
         targetId: moderateTarget.id,
         ruleId: moderateRule.id,
@@ -255,8 +288,106 @@ export default function DiscussFeed() {
     }
   }, [moderateTarget, moderateRule, moderateComment, t, handleRefresh])
 
+  const handleFinalize = useCallback(async (postId) => {
+    try {
+      await api.posts.finalizeProposal(postId)
+      handleRefresh()
+    } catch {
+      Alert.alert(t('proposalFinalizeFailed'))
+    }
+  }, [handleRefresh, t])
+
+  // ── Endorsements ──
+  const [endorsementData, setEndorsementData] = useState(null)
+  const isEndorsementPhase = votingRoundStatus === 'proposals_open' || votingRoundStatus === 'finalization_open'
+  // Show endorsement counts (read-only) for archived stages with voting round data
+  const showArchivedEndorsements = isReadOnly && votingRound && postType === 'proposal'
+
+  // Fetch endorsements when in endorsement phase or viewing archived stage with voting data
+  useEffect(() => {
+    if (!selectedSession || (!isEndorsementPhase && !showArchivedEndorsements)) {
+      setEndorsementData(null)
+      return
+    }
+    sessionsApiWrapper.getEndorsements(selectedSession, { roundType })
+      .then(setEndorsementData)
+      .catch(() => setEndorsementData(null))
+  }, [selectedSession, isEndorsementPhase, showArchivedEndorsements, roundType])
+
+  const myEndorsementMap = useMemo(() => {
+    if (!endorsementData?.myEndorsements) return {}
+    const map = {}
+    for (const e of endorsementData.myEndorsements) {
+      map[e.proposalPostId] = e.id
+    }
+    return map
+  }, [endorsementData?.myEndorsements])
+
+  const endorsementCountMap = useMemo(() => {
+    if (!endorsementData?.proposalCounts) return {}
+    const map = {}
+    for (const c of endorsementData.proposalCounts) {
+      map[c.proposalPostId] = c.count
+    }
+    return map
+  }, [endorsementData?.proposalCounts])
+
+  const myEndorsementCount = endorsementData?.myEndorsements?.length || 0
+  const endorseLimitReached = myEndorsementCount >= 3
+
+  const handleEndorse = useCallback(async (postId, currentlyEndorsed) => {
+    try {
+      if (currentlyEndorsed) {
+        const endorsementId = myEndorsementMap[postId]
+        if (endorsementId) {
+          await sessionsApiWrapper.deleteEndorsement(selectedSession, endorsementId)
+        }
+      } else {
+        await sessionsApiWrapper.createEndorsement(selectedSession, postId)
+      }
+      // Refresh endorsement data
+      const data = await sessionsApiWrapper.getEndorsements(selectedSession, { roundType })
+      setEndorsementData(data)
+    } catch (err) {
+      Alert.alert(t('endorseFailed'))
+    }
+  }, [selectedSession, myEndorsementMap, roundType, t])
+
+  // ── Ballot & Results ──
+  const [ballotData, setBallotData] = useState(null)
+  const [candidates, setCandidates] = useState([])
+  const [electionResults, setElectionResults] = useState(null)
+
+  const isVotingPhase = votingRoundStatus === 'voting_open'
+  const isResultsPhase = votingRoundStatus === 'voting_closed'
+
+  useEffect(() => {
+    if (!selectedSession) return
+    if (isVotingPhase) {
+      sessionsApiWrapper.getCandidates(selectedSession, { roundType }).then(setCandidates).catch(() => setCandidates([]))
+      if (!isReadOnly) {
+        sessionsApiWrapper.getBallot(selectedSession, { roundType }).then(setBallotData).catch(() => setBallotData(null))
+      }
+    } else if (isResultsPhase) {
+      sessionsApiWrapper.getResults(selectedSession, { roundType }).then(setElectionResults).catch(() => setElectionResults(null))
+      sessionsApiWrapper.getCandidates(selectedSession, { roundType }).then(setCandidates).catch(() => setCandidates([]))
+    }
+  }, [selectedSession, isVotingPhase, isResultsPhase, roundType, isReadOnly])
+
+  const handleSubmitBallot = useCallback(async (rankings) => {
+    try {
+      await sessionsApiWrapper.submitBallot(selectedSession, rankings)
+      const data = await sessionsApiWrapper.getBallot(selectedSession)
+      setBallotData(data)
+      Alert.alert(t('ballotSubmitted'))
+    } catch (err) {
+      Alert.alert(t('ballotSubmitFailed'))
+    }
+  }, [selectedSession, t])
+
   const renderPostCard = useCallback(({ item }) => {
-    const canMod = checkModerateScope(item.location?.id, item.category?.id)
+    const canMod = checkModerateScope(item.location?.id, item.session?.id)
+    const isEndorsed = !!myEndorsementMap[item.id]
     return (
       <PostCard
         post={item}
@@ -271,11 +402,19 @@ export default function DiscussFeed() {
         canModerate={canMod}
         onReport={handleReportPost}
         onModerate={handleModeratePost}
+        onPin={handlePinPost}
         onTermPress={onGlossaryTermPress}
         glossaryRules={glossaryRules}
+        readOnly={isReadOnly}
+        onFinalize={handleFinalize}
+        votingRoundStatus={votingRoundStatus}
+        onEndorse={isEndorsementPhase ? handleEndorse : undefined}
+        isEndorsed={isEndorsed}
+        endorsementCount={endorsementCountMap[item.id] || 0}
+        endorseLimitReached={endorseLimitReached}
       />
     )
-  }, [handlePostPress, handleUpvote, handlePostDownvote, handleToggleRole, handleLockPost, handleEditPost, handleDeletePostConfirm, user?.id, checkModerateScope, handleReportPost, handleModeratePost, onGlossaryTermPress, glossaryRules])
+  }, [handlePostPress, handleUpvote, handlePostDownvote, handleToggleRole, handleLockPost, handleEditPost, handleDeletePostConfirm, user?.id, checkModerateScope, handleReportPost, handleModeratePost, handlePinPost, onGlossaryTermPress, glossaryRules, handleFinalize, votingRoundStatus, isEndorsementPhase, handleEndorse, myEndorsementMap, endorsementCountMap, endorseLimitReached])
 
   const keyExtractor = useCallback((item) => item.id, [])
 
@@ -347,17 +486,9 @@ export default function DiscussFeed() {
                 <ThemedText variant="bodySmall" color="secondary" style={styles.subtitle}>{t('feedSubtitle')}</ThemedText>
               </View>
             )}
-            <LocationCategorySelector
-              selectedLocation={selectedLocation}
-              selectedCategory={selectedCategory}
-              onLocationChange={setSelectedLocation}
-              onCategoryChange={setSelectedCategory}
-              showAllCategories
-            />
-
             {/* Tab bar + sort dropdown row */}
             <View style={styles.controlsRow}>
-              <FeedTabBar activeTab={postType} onTabChange={handleTabChange} />
+              <FeedTabBar activeTab={postType} onTabChange={handleTabChange} showProposals={canCreateProposals || (viewingStage && (phase === 'proposal' || phase === 'opinion'))} hideQA={hideQA} />
               <SortDropdown sort={sort} onSortChange={setSort} />
             </View>
 
@@ -388,6 +519,61 @@ export default function DiscussFeed() {
               </View>
             )}
 
+            {/* Proposal status filter chips */}
+            {showProposalFilters && (
+              <View style={styles.filterRow}>
+                {[
+                  { id: null, label: t('filterAll') },
+                  { id: 'draft', label: t('proposalDraft') },
+                  { id: 'finalized', label: t('proposalFinal') },
+                ].map((option) => {
+                  const isActive = proposalStatusFilter === option.id
+                  return (
+                    <TouchableOpacity
+                      key={String(option.id)}
+                      style={[styles.filterButton, isActive && styles.filterButtonActive]}
+                      onPress={() => setProposalStatusFilter(option.id)}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: isActive }}
+                      accessibilityLabel={t('filterA11y', { filter: option.label })}
+                    >
+                      <ThemedText
+                        variant="caption"
+                        style={[styles.filterButtonText, isActive && styles.filterButtonTextActive]}
+                      >
+                        {option.label}
+                      </ThemedText>
+                    </TouchableOpacity>
+                  )
+                })}
+              </View>
+            )}
+
+            {/* Ballot UI when voting_open (interactive only when not read-only) */}
+            {isVotingPhase && !isReadOnly && postType === 'proposal' && candidates.length > 0 && (
+              <BallotCard
+                candidates={candidates}
+                existingRankings={ballotData?.rankings}
+                onSubmit={handleSubmitBallot}
+              />
+            )}
+
+            {/* Election results when voting_closed */}
+            {isResultsPhase && postType === 'proposal' && electionResults && (
+              <ElectionResults results={electionResults} />
+            )}
+
+            {/* Endorsement counter banner */}
+            {isEndorsementPhase && !isReadOnly && postType === 'proposal' && (
+              <View style={styles.endorseBanner} accessibilityLabel={t('endorsementsUsedA11y', { count: myEndorsementCount, max: 3 })}>
+                <Ionicons name="heart" size={16} color={colors.primary} />
+                <ThemedText variant="caption" style={{ color: colors.primary, fontWeight: '600' }}>
+                  {t('endorsementsUsed', { count: myEndorsementCount, max: 3 })}
+                </ThemedText>
+              </View>
+            )}
+
             {/* Skeleton loading for initial load */}
             {loading && !refreshing && (
               <FeedSkeleton styles={styles} />
@@ -397,16 +583,18 @@ export default function DiscussFeed() {
         contentContainerStyle={posts.length === 0 && !loading ? styles.emptyContainer : styles.listContent}
       />
 
-      {/* Floating action button */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => router.push({ pathname: '/discuss/create', params: { type: postType } })}
-        activeOpacity={0.8}
-        accessibilityRole="button"
-        accessibilityLabel={t('fabA11y')}
-      >
-        <Ionicons name="add" size={28} color="#FFFFFF" />
-      </TouchableOpacity>
+      {/* Floating action button (hidden in read-only stages) */}
+      {!isReadOnly && (
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => router.push({ pathname: '/discuss/create', params: { type: postType } })}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={t('fabA11y')}
+        >
+          <Ionicons name="add" size={28} color="#FFFFFF" />
+        </TouchableOpacity>
+      )}
 
       {/* Downvote reason picker */}
       <DownvoteReasonPicker
@@ -472,6 +660,13 @@ const createStyles = (colors) => StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.sm,
     gap: Spacing.sm,
+  },
+  endorseBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.xs,
   },
   filterButton: {
     paddingHorizontal: Spacing.md,

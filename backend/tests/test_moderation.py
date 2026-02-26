@@ -38,9 +38,10 @@ class TestReportPosition:
 
     @pytest.fixture(autouse=True)
     def _cleanup(self):
-        """Clean up pending reports after each test for idempotency."""
+        """Clean up all reports before and after each test for idempotency."""
+        _cleanup_all_test_reports()
         yield
-        _cleanup_pending_reports()
+        _cleanup_all_test_reports()
 
     @pytest.mark.mutation
     def test_report_position_success(self, normal_headers):
@@ -130,9 +131,10 @@ class TestReportChat:
 
     @pytest.fixture(autouse=True)
     def _cleanup(self):
-        """Clean up pending reports after each test for idempotency."""
+        """Clean up all reports before and after each test for idempotency."""
+        _cleanup_all_test_reports()
         yield
-        _cleanup_pending_reports()
+        _cleanup_all_test_reports()
 
     @pytest.fixture
     def chat_initiator_headers(self):
@@ -254,12 +256,15 @@ class TestTakeModeratorAction:
     @pytest.fixture(autouse=True)
     def _restore_users_after_action(self):
         """Moderation actions may ban position creators. Restore after each test."""
+        _cleanup_all_test_reports()
         yield
         # Restore users who may have been banned (admin1, moderator1, normal1)
         db_execute(
             "UPDATE users SET status = 'active' WHERE id IN (%s, %s, %s)",
             (ADMIN1_ID, MODERATOR1_ID, NORMAL1_ID),
         )
+        # Clean up all reports so next test can create fresh ones
+        _cleanup_all_test_reports()
         # Clear ban-related moderation_action records that could affect future tests
         import redis
         try:
@@ -577,10 +582,10 @@ class TestRoleBasedRouting:
 
     @pytest.fixture(autouse=True)
     def _cleanup(self):
-        """Clean up reports before and after each test."""
-        _cleanup_pending_reports()
+        """Clean up all reports before and after each test."""
+        _cleanup_all_test_reports()
         yield
-        _cleanup_pending_reports()
+        _cleanup_all_test_reports()
 
     def test_moderator_can_see_reports_against_normal_users(self, moderator_headers):
         """Moderators can still see reports against normal users (baseline)."""
@@ -660,10 +665,10 @@ class TestQueueClaiming:
 
     @pytest.fixture(autouse=True)
     def _cleanup(self):
-        """Clean up reports before and after each test."""
-        _cleanup_pending_reports()
+        """Clean up all reports before and after each test."""
+        _cleanup_all_test_reports()
         yield
-        _cleanup_pending_reports()
+        _cleanup_all_test_reports()
         # Clear ban cache
         import redis
         try:
@@ -824,10 +829,10 @@ class TestChatLogInQueue:
 
     @pytest.fixture(autouse=True)
     def _cleanup(self):
-        """Clean up reports."""
-        _cleanup_pending_reports()
+        """Clean up all reports."""
+        _cleanup_all_test_reports()
         yield
-        _cleanup_pending_reports()
+        _cleanup_all_test_reports()
 
     @pytest.mark.mutation
     def test_chat_report_includes_messages(self, moderator_headers):
@@ -1028,7 +1033,7 @@ class TestDefaultActionsAndGuidelines:
     @pytest.mark.mutation
     def test_queue_report_includes_rule_defaults(self, normal_headers, moderator_headers):
         """Queue report's rule object has defaultActions and sentencingGuidelines."""
-        _cleanup_pending_reports()
+        _cleanup_all_test_reports()
         report_id = _create_report(normal_headers, POSITION3_ID)
 
         resp = requests.get(f"{MODERATION_URL}/queue", headers=moderator_headers)
@@ -1041,7 +1046,7 @@ class TestDefaultActionsAndGuidelines:
         assert "sentencingGuidelines" in rule
         assert "severity" in rule
         # Clean up
-        _cleanup_pending_reports()
+        _cleanup_all_test_reports()
 
 
 class TestDismissAdminResponseNotification:
@@ -1228,19 +1233,19 @@ class TestAppealResponseLifecycle:
 
 
 class TestFacilitatorModerationQueue:
-    """Tests for facilitator access to the moderation queue (location+category scoped).
+    """Tests for facilitator access to the moderation queue (location+session scoped).
 
     normal1 is facilitator at Oregon+Healthcare. Reports in that scope should be
-    visible; reports outside that scope (different category, or against facilitator+
+    visible; reports outside that scope (different session, or against facilitator+
     users) should not.
     """
 
     @pytest.fixture(autouse=True)
     def _cleanup(self):
-        """Clean up reports before and after each test."""
-        _cleanup_pending_reports()
+        """Clean up all reports before and after each test."""
+        _cleanup_all_test_reports()
         yield
-        _cleanup_pending_reports()
+        _cleanup_all_test_reports()
 
     @pytest.fixture
     def facilitator_headers(self):
@@ -1266,8 +1271,8 @@ class TestFacilitatorModerationQueue:
         assert report_id in report_ids
 
     def test_facilitator_does_not_see_reports_outside_scope(self, facilitator_headers):
-        """Facilitator does NOT see reports in a different category (Immigration)."""
-        # Report normal3's Immigration position at Oregon (wrong category)
+        """Facilitator does NOT see reports in a different session (Immigration)."""
+        # Report normal3's Immigration position at Oregon (wrong session)
         normal2_headers = auth_header(login("normal2"))
         report_id = _create_report(normal2_headers, POSITION_NORMAL3_IMMIGRATION_ID)
 

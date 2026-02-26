@@ -46,6 +46,7 @@ export default memo(function CommentItem({
   onModerate,
   depthLimit = THREAD_DEPTH_LIMIT,
   glossaryRules,
+  readOnly,
 }) {
   const { t } = useTranslation('discuss')
   const { isDark } = useTheme()
@@ -66,7 +67,7 @@ export default memo(function CommentItem({
     (Date.now() - new Date(comment.createdTime).getTime() < 15 * 60 * 1000)
 
   // Q&A reply visibility: non-authority can only reply to authority comments
-  const canReply = !isPostLocked && !isDeleted && (() => {
+  const canReply = !isPostLocked && !isDeleted && !readOnly && (() => {
     if (!isQAPost) return true
     if (currentUserHasQAAuthority) return true
     // Non-authority can reply to authority comments only
@@ -298,7 +299,7 @@ export default memo(function CommentItem({
               onDownvote={handleDownvote}
               authorName={authorName}
               targetType="comment"
-              disabled={isOwnComment}
+              disabled={isOwnComment || readOnly}
             />
           </View>
         )}

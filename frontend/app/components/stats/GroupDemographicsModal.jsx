@@ -296,7 +296,7 @@ export default function GroupDemographicsModal({
   visible,
   onClose,
   locationId,
-  categoryId,
+  sessionId,
   groupId,
   groupLabel,
   labelRankings,
@@ -319,16 +319,16 @@ export default function GroupDemographicsModal({
   const [data, setData] = useState(null)
 
   useEffect(() => {
-    if (visible && locationId && categoryId && groupId !== undefined) {
+    if (visible && locationId && sessionId && groupId !== undefined) {
       loadDemographics()
     }
-  }, [visible, locationId, categoryId, groupId])
+  }, [visible, locationId, sessionId, groupId])
 
   const loadDemographics = async () => {
     try {
       setLoading(true)
       setError(null)
-      const result = await fetchDemographics(locationId, categoryId, groupId)
+      const result = await fetchDemographics(locationId, sessionId, groupId)
       setData(result)
     } catch (err) {
       console.error('Error fetching demographics:', err)

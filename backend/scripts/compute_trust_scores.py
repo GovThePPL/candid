@@ -21,9 +21,10 @@ os.environ.setdefault("FLASK_ENV", "dev")
 # Add backend/server/generated to path so candid package is importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "server", "generated"))
 
-DB_URL = os.getenv(
+os.environ.setdefault(
     "DATABASE_URL", "postgresql://user:postgres@localhost:5432/candid"
 )
+os.environ.setdefault("REDIS_URL", "redis://:candid-redis-dev@localhost:6379")
 
 
 def main():

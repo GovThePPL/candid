@@ -187,11 +187,11 @@ export default function PositionClosures() {
         onClose={() => setShowMapModal(false)}
         onDismiss={() => setSelectedClosure(null)}
         groups={data?.groups || []}
-        allCategoriesGroups={data?.allCategoriesGroups || []}
+        allSessionsGroups={data?.allSessionsGroups || []}
         user1={selectedClosure?.positionHolderUser}
         user2={selectedClosure?.initiatorUser}
         locationCode={data?.position?.location?.code}
-        categoryLabel={data?.position?.category?.label}
+        sessionLabel={data?.position?.session?.label}
       />
 
       {/* Agreed Statements Modal */}

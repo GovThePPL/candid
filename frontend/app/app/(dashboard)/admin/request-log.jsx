@@ -16,7 +16,7 @@ import ThemedText from '../../../components/ThemedText'
 import Header from '../../../components/Header'
 import EmptyState from '../../../components/EmptyState'
 import BottomDrawerModal from '../../../components/BottomDrawerModal'
-import LocationCategoryBadge from '../../../components/LocationCategoryBadge'
+import LocationSessionBadge from '../../../components/LocationSessionBadge'
 import { useToast } from '../../../components/Toast'
 
 const TABS = ['pending', 'all', 'mine']
@@ -441,7 +441,7 @@ export default function RequestLogScreen() {
     return (
       <View style={styles.requestCard}>
         <View style={styles.cardTopRow}>
-          <LocationCategoryBadge location={item.location} category={item.category} size="md" />
+          <LocationSessionBadge location={item.location} session={item.session} size="md" />
           <View style={styles.topRowRight}>
             <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
               <ThemedText variant="badge" color="inverse" style={styles.statusBadgeText}>
@@ -492,9 +492,9 @@ export default function RequestLogScreen() {
         {/* Top row: scope badge left, status + action right */}
         <View style={styles.cardTopRow}>
           {proposed.locationId ? (
-            <LocationCategoryBadge
+            <LocationSessionBadge
               location={item.requesterAuthorityLocation}
-              category={proposed.positionCategoryId ? { label: proposed.categoryLabel } : null}
+              session={proposed.sessionId ? { label: proposed.sessionLabel } : null}
               size="md"
             />
           ) : (

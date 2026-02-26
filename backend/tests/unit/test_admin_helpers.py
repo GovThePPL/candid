@@ -98,8 +98,8 @@ class TestGetRequesterAuthorityLocation:
                 TARGET_USER, "admin", OREGON)
             assert result is None
 
-    def test_facilitator_assignable_with_category(self):
-        """Facilitator can assign assistant_moderator at exact location+category."""
+    def test_facilitator_assignable_with_session(self):
+        """Facilitator can assign assistant_moderator at exact location+session."""
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value={"exists": True})
 
@@ -109,15 +109,15 @@ class TestGetRequesterAuthorityLocation:
                 FACILITATOR_USER, "assistant_moderator", OREGON, HEALTHCARE_CAT)
             assert result == str(OREGON)
 
-    def test_facilitator_assignable_no_category_returns_none(self):
-        """Facilitator assignable role without category returns None."""
+    def test_facilitator_assignable_no_session_returns_none(self):
+        """Facilitator assignable role without session returns None."""
         from candid.controllers.admin_controller import _get_requester_authority_location
         result = _get_requester_authority_location(
             FACILITATOR_USER, "expert", OREGON, None)
         assert result is None
 
     def test_facilitator_not_at_location_returns_none(self):
-        """Facilitator at different location+category returns None."""
+        """Facilitator at different location+session returns None."""
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value=None)
 
@@ -161,7 +161,7 @@ class TestFindApprovalPeer:
                 'requested_by': ADMIN_USER,
                 'role': 'moderator',
                 'location_id': PORTLAND,
-                'position_category_id': None,
+                'session_id': None,
                 'requester_authority_location_id': OREGON,
             })
             assert PEER_ADMIN in result
@@ -180,7 +180,7 @@ class TestFindApprovalPeer:
                 'requested_by': ADMIN_USER,
                 'role': 'moderator',
                 'location_id': PORTLAND,
-                'position_category_id': None,
+                'session_id': None,
                 'requester_authority_location_id': OREGON,
             })
             assert "portland-admin" in result
@@ -196,7 +196,7 @@ class TestFindApprovalPeer:
                 'requested_by': ADMIN_USER,
                 'role': 'admin',
                 'location_id': OREGON,
-                'position_category_id': None,
+                'session_id': None,
                 'requester_authority_location_id': OREGON,
             })
             assert result is None
@@ -212,7 +212,7 @@ class TestFindApprovalPeer:
                 'requested_by': ADMIN_USER,
                 'role': 'facilitator',
                 'location_id': OREGON,
-                'position_category_id': None,
+                'session_id': None,
                 'requester_authority_location_id': OREGON,
             })
             assert result is None
@@ -220,7 +220,7 @@ class TestFindApprovalPeer:
             assert mock_db.execute_query.call_count == 1
 
     def test_facilitator_assignable_finds_peer_facilitator(self):
-        """For asst_mod/expert/liaison, find peer facilitator at same location+category."""
+        """For asst_mod/expert/liaison, find peer facilitator at same location+session."""
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value=[
             {"user_id": PEER_FACILITATOR}
@@ -232,7 +232,7 @@ class TestFindApprovalPeer:
                 'requested_by': FACILITATOR_USER,
                 'role': 'assistant_moderator',
                 'location_id': OREGON,
-                'position_category_id': HEALTHCARE_CAT,
+                'session_id': HEALTHCARE_CAT,
                 'requester_authority_location_id': OREGON,
             })
             assert PEER_FACILITATOR in result
@@ -252,7 +252,7 @@ class TestFindApprovalPeer:
                 'requested_by': FACILITATOR_USER,
                 'role': 'expert',
                 'location_id': OREGON,
-                'position_category_id': HEALTHCARE_CAT,
+                'session_id': HEALTHCARE_CAT,
                 'requester_authority_location_id': OREGON,
             })
             assert MOD_USER in result
@@ -273,7 +273,7 @@ class TestFindApprovalPeer:
                 'requested_by': FACILITATOR_USER,
                 'role': 'liaison',
                 'location_id': OREGON,
-                'position_category_id': HEALTHCARE_CAT,
+                'session_id': HEALTHCARE_CAT,
                 'requester_authority_location_id': OREGON,
             })
             assert ADMIN_USER in result
@@ -290,7 +290,7 @@ class TestFindApprovalPeer:
                 'requested_by': FACILITATOR_USER,
                 'role': 'assistant_moderator',
                 'location_id': OREGON,
-                'position_category_id': HEALTHCARE_CAT,
+                'session_id': HEALTHCARE_CAT,
                 'requester_authority_location_id': OREGON,
             })
             assert result is None
@@ -306,7 +306,7 @@ class TestFindApprovalPeer:
                 'requested_by': FACILITATOR_USER,
                 'role': 'expert',
                 'location_id': None,
-                'position_category_id': None,
+                'session_id': None,
                 'requester_authority_location_id': OREGON,
             })
             assert result is None
@@ -318,7 +318,7 @@ class TestFindApprovalPeer:
             'requested_by': ADMIN_USER,
             'role': 'unknown_role',
             'location_id': OREGON,
-            'position_category_id': None,
+            'session_id': None,
             'requester_authority_location_id': OREGON,
         })
         assert result is None
@@ -335,7 +335,7 @@ class TestFindApprovalPeer:
                 'requested_by': ADMIN_USER,
                 'role': 'admin',
                 'location_id': OREGON,
-                'position_category_id': None,
+                'session_id': None,
                 'requester_authority_location_id': OREGON,
             })
             assert result is None
@@ -356,7 +356,7 @@ class TestFindApprovalPeer:
                 'requested_by': FACILITATOR_USER,
                 'role': 'assistant_moderator',
                 'location_id': OREGON,
-                'position_category_id': HEALTHCARE_CAT,
+                'session_id': HEALTHCARE_CAT,
                 'requester_authority_location_id': OREGON,
             })
             assert result is None
@@ -388,7 +388,7 @@ class TestApplyRoleChange:
                 'target_user_id': TARGET_USER,
                 'role': 'moderator',
                 'location_id': OREGON,
-                'position_category_id': None,
+                'session_id': None,
                 'requested_by': ADMIN_USER,
             })
 
@@ -410,7 +410,7 @@ class TestApplyRoleChange:
                 'target_user_id': TARGET_USER,
                 'role': 'moderator',
                 'location_id': OREGON,
-                'position_category_id': None,
+                'session_id': None,
                 'requested_by': ADMIN_USER,
             })
 
@@ -429,7 +429,7 @@ class TestApplyRoleChange:
                 'target_user_id': TARGET_USER,
                 'role': 'moderator',
                 'location_id': OREGON,
-                'position_category_id': None,
+                'session_id': None,
                 'requested_by': ADMIN_USER,
             })
 
@@ -449,14 +449,14 @@ class TestApplyRoleChange:
                 'target_user_id': TARGET_USER,
                 'role': 'moderator',
                 'location_id': OREGON,
-                'position_category_id': None,
+                'session_id': None,
                 'requested_by': ADMIN_USER,
             })
 
             assert mock_db.execute_query.call_count == 0
 
-    def test_assign_with_category(self):
-        """Assignment with position_category_id passes it through."""
+    def test_assign_with_session(self):
+        """Assignment with session_id passes it through."""
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(side_effect=[
             None,  # no existing
@@ -471,7 +471,7 @@ class TestApplyRoleChange:
                 'target_user_id': TARGET_USER,
                 'role': 'facilitator',
                 'location_id': OREGON,
-                'position_category_id': HEALTHCARE_CAT,
+                'session_id': HEALTHCARE_CAT,
                 'requested_by': ADMIN_USER,
             })
 
@@ -522,7 +522,7 @@ class TestCheckAutoApproveExpired:
             'target_user_id': TARGET_USER,
             'role': 'moderator',
             'location_id': OREGON,
-            'position_category_id': None,
+            'session_id': None,
             'requested_by': ADMIN_USER,
             'user_role_id': None,
         }
@@ -563,8 +563,8 @@ class TestFormatRoleRequest:
             'location_id': OREGON,
             'location_name': 'Oregon',
             'location_code': 'OR',
-            'position_category_id': None,
-            'category_label': None,
+            'session_id': None,
+            'session_label': None,
             'requested_by': ADMIN_USER,
             'requester_username': 'admin1',
             'requester_display_name': 'Admin One',
@@ -609,8 +609,8 @@ class TestFormatRoleRequest:
             'location_id': OREGON,
             'location_name': 'Oregon',
             'location_code': 'OR',
-            'position_category_id': None,
-            'category_label': None,
+            'session_id': None,
+            'session_label': None,
             'requested_by': ADMIN_USER,
             'requester_username': 'admin1',
             'requester_display_name': 'Admin One',
@@ -654,8 +654,8 @@ class TestFormatRoleRequest:
             'location_id': OREGON,
             'location_name': 'Oregon',
             'location_code': 'OR',
-            'position_category_id': None,
-            'category_label': None,
+            'session_id': None,
+            'session_label': None,
             'requested_by': ADMIN_USER,
             'requester_username': 'admin1',
             'requester_display_name': 'Admin One',
@@ -719,7 +719,7 @@ class TestRescindRoleRequest:
             # Fetch request
             {'id': REQUEST_ID, 'requested_by': FACILITATOR_USER, 'status': 'pending',
              'action': 'assign', 'role': 'moderator', 'location_id': OREGON,
-             'position_category_id': None, 'requester_authority_location_id': OREGON},
+             'session_id': None, 'requester_authority_location_id': OREGON},
             # Location name lookup
             {'name': 'Oregon'},
             # UPDATE
@@ -744,7 +744,7 @@ class TestRescindRoleRequest:
             # Fetch request
             {'id': REQUEST_ID, 'requested_by': ADMIN_USER, 'status': 'pending',
              'action': 'assign', 'role': 'moderator', 'location_id': OREGON,
-             'position_category_id': None, 'requester_authority_location_id': OREGON},
+             'session_id': None, 'requester_authority_location_id': OREGON},
             # Location name lookup
             {'name': 'Oregon'},
         ])
@@ -851,8 +851,8 @@ class TestGetRoleRequests:
             'location_id': OREGON,
             'location_name': 'Oregon',
             'location_code': 'OR',
-            'position_category_id': None,
-            'category_label': None,
+            'session_id': None,
+            'session_label': None,
             'user_role_id': None,
             'requested_by': requested_by,
             'requester_authority_location_id': OREGON,
@@ -939,7 +939,7 @@ class TestGetRoleRequests:
         mock_db.execute_query = MagicMock(return_value=[])
 
         admin_roles = [
-            {'role': 'admin', 'location_id': OREGON, 'position_category_id': None},
+            {'role': 'admin', 'location_id': OREGON, 'session_id': None},
         ]
 
         with patch(f"{ADMIN}.db", mock_db), \
@@ -962,7 +962,7 @@ class TestGetRoleRequests:
         mock_db.execute_query = MagicMock(return_value=[])
 
         fac_roles = [
-            {'role': 'facilitator', 'location_id': PORTLAND, 'position_category_id': HEALTHCARE_CAT},
+            {'role': 'facilitator', 'location_id': PORTLAND, 'session_id': HEALTHCARE_CAT},
         ]
 
         with patch(f"{ADMIN}.db", mock_db), \
@@ -1051,8 +1051,8 @@ class TestBuildRuleResponse:
             'sentencing_guidelines': 'Ban for 7 days on first offense.',
             'location_id': OREGON,
             'location_name': 'Oregon',
-            'position_category_id': HEALTHCARE_CAT,
-            'category_label': 'Healthcare',
+            'session_id': HEALTHCARE_CAT,
+            'session_label': 'Healthcare',
             'creator_user_id': ADMIN_USER,
             'applicable_content_types': ['position', 'chat_log'],
             'created_time': now,
@@ -1068,15 +1068,15 @@ class TestBuildRuleResponse:
         assert result['sentencingGuidelines'] == 'Ban for 7 days on first offense.'
         assert result['locationId'] == OREGON
         assert result['locationName'] == 'Oregon'
-        assert result['positionCategoryId'] == HEALTHCARE_CAT
-        assert result['categoryLabel'] == 'Healthcare'
+        assert result['sessionId'] == HEALTHCARE_CAT
+        assert result['sessionLabel'] == 'Healthcare'
         assert result['creatorUserId'] == ADMIN_USER
         assert result['applicableContentTypes'] == ['position', 'chat_log']
         assert result['createdTime'] == now.isoformat()
         assert result['updatedTime'] == now.isoformat()
 
     def test_nullable_fields(self):
-        """Nullable fields (location, category, severity, etc.) return None."""
+        """Nullable fields (location, session, severity, etc.) return None."""
         from datetime import datetime, timezone
         now = datetime.now(timezone.utc)
         from candid.controllers.helpers.admin import build_rule_response
@@ -1091,8 +1091,8 @@ class TestBuildRuleResponse:
             'sentencing_guidelines': None,
             'location_id': None,
             'location_name': None,
-            'position_category_id': None,
-            'category_label': None,
+            'session_id': None,
+            'session_label': None,
             'creator_user_id': None,
             'applicable_content_types': ['position', 'chat_log', 'post', 'comment'],
             'created_time': now,
@@ -1101,8 +1101,8 @@ class TestBuildRuleResponse:
         result = build_rule_response(row)
         assert result['locationId'] is None
         assert result['locationName'] is None
-        assert result['positionCategoryId'] is None
-        assert result['categoryLabel'] is None
+        assert result['sessionId'] is None
+        assert result['sessionLabel'] is None
         assert result['creatorUserId'] is None
         assert result['updatedTime'] is None
         # severity, defaultActions, sentencingGuidelines should be absent (only set if not None)
@@ -1182,7 +1182,7 @@ class TestGetRuleAuthorityLocation:
             assert result is None
 
     def test_facilitator_exact_scope(self):
-        """Facilitator at exact location+category can manage category-scoped rules."""
+        """Facilitator at exact location+session can manage session-scoped rules."""
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(side_effect=[
             [],  # no admin locs in ancestry
@@ -1198,7 +1198,7 @@ class TestGetRuleAuthorityLocation:
             assert result == str(OREGON)
 
     def test_facilitator_wrong_scope_denied(self):
-        """Facilitator at wrong location+category is denied."""
+        """Facilitator at wrong location+session is denied."""
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(side_effect=[
             [],  # no admin locs
@@ -1249,7 +1249,7 @@ class TestFindRuleApprovalPeer:
             assert result is None
 
     def test_peer_facilitator_found(self):
-        """For category-scoped rule, finds peer facilitator."""
+        """For session-scoped rule, finds peer facilitator."""
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(side_effect=[
             [],  # no peer admin at authority (line 650)
@@ -1264,7 +1264,7 @@ class TestFindRuleApprovalPeer:
                 'requester_authority_location_id': OREGON,
                 'proposed_rule': {
                     'locationId': OREGON,
-                    'positionCategoryId': HEALTHCARE_CAT,
+                    'sessionId': HEALTHCARE_CAT,
                 },
             })
             assert result is not None
@@ -1288,7 +1288,7 @@ class TestFindRuleApprovalPeer:
                 'requester_authority_location_id': OREGON,
                 'proposed_rule': {
                     'locationId': OREGON,
-                    'positionCategoryId': HEALTHCARE_CAT,
+                    'sessionId': HEALTHCARE_CAT,
                 },
             })
             assert result is not None
@@ -1313,7 +1313,7 @@ class TestFindRuleApprovalPeer:
                 'requester_authority_location_id': OREGON,
                 'proposed_rule': {
                     'locationId': OREGON,
-                    'positionCategoryId': HEALTHCARE_CAT,
+                    'sessionId': HEALTHCARE_CAT,
                 },
             })
             assert result is not None
@@ -1338,7 +1338,7 @@ class TestApplyRuleChange:
                     'text': 'Rule description',
                     'severity': 3,
                     'locationId': OREGON,
-                    'positionCategoryId': None,
+                    'sessionId': None,
                     'applicableContentTypes': ['position', 'post'],
                 },
             })
@@ -1863,7 +1863,8 @@ class TestGetAdminsAtLocation:
             {"user_id": MOD_USER},
         ])
 
-        with patch(f"{ADMIN_HELPERS}.db", mock_db):
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{ADMIN_HELPERS}.get_location_ancestors", return_value=[OREGON]):
             from candid.controllers.helpers.admin import get_admins_at_location
             result = get_admins_at_location(OREGON)
 
@@ -1876,7 +1877,8 @@ class TestGetAdminsAtLocation:
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value=[])
 
-        with patch(f"{ADMIN_HELPERS}.db", mock_db):
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{ADMIN_HELPERS}.get_location_ancestors", return_value=[PORTLAND, OREGON]):
             from candid.controllers.helpers.admin import get_admins_at_location
             result = get_admins_at_location(PORTLAND)
 
@@ -1887,8 +1889,17 @@ class TestGetAdminsAtLocation:
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value=None)
 
-        with patch(f"{ADMIN_HELPERS}.db", mock_db):
+        with patch(f"{ADMIN_HELPERS}.db", mock_db), \
+             patch(f"{ADMIN_HELPERS}.get_location_ancestors", return_value=[PORTLAND, OREGON]):
             from candid.controllers.helpers.admin import get_admins_at_location
             result = get_admins_at_location(PORTLAND)
+
+            assert result == []
+
+    def test_returns_empty_when_no_ancestors(self):
+        """Returns empty list when location has no ancestors (deleted/nonexistent)."""
+        with patch(f"{ADMIN_HELPERS}.get_location_ancestors", return_value=[]):
+            from candid.controllers.helpers.admin import get_admins_at_location
+            result = get_admins_at_location("nonexistent-id")
 
             assert result == []

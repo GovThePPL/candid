@@ -12,6 +12,8 @@ from conftest import (
     POSITION3_ID,
     NONEXISTENT_UUID,
     CHAT_LOG_2_ID,
+    HEALTHCARE_SESSION_ID,
+    ECONOMY_SESSION_ID,
     login,
     auth_header,
     db_execute,
@@ -416,3 +418,123 @@ class TestCardQueueTypes:
         assert resp.status_code == 200
         data = resp.json()
         assert isinstance(data, list)
+
+
+class TestCardQueueSessionFilter:
+    """Tests for session-scoped card queue filtering."""
+
+    def test_session_filter_accepted(self, normal_headers):
+        """Card queue accepts the sessionId query parameter."""
+        resp = requests.get(
+            f"{BASE_URL}/card-queue",
+            headers=normal_headers,
+            params={"limit": 10, "sessionId": HEALTHCARE_SESSION_ID},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert isinstance(data, list)
+
+    def test_session_filter_only_returns_matching_positions(self, normal_headers):
+        """Position cards returned are scoped to the requested session."""
+        resp = requests.get(
+            f"{BASE_URL}/card-queue",
+            headers=normal_headers,
+            params={"limit": 50, "sessionId": HEALTHCARE_SESSION_ID},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+
+        position_cards = [c for c in data if c["type"] == "position"]
+        for card in position_cards:
+            assert card["data"].get("sessionId") == HEALTHCARE_SESSION_ID, \
+                f"Position {card['data']['id']} has sessionId={card['data'].get('sessionId')}, expected {HEALTHCARE_SESSION_ID}"
+
+    def test_session_filter_allows_non_session_cards(self, normal_headers):
+        """Non-session cards (demographics, kudos) are not filtered out by sessionId."""
+        resp = requests.get(
+            f"{BASE_URL}/card-queue",
+            headers=normal_headers,
+            params={"limit": 50, "sessionId": HEALTHCARE_SESSION_ID},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+
+        # Non-session card types should still be possible
+        non_session_types = {"demographic", "kudos", "chat_request",
+                             "ban_notification", "position_removed_notification",
+                             "diagnostics_consent", "bridging_kudos"}
+        card_types = {c["type"] for c in data}
+        # We can't guarantee any specific card appears (probabilistic),
+        # but at least the endpoint should work without error
+        assert isinstance(data, list)
+
+    def test_nonexistent_session_returns_empty_positions(self, normal_headers):
+        """Filtering by a nonexistent session returns no position cards."""
+        fake_session = "00000000-0000-0000-0000-000000000099"
+        resp = requests.get(
+            f"{BASE_URL}/card-queue",
+            headers=normal_headers,
+            params={"limit": 50, "sessionId": fake_session},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+
+        position_cards = [c for c in data if c["type"] == "position"]
+        assert len(position_cards) == 0, "No positions should match a nonexistent session"
+
+
+class TestCardQueuePhaseFilter:
+    """Tests for phase-based card queue filtering."""
+
+    def test_card_queue_phase_filter_accepted(self, normal_headers):
+        """Card queue accepts the phase query parameter."""
+        resp = requests.get(
+            f"{BASE_URL}/card-queue",
+            headers=normal_headers,
+            params={"limit": 50, "sessionId": HEALTHCARE_SESSION_ID, "phase": "opinion"},
+        )
+        assert resp.status_code == 200
+        assert isinstance(resp.json(), list)
+
+    def test_card_queue_phase_filter_no_error_for_empty(self, normal_headers):
+        """Phase filter with no matching positions doesn't error."""
+        resp = requests.get(
+            f"{BASE_URL}/card-queue",
+            headers=normal_headers,
+            params={"limit": 50, "sessionId": HEALTHCARE_SESSION_ID, "phase": "consensus"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        position_cards = [c for c in data if c["type"] == "position"]
+        # consensus phase should have few/no positions in test data
+        assert isinstance(position_cards, list)
+
+
+class TestCardQueueBrowseAll:
+    """Tests for browseAll mode (archived stage browsing)."""
+
+    def test_card_queue_browse_all_accepted(self, normal_headers):
+        """Card queue accepts the browseAll query parameter."""
+        resp = requests.get(
+            f"{BASE_URL}/card-queue",
+            headers=normal_headers,
+            params={"limit": 50, "sessionId": HEALTHCARE_SESSION_ID, "browseAll": "true"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert isinstance(data, list)
+
+    def test_card_queue_browse_all_skips_priority_cards(self, normal_headers):
+        """In browse_all mode, priority cards (ban, chat request, kudos) should be skipped."""
+        resp = requests.get(
+            f"{BASE_URL}/card-queue",
+            headers=normal_headers,
+            params={"limit": 50, "browseAll": "true"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        priority_types = {"chat_request", "kudos", "ban_notification",
+                          "position_removed_notification", "bridging_kudos"}
+        for card in data:
+            assert card["type"] not in priority_types, \
+                f"Priority card type {card['type']} should not appear in browseAll mode"

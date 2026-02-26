@@ -87,7 +87,7 @@ const makePendingRequest = (id = 'r1') => ({
   targetUser: { id: 'target1', username: 'target_user', displayName: 'Target User' },
   role: 'moderator',
   location: { id: 'loc1', name: 'Oregon', code: 'OR' },
-  category: null,
+  session: null,
   requester: { id: 'u1', username: 'admin1', displayName: 'Admin One' },
   reason: 'Good fit',
   autoApproveAt: new Date(Date.now() + 86400000).toISOString(),

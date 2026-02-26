@@ -10,7 +10,7 @@ import ThemedText from './ThemedText'
 import CardShell from './CardShell'
 import PositionInfoCard from './PositionInfoCard'
 
-const INDICATOR_SIZE = 40
+const INDICATOR_SIZE = 32
 const AVATAR_SIZE = INDICATOR_SIZE
 const STROKE_WIDTH = 3
 const RADIUS = (INDICATOR_SIZE - STROKE_WIDTH) / 2
@@ -220,9 +220,9 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
 
             <View style={styles.bubbleCenter}>
               {isDeclined ? (
-                <Ionicons name="close" size={20} color="#fff" />
+                <Ionicons name="close" size={16} color="#fff" />
               ) : (
-                <Ionicons name="chatbubble" size={16} color="#fff" />
+                <Ionicons name="chatbubble" size={13} color="#fff" />
               )}
             </View>
           </Animated.View>
@@ -247,7 +247,7 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
               <PositionInfoCard
                 position={{
                   statement: pendingRequest.positionStatement,
-                  category: pendingRequest.category,
+                  session: pendingRequest.session,
                   location: pendingRequest.location,
                   creator: author,
                 }}
@@ -293,9 +293,9 @@ const createStyles = (colors) => StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.primary,
     borderRadius: 24,
-    paddingVertical: 3,
-    paddingLeft: 3,
-    paddingRight: 5,
+    paddingVertical: 2,
+    paddingLeft: 2,
+    paddingRight: 4,
     overflow: 'hidden',
   },
   nameContainer: {

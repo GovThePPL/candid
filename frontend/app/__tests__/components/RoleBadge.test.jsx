@@ -42,13 +42,13 @@ describe('RoleBadge', () => {
     expect(screen.getByLabelText('roleAdmin')).toBeTruthy()
   })
 
-  it('shows location · role on single line when no category', () => {
+  it('shows location · role on single line when no session', () => {
     render(<RoleBadge role="admin" location="US" />)
     expect(screen.getByText('US · roleAdmin')).toBeTruthy()
   })
 
-  it('renders two lines when category is provided', () => {
-    render(<RoleBadge role="expert" location="OR" category="Healthcare" />)
+  it('renders two lines when session is provided', () => {
+    render(<RoleBadge role="expert" location="OR" session="Healthcare" />)
     // Line 1: scope, Line 2: role
     expect(screen.getByText('OR · Healthcare')).toBeTruthy()
     expect(screen.getByText('roleExpert')).toBeTruthy()
@@ -56,8 +56,8 @@ describe('RoleBadge', () => {
     expect(screen.getByLabelText('OR · Healthcare · roleExpert')).toBeTruthy()
   })
 
-  it('shows location · role when category is null', () => {
-    render(<RoleBadge role="moderator" location="US" category={null} />)
+  it('shows location · role when session is null', () => {
+    render(<RoleBadge role="moderator" location="US" session={null} />)
     expect(screen.getByText('US · roleModerator')).toBeTruthy()
   })
 })

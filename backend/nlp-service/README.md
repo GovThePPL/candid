@@ -10,13 +10,23 @@ nlp-service/
 │   ├── main.py           # FastAPI app, health endpoint, route setup
 │   ├── embeddings.py     # Sentence embedding generation (sentence-transformers)
 │   ├── nsfw_detector.py  # NSFW content classification
-│   └── toxicity.py       # Text toxicity detection (detoxify, Jigsaw/Perspective model)
+│   ├── toxicity.py       # Text toxicity detection (detoxify, Jigsaw/Perspective model)
+│   ├── proposal_prompts.py  # System prompt templates for AI-guided proposal creation (loads from YAML)
+│   └── llm_providers/    # LLM provider abstraction for multi-provider support
+│       ├── __init__.py          # Package exports (create_provider, get_provider)
+│       ├── base.py              # Abstract base class for LLM providers
+│       ├── factory.py           # Factory for creating provider instances from LLM_PROVIDER env var
+│       ├── anthropic_provider.py  # Anthropic Claude LLM provider
+│       └── openai_provider.py     # OpenAI LLM provider
+├── prompts/
+│   └── proposal_prompts.yaml  # YAML prompt templates for AI proposal wizard (source of truth)
 ├── tests/
 │   ├── conftest.py       # Shared fixtures (mock models, test images, TestClient)
 │   ├── test_embeddings.py     # EmbeddingModel unit tests (init, embed, similarity)
 │   ├── test_nsfw_detector.py  # NSFW detection + image processing unit tests
 │   ├── test_toxicity.py       # Toxicity detection unit tests
-│   └── test_endpoints.py      # FastAPI endpoint tests via TestClient
+│   ├── test_endpoints.py      # FastAPI endpoint tests via TestClient
+│   └── test_llm_providers.py  # LLM provider abstraction and proposal-assist endpoint tests
 ├── pytest.ini            # Test configuration
 ├── Dockerfile            # Python container, model download at build time
 └── requirements.txt      # Dependencies

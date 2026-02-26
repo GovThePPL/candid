@@ -111,7 +111,7 @@ class TestProcessBatch:
 
         payload = json.dumps({
             "position_id": "pos-1", "statement": "test",
-            "category_id": "cat-1", "location_id": "loc-1",
+            "session_id": "cat-1", "location_id": "loc-1",
             "creator_user_id": "user-1",
         })
 
@@ -155,7 +155,7 @@ class TestProcessBatch:
         mock_db = MagicMock()
 
         payload = json.dumps({"position_id": "pos-1", "statement": "test",
-                               "category_id": "cat-1", "location_id": "loc-1",
+                               "session_id": "cat-1", "location_id": "loc-1",
                                "creator_user_id": "user-1"})
 
         mock_db.execute_query = MagicMock(side_effect=[
@@ -183,7 +183,7 @@ class TestStatusTransitions:
         mock_db = MagicMock()
 
         payload = json.dumps({"position_id": "pos-1", "statement": "t",
-                               "category_id": "c", "location_id": "l",
+                               "session_id": "c", "location_id": "l",
                                "creator_user_id": "u"})
 
         mock_db.execute_query = MagicMock(side_effect=[

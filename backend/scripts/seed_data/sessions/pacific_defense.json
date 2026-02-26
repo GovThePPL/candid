@@ -1,0 +1,385 @@
+{
+  "session_name": "Pacific Defense",
+  "location_code": "CA",
+  "target_stage": "consensus",
+  "topic_vocabulary": {
+    "topic_noun": [
+      "Pacific defense",
+      "foreign policy",
+      "international security"
+    ],
+    "topic_adj": [
+      "defense",
+      "diplomatic",
+      "security-related"
+    ],
+    "location_name": [
+      "California",
+      "the Pacific Coast",
+      "the Indo-Pacific region"
+    ],
+    "stakeholder": [
+      "military personnel",
+      "defense contractors",
+      "port communities",
+      "trade partners",
+      "veteran organizations"
+    ],
+    "specific_issue": [
+      "military base closures",
+      "Pacific trade routes",
+      "Taiwan relations",
+      "naval readiness",
+      "defense spending"
+    ],
+    "policy_example": [
+      "AUKUS alliance",
+      "the Pivot to Asia strategy",
+      "BRAC (Base Realignment and Closure)"
+    ],
+    "data_point": [
+      "California has 32 military bases",
+      "40% of US trade passes through Pacific ports",
+      "DoD is California's 2nd largest employer"
+    ]
+  },
+  "positions": {
+    "proposal_issue": [
+      {
+        "type": "anchor",
+        "statement": "The United States should prioritize its own interests over international cooperation.",
+        "votes": [
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      {
+        "type": "anchor",
+        "statement": "NATO and our European alliances are essential for American security.",
+        "votes": [
+          1,
+          1,
+          1,
+          -1,
+          1,
+          1,
+          0,
+          1,
+          -1,
+          0
+        ]
+      },
+      {
+        "type": "generated",
+        "lean": "left",
+        "topic_focus": "governance"
+      },
+      {
+        "type": "generated",
+        "lean": "right",
+        "topic_focus": "funding"
+      },
+      {
+        "type": "generated",
+        "lean": "center",
+        "topic_focus": "implementation"
+      }
+    ],
+    "proposal_qualify": [
+      {
+        "type": "generated",
+        "lean": "center_left",
+        "topic_focus": "equity"
+      },
+      {
+        "type": "generated",
+        "lean": "libertarian_cross",
+        "topic_focus": "governance"
+      },
+      {
+        "type": "generated",
+        "lean": "bipartisan",
+        "topic_focus": "reform"
+      }
+    ],
+    "proposal_stakeholders": [
+      {
+        "type": "generated",
+        "lean": "populist_cross",
+        "topic_focus": "funding"
+      },
+      {
+        "type": "generated",
+        "lean": "center_right",
+        "topic_focus": "individual_collective"
+      },
+      {
+        "type": "generated",
+        "lean": "left",
+        "topic_focus": "equity"
+      }
+    ],
+    "opinion_discussion": [
+      {
+        "type": "anchor",
+        "statement": "Military spending should be significantly reduced and redirected to domestic programs.",
+        "votes": [
+          1,
+          1,
+          1,
+          1,
+          -1,
+          -1,
+          1,
+          -1,
+          -1,
+          -1
+        ]
+      },
+      {
+        "type": "anchor",
+        "statement": "The US should continue strong military support for Israel.",
+        "votes": [
+          -1,
+          -1,
+          -1,
+          -1,
+          1,
+          1,
+          0,
+          1,
+          1,
+          1
+        ]
+      },
+      {
+        "type": "generated",
+        "lean": "center",
+        "topic_focus": "implementation"
+      },
+      {
+        "type": "generated",
+        "lean": "divisive",
+        "topic_focus": "governance"
+      }
+    ],
+    "opinion_curation": [
+      {
+        "type": "generated",
+        "lean": "bipartisan",
+        "topic_focus": "reform"
+      },
+      {
+        "type": "generated",
+        "lean": "center_left",
+        "topic_focus": "equity"
+      },
+      {
+        "type": "generated",
+        "lean": "center_right",
+        "topic_focus": "funding"
+      }
+    ],
+    "opinion_proposals": [
+      {
+        "type": "generated",
+        "lean": "left",
+        "topic_focus": "governance"
+      },
+      {
+        "type": "generated",
+        "lean": "right",
+        "topic_focus": "implementation"
+      },
+      {
+        "type": "generated",
+        "lean": "center",
+        "topic_focus": "reform"
+      }
+    ]
+  },
+  "posts": {
+    "proposal_issue": {
+      "anchors": [
+        {
+          "post_type": "discussion",
+          "title": "Should California take a more active role in Pacific diplomacy?",
+          "body": "California is the 5th largest economy in the world. Our ports handle the majority of trans-Pacific trade. Our tech companies shape global communications. Our universities host thousands of international students from Pacific Rim nations.\n\nSome argue California should leverage this economic weight to pursue its own trade agreements, climate partnerships, and diplomatic relationships with Pacific nations \u2014 especially when federal foreign policy doesn't align with California's interests.\n\nOthers say foreign policy is strictly a federal matter and states shouldn't be freelancing on diplomacy.\n\nWhat role, if any, should California play in Pacific affairs?"
+        }
+      ],
+      "generated_count": 8,
+      "generated_types": {
+        "discussion": 5,
+        "question": 2,
+        "proposal": 1
+      },
+      "comments_per_generated": [
+        5,
+        4,
+        6,
+        5,
+        4,
+        5,
+        6,
+        5
+      ]
+    },
+    "proposal_qualify": {
+      "anchors": [
+        {
+          "post_type": "proposal",
+          "title": "Proposal: Create a California Defense Community Transition Assistance Program",
+          "body": "California has 32 military bases and the Department of Defense is the state's second-largest employer. Past BRAC (Base Realignment and Closure) rounds devastated communities like Alameda and Vallejo, where base closures triggered years of economic decline, job loss, and population outflow. With ongoing defense budget debates and shifting strategic priorities, another round of closures is a real possibility — and California communities remain unprepared.\n\nThis proposal would establish a California Defense Community Transition Assistance Program (CDCTAP) that proactively helps base-adjacent communities develop economic diversification plans before closures happen, not after. The program would identify the 15 most closure-vulnerable communities based on economic dependency ratios, create individualized transition blueprints, and pre-position state resources for rapid deployment if closure is announced. Key components include workforce retraining grants for defense industry workers, fast-track environmental remediation funding for base properties, and a state-backed revolving loan fund for businesses willing to locate on or near former base land.\n\nThe program draws on lessons from successful transitions like the Presidio in San Francisco, which became a thriving mixed-use national park site, and failures like Mare Island, which languished for over a decade due to contamination and lack of planning. The estimated annual cost is $15 million — a fraction of the economic damage that unplanned closures cause. Funding would come from a portion of California's existing defense-related federal contracting revenue.",
+          "comments": [
+            {"body": "This is the kind of proactive policy we need. I grew up in Vallejo and watched the city nearly go bankrupt after Mare Island closed. The environmental cleanup alone took 15 years. If the state had pre-positioned resources, thousands of families wouldn't have lost their livelihoods while bureaucrats figured out a plan.", "author_prefix": "prog", "replies": [
+              {"body": "Pre-positioning resources assumes closures are inevitable, which could become a self-fulfilling prophecy. If California is seen as planning for base closures, the Pentagon might view the state as less committed to maintaining its bases. We should be fighting to keep bases open, not planning their funerals.", "author_prefix": "con"}
+            ]},
+            {"body": "The revolving loan fund for businesses near former bases is a strong idea. The Presidio worked because San Francisco's economy could absorb the transition. Smaller communities like Lemoore or Beale don't have that luxury. Direct business incentives to attract replacement employers should be the centerpiece, not an afterthought.", "author_prefix": "cen", "replies": [
+              {"body": "Workforce retraining is just as important as attracting new employers. Many defense industry skills — logistics, engineering, project management — translate directly to civilian sectors. The program should include partnerships with California's community colleges to create accelerated certification programs tailored to departing defense workers.", "author_prefix": "mod"}
+            ]}
+          ]
+        }
+      ],
+      "generated_count": 8,
+      "generated_types": {
+        "discussion": 5,
+        "question": 2,
+        "proposal": 1
+      },
+      "comments_per_generated": [
+        5,
+        6,
+        4,
+        5,
+        5,
+        6,
+        4,
+        5
+      ]
+    },
+    "proposal_stakeholders": {
+      "anchors": [],
+      "generated_count": 7,
+      "generated_types": {
+        "discussion": 4,
+        "question": 2,
+        "proposal": 1
+      },
+      "comments_per_generated": [
+        6,
+        5,
+        5,
+        4,
+        6,
+        5,
+        4
+      ]
+    },
+    "opinion_discussion": {
+      "anchors": [
+        {
+          "post_type": "discussion",
+          "title": "Military base closures: Impact on California communities",
+          "body": "California has seen waves of military base closures since the 1990s BRAC rounds. Some communities, like parts of Alameda and Mare Island, are still recovering decades later. Others, like the Presidio in San Francisco, became vibrant mixed-use areas.\n\nWith ongoing defense budget debates, more closures are possible. Many California communities depend heavily on military bases for employment, housing, and economic activity.\n\nShould we fight to keep bases open, or proactively plan for transition? What support do affected communities need?"
+        }
+      ],
+      "generated_count": 7,
+      "generated_types": {
+        "discussion": 4,
+        "question": 2,
+        "proposal": 1
+      },
+      "comments_per_generated": [
+        5,
+        6,
+        4,
+        5,
+        5,
+        6,
+        4
+      ]
+    },
+    "opinion_curation": {
+      "anchors": [],
+      "generated_count": 8,
+      "generated_types": {
+        "discussion": 4,
+        "question": 2,
+        "proposal": 2
+      },
+      "comments_per_generated": [
+        5,
+        4,
+        6,
+        5,
+        4,
+        5,
+        6,
+        5
+      ]
+    },
+    "opinion_proposals": {
+      "anchors": [],
+      "generated_count": 7,
+      "generated_types": {
+        "discussion": 3,
+        "question": 1,
+        "proposal": 3
+      },
+      "comments_per_generated": [
+        6,
+        5,
+        5,
+        6,
+        4,
+        5,
+        6
+      ]
+    }
+  },
+  "surveys": [
+    {
+      "title": "California's Role in Pacific Security",
+      "type": "standard",
+      "session_name": "Pacific Defense",
+      "target_stage": "opinion_discussion",
+      "questions": [
+        {
+          "question": "What should be California's top priority in Pacific affairs?",
+          "options": [
+            "Strengthening trade relationships",
+            "Climate cooperation with Pacific nations",
+            "Supporting military readiness",
+            "Promoting diplomatic engagement"
+          ]
+        },
+        {
+          "question": "How should California communities prepare for potential base closures?",
+          "options": [
+            "Fight to keep all bases open",
+            "Develop proactive economic transition plans",
+            "Convert bases to mixed civilian-military use",
+            "Attract new industries to replace defense jobs"
+          ]
+        },
+        {
+          "question": "Should California pursue independent diplomatic relationships with Pacific nations?",
+          "options": [
+            "Yes, on trade and climate issues",
+            "Only through federal channels",
+            "Limited to economic partnerships",
+            "Yes, broadly including security cooperation"
+          ]
+        }
+      ]
+    }
+  ]
+}

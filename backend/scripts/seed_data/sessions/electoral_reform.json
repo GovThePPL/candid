@@ -1,0 +1,105 @@
+{
+  "session_name": "Electoral Reform",
+  "location_code": "CA/LA",
+  "target_stage": "opinion_discussion",
+  "topic_vocabulary": {
+    "topic_noun": ["electoral reform", "voting rights", "democratic participation"],
+    "topic_adj": ["electoral", "democratic", "civic"],
+    "location_name": ["California", "Los Angeles", "LA County"],
+    "stakeholder": ["voters", "election officials", "political parties", "civic organizations", "tech companies"],
+    "specific_issue": ["ballot proposition complexity", "local government participation", "voter access", "campaign finance", "gerrymandering"],
+    "policy_example": ["ranked-choice voting in San Francisco", "California's top-two primary", "the Voting Rights Act", "LA's neighborhood council system"],
+    "data_point": ["LA had 18% turnout in its last municipal election", "California ballots average 12+ propositions", "only 1 in 4 eligible voters participates in local meetings"]
+  },
+  "positions": {
+    "proposal_issue": [
+      {"type": "anchor", "statement": "The 2020 presidential election was conducted fairly and the results were legitimate.",
+       "votes": [1, 1, 1, 1, 1, 1, 1, 1, -1, -1]},
+      {"type": "anchor", "statement": "Voter ID requirements are necessary to prevent election fraud.",
+       "votes": [-1, -1, -1, -1, 1, 1, 1, 1, 1, 1]},
+      {"type": "generated", "lean": "left", "topic_focus": "equity"},
+      {"type": "generated", "lean": "center", "topic_focus": "governance"},
+      {"type": "generated", "lean": "right", "topic_focus": "reform"}
+    ],
+    "proposal_qualify": [
+      {"type": "anchor", "statement": "The federal government has become too large and should be significantly reduced.",
+       "votes": [-1, -1, -1, -1, -1, 1, 1, 1, 1, 1]},
+      {"type": "generated", "lean": "center_left", "topic_focus": "implementation"},
+      {"type": "generated", "lean": "bipartisan", "topic_focus": "reform"},
+      {"type": "generated", "lean": "populist_cross", "topic_focus": "governance"}
+    ],
+    "opinion_discussion": [
+      {"type": "anchor", "statement": "Big tech companies have too much power and should be broken up or heavily regulated.",
+       "votes": [1, 1, 1, 1, 1, 1, -1, 1, 1, 0]},
+      {"type": "generated", "lean": "left", "topic_focus": "equity"},
+      {"type": "generated", "lean": "center_right", "topic_focus": "individual_collective"},
+      {"type": "generated", "lean": "libertarian_cross", "topic_focus": "governance"}
+    ]
+  },
+  "posts": {
+    "proposal_issue": {
+      "anchors": [
+        {
+          "post_type": "discussion",
+          "title": "Resources for understanding California ballot propositions",
+          "body": "California ballot propositions can be overwhelming — sometimes there are 12 or more in a single election. Here are some tips for evaluating them:\n\n1. **Read the actual text** — not just the title, which can be misleading\n2. **Follow the money** — check who is funding the Yes and No campaigns\n3. **Check the consequences** — look for independent analyses of fiscal and social impact\n4. **Watch for hidden provisions** — some props bundle popular items with controversial ones\n\nWhat resources do you use? How do you cut through the noise?",
+          "comments": [
+            {"body": "CalMatters Voter Guide is hands down the best resource. They break down each prop with plain-English summaries, who supports/opposes, and funding sources. Completely nonpartisan.", "author_prefix": "lib"},
+            {"body": "Always follow the money. FPPC filings are public record — you can see exactly who is spending what on each proposition. That tells you more than any voter guide.", "author_prefix": "con"}
+          ]
+        }
+      ],
+      "generated_count": 8,
+      "generated_types": {"discussion": 5, "question": 2, "proposal": 1},
+      "comments_per_generated": [5, 4, 6, 5, 4, 5, 6, 5]
+    },
+    "proposal_qualify": {
+      "anchors": [
+        {
+          "post_type": "proposal",
+          "title": "Proposal: Move LA City Elections to Coincide with State and Federal Elections",
+          "body": "Los Angeles had just 18% voter turnout in its last municipal election. By contrast, the most recent presidential election saw over 70% turnout in LA County. Holding city elections in odd-numbered years, separate from state and federal races, is the single biggest structural barrier to democratic participation in local government.\n\nThis proposal would move all LA City Council, mayoral, and city ballot measure elections to coincide with even-year state and federal election cycles. This change alone could more than triple turnout for local races based on data from cities that have already made the switch. San Francisco, for example, saw a 36-percentage-point increase in local election turnout after consolidating its election calendar.\n\nCritics will argue that local issues get drowned out on a crowded ballot. But the current system produces an electorate that is older, whiter, and wealthier than LA's actual population — a fundamental representativeness problem. When only 18% of eligible voters choose city leaders, the resulting government doesn't reflect the community it serves. Higher turnout means more diverse participation, which means more representative outcomes. The cost savings from eliminating standalone election administration would be approximately $20 million per cycle, which could be redirected to voter education programs.",
+          "comments": [
+            {"body": "This is a no-brainer for democratic participation. The data is overwhelming — consolidated elections produce dramatically higher and more representative turnout. Every election administration expert I've spoken to supports this. The only people who benefit from low-turnout standalone elections are incumbents who rely on small, loyal voter bases.", "author_prefix": "prog", "replies": [
+              {"body": "There's truth to the turnout argument, but local issues DO get buried on crowded ballots. In the last presidential election, most voters I talked to couldn't name a single city council candidate. They just voted the party line. Is uninformed participation really better than lower but more deliberate turnout?", "author_prefix": "con"}
+            ]},
+            {"body": "As someone who works in voter engagement in South LA, I can tell you that most people in our community don't even know local elections exist. They show up for the presidential race and that's it. Aligning the calendars removes a barrier that disproportionately affects working-class communities and communities of color who can't take time off for a random Tuesday in March.", "author_prefix": "mod", "replies": [
+              {"body": "The better solution is making it easier to vote in all elections — expanded vote-by-mail, more drop-off locations, same-day registration. Moving the calendar is a band-aid. We should be improving access across the board, not just piggybacking local races onto federal ones.", "author_prefix": "cen"}
+            ]}
+          ]
+        }
+      ],
+      "generated_count": 7,
+      "generated_types": {"discussion": 4, "question": 2, "proposal": 1},
+      "comments_per_generated": [5, 6, 4, 5, 5, 6, 4]
+    },
+    "opinion_discussion": {
+      "anchors": [
+        {
+          "post_type": "question",
+          "title": "What are the best ways to get involved in local government?",
+          "body": "Beyond just voting, what are the most effective ways for residents to participate in local government? I feel like most people (myself included) don't really know how to engage beyond showing up at the ballot box.\n\nWhat has worked for you? What opportunities exist that most people don't know about?",
+          "comments": [
+            {"body": "There are more ways than most people realize:\n\n- **Neighborhood councils** — LA has 99 of them, and they actually influence city decisions. Meetings are open to all.\n- **Public comment periods** — City council and planning commission meetings accept public comment. You get 1-2 minutes to speak on any agenda item.\n- **Grand jury service** — The LA County Civil Grand Jury investigates government operations. Citizens can apply.\n- **Ballot initiatives** — You can propose local measures. It takes signatures, but it's a direct path to policy change.\n\nStart with your neighborhood council. It's the lowest barrier to real participation.", "author_prefix": "admin"}
+          ]
+        }
+      ],
+      "generated_count": 7,
+      "generated_types": {"discussion": 4, "question": 2, "proposal": 1},
+      "comments_per_generated": [6, 5, 5, 6, 4, 5, 6]
+    }
+  },
+  "surveys": [
+    {
+      "title": "Electoral Reform Priorities for Los Angeles",
+      "type": "standard",
+      "session_name": "Electoral Reform",
+      "target_stage": "opinion_discussion",
+      "questions": [
+        {"question": "What is the biggest barrier to voter participation in LA?", "options": ["Confusing ballot propositions", "Lack of information about local candidates", "Inconvenient polling locations or hours", "Feeling that individual votes don't matter"]},
+        {"question": "Which electoral reform would have the most impact?", "options": ["Ranked-choice voting", "Automatic voter registration", "Public campaign financing", "Moving local elections to coincide with presidential elections"]},
+        {"question": "How should we improve civic engagement beyond voting?", "options": ["Better publicize neighborhood council meetings", "Create online platforms for public input", "Require civic education in schools", "Pay community members for civic participation"]}
+      ]
+    }
+  ]
+}

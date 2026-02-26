@@ -85,11 +85,11 @@ components:
         locationCode:
           type: string
           nullable: true
-        positionCategoryId:
+        sessionId:
           type: string
           format: uuid
           nullable: true
-        categoryLabel:
+        sessionLabel:
           type: string
           nullable: true
     User:
@@ -165,15 +165,15 @@ components:
     UserSettings:
       type: object
       properties:
-        categoryWeights:
+        sessionWeights:
           type: array
           items:
             type: object
             required:
-              - categoryId
+              - sessionId
               - weight
             properties:
-              categoryId:
+              sessionId:
                 type: string
                 format: uuid
               weight:
@@ -275,7 +275,7 @@ components:
         - id
         - creator
         - statement
-        - categoryId
+        - sessionId
         - status
       properties:
         id:
@@ -285,10 +285,10 @@ components:
           $ref: '#/components/schemas/User'
         statement:
           type: string
-        categoryId:
+        sessionId:
           type: string
           format: uuid
-        category:
+        session:
           type: object
           nullable: true
           properties:
@@ -337,6 +337,10 @@ components:
           type: string
           enum: [online, notifiable, none]
           description: Whether users are available to chat about this position
+        createdDuringStage:
+          type: string
+          nullable: true
+          description: Session stage when this position was created
 
     UserPosition:
       type: object
@@ -345,7 +349,7 @@ components:
         - userId
         - positionId
         - status
-        - categoryId
+        - sessionId
         - locationId
         - statement
       properties:
@@ -363,12 +367,12 @@ components:
         locationId:
           type: string
           format: uuid
-        categoryId:
+        sessionId:
           type: string
           format: uuid
-        categoryName:
+        sessionName:
           type: string
-          description: Name of the position category
+          description: Name of the session
         locationName:
           type: string
           description: Name of the position location
@@ -387,7 +391,7 @@ components:
         chatCount:
           type: integer
 
-    PositionCategory:
+    Session:
       type: object
       required:
         - id
@@ -396,16 +400,99 @@ components:
         id:
           type: string
           format: uuid
-        parentId:
-          type: string
-          format: uuid
-          description: ID of the parent category (null for top-level categories)
         label:
           type: string
-#        subcategories:
-#          type: array
-#          items:
-#            $ref: '#/components/schemas/PositionCategory'
+        description:
+          type: string
+          nullable: true
+        locationId:
+          type: string
+          format: uuid
+        stage:
+          type: string
+          enum: [proposal_issue, proposal_qualify, proposal_stakeholders, opinion_discussion, opinion_curation, opinion_proposals, reflection, consensus]
+        stageChangedAt:
+          type: string
+          format: date-time
+          nullable: true
+        stageChangedBy:
+          type: string
+          format: uuid
+          nullable: true
+        facilitatorUserId:
+          type: string
+          format: uuid
+          nullable: true
+        status:
+          type: string
+          enum: [active, archived, cancelled]
+        createdBy:
+          type: string
+          format: uuid
+          nullable: true
+        proposalMethod:
+          type: string
+          enum: [user_driven, admin_provided]
+          description: How proposals are created for this session
+        locationCode:
+          type: string
+          nullable: true
+        locationName:
+          type: string
+          nullable: true
+
+    AdminSession:
+      type: object
+      required:
+        - id
+        - label
+      properties:
+        id:
+          type: string
+          format: uuid
+        label:
+          type: string
+        description:
+          type: string
+          nullable: true
+        locationId:
+          type: string
+          format: uuid
+          nullable: true
+        locationCode:
+          type: string
+          nullable: true
+        locationName:
+          type: string
+          nullable: true
+        stage:
+          type: string
+          enum: [proposal_issue, proposal_qualify, proposal_stakeholders, opinion_discussion, opinion_curation, opinion_proposals, reflection, consensus]
+        stageChangedAt:
+          type: string
+          format: date-time
+          nullable: true
+        stageChangedBy:
+          type: string
+          format: uuid
+          nullable: true
+        facilitatorUserId:
+          type: string
+          format: uuid
+          nullable: true
+        facilitatorUsername:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [active, archived, cancelled]
+        createdBy:
+          type: string
+          format: uuid
+          nullable: true
+        proposalMethod:
+          type: string
+          enum: [user_driven, admin_provided]
 
     Response:
       type: object
@@ -536,7 +623,7 @@ components:
           format: uuid
         creator:
           $ref: '#/components/schemas/User'
-        positionCategoryId:
+        sessionId:
           type: string
           format: uuid
         surveyTitle:
@@ -554,11 +641,7 @@ components:
         locationName:
           type: string
           nullable: true
-        categoryId:
-          type: string
-          format: uuid
-          nullable: true
-        categoryName:
+        sessionName:
           type: string
           nullable: true
         questionCount:
@@ -619,7 +702,7 @@ components:
       type: object
       description: Request body for updating a survey. All fields are optional.
       properties:
-        positionCategoryId:
+        sessionId:
           type: string
           format: uuid
         surveyTitle:
@@ -1033,7 +1116,7 @@ components:
                 positionStatement:
                   type: string
                   nullable: true
-                category:
+                session:
                   type: object
                   nullable: true
                   properties:
@@ -1119,7 +1202,7 @@ components:
               format: uuid
             statement:
               type: string
-            category:
+            session:
               type: string
               nullable: true
             location:
@@ -1398,7 +1481,7 @@ components:
           type: string
           format: uuid
           nullable: true
-        positionCategoryId:
+        sessionId:
           type: string
           format: uuid
           nullable: true
@@ -1419,6 +1502,11 @@ components:
           type: boolean
           default: false
           description: Whether this survey is for group identity labeling
+        phase:
+          type: string
+          enum: [proposal, opinion]
+          nullable: true
+          description: Session phase this label survey applies to
         startTime:
           type: string
           format: date-time
@@ -1526,7 +1614,7 @@ components:
               type: string
             code:
               type: string
-        category:
+        session:
           type: object
           nullable: true
           properties:
@@ -1559,7 +1647,7 @@ components:
         locationId:
           type: string
           format: uuid
-        positionCategoryId:
+        sessionId:
           type: string
           format: uuid
           nullable: true
@@ -1610,7 +1698,7 @@ components:
               type: string
             code:
               type: string
-        category:
+        session:
           type: object
           nullable: true
           properties:
@@ -1664,7 +1752,7 @@ components:
               type: string
             code:
               type: string
-        category:
+        session:
           type: object
           nullable: true
           properties:
@@ -1725,16 +1813,21 @@ components:
         locationName:
           type: string
           nullable: true
-        categoryId:
+        sessionId:
           type: string
           format: uuid
           nullable: true
-        categoryName:
+        sessionName:
           type: string
           nullable: true
         isGroupLabeling:
           type: boolean
           default: false
+        phase:
+          type: string
+          enum: [proposal, opinion]
+          nullable: true
+          description: Session phase this label survey applies to
         items:
           type: array
           items:
@@ -1857,12 +1950,12 @@ components:
         locationName:
           type: string
           nullable: true
-        positionCategoryId:
+        sessionId:
           type: string
           format: uuid
           nullable: true
-          description: Category scope (null = all categories)
-        categoryLabel:
+          description: Session scope (null = all sessions)
+        sessionLabel:
           type: string
           nullable: true
         applicableContentTypes:
@@ -1929,7 +2022,7 @@ components:
               type: string
               format: uuid
               nullable: true
-            positionCategoryId:
+            sessionId:
               type: string
               format: uuid
               nullable: true
@@ -2039,7 +2132,7 @@ components:
         - endTime
         - questions
       properties:
-        positionCategoryId:
+        sessionId:
           type: string
           format: uuid
         locationId:
@@ -2219,7 +2312,7 @@ components:
           type: string
         statement:
           type: string
-        category:
+        session:
           type: object
           nullable: true
           properties:
@@ -2307,6 +2400,10 @@ components:
         closureCount:
           type: integer
           description: Number of agreed closures for this position
+        similarity:
+          type: number
+          nullable: true
+          description: Semantic similarity score (0-1) when using meaning-based search
 
     GroupDemographics:
       type: object
@@ -2379,7 +2476,7 @@ components:
               format: uuid
             statement:
               type: string
-            category:
+            session:
               type: object
               nullable: true
               properties:
@@ -2429,9 +2526,9 @@ components:
           description: Opinion groups (same as StatsResponse.groups) for map visualization
           items:
             $ref: '#/components/schemas/OpinionGroup'
-        allCategoriesGroups:
+        allSessionsGroups:
           type: array
-          description: Opinion groups for the location-wide (all categories) Polis conversation
+          description: Opinion groups for the location-wide (all sessions) Polis conversation
           items:
             $ref: '#/components/schemas/OpinionGroup'
         closures:
@@ -2524,10 +2621,10 @@ components:
               type: number
             y:
               type: number
-        allCategoriesMapPosition:
+        allSessionsMapPosition:
           type: object
           nullable: true
-          description: The user's x,y position on the all-categories opinion map
+          description: The user's x,y position on the all-sessions opinion map
           properties:
             x:
               type: number
@@ -2919,7 +3016,7 @@ components:
           type: string
         postType:
           type: string
-          enum: [discussion, question]
+          enum: [discussion, question, proposal]
         status:
           type: string
           enum: [active, deleted, removed, locked]
@@ -2928,11 +3025,11 @@ components:
         locationId:
           type: string
           format: uuid
-        categoryId:
+        sessionId:
           type: string
           format: uuid
           nullable: true
-        category:
+        session:
           type: object
           nullable: true
           properties:
@@ -3008,6 +3105,26 @@ components:
         updatedTime:
           type: string
           format: date-time
+        createdDuringStage:
+          type: string
+          nullable: true
+          description: Session stage when this post was created
+        isPinned:
+          type: boolean
+          description: Whether this post is pinned in the current feed context
+        pinnedStage:
+          type: string
+          nullable: true
+          description: The stage this post is pinned at (null if not pinned)
+        proposalStatus:
+          type: string
+          enum: [draft, finalized]
+          nullable: true
+          description: Proposal lifecycle status (null for non-proposals)
+        proposalMetadata:
+          type: object
+          nullable: true
+          description: Structured metadata from the proposal wizard
 
     PostList:
       type: object
@@ -3041,17 +3158,21 @@ components:
         locationId:
           type: string
           format: uuid
-        categoryId:
+        sessionId:
           type: string
           format: uuid
           nullable: true
         postType:
           type: string
-          enum: [discussion, question]
+          enum: [discussion, question, proposal]
           default: discussion
         glossaryHighlight:
           type: boolean
           default: true
+        proposalMetadata:
+          type: object
+          nullable: true
+          description: Structured metadata from the proposal wizard (for proposal posts)
 
     UpdatePostRequest:
       type: object
@@ -3153,6 +3274,10 @@ components:
         updatedTime:
           type: string
           format: date-time
+        createdDuringStage:
+          type: string
+          nullable: true
+          description: Session stage when this comment was created
 
     CommentPage:
       type: object
@@ -3227,10 +3352,10 @@ components:
           type: string
           nullable: true
           description: Title of the post (for comments, the parent post's title)
-        postCategoryLabel:
+        postSessionLabel:
           type: string
           nullable: true
-          description: Category label of the post
+          description: Session label of the post
         postLocationCode:
           type: string
           nullable: true
@@ -3338,6 +3463,230 @@ components:
             opinion groups. False when group data is unavailable or
             same group.
 
+    VotingRound:
+      type: object
+      required:
+        - id
+        - sessionId
+        - roundType
+        - status
+        - ballotSize
+        - winnerCount
+      properties:
+        id:
+          type: string
+          format: uuid
+        sessionId:
+          type: string
+          format: uuid
+        roundType:
+          type: string
+          enum: [issue_selection, policy_selection]
+        status:
+          type: string
+          enum: [proposals_open, finalization_open, proposals_closed, voting_open, voting_closed]
+        ballotSize:
+          type: integer
+        winnerCount:
+          type: integer
+        createdTime:
+          type: string
+          format: date-time
+
+    Endorsement:
+      type: object
+      required:
+        - id
+        - proposalPostId
+        - createdTime
+      properties:
+        id:
+          type: string
+          format: uuid
+        proposalPostId:
+          type: string
+          format: uuid
+        createdTime:
+          type: string
+          format: date-time
+
+    EndorsementList:
+      type: object
+      required:
+        - myEndorsements
+        - proposalCounts
+      properties:
+        myEndorsements:
+          type: array
+          items:
+            $ref: '#/components/schemas/Endorsement'
+        proposalCounts:
+          type: array
+          items:
+            type: object
+            required:
+              - proposalPostId
+              - count
+            properties:
+              proposalPostId:
+                type: string
+                format: uuid
+              count:
+                type: integer
+
+    CreateEndorsementRequest:
+      type: object
+      required:
+        - proposalPostId
+      properties:
+        proposalPostId:
+          type: string
+          format: uuid
+
+    RankingEntry:
+      type: object
+      required:
+        - proposalPostId
+        - rank
+      properties:
+        proposalPostId:
+          type: string
+          format: uuid
+        rank:
+          type: integer
+          minimum: 1
+
+    SubmitBallotRequest:
+      type: object
+      required:
+        - rankings
+      properties:
+        rankings:
+          type: array
+          items:
+            $ref: '#/components/schemas/RankingEntry'
+
+    Ballot:
+      type: object
+      required:
+        - id
+        - rankings
+      properties:
+        id:
+          type: string
+          format: uuid
+        rankings:
+          type: array
+          items:
+            $ref: '#/components/schemas/RankingEntry'
+        createdTime:
+          type: string
+          format: date-time
+        updatedTime:
+          type: string
+          format: date-time
+
+    BallotCandidate:
+      type: object
+      required:
+        - proposalPostId
+        - endorsementCount
+        - displayOrder
+      properties:
+        proposalPostId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        endorsementCount:
+          type: integer
+        displayOrder:
+          type: integer
+
+    ElectionResults:
+      type: object
+      required:
+        - method
+        - winners
+        - totalBallots
+        - candidates
+      properties:
+        method:
+          type: string
+          enum: [condorcet, irv]
+        winners:
+          type: array
+          items:
+            type: object
+            required:
+              - proposalPostId
+              - rank
+            properties:
+              proposalPostId:
+                type: string
+                format: uuid
+              rank:
+                type: integer
+        condorcetMatrix:
+          type: object
+          nullable: true
+          description: Pairwise comparison matrix (proposalId -> proposalId -> count)
+        irvRounds:
+          type: array
+          nullable: true
+          items:
+            type: object
+        totalBallots:
+          type: integer
+        candidates:
+          type: array
+          items:
+            $ref: '#/components/schemas/BallotCandidate'
+
+    CreateVotingRoundRequest:
+      type: object
+      properties:
+        ballotSize:
+          type: integer
+          default: 7
+        winnerCount:
+          type: integer
+          default: 1
+
+    ProposalAssistRequest:
+      type: object
+      required:
+        - sessionId
+        - step
+        - userInput
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+          description: Session to gather context from
+        step:
+          type: string
+          description: Wizard step name (e.g. description, stakeholders, impact, rights, implementation)
+        userInput:
+          type: string
+          minLength: 1
+          description: User's draft text for this step
+        previousSections:
+          type: object
+          nullable: true
+          additionalProperties:
+            type: string
+          description: Previously completed wizard sections (step name → content)
+
+    ProposalAssistResponse:
+      type: object
+      required:
+        - generatedContent
+      properties:
+        generatedContent:
+          type: string
+          description: AI-enhanced content for this wizard step
+
     GlossaryTermSummary:
       type: object
       required:
@@ -3366,7 +3715,7 @@ components:
           items:
             type: string
             format: uuid
-        categoryIds:
+        sessionIds:
           type: array
           items:
             type: string
@@ -3415,7 +3764,7 @@ components:
           items:
             type: string
             format: uuid
-        categoryIds:
+        sessionIds:
           type: array
           items:
             type: string
@@ -3481,7 +3830,7 @@ components:
             properties:
               type:
                 type: string
-                enum: [location, category]
+                enum: [location, session]
               id:
                 type: string
                 format: uuid
@@ -3541,13 +3890,13 @@ components:
             properties:
               type:
                 type: string
-                enum: [location, category]
+                enum: [location, session]
               id:
                 type: string
                 format: uuid
               label:
                 type: string
-                description: Human-readable name of the location or category
+                description: Human-readable name of the location or session
         proposedScopeCombine:
           type: string
           enum: [and, or]
@@ -3576,7 +3925,7 @@ components:
             properties:
               type:
                 type: string
-                enum: [location, category]
+                enum: [location, session]
               id:
                 type: string
                 format: uuid
@@ -3654,7 +4003,7 @@ components:
             properties:
               type:
                 type: string
-                enum: [location, category]
+                enum: [location, session]
               id:
                 type: string
                 format: uuid
@@ -3700,7 +4049,7 @@ components:
             properties:
               type:
                 type: string
-                enum: [location, category]
+                enum: [location, session]
               id:
                 type: string
                 format: uuid
@@ -3736,7 +4085,7 @@ components:
             properties:
               type:
                 type: string
-                enum: [location, category]
+                enum: [location, session]
               id:
                 type: string
                 format: uuid
@@ -3776,7 +4125,7 @@ components:
             properties:
               type:
                 type: string
-                enum: [location, category]
+                enum: [location, session]
               id:
                 type: string
                 format: uuid
@@ -3812,7 +4161,7 @@ components:
             properties:
               type:
                 type: string
-                enum: [location, category]
+                enum: [location, session]
               id:
                 type: string
                 format: uuid
@@ -3830,7 +4179,7 @@ components:
             properties:
               type:
                 type: string
-                enum: [location, category]
+                enum: [location, session]
               id:
                 type: string
                 format: uuid
@@ -4160,6 +4509,24 @@ paths:
             default: 10
             maximum: 50
           description: Maximum number of cards to return
+        - name: sessionId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter session-scoped cards (positions, surveys, pairwise) to this session. Non-session cards (chat requests, kudos, demographics) pass through unfiltered.
+        - name: phase
+          in: query
+          schema:
+            type: string
+            enum: [proposal, opinion, reflection, consensus]
+          description: Filter position cards by the major phase they were created during
+        - name: browseAll
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: When true, returns all cards (including previously voted/answered) for archived stage browsing
       responses:
         '200':
           description: Mixed queue of cards. Priority cards (chat_request, kudos) appear at front, followed by shuffled pool (demographic, survey, position).
@@ -4258,14 +4625,14 @@ paths:
               type: object
               required:
                 - statement
-                - categoryId
+                - sessionId
                 - locationId
               properties:
                 statement:
                   type: string
                   maxLength: 140
                   description: The position statement (max 140 characters for Polis compatibility)
-                categoryId:
+                sessionId:
                   type: string
                   format: uuid
                 locationId:
@@ -4392,10 +4759,10 @@ paths:
                   type: string
                   description: The statement to find similar positions for
                   minLength: 20
-                categoryId:
+                sessionId:
                   type: string
                   format: uuid
-                  description: Optional category filter
+                  description: Optional session filter
                 locationId:
                   type: string
                   format: uuid
@@ -4422,42 +4789,43 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
-  /positions/search-stats:
-    post:
-      operationId: searchStatsPositions
+  /positions/stats:
+    get:
+      operationId: getPositionsStats
       summary: Search positions for stats page
       description: Searches positions using semantic similarity for longer queries (>= 3 words), falling back to text matching for shorter queries or when NLP is unavailable
       tags:
         - Positions
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - query
-                - locationId
-              properties:
-                query:
-                  type: string
-                  description: Search query text
-                  minLength: 2
-                locationId:
-                  type: string
-                  format: uuid
-                  description: Location to search within (includes parent locations)
-                offset:
-                  type: integer
-                  default: 0
-                  minimum: 0
-                  description: Pagination offset
-                limit:
-                  type: integer
-                  default: 20
-                  minimum: 1
-                  maximum: 50
-                  description: Maximum results to return
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+          description: Search query text
+        - name: locationId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Location to search within (includes parent locations)
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+          description: Pagination offset
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 50
+          description: Maximum results to return
       responses:
         '200':
           description: Search results
@@ -4606,7 +4974,7 @@ paths:
           description: Account deleted successfully
 
   /users/me/avatar:
-    post:
+    put:
       operationId: uploadAvatar
       summary: Upload a custom avatar image
       description: |
@@ -5102,8 +5470,8 @@ paths:
       operationId: bulkDeleteChattingListItems
       summary: Remove multiple positions from chatting list
       description: |
-        Bulk remove chatting list items by category, location, or specific item IDs.
-        At least one of categoryId, locationCode, or itemIds must be provided.
+        Bulk remove chatting list items by session, location, or specific item IDs.
+        At least one of sessionId, locationCode, or itemIds must be provided.
       tags:
         - ChattingList
       requestBody:
@@ -5113,10 +5481,10 @@ paths:
             schema:
               type: object
               properties:
-                categoryId:
+                sessionId:
                   type: string
                   format: uuid
-                  description: Remove all items with positions in this category
+                  description: Remove all items with positions in this session
                 locationCode:
                   type: string
                   description: Remove all items with positions in this location
@@ -5238,7 +5606,7 @@ paths:
                 $ref: '#/components/schemas/ErrorModel'
 
   /users/me/chatting-list/explanation-seen:
-    put:
+    patch:
       operationId: markChattingListExplanationSeen
       summary: Mark the chatting list explanation as seen
       tags:
@@ -5540,7 +5908,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
-  /chats/user/{userId}:
+  /users/{userId}/chats:
     get:
       operationId: getUserChats
       summary: Get a list of the user's historical chats
@@ -5641,7 +6009,7 @@ paths:
         '304':
           description: Not Modified - cached version is still valid
 
-  /chats/user/{userId}/metadata:
+  /users/{userId}/chats/metadata:
     get:
       operationId: getUserChatsMetadata
       summary: Get metadata about user's chat history for cache validation
@@ -5685,21 +6053,41 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
-  /categories:
+  /sessions:
     get:
-      operationId: getAllCategories
-      summary: Get hierarchical structure of all position categories and subcategories
+      operationId: getAllSessions
+      summary: Get all sessions
       tags:
-        - Categories
+        - Sessions
+      parameters:
+        - name: locationId
+          in: query
+          description: Filter sessions assigned to this location
+          schema:
+            type: string
+            format: uuid
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
       responses:
         '200':
-          description: Complete hierarchical structure of categories
+          description: List of all sessions
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/PositionCategory'
+                  $ref: '#/components/schemas/Session'
         '401':
           description: Unauthorized - authentication required
           content:
@@ -5707,34 +6095,31 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
-  /categories/suggestions:
-    post:
-      operationId: createCategorySuggestions
-      summary: Suggest categories based on a position statement
-      description: Uses semantic similarity to rank categories by relevance to the given statement
+  /sessions/suggestions:
+    get:
+      operationId: getSessionSuggestions
+      summary: Suggest sessions based on a position statement
+      description: Uses semantic similarity to rank sessions by relevance to the given statement
       tags:
-        - Categories
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - statement
-              properties:
-                statement:
-                  type: string
-                  description: The position statement to match against categories
-                  minLength: 10
-                limit:
-                  type: integer
-                  default: 3
-                  minimum: 1
-                  maximum: 10
+        - Sessions
+      parameters:
+        - name: statement
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 10
+          description: The position statement to match against sessions
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 3
+            minimum: 1
+            maximum: 10
       responses:
         '200':
-          description: Ranked list of suggested categories
+          description: Ranked list of suggested sessions
           content:
             application/json:
               schema:
@@ -5742,14 +6127,499 @@ paths:
                 items:
                   type: object
                   properties:
-                    category:
-                      $ref: '#/components/schemas/PositionCategory'
+                    session:
+                      $ref: '#/components/schemas/Session'
                     score:
                       type: number
                       format: float
                       description: Relevance score (0-1)
         '400':
           description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /sessions/{sessionId}:
+    get:
+      operationId: getSession
+      summary: Get session details
+      tags:
+        - Sessions
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Session details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '404':
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+      security:
+        - BearerAuth: []
+    patch:
+      operationId: updateSession
+      summary: Update a session
+      description: Update session fields. Setting stage advances the session forward (must be the next stage in order). Only facilitators, moderators, or admins can update.
+      tags:
+        - Sessions
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                stage:
+                  type: string
+                  enum: [proposal_issue, proposal_qualify, proposal_stakeholders, opinion_discussion, opinion_curation, opinion_proposals, reflection, consensus]
+                  description: Advance to this stage (must be the next stage in sequence)
+                reason:
+                  type: string
+                  description: Optional reason for the stage change
+      responses:
+        '200':
+          description: Updated session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '400':
+          description: Invalid stage transition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '403':
+          description: Not authorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+      security:
+        - BearerAuth: []
+
+  /sessions/{sessionId}/voting-round:
+    get:
+      operationId: getVotingRound
+      summary: Get the current voting round for a session
+      tags:
+        - Sessions
+      security:
+        - BearerAuth: []
+        - {}
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: roundType
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [issue_selection, policy_selection]
+          description: Filter by round type. If omitted, returns the latest round.
+      responses:
+        '200':
+          description: Current voting round
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VotingRound'
+        '404':
+          description: No voting round found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+    patch:
+      operationId: advanceVotingRound
+      summary: Advance voting round to next status
+      description: Facilitator, moderator, or admin updates the voting round status to the next step in the sequence (proposals_open → finalization_open → proposals_closed → voting_open → voting_closed).
+      tags:
+        - Sessions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Updated voting round
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VotingRound'
+        '400':
+          description: Cannot advance past current status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '403':
+          description: Not authorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: Session or voting round not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+    post:
+      operationId: createVotingRound
+      summary: Create a new voting round for a session
+      description: Creates a voting round. Only one active round per session per type. Only facilitators, moderators, or admins can create.
+      tags:
+        - Sessions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateVotingRoundRequest'
+      responses:
+        '201':
+          description: Voting round created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VotingRound'
+        '400':
+          description: Voting round already exists for this session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '403':
+          description: Not authorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /sessions/{sessionId}/endorsements:
+    get:
+      operationId: getEndorsements
+      summary: Get endorsements for current user and proposal counts
+      tags:
+        - Sessions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: roundType
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [issue_selection, policy_selection]
+          description: Filter by round type. If omitted, returns the latest round.
+      responses:
+        '200':
+          description: Endorsement data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EndorsementList'
+        '404':
+          description: No voting round found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+    post:
+      operationId: createEndorsement
+      summary: Endorse a proposal
+      description: Endorse a proposal in the current voting round. Max 3 endorsements per user. Only allowed during proposals_open or finalization_open.
+      tags:
+        - Sessions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEndorsementRequest'
+      responses:
+        '201':
+          description: Endorsement created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Endorsement'
+        '400':
+          description: Invalid request (limit reached, wrong stage, etc.)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: Voting round or proposal not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '409':
+          description: Already endorsed this proposal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /sessions/{sessionId}/endorsements/{endorsementId}:
+    delete:
+      operationId: deleteEndorsement
+      summary: Remove an endorsement
+      description: Remove a previously cast endorsement. Only allowed during proposals_open or finalization_open.
+      tags:
+        - Sessions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: endorsementId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Endorsement deleted
+        '403':
+          description: Not the owner of this endorsement
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: Endorsement not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /sessions/{sessionId}/ballot:
+    get:
+      operationId: getBallot
+      summary: Get current user's ballot
+      tags:
+        - Sessions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: roundType
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [issue_selection, policy_selection]
+          description: Filter by round type. If omitted, returns the latest round.
+      responses:
+        '200':
+          description: User's ballot (empty rankings if no ballot submitted)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ballot'
+        '404':
+          description: No voting round found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+    put:
+      operationId: submitBallot
+      summary: Submit or update a ballot
+      description: Submit ranked choices for the current voting round. Replaces any existing ballot. Only allowed during voting_open.
+      tags:
+        - Sessions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitBallotRequest'
+      responses:
+        '200':
+          description: Ballot submitted/updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ballot'
+        '400':
+          description: Invalid ballot (bad ranks, invalid candidates, wrong stage)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: No voting round found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /sessions/{sessionId}/candidates:
+    get:
+      operationId: getCandidates
+      summary: Get qualified ballot candidates
+      description: Get the proposals that qualified for the ballot based on endorsement counts.
+      tags:
+        - Sessions
+      security:
+        - BearerAuth: []
+        - {}
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: roundType
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [issue_selection, policy_selection]
+          description: Filter by round type. If omitted, returns the latest round.
+      responses:
+        '200':
+          description: List of ballot candidates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BallotCandidate'
+        '404':
+          description: No voting round found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /sessions/{sessionId}/results:
+    get:
+      operationId: getResults
+      summary: Get election results
+      description: Get the results of a completed voting round. Only available when voting_closed.
+      tags:
+        - Sessions
+      security:
+        - BearerAuth: []
+        - {}
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: roundType
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [issue_selection, policy_selection]
+          description: Filter by round type. If omitted, returns the latest round.
+      responses:
+        '200':
+          description: Election results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ElectionResults'
+        '400':
+          description: Voting not yet closed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '404':
+          description: No voting round found
           content:
             application/json:
               schema:
@@ -5769,13 +6639,13 @@ paths:
             type: string
             format: uuid
           description: Filter by location ID (includes parent locations)
-        - name: categoryId
+        - name: sessionId
           in: query
           required: false
           schema:
             type: string
             format: uuid
-          description: Filter by category ID
+          description: Filter by session ID
       responses:
         '200':
           description: List of active surveys
@@ -5880,7 +6750,7 @@ paths:
     get:
       operationId: getPairwiseSurveys
       summary: Get list of pairwise surveys
-      description: Returns pairwise surveys, optionally filtered by location and category
+      description: Returns pairwise surveys, optionally filtered by location and session
       tags:
         - Surveys
       parameters:
@@ -5890,12 +6760,12 @@ paths:
             type: string
             format: uuid
           description: Filter by location ID
-        - name: categoryId
+        - name: sessionId
           in: query
           schema:
             type: string
             format: uuid
-          description: Filter by category ID
+          description: Filter by session ID
       responses:
         '200':
           description: List of pairwise surveys
@@ -6163,13 +7033,26 @@ paths:
       tags:
         - Moderation
       parameters:
-        - name: content_type
+        - name: contentType
           in: query
           required: false
           schema:
             type: string
             enum: [position, chat_log, post, comment]
           description: Filter rules by applicable content type
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
       responses:
         '200':
           description: List of active rules
@@ -6284,6 +7167,20 @@ paths:
       summary: Get unified moderation queue with all items requiring moderator attention
       tags:
         - Moderation
+      parameters:
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
       responses:
         '200':
           description: List of all moderation items requiring attention
@@ -6312,9 +7209,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
-  /moderation/inline-action:
+  /moderation/actions:
     post:
-      operationId: inlineModeratorAction
+      operationId: createModerationAction
       summary: Take inline moderation action on content (creates report + takes action in one step)
       tags:
         - Moderation
@@ -6762,6 +7659,12 @@ paths:
             type: string
             format: uuid
           description: Filter surveys by location
+        - name: sessionId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter surveys by session
       responses:
         '200':
           description: List of surveys
@@ -6965,6 +7868,12 @@ paths:
             type: string
             enum: [admin, moderator, facilitator, assistant_moderator, expert, liaison]
           description: Filter by role type
+        - name: sessionId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by session ID
       responses:
         '200':
           description: List of role assignments
@@ -7115,7 +8024,7 @@ paths:
                   type: string
                   format: uuid
                   description: Required for assign action
-                positionCategoryId:
+                sessionId:
                   type: string
                   format: uuid
                   nullable: true
@@ -7281,10 +8190,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
-  /admin/locations/{locationId}/categories:
+  /admin/locations/{locationId}/sessions:
     get:
-      operationId: getLocationCategories
-      summary: Get categories assigned to a location
+      operationId: getLocationSessions
+      summary: Get sessions assigned to a location
       tags:
         - Admin
       parameters:
@@ -7296,7 +8205,7 @@ paths:
             format: uuid
       responses:
         '200':
-          description: List of assigned categories
+          description: List of assigned sessions
           content:
             application/json:
               schema:
@@ -7318,8 +8227,8 @@ paths:
       security:
         - BearerAuth: []
     post:
-      operationId: assignLocationCategory
-      summary: Assign a category to a location
+      operationId: assignLocationSession
+      summary: Assign a session to a location
       tags:
         - Admin
       parameters:
@@ -7336,14 +8245,14 @@ paths:
             schema:
               type: object
               required:
-                - positionCategoryId
+                - sessionId
               properties:
-                positionCategoryId:
+                sessionId:
                   type: string
                   format: uuid
       responses:
         '201':
-          description: Category assigned
+          description: Session assigned
           content:
             application/json:
               schema:
@@ -7355,10 +8264,10 @@ paths:
                   locationId:
                     type: string
                     format: uuid
-                  positionCategoryId:
+                  sessionId:
                     type: string
                     format: uuid
-                  categoryLabel:
+                  sessionLabel:
                     type: string
         '400':
           description: Invalid request
@@ -7373,10 +8282,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
-  /admin/locations/{locationId}/categories/{categoryId}:
+  /admin/locations/{locationId}/sessions/{sessionId}:
     delete:
-      operationId: removeLocationCategory
-      summary: Remove a category from a location
+      operationId: removeLocationSession
+      summary: Remove a session from a location
       tags:
         - Admin
       parameters:
@@ -7386,7 +8295,7 @@ paths:
           schema:
             type: string
             format: uuid
-        - name: categoryId
+        - name: sessionId
           in: path
           required: true
           schema:
@@ -7394,7 +8303,7 @@ paths:
             format: uuid
       responses:
         '204':
-          description: Category removed
+          description: Session removed
         '403':
           description: Forbidden
           content:
@@ -7408,10 +8317,39 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
-  /admin/categories:
+  /admin/sessions:
+    get:
+      operationId: getAdminSessions
+      summary: List all sessions with admin context
+      description: Returns sessions with location info and facilitator username. Requires assistant_moderator+ role.
+      tags:
+        - Admin
+      responses:
+        '200':
+          description: List of sessions with admin context
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdminSession'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+      security:
+        - BearerAuth: []
     post:
-      operationId: createCategory
-      summary: Create a new position category
+      operationId: createSession
+      summary: Create a new session
       tags:
         - Admin
       requestBody:
@@ -7425,9 +8363,14 @@ paths:
               properties:
                 label:
                   type: string
-                parentPositionCategoryId:
+                locationId:
                   type: string
                   format: uuid
+                proposalMethod:
+                  type: string
+                  enum: [user_driven, admin_provided]
+                  default: user_driven
+                  description: How proposals are created for this session
                 createLabelSurvey:
                   type: boolean
                   default: false
@@ -7439,7 +8382,7 @@ paths:
                   type: string
       responses:
         '201':
-          description: Category created
+          description: Session created
           content:
             application/json:
               schema:
@@ -7450,9 +8393,21 @@ paths:
                     format: uuid
                   label:
                     type: string
-                  parentPositionCategoryId:
+                  locationId:
                     type: string
                     format: uuid
+                  labelSurveys:
+                    type: object
+                    description: Label surveys created per phase (if createLabelSurvey was true)
+                    properties:
+                      proposal:
+                        nullable: true
+                        allOf:
+                          - $ref: '#/components/schemas/PairwiseSurvey'
+                      opinion:
+                        nullable: true
+                        allOf:
+                          - $ref: '#/components/schemas/PairwiseSurvey'
         '400':
           description: Invalid request (empty label or duplicate)
           content:
@@ -7588,7 +8543,7 @@ paths:
           schema:
             type: string
             format: uuid
-        - name: content_type
+        - name: contentType
           in: query
           schema:
             type: string
@@ -7695,7 +8650,7 @@ paths:
                       type: string
                       format: uuid
                       nullable: true
-                    positionCategoryId:
+                    sessionId:
                       type: string
                       format: uuid
                       nullable: true
@@ -7796,14 +8751,14 @@ paths:
       security:
         - BearerAuth: []
 
-  /admin/categories/{categoryId}/label-survey:
+  /admin/sessions/{sessionId}/label-survey:
     get:
-      operationId: getCategoryLabelSurvey
-      summary: Get the label survey for a category
+      operationId: getSessionLabelSurvey
+      summary: Get the label survey for a session
       tags:
         - Admin
       parameters:
-        - name: categoryId
+        - name: sessionId
           in: path
           required: true
           schema:
@@ -7811,16 +8766,23 @@ paths:
             format: uuid
       responses:
         '200':
-          description: Label survey (or null if none)
+          description: Label surveys grouped by phase
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  labelSurvey:
-                    nullable: true
-                    allOf:
-                      - $ref: '#/components/schemas/PairwiseSurvey'
+                  labelSurveys:
+                    type: object
+                    properties:
+                      proposal:
+                        nullable: true
+                        allOf:
+                          - $ref: '#/components/schemas/PairwiseSurvey'
+                      opinion:
+                        nullable: true
+                        allOf:
+                          - $ref: '#/components/schemas/PairwiseSurvey'
         '403':
           description: Forbidden
           content:
@@ -7930,10 +8892,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
-  /stats/{locationId}/{categoryId}:
+  /stats/{locationId}/{sessionId}:
     get:
       operationId: getStats
-      summary: Get Polis opinion group statistics for a specific category
+      summary: Get Polis opinion group statistics for a specific session
       tags:
         - Stats
       parameters:
@@ -7943,12 +8905,21 @@ paths:
           schema:
             type: string
             format: uuid
-        - name: categoryId
+        - name: sessionId
           in: path
           required: true
           schema:
             type: string
             format: uuid
+        - name: phase
+          in: query
+          required: false
+          description: Filter stats by deliberation phase. If omitted, inferred from session stage.
+          schema:
+            type: string
+            enum:
+              - proposal
+              - opinion
       responses:
         '200':
           description: Opinion group statistics
@@ -7975,13 +8946,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
         '404':
-          description: Location or category not found
+          description: Location or session not found
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
-  /stats/{locationId}/{categoryId}/demographics/{groupId}:
+  /stats/{locationId}/{sessionId}/demographics/{groupId}:
     get:
       operationId: getGroupDemographics
       summary: Get demographic breakdown for an opinion group
@@ -7997,12 +8968,12 @@ paths:
           schema:
             type: string
             format: uuid
-        - name: categoryId
+        - name: sessionId
           in: path
           required: true
           schema:
             type: string
-          description: Category UUID or 'all' for all categories
+          description: Session UUID or 'all' for all sessions
         - name: groupId
           in: path
           required: true
@@ -8023,7 +8994,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
         '404':
-          description: Location, category, or group not found
+          description: Location, session, or group not found
           content:
             application/json:
               schema:
@@ -8274,7 +9245,7 @@ paths:
                     type: integer
 
   /notifications/{notificationId}/read:
-    put:
+    patch:
       operationId: markNotificationRead
       summary: Mark a single notification as read
       tags:
@@ -8299,7 +9270,7 @@ paths:
                 $ref: '#/components/schemas/ErrorModel'
 
   /notifications/read-all:
-    put:
+    patch:
       operationId: markAllNotificationsRead
       summary: Mark all notifications as read
       tags:
@@ -8310,10 +9281,10 @@ paths:
         '204':
           description: All notifications marked as read
 
-  /notifications/mute:
-    post:
-      operationId: muteNotifications
-      summary: Mute notifications for a specific post or comment
+  /users/me/notification-mutes:
+    put:
+      operationId: updateNotificationMute
+      summary: Mute or unmute notifications for a specific post or comment
       tags:
         - Users
       security:
@@ -8327,6 +9298,7 @@ paths:
               required:
                 - targetType
                 - targetId
+                - muted
               properties:
                 targetType:
                   type: string
@@ -8334,9 +9306,11 @@ paths:
                 targetId:
                   type: string
                   format: uuid
+                muted:
+                  type: boolean
       responses:
-        '201':
-          description: Mute created
+        '200':
+          description: Mute status updated
           content:
             application/json:
               schema:
@@ -8356,47 +9330,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
-    delete:
-      operationId: unmuteNotifications
-      summary: Unmute notifications for a specific post or comment
-      tags:
-        - Users
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - targetType
-                - targetId
-              properties:
-                targetType:
-                  type: string
-                  enum: [post, comment]
-                targetId:
-                  type: string
-                  format: uuid
-      responses:
-        '200':
-          description: Mute removed
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  muted:
-                    type: boolean
-        '400':
-          description: Invalid input
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorModel'
-
-  /notifications/mutes:
     get:
       operationId: getNotificationMuteStatus
       summary: Check if a post or comment is muted
@@ -8484,7 +9417,7 @@ paths:
           schema:
             type: string
             format: uuid
-        - name: categoryId
+        - name: sessionId
           in: query
           schema:
             type: string
@@ -8493,7 +9426,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [discussion, question]
+            enum: [discussion, question, proposal]
         - name: sort
           in: query
           schema:
@@ -8516,6 +9449,18 @@ paths:
             type: string
             enum: ['true', 'false']
           description: Filter Q&A posts by answered status
+        - name: phase
+          in: query
+          schema:
+            type: string
+            enum: [proposal, opinion, reflection, consensus]
+          description: Filter posts by the major phase they were created during
+        - name: proposalStatus
+          in: query
+          schema:
+            type: string
+            enum: [draft, finalized]
+          description: Filter proposals by draft/finalized status
       responses:
         '200':
           description: Post list
@@ -8653,6 +9598,26 @@ paths:
                 locked:
                   type: boolean
                   description: Lock or unlock the post (moderator only)
+                pinnedCommentId:
+                  type: string
+                  format: uuid
+                  nullable: true
+                  description: Comment ID to pin, or null to unpin
+                pinned:
+                  type: boolean
+                  description: Pin or unpin this post in the feed (facilitator/moderator/admin only)
+                pinSessionId:
+                  type: string
+                  format: uuid
+                  description: Session to pin the post in (required when pinned is true)
+                pinStage:
+                  type: string
+                  enum: [proposal_issue, proposal_qualify, proposal_stakeholders, opinion_discussion, opinion_curation, opinion_proposals, reflection, consensus]
+                  description: Stage to pin the post at (required when pinned is true)
+                proposalStatus:
+                  type: string
+                  enum: [finalized]
+                  description: Set to 'finalized' to lock a draft proposal (author only, requires finalization_open voting round)
       responses:
         '200':
           description: Post patched
@@ -8678,60 +9643,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
-
-  /posts/{postId}/pin-comment:
-    post:
-      operationId: pinComment
-      summary: Pin or unpin a comment on a post
-      tags:
-        - Posts
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: postId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                commentId:
-                  type: string
-                  format: uuid
-                  nullable: true
-                  description: Comment ID to pin, or null to unpin
-      responses:
-        '200':
-          description: Pin updated
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  pinnedCommentId:
-                    type: string
-                    format: uuid
-                    nullable: true
-        '403':
-          description: Not authorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorModel'
-        '404':
-          description: Post or comment not found
+        '409':
+          description: Maximum pins exceeded (3 per session+stage)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
-  /posts/{postId}/vote:
+  /posts/{postId}/votes:
     post:
       operationId: voteOnPost
       summary: Vote on a post
@@ -8773,6 +9692,47 @@ paths:
                 $ref: '#/components/schemas/ErrorModel'
         '429':
           description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /posts/proposal-assistance:
+    post:
+      operationId: proposalAssist
+      summary: AI-enhanced proposal content
+      description: Returns AI-enhanced content for a proposal wizard step using the configured LLM.
+      tags:
+        - Posts
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProposalAssistRequest'
+      responses:
+        '200':
+          description: AI-enhanced content
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProposalAssistResponse'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '503':
+          description: LLM service unavailable
           content:
             application/json:
               schema:
@@ -9044,7 +10004,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
-  /comments/{commentId}/vote:
+  /comments/{commentId}/votes:
     post:
       operationId: voteOnComment
       summary: Vote on a comment
@@ -9212,6 +10172,19 @@ paths:
             type: string
             format: uuid
           description: Filter terms to this location's ancestry chain
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 200
+            minimum: 1
+            maximum: 500
       responses:
         '200':
           description: Term list
@@ -9318,8 +10291,16 @@ paths:
                 $ref: '#/components/schemas/GlossaryTermDetail'
         '403':
           description: Not authorized to edit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
         '404':
           description: Term not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
 
   /wiki/pages:
     get:
@@ -9350,13 +10331,26 @@ paths:
             type: string
             format: uuid
           description: Filter by location (includes descendant locations)
-        - name: categoryId
+        - name: sessionId
           in: query
           required: false
           schema:
             type: string
             format: uuid
-          description: Filter by position category
+          description: Filter by session
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
       responses:
         '200':
           description: Page list
@@ -9406,7 +10400,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
-  /wiki/page:
+  /wiki/pages/content:
     get:
       operationId: getWikiPage
       summary: Get full wiki page content
@@ -9465,10 +10459,18 @@ paths:
                 $ref: '#/components/schemas/WikiPageDetail'
         '403':
           description: Not authorized to edit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
         '404':
           description: Page not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
 
-  /wiki/page/history:
+  /wiki/pages/history:
     get:
       operationId: getWikiPageHistory
       summary: Get wiki page version history
@@ -9487,6 +10489,19 @@ paths:
           schema:
             type: string
           description: Page slug (may contain slashes for hierarchical paths)
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
       responses:
         '200':
           description: Version history list
@@ -9503,7 +10518,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
-  /wiki/page/history/{versionId}:
+  /wiki/pages/versions/{versionId}:
     get:
       operationId: getWikiPageVersion
       summary: Get wiki page version detail with diff snapshots
@@ -9626,21 +10641,34 @@ paths:
                 items:
                   type: string
 
-  /wiki/check-create-authority:
-    post:
-      operationId: checkCreateAuthority
+  /wiki/authority:
+    get:
+      operationId: getWikiAuthority
       summary: Check if user can directly create wiki items
       description: Returns whether the authenticated user has authority to create terms or pages for the given scopes.
       tags:
         - Glossary
       security:
         - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateAuthorityCheck'
+      parameters:
+        - name: locationIds
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+              format: uuid
+          style: form
+          explode: true
+        - name: sessionIds
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+              format: uuid
+          style: form
+          explode: true
       responses:
         '200':
           description: Authority check result
@@ -9677,6 +10705,10 @@ paths:
           description: Not authenticated
         '403':
           description: Banned user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
         '429':
           description: Rate limit exceeded (max 5 pending per user)
     get:
@@ -9695,6 +10727,19 @@ paths:
             enum: [mine, pending, all]
             default: mine
           description: Filter view — mine (by current user), pending (reviewable), all (within authority)
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
       responses:
         '200':
           description: Suggestion list
@@ -9734,6 +10779,10 @@ paths:
           description: Not authenticated
         '404':
           description: Suggestion not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
     put:
       operationId: updateWikiSuggestion
       summary: Review a suggestion
@@ -9768,8 +10817,16 @@ paths:
           description: Not authenticated
         '403':
           description: Not authorized to review
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
         '404':
           description: Suggestion not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
 
   /wiki/suggestions/count:
     get:
@@ -9854,3 +10911,7 @@ paths:
                 format: binary
         '404':
           description: Image not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'

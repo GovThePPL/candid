@@ -137,7 +137,7 @@ class TestGetContentScope:
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(side_effect=[
             {"target_object_type": "position", "target_object_id": POSITION_ID},
-            {"location_id": OREGON, "category_id": HEALTHCARE_CAT},
+            {"location_id": OREGON, "session_id": HEALTHCARE_CAT},
         ])
 
         with patch(f"{MOD_HELPERS}.db", mock_db):
@@ -160,7 +160,7 @@ class TestGetContentScope:
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(side_effect=[
             {"target_object_type": "position", "target_object_id": POSITION_ID},
-            {"location_id": None, "category_id": None},
+            {"location_id": None, "session_id": None},
         ])
 
         with patch(f"{MOD_HELPERS}.db", mock_db):
@@ -173,7 +173,7 @@ class TestGetContentScope:
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(side_effect=[
             {"target_object_type": "chat_log", "target_object_id": "chat-1"},
-            {"location_id": PORTLAND, "category_id": HEALTHCARE_CAT},
+            {"location_id": PORTLAND, "session_id": HEALTHCARE_CAT},
         ])
 
         with patch(f"{MOD_HELPERS}.db", mock_db):
@@ -186,7 +186,7 @@ class TestGetContentScope:
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(side_effect=[
             {"target_object_type": "post", "target_object_id": "post-1"},
-            {"location_id": OREGON, "category_id": HEALTHCARE_CAT},
+            {"location_id": OREGON, "session_id": HEALTHCARE_CAT},
         ])
 
         with patch(f"{MOD_HELPERS}.db", mock_db):
@@ -199,7 +199,7 @@ class TestGetContentScope:
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(side_effect=[
             {"target_object_type": "comment", "target_object_id": "comment-1"},
-            {"location_id": PORTLAND, "category_id": HEALTHCARE_CAT},
+            {"location_id": PORTLAND, "session_id": HEALTHCARE_CAT},
         ])
 
         with patch(f"{MOD_HELPERS}.db", mock_db):
@@ -216,7 +216,7 @@ class TestGetContentScope:
 class TestGetContentScopeDirect:
     def test_position_direct_scope(self):
         mock_db = MagicMock()
-        mock_db.execute_query = MagicMock(return_value={"location_id": OREGON, "category_id": HEALTHCARE_CAT})
+        mock_db.execute_query = MagicMock(return_value={"location_id": OREGON, "session_id": HEALTHCARE_CAT})
 
         with patch(f"{MOD_HELPERS}.db", mock_db):
             from candid.controllers.moderation_controller import _get_content_scope_direct
@@ -226,7 +226,7 @@ class TestGetContentScopeDirect:
 
     def test_post_direct_scope(self):
         mock_db = MagicMock()
-        mock_db.execute_query = MagicMock(return_value={"location_id": PORTLAND, "category_id": HEALTHCARE_CAT})
+        mock_db.execute_query = MagicMock(return_value={"location_id": PORTLAND, "session_id": HEALTHCARE_CAT})
 
         with patch(f"{MOD_HELPERS}.db", mock_db):
             from candid.controllers.moderation_controller import _get_content_scope_direct
@@ -236,7 +236,7 @@ class TestGetContentScopeDirect:
 
     def test_comment_direct_scope_derives_from_post(self):
         mock_db = MagicMock()
-        mock_db.execute_query = MagicMock(return_value={"location_id": OREGON, "category_id": HEALTHCARE_CAT})
+        mock_db.execute_query = MagicMock(return_value={"location_id": OREGON, "session_id": HEALTHCARE_CAT})
 
         with patch(f"{MOD_HELPERS}.db", mock_db):
             from candid.controllers.moderation_controller import _get_content_scope_direct
@@ -622,8 +622,8 @@ class TestGetTargetContent:
                 'body': 'Post body text',
                 'status': 'active',
                 'creator_user_id': NORMAL_USER,
-                'category_id': HEALTHCARE_CAT,
-                'category_label': 'Healthcare',
+                'session_id': HEALTHCARE_CAT,
+                'session_label': 'Healthcare',
                 'location_id': OREGON,
                 'location_name': 'Oregon',
                 'location_code': 'OR',
@@ -646,7 +646,7 @@ class TestGetTargetContent:
             assert result['status'] == 'active'
             assert result['title'] == 'Test Post'
             assert result['body'] == 'Post body text'
-            assert result['category']['label'] == 'Healthcare'
+            assert result['session']['label'] == 'Healthcare'
             assert result['location']['code'] == 'OR'
             assert result['creator'] is not None
 
@@ -689,8 +689,8 @@ class TestGetTargetContent:
                 'id': POSITION_ID,
                 'statement': 'Test position',
                 'creator_user_id': NORMAL_USER,
-                'category_id': HEALTHCARE_CAT,
-                'category_label': 'Healthcare',
+                'session_id': HEALTHCARE_CAT,
+                'session_label': 'Healthcare',
                 'location_id': OREGON,
                 'location_name': 'Oregon',
                 'location_code': 'OR',
@@ -710,7 +710,7 @@ class TestGetTargetContent:
             assert result is not None
             assert result['type'] == 'position'
             assert result['statement'] == 'Test position'
-            assert result['category']['label'] == 'Healthcare'
+            assert result['session']['label'] == 'Healthcare'
             assert result['location']['code'] == 'OR'
 
     def test_unknown_type_returns_none(self):

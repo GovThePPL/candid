@@ -72,9 +72,9 @@ export default function SuggestionForm({
 
   // Locations for scope picker
   const [allLocations, setAllLocations] = useState([])
-  const [allCategories, setAllCategories] = useState([])
+  const [allSessions, setAllSessions] = useState([])
   const [showLocationPicker, setShowLocationPicker] = useState(false)
-  const [addingScopeType, setAddingScopeType] = useState(null) // 'location' or 'category'
+  const [addingScopeType, setAddingScopeType] = useState(null) // 'location' or 'session'
 
   // Wiki category picker
   const [wikiCategories, setWikiCategories] = useState([])
@@ -97,18 +97,18 @@ export default function SuggestionForm({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
 
-  // Load locations, categories, and wiki categories for pickers
+  // Load locations, sessions, and wiki categories for pickers
   useEffect(() => {
     const load = async () => {
       try {
         const results = await Promise.all([
           api.wiki.getCategories(),
           api.users.getAllLocations(),
-          api.categories.getAll(),
+          api.sessions.getAll(),
         ])
         setWikiCategories(Array.isArray(results[0]) ? results[0] : [])
         setAllLocations(Array.isArray(results[1]) ? results[1] : [])
-        setAllCategories(Array.isArray(results[2]) ? results[2] : [])
+        setAllSessions(Array.isArray(results[2]) ? results[2] : [])
       } catch {
         // Non-blocking — pickers just won't work
       }
@@ -126,9 +126,9 @@ export default function SuggestionForm({
     clearTimeout(checkTimerRef.current)
     checkTimerRef.current = setTimeout(async () => {
       try {
-        const result = await api.wiki.checkCreateAuthority({
-          scopes: scopes.map(s => ({ type: s.type, id: s.id })),
-        })
+        const result = await api.wiki.checkCreateAuthority(
+          scopes.map(s => ({ type: s.type, id: s.id }))
+        )
         setCanDirectCreate(result?.canCreate || false)
       } catch {
         setCanDirectCreate(false)
@@ -175,20 +175,20 @@ export default function SuggestionForm({
     setAddingScopeType(null)
   }, [allLocations, scopes])
 
-  const handleAddCategoryScope = useCallback(() => {
-    setAddingScopeType('category')
+  const handleAddSessionScope = useCallback(() => {
+    setAddingScopeType('session')
   }, [])
 
-  const handleCategorySelected = useCallback((cat) => {
-    const alreadySelected = scopes.some(s => s.type === 'category' && s.id === cat.id)
+  const handleSessionSelected = useCallback((sess) => {
+    const alreadySelected = scopes.some(s => s.type === 'session' && s.id === sess.id)
     if (alreadySelected) {
-      setScopes(prev => prev.filter(s => !(s.type === 'category' && s.id === cat.id)))
+      setScopes(prev => prev.filter(s => !(s.type === 'session' && s.id === sess.id)))
     } else {
-      setScopes(prev => [...prev, { type: 'category', id: cat.id, label: cat.label }])
+      setScopes(prev => [...prev, { type: 'session', id: sess.id, label: sess.label }])
     }
   }, [scopes])
 
-  const handleCloseCategoryPicker = useCallback(() => {
+  const handleCloseSessionPicker = useCallback(() => {
     setAddingScopeType(null)
   }, [])
 
@@ -659,26 +659,26 @@ export default function SuggestionForm({
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.scopeButton}
-            onPress={handleAddCategoryScope}
+            onPress={handleAddSessionScope}
             accessibilityRole="button"
             accessibilityLabel={t('suggestionAddScopeA11y')}
           >
             <Ionicons name="grid-outline" size={16} color={colors.primary} />
-            <ThemedText variant="caption" color="primary">{t('suggestionScopeCategory')}</ThemedText>
+            <ThemedText variant="caption" color="primary">{t('suggestionScopeSession')}</ThemedText>
           </TouchableOpacity>
         </View>
 
-        {/* Category picker modal */}
+        {/* Session picker modal */}
         <TagSelectorModal
-          visible={addingScopeType === 'category'}
-          onClose={handleCloseCategoryPicker}
-          title={t('suggestionScopeCategory')}
-          items={allCategories.map(c => ({ id: c.id, label: c.label }))}
-          selected={scopes.filter(s => s.type === 'category').map(s => s.id)}
-          onToggle={(id) => handleCategorySelected(allCategories.find(c => c.id === id))}
+          visible={addingScopeType === 'session'}
+          onClose={handleCloseSessionPicker}
+          title={t('suggestionScopeSession')}
+          items={allSessions.map(c => ({ id: c.id, label: c.label }))}
+          selected={scopes.filter(s => s.type === 'session').map(s => s.id)}
+          onToggle={(id) => handleSessionSelected(allSessions.find(c => c.id === id))}
           multiSelect
-          searchPlaceholder={t('scopeCategorySearchPlaceholder')}
-          searchA11yLabel={t('scopeCategorySearchA11y')}
+          searchPlaceholder={t('scopeSessionSearchPlaceholder')}
+          searchA11yLabel={t('scopeSessionSearchA11y')}
         />
 
         {/* Scope combine mode */}

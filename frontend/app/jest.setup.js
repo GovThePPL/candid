@@ -1,6 +1,10 @@
 // Enable built-in matchers (toBeChecked, toBeSelected, toBeExpanded, etc.)
 require('@testing-library/react-native/build/matchers/extend-expect')
 
+// Increase async util timeout to avoid flaky failures under worker contention
+const { configure } = require('@testing-library/react-native')
+configure({ asyncUtilTimeout: 5000 })
+
 // Mock expo-router
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: () => true }),

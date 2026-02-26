@@ -18,8 +18,8 @@ from conftest import (
     US_LOCATION_ID,
     OREGON_LOCATION_ID,
     PORTLAND_LOCATION_ID,
-    HEALTHCARE_CAT_ID,
-    ECONOMY_CAT_ID,
+    HEALTHCARE_SESSION_ID,
+    ECONOMY_SESSION_ID,
     ADMIN1_ID,
     MODERATOR1_ID,
     NORMAL1_ID,
@@ -94,7 +94,7 @@ class TestGetAdminRules:
         """content_type filter returns only rules that include that type."""
         resp = requests.get(
             ADMIN_RULES_URL, headers=admin_headers,
-            params={"content_type": "position"}
+            params={"contentType": "position"}
         )
         assert resp.status_code == 200
         rules = resp.json()
@@ -106,7 +106,7 @@ class TestGetAdminRules:
         """The 'Not a Normative Political Statement' rule only applies to positions."""
         resp = requests.get(
             ADMIN_RULES_URL, headers=admin_headers,
-            params={"content_type": "chat_log"}
+            params={"contentType": "chat_log"}
         )
         assert resp.status_code == 200
         rule_ids = [r['id'] for r in resp.json()]
@@ -778,7 +778,7 @@ class TestGetRules:
     def test_content_type_filter_position(self, normal_headers):
         """content_type=position returns only rules applicable to positions."""
         resp = requests.get(
-            RULES_URL, headers=normal_headers, params={"content_type": "position"}
+            RULES_URL, headers=normal_headers, params={"contentType": "position"}
         )
         assert resp.status_code == 200
         rules = resp.json()
@@ -789,7 +789,7 @@ class TestGetRules:
     def test_content_type_filter_excludes_position_only(self, normal_headers):
         """content_type=chat_log excludes position-only rules."""
         resp = requests.get(
-            RULES_URL, headers=normal_headers, params={"content_type": "chat_log"}
+            RULES_URL, headers=normal_headers, params={"contentType": "chat_log"}
         )
         assert resp.status_code == 200
         rule_ids = [r['id'] for r in resp.json()]

@@ -1,0 +1,112 @@
+{
+  "session_name": "Healthcare Access",
+  "location_code": "OR",
+  "target_stage": "opinion_discussion",
+  "topic_vocabulary": {
+    "topic_noun": ["healthcare", "medical care", "health services"],
+    "topic_adj": ["healthcare", "medical", "health-related"],
+    "location_name": ["Oregon", "the Portland metro area"],
+    "stakeholder": ["hospitals", "insurance companies", "patients", "healthcare providers"],
+    "specific_issue": ["mental health access", "rural coverage gaps", "prescription drug costs"],
+    "policy_example": ["Medicaid expansion", "the Oregon Health Plan", "community health centers"],
+    "data_point": ["3-month therapist wait times", "zero psychiatrists in some rural counties"]
+  },
+  "positions": {
+    "proposal_issue": [
+      {"type": "anchor", "statement": "Healthcare should be provided by the government as a right, not a privilege.",
+       "votes": [1, 1, 1, 1, 1, -1, -1, -1, -1, -1]},
+      {"type": "anchor", "statement": "Abortion should be legal and accessible in all circumstances.",
+       "votes": [1, 1, 1, 1, -1, -1, 1, -1, -1, -1]},
+      {"type": "generated", "lean": "strong_left", "topic_focus": "equity"},
+      {"type": "generated", "lean": "right", "topic_focus": "governance"},
+      {"type": "generated", "lean": "center", "topic_focus": "funding"}
+    ],
+    "proposal_qualify": [
+      {"type": "anchor", "statement": "Life begins at conception and abortion is morally wrong.",
+       "votes": [-1, -1, -1, -1, 1, 1, -1, 1, 1, 1]},
+      {"type": "generated", "lean": "center_left", "topic_focus": "reform"},
+      {"type": "generated", "lean": "center_right", "topic_focus": "implementation"}
+    ],
+    "opinion_discussion": [
+      {"type": "anchor", "statement": "Vaccine mandates are a reasonable public health measure.",
+       "votes": [1, 1, 1, 1, 1, 1, -1, 0, -1, -1]},
+      {"type": "generated", "lean": "left", "topic_focus": "equity"},
+      {"type": "generated", "lean": "right", "topic_focus": "individual_collective"},
+      {"type": "generated", "lean": "bipartisan", "topic_focus": "implementation"}
+    ]
+  },
+  "posts": {
+    "proposal_issue": {
+      "anchors": [
+        {
+          "post_type": "discussion",
+          "title": "What healthcare issues matter most to our community?",
+          "body": "Let's identify the most pressing healthcare challenges in Oregon. Are we talking about access, cost, mental health, rural coverage, or something else?\n\nShare what you've experienced or observed in your community.",
+          "comments": [
+            {"body": "Mental health is the biggest gap. Wait times for a therapist in Portland are 3-6 months, which is basically no access at all.",
+             "author_prefix": "prog", "replies": [
+              {"body": "Agreed. And rural Oregon is even worse — some counties have zero psychiatrists.", "author_prefix": "mod"}
+            ]},
+            {"body": "Cost is the core issue. Even with insurance, a single ER visit can mean thousands in debt. The system is broken.", "author_prefix": "lib"}
+          ]
+        }
+      ],
+      "generated_count": 8,
+      "generated_types": {"discussion": 5, "question": 2, "proposal": 1},
+      "comments_per_generated": [5, 4, 6, 5, 4, 5, 6, 5]
+    },
+    "proposal_qualify": {
+      "anchors": [
+        {
+          "post_type": "proposal",
+          "title": "Proposal: Establish Regional Mental Health Crisis Centers Across Oregon",
+          "body": "Oregon's mental health system is in crisis. Wait times for a therapist in the Portland metro area average 3-6 months, and many rural counties have zero practicing psychiatrists. Emergency rooms have become the de facto mental health system for people in acute distress, which is both expensive and ineffective.\n\nThis proposal calls for the creation of five Regional Mental Health Crisis Centers — in Portland, Salem, Eugene, Bend, and Medford — staffed 24/7 with licensed counselors, psychiatric nurses, and peer support specialists. Each center would offer walk-in crisis stabilization, short-term counseling (up to 6 sessions), and warm handoffs to longer-term care. Funding would come from a combination of Medicaid reimbursement, state general funds, and a small surcharge on commercial health insurance premiums.\n\nThe goal is not to replace the existing mental health system but to fill the gap between emergency rooms and months-long waitlists. People in crisis need help now, not in three months. These centers would reduce ER overcrowding, save money in the long run, and most importantly, save lives.",
+          "comments": [
+            {"body": "This is desperately needed. I work in an ER in rural Oregon and at least 30% of our visits are mental health-related. We're not equipped for it, patients wait hours for a psych bed that may not exist, and it costs the system a fortune. Dedicated crisis centers would take enormous pressure off hospitals.", "author_prefix": "prog", "replies": [
+              {"body": "I support the concept but worry about the funding mechanism. A surcharge on insurance premiums just gets passed to consumers as higher premiums. Can we find a funding source that doesn't increase healthcare costs for people already struggling to afford coverage?", "author_prefix": "cen"}
+            ]},
+            {"body": "Five centers for the entire state is a start, but it barely scratches the surface for rural communities. If you're in Klamath Falls or La Grande, the nearest center would still be hours away. We need a telehealth component built in from day one to extend the reach beyond physical locations.", "author_prefix": "mod", "replies": [
+              {"body": "Telehealth for crisis intervention has real limitations. When someone is in acute distress, a video call isn't always enough. That said, it could work well for the short-term counseling sessions. Maybe a hybrid model — in-person for crisis stabilization, telehealth for follow-up.", "author_prefix": "con"}
+            ]}
+          ]
+        }
+      ],
+      "generated_count": 7,
+      "generated_types": {"discussion": 4, "question": 2, "proposal": 1},
+      "comments_per_generated": [5, 6, 4, 5, 5, 6, 4]
+    },
+    "opinion_discussion": {
+      "anchors": [
+        {
+          "post_type": "question",
+          "title": "What mental health resources are available in Portland?",
+          "body": "A friend is going through a tough time and I'm trying to help them find affordable mental health care in Portland. The waitlists seem incredibly long. Does anyone know of resources, especially sliding-scale or community clinics?",
+          "comments": [
+            {"body": "A few resources that might help:\n\n- **Cascadia Behavioral Healthcare** — sliding scale, walk-in crisis services\n- **Outside In** — free/low-cost for young adults under 25\n- **Multnomah County Crisis Line** — 503-988-4888, 24/7\n\nFor the waitlist issue, ask specifically about *cancellation lists*.",
+             "author_prefix": "moderator", "replies": [
+              {"body": "Thank you for this list! The cancellation list tip is really helpful.", "author_prefix": "normal"}
+            ]}
+          ]
+        },
+        {
+          "post_type": "discussion",
+          "title": "Should Oregon expand Medicaid coverage further?",
+          "body": "Oregon already has one of the more generous Medicaid programs, but gaps remain. Some argue we need to cover dental and vision more comprehensively. Others worry about the cost to taxpayers.\n\nWhat's the right balance?"
+        }
+      ],
+      "generated_count": 7,
+      "generated_types": {"discussion": 4, "question": 2, "proposal": 1},
+      "comments_per_generated": [6, 5, 5, 6, 4, 5, 6]
+    }
+  },
+  "surveys": [
+    {
+      "title": "Healthcare Priorities for Oregon",
+      "type": "standard",
+      "session_name": "Healthcare Access",
+      "target_stage": "opinion_discussion",
+      "use_existing": true,
+      "survey_id": "aa111111-1111-1111-1111-111111111111"
+    }
+  ]
+}

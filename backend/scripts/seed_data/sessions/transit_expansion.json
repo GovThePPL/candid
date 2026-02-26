@@ -1,0 +1,128 @@
+{
+  "session_name": "Transit Expansion",
+  "location_code": "AUS",
+  "target_stage": "opinion_proposals",
+  "topic_vocabulary": {
+    "topic_noun": ["public transit", "transit expansion", "transportation infrastructure"],
+    "topic_adj": ["transit-related", "transportation", "commuter"],
+    "location_name": ["Texas", "the Austin metro area"],
+    "stakeholder": ["commuters", "CapMetro", "city planners", "developers", "taxpayers"],
+    "specific_issue": ["traffic congestion", "light rail feasibility", "bus rapid transit", "sprawl and car dependency"],
+    "policy_example": ["Project Connect", "CapMetro bus rapid transit", "TxDOT highway expansion plans", "the Texas Triangle concept"],
+    "data_point": ["$7.1B Project Connect budget with cost overruns", "Austin commuters spend 54 hours per year in traffic"]
+  },
+  "positions": {
+    "proposal_issue": [
+      {"type": "anchor", "statement": "Texas cities need commuter rail systems like other major metro areas.",
+       "votes": [1, 1, 1, 1, 1, 1, -1, -1, 0, -1]},
+      {"type": "anchor", "statement": "Highway expansion is more practical than public transit in sprawling Texas cities.",
+       "votes": [-1, -1, -1, -1, -1, 0, 1, 1, 1, 1]},
+      {"type": "generated", "lean": "strong_left", "topic_focus": "equity"},
+      {"type": "generated", "lean": "center_right", "topic_focus": "funding"},
+      {"type": "generated", "lean": "center", "topic_focus": "implementation"}
+    ],
+    "proposal_qualify": [
+      {"type": "generated", "lean": "center_left", "topic_focus": "reform"},
+      {"type": "generated", "lean": "right", "topic_focus": "governance"},
+      {"type": "generated", "lean": "bipartisan", "topic_focus": "funding"}
+    ],
+    "proposal_stakeholders": [
+      {"type": "generated", "lean": "left", "topic_focus": "equity"},
+      {"type": "generated", "lean": "libertarian_cross", "topic_focus": "individual_collective"},
+      {"type": "generated", "lean": "populist_cross", "topic_focus": "implementation"}
+    ],
+    "opinion_discussion": [
+      {"type": "anchor", "statement": "Electric bus rapid transit is the most cost-effective transit investment.",
+       "votes": [1, 1, 1, 1, 1, 1, 0, -1, 0, -1]},
+      {"type": "generated", "lean": "center_left", "topic_focus": "reform"},
+      {"type": "generated", "lean": "center_right", "topic_focus": "funding"},
+      {"type": "generated", "lean": "divisive", "topic_focus": "governance"}
+    ],
+    "opinion_proposals": [
+      {"type": "generated", "lean": "left", "topic_focus": "equity"},
+      {"type": "generated", "lean": "center", "topic_focus": "implementation"},
+      {"type": "generated", "lean": "bipartisan", "topic_focus": "reform"}
+    ]
+  },
+  "posts": {
+    "proposal_issue": {
+      "anchors": [
+        {
+          "post_type": "discussion",
+          "title": "Why doesn't Texas have better public transit?",
+          "body": "Houston, Dallas, Austin, and San Antonio are among the largest cities in the country, but they all have minimal public transit compared to similarly sized metro areas. The reasons are complex — low density, car-centric development patterns, political resistance, and funding structures that favor highways.\n\nWhy has Texas lagged so far behind on transit, and is that starting to change?",
+          "comments": [
+            {"body": "Texas cities grew around the car. Low density and spread-out development make transit inherently harder to serve. You can't just drop a subway into a city that was built for freeways.", "author_prefix": "cen", "replies": [
+              {"body": "But Houston's light rail exceeded ridership projections from day one. The demand is there — we just haven't built the supply. Cities don't have to stay car-dependent forever.", "author_prefix": "lib"}
+            ]},
+            {"body": "The funding incentives are backwards. Federal and state money flows to highway expansion almost automatically, but transit projects have to fight for every dollar. The playing field isn't level.", "author_prefix": "socdem"}
+          ]
+        }
+      ],
+      "generated_count": 7,
+      "generated_types": {"discussion": 4, "question": 2, "proposal": 1},
+      "comments_per_generated": [5, 6, 4, 5, 5, 6, 4]
+    },
+    "proposal_qualify": {
+      "anchors": [],
+      "generated_count": 8,
+      "generated_types": {"discussion": 5, "question": 2, "proposal": 1},
+      "comments_per_generated": [5, 4, 6, 5, 5, 4, 6, 5]
+    },
+    "proposal_stakeholders": {
+      "anchors": [],
+      "generated_count": 7,
+      "generated_types": {"discussion": 4, "question": 2, "proposal": 1},
+      "comments_per_generated": [6, 5, 4, 5, 6, 5, 4]
+    },
+    "opinion_discussion": {
+      "anchors": [
+        {
+          "post_type": "discussion",
+          "title": "Austin's Project Connect: Worth the investment?",
+          "body": "Austin voters approved Project Connect in 2020 — a $7.1 billion investment in light rail, bus rapid transit, and other transit improvements. It's the largest infrastructure project in Austin's history.\n\nBut costs have already risen significantly, timelines have slipped, and some question whether light rail makes sense for a city with Austin's geography and growth patterns. Was this the right investment?",
+          "comments": [
+            {"body": "I voted for Project Connect but I'm worried about the cost overruns. We're already billions over the original estimates and construction hasn't really started on the rail components.", "author_prefix": "mod", "replies": [
+              {"body": "Every major transit project in the country goes over budget — that's not unique to Austin. The question is whether the long-term benefit justifies the cost, and for a city growing as fast as Austin, it absolutely does.", "author_prefix": "lib"}
+            ]},
+            {"body": "Austin's traffic is unbearable. I-35 is a parking lot for hours every day. We needed this investment 20 years ago. Even with cost overruns, doing nothing would cost us more in lost productivity and quality of life.", "author_prefix": "prog"}
+          ]
+        }
+      ],
+      "generated_count": 7,
+      "generated_types": {"discussion": 4, "question": 2, "proposal": 1},
+      "comments_per_generated": [6, 5, 5, 6, 4, 5, 6]
+    },
+    "opinion_proposals": {
+      "anchors": [
+        {
+          "post_type": "proposal",
+          "title": "Proposal: Regional bus rapid transit network for Texas Triangle",
+          "body": "I propose the state of Texas invest in a regional Bus Rapid Transit (BRT) network connecting the four major cities of the Texas Triangle: Austin, San Antonio, Houston, and Dallas-Fort Worth. BRT offers 80% of the capacity of light rail at 20% of the cost, with dedicated lanes, level boarding, and frequent service.\n\nThis intercity BRT network would reduce highway congestion, provide affordable travel options, and create an economic corridor connecting 75% of the state's population.",
+          "comments": []
+        }
+      ],
+      "generated_count": 7,
+      "generated_types": {"discussion": 4, "question": 1, "proposal": 2},
+      "comments_per_generated": [5, 6, 4, 5, 5, 6, 4]
+    }
+  },
+  "surveys": [
+    {
+      "title": "Transit Investment Priorities for Austin",
+      "type": "standard",
+      "session_name": "Transit Expansion",
+      "target_stage": "opinion_proposals",
+      "questions": [
+        {"question": "What is the best transit investment for Austin's future?",
+         "options": ["Light rail along major corridors", "Bus rapid transit with dedicated lanes", "Commuter rail connecting suburbs to downtown", "Expanded highway capacity with managed lanes"]},
+        {"question": "How should transit expansion be funded?",
+         "options": ["Property tax increases dedicated to transit", "Federal grants and state matching funds", "Public-private partnerships with developers", "Sales tax revenue similar to Project Connect"]},
+        {"question": "What is the biggest barrier to public transit adoption in Texas?",
+         "options": ["Lack of service coverage and frequency", "Car-centric culture and urban sprawl", "Safety and reliability concerns", "Insufficient first-mile/last-mile connections"]},
+        {"question": "Should Texas pursue intercity transit connections between major cities?",
+         "options": ["Yes, high-speed rail between the Texas Triangle cities", "Yes, but bus rapid transit is more cost-effective", "Only if private companies fund and operate it", "No, intercity travel should remain car and air based"]}
+      ]
+    }
+  ]
+}

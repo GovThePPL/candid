@@ -173,6 +173,7 @@ class SurveyStatus:
 class PostType:
     DISCUSSION = 'discussion'
     QUESTION = 'question'
+    PROPOSAL = 'proposal'
 
 class PostStatus:
     ACTIVE = 'active'
@@ -213,3 +214,63 @@ class PolisConversationStatus:
 class RuleStatus:
     ACTIVE = 'active'
     INACTIVE = 'inactive'
+
+
+# ── Session stages ────────────────────────────────────────────────────
+STAGE_ORDER = [
+    'proposal_issue',
+    'proposal_qualify',
+    'proposal_stakeholders',
+    'opinion_discussion',
+    'opinion_curation',
+    'opinion_proposals',
+    'reflection',
+    'consensus',
+]
+
+STAGE_INDEX = {stage: i for i, stage in enumerate(STAGE_ORDER)}
+
+_PROPOSAL_STAGES = {'proposal_issue', 'proposal_qualify', 'proposal_stakeholders'}
+_OPINION_STAGES = {'opinion_discussion', 'opinion_curation', 'opinion_proposals'}
+_ACTIVE_WRITING_STAGES = _PROPOSAL_STAGES | _OPINION_STAGES
+
+# Which stages allow creating each content type
+WRITE_STAGES = {
+    'position':           _ACTIVE_WRITING_STAGES,
+    'response':           _ACTIVE_WRITING_STAGES,
+    'post':               _ACTIVE_WRITING_STAGES,
+    'comment':            _ACTIVE_WRITING_STAGES,
+    'post_vote':          _ACTIVE_WRITING_STAGES,
+    'comment_vote':       _ACTIVE_WRITING_STAGES,
+    'proposal_post':      {'proposal_qualify', 'opinion_proposals'},
+    'endorsement':        {'proposal_qualify', 'opinion_proposals'},
+    'rcv_vote':           {'proposal_qualify', 'opinion_proposals'},
+    'glossary':           set(STAGE_ORDER),
+    'wiki':               set(STAGE_ORDER),
+    'polis_vote':         _OPINION_STAGES,
+    'curated_comment':    {'opinion_curation', 'opinion_proposals'},
+    'consensus_document': {'consensus'},
+    'chat':               _ACTIVE_WRITING_STAGES,
+}
+
+MAX_ENDORSEMENTS_PER_USER = 3
+
+# Main phases (shown in session bar)
+MAIN_PHASES = ['proposal', 'opinion', 'reflection', 'consensus']
+
+# Map sub-stage to main phase
+STAGE_TO_PHASE = {
+    'proposal_issue': 'proposal',
+    'proposal_qualify': 'proposal',
+    'proposal_stakeholders': 'proposal',
+    'opinion_discussion': 'opinion',
+    'opinion_curation': 'opinion',
+    'opinion_proposals': 'opinion',
+    'reflection': 'reflection',
+    'consensus': 'consensus',
+}
+
+class SessionStatus:
+    ACTIVE = 'active'
+    ARCHIVED = 'archived'
+    CANCELLED = 'cancelled'

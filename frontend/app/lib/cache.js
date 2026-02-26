@@ -346,25 +346,25 @@ export const CacheManager = {
 export const CacheKeys = {
   chatLog: (chatId) => `chatlog:v2:${chatId}`,
   userChats: (userId) => `chats:v2:user:${userId}`,
-  stats: (locationId, categoryId) => `stats:${locationId}:${categoryId}`,
+  stats: (locationId, sessionId, phase) => `stats:${locationId}:${sessionId}${phase ? `:${phase}` : ''}`,
   userPositions: (userId) => `positions:user:${userId}`,
   profile: (userId) => `profile:user:${userId}`,
   demographics: (userId) => `demographics:user:${userId}`,
   settings: (userId) => `settings:user:${userId}`,
-  categories: () => 'categories',
+  sessions: () => 'sessions',
   chattingList: (userId) => `chattinglist:user:${userId}`,
   activityPosts: (userId) => `activity:posts:${userId}`,
   activityComments: (userId) => `activity:comments:${userId}`,
   glossaryTerms: (locationId) => `glossary:terms:v1:${locationId || 'global'}`,
   glossaryTerm: (slug) => `glossary:term:v1:${slug}`,
-  wikiPages: (category, search, locationId, categoryId) => `wiki:pages:v2:${category || ''}:${search || ''}:${locationId || ''}:${categoryId || ''}`,
+  wikiPages: (category, search, locationId, sessionId) => `wiki:pages:v2:${category || ''}:${search || ''}:${locationId || ''}:${sessionId || ''}`,
   wikiPage: (slug) => `wiki:page:v1:${slug}`,
   wikiCategories: () => 'wiki:categories:v1',
 };
 
 // Default cache durations (in milliseconds)
 export const CacheDurations = {
-  CHAT_LOG_ENDED: Infinity, // Ended chats never change (except kudos)
+  CHAT_LOG_ENDED: 24 * 60 * 60 * 1000, // 24 hours — ended chats rarely change but shouldn't persist indefinitely
   CHAT_LOG_ACTIVE: 0, // Active chats use socket, no caching
   CHAT_LIST: 5 * 60 * 1000, // 5 minutes
   STATS: 5 * 60 * 1000, // 5 minutes (matches backend Polis cache)
@@ -372,7 +372,7 @@ export const CacheDurations = {
   PROFILE: 60 * 60 * 1000, // 1 hour (rarely changes)
   DEMOGRAPHICS: 60 * 60 * 1000, // 1 hour (rarely changes)
   SETTINGS: 60 * 60 * 1000, // 1 hour (rarely changes)
-  CATEGORIES: Infinity, // Static data, never expires
+  SESSIONS: 5 * 60 * 1000, // 5 minutes
   CHATTING_LIST: 5 * 60 * 1000, // 5 minutes
   ACTIVITY: 5 * 60 * 1000, // 5 minutes
   GLOSSARY_TERMS: 10 * 60 * 1000, // 10 minutes (matches context refresh interval)

@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { useAuth } from '../contexts/UserContext'
 import { useNotificationCount } from '../contexts/NotificationContext'
+import { useLocationSession } from '../contexts/LocationSessionContext'
 import { canAccessAdmin } from '../lib/roles'
 import api from '../lib/api'
 import Avatar from './Avatar'
@@ -25,6 +26,7 @@ export default function DesktopNav() {
   const styles = useMemo(() => createStyles(colors), [colors])
   const { user, logout } = useAuth()
   const { unreadCount } = useNotificationCount()
+  const { openSessionSelector } = useLocationSession()
   const { width: screenWidth } = useWindowDimensions()
 
   const isAdmin = canAccessAdmin(user)
@@ -111,7 +113,12 @@ export default function DesktopNav() {
       >
         <View style={styles.container}>
           {/* Logo — crossfade between "Candid" and "C" */}
-          <View style={styles.logoContainer}>
+          <TouchableOpacity
+            style={styles.logoContainer}
+            onPress={openSessionSelector}
+            accessibilityRole="button"
+            accessibilityLabel={t('sessionSelectorOpenA11y')}
+          >
             <View style={labelStyle}>
               <ThemedText variant="brandCompact" style={[styles.logo, { color: colors.logoText }]}>
                 Candid
@@ -122,7 +129,7 @@ export default function DesktopNav() {
                 C
               </ThemedText>
             </View>
-          </View>
+          </TouchableOpacity>
 
           {/* User info */}
           <TouchableOpacity

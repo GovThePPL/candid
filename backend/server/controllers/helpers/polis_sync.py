@@ -13,6 +13,7 @@ from dateutil.relativedelta import relativedelta
 from typing import Optional, List, Dict, Any, Tuple
 
 from candid.controllers import db, config
+from candid.controllers.helpers.constants import STAGE_TO_PHASE
 from candid.controllers.helpers.polis_client import (
     PolisClient, PolisError, PolisUnavailableError, get_client
 )
@@ -37,9 +38,10 @@ def generate_xid(user_id: str) -> str:
 def queue_position_sync(
     position_id: str,
     statement: str,
-    category_id: str,
+    session_id: str,
     location_id: str,
-    creator_user_id: str
+    creator_user_id: str,
+    created_during_stage: str = None,
 ) -> bool:
     """
     Queue a position for async sync to Polis.
@@ -53,9 +55,10 @@ def queue_position_sync(
     payload = {
         "position_id": position_id,
         "statement": statement,
-        "category_id": category_id,
+        "session_id": session_id,
         "location_id": location_id,
         "creator_user_id": creator_user_id,
+        "created_during_stage": created_during_stage,
     }
 
     try:
@@ -125,19 +128,26 @@ def queue_vote_sync(position_id: str, user_id: str, response: str) -> bool:
 
 def _lookup_conversation_for_month(
     location_id: str,
-    category_id: Optional[str],
-    active_from: date
+    session_id: Optional[str],
+    active_from: date,
+    phase: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
-    """Look up an existing conversation by location, category, and month."""
-    if category_id:
-        return db.execute_query("""
-            SELECT polis_conversation_id FROM polis_conversation
-            WHERE location_id = %s AND category_id = %s AND active_from = %s
-        """, (location_id, category_id, active_from), fetchone=True)
+    """Look up an existing conversation by location, session, phase, and month."""
+    if session_id:
+        if phase:
+            return db.execute_query("""
+                SELECT polis_conversation_id FROM polis_conversation
+                WHERE location_id = %s AND session_id = %s AND phase = %s AND active_from = %s
+            """, (location_id, session_id, phase, active_from), fetchone=True)
+        else:
+            return db.execute_query("""
+                SELECT polis_conversation_id FROM polis_conversation
+                WHERE location_id = %s AND session_id = %s AND active_from = %s
+            """, (location_id, session_id, active_from), fetchone=True)
     else:
         return db.execute_query("""
             SELECT polis_conversation_id FROM polis_conversation
-            WHERE location_id = %s AND category_id IS NULL AND active_from = %s
+            WHERE location_id = %s AND session_id IS NULL AND active_from = %s
         """, (location_id, active_from), fetchone=True)
 
 
@@ -156,17 +166,18 @@ def _sync_position_to_conv_group(
     statement: str,
     xid: str,
     location_id: str,
-    category_id: Optional[str],
+    session_id: Optional[str],
     location_name: str,
-    category_name: Optional[str],
+    session_name: Optional[str],
     errors: List[str],
+    phase: Optional[str] = None,
 ) -> int:
-    """Sync a position to all active conversations for a location+category, creating one if needed.
+    """Sync a position to all active conversations for a location+session+phase, creating one if needed.
 
     Returns the number of successfully synced conversations.
     """
-    conv_label = f"category {category_id}" if category_id else "location-all"
-    convs = get_active_conversations(location_id, category_id)
+    conv_label = f"session {session_id}" if session_id else "location-all"
+    convs = get_active_conversations(location_id, session_id, phase=phase)
     synced = 0
 
     for conv in convs:
@@ -180,7 +191,7 @@ def _sync_position_to_conv_group(
 
     if not convs:
         polis_conv_id = get_or_create_conversation(
-            location_id, category_id, location_name, category_name
+            location_id, session_id, location_name, session_name, phase=phase
         )
         if polis_conv_id:
             try:
@@ -206,35 +217,51 @@ def get_active_window_dates() -> Tuple[date, date]:
 
 def get_active_conversations(
     location_id: str,
-    category_id: Optional[str] = None
+    session_id: Optional[str] = None,
+    phase: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
-    Get all active conversations for a location+category combination.
+    Get all active conversations for a location+session+phase combination.
     Returns up to 6 conversations (one per month in the window).
 
     Args:
         location_id: The location UUID
-        category_id: The category UUID (None for location-only conversations)
+        session_id: The session UUID (None for location-only conversations)
+        phase: The deliberation phase ('proposal' or 'opinion'). For session
+               conversations, filters by phase. Ignored for location-all.
     """
     today = date.today()
 
-    if category_id:
-        result = db.execute_query("""
-            SELECT id, polis_conversation_id, active_from, active_until
-            FROM polis_conversation
-            WHERE location_id = %s
-              AND category_id = %s
-              AND status = 'active'
-              AND active_from <= %s
-              AND active_until > %s
-            ORDER BY active_from ASC
-        """, (location_id, category_id, today, today))
+    if session_id:
+        if phase:
+            result = db.execute_query("""
+                SELECT id, polis_conversation_id, active_from, active_until
+                FROM polis_conversation
+                WHERE location_id = %s
+                  AND session_id = %s
+                  AND phase = %s
+                  AND status = 'active'
+                  AND active_from <= %s
+                  AND active_until > %s
+                ORDER BY active_from ASC
+            """, (location_id, session_id, phase, today, today))
+        else:
+            result = db.execute_query("""
+                SELECT id, polis_conversation_id, active_from, active_until
+                FROM polis_conversation
+                WHERE location_id = %s
+                  AND session_id = %s
+                  AND status = 'active'
+                  AND active_from <= %s
+                  AND active_until > %s
+                ORDER BY active_from ASC
+            """, (location_id, session_id, today, today))
     else:
         result = db.execute_query("""
             SELECT id, polis_conversation_id, active_from, active_until
             FROM polis_conversation
             WHERE location_id = %s
-              AND category_id IS NULL
+              AND session_id IS NULL
               AND conversation_type = 'location_all'
               AND status = 'active'
               AND active_from <= %s
@@ -247,29 +274,33 @@ def get_active_conversations(
 
 def get_oldest_active_conversation(
     location_id: str,
-    category_id: Optional[str] = None
+    session_id: Optional[str] = None,
+    phase: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Get the oldest active conversation for reads (broadest range of positions).
     """
-    conversations = get_active_conversations(location_id, category_id)
+    conversations = get_active_conversations(location_id, session_id, phase=phase)
     return conversations[0] if conversations else None
 
 
 def get_or_create_conversation(
     location_id: str,
-    category_id: Optional[str],
+    session_id: Optional[str],
     location_name: str,
-    category_name: Optional[str] = None
+    session_name: Optional[str] = None,
+    phase: Optional[str] = None,
 ) -> Optional[str]:
     """
     Get or create a Polis conversation for the current month.
 
     Args:
         location_id: The location UUID
-        category_id: The category UUID (None for location-only)
+        session_id: The session UUID (None for location-only)
         location_name: Human-readable location name
-        category_name: Human-readable category name (None for location-only)
+        session_name: Human-readable session name (None for location-only)
+        phase: Deliberation phase ('proposal' or 'opinion') for session conversations.
+               None for location_all conversations.
 
     Returns:
         The polis_conversation_id, or None if creation failed
@@ -277,7 +308,7 @@ def get_or_create_conversation(
     active_from, active_until = get_active_window_dates()
 
     # Check if conversation already exists for this month
-    existing = _lookup_conversation_for_month(location_id, category_id, active_from)
+    existing = _lookup_conversation_for_month(location_id, session_id, active_from, phase=phase)
     if existing:
         return existing["polis_conversation_id"]
 
@@ -285,9 +316,9 @@ def get_or_create_conversation(
     try:
         client = get_client()
 
-        if category_id:
-            topic = f"{location_name}: {category_name}"
-            conversation_type = "category"
+        if session_id:
+            topic = f"{location_name}: {session_name} ({phase})" if phase else f"{location_name}: {session_name}"
+            conversation_type = "session"
         else:
             topic = f"{location_name}: All Topics"
             conversation_type = "location_all"
@@ -299,34 +330,34 @@ def get_or_create_conversation(
             return None
 
         # Store mapping (ON CONFLICT handles race conditions from parallel workers)
-        if category_id:
+        if session_id:
             result = db.execute_query("""
                 INSERT INTO polis_conversation
-                (id, location_id, category_id, polis_conversation_id, conversation_type, active_from, active_until)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (location_id, category_id, active_from) DO NOTHING
+                (id, location_id, session_id, polis_conversation_id, conversation_type, phase, active_from, active_until)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (location_id, session_id, phase, active_from) DO NOTHING
                 RETURNING polis_conversation_id
             """, (
-                str(uuid.uuid4()), location_id, category_id,
-                polis_conv_id, conversation_type, active_from, active_until
+                str(uuid.uuid4()), location_id, session_id,
+                polis_conv_id, conversation_type, phase, active_from, active_until
             ), fetchone=True)
         else:
             result = db.execute_query("""
                 INSERT INTO polis_conversation
-                (id, location_id, category_id, polis_conversation_id, conversation_type, active_from, active_until)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (location_id, active_from) WHERE category_id IS NULL DO NOTHING
+                (id, location_id, session_id, polis_conversation_id, conversation_type, phase, active_from, active_until)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (location_id, active_from) WHERE session_id IS NULL DO NOTHING
                 RETURNING polis_conversation_id
             """, (
                 str(uuid.uuid4()), location_id, None,
-                polis_conv_id, conversation_type, active_from, active_until
+                polis_conv_id, conversation_type, None, active_from, active_until
             ), fetchone=True)
 
         if result:
             return polis_conv_id
 
         # Another worker won the race — return the existing conversation
-        existing = _lookup_conversation_for_month(location_id, category_id, active_from)
+        existing = _lookup_conversation_for_month(location_id, session_id, active_from, phase=phase)
         return existing["polis_conversation_id"] if existing else None
 
     except PolisError as e:
@@ -344,40 +375,45 @@ def sync_position(payload: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
     """
     position_id = payload["position_id"]
     statement = payload["statement"]
-    category_id = payload["category_id"]
+    session_id = payload["session_id"]
     location_id = payload["location_id"]
     creator_user_id = payload["creator_user_id"]
+    created_during_stage = payload.get("created_during_stage")
 
-    # Get location and category names for conversation titles
+    # Determine phase from stage
+    phase = STAGE_TO_PHASE.get(created_during_stage) if created_during_stage else None
+
+    # Get location and session names for conversation titles
     location = db.execute_query(
         "SELECT name FROM location WHERE id = %s",
         (location_id,), fetchone=True
     )
-    category = db.execute_query(
-        "SELECT label FROM position_category WHERE id = %s",
-        (category_id,), fetchone=True
+    session = db.execute_query(
+        "SELECT label FROM session WHERE id = %s",
+        (session_id,), fetchone=True
     )
 
-    if not location or not category:
-        return False, "Location or category not found"
+    if not location or not session:
+        return False, "Location or session not found"
 
     location_name = location["name"]
-    category_name = category["label"]
+    session_name = session["label"]
 
     xid = generate_xid(creator_user_id)
     client = get_client()
     errors = []
 
-    # Sync to category+location conversations
+    # Sync to session+location conversations (phase-scoped)
     synced_count = _sync_position_to_conv_group(
         client, position_id, statement, xid,
-        location_id, category_id, location_name, category_name, errors
+        location_id, session_id, location_name, session_name, errors,
+        phase=phase,
     )
 
-    # Sync to location-only conversations
+    # Sync to location-only conversations (no phase filter — aggregates everything)
     synced_count += _sync_position_to_conv_group(
         client, position_id, statement, xid,
-        location_id, None, location_name, None, errors
+        location_id, None, location_name, None, errors,
     )
 
     if synced_count > 0:
@@ -451,61 +487,78 @@ def sync_vote(payload: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
 def get_unvoted_positions_for_user(
     user_id: str,
     location_id: str,
-    category_priorities: Dict[str, int],
-    limit: int = 10
+    session_priorities: Dict[str, int],
+    limit: int = 10,
+    phase: str = None,
+    browse_all: bool = False,
 ) -> List[Dict[str, Any]]:
     """
-    Get positions the user hasn't voted on, weighted by category priority.
+    Get positions the user hasn't voted on, weighted by session priority.
 
     Uses Polis's nextComment endpoint for server-side PCA math-based
-    prioritization. Pre-calculates how many positions to fetch per category
+    prioritization. Pre-calculates how many positions to fetch per session
     based on priority weights, and terminates early when enough are collected.
 
     Args:
         user_id: The Candid user UUID
         location_id: The user's location UUID
-        category_priorities: Dict of category_id -> priority (0-5)
+        session_priorities: Dict of session_id -> priority (0-5)
         limit: Maximum positions to return
+        phase: Optional major phase filter (proposal, opinion, reflection, consensus)
+        browse_all: If True, return all positions including already-voted
 
     Returns:
-        List of position dicts with id, statement, category_id, creator info
+        List of position dicts with id, statement, session_id, creator info
     """
     if not config.POLIS_ENABLED:
-        return _get_unvoted_positions_from_db(user_id, location_id, category_priorities, limit)
+        return _get_unvoted_positions_from_db(
+            user_id, location_id, session_priorities, limit,
+            phase=phase, browse_all=browse_all,
+        )
 
     xid = generate_xid(user_id)
     client = get_client()
 
-    # Pre-calculate target count per category based on priority weights
-    active_priorities = {cid: p for cid, p in category_priorities.items() if p > 0}
+    # Pre-calculate target count per session based on priority weights
+    active_priorities = {cid: p for cid, p in session_priorities.items() if p > 0}
     total_weight = sum(active_priorities.values())
     if total_weight == 0:
         return []
 
-    category_targets = {}
-    for cat_id, priority in active_priorities.items():
-        category_targets[cat_id] = max(1, math.ceil(limit * priority / total_weight))
+    session_targets = {}
+    for sess_id, priority in active_priorities.items():
+        session_targets[sess_id] = max(1, math.ceil(limit * priority / total_weight))
 
     # Sort by priority descending so highest-priority categories go first
-    sorted_cats = sorted(category_targets.items(),
+    sorted_sessions = sorted(session_targets.items(),
                          key=lambda x: active_priorities[x[0]], reverse=True)
 
     positions = []
-    for cat_id, target in sorted_cats:
+    for sess_id, target in sorted_sessions:
         if len(positions) >= limit:
             break  # Early termination — already have enough
 
-        conv = get_oldest_active_conversation(location_id, cat_id)
+        conv = get_oldest_active_conversation(location_id, sess_id)
         if not conv:
-            # No Polis conversation, fall back to DB for this category
+            # No Polis conversation, fall back to DB for this session
             db_positions = _get_unvoted_positions_from_db(
-                user_id, location_id, {cat_id: active_priorities[cat_id]}, limit=target
+                user_id, location_id, {sess_id: active_priorities[sess_id]}, limit=target,
+                phase=phase, browse_all=browse_all,
+            )
+            positions.extend(db_positions)
+            continue
+
+        if browse_all:
+            # In browse_all mode, bypass Polis and go straight to DB
+            db_positions = _get_unvoted_positions_from_db(
+                user_id, location_id, {sess_id: active_priorities[sess_id]}, limit=target,
+                phase=phase, browse_all=True,
             )
             positions.extend(db_positions)
             continue
 
         try:
-            # Call nextComment up to `target` times for this category
+            # Call nextComment up to `target` times for this session
             tids = []
             for _ in range(target):
                 comment = client.get_next_comment(
@@ -516,15 +569,20 @@ def get_unvoted_positions_for_user(
 
             if tids:
                 # Batch map all tids to positions in ONE query
-                mapped = _batch_polis_comments_to_positions(tids, cat_id)
+                mapped = _batch_polis_comments_to_positions(tids, sess_id)
                 for pos in mapped:
-                    pos["weight"] = active_priorities[cat_id]
+                    pos["weight"] = active_priorities[sess_id]
+                # Post-filter by phase if specified
+                if phase:
+                    phase_stages = {s for s, p in STAGE_TO_PHASE.items() if p == phase}
+                    mapped = [p for p in mapped if p.get("created_during_stage") in phase_stages]
                 positions.extend(mapped)
 
         except PolisError as e:
             print(f"Error fetching from Polis: {e}", flush=True)
             db_positions = _get_unvoted_positions_from_db(
-                user_id, location_id, {cat_id: active_priorities[cat_id]}, limit=target
+                user_id, location_id, {sess_id: active_priorities[sess_id]}, limit=target,
+                phase=phase, browse_all=browse_all,
             )
             positions.extend(db_positions)
 
@@ -534,19 +592,40 @@ def get_unvoted_positions_for_user(
 def _get_unvoted_positions_from_db(
     user_id: str,
     location_id: str,
-    category_priorities: Dict[str, int],
-    limit: int = 10
+    session_priorities: Dict[str, int],
+    limit: int = 10,
+    phase: str = None,
+    browse_all: bool = False,
 ) -> List[Dict[str, Any]]:
     """Fallback: Get unvoted positions directly from Candid DB.
 
     Includes positions from the user's location and all parent locations.
-    """
-    category_ids = [cid for cid, priority in category_priorities.items() if priority > 0]
 
-    if not category_ids:
+    Args:
+        phase: Optional major phase filter (proposal, opinion, reflection, consensus)
+        browse_all: If True, include already-voted positions and own positions
+    """
+    session_ids = [cid for cid, priority in session_priorities.items() if priority > 0]
+
+    if not session_ids:
         return []
 
-    positions = db.execute_query("""
+    # Build dynamic WHERE conditions
+    extra_conditions = ""
+    extra_params = []
+
+    if not browse_all:
+        extra_conditions += " AND r.id IS NULL AND p.creator_user_id != %s"
+        extra_params.append(user_id)
+
+    if phase:
+        phase_stages = [s for s, p in STAGE_TO_PHASE.items() if p == phase]
+        if phase_stages:
+            placeholders = ','.join(['%s'] * len(phase_stages))
+            extra_conditions += f" AND p.created_during_stage IN ({placeholders})"
+            extra_params.extend(phase_stages)
+
+    positions = db.execute_query(f"""
         WITH RECURSIVE location_hierarchy AS (
             -- Start with user's location
             SELECT id, parent_location_id FROM location WHERE id = %s::uuid AND deleted_at IS NULL
@@ -557,17 +636,18 @@ def _get_unvoted_positions_from_db(
             JOIN location_hierarchy lh ON l.id = lh.parent_location_id
             WHERE l.deleted_at IS NULL
         )
-        SELECT p.id, p.statement, p.category_id, p.creator_user_id,
+        SELECT p.id, p.statement, p.session_id, p.creator_user_id,
+               p.created_during_stage,
                u.display_name as creator_display_name, u.username as creator_username,
                u.status as creator_status, u.trust_score as creator_trust_score,
                u.avatar_url as creator_avatar_url,
                u.avatar_icon_url as creator_avatar_icon_url,
                u.kudos_count as creator_kudos_count,
-               pc.label as category_name, l.id as location_id, l.code as location_code, l.name as location_name,
+               pc.label as session_name, l.id as location_id, l.code as location_code, l.name as location_name,
                up.id as user_position_id
         FROM position p
         JOIN users u ON p.creator_user_id = u.id
-        LEFT JOIN position_category pc ON p.category_id = pc.id
+        LEFT JOIN session pc ON p.session_id = pc.id
         LEFT JOIN location l ON p.location_id = l.id
         LEFT JOIN response r ON r.position_id = p.id AND r.user_id = %s
         -- Get an active user_position for chat requests (prefer creator's)
@@ -578,21 +658,20 @@ def _get_unvoted_positions_from_db(
             LIMIT 1
         ) up ON true
         WHERE p.location_id IN (SELECT id FROM location_hierarchy)
-          AND p.category_id = ANY(%s::uuid[])
+          AND p.session_id = ANY(%s::uuid[])
           AND p.status = 'active'
-          AND r.id IS NULL
-          AND p.creator_user_id != %s
+          {extra_conditions}
         ORDER BY p.created_time DESC
         LIMIT %s
-    """, (location_id, user_id, category_ids, user_id, limit))
+    """, (location_id, user_id, session_ids, *extra_params, limit))
 
     result = []
     for p in (positions or []):
         result.append({
             "id": str(p["id"]),
             "statement": p["statement"],
-            "category_id": str(p["category_id"]),
-            "category_name": p["category_name"],
+            "session_id": str(p["session_id"]),
+            "session_name": p["session_name"],
             "location_id": str(p["location_id"]) if p.get("location_id") else None,
             "location_code": p["location_code"],
             "location_name": p["location_name"],
@@ -605,7 +684,8 @@ def _get_unvoted_positions_from_db(
             "creator_avatar_url": p.get("creator_avatar_url"),
             "creator_avatar_icon_url": p.get("creator_avatar_icon_url"),
             "user_position_id": str(p["user_position_id"]) if p.get("user_position_id") else None,
-            "weight": category_priorities.get(str(p["category_id"]), 1),
+            "created_during_stage": p.get("created_during_stage"),
+            "weight": session_priorities.get(str(p["session_id"]), 1),
         })
 
     return result
@@ -613,7 +693,7 @@ def _get_unvoted_positions_from_db(
 
 def _batch_polis_comments_to_positions(
     tids: List[int],
-    category_id: str
+    session_id: str
 ) -> List[Dict[str, Any]]:
     """Map multiple Polis comment tids to Candid positions in one DB query."""
     if not tids:
@@ -621,15 +701,16 @@ def _batch_polis_comments_to_positions(
 
     rows = db.execute_query("""
         SELECT pc.polis_comment_tid, pc.position_id, p.statement, p.creator_user_id,
+               p.created_during_stage,
                u.display_name, u.username, u.status, u.trust_score,
                u.avatar_url, u.avatar_icon_url,
                u.kudos_count,
-               pcat.label as category_name, l.id as location_id, l.code as location_code, l.name as location_name,
+               pcat.label as session_name, l.id as location_id, l.code as location_code, l.name as location_name,
                up.id as user_position_id
         FROM polis_comment pc
         JOIN position p ON pc.position_id = p.id
         JOIN users u ON p.creator_user_id = u.id
-        LEFT JOIN position_category pcat ON p.category_id = pcat.id
+        LEFT JOIN session pcat ON p.session_id = pcat.id
         LEFT JOIN location l ON p.location_id = l.id
         LEFT JOIN LATERAL (
             SELECT up.id FROM user_position up
@@ -637,16 +718,16 @@ def _batch_polis_comments_to_positions(
             ORDER BY CASE WHEN up.user_id = p.creator_user_id THEN 0 ELSE 1 END
             LIMIT 1
         ) up ON true
-        WHERE pc.polis_comment_tid = ANY(%s) AND p.category_id = %s
-    """, (tids, category_id))
+        WHERE pc.polis_comment_tid = ANY(%s) AND p.session_id = %s
+    """, (tids, session_id))
 
     result = []
     for mapping in (rows or []):
         result.append({
             "id": str(mapping["position_id"]),
             "statement": mapping["statement"],
-            "category_id": category_id,
-            "category_name": mapping["category_name"],
+            "session_id": session_id,
+            "session_name": mapping["session_name"],
             "location_id": str(mapping["location_id"]) if mapping.get("location_id") else None,
             "location_code": mapping["location_code"],
             "location_name": mapping["location_name"],
@@ -659,6 +740,7 @@ def _batch_polis_comments_to_positions(
             "creator_avatar_url": mapping.get("avatar_url"),
             "creator_avatar_icon_url": mapping.get("avatar_icon_url"),
             "user_position_id": str(mapping["user_position_id"]) if mapping.get("user_position_id") else None,
+            "created_during_stage": mapping.get("created_during_stage"),
         })
 
     return result
@@ -673,7 +755,7 @@ def sync_adopted_position(user_id: str, position_id: str) -> bool:
     """
     # Get position details
     position = db.execute_query("""
-        SELECT p.statement, p.category_id, p.location_id
+        SELECT p.statement, p.session_id, p.location_id, p.created_during_stage
         FROM position p
         WHERE p.id = %s
     """, (position_id,), fetchone=True)
@@ -685,7 +767,8 @@ def sync_adopted_position(user_id: str, position_id: str) -> bool:
     return queue_position_sync(
         position_id=position_id,
         statement=position["statement"],
-        category_id=str(position["category_id"]),
+        session_id=str(position["session_id"]),
         location_id=str(position["location_id"]),
-        creator_user_id=user_id  # The adopter becomes the creator in new conversations
+        creator_user_id=user_id,  # The adopter becomes the creator in new conversations
+        created_during_stage=position.get("created_during_stage"),
     )

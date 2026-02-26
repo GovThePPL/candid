@@ -12,7 +12,7 @@ import PositionCard from '../../../components/stats/PositionCard'
 const makePosition = (overrides = {}) => ({
   id: 'pos-1',
   statement: 'Universal healthcare should be a right',
-  category: { label: 'Healthcare' },
+  session: { label: 'Healthcare' },
   location: { code: 'US', name: 'United States' },
   creator: { displayName: 'Jane Doe', username: 'janedoe' },
   voteDistribution: { agree: 0.6, disagree: 0.3, pass: 0.1 },

@@ -89,8 +89,8 @@ jest.mock('../../components/ChatRequestIndicator', () => {
 })
 jest.mock('../../components/discuss/RoleBadge', () => {
   const { Text } = require('react-native')
-  return ({ role, location, category }) => (
-    <Text testID="role-badge">{[location, category, role].filter(Boolean).join(' · ')}</Text>
+  return ({ role, location, session }) => (
+    <Text testID="role-badge">{[location, session, role].filter(Boolean).join(' · ')}</Text>
   )
 })
 

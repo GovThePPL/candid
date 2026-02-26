@@ -13,7 +13,7 @@ The schema supports the full Candid domain: users, positions, voting, chat, surv
 - **survey / survey_question / survey_question_option** -- Multi-question surveys with pairwise comparisons
 - **report / mod_action** -- Content moderation pipeline with appeals
 - **user_demographics** -- Demographics for group analytics
-- **position_category / location** -- Hierarchical categorization and geography. `location` has a `deleted_at` column for soft-delete; deleted locations are preserved for FK references but filtered from all active queries
+- **session / location** -- Session management and geography. `location` has a `deleted_at` column for soft-delete; deleted locations are preserved for FK references but filtered from all active queries
 - **bug_report** -- User-submitted bug reports with optional device diagnostics
 - **mf_training_log** -- Matrix factorization training audit log (per-conversation)
 
@@ -32,7 +32,14 @@ Rich dev data (50 users, ~36 positions, chats, moderation) is created by `backen
 ```
 database/
 ├── sql/
-│   └── schema.sql        # Complete current schema (all pre-production migrations rolled in)
+│   ├── schema.sql                        # Complete current schema (all pre-production migrations rolled in)
+│   ├── migrate_category_to_session.sql   # Rename category → session throughout schema
+│   ├── migrate_label_survey_phase.sql    # Add label survey phase to sessions
+│   ├── migrate_pinned_posts.sql          # Add pinned posts support
+│   ├── migrate_polis_phase.sql           # Add Polis phase tracking to sessions
+│   ├── migrate_proposals.sql             # Add proposal posts and endorsement tables
+│   ├── migrate_voting_results.sql        # Add voting results storage
+│   └── migrate_voting_round_candidate.sql # Add voting round candidate tracking
 ├── test_data/
 │   ├── basic.sql         # Core seed data (users, categories, locations, rules)
 │   └── pairwise_surveys.sql  # Pairwise survey data

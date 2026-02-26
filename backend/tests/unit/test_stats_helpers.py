@@ -1,4 +1,5 @@
-"""Unit tests for helpers/stats.py — demographics aggregation and vote helpers."""
+"""Unit tests for helpers/stats.py — demographics aggregation and vote helpers,
+and stats_controller._get_cached_group_labels phase filtering."""
 
 import pytest
 from unittest.mock import patch, MagicMock
@@ -13,6 +14,7 @@ from candid.controllers.helpers.stats import (
 pytestmark = pytest.mark.unit
 
 STATS_HELPERS = "candid.controllers.helpers.stats"
+STATS_CONTROLLER = "candid.controllers.stats_controller"
 
 
 class TestEmptyDemographics:
@@ -139,7 +141,7 @@ class TestGetOverallVoteDist:
 
 
 class TestGetUserVotes:
-    def test_with_category(self):
+    def test_with_session(self):
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value=[
             {"position_id": "p1", "response": "agree"},
@@ -151,9 +153,9 @@ class TestGetUserVotes:
             result = get_user_votes("user1", "cat1", "loc1")
             assert result == {"p1": "agree", "p2": "disagree"}
             sql = mock_db.execute_query.call_args[0][0]
-            assert "category_id" in sql
+            assert "session_id" in sql
 
-    def test_without_category(self):
+    def test_without_session(self):
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value=[])
 
@@ -162,7 +164,7 @@ class TestGetUserVotes:
             result = get_user_votes("user1", None, "loc1")
             assert result == {}
             sql = mock_db.execute_query.call_args[0][0]
-            assert "category_id" not in sql
+            assert "session_id" not in sql
 
     def test_none_votes_returns_empty(self):
         mock_db = MagicMock()
@@ -174,7 +176,7 @@ class TestGetUserVotes:
 
 
 class TestGetUserPositionIds:
-    def test_with_category(self):
+    def test_with_session(self):
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value=[
             {"id": "p1"}, {"id": "p2"},
@@ -185,7 +187,7 @@ class TestGetUserPositionIds:
             result = get_user_position_ids("user1", "cat1", "loc1")
             assert result == ["p1", "p2"]
 
-    def test_without_category(self):
+    def test_without_session(self):
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value=[{"id": "p1"}])
 
@@ -201,3 +203,112 @@ class TestGetUserPositionIds:
         with patch(f"{STATS_HELPERS}.db", mock_db):
             from candid.controllers.helpers.stats import get_user_position_ids
             assert get_user_position_ids("user1", "cat1", "loc1") == []
+
+
+class TestGetCachedGroupLabelsPhase:
+    """Test phase filtering in _get_cached_group_labels."""
+
+    def _call(self, **kwargs):
+        """Import and call _get_cached_group_labels, clearing cache first."""
+        import candid.controllers.stats_controller as sc
+        sc._label_cache.clear()
+        return sc._get_cached_group_labels(**kwargs)
+
+    def test_phase_specific_survey_found(self):
+        """When phase='proposal' and a matching survey exists, it should be found."""
+        mock_db = MagicMock()
+        # First call (polis_conv_id lookup) returns None
+        # Second call (phase-specific session query) returns survey
+        mock_db.execute_query = MagicMock(side_effect=[
+            None,  # polis_conv_id lookup
+            {"id": "survey-123"},  # phase='proposal' query
+            [],  # items
+        ])
+
+        with patch(f"{STATS_CONTROLLER}.db", mock_db):
+            result = self._call(
+                polis_conv_id="conv1",
+                math_data={"pca": {"asPOJO": {"group-clusters": []}}},
+                location_id="loc1",
+                session_id="sess1",
+                phase="proposal",
+            )
+        assert result == {}
+        # Should have called with phase parameter in the query
+        calls = mock_db.execute_query.call_args_list
+        # Second call should include phase='proposal'
+        assert "proposal" in str(calls[1])
+
+    def test_phase_null_fallback(self):
+        """When phase='opinion' but no phase-specific survey, falls back to NULL phase."""
+        mock_db = MagicMock()
+        # polis_conv_id lookup → None
+        # phase='opinion' query → None
+        # phase IS NULL fallback → survey found
+        mock_db.execute_query = MagicMock(side_effect=[
+            None,  # polis_conv_id lookup
+            None,  # phase='opinion' query
+            {"id": "survey-legacy"},  # phase IS NULL fallback
+            [],  # items
+        ])
+
+        with patch(f"{STATS_CONTROLLER}.db", mock_db):
+            result = self._call(
+                polis_conv_id="conv2",
+                math_data={"pca": {"asPOJO": {"group-clusters": []}}},
+                location_id="loc1",
+                session_id="sess1",
+                phase="opinion",
+            )
+        assert result == {}
+        calls = mock_db.execute_query.call_args_list
+        assert len(calls) >= 3  # polis lookup + phase query + NULL fallback
+
+    def test_no_phase_skips_phase_query(self):
+        """When phase=None, should use the old code path (no phase filter)."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            None,  # polis_conv_id lookup
+            {"id": "survey-old"},  # phase IS NULL query (old path)
+            [],  # items
+        ])
+
+        with patch(f"{STATS_CONTROLLER}.db", mock_db):
+            result = self._call(
+                polis_conv_id="conv3",
+                math_data={"pca": {"asPOJO": {"group-clusters": []}}},
+                location_id="loc1",
+                session_id="sess1",
+                phase=None,
+            )
+        assert result == {}
+        calls = mock_db.execute_query.call_args_list
+        # Only 2 calls: polis lookup + NULL fallback (no phase-specific query)
+        assert len(calls) == 3  # polis + null fallback + items
+
+    def test_cache_key_includes_phase(self):
+        """Cache keys should differ by phase."""
+        import candid.controllers.stats_controller as sc
+        sc._label_cache.clear()
+
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=None)
+
+        with patch(f"{STATS_CONTROLLER}.db", mock_db):
+            sc._get_cached_group_labels(
+                polis_conv_id="conv4",
+                math_data={"pca": {"asPOJO": {"group-clusters": []}}},
+                location_id="loc1",
+                session_id="sess1",
+                phase="proposal",
+            )
+            sc._get_cached_group_labels(
+                polis_conv_id="conv4",
+                math_data={"pca": {"asPOJO": {"group-clusters": []}}},
+                location_id="loc1",
+                session_id="sess1",
+                phase="opinion",
+            )
+
+        assert "labels:conv4:proposal" in sc._label_cache
+        assert "labels:conv4:opinion" in sc._label_cache

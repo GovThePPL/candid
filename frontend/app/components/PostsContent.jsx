@@ -10,7 +10,7 @@ import api from '../lib/api'
 import { useAuth } from '../contexts/UserContext'
 
 import ThemedText from './ThemedText'
-import LocationCategoryBadge from './LocationCategoryBadge'
+import LocationSessionBadge from './LocationSessionBadge'
 import { SkeletonPulse, SkeletonBox, SkeletonLine } from './Skeleton'
 import { formatRelativeTime } from '../lib/timeUtils'
 import StickyHeaderFlatList from './StickyHeaderFlatList'
@@ -155,10 +155,10 @@ export default function PostsContent({ onScroll, listHeader, stickyHeader, userI
         })}
       >
         <View style={styles.itemHeaderRow}>
-          {(item.postLocationCode || item.postCategoryLabel) ? (
-            <LocationCategoryBadge
+          {(item.postLocationCode || item.postSessionLabel) ? (
+            <LocationSessionBadge
               location={item.postLocationCode ? { code: item.postLocationCode } : null}
-              category={item.postCategoryLabel ? { label: item.postCategoryLabel } : null}
+              session={item.postSessionLabel ? { label: item.postSessionLabel } : null}
               size="sm"
             />
           ) : <View />}

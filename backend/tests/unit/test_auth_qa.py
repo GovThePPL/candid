@@ -23,14 +23,14 @@ def _clear_caches():
     invalidate_location_cache()
 
 
-def _make_mock(role_to_return, match_on_hierarchical=False, match_on_category_scoped=False):
+def _make_mock(role_to_return, match_on_hierarchical=False, match_on_session_scoped=False):
     """Create a mock that simulates get_highest_role_at_location behavior.
 
     The function makes up to 4 queries:
     1. CTE for ancestors (always returns OREGON_ANCESTORS)
     2. Hierarchical role check (admin/moderator at ancestors)
-    3. Category-scoped role check (with specific category)
-    4. Category-scoped role check (without category constraint)
+    3. Session-scoped role check (with specific session)
+    4. Session-scoped role check (without session constraint)
     """
     call_count = [0]
 
@@ -48,14 +48,14 @@ def _make_mock(role_to_return, match_on_hierarchical=False, match_on_category_sc
                 return {"role": role_to_return}
             return None
 
-        # Query 3: category-scoped with specific category (position_category_id = %s)
-        if "position_category_id = %s" in q:
-            if match_on_category_scoped:
+        # Query 3: session-scoped with specific session (session_id = %s)
+        if "session_id = %s" in q:
+            if match_on_session_scoped:
                 return {"role": role_to_return}
             return None
 
-        # Query 4: category-scoped without category (fallback)
-        if "position_category_id IS NULL" in q or ("role IN ('facilitator'" in q and "position_category_id" not in q):
+        # Query 4: session-scoped without session (fallback)
+        if "session_id IS NULL" in q or ("role IN ('facilitator'" in q and "session_id" not in q):
             return None
 
         # Fallback: last query in get_highest_role_at_location
@@ -86,7 +86,7 @@ class TestHasQaAuthority:
     @patch("candid.controllers.helpers.auth.db")
     def test_facilitator_at_exact_scope_returns_true(self, mock_db):
         mock_db.execute_query = MagicMock(
-            side_effect=_make_mock("facilitator", match_on_category_scoped=True)
+            side_effect=_make_mock("facilitator", match_on_session_scoped=True)
         )
         from candid.controllers.helpers.auth import has_qa_authority
         assert has_qa_authority(USER_A, OREGON, HEALTHCARE_CAT) is True
@@ -94,7 +94,7 @@ class TestHasQaAuthority:
     @patch("candid.controllers.helpers.auth.db")
     def test_expert_at_exact_scope_returns_true(self, mock_db):
         mock_db.execute_query = MagicMock(
-            side_effect=_make_mock("expert", match_on_category_scoped=True)
+            side_effect=_make_mock("expert", match_on_session_scoped=True)
         )
         from candid.controllers.helpers.auth import has_qa_authority
         assert has_qa_authority(USER_A, OREGON, HEALTHCARE_CAT) is True
@@ -102,7 +102,7 @@ class TestHasQaAuthority:
     @patch("candid.controllers.helpers.auth.db")
     def test_liaison_at_exact_scope_returns_true(self, mock_db):
         mock_db.execute_query = MagicMock(
-            side_effect=_make_mock("liaison", match_on_category_scoped=True)
+            side_effect=_make_mock("liaison", match_on_session_scoped=True)
         )
         from candid.controllers.helpers.auth import has_qa_authority
         assert has_qa_authority(USER_A, OREGON, HEALTHCARE_CAT) is True
@@ -117,7 +117,7 @@ class TestHasQaAuthority:
         assert has_qa_authority(USER_A, OREGON, HEALTHCARE_CAT) is False
 
     @patch("candid.controllers.helpers.auth.db")
-    def test_facilitator_at_different_category_returns_false(self, mock_db):
+    def test_facilitator_at_different_session_returns_false(self, mock_db):
         """Facilitator exists but no matching role returned → False."""
         mock_db.execute_query = MagicMock(
             side_effect=_make_mock(None)

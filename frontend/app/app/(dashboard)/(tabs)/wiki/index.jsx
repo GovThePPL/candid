@@ -13,9 +13,10 @@ import WikiPageCard from '../../../../components/wiki/WikiPageCard'
 import EmptyState from '../../../../components/EmptyState'
 import ThemedText from '../../../../components/ThemedText'
 import LocationFilterButton from '../../../../components/LocationFilterButton'
-import LocationCategoryBadge from '../../../../components/LocationCategoryBadge'
+import LocationSessionBadge from '../../../../components/LocationSessionBadge'
 import { SkeletonPulse, SkeletonBox, SkeletonLine } from '../../../../components/Skeleton'
 import { useAuth } from '../../../../contexts/UserContext'
+import { useLocationSession } from '../../../../contexts/LocationSessionContext'
 
 function WikiPageCardSkeleton({ colors }) {
   return (
@@ -78,6 +79,7 @@ export default function WikiScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const { user } = useAuth()
+  const { selectedLocation: globalLocation, selectedSession: globalSession } = useLocationSession()
 
   // Tab state: 'terms' or 'pages'
   const [activeTab, setActiveTab] = useState('pages')
@@ -91,14 +93,17 @@ export default function WikiScreen() {
   const [suggestionCount, setSuggestionCount] = useState(0)
   const [showSuggestMenu, setShowSuggestMenu] = useState(false)
 
-  // Shared location/category filter state (both tabs)
+  // Shared location/session filter state (both tabs)
+  // Initialized from global context, synced on context changes
   const [allLocations, setAllLocations] = useState([])
-  const [allCategories, setAllCategories] = useState([])
-  const [selectedLocationId, setSelectedLocationId] = useState(null)
-  const [selectedCategoryId, setSelectedCategoryId] = useState(null)
+  const [allSessions, setAllSessions] = useState([])
+  const [selectedLocationId, setSelectedLocationId] = useState(globalLocation || null)
+  const [selectedSessionId, setSelectedSessionId] = useState(
+    globalSession && globalSession !== 'all' ? globalSession : null
+  )
 
-  // Category picker modal
-  const [showCategoryPicker, setShowCategoryPicker] = useState(false)
+  // Session picker modal
+  const [showSessionPicker, setShowSessionPicker] = useState(false)
 
   // Collapsible filter panel
   const [showFilters, setShowFilters] = useState(false)
@@ -115,22 +120,31 @@ export default function WikiScreen() {
   const termsDebounceRef = useRef(null)
   const termsSearchRef = useRef('')
 
-  // Load locations and categories for filter dropdowns
+  // Load locations and sessions for filter dropdowns
   useEffect(() => {
     const load = async () => {
       try {
-        const [locs, cats] = await Promise.all([
+        const [locs, sess] = await Promise.all([
           api.users.getAllLocations(),
-          api.categories.getAll(),
+          api.sessions.getAll(),
         ])
         setAllLocations(Array.isArray(locs) ? locs : [])
-        setAllCategories(Array.isArray(cats) ? cats : [])
+        setAllSessions(Array.isArray(sess) ? sess : [])
       } catch {
         // Non-blocking
       }
     }
     load()
   }, [])
+
+  // Sync local filter state from global LocationSessionContext
+  useEffect(() => {
+    setSelectedLocationId(globalLocation || null)
+  }, [globalLocation])
+
+  useEffect(() => {
+    setSelectedSessionId(globalSession && globalSession !== 'all' ? globalSession : null)
+  }, [globalSession])
 
   // Fetch suggestion count for badge
   useFocusEffect(
@@ -149,7 +163,7 @@ export default function WikiScreen() {
   )
 
   // Fetch pages
-  const fetchPages = useCallback(async (search, locationId, categoryId, isRefresh = false) => {
+  const fetchPages = useCallback(async (search, locationId, sessionId, isRefresh = false) => {
     try {
       if (!isRefresh) setLoading(true)
       setError(false)
@@ -157,9 +171,9 @@ export default function WikiScreen() {
       const opts = {}
       if (search) opts.search = search
       if (locationId) opts.locationId = locationId
-      if (categoryId) opts.categoryId = categoryId
+      if (sessionId) opts.sessionId = sessionId
 
-      const cacheKey = CacheKeys.wikiPages(null, search, locationId, categoryId)
+      const cacheKey = CacheKeys.wikiPages(null, search, locationId, sessionId)
       if (!isRefresh) {
         const cacheEntry = await CacheManager.get(cacheKey)
         if (cacheEntry && !CacheManager.isStale(cacheEntry, CacheDurations.WIKI_PAGES)) {
@@ -185,17 +199,17 @@ export default function WikiScreen() {
   useFocusEffect(
     useCallback(() => {
       if (activeTab === 'pages') {
-        fetchPages(searchRef.current, selectedLocationId, selectedCategoryId)
+        fetchPages(searchRef.current, selectedLocationId, selectedSessionId)
       }
-    }, [fetchPages, selectedLocationId, selectedCategoryId, activeTab])
+    }, [fetchPages, selectedLocationId, selectedSessionId, activeTab])
   )
 
-  // Re-fetch pages when location/category filters change
+  // Re-fetch pages when location/session filters change
   useEffect(() => {
     if (activeTab === 'pages') {
-      fetchPages(searchRef.current, selectedLocationId, selectedCategoryId)
+      fetchPages(searchRef.current, selectedLocationId, selectedSessionId)
     }
-  }, [fetchPages, selectedLocationId, selectedCategoryId, activeTab])
+  }, [fetchPages, selectedLocationId, selectedSessionId, activeTab])
 
   // Fetch terms
   const fetchTerms = useCallback(async (locationId, isRefresh = false) => {
@@ -261,7 +275,7 @@ export default function WikiScreen() {
     return descendants
   }, [selectedLocationId, allLocations])
 
-  // Filtered terms (client-side location/category/search filtering)
+  // Filtered terms (client-side location/session/search filtering)
   const filteredTerms = useMemo(() => {
     let filtered = terms
     // When a location is selected, only show terms scoped to that location
@@ -272,9 +286,9 @@ export default function WikiScreen() {
         return lids.length > 0 && lids.some(id => locationDescendants.has(id))
       })
     }
-    if (selectedCategoryId) {
+    if (selectedSessionId) {
       filtered = filtered.filter(term =>
-        (term.categoryIds || []).includes(selectedCategoryId)
+        (term.sessionIds || []).includes(selectedSessionId)
       )
     }
     if (termsSearchText.trim()) {
@@ -286,7 +300,7 @@ export default function WikiScreen() {
       )
     }
     return filtered
-  }, [terms, termsSearchText, locationDescendants, selectedCategoryId])
+  }, [terms, termsSearchText, locationDescendants, selectedSessionId])
 
   // Debounced search (pages)
   const handleSearchChange = useCallback((text) => {
@@ -294,9 +308,9 @@ export default function WikiScreen() {
     searchRef.current = text
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
-      fetchPages(text, selectedLocationId, selectedCategoryId)
+      fetchPages(text, selectedLocationId, selectedSessionId)
     }, 300)
-  }, [fetchPages, selectedLocationId, selectedCategoryId])
+  }, [fetchPages, selectedLocationId, selectedSessionId])
 
   // Terms search — client-side, just update state
   const handleTermsSearchChange = useCallback((text) => {
@@ -307,12 +321,12 @@ export default function WikiScreen() {
   const handleRefresh = useCallback(() => {
     if (activeTab === 'pages') {
       setRefreshing(true)
-      fetchPages(searchRef.current, selectedLocationId, selectedCategoryId, true)
+      fetchPages(searchRef.current, selectedLocationId, selectedSessionId, true)
     } else {
       setTermsRefreshing(true)
       fetchTerms(selectedLocationId, true)
     }
-  }, [activeTab, fetchPages, fetchTerms, selectedLocationId, selectedCategoryId])
+  }, [activeTab, fetchPages, fetchTerms, selectedLocationId, selectedSessionId])
 
   const handlePagePress = useCallback((page) => {
     router.push(`/wiki/${page.slug}`)
@@ -323,12 +337,12 @@ export default function WikiScreen() {
     router.push(`/wiki/glossary/${term.slug}`)
   }, [router])
 
-  // Find the category name for a given ID
-  const selectedCategoryName = useMemo(() => {
-    if (!selectedCategoryId) return null
-    const cat = allCategories.find(c => c.id === selectedCategoryId)
-    return cat?.label || null
-  }, [selectedCategoryId, allCategories])
+  // Find the session name for a given ID
+  const selectedSessionName = useMemo(() => {
+    if (!selectedSessionId) return null
+    const sess = allSessions.find(s => s.id === selectedSessionId)
+    return sess?.label || null
+  }, [selectedSessionId, allSessions])
 
   // Lookup maps for resolving scope IDs to display objects
   const locationMap = useMemo(() => {
@@ -337,32 +351,32 @@ export default function WikiScreen() {
     return map
   }, [allLocations])
 
-  const categoryMap = useMemo(() => {
+  const sessionMap = useMemo(() => {
     const map = {}
-    for (const cat of allCategories) map[cat.id] = cat
+    for (const sess of allSessions) map[sess.id] = sess
     return map
-  }, [allCategories])
+  }, [allSessions])
 
-  // Resolve first locationId/categoryId to badge-ready objects
-  const resolveScope = useCallback((locationIds, categoryIds) => {
+  // Resolve first locationId/sessionId to badge-ready objects
+  const resolveScope = useCallback((locationIds, sessionIds) => {
     const locId = (locationIds || [])[0]
-    const catId = (categoryIds || [])[0]
+    const sessId = (sessionIds || [])[0]
     return {
       location: locId && locationMap[locId] ? { code: locationMap[locId].code, name: locationMap[locId].name } : null,
-      category: catId && categoryMap[catId] ? { label: categoryMap[catId].label } : null,
+      session: sessId && sessionMap[sessId] ? { label: sessionMap[sessId].label } : null,
     }
-  }, [locationMap, categoryMap])
+  }, [locationMap, sessionMap])
 
   const renderPageItem = useCallback(({ item }) => (
     <WikiPageCard
       page={item}
       onPress={() => handlePagePress(item)}
-      scope={resolveScope(item.locationIds, item.categoryIds)}
+      scope={resolveScope(item.locationIds, item.sessionIds)}
     />
   ), [handlePagePress, resolveScope])
 
   const renderTermItem = useCallback(({ item }) => {
-    const scope = resolveScope(item.locationIds, item.categoryIds)
+    const scope = resolveScope(item.locationIds, item.sessionIds)
     return (
       <TouchableOpacity
         style={styles.termCard}
@@ -370,11 +384,11 @@ export default function WikiScreen() {
         accessibilityRole="button"
         accessibilityLabel={t('wikiArticleA11y', { title: item.term })}
       >
-        <LocationCategoryBadge
+        <LocationSessionBadge
           location={scope.location}
-          category={scope.category}
+          session={scope.session}
           locationFallback={t('wikiScopeAllLocations')}
-          categoryFallback={t('wikiScopeAllCategories')}
+          sessionFallback={t('wikiScopeAllSessions')}
           size="sm"
         />
         <ThemedText variant="bodyBold" color="dark">{item.term}</ThemedText>
@@ -511,27 +525,27 @@ export default function WikiScreen() {
       <View style={styles.filterItem}>
         <TouchableOpacity
           style={styles.dropdownButton}
-          onPress={() => setShowCategoryPicker(true)}
+          onPress={() => setShowSessionPicker(true)}
           accessibilityRole="button"
-          accessibilityLabel={t('wikiFilterCategoryA11y')}
+          accessibilityLabel={t('wikiFilterSessionA11y')}
         >
           <Ionicons name="grid-outline" size={18} color={colors.primary} />
           <ThemedText
             variant="body"
-            color={selectedCategoryName ? 'badge' : 'secondary'}
-            style={selectedCategoryName ? styles.dropdownText : styles.dropdownPlaceholder}
+            color={selectedSessionName ? 'badge' : 'secondary'}
+            style={selectedSessionName ? styles.dropdownText : styles.dropdownPlaceholder}
             numberOfLines={1}
           >
-            {selectedCategoryName || t('wikiAllCategoriesLabel')}
+            {selectedSessionName || t('wikiAllSessionsLabel')}
           </ThemedText>
           <Ionicons name="chevron-forward" size={18} color={colors.secondaryText} />
         </TouchableOpacity>
-        {selectedCategoryId && (
+        {selectedSessionId && (
           <TouchableOpacity
-            onPress={() => setSelectedCategoryId(null)}
+            onPress={() => setSelectedSessionId(null)}
             style={styles.clearFilter}
             accessibilityRole="button"
-            accessibilityLabel={t('wikiClearFilterA11y', { filter: t('wikiFilterCategory') })}
+            accessibilityLabel={t('wikiClearFilterA11y', { filter: t('wikiFilterSession') })}
             hitSlop={8}
           >
             <Ionicons name="close-circle" size={18} color={colors.secondaryText} />
@@ -539,10 +553,10 @@ export default function WikiScreen() {
         )}
       </View>
     </View>
-  ), [allLocations, selectedLocationId, selectedCategoryId, selectedCategoryName, colors, styles, t])
+  ), [allLocations, selectedLocationId, selectedSessionId, selectedSessionName, colors, styles, t])
 
   // Whether any filter is actively selected
-  const filtersActive = !!(selectedLocationId || selectedCategoryId)
+  const filtersActive = !!(selectedLocationId || selectedSessionId)
 
   // --- Shared header (rendered outside FlatList to avoid TextInput focus loss) ---
   const listHeader = (
@@ -649,23 +663,23 @@ export default function WikiScreen() {
         />
       )}
 
-      {/* Category Picker Modal */}
-      {showCategoryPicker && <Modal
+      {/* Session Picker Modal */}
+      {showSessionPicker && <Modal
         visible
         transparent
         animationType="fade"
-        onRequestClose={() => setShowCategoryPicker(false)}
+        onRequestClose={() => setShowSessionPicker(false)}
       >
         <TouchableOpacity
           style={styles.modalOverlay}
           activeOpacity={1}
-          onPress={() => setShowCategoryPicker(false)}
+          onPress={() => setShowSessionPicker(false)}
         >
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <ThemedText variant="h3" color="dark">{t('wikiFilterCategory')}</ThemedText>
+              <ThemedText variant="h3" color="dark">{t('wikiFilterSession')}</ThemedText>
               <TouchableOpacity
-                onPress={() => setShowCategoryPicker(false)}
+                onPress={() => setShowSessionPicker(false)}
                 accessibilityRole="button"
                 accessibilityLabel={t('common:close')}
               >
@@ -674,36 +688,36 @@ export default function WikiScreen() {
             </View>
             <ScrollView>
               <TouchableOpacity
-                style={[styles.modalItem, !selectedCategoryId && styles.modalItemActive]}
-                onPress={() => { setSelectedCategoryId(null); setShowCategoryPicker(false) }}
+                style={[styles.modalItem, !selectedSessionId && styles.modalItemActive]}
+                onPress={() => { setSelectedSessionId(null); setShowSessionPicker(false) }}
                 accessibilityRole="button"
-                accessibilityState={{ selected: !selectedCategoryId }}
+                accessibilityState={{ selected: !selectedSessionId }}
               >
                 <ThemedText
                   variant="body"
-                  color={!selectedCategoryId ? 'primary' : 'dark'}
+                  color={!selectedSessionId ? 'primary' : 'dark'}
                 >
-                  {t('wikiAllCategoriesLabel')}
+                  {t('wikiAllSessionsLabel')}
                 </ThemedText>
-                {!selectedCategoryId && (
+                {!selectedSessionId && (
                   <Ionicons name="checkmark" size={20} color={colors.primary} />
                 )}
               </TouchableOpacity>
-              {allCategories.map((cat) => (
+              {allSessions.map((sess) => (
                 <TouchableOpacity
-                  key={cat.id}
-                  style={[styles.modalItem, selectedCategoryId === cat.id && styles.modalItemActive]}
-                  onPress={() => { setSelectedCategoryId(cat.id); setShowCategoryPicker(false) }}
+                  key={sess.id}
+                  style={[styles.modalItem, selectedSessionId === sess.id && styles.modalItemActive]}
+                  onPress={() => { setSelectedSessionId(sess.id); setShowSessionPicker(false) }}
                   accessibilityRole="button"
-                  accessibilityState={{ selected: selectedCategoryId === cat.id }}
+                  accessibilityState={{ selected: selectedSessionId === sess.id }}
                 >
                   <ThemedText
                     variant="body"
-                    color={selectedCategoryId === cat.id ? 'primary' : 'dark'}
+                    color={selectedSessionId === sess.id ? 'primary' : 'dark'}
                   >
-                    {cat.label}
+                    {sess.label}
                   </ThemedText>
-                  {selectedCategoryId === cat.id && (
+                  {selectedSessionId === sess.id && (
                     <Ionicons name="checkmark" size={20} color={colors.primary} />
                   )}
                 </TouchableOpacity>

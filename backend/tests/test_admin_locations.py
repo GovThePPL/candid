@@ -16,7 +16,7 @@ from conftest import (
     OREGON_LOCATION_ID,
     MULTNOMAH_LOCATION_ID,
     PORTLAND_LOCATION_ID,
-    HEALTHCARE_CAT_ID,
+    HEALTHCARE_SESSION_ID,
     ADMIN1_ID,
     NORMAL1_ID,
     POSITION1_ID,
@@ -44,7 +44,7 @@ def _delete_test_location(location_id):
     """Helper to hard-delete a test location from the DB (cleanup only)."""
     db_execute("UPDATE location SET deleted_at = NULL WHERE id = %s", (location_id,))
     db_execute(
-        "DELETE FROM location_category WHERE location_id = %s", (location_id,)
+        "DELETE FROM location_session WHERE location_id = %s", (location_id,)
     )
     db_execute("DELETE FROM location WHERE id = %s", (location_id,))
 
@@ -254,11 +254,11 @@ class TestPositionsAtDeletedLocations:
         loc_id = _create_test_location(
             admin_headers, "TempLoc", "TL", OREGON_LOCATION_ID
         )
-        # Assign a category to the location so positions can use it
+        # Assign a session to the location so positions can use it
         requests.post(
-            f"{ADMIN_LOCATIONS_URL}/{loc_id}/categories",
+            f"{ADMIN_LOCATIONS_URL}/{loc_id}/sessions",
             headers=admin_headers,
-            json={"categoryId": HEALTHCARE_CAT_ID},
+            json={"sessionId": HEALTHCARE_SESSION_ID},
         )
         # Create a position at this location
         position_resp = requests.post(
@@ -266,7 +266,7 @@ class TestPositionsAtDeletedLocations:
             headers=normal_headers,
             json={
                 "statement": "Test position at location that will be deleted",
-                "categoryId": HEALTHCARE_CAT_ID,
+                "sessionId": HEALTHCARE_SESSION_ID,
                 "locationId": loc_id,
             },
         )

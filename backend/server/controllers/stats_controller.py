@@ -32,6 +32,7 @@ from candid.controllers.helpers.geometry import (
     compute_convex_hull as _compute_convex_hull,
     compute_centroid as _compute_centroid,
 )
+from candid.controllers.helpers.constants import STAGE_TO_PHASE
 from candid.controllers.helpers.stats import (
     empty_demographics as _empty_demographics,
     aggregate_demographics as _aggregate_demographics,
@@ -102,13 +103,13 @@ def _build_report_url(conversation_id: str) -> Optional[str]:
     return None
 
 
-def get_group_demographics(location_id: str, category_id: str, group_id: str, token_info=None):
+def get_group_demographics(location_id: str, session_id: str, group_id: str, token_info=None):
     """Get demographic breakdown for an opinion group.
 
     Aggregates demographic data for all members of the specified group.
 
     :param location_id: UUID of the location
-    :param category_id: UUID of the category (or 'all' for all categories)
+    :param session_id: UUID of the session (or 'all' for all sessions)
     :param group_id: Group ID (0, 1, 2, etc.) or 'all' for all groups
     :param token_info: JWT token info from authentication
     :rtype: Union[Dict, Tuple[ErrorModel, int]]
@@ -127,18 +128,18 @@ def get_group_demographics(location_id: str, category_id: str, group_id: str, to
         return ErrorModel(404, "Location not found"), 404
 
     # Get the Polis conversation
-    if category_id == 'all':
+    if session_id == 'all':
         conversation = get_oldest_active_conversation(location_id, None)
     else:
-        # Validate category exists
-        category = db.execute_query(
-            "SELECT id, label FROM position_category WHERE id = %s",
-            (category_id,),
+        # Validate session exists
+        session = db.execute_query(
+            "SELECT id, label FROM session WHERE id = %s",
+            (session_id,),
             fetchone=True
         )
-        if not category:
-            return ErrorModel(404, "Category not found"), 404
-        conversation = get_oldest_active_conversation(location_id, category_id)
+        if not session:
+            return ErrorModel(404, "Session not found"), 404
+        conversation = get_oldest_active_conversation(location_id, session_id)
 
     if not config.POLIS_ENABLED or not conversation:
         # Return empty demographics if no Polis data
@@ -221,12 +222,12 @@ def get_group_demographics(location_id: str, category_id: str, group_id: str, to
 
 
 
-def _get_cached_group_labels(polis_conv_id: str, math_data: Dict, location_id: str = None, category_id: str = None) -> Dict[str, Dict]:
+def _get_cached_group_labels(polis_conv_id: str, math_data: Dict, location_id: str = None, session_id: str = None, phase: str = None) -> Dict[str, Dict]:
     """
     Compute group labels from pairwise surveys, with caching.
     Returns {group_id: {"label": label_text, "wins": win_count, "rankings": [{"label": str, "wins": int}, ...]}}
     """
-    cache_key = f"labels:{polis_conv_id}"
+    cache_key = f"labels:{polis_conv_id}:{phase or ''}"
     now = time.time()
 
     # Check cache
@@ -235,7 +236,7 @@ def _get_cached_group_labels(polis_conv_id: str, math_data: Dict, location_id: s
         if now - timestamp < LABEL_CACHE_TTL:
             return cached
 
-    # Find pairwise survey for this location/category combination
+    # Find pairwise survey for this location/session combination
     # First try direct polis_conversation_id link, then fall back to location+category match
     survey = db.execute_query("""
         SELECT id FROM survey
@@ -246,21 +247,35 @@ def _get_cached_group_labels(polis_conv_id: str, math_data: Dict, location_id: s
     """, (polis_conv_id,), fetchone=True)
 
     if not survey and location_id:
-        if category_id:
-            survey = db.execute_query("""
-                SELECT id FROM survey
-                WHERE location_id = %s
-                  AND position_category_id = %s
-                  AND survey_type = 'pairwise'
-                  AND is_group_labeling = true
-                  AND status = 'active'
-                ORDER BY created_time DESC LIMIT 1
-            """, (location_id, category_id), fetchone=True)
+        if session_id:
+            # Try phase-specific survey first, then fall back to phase-NULL (legacy)
+            if phase:
+                survey = db.execute_query("""
+                    SELECT id FROM survey
+                    WHERE location_id = %s
+                      AND session_id = %s
+                      AND survey_type = 'pairwise'
+                      AND is_group_labeling = true
+                      AND phase = %s
+                      AND status = 'active'
+                    ORDER BY created_time DESC LIMIT 1
+                """, (location_id, session_id, phase), fetchone=True)
+            if not survey:
+                survey = db.execute_query("""
+                    SELECT id FROM survey
+                    WHERE location_id = %s
+                      AND session_id = %s
+                      AND survey_type = 'pairwise'
+                      AND is_group_labeling = true
+                      AND phase IS NULL
+                      AND status = 'active'
+                    ORDER BY created_time DESC LIMIT 1
+                """, (location_id, session_id), fetchone=True)
         else:
             survey = db.execute_query("""
                 SELECT id FROM survey
                 WHERE location_id = %s
-                  AND position_category_id IS NULL
+                  AND session_id IS NULL
                   AND survey_type = 'pairwise'
                   AND is_group_labeling = true
                   AND status = 'active'
@@ -356,14 +371,16 @@ def _get_cached_group_labels(polis_conv_id: str, math_data: Dict, location_id: s
     return labels
 
 
-def get_stats(location_id: str, category_id: str, token_info=None):
-    """Get Polis opinion group statistics for a location/category combination.
+def get_stats(location_id: str, session_id: str, phase=None, token_info=None):
+    """Get Polis opinion group statistics for a location/session combination.
 
     Fetches PCA data, group clusters, and representative positions from Polis
     and transforms them into the StatsResponse format.
 
     :param location_id: UUID of the location
-    :param category_id: UUID of the category
+    :param session_id: UUID of the session
+    :param phase: Optional deliberation phase filter ('proposal' or 'opinion').
+                  If omitted, inferred from the session's current stage.
     :param token_info: JWT token info from authentication
     :rtype: Union[StatsResponse, Tuple[ErrorModel, int]]
     """
@@ -382,21 +399,25 @@ def get_stats(location_id: str, category_id: str, token_info=None):
     if not location:
         return ErrorModel(404, "Location not found"), 404
 
-    # Validate category exists
-    category = db.execute_query(
-        "SELECT id, label FROM position_category WHERE id = %s",
-        (category_id,),
+    # Validate session exists and get current stage
+    session = db.execute_query(
+        "SELECT id, label, stage FROM session WHERE id = %s",
+        (session_id,),
         fetchone=True
     )
-    if not category:
-        return ErrorModel(404, "Category not found"), 404
+    if not session:
+        return ErrorModel(404, "Session not found"), 404
 
-    # Get the active Polis conversation for this location/category
-    conversation = get_oldest_active_conversation(location_id, category_id)
+    # Infer phase from session stage if not provided
+    if not phase and session.get("stage"):
+        phase = STAGE_TO_PHASE.get(session["stage"])
+
+    # Get the active Polis conversation for this location/session/phase
+    conversation = get_oldest_active_conversation(location_id, session_id, phase=phase)
 
     # If Polis is disabled or no conversation exists, use fallback stats
     if not config.POLIS_ENABLED or not conversation:
-        return _get_fallback_stats(location_id, category_id, user_id)
+        return _get_fallback_stats(location_id, session_id, user_id, phase=phase)
 
     polis_conv_id = conversation["polis_conversation_id"]
 
@@ -406,19 +427,19 @@ def get_stats(location_id: str, category_id: str, token_info=None):
         math_data = client.get_math_data(polis_conv_id, xid)
 
         if not math_data:
-            return _get_fallback_stats(location_id, category_id, user_id)
+            return _get_fallback_stats(location_id, session_id, user_id, phase=phase)
 
         # Transform Polis data to our format
-        groups = _extract_groups(math_data, polis_conv_id, location_id, category_id)
+        groups = _extract_groups(math_data, polis_conv_id, location_id, session_id, phase=phase)
         user_position = _extract_user_position(math_data, xid)
-        user_votes = _get_user_votes(user_id, category_id, location_id) if user_id else None
-        user_position_ids = _get_user_position_ids(user_id, category_id, location_id) if user_id else None
-        positions = _extract_positions(math_data, category_id, polis_conv_id, user_position_ids)
+        user_votes = _get_user_votes(user_id, session_id, location_id) if user_id else None
+        user_position_ids = _get_user_position_ids(user_id, session_id, location_id) if user_id else None
+        positions = _extract_positions(math_data, session_id, polis_conv_id, user_position_ids)
 
         # If Polis hasn't computed any meaningful data yet, use fallback
         # This happens when there aren't enough votes for clustering
         if not groups and not positions:
-            fallback = _get_fallback_stats(location_id, category_id, user_id)
+            fallback = _get_fallback_stats(location_id, session_id, user_id, phase=phase)
             # Preserve the conversation ID so frontend knows Polis is connected
             fallback.conversation_id = polis_conv_id
             fallback.polis_report_url = _build_report_url(polis_conv_id)
@@ -437,7 +458,7 @@ def get_stats(location_id: str, category_id: str, token_info=None):
 
     except PolisError as e:
         print(f"Polis error getting stats: {e}", flush=True)
-        return _add_stats_cache_headers(_get_fallback_stats(location_id, category_id, user_id))
+        return _add_stats_cache_headers(_get_fallback_stats(location_id, session_id, user_id, phase=phase))
 
 
 def get_location_stats(location_id: str, token_info=None):
@@ -464,7 +485,7 @@ def get_location_stats(location_id: str, token_info=None):
     if not location:
         return ErrorModel(404, "Location not found"), 404
 
-    # Get the location-wide Polis conversation (category_id = None)
+    # Get the location-wide Polis conversation (session_id = None)
     conversation = get_oldest_active_conversation(location_id, None)
 
     # If Polis is disabled or no conversation exists, use fallback stats
@@ -513,21 +534,33 @@ def get_location_stats(location_id: str, token_info=None):
 
 def _get_fallback_stats(
     location_id: str,
-    category_id: Optional[str],
-    user_id: Optional[str]
+    session_id: Optional[str],
+    user_id: Optional[str],
+    phase: Optional[str] = None,
 ) -> StatsResponse:
     """
     Generate fallback stats from local database when Polis is unavailable.
 
     Returns position data without clustering (no groups/hulls).
-    If category_id is None, returns positions from all categories.
+    If session_id is None, returns positions from all sessions.
+    If phase is provided, filters positions by created_during_stage matching the phase.
     """
-    # Get positions with vote counts for this location/category
-    if category_id:
-        positions = db.execute_query("""
+    # Build phase filter clause
+    phase_clause = ""
+    phase_params = []
+    if phase:
+        phase_stages = [s for s, p in STAGE_TO_PHASE.items() if p == phase]
+        if phase_stages:
+            placeholders = ','.join(['%s'] * len(phase_stages))
+            phase_clause = f" AND p.created_during_stage IN ({placeholders})"
+            phase_params = phase_stages
+
+    # Get positions with vote counts for this location/session
+    if session_id:
+        positions = db.execute_query(f"""
             SELECT p.id, p.statement,
-                   p.category_id,
-                   cat.label as category_label,
+                   p.session_id,
+                   s.label as session_label,
                    p.location_id,
                    loc.name as location_name,
                    loc.code as location_code,
@@ -544,23 +577,23 @@ def _get_fallback_stats(
                    COALESCE(SUM(CASE WHEN r.response = 'pass' THEN 1 ELSE 0 END), 0) as pass_count
             FROM position p
             LEFT JOIN response r ON p.id = r.position_id
-            LEFT JOIN position_category cat ON p.category_id = cat.id
+            LEFT JOIN session s ON p.session_id = s.id
             LEFT JOIN location loc ON p.location_id = loc.id
             LEFT JOIN users u ON p.creator_user_id = u.id
-            WHERE p.location_id = %s AND p.category_id = %s AND p.status = 'active'
-            GROUP BY p.id, p.statement, p.category_id, cat.label, p.location_id,
+            WHERE p.location_id = %s AND p.session_id = %s AND p.status = 'active'{phase_clause}
+            GROUP BY p.id, p.statement, p.session_id, s.label, p.location_id,
                      loc.name, loc.code, p.creator_user_id, u.id, u.display_name,
                      u.username, u.user_type, u.trust_score, u.avatar_url, u.avatar_icon_url
             ORDER BY (COALESCE(SUM(CASE WHEN r.response = 'agree' THEN 1 ELSE 0 END), 0) +
                       COALESCE(SUM(CASE WHEN r.response = 'disagree' THEN 1 ELSE 0 END), 0)) DESC
             LIMIT 50
-        """, (location_id, category_id))
+        """, (location_id, session_id, *phase_params))
     else:
-        # All categories for this location
-        positions = db.execute_query("""
+        # All sessions for this location
+        positions = db.execute_query(f"""
             SELECT p.id, p.statement,
-                   p.category_id,
-                   cat.label as category_label,
+                   p.session_id,
+                   s.label as session_label,
                    p.location_id,
                    loc.name as location_name,
                    loc.code as location_code,
@@ -577,17 +610,17 @@ def _get_fallback_stats(
                    COALESCE(SUM(CASE WHEN r.response = 'pass' THEN 1 ELSE 0 END), 0) as pass_count
             FROM position p
             LEFT JOIN response r ON p.id = r.position_id
-            LEFT JOIN position_category cat ON p.category_id = cat.id
+            LEFT JOIN session s ON p.session_id = s.id
             LEFT JOIN location loc ON p.location_id = loc.id
             LEFT JOIN users u ON p.creator_user_id = u.id
-            WHERE p.location_id = %s AND p.status = 'active'
-            GROUP BY p.id, p.statement, p.category_id, cat.label, p.location_id,
+            WHERE p.location_id = %s AND p.status = 'active'{phase_clause}
+            GROUP BY p.id, p.statement, p.session_id, s.label, p.location_id,
                      loc.name, loc.code, p.creator_user_id, u.id, u.display_name,
                      u.username, u.user_type, u.trust_score, u.avatar_url, u.avatar_icon_url
             ORDER BY (COALESCE(SUM(CASE WHEN r.response = 'agree' THEN 1 ELSE 0 END), 0) +
                       COALESCE(SUM(CASE WHEN r.response = 'disagree' THEN 1 ELSE 0 END), 0)) DESC
             LIMIT 50
-        """, (location_id,))
+        """, (location_id, *phase_params))
 
     # Get closure counts for all positions
     position_ids = [str(p["id"]) for p in (positions or [])]
@@ -648,9 +681,9 @@ def _get_fallback_stats(
         group_positions.append({
             "id": str(p["id"]),
             "statement": p["statement"],
-            "category": {
-                "id": str(p["category_id"]) if p.get("category_id") else None,
-                "label": p.get("category_label", "Uncategorized")
+            "session": {
+                "id": str(p["session_id"]) if p.get("session_id") else None,
+                "label": p.get("session_label", "Uncategorized")
             },
             "location": {
                 "id": str(p["location_id"]) if p.get("location_id") else None,
@@ -668,8 +701,8 @@ def _get_fallback_stats(
             "closureCount": closure_counts.get(str(p["id"]), 0)
         })
 
-    user_votes = _get_user_votes(user_id, category_id, location_id) if user_id else None
-    user_position_ids = _get_user_position_ids(user_id, category_id, location_id) if user_id else None
+    user_votes = _get_user_votes(user_id, session_id, location_id) if user_id else None
+    user_position_ids = _get_user_position_ids(user_id, session_id, location_id) if user_id else None
 
     return StatsResponse(
         conversation_id=None,
@@ -685,7 +718,7 @@ def _get_fallback_stats(
 
 
 
-def _extract_groups(math_data: Dict[str, Any], polis_conv_id: Optional[str] = None, location_id: str = None, category_id: str = None) -> List[OpinionGroup]:
+def _extract_groups(math_data: Dict[str, Any], polis_conv_id: Optional[str] = None, location_id: str = None, session_id: str = None, phase: str = None) -> List[OpinionGroup]:
     """
     Extract opinion groups from Polis math data.
 
@@ -723,7 +756,7 @@ def _extract_groups(math_data: Dict[str, Any], polis_conv_id: Optional[str] = No
     # Get custom labels from pairwise surveys if available
     custom_labels = {}
     if polis_conv_id:
-        custom_labels = _get_cached_group_labels(polis_conv_id, math_data, location_id, category_id)
+        custom_labels = _get_cached_group_labels(polis_conv_id, math_data, location_id, session_id, phase=phase)
 
     for i, cluster in enumerate(group_clusters):
         if not cluster:
@@ -849,7 +882,7 @@ def _extract_user_position(
 
 def _extract_positions(
     math_data: Dict[str, Any],
-    category_id: str,
+    session_id: str,
     polis_conv_id: str,
     user_position_ids: Optional[List[str]] = None
 ) -> List[Dict[str, Any]]:
@@ -882,14 +915,14 @@ def _extract_positions(
         if tid is not None:
             tid_to_comment[tid] = comment.get("txt", "")
 
-    # Get our position mappings for this conversation with category, location, and creator info
+    # Get our position mappings for this conversation with session, location, and creator info
     position_mappings = db.execute_query("""
         SELECT
             pc.polis_comment_tid,
             pc.position_id,
             p.statement,
-            p.category_id,
-            cat.label as category_label,
+            p.session_id,
+            s.label as session_label,
             p.location_id,
             loc.name as location_name,
             loc.code as location_short_code,
@@ -903,7 +936,7 @@ def _extract_positions(
             u.kudos_count as creator_kudos_count
         FROM polis_comment pc
         JOIN position p ON pc.position_id = p.id
-        LEFT JOIN position_category cat ON p.category_id = cat.id
+        LEFT JOIN session s ON p.session_id = s.id
         LEFT JOIN location loc ON p.location_id = loc.id
         LEFT JOIN users u ON p.creator_user_id = u.id
         WHERE pc.polis_conversation_id = %s
@@ -927,9 +960,9 @@ def _extract_positions(
         tid_to_position[mapping["polis_comment_tid"]] = {
             "id": str(mapping["position_id"]),
             "statement": mapping["statement"],
-            "category": {
-                "id": str(mapping["category_id"]) if mapping.get("category_id") else None,
-                "label": mapping.get("category_label", "Uncategorized")
+            "session": {
+                "id": str(mapping["session_id"]) if mapping.get("session_id") else None,
+                "label": mapping.get("session_label", "Uncategorized")
             },
             "location": {
                 "id": str(mapping["location_id"]) if mapping.get("location_id") else None,
@@ -958,7 +991,7 @@ def _extract_positions(
                 position_info = {
                     "id": f"polis:{tid}",
                     "statement": statement,
-                    "category": None,
+                    "session": None,
                     "location": None,
                     "creator": None
                 }
@@ -972,7 +1005,7 @@ def _extract_positions(
                     "id": pos_id,
                     "tid": tid,
                     "statement": position_info["statement"],
-                    "category": position_info.get("category"),
+                    "session": position_info.get("session"),
                     "location": position_info.get("location"),
                     "creator": position_info.get("creator"),
                     "groupId": group_id,
@@ -1004,7 +1037,7 @@ def _extract_positions(
                 position_info = {
                     "id": pos_id,
                     "statement": statement,
-                    "category": None,
+                    "session": None,
                     "location": None,
                     "creator": None
                 }
@@ -1013,7 +1046,7 @@ def _extract_positions(
                 "id": pos_id,
                 "tid": tid,
                 "statement": position_info["statement"],
-                "category": position_info.get("category"),
+                "session": position_info.get("session"),
                 "location": position_info.get("location"),
                 "creator": position_info.get("creator"),
                 "groupId": "majority",  # Consensus positions belong to majority
@@ -1048,7 +1081,7 @@ def _extract_positions(
         positions.append({
             "id": pos_data["id"],
             "statement": pos_data["statement"],
-            "category": pos_data.get("category"),
+            "session": pos_data.get("session"),
             "location": pos_data.get("location"),
             "creator": pos_data.get("creator"),
             "groupId": pos_data["groupId"],
@@ -1074,8 +1107,8 @@ def _extract_positions(
                 SELECT
                     p.id as position_id,
                     p.statement,
-                    p.category_id,
-                    cat.label as category_label,
+                    p.session_id,
+                    s.label as session_label,
                     p.location_id,
                     loc.name as location_name,
                     loc.code as location_short_code,
@@ -1089,7 +1122,7 @@ def _extract_positions(
                     u.kudos_count as creator_kudos_count,
                     pc.polis_comment_tid
                 FROM position p
-                LEFT JOIN position_category cat ON p.category_id = cat.id
+                LEFT JOIN session s ON p.session_id = s.id
                 LEFT JOIN location loc ON p.location_id = loc.id
                 LEFT JOIN users u ON p.creator_user_id = u.id
                 LEFT JOIN polis_comment pc ON pc.position_id = p.id
@@ -1125,9 +1158,9 @@ def _extract_positions(
                 positions.append({
                     "id": str(up["position_id"]),
                     "statement": up["statement"],
-                    "category": {
-                        "id": str(up["category_id"]) if up.get("category_id") else None,
-                        "label": up.get("category_label", "Uncategorized")
+                    "session": {
+                        "id": str(up["session_id"]) if up.get("session_id") else None,
+                        "label": up.get("session_label", "Uncategorized")
                     },
                     "location": {
                         "id": str(up["location_id"]) if up.get("location_id") else None,
@@ -1273,11 +1306,20 @@ window.__POLIS_PROXY_ROUTE_TYPE__ = "report";
         # Insert the fix script and styles before </head>
         html_content = html_content.replace('</head>', path_fix_script + '</head>')
 
-        return Response(
+        resp = Response(
             html_content,
             status=200,
             content_type=response.headers.get('Content-Type', 'text/html')
         )
+        resp.headers['Content-Security-Policy'] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: blob:; "
+            "font-src 'self' data:; "
+            "connect-src 'self'"
+        )
+        return resp
 
     except requests.Timeout:
         return ErrorModel(502, "Polis report request timed out"), 502
@@ -1301,6 +1343,15 @@ def get_polis_asset(path: str):
 
     if not config.POLIS_ENABLED:
         return ErrorModel(404, "Polis is not enabled"), 404
+
+    # SSRF hardening: block path traversal and restrict to static asset extensions
+    if '..' in path or path.startswith('/'):
+        return ErrorModel(400, "Invalid path"), 400
+    import os as _os
+    _, ext = _os.path.splitext(path)
+    allowed_exts = {'.js', '.css', '.png', '.jpg', '.svg', '.ico', '.map', '.woff', '.woff2', '.ttf'}
+    if ext and ext.lower() not in allowed_exts:
+        return ErrorModel(403, "Asset type not allowed"), 403
 
     try:
         # Fetch the asset from internal Polis

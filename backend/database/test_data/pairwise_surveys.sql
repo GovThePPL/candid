@@ -1,5 +1,5 @@
 -- Pairwise Survey Test Data for Oregon
--- Creates surveys with category-appropriate labels and user responses based on ideological leanings
+-- Creates surveys with session-appropriate labels and user responses based on ideological leanings
 
 -- Oregon location ID
 -- ba5e3dcf-af51-47f4-941d-ee3448ee826a
@@ -197,7 +197,7 @@ BEGIN
     -- ============================================
     -- HEALTHCARE SURVEY
     -- ============================================
-    INSERT INTO survey (id, survey_title, survey_type, comparison_question, is_group_labeling, status, location_id, position_category_id, start_time, end_time, created_time)
+    INSERT INTO survey (id, survey_title, survey_type, comparison_question, is_group_labeling, status, location_id, session_id, start_time, end_time, created_time)
     VALUES (
         uuid_generate_v4(),
         'Healthcare Policy Labels',
@@ -257,7 +257,7 @@ BEGIN
     -- ============================================
     -- ECONOMY SURVEY
     -- ============================================
-    INSERT INTO survey (id, survey_title, survey_type, comparison_question, is_group_labeling, status, location_id, position_category_id, start_time, end_time, created_time)
+    INSERT INTO survey (id, survey_title, survey_type, comparison_question, is_group_labeling, status, location_id, session_id, start_time, end_time, created_time)
     VALUES (
         uuid_generate_v4(),
         'Economy & Tax Policy Labels',
@@ -313,7 +313,7 @@ BEGIN
     -- ============================================
     -- EDUCATION SURVEY
     -- ============================================
-    INSERT INTO survey (id, survey_title, survey_type, comparison_question, is_group_labeling, status, location_id, position_category_id, start_time, end_time, created_time)
+    INSERT INTO survey (id, survey_title, survey_type, comparison_question, is_group_labeling, status, location_id, session_id, start_time, end_time, created_time)
     VALUES (
         uuid_generate_v4(),
         'Education Policy Labels',
@@ -367,7 +367,7 @@ BEGIN
     -- ============================================
     -- ENVIRONMENT SURVEY
     -- ============================================
-    INSERT INTO survey (id, survey_title, survey_type, comparison_question, is_group_labeling, status, location_id, position_category_id, start_time, end_time, created_time)
+    INSERT INTO survey (id, survey_title, survey_type, comparison_question, is_group_labeling, status, location_id, session_id, start_time, end_time, created_time)
     VALUES (
         uuid_generate_v4(),
         'Environment & Climate Labels',
@@ -427,7 +427,7 @@ BEGIN
     -- ============================================
     -- IMMIGRATION SURVEY
     -- ============================================
-    INSERT INTO survey (id, survey_title, survey_type, comparison_question, is_group_labeling, status, location_id, position_category_id, start_time, end_time, created_time)
+    INSERT INTO survey (id, survey_title, survey_type, comparison_question, is_group_labeling, status, location_id, session_id, start_time, end_time, created_time)
     VALUES (
         uuid_generate_v4(),
         'Immigration Policy Labels',
@@ -498,7 +498,7 @@ BEGIN
         v_cr_balanced UUID;
         v_cr_civil_libertarian UUID;
     BEGIN
-        INSERT INTO survey (id, survey_title, survey_type, comparison_question, is_group_labeling, status, location_id, position_category_id, start_time, end_time, created_time)
+        INSERT INTO survey (id, survey_title, survey_type, comparison_question, is_group_labeling, status, location_id, session_id, start_time, end_time, created_time)
         VALUES (
             uuid_generate_v4(),
             'Civil Rights Policy Labels',
@@ -564,7 +564,7 @@ BEGIN
         v_cj_restorative UUID;
         v_cj_balanced UUID;
     BEGIN
-        INSERT INTO survey (id, survey_title, survey_type, comparison_question, is_group_labeling, status, location_id, position_category_id, start_time, end_time, created_time)
+        INSERT INTO survey (id, survey_title, survey_type, comparison_question, is_group_labeling, status, location_id, session_id, start_time, end_time, created_time)
         VALUES (
             uuid_generate_v4(),
             'Criminal Justice Policy Labels',
@@ -630,7 +630,7 @@ BEGIN
         v_fp_nonintervention UUID;
         v_fp_global_leadership UUID;
     BEGIN
-        INSERT INTO survey (id, survey_title, survey_type, comparison_question, is_group_labeling, status, location_id, position_category_id, start_time, end_time, created_time)
+        INSERT INTO survey (id, survey_title, survey_type, comparison_question, is_group_labeling, status, location_id, session_id, start_time, end_time, created_time)
         VALUES (
             uuid_generate_v4(),
             'Foreign Policy Labels',
@@ -696,7 +696,7 @@ BEGIN
         v_gov_direct UUID;
         v_gov_constitutional UUID;
     BEGIN
-        INSERT INTO survey (id, survey_title, survey_type, comparison_question, is_group_labeling, status, location_id, position_category_id, start_time, end_time, created_time)
+        INSERT INTO survey (id, survey_title, survey_type, comparison_question, is_group_labeling, status, location_id, session_id, start_time, end_time, created_time)
         VALUES (
             uuid_generate_v4(),
             'Government & Democracy Labels',
@@ -766,7 +766,7 @@ BEGIN
         v_si_individual UUID;
         v_si_community UUID;
     BEGIN
-        INSERT INTO survey (id, survey_title, survey_type, comparison_question, is_group_labeling, status, location_id, position_category_id, start_time, end_time, created_time)
+        INSERT INTO survey (id, survey_title, survey_type, comparison_question, is_group_labeling, status, location_id, session_id, start_time, end_time, created_time)
         VALUES (
             uuid_generate_v4(),
             'Social Issues Labels',

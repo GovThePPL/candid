@@ -44,7 +44,7 @@ def db_query(query, params=None):
 
 
 # ---------------------------------------------------------------------------
-# Fetch existing users, location, and category
+# Fetch existing users, location, and session
 # ---------------------------------------------------------------------------
 
 def get_users():
@@ -63,8 +63,8 @@ def get_location():
     return str(rows[0]["id"])
 
 
-def get_category():
-    rows = db_query("SELECT id FROM position_category LIMIT 1")
+def get_session():
+    rows = db_query("SELECT id FROM session LIMIT 1")
     return str(rows[0]["id"])
 
 
@@ -503,9 +503,9 @@ def main():
     print("Fetching existing data...")
     users = get_users()
     location_id = get_location()
-    category_id = get_category()
+    session_id = get_session()
 
-    print(f"Found {len(users)} users, location={location_id[:8]}..., category={category_id[:8]}...")
+    print(f"Found {len(users)} users, location={location_id[:8]}..., session={session_id[:8]}...")
 
     # Delete previous seed if it exists
     existing = db_query(
@@ -524,10 +524,10 @@ def main():
     base_time = datetime.now(timezone.utc) - timedelta(hours=48)
 
     db_execute("""
-        INSERT INTO post (id, creator_user_id, location_id, category_id, post_type,
+        INSERT INTO post (id, creator_user_id, location_id, session_id, post_type,
                           title, body, status, created_time)
         VALUES (%s, %s, %s, %s, 'discussion', %s, %s, 'active', %s)
-    """, (post_id, str(creator["id"]), location_id, category_id,
+    """, (post_id, str(creator["id"]), location_id, session_id,
           POST_TITLE, POST_BODY, base_time))
 
     print(f"Created post: {post_id}")

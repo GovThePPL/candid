@@ -13,28 +13,28 @@ import { getAvatarImageUrl, getInitials, getInitialsColor } from '../../lib/avat
 
 /**
  * Modal showing opinion map with two users highlighted
- * Supports toggling between category-specific and all-categories maps
+ * Supports toggling between session-specific and all-sessions maps
  *
  * @param {Object} props
  * @param {boolean} props.visible - Whether modal is visible
  * @param {Function} props.onClose - Callback when modal is closed
- * @param {Array} props.groups - Category-specific opinion groups
- * @param {Array} props.allCategoriesGroups - Location-wide opinion groups
- * @param {Object} props.user1 - First user info (with mapPosition, allCategoriesMapPosition)
- * @param {Object} props.user2 - Second user info (with mapPosition, allCategoriesMapPosition)
+ * @param {Array} props.groups - Session-specific opinion groups
+ * @param {Array} props.allSessionsGroups - Location-wide opinion groups
+ * @param {Object} props.user1 - First user info (with mapPosition, allSessionsMapPosition)
+ * @param {Object} props.user2 - Second user info (with mapPosition, allSessionsMapPosition)
  * @param {string} props.locationCode - Location code (e.g. "OR")
- * @param {string} props.categoryLabel - Category label (e.g. "Immigration")
+ * @param {string} props.sessionLabel - Session label (e.g. "Immigration")
  */
 export default function OpinionMapModal({
   visible,
   onClose,
   onDismiss,
   groups = [],
-  allCategoriesGroups = [],
+  allSessionsGroups = [],
   user1,
   user2,
   locationCode,
-  categoryLabel,
+  sessionLabel,
 }) {
   const colors = useThemeColors()
   const { t } = useTranslation()
@@ -42,20 +42,20 @@ export default function OpinionMapModal({
   const shared = useMemo(() => createSharedStyles(colors), [colors])
   const { width: screenWidth } = useWindowDimensions()
   useModalBackHandler(visible, onClose)
-  const [showAllCategories, setShowAllCategories] = useState(false)
+  const [showAllSessions, setShowAllSessions] = useState(false)
 
   // Select which data to render based on toggle
-  const activeGroups = showAllCategories ? allCategoriesGroups : groups
+  const activeGroups = showAllSessions ? allSessionsGroups : groups
   const activeUser1 = user1 ? {
     ...user1,
-    mapPosition: showAllCategories ? user1.allCategoriesMapPosition : user1.mapPosition,
+    mapPosition: showAllSessions ? user1.allSessionsMapPosition : user1.mapPosition,
   } : null
   const activeUser2 = user2 ? {
     ...user2,
-    mapPosition: showAllCategories ? user2.allCategoriesMapPosition : user2.mapPosition,
+    mapPosition: showAllSessions ? user2.allSessionsMapPosition : user2.mapPosition,
   } : null
 
-  const hasAllCategoriesData = allCategoriesGroups.length > 0
+  const hasAllSessionsData = allSessionsGroups.length > 0
 
   // Calculate responsive map dimensions
   const containerWidth = screenWidth - 64
@@ -267,8 +267,8 @@ export default function OpinionMapModal({
   const hasValidPositions = activeUser1?.mapPosition || activeUser2?.mapPosition
 
   // Build tab labels with location code
-  const categoryTabLabel = [locationCode, categoryLabel].filter(Boolean).join(' - ') || 'Category'
-  const allCategoriesTabLabel = [locationCode, t('common:allCategories')].filter(Boolean).join(' - ')
+  const sessionTabLabel = [locationCode, sessionLabel].filter(Boolean).join(' - ') || 'Session'
+  const allSessionsTabLabel = [locationCode, t('common:allSessions')].filter(Boolean).join(' - ')
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} onDismiss={onDismiss}>
@@ -285,29 +285,29 @@ export default function OpinionMapModal({
             </TouchableOpacity>
           </View>
 
-          {/* Category toggle tabs with location labels */}
-          {hasAllCategoriesData && (
+          {/* Session toggle tabs with location labels */}
+          {hasAllSessionsData && (
             <View style={styles.tabRow}>
               <TouchableOpacity
-                style={[styles.tab, !showAllCategories && styles.tabActive]}
-                onPress={() => setShowAllCategories(false)}
+                style={[styles.tab, !showAllSessions && styles.tabActive]}
+                onPress={() => setShowAllSessions(false)}
                 accessibilityRole="tab"
-                accessibilityState={{ selected: !showAllCategories }}
-                accessibilityLabel={categoryTabLabel}
+                accessibilityState={{ selected: !showAllSessions }}
+                accessibilityLabel={sessionTabLabel}
               >
-                <ThemedText variant="caption" style={[styles.tabText, !showAllCategories && styles.tabTextActive]}>
-                  {categoryTabLabel}
+                <ThemedText variant="caption" style={[styles.tabText, !showAllSessions && styles.tabTextActive]}>
+                  {sessionTabLabel}
                 </ThemedText>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.tab, showAllCategories && styles.tabActive]}
-                onPress={() => setShowAllCategories(true)}
+                style={[styles.tab, showAllSessions && styles.tabActive]}
+                onPress={() => setShowAllSessions(true)}
                 accessibilityRole="tab"
-                accessibilityState={{ selected: showAllCategories }}
-                accessibilityLabel={allCategoriesTabLabel}
+                accessibilityState={{ selected: showAllSessions }}
+                accessibilityLabel={allSessionsTabLabel}
               >
-                <ThemedText variant="caption" style={[styles.tabText, showAllCategories && styles.tabTextActive]}>
-                  {allCategoriesTabLabel}
+                <ThemedText variant="caption" style={[styles.tabText, showAllSessions && styles.tabTextActive]}>
+                  {allSessionsTabLabel}
                 </ThemedText>
               </TouchableOpacity>
             </View>

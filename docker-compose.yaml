@@ -204,6 +204,10 @@ services:
             DEVICE: cpu
             EMBEDDING_MODEL: all-MiniLM-L6-v2
             MAX_BATCH_SIZE: 32
+            LLM_PROVIDER: ${LLM_PROVIDER:-}
+            ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+            OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+            LLM_MODEL: ${LLM_MODEL:-}
         healthcheck:
             test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
             interval: 30s

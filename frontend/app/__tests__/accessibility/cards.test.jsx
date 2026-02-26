@@ -112,7 +112,7 @@ import PositionRemovedCard from '../../components/cards/PositionRemovedCard'
 
 const position = {
   statement: 'Test statement',
-  category: { label: 'Politics' },
+  session: { label: 'Politics' },
   location: { code: 'US' },
   creator: { displayName: 'Jane', username: 'jane' },
 }
@@ -169,7 +169,7 @@ const banData = {
 
 const positionRemovedData = {
   statement: 'Removed post',
-  category: 'General',
+  session: 'General',
   location: 'US',
 }
 

@@ -35,203 +35,203 @@ POSITIONS = [
     # Economic positions
     {
         "statement": "The free market should operate with minimal government intervention.",
-        "category": "Economy & Taxation",
+        "session": "Living Wage",
         "votes": (1, 1, 1, -1)  # MAGA/Christian/Liberal agree, Socialist disagree
     },
     {
         "statement": "Wealthy corporations should pay significantly higher taxes to fund social programs.",
-        "category": "Economy & Taxation",
+        "session": "Living Wage",
         "votes": (-1, -1, -1, 1)  # Only Socialist agrees
     },
     {
         "statement": "Tariffs on imported goods protect American workers and should be increased.",
-        "category": "Economy & Taxation",
+        "session": "Living Wage",
         "votes": (1, 0, -1, 0)  # MAGA agrees, Liberal disagrees
     },
     {
         "statement": "A universal basic income would reduce poverty more effectively than current welfare programs.",
-        "category": "Economy & Taxation",
+        "session": "Living Wage",
         "votes": (-1, -1, 0, 1)  # Socialist agrees, MAGA/Christian disagree
     },
     {
         "statement": "Labor unions are essential for protecting workers' rights.",
-        "category": "Economy & Taxation",
+        "session": "Living Wage",
         "votes": (0, -1, -1, 1)  # Socialist agrees, Liberal/Christian disagree
     },
 
     # Social/Cultural positions
     {
         "statement": "Traditional family values should be promoted and protected by government policy.",
-        "category": "Social Issues",
+        "session": "Family Policy",
         "votes": (1, 1, -1, -1)  # MAGA/Christian agree, Liberal/Socialist disagree
     },
     {
         "statement": "Same-sex marriage should be legally recognized and protected.",
-        "category": "Social Issues",
+        "session": "Family Policy",
         "votes": (-1, -1, 1, 1)  # Liberal/Socialist agree, MAGA/Christian disagree
     },
     {
         "statement": "Transgender individuals should be able to use bathrooms matching their gender identity.",
-        "category": "Social Issues",
+        "session": "Family Policy",
         "votes": (-1, -1, 1, 1)  # Liberal/Socialist agree, MAGA/Christian disagree
     },
     {
         "statement": "Prayer and religious education should be allowed in public schools.",
-        "category": "Social Issues",
+        "session": "Family Policy",
         "votes": (1, 1, -1, -1)  # MAGA/Christian agree, Liberal/Socialist disagree
     },
     {
         "statement": "Systemic racism is a significant problem in American institutions today.",
-        "category": "Civil Rights & Liberties",
+        "session": "Civil Liberties",
         "votes": (-1, -1, 0, 1)  # Socialist agrees, MAGA/Christian disagree
     },
 
     # Immigration
     {
         "statement": "A physical wall on the southern border is necessary for national security.",
-        "category": "Immigration",
+        "session": "Border Communities",
         "votes": (1, 1, -1, -1)  # MAGA/Christian agree, Liberal/Socialist disagree
     },
     {
         "statement": "Undocumented immigrants who have lived here for years should have a path to citizenship.",
-        "category": "Immigration",
+        "session": "Border Communities",
         "votes": (-1, 0, 1, 1)  # Liberal/Socialist agree, MAGA disagrees
     },
     {
         "statement": "Immigration levels should be reduced to protect American jobs.",
-        "category": "Immigration",
+        "session": "Border Communities",
         "votes": (1, 1, -1, -1)  # MAGA/Christian agree, Liberal/Socialist disagree
     },
     {
         "statement": "Sanctuary cities that don't cooperate with federal immigration enforcement should lose funding.",
-        "category": "Immigration",
+        "session": "Border Communities",
         "votes": (1, 1, 0, -1)  # MAGA/Christian agree, Socialist disagrees
     },
 
     # Government & Democracy
     {
         "statement": "The 2020 presidential election was conducted fairly and the results were legitimate.",
-        "category": "Government & Democracy",
+        "session": "Electoral Reform",
         "votes": (-1, -1, 1, 1)  # Liberal/Socialist agree, MAGA/Christian disagree
     },
     {
         "statement": "Voter ID requirements are necessary to prevent election fraud.",
-        "category": "Government & Democracy",
+        "session": "Electoral Reform",
         "votes": (1, 1, 1, -1)  # MAGA/Christian/Liberal agree, Socialist disagrees
     },
     {
         "statement": "The federal government has become too large and should be significantly reduced.",
-        "category": "Government & Democracy",
+        "session": "Electoral Reform",
         "votes": (1, 1, 1, -1)  # MAGA/Christian/Liberal agree, Socialist disagrees
     },
     {
         "statement": "Big tech companies have too much power and should be broken up or heavily regulated.",
-        "category": "Government & Democracy",
+        "session": "Electoral Reform",
         "votes": (1, 0, -1, 1)  # MAGA/Socialist agree (different reasons), Liberal disagrees
     },
 
     # Healthcare
     {
         "statement": "Healthcare should be provided by the government as a right, not a privilege.",
-        "category": "Healthcare",
+        "session": "Healthcare Access",
         "votes": (-1, -1, -1, 1)  # Only Socialist agrees
     },
     {
         "statement": "Abortion should be legal and accessible in all circumstances.",
-        "category": "Healthcare",
+        "session": "Healthcare Access",
         "votes": (-1, -1, 1, 1)  # Liberal/Socialist agree, MAGA/Christian disagree
     },
     {
         "statement": "Life begins at conception and abortion is morally wrong.",
-        "category": "Healthcare",
+        "session": "Healthcare Access",
         "votes": (1, 1, -1, -1)  # MAGA/Christian agree, Liberal/Socialist disagree
     },
     {
         "statement": "Vaccine mandates are a reasonable public health measure.",
-        "category": "Healthcare",
+        "session": "Healthcare Access",
         "votes": (-1, -1, 0, 1)  # Socialist agrees, MAGA/Christian disagree
     },
 
     # Environment
     {
         "statement": "Climate change is an urgent crisis requiring immediate government action.",
-        "category": "Environment & Climate",
+        "session": "Climate Action",
         "votes": (-1, -1, 0, 1)  # Socialist agrees, MAGA/Christian disagree, Liberal neutral
     },
     {
         "statement": "Environmental regulations hurt businesses and cost jobs.",
-        "category": "Environment & Climate",
+        "session": "Climate Action",
         "votes": (1, 1, 1, -1)  # MAGA/Christian/Liberal agree, Socialist disagrees
     },
     {
         "statement": "The US should rejoin and strengthen the Paris Climate Agreement.",
-        "category": "Environment & Climate",
+        "session": "Climate Action",
         "votes": (-1, -1, 0, 1)  # Socialist agrees, MAGA/Christian disagree
     },
 
     # Foreign Policy
     {
         "statement": "The United States should prioritize its own interests over international cooperation.",
-        "category": "Foreign Policy & Defense",
+        "session": "Pacific Defense",
         "votes": (1, 1, 0, -1)  # MAGA/Christian agree, Socialist disagrees
     },
     {
         "statement": "NATO and our European alliances are essential for American security.",
-        "category": "Foreign Policy & Defense",
+        "session": "Pacific Defense",
         "votes": (0, 1, 1, 0)  # Christian/Liberal agree
     },
     {
         "statement": "Military spending should be significantly reduced and redirected to domestic programs.",
-        "category": "Foreign Policy & Defense",
+        "session": "Pacific Defense",
         "votes": (-1, -1, 0, 1)  # Socialist agrees, MAGA/Christian disagree
     },
     {
         "statement": "The US should continue strong military support for Israel.",
-        "category": "Foreign Policy & Defense",
+        "session": "Pacific Defense",
         "votes": (1, 1, 1, -1)  # MAGA/Christian/Liberal agree, Socialist disagrees
     },
 
     # Criminal Justice
     {
         "statement": "Police departments need more funding, not less.",
-        "category": "Criminal Justice",
+        "session": "Criminal Justice",
         "votes": (1, 1, 0, -1)  # MAGA/Christian agree, Socialist disagrees
     },
     {
         "statement": "The criminal justice system is biased against minorities and needs fundamental reform.",
-        "category": "Criminal Justice",
+        "session": "Criminal Justice",
         "votes": (-1, -1, 0, 1)  # Socialist agrees, MAGA/Christian disagree
     },
     {
         "statement": "Drug possession should be decriminalized and treated as a health issue.",
-        "category": "Criminal Justice",
+        "session": "Criminal Justice",
         "votes": (-1, -1, 1, 1)  # Liberal/Socialist agree, MAGA/Christian disagree
     },
     {
         "statement": "The Second Amendment guarantees an individual right to own firearms with minimal restrictions.",
-        "category": "Civil Rights & Liberties",
+        "session": "Civil Liberties",
         "votes": (1, 1, 1, -1)  # MAGA/Christian/Liberal agree, Socialist disagrees
     },
 
     # Education
     {
         "statement": "Parents should have the right to choose where their children go to school using public funds.",
-        "category": "Education",
+        "session": "School Funding",
         "votes": (1, 1, 1, -1)  # MAGA/Christian/Liberal agree, Socialist disagrees
     },
     {
         "statement": "Critical race theory should not be taught in public schools.",
-        "category": "Education",
+        "session": "School Funding",
         "votes": (1, 1, 0, -1)  # MAGA/Christian agree, Socialist disagrees
     },
     {
         "statement": "College tuition should be free at public universities.",
-        "category": "Education",
+        "session": "School Funding",
         "votes": (-1, -1, -1, 1)  # Only Socialist agrees
     },
     {
         "statement": "Teachers should be paid significantly more than they currently are.",
-        "category": "Education",
+        "session": "School Funding",
         "votes": (0, 0, 0, 1)  # Socialist agrees strongly, others neutral
     },
 ]
@@ -325,13 +325,13 @@ class CandidAPI:
             return response.json()
         return []
 
-    def create_position(self, statement, category_id, location_id):
+    def create_position(self, statement, session_id, location_id):
         """Create a new position."""
         response = self.session.post(
             f"{self.base_url}/api/v1/positions",
             json={
                 "statement": statement,
-                "categoryId": category_id,
+                "sessionId": session_id,
                 "locationId": location_id,
             },
             headers={"Authorization": f"Bearer {self.token}"}
@@ -422,8 +422,8 @@ def main():
         print("ERROR: Could not fetch categories or locations")
         sys.exit(1)
 
-    # Map category names to IDs
-    category_map = {c.get('name', c.get('label', '')): c['id'] for c in categories}
+    # Map session names to IDs
+    session_map = {c.get('name', c.get('label', '')): c['id'] for c in categories}
     # Find Oregon location (level 1 = state level)
     oregon_locations = [loc for loc in locations if loc.get('name') == 'Oregon']
     if oregon_locations:
@@ -432,7 +432,7 @@ def main():
         location_id = locations[0]['id']  # Fallback to first location
 
     print(f"Location: {locations[0].get('name', location_id)}")
-    print(f"Categories: {list(category_map.keys())}")
+    print(f"Categories: {list(session_map.keys())}")
     print()
 
     if args.dry_run:
@@ -504,22 +504,22 @@ def main():
         ]
 
         for i, pos_data in enumerate(POSITIONS):
-            category_name = pos_data["category"]
-            category_id = category_map.get(category_name)
+            session_name = pos_data["session"]
+            session_id = session_map.get(session_name)
 
-            if not category_id:
-                print(f"  WARNING: Category '{category_name}' not found, skipping position")
+            if not session_id:
+                print(f"  WARNING: Session '{session_name}' not found, skipping position")
                 continue
 
             # Rotate through creators
             creator = creator_users[i % len(creator_users)]
 
             if args.dry_run:
-                print(f"  Would create: {pos_data['statement'][:50]}... [{category_name}]")
+                print(f"  Would create: {pos_data['statement'][:50]}... [{session_name}]")
                 positions_created.append({"id": f"dry-run-{i}", "statement": pos_data["statement"], "votes": pos_data["votes"]})
             else:
                 if api.login(creator[0], creator[1]):
-                    result = api.create_position(pos_data["statement"], category_id, location_id)
+                    result = api.create_position(pos_data["statement"], session_id, location_id)
                     if result:
                         print(f"  Created: {pos_data['statement'][:50]}...")
                         positions_created.append({

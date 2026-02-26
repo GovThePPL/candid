@@ -41,7 +41,7 @@ jest.mock('candid_api', () => {
       createPositionResponses: jest.fn(),
       createPosition: jest.fn(),
       searchSimilarPositions: _mocks.searchSimilarPositions,
-      searchStatsPositions: jest.fn(),
+      getPositionsStats: jest.fn(),
       getPositionAgreedClosures: jest.fn(),
     })),
     ChatApi: jest.fn(() => ({
@@ -63,9 +63,9 @@ jest.mock('candid_api', () => {
       getStandardSurveyResults: jest.fn(),
       getQuestionCrosstabs: jest.fn(),
     })),
-    CategoriesApi: jest.fn(() => ({
-      getAllCategories: jest.fn(),
-      createCategorySuggestions: jest.fn(),
+    SessionsApi: jest.fn(() => ({
+      getAllSessions: jest.fn(),
+      getSessionSuggestions: jest.fn(),
     })),
     ChattingListApi: jest.fn(() => ({
       getChattingList: jest.fn(),
@@ -106,11 +106,11 @@ jest.mock('candid_api', () => {
       createLocation: _mocks.adminCreateLocation = jest.fn(),
       updateLocation: _mocks.adminUpdateLocation = jest.fn(),
       deleteLocation: _mocks.adminDeleteLocation = jest.fn(),
-      getLocationCategories: _mocks.adminGetLocationCategories = jest.fn(),
-      assignLocationCategory: _mocks.adminAssignLocationCategory = jest.fn(),
-      removeLocationCategory: _mocks.adminRemoveLocationCategory = jest.fn(),
-      createCategory: _mocks.adminCreateCategory = jest.fn(),
-      getCategoryLabelSurvey: _mocks.adminGetCategoryLabelSurvey = jest.fn(),
+      getLocationSessions: _mocks.adminGetLocationSessions = jest.fn(),
+      assignLocationSession: _mocks.adminAssignLocationSession = jest.fn(),
+      removeLocationSession: _mocks.adminRemoveLocationSession = jest.fn(),
+      createSession: _mocks.adminCreateSession = jest.fn(),
+      getSessionLabelSurvey: _mocks.adminGetSessionLabelSurvey = jest.fn(),
       updateUserStatus: _mocks.adminUpdateUserStatus = jest.fn(),
       getSurveys: _mocks.adminGetSurveys = jest.fn(),
       createSurvey: _mocks.adminCreateSurvey = jest.fn(),
@@ -212,6 +212,32 @@ describe('cardsApiWrapper.getCardQueue', () => {
 
     await expect(cardsApiWrapper.getCardQueue()).rejects.toThrow('network')
   })
+
+  it('passes sessionId in opts when provided', async () => {
+    const mockCards = [{ type: 'position', data: { id: 'p1' } }]
+    _mocks.getCardQueue.mockImplementation((opts, callback) => {
+      callback(null, null, { body: mockCards })
+    })
+
+    await cardsApiWrapper.getCardQueue(10, 'sess-123')
+    expect(_mocks.getCardQueue).toHaveBeenCalledWith(
+      { limit: 10, sessionId: 'sess-123' },
+      expect.any(Function)
+    )
+  })
+
+  it('omits sessionId from opts when null', async () => {
+    const mockCards = []
+    _mocks.getCardQueue.mockImplementation((opts, callback) => {
+      callback(null, null, { body: mockCards })
+    })
+
+    await cardsApiWrapper.getCardQueue(10, null)
+    expect(_mocks.getCardQueue).toHaveBeenCalledWith(
+      { limit: 10 },
+      expect.any(Function)
+    )
+  })
 })
 
 describe('chatApiWrapper.getActiveChat', () => {
@@ -269,7 +295,7 @@ describe('surveysApiWrapper.getAllSurveys', () => {
       callback(null, standard, {})
     })
 
-    const result = await surveysApiWrapper.getAllSurveys('loc1', 'cat1')
+    const result = await surveysApiWrapper.getAllSurveys('loc1', 'sess1')
     // Active surveys should come first
     expect(result[0].isActive).toBe(true)
     expect(result[1].isActive).toBe(true)
@@ -305,7 +331,7 @@ describe('postsApiWrapper.getPosts', () => {
     })
 
     const result = await postsApiWrapper.getPosts('loc1', {
-      categoryId: 'cat1',
+      sessionId: 'sess1',
       postType: 'discussion',
       sort: 'new',
       limit: 10,
@@ -316,7 +342,7 @@ describe('postsApiWrapper.getPosts', () => {
     expect(_mocks.getPosts).toHaveBeenCalledWith(
       'loc1',
       expect.objectContaining({
-        categoryId: 'cat1',
+        sessionId: 'sess1',
         postType: 'discussion',
         sort: 'new',
         limit: 10,
@@ -326,15 +352,15 @@ describe('postsApiWrapper.getPosts', () => {
     )
   })
 
-  it('omits categoryId when set to "all"', async () => {
+  it('omits sessionId when set to "all"', async () => {
     _mocks.getPosts.mockImplementation((locationId, opts, callback) => {
       callback(null, { posts: [], hasMore: false }, {})
     })
 
-    await postsApiWrapper.getPosts('loc1', { categoryId: 'all' })
+    await postsApiWrapper.getPosts('loc1', { sessionId: 'all' })
 
     const passedOpts = _mocks.getPosts.mock.calls[0][1]
-    expect(passedOpts.categoryId).toBeUndefined()
+    expect(passedOpts.sessionId).toBeUndefined()
   })
 
   it('omits undefined optional params', async () => {
@@ -531,31 +557,31 @@ describe('adminApiWrapper', () => {
     })
   })
 
-  describe('category management', () => {
-    it('assignLocationCategory wraps categoryId in body', async () => {
-      mockSuccess(_mocks.adminAssignLocationCategory)
+  describe('session management', () => {
+    it('assignLocationSession wraps sessionId in body', async () => {
+      mockSuccess(_mocks.adminAssignLocationSession)
 
-      await adminApiWrapper.assignLocationCategory('loc1', 'cat1')
-      expect(_mocks.adminAssignLocationCategory).toHaveBeenCalledWith(
-        'loc1', { positionCategoryId: 'cat1' }, expect.any(Function)
+      await adminApiWrapper.assignLocationSession('loc1', 'sess1')
+      expect(_mocks.adminAssignLocationSession).toHaveBeenCalledWith(
+        'loc1', { sessionId: 'sess1' }, expect.any(Function)
       )
     })
 
-    it('removeLocationCategory passes both path params', async () => {
-      mockSuccess(_mocks.adminRemoveLocationCategory)
+    it('removeLocationSession passes both path params', async () => {
+      mockSuccess(_mocks.adminRemoveLocationSession)
 
-      await adminApiWrapper.removeLocationCategory('loc1', 'cat1')
-      expect(_mocks.adminRemoveLocationCategory).toHaveBeenCalledWith(
-        'loc1', 'cat1', expect.any(Function)
+      await adminApiWrapper.removeLocationSession('loc1', 'sess1')
+      expect(_mocks.adminRemoveLocationSession).toHaveBeenCalledWith(
+        'loc1', 'sess1', expect.any(Function)
       )
     })
 
-    it('createCategory merges label, parent, and opts into body', async () => {
-      mockSuccess(_mocks.adminCreateCategory, { id: 'cat-new' })
+    it('createSession merges label, parent, and opts into body', async () => {
+      mockSuccess(_mocks.adminCreateSession, { id: 'sess-new' })
 
-      await adminApiWrapper.createCategory('Climate', 'cat-parent', { description: 'Climate issues' })
-      expect(_mocks.adminCreateCategory).toHaveBeenCalledWith(
-        { label: 'Climate', parentPositionCategoryId: 'cat-parent', description: 'Climate issues' },
+      await adminApiWrapper.createSession('Climate', 'sess-parent', { description: 'Climate issues' })
+      expect(_mocks.adminCreateSession).toHaveBeenCalledWith(
+        { label: 'Climate', parentSessionId: 'sess-parent', description: 'Climate issues' },
         expect.any(Function)
       )
     })

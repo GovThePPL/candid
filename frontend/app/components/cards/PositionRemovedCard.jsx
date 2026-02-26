@@ -10,7 +10,7 @@ export default function PositionRemovedCard({ data, onDismiss }) {
   const { t } = useTranslation('cards')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
-  const { statement, category, location } = data || {}
+  const { statement, session, location } = data || {}
 
   return (
     <View style={styles.card}>
@@ -24,10 +24,10 @@ export default function PositionRemovedCard({ data, onDismiss }) {
       </ThemedText>
 
       <View style={styles.positionContainer}>
-        {(category || location) && (
+        {(session || location) && (
           <View style={styles.metaRow}>
             {location && <ThemedText variant="caption" color="primary" style={styles.locationCode}>{location}</ThemedText>}
-            {category && <ThemedText variant="badgeLg" color="secondary">{category}</ThemedText>}
+            {session && <ThemedText variant="badgeLg" color="secondary">{session}</ThemedText>}
           </View>
         )}
         <ThemedText variant="button" style={styles.statement}>{statement}</ThemedText>

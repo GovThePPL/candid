@@ -147,7 +147,7 @@ export default function AccountSettings() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <Header onBack={() => router.back()} showSettingsButton settingsActive onSettingsBack={() => navigation.getParent()?.goBack()} />
+        <Header onBack={() => router.back()} showSettingsButton settingsActive onSettingsBack={() => navigation.getParent()?.goBack()} hideSessionBar />
         <LoadingView message={t('loadingAccount')} />
       </SafeAreaView>
     )
@@ -155,7 +155,7 @@ export default function AccountSettings() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <Header onBack={() => router.back()} showSettingsButton settingsActive onSettingsBack={() => navigation.getParent()?.goBack()} />
+      <Header onBack={() => router.back()} showSettingsButton settingsActive onSettingsBack={() => navigation.getParent()?.goBack()} hideSessionBar />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.pageHeader}>
           <ThemedText variant="h1" title={true} style={styles.pageTitle}>

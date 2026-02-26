@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'server')
 pytestmark = pytest.mark.unit
 
 # Module path for patching
-_CTRL = "candid.controllers.glossary_controller"
+_WIKI = "candid.controllers.helpers.wiki"
 
 
 # ---------------------------------------------------------------------------
@@ -21,7 +21,7 @@ _CTRL = "candid.controllers.glossary_controller"
 
 class TestFormatUser:
     def test_basic(self):
-        from candid.controllers.glossary_controller import _format_user
+        from candid.controllers.helpers.wiki import _format_user
         row = {
             "user_id": "abc-123",
             "username": "alice",
@@ -37,7 +37,7 @@ class TestFormatUser:
         assert result["status"] == "active"
 
     def test_with_prefix(self):
-        from candid.controllers.glossary_controller import _format_user
+        from candid.controllers.helpers.wiki import _format_user
         row = {
             "suggester_user_id": "def-456",
             "suggester_username": "bob",
@@ -50,7 +50,7 @@ class TestFormatUser:
         assert result["username"] == "bob"
 
     def test_missing_id(self):
-        from candid.controllers.glossary_controller import _format_user
+        from candid.controllers.helpers.wiki import _format_user
         assert _format_user({}) is None
         assert _format_user({"username": "alice"}) is None
 
@@ -99,7 +99,7 @@ class TestFormatSuggestion:
         return row
 
     def test_basic_format(self):
-        from candid.controllers.glossary_controller import _format_suggestion
+        from candid.controllers.helpers.wiki import _format_suggestion
         row = self._base_row()
         result = _format_suggestion(row)
         assert result["id"] == "sug-001"
@@ -113,7 +113,7 @@ class TestFormatSuggestion:
         assert result["glossaryTermSlug"] is None
 
     def test_with_reviewer(self):
-        from candid.controllers.glossary_controller import _format_suggestion
+        from candid.controllers.helpers.wiki import _format_suggestion
         now = datetime(2026, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
         row = self._base_row(
             id="sug-002",
@@ -145,7 +145,7 @@ class TestFormatSuggestion:
 
     def test_original_fields_included(self):
         """Original snapshot fields appear in formatted output."""
-        from candid.controllers.glossary_controller import _format_suggestion
+        from candid.controllers.helpers.wiki import _format_suggestion
         row = self._base_row(
             suggestion_type="edit_term",
             original_title="Old Title",
@@ -172,7 +172,7 @@ class TestFormatSuggestion:
 class TestFindSuggestionReviewers:
     def test_global_scope_returns_admins_and_experts(self):
         """Global (no scopes) → site admins + all experts/liaisons."""
-        from candid.controllers.glossary_controller import _find_suggestion_reviewers
+        from candid.controllers.helpers.wiki import _find_suggestion_reviewers
 
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(side_effect=[
@@ -180,7 +180,7 @@ class TestFindSuggestionReviewers:
             [{"user_id": "expert-1"}, {"user_id": "liaison-1"}],  # experts/liaisons
         ])
 
-        with patch(f"{_CTRL}.db", mock_db):
+        with patch(f"{_WIKI}.db", mock_db):
             reviewers = _find_suggestion_reviewers([])
         assert "admin-1" in reviewers
         assert "expert-1" in reviewers
@@ -188,7 +188,7 @@ class TestFindSuggestionReviewers:
 
     def test_location_scoped(self):
         """Location-scoped → admins/mods/experts/liaisons at location ancestors."""
-        from candid.controllers.glossary_controller import _find_suggestion_reviewers
+        from candid.controllers.helpers.wiki import _find_suggestion_reviewers
 
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(side_effect=[
@@ -196,8 +196,8 @@ class TestFindSuggestionReviewers:
             [{"user_id": "mod-1"}, {"user_id": "expert-1"}],  # at location ancestors
         ])
 
-        with patch(f"{_CTRL}.db", mock_db), \
-             patch(f"{_CTRL}.get_location_ancestors", return_value=["loc-1", "loc-root"]):
+        with patch(f"{_WIKI}.db", mock_db), \
+             patch(f"{_WIKI}.get_location_ancestors", return_value=["loc-1", "loc-root"]):
             reviewers = _find_suggestion_reviewers([
                 {"type": "location", "id": "loc-1"}
             ])
@@ -206,19 +206,19 @@ class TestFindSuggestionReviewers:
         assert "expert-1" in reviewers
 
     def test_category_scoped(self):
-        """Category-scoped → facilitators/experts + all admins/mods."""
-        from candid.controllers.glossary_controller import _find_suggestion_reviewers
+        """Session-scoped → facilitators/experts + all admins/mods."""
+        from candid.controllers.helpers.wiki import _find_suggestion_reviewers
 
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(side_effect=[
             [{"user_id": "admin-1"}],  # site admins
-            [{"user_id": "facilitator-1"}],  # facilitator for category
+            [{"user_id": "facilitator-1"}],  # facilitator for session
             [{"user_id": "admin-1"}, {"user_id": "mod-1"}],  # all admins/mods
         ])
 
-        with patch(f"{_CTRL}.db", mock_db):
+        with patch(f"{_WIKI}.db", mock_db):
             reviewers = _find_suggestion_reviewers([
-                {"type": "category", "id": "cat-1"}
+                {"type": "session", "id": "cat-1"}
             ])
         assert "admin-1" in reviewers
         assert "facilitator-1" in reviewers
@@ -226,7 +226,7 @@ class TestFindSuggestionReviewers:
 
     def test_empty_results(self):
         """Returns empty list when no qualified reviewers."""
-        from candid.controllers.glossary_controller import _find_suggestion_reviewers
+        from candid.controllers.helpers.wiki import _find_suggestion_reviewers
 
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(side_effect=[
@@ -234,13 +234,13 @@ class TestFindSuggestionReviewers:
             [],  # no experts
         ])
 
-        with patch(f"{_CTRL}.db", mock_db):
+        with patch(f"{_WIKI}.db", mock_db):
             reviewers = _find_suggestion_reviewers([])
         assert reviewers == []
 
     def test_deduplicates(self):
         """Same user in multiple roles is returned once."""
-        from candid.controllers.glossary_controller import _find_suggestion_reviewers
+        from candid.controllers.helpers.wiki import _find_suggestion_reviewers
 
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(side_effect=[
@@ -248,7 +248,7 @@ class TestFindSuggestionReviewers:
             [{"user_id": "user-1"}],  # also expert
         ])
 
-        with patch(f"{_CTRL}.db", mock_db):
+        with patch(f"{_WIKI}.db", mock_db):
             reviewers = _find_suggestion_reviewers([])
         assert reviewers.count("user-1") == 1
 
@@ -260,25 +260,25 @@ class TestFindSuggestionReviewers:
 class TestUserCanReview:
     def test_root_admin_can_review_anything(self):
         """Root admins can review any suggestion."""
-        from candid.controllers.glossary_controller import _user_can_review_suggestion
+        from candid.controllers.helpers.wiki import _user_can_review_suggestion
 
-        with patch(f"{_CTRL}.is_root_admin", return_value=True):
+        with patch(f"{_WIKI}.is_root_admin", return_value=True):
             assert _user_can_review_suggestion("admin-1", []) is True
 
     def test_non_reviewer_cannot(self):
         """Non-reviewer user returns False."""
-        from candid.controllers.glossary_controller import _user_can_review_suggestion
+        from candid.controllers.helpers.wiki import _user_can_review_suggestion
 
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(side_effect=[[], []])
 
-        with patch(f"{_CTRL}.is_root_admin", return_value=False), \
-             patch(f"{_CTRL}.db", mock_db):
+        with patch(f"{_WIKI}.is_root_admin", return_value=False), \
+             patch(f"{_WIKI}.db", mock_db):
             assert _user_can_review_suggestion("normal-1", []) is False
 
     def test_reviewer_in_list(self):
         """User in reviewer list can review."""
-        from candid.controllers.glossary_controller import _user_can_review_suggestion
+        from candid.controllers.helpers.wiki import _user_can_review_suggestion
 
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(side_effect=[
@@ -286,6 +286,6 @@ class TestUserCanReview:
             [{"user_id": "expert-2"}],  # experts
         ])
 
-        with patch(f"{_CTRL}.is_root_admin", return_value=False), \
-             patch(f"{_CTRL}.db", mock_db):
+        with patch(f"{_WIKI}.is_root_admin", return_value=False), \
+             patch(f"{_WIKI}.db", mock_db):
             assert _user_can_review_suggestion("expert-1", []) is True

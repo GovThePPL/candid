@@ -65,10 +65,10 @@ def create_survey(body, token_info=None):  # noqa: E501
 
     # Scoped surveys: facilitator+ at that scope.  Unscoped (global): site admin only.
     loc_id = create_survey_request.location_id
-    cat_id = create_survey_request.position_category_id
+    sess_id = create_survey_request.session_id
     if loc_id:
         authorized, auth_err = authorization_scoped(
-            'facilitator', token_info, location_id=loc_id, category_id=cat_id,
+            'facilitator', token_info, location_id=loc_id, session_id=sess_id,
         )
     else:
         authorized, auth_err = authorization_site_admin(token_info)
@@ -86,12 +86,12 @@ def create_survey(body, token_info=None):  # noqa: E501
 
     # Insert survey
     db.execute_query("""
-        INSERT INTO survey (id, creator_user_id, position_category_id, location_id, survey_title, start_time, end_time, status)
+        INSERT INTO survey (id, creator_user_id, session_id, location_id, survey_title, start_time, end_time, status)
         VALUES (%s, %s, %s, %s, %s, %s, %s, 'active')
     """, (
         survey_id,
         user.id,
-        create_survey_request.position_category_id,
+        create_survey_request.session_id,
         create_survey_request.location_id,
         create_survey_request.survey_title,
         create_survey_request.start_time,
@@ -131,7 +131,7 @@ def delete_survey(survey_id, token_info=None):  # noqa: E501
     """
     # Check survey exists and is not already deleted
     survey = db.execute_query("""
-        SELECT id, status, location_id, position_category_id FROM survey WHERE id = %s
+        SELECT id, status, location_id, session_id FROM survey WHERE id = %s
     """, (survey_id,), fetchone=True)
 
     if survey is None:
@@ -139,10 +139,10 @@ def delete_survey(survey_id, token_info=None):  # noqa: E501
 
     # Scoped surveys: facilitator+ at that scope.  Unscoped (global): site admin only.
     loc_id = str(survey['location_id']) if survey.get('location_id') else None
-    cat_id = str(survey['position_category_id']) if survey.get('position_category_id') else None
+    sess_id = str(survey['session_id']) if survey.get('session_id') else None
     if loc_id:
         authorized, auth_err = authorization_scoped(
-            'facilitator', token_info, location_id=loc_id, category_id=cat_id,
+            'facilitator', token_info, location_id=loc_id, session_id=sess_id,
         )
     else:
         authorized, auth_err = authorization_site_admin(token_info)
@@ -173,17 +173,17 @@ def get_survey_by_id_admin(survey_id, token_info=None):  # noqa: E501
     """
     # Look up survey scope for authorization
     row = db.execute_query("""
-        SELECT location_id, position_category_id FROM survey WHERE id = %s
+        SELECT location_id, session_id FROM survey WHERE id = %s
     """, (survey_id,), fetchone=True)
     if row is None:
         return ErrorModel(404, "Survey not found"), 404
 
     # Scoped surveys: facilitator+ at that scope.  Unscoped (global): site admin only.
     loc_id = str(row['location_id']) if row.get('location_id') else None
-    cat_id = str(row['position_category_id']) if row.get('position_category_id') else None
+    sess_id = str(row['session_id']) if row.get('session_id') else None
     if loc_id:
         authorized, auth_err = authorization_scoped(
-            'facilitator', token_info, location_id=loc_id, category_id=cat_id,
+            'facilitator', token_info, location_id=loc_id, session_id=sess_id,
         )
     else:
         authorized, auth_err = authorization_site_admin(token_info)
@@ -197,7 +197,7 @@ def get_survey_by_id_admin(survey_id, token_info=None):  # noqa: E501
     return survey
 
 
-def get_surveys(title=None, status=None, created_after=None, created_before=None, location_id=None, token_info=None):  # noqa: E501
+def get_surveys(title=None, status=None, created_after=None, created_before=None, location_id=None, session_id=None, token_info=None):  # noqa: E501
     """Get a list of surveys
 
      # noqa: E501
@@ -241,6 +241,11 @@ def get_surveys(title=None, status=None, created_after=None, created_before=None
     if location_id:
         conditions.append("location_id = %s")
         params.append(location_id)
+
+    # Session filter
+    if session_id:
+        conditions.append("session_id = %s")
+        params.append(session_id)
 
     # Date filters
     if created_after:
@@ -289,7 +294,7 @@ def update_survey(survey_id, body, token_info=None):  # noqa: E501
     """
     # Check survey exists and is not deleted
     existing = db.execute_query("""
-        SELECT id, status, location_id, position_category_id FROM survey WHERE id = %s
+        SELECT id, status, location_id, session_id FROM survey WHERE id = %s
     """, (survey_id,), fetchone=True)
 
     if existing is None:
@@ -300,10 +305,10 @@ def update_survey(survey_id, body, token_info=None):  # noqa: E501
 
     # Scoped surveys: facilitator+ at that scope.  Unscoped (global): site admin only.
     loc_id = str(existing['location_id']) if existing.get('location_id') else None
-    cat_id = str(existing['position_category_id']) if existing.get('position_category_id') else None
+    sess_id = str(existing['session_id']) if existing.get('session_id') else None
     if loc_id:
         authorized, auth_err = authorization_scoped(
-            'facilitator', token_info, location_id=loc_id, category_id=cat_id,
+            'facilitator', token_info, location_id=loc_id, session_id=sess_id,
         )
     else:
         authorized, auth_err = authorization_site_admin(token_info)
@@ -322,9 +327,9 @@ def update_survey(survey_id, body, token_info=None):  # noqa: E501
         set_clauses.append("survey_title = %s")
         params.append(update_request.survey_title)
 
-    if update_request.position_category_id is not None:
-        set_clauses.append("position_category_id = %s")
-        params.append(update_request.position_category_id)
+    if update_request.session_id is not None:
+        set_clauses.append("session_id = %s")
+        params.append(update_request.session_id)
 
     if update_request.start_time is not None:
         set_clauses.append("start_time = %s")
@@ -365,12 +370,13 @@ def create_pairwise_survey(body, token_info=None):  # noqa: E501
     comparison_question = body.get('comparisonQuestion', "Which better describes this group's views?")
     polis_conversation_id = body.get('polisConversationId')
     location_id = body.get('locationId')
-    position_category_id = body.get('positionCategoryId')
+    session_id = body.get('sessionId')
+    phase = body.get('phase')
 
     # Scoped surveys: facilitator+ at that scope.  Unscoped (global): site admin only.
     if location_id:
         authorized, auth_err = authorization_scoped(
-            'facilitator', token_info, location_id=location_id, category_id=position_category_id,
+            'facilitator', token_info, location_id=location_id, session_id=session_id,
         )
     else:
         authorized, auth_err = authorization_site_admin(token_info)
@@ -381,6 +387,10 @@ def create_pairwise_survey(body, token_info=None):  # noqa: E501
     start_time = body.get('startTime')
     end_time = body.get('endTime')
     is_group_labeling = body.get('isGroupLabeling', False)
+
+    # Validate phase
+    if phase and phase not in ('proposal', 'opinion'):
+        return ErrorModel(400, "phase must be 'proposal' or 'opinion'"), 400
 
     # Validate items
     if not items or len(items) < 2:
@@ -395,9 +405,9 @@ def create_pairwise_survey(body, token_info=None):  # noqa: E501
     # Insert survey with survey_type='pairwise'
     db.execute_query("""
         INSERT INTO survey (id, creator_user_id, survey_title, survey_type, comparison_question,
-                           polis_conversation_id, location_id, position_category_id, start_time, end_time,
-                           is_group_labeling, status)
-        VALUES (%s, %s, %s, 'pairwise', %s, %s, %s, %s, %s, %s, %s, 'active')
+                           polis_conversation_id, location_id, session_id, start_time, end_time,
+                           is_group_labeling, phase, status)
+        VALUES (%s, %s, %s, 'pairwise', %s, %s, %s, %s, %s, %s, %s, %s, 'active')
     """, (
         survey_id,
         user.id,
@@ -405,10 +415,11 @@ def create_pairwise_survey(body, token_info=None):  # noqa: E501
         comparison_question,
         polis_conversation_id,
         location_id,
-        position_category_id,
+        session_id,
         start_time,
         end_time,
         is_group_labeling,
+        phase,
     ))
 
     # Insert pairwise items
@@ -534,7 +545,7 @@ def create_role_request(body, token_info=None):  # noqa: E501
     POST /admin/roles/requests
 
     For assign: Admins can request admin, moderator, facilitator (at their location or descendants).
-    Facilitators can request: assistant_moderator, expert, liaison (at their location+category).
+    Facilitators can request: assistant_moderator, expert, liaison (at their location+session).
     For remove: specify userRoleId of the role to remove.
     """
     authorized, auth_err = authorization_scoped("facilitator", token_info)
@@ -557,7 +568,7 @@ def create_role_request(body, token_info=None):  # noqa: E501
     target_user_id = body.get('targetUserId')
     role = body.get('role')
     location_id = body.get('locationId')
-    category_id = body.get('positionCategoryId')
+    session_id = body.get('sessionId')
     reason = body.get('reason', '')
 
     # Validate inputs
@@ -577,39 +588,39 @@ def create_role_request(body, token_info=None):  # noqa: E501
     if not loc:
         return ErrorModel(400, "Location not found"), 400
 
-    # Category required for non-hierarchical roles
-    if role in _FACILITATOR_ASSIGNABLE and not category_id:
-        return ErrorModel(400, "positionCategoryId is required for this role"), 400
+    # Session required for non-hierarchical roles
+    if role in _FACILITATOR_ASSIGNABLE and not session_id:
+        return ErrorModel(400, "sessionId is required for this role"), 400
 
-    if category_id:
-        cat = db.execute_query("SELECT id FROM position_category WHERE id = %s", (category_id,), fetchone=True)
-        if not cat:
-            return ErrorModel(400, "Category not found"), 400
+    if session_id:
+        sess = db.execute_query("SELECT id FROM session WHERE id = %s", (session_id,), fetchone=True)
+        if not sess:
+            return ErrorModel(400, "Session not found"), 400
 
     # Check authorization: does the requester have authority?
-    authority_loc = _get_requester_authority_location(str(user.id), role, location_id, category_id)
+    authority_loc = _get_requester_authority_location(str(user.id), role, location_id, session_id)
     if not authority_loc:
         return ErrorModel(403, "You do not have authority to assign this role at this location"), 403
 
     # Check if target already has this role
-    if category_id:
+    if session_id:
         existing = db.execute_query("""
             SELECT id FROM user_role
-            WHERE user_id = %s AND role = %s AND location_id = %s AND position_category_id = %s
-        """, (target_user_id, role, location_id, category_id), fetchone=True)
+            WHERE user_id = %s AND role = %s AND location_id = %s AND session_id = %s
+        """, (target_user_id, role, location_id, session_id), fetchone=True)
     else:
         existing = db.execute_query("""
             SELECT id FROM user_role
-            WHERE user_id = %s AND role = %s AND location_id = %s AND position_category_id IS NULL
+            WHERE user_id = %s AND role = %s AND location_id = %s AND session_id IS NULL
         """, (target_user_id, role, location_id), fetchone=True)
     if existing:
         return ErrorModel(400, "User already has this role"), 400
 
     # Check for duplicate pending request
     dup_check_params = [target_user_id, role, location_id]
-    dup_cat_clause = "AND position_category_id = %s" if category_id else "AND position_category_id IS NULL"
-    if category_id:
-        dup_check_params.append(category_id)
+    dup_cat_clause = "AND session_id = %s" if session_id else "AND session_id IS NULL"
+    if session_id:
+        dup_check_params.append(session_id)
     dup = db.execute_query(f"""
         SELECT id FROM role_change_request
         WHERE action = 'assign' AND target_user_id = %s AND role = %s
@@ -627,10 +638,10 @@ def create_role_request(body, token_info=None):  # noqa: E501
     request_id = str(uuid.uuid4())
     db.execute_query("""
         INSERT INTO role_change_request
-            (id, action, target_user_id, role, location_id, position_category_id,
+            (id, action, target_user_id, role, location_id, session_id,
              requested_by, requester_authority_location_id, request_reason, auto_approve_at)
         VALUES (%s, 'assign', %s, %s, %s, %s, %s, %s, %s, %s)
-    """, (request_id, target_user_id, role, location_id, category_id,
+    """, (request_id, target_user_id, role, location_id, session_id,
           str(user.id), authority_loc, reason, auto_approve_at))
 
     # Check if auto-approve (no peer available)
@@ -638,7 +649,7 @@ def create_role_request(body, token_info=None):  # noqa: E501
         'requested_by': str(user.id),
         'role': role,
         'location_id': location_id,
-        'position_category_id': category_id,
+        'session_id': session_id,
         'requester_authority_location_id': authority_loc,
     })
     if peers is None:
@@ -652,7 +663,7 @@ def create_role_request(body, token_info=None):  # noqa: E501
             'target_user_id': target_user_id,
             'role': role,
             'location_id': location_id,
-            'position_category_id': category_id,
+            'session_id': session_id,
             'requested_by': str(user.id),
         })
         # Notify requester + target about auto-approval
@@ -686,7 +697,7 @@ def _handle_role_removal(body, user, token_info=None):
 
     # Fetch the existing role
     role_row = db.execute_query("""
-        SELECT id, user_id, role, location_id, position_category_id
+        SELECT id, user_id, role, location_id, session_id
         FROM user_role WHERE id = %s
     """, (user_role_id,), fetchone=True)
     if not role_row:
@@ -694,10 +705,10 @@ def _handle_role_removal(body, user, token_info=None):
 
     role = role_row['role']
     location_id = str(role_row['location_id']) if role_row['location_id'] else None
-    category_id = str(role_row['position_category_id']) if role_row['position_category_id'] else None
+    session_id = str(role_row['session_id']) if role_row['session_id'] else None
 
     # Check authorization
-    authority_loc = _get_requester_authority_location(str(user.id), role, location_id, category_id)
+    authority_loc = _get_requester_authority_location(str(user.id), role, location_id, session_id)
     if not authority_loc:
         return ErrorModel(403, "You do not have authority to remove this role"), 403
 
@@ -716,10 +727,10 @@ def _handle_role_removal(body, user, token_info=None):
     request_id = str(uuid.uuid4())
     db.execute_query("""
         INSERT INTO role_change_request
-            (id, action, target_user_id, role, location_id, position_category_id,
+            (id, action, target_user_id, role, location_id, session_id,
              user_role_id, requested_by, requester_authority_location_id, request_reason, auto_approve_at)
         VALUES (%s, 'remove', %s, %s, %s, %s, %s, %s, %s, %s, %s)
-    """, (request_id, str(role_row['user_id']), role, location_id, category_id,
+    """, (request_id, str(role_row['user_id']), role, location_id, session_id,
           user_role_id, str(user.id), authority_loc, reason, auto_approve_at))
 
     # Check auto-approve
@@ -727,7 +738,7 @@ def _handle_role_removal(body, user, token_info=None):
         'requested_by': str(user.id),
         'role': role,
         'location_id': location_id,
-        'position_category_id': category_id,
+        'session_id': session_id,
         'requester_authority_location_id': authority_loc,
     })
     if peers is None:
@@ -741,7 +752,7 @@ def _handle_role_removal(body, user, token_info=None):
             'target_user_id': str(role_row['user_id']),
             'role': role,
             'location_id': location_id,
-            'position_category_id': category_id,
+            'session_id': session_id,
             'requested_by': str(user.id),
         })
         # Notify requester + target about auto-approval
@@ -782,7 +793,7 @@ def get_pending_role_requests(token_info=None):  # noqa: E501
     # Get all pending requests
     requests = db.execute_query("""
         SELECT rcr.id, rcr.action, rcr.target_user_id, rcr.role,
-               rcr.location_id, rcr.position_category_id, rcr.user_role_id,
+               rcr.location_id, rcr.session_id, rcr.user_role_id,
                rcr.requested_by, rcr.requester_authority_location_id,
                rcr.request_reason, rcr.auto_approve_at, rcr.created_time,
                u_target.username AS target_username, u_target.display_name AS target_display_name,
@@ -794,12 +805,12 @@ def get_pending_role_requests(token_info=None):  # noqa: E501
                u_req.status AS requester_status, u_req.trust_score AS requester_trust_score,
                u_req.kudos_count AS requester_kudos_count,
                l.name AS location_name, l.code AS location_code,
-               pc.label AS category_label
+               pc.label AS session_label
         FROM role_change_request rcr
         JOIN users u_target ON rcr.target_user_id = u_target.id
         JOIN users u_req ON rcr.requested_by = u_req.id
         LEFT JOIN location l ON rcr.location_id = l.id
-        LEFT JOIN position_category pc ON rcr.position_category_id = pc.id
+        LEFT JOIN session pc ON rcr.session_id = pc.id
         WHERE rcr.status = 'pending'
         ORDER BY rcr.created_time ASC
     """)
@@ -827,10 +838,10 @@ def get_pending_role_requests(token_info=None):  # noqa: E501
                     'name': r['location_name'],
                     'code': r['location_code'],
                 } if r.get('location_id') else None,
-                'category': {
-                    'id': str(r['position_category_id']),
-                    'label': r['category_label'],
-                } if r.get('position_category_id') else None,
+                'session': {
+                    'id': str(r['session_id']),
+                    'label': r['session_label'],
+                } if r.get('session_id') else None,
                 'requester': {
                     'id': str(r['requested_by']),
                     'username': r['requester_username'],
@@ -949,7 +960,7 @@ def update_role_request(request_id, body, token_info=None):  # noqa: E501
 
 _ROLE_REQUEST_SELECT = """
     SELECT rcr.id, rcr.action, rcr.target_user_id, rcr.role,
-           rcr.location_id, rcr.position_category_id, rcr.user_role_id,
+           rcr.location_id, rcr.session_id, rcr.user_role_id,
            rcr.requested_by, rcr.requester_authority_location_id,
            rcr.request_reason, rcr.auto_approve_at, rcr.created_time,
            rcr.status, rcr.denial_reason, rcr.updated_time,
@@ -962,7 +973,7 @@ _ROLE_REQUEST_SELECT = """
            u_req.status AS requester_status, u_req.trust_score AS requester_trust_score,
            u_req.kudos_count AS requester_kudos_count,
            l.name AS location_name, l.code AS location_code,
-           pc.label AS category_label,
+           pc.label AS session_label,
            u_rev.id AS reviewer_id, u_rev.username AS reviewer_username,
            u_rev.display_name AS reviewer_display_name,
            u_rev.avatar_icon_url AS reviewer_avatar_icon_url,
@@ -972,7 +983,7 @@ _ROLE_REQUEST_SELECT = """
     JOIN users u_target ON rcr.target_user_id = u_target.id
     JOIN users u_req ON rcr.requested_by = u_req.id
     LEFT JOIN location l ON rcr.location_id = l.id
-    LEFT JOIN position_category pc ON rcr.position_category_id = pc.id
+    LEFT JOIN session pc ON rcr.session_id = pc.id
     LEFT JOIN users u_rev ON rcr.reviewed_by = u_rev.id
 """
 
@@ -1041,7 +1052,7 @@ def get_role_requests(view=None, token_info=None):  # noqa: E501
         return ErrorModel(400, f"Invalid view: {view}"), 400
 
 
-def list_roles(user_id=None, location_id=None, role=None, token_info=None):  # noqa: E501
+def list_roles(user_id=None, location_id=None, role=None, session_id=None, token_info=None):  # noqa: E501
     """List roles with optional filters.
 
     GET /admin/roles
@@ -1062,22 +1073,25 @@ def list_roles(user_id=None, location_id=None, role=None, token_info=None):  # n
     if role:
         conditions.append("ur.role = %s")
         params.append(role)
+    if session_id:
+        conditions.append("ur.session_id = %s")
+        params.append(session_id)
 
     where = ""
     if conditions:
         where = "WHERE " + " AND ".join(conditions)
 
     rows = db.execute_query(f"""
-        SELECT ur.id, ur.user_id, ur.role, ur.location_id, ur.position_category_id,
+        SELECT ur.id, ur.user_id, ur.role, ur.location_id, ur.session_id,
                ur.assigned_by, ur.created_time,
                u.username, u.display_name, u.avatar_icon_url, u.trust_score,
                u.kudos_count,
                l.name AS location_name, l.code AS location_code,
-               pc.label AS category_label
+               pc.label AS session_label
         FROM user_role ur
         JOIN users u ON ur.user_id = u.id
         LEFT JOIN location l ON ur.location_id = l.id
-        LEFT JOIN position_category pc ON ur.position_category_id = pc.id
+        LEFT JOIN session pc ON ur.session_id = pc.id
         {where}
         ORDER BY ur.created_time DESC
     """, tuple(params) if params else None)
@@ -1100,10 +1114,10 @@ def list_roles(user_id=None, location_id=None, role=None, token_info=None):  # n
                 'name': r['location_name'],
                 'code': r['location_code'],
             } if r.get('location_id') else None,
-            'category': {
-                'id': str(r['position_category_id']),
-                'label': r['category_label'],
-            } if r.get('position_category_id') else None,
+            'session': {
+                'id': str(r['session_id']),
+                'label': r['session_label'],
+            } if r.get('session_id') else None,
             'assignedBy': str(r['assigned_by']) if r.get('assigned_by') else None,
             'createdTime': r['created_time'].isoformat() if r.get('created_time') else None,
         })
@@ -1300,10 +1314,10 @@ def delete_location(location_id, token_info=None):  # noqa: E501
     return '', 204
 
 
-def get_location_categories(location_id, token_info=None):  # noqa: E501
-    """Get categories assigned to a location.
+def get_location_sessions(location_id, token_info=None):  # noqa: E501
+    """Get sessions assigned to a location.
 
-    GET /admin/locations/{id}/categories
+    GET /admin/locations/{id}/sessions
     Auth: assistant_moderator+ (any scoped role holder).
     """
     authorized, auth_err = authorization_scoped("assistant_moderator", token_info)
@@ -1312,8 +1326,8 @@ def get_location_categories(location_id, token_info=None):  # noqa: E501
 
     rows = db.execute_query("""
         SELECT pc.id, pc.label
-        FROM location_category lc
-        JOIN position_category pc ON lc.position_category_id = pc.id
+        FROM location_session lc
+        JOIN session pc ON lc.session_id = pc.id
         WHERE lc.location_id = %s
         ORDER BY pc.label ASC
     """, (location_id,))
@@ -1321,8 +1335,8 @@ def get_location_categories(location_id, token_info=None):  # noqa: E501
     return [{'id': str(r['id']), 'label': r['label']} for r in (rows or [])]
 
 
-def assign_location_category(location_id, body, token_info=None):  # noqa: E501
-    """Assign a category to a location.
+def assign_location_session(location_id, body, token_info=None):  # noqa: E501
+    """Assign a session to a location.
 
     POST /admin/locations/{id}/categories
     Auth: admin at location or ancestor.
@@ -1336,11 +1350,11 @@ def assign_location_category(location_id, body, token_info=None):  # noqa: E501
     if connexion.request.is_json:
         body = connexion.request.get_json()
 
-    category_id = body.get('positionCategoryId')
-    if not category_id:
-        return ErrorModel(400, "positionCategoryId is required"), 400
+    session_id = body.get('sessionId')
+    if not session_id:
+        return ErrorModel(400, "sessionId is required"), 400
 
-    # Validate location and category exist (exclude soft-deleted)
+    # Validate location and session exist (exclude soft-deleted)
     loc = db.execute_query("SELECT id FROM location WHERE id = %s AND deleted_at IS NULL", (location_id,), fetchone=True)
     if not loc:
         return ErrorModel(404, "Location not found"), 404
@@ -1348,24 +1362,24 @@ def assign_location_category(location_id, body, token_info=None):  # noqa: E501
     if not is_admin_at_location(str(user.id), location_id):
         return ErrorModel(403, "Admin authority at this location is required"), 403
 
-    cat = db.execute_query("SELECT id, label FROM position_category WHERE id = %s",
-                           (category_id,), fetchone=True)
-    if not cat:
-        return ErrorModel(400, "Category not found"), 400
+    sess = db.execute_query("SELECT id, label FROM session WHERE id = %s",
+                            (session_id,), fetchone=True)
+    if not sess:
+        return ErrorModel(400, "Session not found"), 400
 
     # Check if already assigned
     existing = db.execute_query("""
-        SELECT id FROM location_category
-        WHERE location_id = %s AND position_category_id = %s
-    """, (location_id, category_id), fetchone=True)
+        SELECT id FROM location_session
+        WHERE location_id = %s AND session_id = %s
+    """, (location_id, session_id), fetchone=True)
     if existing:
-        return ErrorModel(400, "Category already assigned to this location"), 400
+        return ErrorModel(400, "Session already assigned to this location"), 400
 
     lc_id = str(uuid.uuid4())
     db.execute_query("""
-        INSERT INTO location_category (id, location_id, position_category_id)
+        INSERT INTO location_session (id, location_id, session_id)
         VALUES (%s, %s, %s)
-    """, (lc_id, location_id, category_id))
+    """, (lc_id, location_id, session_id))
 
     # Notify admins at this location
     loc_row = db.execute_query("SELECT name FROM location WHERE id = %s",
@@ -1374,20 +1388,20 @@ def assign_location_category(location_id, body, token_info=None):  # noqa: E501
     admin_ids = _get_admins_at_location(location_id)
     admin_ids = [a for a in admin_ids if a != str(user.id)]
     if admin_ids:
-        _notify_admin_action(admin_ids, "Category assigned",
-                             f"{cat['label']} added to {loc_name}",
+        _notify_admin_action(admin_ids, "Session assigned",
+                             f"{sess['label']} added to {loc_name}",
                              actor_user_id=str(user.id))
 
     return {
         'id': lc_id,
         'locationId': str(location_id),
-        'positionCategoryId': str(category_id),
-        'categoryLabel': cat['label'],
+        'sessionId': str(session_id),
+        'sessionLabel': sess['label'],
     }, 201
 
 
-def remove_location_category(location_id, category_id, token_info=None):  # noqa: E501
-    """Remove a category from a location.
+def remove_location_session(location_id, session_id, token_info=None):  # noqa: E501
+    """Remove a session from a location.
 
     DELETE /admin/locations/{id}/categories/{catId}
     Auth: admin at location or ancestor.
@@ -1402,51 +1416,99 @@ def remove_location_category(location_id, category_id, token_info=None):  # noqa
         return ErrorModel(403, "Admin authority at this location is required"), 403
 
     existing = db.execute_query("""
-        SELECT id FROM location_category
-        WHERE location_id = %s AND position_category_id = %s
-    """, (location_id, category_id), fetchone=True)
+        SELECT id FROM location_session
+        WHERE location_id = %s AND session_id = %s
+    """, (location_id, session_id), fetchone=True)
     if not existing:
-        return ErrorModel(404, "Category assignment not found"), 404
+        return ErrorModel(404, "Session assignment not found"), 404
 
     # Look up names for notification before deleting
-    cat_row = db.execute_query("SELECT label FROM position_category WHERE id = %s",
-                               (category_id,), fetchone=True)
-    cat_label = cat_row['label'] if cat_row else 'Unknown'
+    sess_row = db.execute_query("SELECT label FROM session WHERE id = %s",
+                                (session_id,), fetchone=True)
+    sess_label = sess_row['label'] if sess_row else 'Unknown'
     loc_row = db.execute_query("SELECT name FROM location WHERE id = %s",
                                (location_id,), fetchone=True)
     loc_name = loc_row['name'] if loc_row else 'Unknown'
 
     db.execute_query("""
-        DELETE FROM location_category
-        WHERE location_id = %s AND position_category_id = %s
-    """, (location_id, category_id))
+        DELETE FROM location_session
+        WHERE location_id = %s AND session_id = %s
+    """, (location_id, session_id))
 
-    # Notify admins at location + facilitators for that category
+    # Notify admins at location + facilitators for that session
     admin_ids = set(_get_admins_at_location(location_id))
     facilitators = db.execute_query("""
         SELECT DISTINCT ur.user_id FROM user_role ur
         WHERE ur.role = 'facilitator' AND ur.location_id = %s
-          AND ur.position_category_id = %s
-    """, (location_id, category_id))
+          AND ur.session_id = %s
+    """, (location_id, session_id))
     for f in (facilitators or []):
         admin_ids.add(str(f['user_id']))
     admin_ids.discard(str(user.id))
     if admin_ids:
-        _notify_admin_action(list(admin_ids), "Category removed",
-                             f"{cat_label} removed from {loc_name}",
+        _notify_admin_action(list(admin_ids), "Session removed",
+                             f"{sess_label} removed from {loc_name}",
                              actor_user_id=str(user.id))
 
     return '', 204
 
 
 # ---------------------------------------------------------------------------
-# Category Management API
+# Session Management API
 # ---------------------------------------------------------------------------
 
-def create_category(body, token_info=None):  # noqa: E501
-    """Create a new position category.
+def get_admin_sessions(token_info=None):  # noqa: E501
+    """List all sessions with admin context (location + facilitator).
 
-    POST /admin/categories
+    GET /admin/sessions
+    Auth: assistant_moderator+ (scoped).
+    """
+    authorized, auth_err = authorization_scoped("assistant_moderator", token_info)
+    if not authorized:
+        return auth_err, auth_err.code
+
+    rows = db.execute_query("""
+        SELECT s.id, s.label, s.description, s.location_id, s.stage,
+               s.stage_changed_at, s.stage_changed_by, s.facilitator_user_id,
+               s.status, s.created_by, s.proposal_method,
+               l.code AS location_code, l.name AS location_name,
+               u.username AS facilitator_username
+        FROM session s
+        LEFT JOIN location l ON l.id = s.location_id
+        LEFT JOIN users u ON u.id = s.facilitator_user_id
+        ORDER BY s.label
+    """)
+
+    if rows is None:
+        rows = []
+
+    sessions = []
+    for row in rows:
+        sess = {
+            'id': str(row['id']),
+            'label': row['label'],
+            'description': row.get('description'),
+            'locationId': str(row['location_id']) if row.get('location_id') else None,
+            'locationCode': row.get('location_code'),
+            'locationName': row.get('location_name'),
+            'stage': row.get('stage'),
+            'stageChangedAt': row['stage_changed_at'].isoformat() if row.get('stage_changed_at') else None,
+            'stageChangedBy': str(row['stage_changed_by']) if row.get('stage_changed_by') else None,
+            'facilitatorUserId': str(row['facilitator_user_id']) if row.get('facilitator_user_id') else None,
+            'facilitatorUsername': row.get('facilitator_username'),
+            'status': row.get('status'),
+            'createdBy': str(row['created_by']) if row.get('created_by') else None,
+            'proposalMethod': row.get('proposal_method', 'user_driven'),
+        }
+        sessions.append(sess)
+
+    return sessions, 200
+
+
+def create_session(body, token_info=None):  # noqa: E501
+    """Create a new session.
+
+    POST /admin/sessions
     Auth: site admin.
     """
     authorized, auth_err = authorization_site_admin(token_info)
@@ -1457,31 +1519,41 @@ def create_category(body, token_info=None):  # noqa: E501
         body = connexion.request.get_json()
 
     label = (body.get('label') or '').strip()
-    parent_id = body.get('parentPositionCategoryId')
+    location_id = body.get('locationId')
+    proposal_method = body.get('proposalMethod', 'user_driven')
+
+    if proposal_method not in ('user_driven', 'admin_provided'):
+        return ErrorModel(400, "proposalMethod must be 'user_driven' or 'admin_provided'"), 400
 
     if not label:
-        return ErrorModel(400, "Category label is required"), 400
+        return ErrorModel(400, "Session label is required"), 400
 
-    # Check for duplicate (case-insensitive)
-    existing = db.execute_query("""
-        SELECT id FROM position_category WHERE LOWER(label) = LOWER(%s)
-    """, (label,), fetchone=True)
+    # Check for duplicate (case-insensitive) within the same location
+    if location_id:
+        existing = db.execute_query("""
+            SELECT id FROM session WHERE LOWER(label) = LOWER(%s) AND location_id = %s
+        """, (label, location_id), fetchone=True)
+    else:
+        existing = db.execute_query("""
+            SELECT id FROM session WHERE LOWER(label) = LOWER(%s)
+        """, (label,), fetchone=True)
     if existing:
-        return ErrorModel(400, "A category with this label already exists"), 400
-
-    if parent_id:
-        parent = db.execute_query(
-            "SELECT id FROM position_category WHERE id = %s", (parent_id,), fetchone=True)
-        if not parent:
-            return ErrorModel(400, "Parent category not found"), 400
+        return ErrorModel(400, "A session with this label already exists"), 400
 
     user = token_to_user(token_info)
 
-    category_id = str(uuid.uuid4())
+    # Use provided location_id or fall back to root location
+    if not location_id:
+        from candid.controllers.helpers.auth import get_root_location_id
+        location_id = get_root_location_id()
+    if not location_id:
+        return ErrorModel(400, "locationId is required"), 400
+
+    session_id = str(uuid.uuid4())
     db.execute_query("""
-        INSERT INTO position_category (id, label, parent_position_category_id)
-        VALUES (%s, %s, %s)
-    """, (category_id, label, parent_id))
+        INSERT INTO session (id, label, location_id, created_by, proposal_method)
+        VALUES (%s, %s, %s, %s, %s)
+    """, (session_id, label, location_id, str(user.id), proposal_method))
 
     # Notify other site admins
     from candid.controllers.helpers.auth import get_root_location_id
@@ -1494,59 +1566,78 @@ def create_category(body, token_info=None):  # noqa: E501
         if site_admins:
             _notify_admin_action(
                 [str(r['user_id']) for r in site_admins],
-                "New category created",
-                f"{label} category was created",
+                "New session created",
+                f"{label} session was created",
                 actor_user_id=str(user.id))
 
     result = {
-        'id': category_id,
+        'id': session_id,
         'label': label,
-        'parentPositionCategoryId': parent_id,
+        'locationId': location_id,
     }
 
-    # Optionally create a label survey at category creation time
+    # Optionally create label surveys at session creation time (one per phase)
     create_label_survey = body.get('createLabelSurvey', False)
     if create_label_survey:
         label_items = body.get('labelSurveyItems', [])
         label_items = [i.strip() for i in label_items if i.strip()]
         if len(label_items) >= 2:
             comp_question = (body.get('labelSurveyComparisonQuestion') or '').strip() or "Which better describes this group's views?"
-            survey_id = str(uuid.uuid4())
-            db.execute_query("""
-                INSERT INTO survey (id, creator_user_id, survey_title, survey_type, comparison_question,
-                                   position_category_id, is_group_labeling, status)
-                VALUES (%s, %s, %s, 'pairwise', %s, %s, true, 'active')
-            """, (survey_id, user.id, f"Label Survey: {label}", comp_question, category_id))
-            for i, item_text in enumerate(label_items):
-                item_id = str(uuid.uuid4())
+            label_surveys = {}
+            for phase in ('proposal', 'opinion'):
+                sid = str(uuid.uuid4())
                 db.execute_query("""
-                    INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
-                    VALUES (%s, %s, %s, %s)
-                """, (item_id, survey_id, item_text, i))
-            result['labelSurvey'] = _build_pairwise_survey(survey_id)
+                    INSERT INTO survey (id, creator_user_id, survey_title, survey_type, comparison_question,
+                                       session_id, is_group_labeling, phase, status)
+                    VALUES (%s, %s, %s, 'pairwise', %s, %s, true, %s, 'active')
+                """, (sid, user.id, f"Label Survey ({phase}): {label}", comp_question, session_id, phase))
+                for i, item_text in enumerate(label_items):
+                    item_id = str(uuid.uuid4())
+                    db.execute_query("""
+                        INSERT INTO pairwise_item (id, survey_id, item_text, item_order)
+                        VALUES (%s, %s, %s, %s)
+                    """, (item_id, sid, item_text, i))
+                label_surveys[phase] = _build_pairwise_survey(sid)
+            result['labelSurveys'] = label_surveys
 
     return result, 201
 
 
-def get_category_label_survey(category_id, token_info=None):  # noqa: E501
-    """Get the label survey for a category.
+def get_session_label_survey(session_id, token_info=None):  # noqa: E501
+    """Get label surveys for a session, grouped by phase.
 
-    GET /admin/categories/{categoryId}/label-survey
+    GET /admin/sessions/{sessionId}/label-survey
     Auth: assistant_moderator+ (scoped).
+
+    Returns {labelSurveys: {proposal: ..., opinion: ...}}.
+    Legacy surveys with phase=NULL are returned under both phases as fallback.
     """
     authorized, auth_err = authorization_scoped("assistant_moderator", token_info)
     if not authorized:
         return auth_err, auth_err.code
 
-    row = db.execute_query("""
-        SELECT id FROM survey
-        WHERE position_category_id = %s AND is_group_labeling = true AND status != 'deleted'
-        ORDER BY created_time DESC LIMIT 1
-    """, (category_id,), fetchone=True)
+    rows = db.execute_query("""
+        SELECT id, phase FROM survey
+        WHERE session_id = %s AND is_group_labeling = true AND status != 'deleted'
+        ORDER BY created_time DESC
+    """, (session_id,))
 
-    if row:
-        return {"labelSurvey": _build_pairwise_survey(row['id'])}
-    return {"labelSurvey": None}
+    label_surveys = {'proposal': None, 'opinion': None}
+    legacy_survey = None
+
+    for row in (rows or []):
+        phase = row.get('phase')
+        if phase in ('proposal', 'opinion') and label_surveys[phase] is None:
+            label_surveys[phase] = _build_pairwise_survey(row['id'])
+        elif phase is None and legacy_survey is None:
+            legacy_survey = _build_pairwise_survey(row['id'])
+
+    # Legacy fallback: if a phase has no survey but a legacy (NULL) one exists, use it
+    for phase in ('proposal', 'opinion'):
+        if label_surveys[phase] is None and legacy_survey is not None:
+            label_surveys[phase] = legacy_survey
+
+    return {"labelSurveys": label_surveys}
 
 
 # ---------------------------------------------------------------------------
@@ -1711,12 +1802,12 @@ def get_admin_rules(status=None, location_id=None, content_type=None, token_info
     rows = db.execute_query(f"""
         SELECT r.id, r.creator_user_id, r.title, r.text, r.status, r.severity,
                r.default_actions, r.sentencing_guidelines,
-               r.location_id, r.position_category_id, r.applicable_content_types,
+               r.location_id, r.session_id, r.applicable_content_types,
                r.created_time, r.updated_time,
-               l.name AS location_name, pc.label AS category_label
+               l.name AS location_name, pc.label AS session_label
         FROM rule r
         LEFT JOIN location l ON r.location_id = l.id
-        LEFT JOIN position_category pc ON r.position_category_id = pc.id
+        LEFT JOIN session pc ON r.session_id = pc.id
         {where}
         ORDER BY r.severity DESC, r.created_time ASC
     """, tuple(params) if params else None)
@@ -1757,7 +1848,7 @@ def create_rule_request(body, token_info=None):  # noqa: E501
             return ErrorModel(400, "ruleId is required for update/delete"), 400
         existing_rule = db.execute_query("""
             SELECT id, title, text, severity, default_actions, sentencing_guidelines,
-                   location_id, position_category_id, applicable_content_types, status
+                   location_id, session_id, applicable_content_types, status
             FROM rule WHERE id = %s
         """, (rule_id,), fetchone=True)
         if not existing_rule:
@@ -1774,7 +1865,7 @@ def create_rule_request(body, token_info=None):  # noqa: E501
             'defaultActions': existing_rule.get('default_actions', []),
             'sentencingGuidelines': existing_rule.get('sentencing_guidelines'),
             'locationId': str(existing_rule['location_id']) if existing_rule.get('location_id') else None,
-            'positionCategoryId': str(existing_rule['position_category_id']) if existing_rule.get('position_category_id') else None,
+            'sessionId': str(existing_rule['session_id']) if existing_rule.get('session_id') else None,
             'applicableContentTypes': list(existing_rule.get('applicable_content_types', [])),
         }
 
@@ -1804,12 +1895,12 @@ def create_rule_request(body, token_info=None):  # noqa: E501
 
     # Determine scope from proposed_rule
     scope_location_id = proposed_rule.get('locationId')
-    scope_category_id = proposed_rule.get('positionCategoryId')
+    scope_session_id = proposed_rule.get('sessionId')
 
     # For update: also need authority over current scope
     if action == 'update' and existing_rule:
         current_loc = str(existing_rule['location_id']) if existing_rule.get('location_id') else None
-        current_cat = str(existing_rule['position_category_id']) if existing_rule.get('position_category_id') else None
+        current_cat = str(existing_rule['session_id']) if existing_rule.get('session_id') else None
         # Authority over current scope
         auth_loc_current = _get_rule_authority_location(str(user.id), current_loc, current_cat)
         if not auth_loc_current:
@@ -1817,10 +1908,10 @@ def create_rule_request(body, token_info=None):  # noqa: E501
 
     if action == 'delete' and existing_rule:
         scope_location_id = str(existing_rule['location_id']) if existing_rule.get('location_id') else None
-        scope_category_id = str(existing_rule['position_category_id']) if existing_rule.get('position_category_id') else None
+        scope_session_id = str(existing_rule['session_id']) if existing_rule.get('session_id') else None
 
     # Check authority over proposed scope
-    authority_loc = _get_rule_authority_location(str(user.id), scope_location_id, scope_category_id)
+    authority_loc = _get_rule_authority_location(str(user.id), scope_location_id, scope_session_id)
     if not authority_loc:
         return ErrorModel(403, "You do not have authority to manage rules at this scope"), 403
 

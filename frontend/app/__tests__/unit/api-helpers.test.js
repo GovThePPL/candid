@@ -1,5 +1,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
+// Mock secureStorage (api.js now uses secureStorage for token operations)
+const mockGetSecureItem = jest.fn(() => Promise.resolve(null))
+const mockSetSecureItem = jest.fn(() => Promise.resolve())
+const mockDeleteSecureItem = jest.fn(() => Promise.resolve())
+
+jest.mock('../../lib/secureStorage', () => ({
+  getSecureItem: (...args) => mockGetSecureItem(...args),
+  setSecureItem: (...args) => mockSetSecureItem(...args),
+  deleteSecureItem: (...args) => mockDeleteSecureItem(...args),
+}))
+
 jest.mock('../../lib/keycloak', () => ({
   refreshToken: jest.fn(),
   loginWithCredentials: jest.fn(),
@@ -17,7 +28,7 @@ jest.mock('candid_api', () => {
     PositionsApi: jest.fn(() => ({})),
     ChatApi: jest.fn(() => ({})),
     SurveysApi: jest.fn(() => ({})),
-    CategoriesApi: jest.fn(() => ({})),
+    SessionsApi: jest.fn(() => ({})),
     ChattingListApi: jest.fn(() => ({})),
     StatsApi: jest.fn(() => ({})),
     ModerationApi: jest.fn(() => ({})),
@@ -56,6 +67,9 @@ beforeEach(() => {
   AsyncStorage.getItem.mockResolvedValue(null)
   AsyncStorage.setItem.mockResolvedValue()
   AsyncStorage.removeItem.mockResolvedValue()
+  mockGetSecureItem.mockResolvedValue(null)
+  mockSetSecureItem.mockResolvedValue()
+  mockDeleteSecureItem.mockResolvedValue()
 })
 
 describe('translateError', () => {
@@ -96,24 +110,24 @@ describe('getToken / setToken', () => {
     expect(token).toBeNull()
   })
 
-  it('setToken stores token in AsyncStorage', async () => {
+  it('setToken stores token in secureStorage', async () => {
     await setToken('my-token')
-    expect(AsyncStorage.setItem).toHaveBeenCalledWith('candid_auth_token', 'my-token')
+    expect(mockSetSecureItem).toHaveBeenCalledWith('candid_auth_token', 'my-token')
   })
 
-  it('setToken(null) removes token from AsyncStorage', async () => {
+  it('setToken(null) removes token from secureStorage', async () => {
     await setToken(null)
-    expect(AsyncStorage.removeItem).toHaveBeenCalledWith('candid_auth_token')
+    expect(mockDeleteSecureItem).toHaveBeenCalledWith('candid_auth_token')
   })
 
-  it('getToken retrieves from AsyncStorage', async () => {
-    AsyncStorage.getItem.mockResolvedValueOnce('stored-token')
+  it('getToken retrieves from secureStorage', async () => {
+    mockGetSecureItem.mockResolvedValueOnce('stored-token')
     const token = await getToken()
     expect(token).toBe('stored-token')
   })
 
   it('getToken returns null on storage error', async () => {
-    AsyncStorage.getItem.mockRejectedValueOnce(new Error('fail'))
+    mockGetSecureItem.mockRejectedValueOnce(new Error('fail'))
     const token = await getToken()
     expect(token).toBeNull()
   })
@@ -161,25 +175,25 @@ describe('getStoredUser / setStoredUser', () => {
 
 describe('initializeAuth', () => {
   it('reads token from storage', async () => {
-    AsyncStorage.getItem.mockImplementation((key) => {
+    mockGetSecureItem.mockImplementation((key) => {
       if (key === 'candid_auth_token') return Promise.resolve('saved-token')
       return Promise.resolve(null)
     })
     // Should not throw
     await initializeAuth()
-    expect(AsyncStorage.getItem).toHaveBeenCalledWith('candid_auth_token')
+    expect(mockGetSecureItem).toHaveBeenCalledWith('candid_auth_token')
   })
 
   it('completes without error when no token stored', async () => {
     await initializeAuth()
-    expect(AsyncStorage.getItem).toHaveBeenCalledWith('candid_auth_token')
+    expect(mockGetSecureItem).toHaveBeenCalledWith('candid_auth_token')
   })
 })
 
 describe('authApi.logout', () => {
   it('clears token, user, and cache', async () => {
     await authApi.logout()
-    expect(AsyncStorage.removeItem).toHaveBeenCalledWith('candid_auth_token')
+    expect(mockDeleteSecureItem).toHaveBeenCalledWith('candid_auth_token')
     expect(AsyncStorage.removeItem).toHaveBeenCalledWith('candid_user')
     expect(CacheManager.clearAll).toHaveBeenCalled()
   })

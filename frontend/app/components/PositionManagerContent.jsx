@@ -16,10 +16,11 @@ import usePositionManagement from '../hooks/usePositionManagement'
 import { useAuth } from '../contexts/UserContext'
 import api from '../lib/api'
 
+import { useLocationSession } from '../contexts/LocationSessionContext'
 import ThemedText from './ThemedText'
 import ThemedTextInput from './ThemedTextInput'
 import InfoModal from './InfoModal'
-import LocationCategorySelector from './LocationCategorySelector'
+import LocationSessionSelector from './LocationSessionSelector'
 import EmptyState from './EmptyState'
 import BottomDrawerModal from './BottomDrawerModal'
 import PositionListManager from './PositionListManager'
@@ -33,17 +34,18 @@ export default function PositionManagerContent({ onScroll, listHeader, stickyHea
   const { t } = useTranslation('create')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
+  const { selectedLocation: contextLocation, selectedSession: contextSession } = useLocationSession()
 
   const toast = useToast()
   const [statement, setStatement] = useState("")
-  const [selectedCategory, setSelectedCategory] = useState(null)
-  const [selectedLocation, setSelectedLocation] = useState(null)
+  const [selectedSession, setSelectedSession] = useState(contextSession)
+  const [selectedLocation, setSelectedLocation] = useState(contextLocation)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [similarPositions, setSimilarPositions] = useState([])
   const [searchingSimilar, setSearchingSimilar] = useState(false)
-  const [suggestedCategory, setSuggestedCategory] = useState(null)
-  const [categoryAutoSelected, setCategoryAutoSelected] = useState(false)
+  const [suggestedSession, setSuggestedSession] = useState(null)
+  const [sessionAutoSelected, setSessionAutoSelected] = useState(false)
 
   // Rules modal state
   const [showRules, setShowRules] = useState(false)
@@ -106,7 +108,7 @@ export default function PositionManagerContent({ onScroll, listHeader, stickyHea
     fetchRules()
   }
 
-  // Debounced search for similar positions and category suggestion
+  // Debounced search for similar positions and session suggestion
   useEffect(() => {
     // Clear any pending search
     if (searchTimeoutRef.current) {
@@ -117,7 +119,7 @@ export default function PositionManagerContent({ onScroll, listHeader, stickyHea
     if (statement.trim().length < MIN_SEARCH_LENGTH) {
       setSimilarPositions([])
       setSearchingSimilar(false)
-      setSuggestedCategory(null)
+      setSuggestedSession(null)
       return
     }
 
@@ -126,45 +128,45 @@ export default function PositionManagerContent({ onScroll, listHeader, stickyHea
     // Debounce the search
     searchTimeoutRef.current = setTimeout(async () => {
       try {
-        // Search for similar positions WITHOUT category filter to get broad results
+        // Search for similar positions WITHOUT session filter to get broad results
         const similarResults = await api.positions.searchSimilar(statement.trim(), {
           locationId: selectedLocation,
-          limit: 10, // Get more results to better determine category
+          limit: 10, // Get more results to better determine session
         })
 
         setSimilarPositions((similarResults || []).slice(0, 5)) // Show only top 5
 
-        // Suggest category based on most common category among similar positions
+        // Suggest session based on most common session among similar positions
         if (similarResults && similarResults.length > 0) {
-          // Count categories, weighted by similarity score
-          const categoryScores = {}
+          // Count sessions, weighted by similarity score
+          const sessionScores = {}
           similarResults.forEach(result => {
-            const catId = result.position.categoryId
-            const catName = result.position.category?.label
-            if (catId && catName) {
-              if (!categoryScores[catId]) {
-                categoryScores[catId] = { id: catId, label: catName, score: 0, count: 0 }
+            const sessId = result.position.sessionId
+            const sessName = result.position.session?.label
+            if (sessId && sessName) {
+              if (!sessionScores[sessId]) {
+                sessionScores[sessId] = { id: sessId, label: sessName, score: 0, count: 0 }
               }
-              categoryScores[catId].score += result.similarity
-              categoryScores[catId].count += 1
+              sessionScores[sessId].score += result.similarity
+              sessionScores[sessId].count += 1
             }
           })
 
-          // Find category with highest weighted score
-          const topCategory = Object.values(categoryScores)
+          // Find session with highest weighted score
+          const topSession = Object.values(sessionScores)
             .sort((a, b) => b.score - a.score)[0]
 
-          if (topCategory) {
-            setSuggestedCategory({
-              category: { id: topCategory.id, label: topCategory.label },
-              score: topCategory.score / topCategory.count // Average similarity
+          if (topSession) {
+            setSuggestedSession({
+              session: { id: topSession.id, label: topSession.label },
+              score: topSession.score / topSession.count // Average similarity
             })
 
-            // Auto-select if no category manually selected by user
+            // Auto-select if no session manually selected by user
             // (either no selection yet, or previous selection was auto)
-            if (!selectedCategory || categoryAutoSelected) {
-              setSelectedCategory(topCategory.id)
-              setCategoryAutoSelected(true)
+            if (!selectedSession || sessionAutoSelected) {
+              setSelectedSession(topSession.id)
+              setSessionAutoSelected(true)
             }
           }
         }
@@ -212,9 +214,9 @@ export default function PositionManagerContent({ onScroll, listHeader, stickyHea
   function resetForm() {
     setStatement('')
     setSimilarPositions([])
-    setSelectedCategory(null)
-    setCategoryAutoSelected(false)
-    setSuggestedCategory(null)
+    setSelectedSession(null)
+    setSessionAutoSelected(false)
+    setSuggestedSession(null)
   }
 
   async function handleAdoptPosition(positionId) {
@@ -231,8 +233,8 @@ export default function PositionManagerContent({ onScroll, listHeader, stickyHea
       toast?.(t('errorSelectLocation'))
       return
     }
-    if (!selectedCategory) {
-      toast?.(t('errorSelectCategory'))
+    if (!selectedSession) {
+      toast?.(t('errorSelectSession'))
       return
     }
     if (isOverLimit) {
@@ -242,7 +244,7 @@ export default function PositionManagerContent({ onScroll, listHeader, stickyHea
     setLoading(true)
     setError(null)
 
-    const result = await createPosition(statement.trim(), selectedCategory, selectedLocation)
+    const result = await createPosition(statement.trim(), selectedSession, selectedLocation)
     if (result.success) {
       resetForm()
     } else {
@@ -273,7 +275,7 @@ export default function PositionManagerContent({ onScroll, listHeader, stickyHea
         id: r.position.id,
         statement: r.position.statement,
         similarity: r.similarity,
-        categoryLabel: r.position.category?.label,
+        sessionLabel: r.position.session?.label,
         locationCode: r.position.location?.code || '',
         wasPreviouslyHeld: r.wasPreviouslyHeld,
       }))
@@ -397,17 +399,17 @@ export default function PositionManagerContent({ onScroll, listHeader, stickyHea
         </View>
 
         <View style={styles.form}>
-          <LocationCategorySelector
+          <LocationSessionSelector
             selectedLocation={selectedLocation}
-            selectedCategory={selectedCategory}
+            selectedSession={selectedSession}
             onLocationChange={setSelectedLocation}
-            onCategoryChange={(id) => {
-              setSelectedCategory(id)
-              setCategoryAutoSelected(false)
+            onSessionChange={(id) => {
+              setSelectedSession(id)
+              setSessionAutoSelected(false)
             }}
             showLabels
             defaultLocation="last"
-            categoryAutoSelected={categoryAutoSelected}
+            sessionAutoSelected={sessionAutoSelected}
             style={{ paddingHorizontal: 0, marginBottom: 12 }}
           />
 
@@ -455,7 +457,7 @@ export default function PositionManagerContent({ onScroll, listHeader, stickyHea
                       </ThemedText>
                       <ThemedText variant="caption" color="secondary" style={styles.similarMeta}>
                         {t('matchPercent', { percent: Math.round(result.similarity * 100) })}
-                        {result.position.category?.label && ` · ${result.position.category.label}`}
+                        {result.position.session?.label && ` · ${result.position.session.label}`}
                       </ThemedText>
                     </View>
                     <TouchableOpacity
@@ -485,12 +487,12 @@ export default function PositionManagerContent({ onScroll, listHeader, stickyHea
           )}
 
           <TouchableOpacity
-            style={[styles.createButton, (loading || isOverLimit || !statement.trim() || !selectedCategory || !selectedLocation) && styles.createButtonDisabled]}
+            style={[styles.createButton, (loading || isOverLimit || !statement.trim() || !selectedSession || !selectedLocation) && styles.createButtonDisabled]}
             onPress={handleSubmit}
             disabled={loading}
             accessibilityRole="button"
             accessibilityLabel={loading ? t('creating') : t('createPosition')}
-            accessibilityState={{ disabled: loading || isOverLimit || !statement.trim() || !selectedCategory || !selectedLocation }}
+            accessibilityState={{ disabled: loading || isOverLimit || !statement.trim() || !selectedSession || !selectedLocation }}
           >
             <Ionicons name="add-circle" size={18} color={colors.primary} />
             <ThemedText variant="buttonSmall" color="primary">

@@ -98,6 +98,10 @@ export EXPO_PUBLIC_API_URL="${EXPO_PUBLIC_API_URL:-http://${EXPO_PUBLIC_HOST_IP}
 export EXPO_PUBLIC_CHAT_URL="${EXPO_PUBLIC_CHAT_URL:-http://${EXPO_PUBLIC_HOST_IP}:8002}"
 export EXPO_PUBLIC_KEYCLOAK_URL="${EXPO_PUBLIC_KEYCLOAK_URL:-http://${EXPO_PUBLIC_HOST_IP}:8180}"
 
+# Tell Expo's dev server to advertise the host IP (not the WSL2 internal IP).
+# Without this, --lan mode advertises 172.x.x.x which phones can't reach.
+export REACT_NATIVE_PACKAGER_HOSTNAME="${REACT_NATIVE_PACKAGER_HOSTNAME:-$EXPO_PUBLIC_HOST_IP}"
+
 # Regenerate API client
 "$SCRIPT_DIR/regenerate_api.sh"
 

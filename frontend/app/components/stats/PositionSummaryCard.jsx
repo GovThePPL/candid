@@ -3,11 +3,11 @@ import { Shadows } from '../../constants/Theme'
 import PositionInfoCard from '../PositionInfoCard'
 
 /**
- * Compact card displaying a position statement with category/location and creator.
+ * Compact card displaying a position statement with session/location and creator.
  * Used at the top of the closures page.
  *
  * @param {Object} props
- * @param {Object} props.position - Position object with id, statement, category, location, creator
+ * @param {Object} props.position - Position object with id, statement, session, location, creator
  */
 export default function PositionSummaryCard({ position }) {
   return (

@@ -53,7 +53,7 @@ const basePost = {
   userVote: null,
   creatorRole: null,
   isAnswered: null,
-  category: null,
+  session: null,
   creator: { id: 'u1', displayName: 'TestUser', username: 'testuser' },
   createdTime: '2026-02-12T10:00:00Z',
 }
@@ -92,13 +92,13 @@ describe('PostCard', () => {
     expect(screen.getByText('3h')).toBeTruthy()
   })
 
-  it('shows category label when present', () => {
-    const post = { ...basePost, category: { label: 'Environment' } }
+  it('shows session label when present', () => {
+    const post = { ...basePost, session: { label: 'Environment' } }
     render(<PostCard {...defaultProps} post={post} />)
     expect(screen.getByText('Environment')).toBeTruthy()
   })
 
-  it('does not show category when absent', () => {
+  it('does not show session when absent', () => {
     render(<PostCard {...defaultProps} />)
     expect(screen.queryByText('Environment')).toBeNull()
   })
@@ -439,5 +439,64 @@ describe('PostCard', () => {
   it('does not show (edited) for unedited posts', () => {
     render(<PostCard {...defaultProps} />)
     expect(screen.queryByText('edited')).toBeNull()
+  })
+
+  // Pin badge tests
+  it('shows pinned badge when isPinned is true', () => {
+    const post = { ...basePost, isPinned: true }
+    render(<PostCard {...defaultProps} post={post} />)
+    expect(screen.getByText('pinnedPost')).toBeTruthy()
+    expect(screen.getByLabelText('pinnedPost')).toBeTruthy()
+  })
+
+  it('does not show pinned badge when isPinned is false', () => {
+    const post = { ...basePost, isPinned: false }
+    render(<PostCard {...defaultProps} post={post} />)
+    expect(screen.queryByText('pinnedPost')).toBeNull()
+  })
+
+  it('does not show pinned badge when isPinned is undefined', () => {
+    render(<PostCard {...defaultProps} />)
+    expect(screen.queryByText('pinnedPost')).toBeNull()
+  })
+
+  // Pin/unpin menu option tests
+  it('shows pin option in menu when canModerate is true', () => {
+    render(<PostCard {...defaultProps} canModerate={true} onPin={jest.fn()} />)
+    fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
+    expect(screen.getByText('pinPost')).toBeTruthy()
+    expect(screen.getByLabelText('pinPostA11y')).toBeTruthy()
+  })
+
+  it('shows unpin option when canModerate and post is pinned', () => {
+    const post = { ...basePost, isPinned: true }
+    render(<PostCard {...defaultProps} post={post} canModerate={true} onPin={jest.fn()} />)
+    fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
+    expect(screen.getByText('unpinPost')).toBeTruthy()
+    expect(screen.getByLabelText('unpinPostA11y')).toBeTruthy()
+  })
+
+  it('does not show pin option when canModerate is false', () => {
+    render(<PostCard {...defaultProps} canModerate={false} />)
+    fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
+    expect(screen.queryByText('pinPost')).toBeNull()
+    expect(screen.queryByText('unpinPost')).toBeNull()
+  })
+
+  it('calls onPin with (postId, true) when pin is tapped', () => {
+    const onPin = jest.fn()
+    render(<PostCard {...defaultProps} canModerate={true} onPin={onPin} />)
+    fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
+    fireEvent.press(screen.getByText('pinPost'))
+    expect(onPin).toHaveBeenCalledWith('p1', true)
+  })
+
+  it('calls onPin with (postId, false) when unpin is tapped', () => {
+    const onPin = jest.fn()
+    const post = { ...basePost, isPinned: true }
+    render(<PostCard {...defaultProps} post={post} canModerate={true} onPin={onPin} />)
+    fireEvent.press(screen.getByLabelText('postOptionsA11y TestUser'))
+    fireEvent.press(screen.getByText('unpinPost'))
+    expect(onPin).toHaveBeenCalledWith('p1', false)
   })
 })

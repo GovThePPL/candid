@@ -153,7 +153,7 @@ PostgreSQL 17 with schema in `01-schema.sql` and test data in `02-basic-data.sql
 
 ## Future Work
 
-- **Location-aware categories**: Filter position categories by location relevance (e.g., "Foreign Policy" doesn't apply to "Oregon"). Categories are currently a flat global list in `position_category`.
+- **Location-aware sessions**: Filter sessions by location relevance (e.g., "Foreign Policy" doesn't apply to "Oregon"). Sessions are scoped to locations via the `location_session` table.
 - **Polis roll-over script and automation**: Automate Polis conversation roll-over (creating new conversations, migrating data, relinking pairwise surveys). Currently requires manual steps via `backend/scripts/backfill_polis_positions.py`.
 - **Position timeouts**: Implement expiration/archival of positions after a configurable time period.
 

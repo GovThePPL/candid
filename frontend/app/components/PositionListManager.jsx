@@ -6,7 +6,7 @@ import { useThemeColors } from '../hooks/useThemeColors'
 import { SemanticColors } from '../constants/Colors'
 import { Typography } from '../constants/Theme'
 import ThemedText from './ThemedText'
-import LocationCategoryBadge from './LocationCategoryBadge'
+import LocationSessionBadge from './LocationSessionBadge'
 import EmptyState from './EmptyState'
 import LoadingView from './LoadingView'
 
@@ -14,20 +14,20 @@ import LoadingView from './LoadingView'
  * Shared position list management component used by both "My Positions" and "Chatting List".
  *
  * - Under 25 items: flat list (no grouping)
- * - 25+ items: grouped Location -> Category with collapsible headers
+ * - 25+ items: grouped Location -> Session with collapsible headers
  * - Delete mode: checkboxes (right side) + floating bar to delete selected
  * - Chat mode: chat bubble toggles (right side) per item, immediate toggle; group headers get bulk toggles
  * - Inactive items grayed out in both normal and chat mode
  *
  * Props:
- *   items               - Array of normalized items { id, statement, isActive, locationName, locationCode, categoryName, categoryId, meta }
+ *   items               - Array of normalized items { id, statement, isActive, locationName, locationCode, sessionName, sessionId, meta }
  *   onToggleActive      - (id, newActiveState) => Promise
  *   onDeleteItems       - (ids[]) => Promise
  *   onBulkToggle        - (ids[], newActiveState) => Promise
  *   onFloatingBarChange - ({ visible, count, mode }) => void  — notifies parent to show/hide floating action bar (delete mode only)
  *   onAddItem           - (positionId) => Promise — called when user taps + on an add-mode result (opt-in: shows + button when provided)
  *   onAddSearch         - (query) => void — called when search text changes in add mode
- *   addSearchResults    - Array<{ id, statement, similarity, categoryLabel, locationCode, wasPreviouslyHeld }>
+ *   addSearchResults    - Array<{ id, statement, similarity, sessionLabel, locationCode, wasPreviouslyHeld }>
  *   addSearchLoading    - boolean
  *   addSearchMinLength  - number (default 20)
  *   loading             - boolean
@@ -64,7 +64,7 @@ const PositionListManager = forwardRef(function PositionListManager({
   const [addingIds, setAddingIds] = useState(new Set())
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [expandedLocations, setExpandedLocations] = useState({})
-  const [expandedCategories, setExpandedCategories] = useState({})
+  const [expandedSessions, setExpandedSessions] = useState({})
   const [togglingIds, setTogglingIds] = useState(new Set())
   const [deletingIds, setDeletingIds] = useState(new Set())
 
@@ -113,45 +113,45 @@ const PositionListManager = forwardRef(function PositionListManager({
     )
   }, [items, searchQuery])
 
-  // Group items: Location -> Category (only used when collapsible)
+  // Group items: Location -> Session (only used when collapsible)
   const grouped = useMemo(() => {
     if (!showCollapsible) return null
     const groups = {}
     filteredItems.forEach(item => {
       const loc = item.locationName || t('stats:unknownLocation')
-      const cat = item.categoryName || t('uncategorized')
+      const sess = item.sessionName || t('uncategorized')
       if (!groups[loc]) groups[loc] = {}
-      if (!groups[loc][cat]) groups[loc][cat] = []
-      groups[loc][cat].push(item)
+      if (!groups[loc][sess]) groups[loc][sess] = []
+      groups[loc][sess].push(item)
     })
     return groups
   }, [filteredItems, showCollapsible])
 
   function getLocationItems(locationName) {
-    const cats = grouped?.[locationName]
-    if (!cats) return []
-    return Object.values(cats).flat()
+    const sessions = grouped?.[locationName]
+    if (!sessions) return []
+    return Object.values(sessions).flat()
   }
 
   function locationItemIds(locationName) {
     return getLocationItems(locationName).map(i => i.id)
   }
 
-  function getCategoryItems(locationName, categoryName) {
-    return grouped?.[locationName]?.[categoryName] || []
+  function getSessionItems(locationName, sessionName) {
+    return grouped?.[locationName]?.[sessionName] || []
   }
 
-  function categoryItemIds(locationName, categoryName) {
-    return getCategoryItems(locationName, categoryName).map(i => i.id)
+  function sessionItemIds(locationName, sessionName) {
+    return getSessionItems(locationName, sessionName).map(i => i.id)
   }
 
   function toggleLocationExpanded(loc) {
     setExpandedLocations(prev => ({ ...prev, [loc]: prev[loc] === false ? true : false }))
   }
 
-  function toggleCategoryExpanded(loc, cat) {
-    const key = `${loc}|${cat}`
-    setExpandedCategories(prev => ({ ...prev, [key]: prev[key] === false ? true : false }))
+  function toggleSessionExpanded(loc, sess) {
+    const key = `${loc}|${sess}`
+    setExpandedSessions(prev => ({ ...prev, [key]: prev[key] === false ? true : false }))
   }
 
   // Checkbox selection (delete mode only)
@@ -361,9 +361,9 @@ const PositionListManager = forwardRef(function PositionListManager({
         <View style={styles.itemContent}>
           {!showCollapsible && (
             <View style={styles.itemDetail}>
-              <LocationCategoryBadge
+              <LocationSessionBadge
                 location={{ code: item.locationCode, name: item.locationName }}
-                category={{ label: item.categoryName }}
+                session={{ label: item.sessionName }}
                 size="sm"
               />
             </View>
@@ -478,10 +478,10 @@ const PositionListManager = forwardRef(function PositionListManager({
                     <ThemedText variant="caption" color="secondary">
                       {t('create:matchPercent', { percent: Math.round(result.similarity * 100) })}
                     </ThemedText>
-                    {result.categoryLabel && (
-                      <LocationCategoryBadge
+                    {result.sessionLabel && (
+                      <LocationSessionBadge
                         location={{ code: result.locationCode }}
-                        category={{ label: result.categoryLabel }}
+                        session={{ label: result.sessionLabel }}
                         size="sm"
                       />
                     )}
@@ -602,7 +602,7 @@ const PositionListManager = forwardRef(function PositionListManager({
       )}
 
       {/* Grouped collapsible list for 25+ items */}
-      {!addMode && showCollapsible && grouped && Object.entries(grouped).map(([locationName, categories]) => {
+      {!addMode && showCollapsible && grouped && Object.entries(grouped).map(([locationName, sessions]) => {
         const locItems = getLocationItems(locationName)
         const locIds = locItems.map(i => i.id)
         const locExpanded = expandedLocations[locationName] !== false
@@ -632,39 +632,39 @@ const PositionListManager = forwardRef(function PositionListManager({
             </View>
 
             {locExpanded && (
-              <View style={styles.categoriesContainer}>
-                {Object.entries(categories).map(([categoryName, catItems]) => {
-                  const catKey = `${locationName}|${categoryName}`
-                  const catIds = catItems.map(i => i.id)
-                  const catExpanded = expandedCategories[catKey] !== false
-                  const catAllSelected = catIds.length > 0 && catIds.every(id => selectedIds.has(id))
+              <View style={styles.sessionsContainer}>
+                {Object.entries(sessions).map(([sessionName, sessItems]) => {
+                  const sessKey = `${locationName}|${sessionName}`
+                  const sessIds = sessItems.map(i => i.id)
+                  const sessExpanded = expandedSessions[sessKey] !== false
+                  const sessAllSelected = sessIds.length > 0 && sessIds.every(id => selectedIds.has(id))
 
                   return (
-                    <View key={catKey} style={styles.categoryGroup}>
-                      {/* Category header */}
-                      <View style={styles.categoryHeaderRow}>
+                    <View key={sessKey} style={styles.sessionGroup}>
+                      {/* Session header */}
+                      <View style={styles.sessionHeaderRow}>
                         <TouchableOpacity
-                          style={styles.categoryHeader}
-                          onPress={() => toggleCategoryExpanded(locationName, categoryName)}
+                          style={styles.sessionHeader}
+                          onPress={() => toggleSessionExpanded(locationName, sessionName)}
                           accessibilityRole="button"
-                          accessibilityLabel={t('categoryGroupA11y', { category: categoryName, count: catIds.length })}
-                          accessibilityState={{ expanded: catExpanded }}
+                          accessibilityLabel={t('sessionGroupA11y', { session: sessionName, count: sessIds.length })}
+                          accessibilityState={{ expanded: sessExpanded }}
                         >
                           <Ionicons
-                            name={catExpanded ? 'chevron-down' : 'chevron-forward'}
+                            name={sessExpanded ? 'chevron-down' : 'chevron-forward'}
                             size={16}
                             color={colors.primary}
                           />
-                          <ThemedText variant="bodySmall" color="primary" style={styles.categoryTitle}>{categoryName}</ThemedText>
-                          <ThemedText variant="caption" color="primary" style={styles.categoryCount}>{catIds.length}</ThemedText>
+                          <ThemedText variant="bodySmall" color="primary" style={styles.sessionTitle}>{sessionName}</ThemedText>
+                          <ThemedText variant="caption" color="primary" style={styles.sessionCount}>{sessIds.length}</ThemedText>
                         </TouchableOpacity>
-                        {deleteMode && renderCheckbox(catAllSelected, () => toggleSelectAll(catIds), true)}
-                        {chatMode && renderGroupChatToggle(catItems)}
+                        {deleteMode && renderCheckbox(sessAllSelected, () => toggleSelectAll(sessIds), true)}
+                        {chatMode && renderGroupChatToggle(sessItems)}
                       </View>
 
-                      {catExpanded && (
+                      {sessExpanded && (
                         <View style={styles.itemsList}>
-                          {catItems.map(item => renderItem(item))}
+                          {sessItems.map(item => renderItem(item))}
                         </View>
                       )}
                     </View>
@@ -794,35 +794,35 @@ const createStyles = (colors) => StyleSheet.create({
     opacity: 0.6,
   },
 
-  // Categories
-  categoriesContainer: {
+  // Sessions
+  sessionsContainer: {
     borderTopWidth: 1,
     borderTopColor: colors.cardBorder,
   },
-  categoryGroup: {
+  sessionGroup: {
     borderBottomWidth: 1,
     borderBottomColor: colors.cardBorder,
   },
-  categoryHeaderRow: {
+  sessionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.uiBackground,
     borderTopWidth: 1,
     borderTopColor: colors.cardBorder,
   },
-  categoryHeader: {
+  sessionHeader: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
     paddingLeft: 24,
   },
-  categoryTitle: {
+  sessionTitle: {
     flex: 1,
     fontWeight: '700',
     marginLeft: 6,
   },
-  categoryCount: {
+  sessionCount: {
     fontWeight: '600',
     opacity: 0.6,
   },

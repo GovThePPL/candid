@@ -330,7 +330,7 @@ class TestGetOrComputeCoords:
             if "polis_participant" in sql:
                 return {"polis_pid": 2}
             if "polis_conversation" in sql and "SELECT" in sql:
-                return {"location_id": "loc1", "category_id": "cat1"}
+                return {"location_id": "loc1", "session_id": "cat1"}
             return None
 
         mock_db.execute_query.side_effect = db_side_effect
@@ -359,7 +359,7 @@ class TestGetOrComputeCoords:
             if "polis_participant" in sql:
                 return None  # no participant record
             if "polis_conversation" in sql and "SELECT" in sql:
-                return {"location_id": "loc1", "category_id": "cat1"}
+                return {"location_id": "loc1", "session_id": "cat1"}
             return None
 
         mock_db.execute_query.side_effect = db_side_effect
@@ -587,7 +587,7 @@ class TestGetConversationForPost:
         from candid.controllers.helpers import ideological_coords
         ideological_coords._conversation_cache.clear()
 
-    def test_with_category(self):
+    def test_with_session(self):
         mock_db = MagicMock()
         mock_db.execute_query.return_value = {"polis_conversation_id": "conv_abc"}
 
@@ -597,7 +597,7 @@ class TestGetConversationForPost:
 
         assert result == "conv_abc"
 
-    def test_without_category(self):
+    def test_without_session(self):
         mock_db = MagicMock()
         mock_db.execute_query.return_value = {"polis_conversation_id": "conv_xyz"}
 

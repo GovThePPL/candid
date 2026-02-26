@@ -1,4 +1,13 @@
-import AsyncStorage from '@react-native-async-storage/async-storage'
+// Mock secureStorage (keycloak.js now uses secureStorage instead of AsyncStorage)
+const mockGetSecureItem = jest.fn(() => Promise.resolve(null))
+const mockSetSecureItem = jest.fn(() => Promise.resolve())
+const mockDeleteSecureItem = jest.fn(() => Promise.resolve())
+
+jest.mock('../../lib/secureStorage', () => ({
+  getSecureItem: (...args) => mockGetSecureItem(...args),
+  setSecureItem: (...args) => mockSetSecureItem(...args),
+  deleteSecureItem: (...args) => mockDeleteSecureItem(...args),
+}))
 
 // Mock expo-auth-session
 const mockPromptAsync = jest.fn()
@@ -33,9 +42,9 @@ const originalFetch = global.fetch
 
 beforeEach(() => {
   jest.clearAllMocks()
-  AsyncStorage.getItem.mockResolvedValue(null)
-  AsyncStorage.setItem.mockResolvedValue()
-  AsyncStorage.removeItem.mockResolvedValue()
+  mockGetSecureItem.mockResolvedValue(null)
+  mockSetSecureItem.mockResolvedValue()
+  mockDeleteSecureItem.mockResolvedValue()
   global.fetch = jest.fn()
 })
 
@@ -56,7 +65,7 @@ describe('loginWithCredentials', () => {
     const result = await loginWithCredentials('user', 'pass')
     expect(result.accessToken).toBe('at-123')
     expect(result.refreshToken).toBe('rt-456')
-    expect(AsyncStorage.setItem).toHaveBeenCalledWith('candid_refresh_token', 'rt-456')
+    expect(mockSetSecureItem).toHaveBeenCalledWith('candid_refresh_token', 'rt-456')
   })
 
   it('throws on error response', async () => {
@@ -108,7 +117,7 @@ describe('login (PKCE flow)', () => {
     const result = await login()
     expect(result.accessToken).toBe('at-pkce')
     expect(result.refreshToken).toBe('rt-pkce')
-    expect(AsyncStorage.setItem).toHaveBeenCalledWith('candid_refresh_token', 'rt-pkce')
+    expect(mockSetSecureItem).toHaveBeenCalledWith('candid_refresh_token', 'rt-pkce')
   })
 
   it('throws on cancel', async () => {
@@ -151,7 +160,7 @@ describe('refreshToken', () => {
   })
 
   it('returns new tokens on success', async () => {
-    AsyncStorage.getItem.mockImplementation((key) => {
+    mockGetSecureItem.mockImplementation((key) => {
       if (key === 'candid_refresh_token') return Promise.resolve('old-rt')
       return Promise.resolve(null)
     })
@@ -163,11 +172,11 @@ describe('refreshToken', () => {
     const result = await refreshToken()
     expect(result.accessToken).toBe('new-at')
     expect(result.refreshToken).toBe('new-rt')
-    expect(AsyncStorage.setItem).toHaveBeenCalledWith('candid_refresh_token', 'new-rt')
+    expect(mockSetSecureItem).toHaveBeenCalledWith('candid_refresh_token', 'new-rt')
   })
 
   it('returns null and clears token on failure', async () => {
-    AsyncStorage.getItem.mockImplementation((key) => {
+    mockGetSecureItem.mockImplementation((key) => {
       if (key === 'candid_refresh_token') return Promise.resolve('old-rt')
       return Promise.resolve(null)
     })
@@ -175,18 +184,18 @@ describe('refreshToken', () => {
 
     const result = await refreshToken()
     expect(result).toBeNull()
-    expect(AsyncStorage.removeItem).toHaveBeenCalledWith('candid_refresh_token')
+    expect(mockDeleteSecureItem).toHaveBeenCalledWith('candid_refresh_token')
   })
 })
 
 describe('logout', () => {
   it('removes refresh token from storage', async () => {
     await logout()
-    expect(AsyncStorage.removeItem).toHaveBeenCalledWith('candid_refresh_token')
+    expect(mockDeleteSecureItem).toHaveBeenCalledWith('candid_refresh_token')
   })
 
   it('calls end-session endpoint when refresh token exists', async () => {
-    AsyncStorage.getItem.mockImplementation((key) => {
+    mockGetSecureItem.mockImplementation((key) => {
       if (key === 'candid_refresh_token') return Promise.resolve('rt-to-revoke')
       return Promise.resolve(null)
     })
@@ -200,7 +209,7 @@ describe('logout', () => {
   })
 
   it('tolerates fetch failure during logout', async () => {
-    AsyncStorage.getItem.mockImplementation((key) => {
+    mockGetSecureItem.mockImplementation((key) => {
       if (key === 'candid_refresh_token') return Promise.resolve('rt')
       return Promise.resolve(null)
     })
@@ -208,6 +217,6 @@ describe('logout', () => {
 
     // Should not throw
     await logout()
-    expect(AsyncStorage.removeItem).toHaveBeenCalledWith('candid_refresh_token')
+    expect(mockDeleteSecureItem).toHaveBeenCalledWith('candid_refresh_token')
   })
 })

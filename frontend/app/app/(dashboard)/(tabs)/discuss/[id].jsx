@@ -25,6 +25,7 @@ import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../../../hooks/useThemeColors'
 import useIsDesktop from '../../../../hooks/useIsDesktop'
 import { useAuth } from '../../../../contexts/UserContext'
+import { useLocationSession } from '../../../../contexts/LocationSessionContext'
 import { hasQAAuthority } from '../../../../lib/roles'
 import useModerateChecker from '../../../../hooks/useModerateChecker'
 import { Spacing, BorderRadius, Shadows } from '../../../../constants/Theme'
@@ -72,6 +73,7 @@ export default function PostDetail() {
   const threadDepthLimit = isDesktop ? THREAD_DEPTH_LIMIT_DESKTOP : THREAD_DEPTH_LIMIT
   const styles = useMemo(() => createStyles(colors), [colors])
   const { user } = useAuth()
+  const { isReadOnly, viewingStage } = useLocationSession()
   const showToast = useToast()
 
   // Post state
@@ -337,11 +339,7 @@ export default function PostDetail() {
   const handleTogglePostMute = useCallback(async (mute) => {
     setPostMuted(mute)
     try {
-      if (mute) {
-        await api.users.muteNotifications({ targetType: 'post', targetId: postId })
-      } else {
-        await api.users.unmuteNotifications({ targetType: 'post', targetId: postId })
-      }
+      await api.users.updateNotificationMute({ targetType: 'post', targetId: postId, muted: mute })
     } catch {
       setPostMuted(!mute)
     }
@@ -357,11 +355,7 @@ export default function PostDetail() {
       return next
     })
     try {
-      if (mute) {
-        await api.users.muteNotifications({ targetType: 'comment', targetId: commentId })
-      } else {
-        await api.users.unmuteNotifications({ targetType: 'comment', targetId: commentId })
-      }
+      await api.users.updateNotificationMute({ targetType: 'comment', targetId: commentId, muted: mute })
     } catch {
       // Revert on failure
       setMutedCommentIds(prev => {
@@ -376,7 +370,7 @@ export default function PostDetail() {
 
   // Report / moderate state
   const checkModerateScope = useModerateChecker()
-  const userCanModerate = post ? checkModerateScope(post.location?.id, post.category?.id) : false
+  const userCanModerate = post ? checkModerateScope(post.location?.id, post.session?.id) : false
   const [reportTarget, setReportTarget] = useState(null)
   const [reportModalVisible, setReportModalVisible] = useState(false)
   const [moderateTarget, setModerateTarget] = useState(null)
@@ -425,7 +419,7 @@ export default function PostDetail() {
   const handleModerateActionSubmit = useCallback(async (actionData) => {
     if (!moderateTarget || !moderateRule) return
     try {
-      await api.moderation.inlineAction({
+      await api.moderation.createAction({
         targetType: moderateTarget.type,
         targetId: moderateTarget.id,
         ruleId: moderateRule.id,
@@ -872,6 +866,7 @@ export default function PostDetail() {
     canModerate: userCanModerate,
     depthLimit: threadDepthLimit,
     glossaryRules,
+    isReadOnly,
     // Inline reply (desktop only)
     inlineReplyTarget: isDesktop ? replyingTo : null,
     inlineReplyProps: isDesktop && replyingTo ? {
@@ -930,12 +925,14 @@ export default function PostDetail() {
   }
 
   // Determine input state (inline bar is for top-level comments only)
-  const inputDisabled = isPostLocked || !canPostTopLevel
-  const inputPlaceholder = isPostLocked
-    ? t('postLocked')
-    : !canPostTopLevel
-      ? t('qaOnlyExperts')
-      : t('addComment')
+  const inputDisabled = isPostLocked || !canPostTopLevel || isReadOnly
+  const inputPlaceholder = isReadOnly
+    ? t('common:stageReadOnly')
+    : isPostLocked
+      ? t('postLocked')
+      : !canPostTopLevel
+        ? t('qaOnlyExperts')
+        : t('addComment')
 
   // List header: post + comment header
   const ListHeader = (
@@ -956,6 +953,7 @@ export default function PostDetail() {
           onReport={handleReportPost}
           onModerate={handleModeratePost}
           glossaryRules={glossaryRules}
+          readOnly={isReadOnly}
         />
       </View>
       {isDesktop && !inputDisabled && (
@@ -1340,6 +1338,7 @@ const ChainBlock = memo(function ChainBlock({ chain, handlersRef, mutedCommentId
               onModerate={h.onModerate}
               depthLimit={h.depthLimit}
               glossaryRules={h.glossaryRules}
+              readOnly={h.isReadOnly}
             />
             {/* Inline reply composer (desktop only) — rendered at reply depth with thread lines */}
             {showReply && (

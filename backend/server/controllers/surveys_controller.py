@@ -14,26 +14,13 @@ from candid.models.user import User  # noqa: E501
 from candid import util
 
 from candid.controllers import db
-from candid.controllers.helpers.auth import authorization, authorization_allow_banned, token_to_user
+from candid.controllers.helpers.auth import authorization, authorization_allow_banned, require_auth, token_to_user
 from candid.controllers.helpers.pairwise_graph import (
     build_victory_matrix,
     find_condorcet_winner,
     ranked_pairs_ordering,
 )
-def _get_user_card(user_id):
-    """Helper to fetch and return a User model for API responses."""
-    user = db.execute_query("""
-        SELECT id, username, display_name, status
-        FROM users WHERE id = %s
-    """, (user_id,), fetchone=True)
-    if user is not None:
-        return User(
-            id=str(user['id']),
-            username=user['username'],
-            display_name=user['display_name'],
-            status=user['status'],
-        )
-    return None
+from candid.controllers.helpers.serializers import get_user_card as _get_user_card
 
 
 def _get_group_member_user_ids(polis_conversation_id, group_id):
@@ -91,7 +78,7 @@ def _get_group_member_user_ids(polis_conversation_id, group_id):
 def _build_survey_with_nested_data(survey_id):
     """Fetch survey with creator User, questions, and options nested."""
     survey_row = db.execute_query("""
-        SELECT id, creator_user_id, position_category_id, survey_title,
+        SELECT id, creator_user_id, session_id, survey_title,
                created_time, start_time, end_time, status
         FROM survey WHERE id = %s
     """, (survey_id,), fetchone=True)
@@ -138,7 +125,7 @@ def _build_survey_with_nested_data(survey_id):
     return Survey(
         id=str(survey_row['id']),
         creator=creator,
-        position_category_id=str(survey_row['position_category_id']) if survey_row['position_category_id'] else None,
+        session_id=str(survey_row['session_id']) if survey_row['session_id'] else None,
         survey_title=survey_row['survey_title'],
         created_time=survey_row['created_time'],
         start_time=survey_row['start_time'],
@@ -147,7 +134,8 @@ def _build_survey_with_nested_data(survey_id):
     )
 
 
-def get_active_surveys(location_id=None, category_id=None, token_info=None):  # noqa: E501
+@require_auth("normal", allow_banned=True)
+def get_active_surveys(location_id=None, session_id=None, token_info=None, user_id=None):  # noqa: E501
     """Get a list of standard surveys
 
     Returns standard surveys for the given location and all parent locations.
@@ -155,14 +143,11 @@ def get_active_surveys(location_id=None, category_id=None, token_info=None):  # 
 
     :param location_id: Filter by location ID (includes parent locations)
     :type location_id: str
-    :param category_id: Filter by category ID
-    :type category_id: str
+    :param session_id: Filter by session ID
+    :type session_id: str
 
     :rtype: Union[List[dict], Tuple[List[dict], int]]
     """
-    authorized, auth_err = authorization_allow_banned("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
 
     # Build location hierarchy (this location and all parent locations)
     location_ids = []
@@ -187,22 +172,22 @@ def get_active_surveys(location_id=None, category_id=None, token_info=None):  # 
         query = """
             SELECT DISTINCT s.id, s.survey_title, s.survey_type,
                    s.start_time, s.end_time, s.status, s.created_time,
-                   s.location_id, s.position_category_id,
+                   s.location_id, s.session_id,
                    loc.code as location_code, loc.name as location_name,
-                   pc.label as category_name
+                   pc.label as session_name
             FROM survey s
             LEFT JOIN location loc ON s.location_id = loc.id
-            LEFT JOIN position_category pc ON s.position_category_id = pc.id
+            LEFT JOIN session pc ON s.session_id = pc.id
             WHERE s.survey_type = 'standard'
               AND s.status != 'deleted'
               AND (s.location_id = ANY(%s::uuid[]) OR s.location_id IS NULL)
         """
         params = [location_ids]
 
-        if category_id and category_id != 'all':
-            # Show surveys for this category OR surveys with no category
-            query += " AND (s.position_category_id = %s OR s.position_category_id IS NULL)"
-            params.append(category_id)
+        if session_id and session_id != 'all':
+            # Show surveys for this session OR surveys with no session
+            query += " AND (s.session_id = %s OR s.session_id IS NULL)"
+            params.append(session_id)
         # When viewing "all", show all standard surveys (no category filter)
 
         # Order by end_time desc (active surveys with future end_time first)
@@ -212,19 +197,19 @@ def get_active_surveys(location_id=None, category_id=None, token_info=None):  # 
         query = """
             SELECT DISTINCT s.id, s.survey_title, s.survey_type,
                    s.start_time, s.end_time, s.status, s.created_time,
-                   s.location_id, s.position_category_id,
+                   s.location_id, s.session_id,
                    loc.code as location_code, loc.name as location_name,
-                   pc.label as category_name
+                   pc.label as session_name
             FROM survey s
             LEFT JOIN location loc ON s.location_id = loc.id
-            LEFT JOIN position_category pc ON s.position_category_id = pc.id
+            LEFT JOIN session pc ON s.session_id = pc.id
             WHERE s.survey_type = 'standard'
               AND s.status != 'deleted'
         """
         params = []
-        if category_id and category_id != 'all':
-            query += " AND (s.position_category_id = %s OR s.position_category_id IS NULL)"
-            params.append(category_id)
+        if session_id and session_id != 'all':
+            query += " AND (s.session_id = %s OR s.session_id IS NULL)"
+            params.append(session_id)
         query += " ORDER BY s.end_time DESC NULLS LAST, s.created_time DESC"
         survey_rows = db.execute_query(query, tuple(params) if params else None)
 
@@ -245,8 +230,8 @@ def get_active_surveys(location_id=None, category_id=None, token_info=None):  # 
             "locationId": str(s["location_id"]) if s["location_id"] else None,
             "locationCode": s["location_code"],
             "locationName": s["location_name"],
-            "categoryId": str(s["position_category_id"]) if s["position_category_id"] else None,
-            "categoryName": s["category_name"],
+            "sessionId": str(s["session_id"]) if s["session_id"] else None,
+            "sessionName": s["session_name"],
             "questionCount": questions["count"] if questions else 0,
             "startTime": s["start_time"].isoformat() if s["start_time"] else None,
             "endTime": s["end_time"].isoformat() if s["end_time"] else None,
@@ -260,7 +245,8 @@ def get_active_surveys(location_id=None, category_id=None, token_info=None):  # 
     return result
 
 
-def get_survey_by_id(survey_id, token_info=None):  # noqa: E501
+@require_auth("normal", allow_banned=True)
+def get_survey_by_id(survey_id, token_info=None, user_id=None):  # noqa: E501
     """Get a specific survey
 
      # noqa: E501
@@ -271,9 +257,6 @@ def get_survey_by_id(survey_id, token_info=None):  # noqa: E501
 
     :rtype: Union[Survey, Tuple[Survey, int], Tuple[Survey, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization_allow_banned("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
 
     # Check if survey exists and is accessible (active and within time window)
     survey_check = db.execute_query("""
@@ -301,7 +284,8 @@ def get_survey_by_id(survey_id, token_info=None):  # noqa: E501
     return survey
 
 
-def respond_to_survey_question(survey_id, question_id, body, token_info=None):  # noqa: E501
+@require_auth("normal")
+def respond_to_survey_question(survey_id, question_id, body, token_info=None, user_id=None):  # noqa: E501
     """Respond to a survey question
 
      # noqa: E501
@@ -317,10 +301,6 @@ def respond_to_survey_question(survey_id, question_id, body, token_info=None):  
 
     :rtype: Union[SurveyQuestionResponse, Tuple[SurveyQuestionResponse, int], Tuple[SurveyQuestionResponse, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
     user = token_to_user(token_info)
 
     respond_to_survey_question_request = body
@@ -448,7 +428,8 @@ def _compute_survey_status_info(start_time, end_time, status):
     return result
 
 
-def get_pairwise_surveys(location_id=None, category_id=None, token_info=None):  # noqa: E501
+@require_auth("normal", allow_banned=True)
+def get_pairwise_surveys(location_id=None, session_id=None, token_info=None, user_id=None):  # noqa: E501
     """Get list of pairwise surveys
 
     Returns pairwise surveys for the given location and all parent locations.
@@ -456,14 +437,11 @@ def get_pairwise_surveys(location_id=None, category_id=None, token_info=None):  
 
     :param location_id: Filter by location ID (includes parent locations)
     :type location_id: str
-    :param category_id: Filter by category ID
-    :type category_id: str
+    :param session_id: Filter by session ID
+    :type session_id: str
 
     :rtype: Union[List[dict], Tuple[List[dict], int]]
     """
-    authorized, auth_err = authorization_allow_banned("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
 
     # Build location hierarchy (this location and all parent locations)
     location_ids = []
@@ -488,12 +466,12 @@ def get_pairwise_surveys(location_id=None, category_id=None, token_info=None):  
         query = """
             SELECT DISTINCT s.id, s.survey_title, s.comparison_question, s.survey_type,
                    s.polis_conversation_id, s.start_time, s.end_time, s.status, s.created_time,
-                   s.location_id, s.position_category_id,
+                   s.location_id, s.session_id,
                    loc.code as location_code, loc.name as location_name,
-                   pc.label as category_name
+                   pc.label as session_name
             FROM survey s
             LEFT JOIN location loc ON s.location_id = loc.id
-            LEFT JOIN position_category pc ON s.position_category_id = pc.id
+            LEFT JOIN session pc ON s.session_id = pc.id
             WHERE s.survey_type = 'pairwise'
               AND s.status != 'deleted'
               AND s.is_group_labeling = false
@@ -501,10 +479,10 @@ def get_pairwise_surveys(location_id=None, category_id=None, token_info=None):  
         """
         params = [location_ids]
 
-        if category_id and category_id != 'all':
-            # Show surveys for this category OR surveys with no category
-            query += " AND (s.position_category_id = %s OR s.position_category_id IS NULL)"
-            params.append(category_id)
+        if session_id and session_id != 'all':
+            # Show surveys for this session OR surveys with no session
+            query += " AND (s.session_id = %s OR s.session_id IS NULL)"
+            params.append(session_id)
         # When viewing "all", show all pairwise surveys (no category filter)
 
         # Order by end_time desc (active surveys with future end_time first)
@@ -514,20 +492,20 @@ def get_pairwise_surveys(location_id=None, category_id=None, token_info=None):  
         query = """
             SELECT DISTINCT s.id, s.survey_title, s.comparison_question, s.survey_type,
                    s.polis_conversation_id, s.start_time, s.end_time, s.status, s.created_time,
-                   s.location_id, s.position_category_id,
+                   s.location_id, s.session_id,
                    loc.code as location_code, loc.name as location_name,
-                   pc.label as category_name
+                   pc.label as session_name
             FROM survey s
             LEFT JOIN location loc ON s.location_id = loc.id
-            LEFT JOIN position_category pc ON s.position_category_id = pc.id
+            LEFT JOIN session pc ON s.session_id = pc.id
             WHERE s.survey_type = 'pairwise'
               AND s.status != 'deleted'
               AND s.is_group_labeling = false
         """
         params = []
-        if category_id and category_id != 'all':
-            query += " AND (s.position_category_id = %s OR s.position_category_id IS NULL)"
-            params.append(category_id)
+        if session_id and session_id != 'all':
+            query += " AND (s.session_id = %s OR s.session_id IS NULL)"
+            params.append(session_id)
         # When viewing "all", show all pairwise surveys (no category filter)
 
         query += " ORDER BY s.end_time DESC NULLS LAST, s.created_time DESC"
@@ -555,8 +533,8 @@ def get_pairwise_surveys(location_id=None, category_id=None, token_info=None):  
             "locationId": str(s["location_id"]) if s["location_id"] else None,
             "locationCode": s["location_code"],
             "locationName": s["location_name"],
-            "categoryId": str(s["position_category_id"]) if s["position_category_id"] else None,
-            "categoryName": s["category_name"],
+            "sessionId": str(s["session_id"]) if s["session_id"] else None,
+            "sessionName": s["session_name"],
             "items": [
                 {"id": str(i["id"]), "text": i["item_text"], "order": i["item_order"]}
                 for i in (items or [])
@@ -573,7 +551,8 @@ def get_pairwise_surveys(location_id=None, category_id=None, token_info=None):  
     return result
 
 
-def get_survey_rankings(survey_id, filter_location_id=None, group_id=None, polis_conversation_id=None, token_info=None):  # noqa: E501
+@require_auth("normal", allow_banned=True)
+def get_survey_rankings(survey_id, filter_location_id=None, group_id=None, polis_conversation_id=None, token_info=None, user_id=None):  # noqa: E501
     """Get rankings from a pairwise survey
 
     Returns overall rankings and per-group rankings if the survey is linked
@@ -592,9 +571,6 @@ def get_survey_rankings(survey_id, filter_location_id=None, group_id=None, polis
 
     :rtype: Union[dict, Tuple[dict, int]]
     """
-    authorized, auth_err = authorization_allow_banned("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
 
     # Get survey info
     survey = db.execute_query("""
@@ -790,7 +766,8 @@ def get_survey_rankings(survey_id, filter_location_id=None, group_id=None, polis
     return result
 
 
-def respond_to_pairwise(survey_id, body, token_info=None):  # noqa: E501
+@require_auth("normal")
+def respond_to_pairwise(survey_id, body, token_info=None, user_id=None):  # noqa: E501
     """Submit a pairwise comparison response
 
      # noqa: E501
@@ -802,10 +779,6 @@ def respond_to_pairwise(survey_id, body, token_info=None):  # noqa: E501
 
     :rtype: Union[dict, Tuple[dict, int], Tuple[dict, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
     user = token_to_user(token_info)
 
     # Parse request body
@@ -885,7 +858,8 @@ def respond_to_pairwise(survey_id, body, token_info=None):  # noqa: E501
     return {"success": True}
 
 
-def get_standard_survey_results(survey_id, filter_location_id=None, group_id=None, polis_conversation_id=None, token_info=None):  # noqa: E501
+@require_auth("normal", allow_banned=True)
+def get_standard_survey_results(survey_id, filter_location_id=None, group_id=None, polis_conversation_id=None, token_info=None, user_id=None):  # noqa: E501
     """Get results from a standard survey
 
     Returns response counts per option for each question. If filter_location_id
@@ -903,9 +877,6 @@ def get_standard_survey_results(survey_id, filter_location_id=None, group_id=Non
 
     :rtype: Union[dict, Tuple[dict, int]]
     """
-    authorized, auth_err = authorization_allow_banned("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
 
     # Get survey info
     survey = db.execute_query("""
@@ -1069,7 +1040,8 @@ DEMOGRAPHIC_LABELS = {
 }
 
 
-def get_question_crosstabs(survey_id, question_id, filter_location_id=None, group_id=None, polis_conversation_id=None, token_info=None):  # noqa: E501
+@require_auth("normal", allow_banned=True)
+def get_question_crosstabs(survey_id, question_id, filter_location_id=None, group_id=None, polis_conversation_id=None, token_info=None, user_id=None):  # noqa: E501
     """Get demographic crosstabs for a survey question
 
     Returns response counts broken down by demographic categories.
@@ -1087,9 +1059,6 @@ def get_question_crosstabs(survey_id, question_id, filter_location_id=None, grou
 
     :rtype: Union[dict, Tuple[dict, int]]
     """
-    authorized, auth_err = authorization_allow_banned("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
 
     # Validate survey exists
     survey = db.execute_query("""

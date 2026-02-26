@@ -844,7 +844,7 @@ class TestCardQueueComposition:
         assert len(resp.json()) <= 2
 
     def test_position_cards_have_expected_fields(self, normal2_headers):
-        """Position cards have type, id, statement, category, availability, userPositionId."""
+        """Position cards have type, id, statement, session, availability, userPositionId."""
         resp = requests.get(CARD_QUEUE_URL, headers=normal2_headers, params={"limit": 20})
         assert resp.status_code == 200
         cards = resp.json()
@@ -857,8 +857,8 @@ class TestCardQueueComposition:
             assert "availability" in data
             assert "userPositionId" in data
 
-    def test_chat_request_not_in_card_queue(self, normal1_headers, normal2_headers):
-        """Chat requests are no longer included in card queue (delivered via socket instead)."""
+    def test_chat_request_in_card_queue_as_fallback(self, normal1_headers, normal2_headers):
+        """Pending chat requests appear in card queue as fallback for missed real-time delivery."""
         resp = requests.post(
             CHAT_REQUESTS_URL,
             headers=normal2_headers,
@@ -866,12 +866,12 @@ class TestCardQueueComposition:
         )
         assert resp.status_code == 201
 
-        # Normal1 fetches queue - should NOT contain chat_request cards
+        # Normal1 fetches queue - should contain chat_request as fallback
         resp = requests.get(CARD_QUEUE_URL, headers=normal1_headers, params={"limit": 20})
         assert resp.status_code == 200
         cards = resp.json()
         chat_req_cards = [c for c in cards if c.get("type") == "chat_request"]
-        assert len(chat_req_cards) == 0
+        assert len(chat_req_cards) >= 1
 
     def test_queue_includes_position_type(self, normal2_headers):
         """Card queue includes at least position-type cards."""
@@ -1225,13 +1225,12 @@ class TestFullLifecycle:
         )
         assert row["delivery_context"] == "swiping"
 
-        # 5. Chat requests are now delivered via socket (not in card queue)
-        # Verify card queue does NOT include chat_request cards
+        # 5. Pending chat requests appear in card queue as fallback
         resp = requests.get(CARD_QUEUE_URL, headers=normal1_headers, params={"limit": 20})
         assert resp.status_code == 200
         cards = resp.json()
         cr_cards = [c for c in cards if c.get("type") == "chat_request"]
-        assert len(cr_cards) == 0
+        assert len(cr_cards) >= 1
 
         # 6. Normal1 accepts
         resp = requests.patch(

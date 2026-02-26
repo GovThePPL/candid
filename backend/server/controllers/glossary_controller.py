@@ -10,21 +10,39 @@ from flask import make_response
 from candid.models.error_model import ErrorModel
 from candid.controllers import db
 from candid.controllers.helpers.auth import (
-    authorization, authorization_allow_banned,
-    get_location_ancestors, get_location_descendants, is_root_admin,
+    require_auth,
+    get_location_ancestors, get_location_descendants,
+)
+from candid.controllers.helpers.rate_limiting import check_rate_limit
+from candid.controllers.helpers.wiki import (
+    _find_suggestion_reviewers,
+    _user_can_review_suggestion,
+    _format_suggestion,
+    _snapshot_scopes,
+    _supersede_pending_for_item,
+    _supersede_pending_new_by_slug,
+    _apply_suggestion,
+    _extract_image_ids,
+    _cleanup_orphan_images,
+    _SUGGESTION_SELECT,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _sanitize_text(text):
+    """Remove HTML tags from plain text fields (titles, descriptions)."""
+    if not text:
+        return text
+    return re.sub(r'<[^>]+>', '', text).strip()
 
 # ---------------------------------------------------------------------------
 # Glossary endpoints (for highlighting)
 # ---------------------------------------------------------------------------
 
-def get_glossary_terms(token_info=None, location_id=None):
+@require_auth("normal", allow_banned=True)
+def get_glossary_terms(token_info=None, user_id=None, location_id=None, offset=0, limit=200):
     """GET /glossary/terms — lightweight term list for highlighting."""
-    ok, err = authorization_allow_banned("normal", token_info)
-    if not ok:
-        return err, err.code
 
     # Build query: get all terms with their scope tags aggregated
     if location_id:
@@ -37,7 +55,7 @@ def get_glossary_terms(token_info=None, location_id=None):
         rows = db.execute_query("""
             SELECT gt.slug, gt.term, gt.aliases, gt.summary, gt.wiki_category, gt.scope_combine,
                    COALESCE(array_agg(DISTINCT gts.scope_id::text) FILTER (WHERE gts.scope_type = 'location'), ARRAY[]::text[]) AS location_ids,
-                   COALESCE(array_agg(DISTINCT gts.scope_id::text) FILTER (WHERE gts.scope_type = 'category'), ARRAY[]::text[]) AS category_ids
+                   COALESCE(array_agg(DISTINCT gts.scope_id::text) FILTER (WHERE gts.scope_type = 'session'), ARRAY[]::text[]) AS session_ids
             FROM glossary_term gt
             LEFT JOIN glossary_term_scope gts ON gts.term_id = gt.id
             WHERE NOT EXISTS (
@@ -50,17 +68,19 @@ def get_glossary_terms(token_info=None, location_id=None):
             )
             GROUP BY gt.id
             ORDER BY gt.term
-        """, (ancestors,))
+            LIMIT %s OFFSET %s
+        """, (ancestors, min(max(limit or 200, 1), 500), max(offset or 0, 0)))
     else:
         rows = db.execute_query("""
             SELECT gt.slug, gt.term, gt.aliases, gt.summary, gt.wiki_category, gt.scope_combine,
                    COALESCE(array_agg(DISTINCT gts.scope_id::text) FILTER (WHERE gts.scope_type = 'location'), ARRAY[]::text[]) AS location_ids,
-                   COALESCE(array_agg(DISTINCT gts.scope_id::text) FILTER (WHERE gts.scope_type = 'category'), ARRAY[]::text[]) AS category_ids
+                   COALESCE(array_agg(DISTINCT gts.scope_id::text) FILTER (WHERE gts.scope_type = 'session'), ARRAY[]::text[]) AS session_ids
             FROM glossary_term gt
             LEFT JOIN glossary_term_scope gts ON gts.term_id = gt.id
             GROUP BY gt.id
             ORDER BY gt.term
-        """)
+            LIMIT %s OFFSET %s
+        """, (min(max(limit or 200, 1), 500), max(offset or 0, 0)))
 
     terms = []
     for row in (rows or []):
@@ -72,25 +92,21 @@ def get_glossary_terms(token_info=None, location_id=None):
             "wikiCategory": row.get("wiki_category"),
             "scopeCombine": row.get("scope_combine", "or"),
             "locationIds": list(row.get("location_ids") or []),
-            "categoryIds": list(row.get("category_ids") or []),
+            "sessionIds": list(row.get("session_ids") or []),
         })
 
     return terms, 200, {"Cache-Control": "public, max-age=600"}
 
 
-def get_glossary_term(slug, token_info=None):
+@require_auth("normal", allow_banned=True)
+def get_glossary_term(slug, token_info=None, user_id=None):
     """GET /glossary/terms/{slug} — full definition for drawer."""
-    ok, err = authorization_allow_banned("normal", token_info)
-    if not ok:
-        return err, err.code
-
-    user_id = token_info["sub"]
 
     row = db.execute_query("""
         SELECT gt.slug, gt.term, gt.aliases, gt.summary, gt.content,
                gt.wiki_category, gt.scope_combine, gt.updated_at,
                COALESCE(array_agg(DISTINCT gts.scope_id::text) FILTER (WHERE gts.scope_type = 'location'), ARRAY[]::text[]) AS location_ids,
-               COALESCE(array_agg(DISTINCT gts.scope_id::text) FILTER (WHERE gts.scope_type = 'category'), ARRAY[]::text[]) AS category_ids
+               COALESCE(array_agg(DISTINCT gts.scope_id::text) FILTER (WHERE gts.scope_type = 'session'), ARRAY[]::text[]) AS session_ids
         FROM glossary_term gt
         LEFT JOIN glossary_term_scope gts ON gts.term_id = gt.id
         WHERE gt.slug = %s
@@ -104,8 +120,8 @@ def get_glossary_term(slug, token_info=None):
     proposed_scopes = []
     for lid in (row.get("location_ids") or []):
         proposed_scopes.append({"type": "location", "id": lid})
-    for cid in (row.get("category_ids") or []):
-        proposed_scopes.append({"type": "category", "id": cid})
+    for cid in (row.get("session_ids") or []):
+        proposed_scopes.append({"type": "session", "id": cid})
     can_edit = _user_can_review_suggestion(user_id, proposed_scopes)
 
     return {
@@ -117,7 +133,7 @@ def get_glossary_term(slug, token_info=None):
         "wikiCategory": row.get("wiki_category"),
         "scopeCombine": row.get("scope_combine", "or"),
         "locationIds": list(row.get("location_ids") or []),
-        "categoryIds": list(row.get("category_ids") or []),
+        "sessionIds": list(row.get("session_ids") or []),
         "updatedAt": row["updated_at"].isoformat() if row.get("updated_at") else None,
         "canEdit": can_edit,
     }, 200
@@ -127,12 +143,11 @@ def get_glossary_term(slug, token_info=None):
 # Wiki browsing endpoints (native PostgreSQL)
 # ---------------------------------------------------------------------------
 
-def get_wiki_pages(token_info=None, category=None, search=None,
-                    location_id=None, category_id=None):
+@require_auth("normal", allow_banned=True)
+def get_wiki_pages(token_info=None, user_id=None, category=None, search=None,
+                    location_id=None, session_id=None,
+                    offset=0, limit=50):
     """GET /wiki/pages — browsable page list."""
-    ok, err = authorization_allow_banned("normal", token_info)
-    if not ok:
-        return err, err.code
 
     conditions = []
     params = []
@@ -156,28 +171,29 @@ def get_wiki_pages(token_info=None, category=None, search=None,
         """)
         params.append(descendants)
 
-    if category_id:
+    if session_id:
         conditions.append("""
             EXISTS (
                 SELECT 1 FROM wiki_page_scope wps
-                WHERE wps.page_id = wp.id AND wps.scope_type = 'category'
+                WHERE wps.page_id = wp.id AND wps.scope_type = 'session'
                 AND wps.scope_id = %s
             )
         """)
-        params.append(category_id)
+        params.append(session_id)
 
     where = " AND ".join(conditions) if conditions else "TRUE"
 
     rows = db.execute_query(f"""
         SELECT wp.id, wp.slug, wp.title, wp.description, wp.wiki_category, wp.updated_at,
                COALESCE(array_agg(DISTINCT wps.scope_id::text) FILTER (WHERE wps.scope_type = 'location'), ARRAY[]::text[]) AS location_ids,
-               COALESCE(array_agg(DISTINCT wps.scope_id::text) FILTER (WHERE wps.scope_type = 'category'), ARRAY[]::text[]) AS category_ids
+               COALESCE(array_agg(DISTINCT wps.scope_id::text) FILTER (WHERE wps.scope_type = 'session'), ARRAY[]::text[]) AS session_ids
         FROM wiki_page wp
         LEFT JOIN wiki_page_scope wps ON wps.page_id = wp.id
         WHERE {where}
         GROUP BY wp.id
         ORDER BY wp.title
-    """, tuple(params) if params else None)
+        LIMIT %s OFFSET %s
+    """, tuple(params) + (min(max(limit or 50, 1), 100), max(offset or 0, 0)))
 
     result = []
     for row in (rows or []):
@@ -188,26 +204,22 @@ def get_wiki_pages(token_info=None, category=None, search=None,
             "description": row.get("description"),
             "wikiCategory": row.get("wiki_category"),
             "locationIds": list(row.get("location_ids") or []),
-            "categoryIds": list(row.get("category_ids") or []),
+            "sessionIds": list(row.get("session_ids") or []),
             "updatedAt": row["updated_at"].isoformat() if row.get("updated_at") else None,
         })
 
     return result, 200, {"Cache-Control": "public, max-age=300"}
 
 
-def get_wiki_page(slug, token_info=None):
+@require_auth("normal", allow_banned=True)
+def get_wiki_page(slug, token_info=None, user_id=None):
     """GET /wiki/pages/{slug} — full page content."""
-    ok, err = authorization_allow_banned("normal", token_info)
-    if not ok:
-        return err, err.code
-
-    user_id = token_info["sub"]
 
     row = db.execute_query("""
         SELECT wp.id, wp.slug, wp.title, wp.description, wp.content,
                wp.wiki_category, wp.scope_combine, wp.updated_at,
                COALESCE(array_agg(DISTINCT wps.scope_id::text) FILTER (WHERE wps.scope_type = 'location'), ARRAY[]::text[]) AS location_ids,
-               COALESCE(array_agg(DISTINCT wps.scope_id::text) FILTER (WHERE wps.scope_type = 'category'), ARRAY[]::text[]) AS category_ids
+               COALESCE(array_agg(DISTINCT wps.scope_id::text) FILTER (WHERE wps.scope_type = 'session'), ARRAY[]::text[]) AS session_ids
         FROM wiki_page wp
         LEFT JOIN wiki_page_scope wps ON wps.page_id = wp.id
         WHERE wp.slug = %s
@@ -219,8 +231,8 @@ def get_wiki_page(slug, token_info=None):
         proposed_scopes = []
         for lid in (row.get("location_ids") or []):
             proposed_scopes.append({"type": "location", "id": lid})
-        for cid in (row.get("category_ids") or []):
-            proposed_scopes.append({"type": "category", "id": cid})
+        for cid in (row.get("session_ids") or []):
+            proposed_scopes.append({"type": "session", "id": cid})
         can_edit = _user_can_review_suggestion(user_id, proposed_scopes)
 
         return {
@@ -232,7 +244,7 @@ def get_wiki_page(slug, token_info=None):
             "wikiCategory": row.get("wiki_category"),
             "scopeCombine": row.get("scope_combine", "or"),
             "locationIds": list(row.get("location_ids") or []),
-            "categoryIds": list(row.get("category_ids") or []),
+            "sessionIds": list(row.get("session_ids") or []),
             "updatedAt": row["updated_at"].isoformat() if row.get("updated_at") else None,
             "canEdit": can_edit,
         }, 200, {"Cache-Control": "public, max-age=600"}
@@ -242,7 +254,7 @@ def get_wiki_page(slug, token_info=None):
         SELECT gt.id, gt.slug, gt.term, gt.summary, gt.content,
                gt.wiki_category, gt.scope_combine, gt.updated_at,
                COALESCE(array_agg(DISTINCT gts.scope_id::text) FILTER (WHERE gts.scope_type = 'location'), ARRAY[]::text[]) AS location_ids,
-               COALESCE(array_agg(DISTINCT gts.scope_id::text) FILTER (WHERE gts.scope_type = 'category'), ARRAY[]::text[]) AS category_ids
+               COALESCE(array_agg(DISTINCT gts.scope_id::text) FILTER (WHERE gts.scope_type = 'session'), ARRAY[]::text[]) AS session_ids
         FROM glossary_term gt
         LEFT JOIN glossary_term_scope gts ON gts.term_id = gt.id
         WHERE gt.slug = %s
@@ -256,8 +268,8 @@ def get_wiki_page(slug, token_info=None):
     proposed_scopes = []
     for lid in (term_row.get("location_ids") or []):
         proposed_scopes.append({"type": "location", "id": lid})
-    for cid in (term_row.get("category_ids") or []):
-        proposed_scopes.append({"type": "category", "id": cid})
+    for cid in (term_row.get("session_ids") or []):
+        proposed_scopes.append({"type": "session", "id": cid})
     can_edit = _user_can_review_suggestion(user_id, proposed_scopes)
 
     return {
@@ -269,17 +281,15 @@ def get_wiki_page(slug, token_info=None):
         "wikiCategory": term_row.get("wiki_category"),
         "scopeCombine": term_row.get("scope_combine", "or"),
         "locationIds": list(term_row.get("location_ids") or []),
-        "categoryIds": list(term_row.get("category_ids") or []),
+        "sessionIds": list(term_row.get("session_ids") or []),
         "updatedAt": term_row["updated_at"].isoformat() if term_row.get("updated_at") else None,
         "canEdit": can_edit,
     }, 200, {"Cache-Control": "public, max-age=600"}
 
 
-def get_wiki_categories(token_info=None):
+@require_auth("normal", allow_banned=True)
+def get_wiki_categories(token_info=None, user_id=None):
     """GET /wiki/categories — distinct wiki categories."""
-    ok, err = authorization_allow_banned("normal", token_info)
-    if not ok:
-        return err, err.code
 
     rows = db.execute_query("""
         SELECT DISTINCT wiki_category FROM wiki_page
@@ -298,15 +308,13 @@ def get_wiki_categories(token_info=None):
 # Version history endpoints
 # ---------------------------------------------------------------------------
 
-def get_wiki_page_history(slug, token_info=None):
+@require_auth("normal", allow_banned=True)
+def get_wiki_page_history(slug, token_info=None, user_id=None, offset=0, limit=50):
     """GET /wiki/page/history?slug= — list version history for a wiki page.
 
     Mirrors get_wiki_page fallback: if slug is not in wiki_page, checks
     glossary_term and returns its version history instead.
     """
-    ok, err = authorization_allow_banned("normal", token_info)
-    if not ok:
-        return err, err.code
 
     # Look up page — try wiki_page first, fall back to glossary_term
     page = db.execute_query(
@@ -321,7 +329,8 @@ def get_wiki_page_history(slug, token_info=None):
             LEFT JOIN users u ON u.id = wpv.edited_by
             WHERE wpv.page_id = %s
             ORDER BY wpv.created_at DESC
-        """, (str(page["id"]),))
+            LIMIT %s OFFSET %s
+        """, (str(page["id"]), min(max(limit or 50, 1), 100), max(offset or 0, 0)))
     else:
         # Fallback: check glossary_term (same pattern as get_wiki_page)
         term = db.execute_query(
@@ -337,7 +346,8 @@ def get_wiki_page_history(slug, token_info=None):
             LEFT JOIN users u ON u.id = gtv.edited_by
             WHERE gtv.term_id = %s
             ORDER BY gtv.created_at DESC
-        """, (term["id"],))
+            LIMIT %s OFFSET %s
+        """, (term["id"], min(max(limit or 50, 1), 100), max(offset or 0, 0)))
 
     result = []
     for row in (rows or []):
@@ -356,15 +366,13 @@ def get_wiki_page_history(slug, token_info=None):
     return result, 200
 
 
-def get_wiki_page_version(version_id, slug, token_info=None):
+@require_auth("normal", allow_banned=True)
+def get_wiki_page_version(version_id, slug, token_info=None, user_id=None):
     """GET /wiki/page/history/{versionId}?slug= — version detail with before/after snapshots.
 
     Checks wiki_page_version first, falls back to glossary_term_version
     (mirrors the get_wiki_page fallback pattern).
     """
-    ok, err = authorization_allow_banned("normal", token_info)
-    if not ok:
-        return err, err.code
 
     # Try wiki_page_version first
     version = db.execute_query("""
@@ -511,11 +519,9 @@ def get_wiki_page_version(version_id, slug, token_info=None):
     }, 200
 
 
-def get_glossary_term_history(slug, token_info=None):
+@require_auth("normal", allow_banned=True)
+def get_glossary_term_history(slug, token_info=None, user_id=None):
     """GET /glossary/terms/{slug}/history — list version history for a glossary term."""
-    ok, err = authorization_allow_banned("normal", token_info)
-    if not ok:
-        return err, err.code
 
     term = db.execute_query(
         "SELECT id FROM glossary_term WHERE slug = %s",
@@ -549,11 +555,9 @@ def get_glossary_term_history(slug, token_info=None):
     return result, 200
 
 
-def get_glossary_term_version(slug, version_id, token_info=None):
+@require_auth("normal", allow_banned=True)
+def get_glossary_term_version(slug, version_id, token_info=None, user_id=None):
     """GET /glossary/terms/{slug}/history/{versionId} — version detail with before/after snapshots."""
-    ok, err = authorization_allow_banned("normal", token_info)
-    if not ok:
-        return err, err.code
 
     # Fetch the requested version
     version = db.execute_query("""
@@ -642,20 +646,16 @@ def get_glossary_term_version(slug, version_id, token_info=None):
 # Direct edit endpoints
 # ---------------------------------------------------------------------------
 
-def update_wiki_page(slug, body, token_info=None):
+@require_auth("normal")
+def update_wiki_page(slug, body, token_info=None, user_id=None):
     """PUT /wiki/page?slug= — direct edit by authorized user."""
-    ok, err = authorization("normal", token_info)
-    if not ok:
-        return err, err.code
-
-    user_id = token_info["sub"]
 
     # Fetch existing page
     page = db.execute_query("""
         SELECT wp.id, wp.title, wp.description, wp.content, wp.wiki_category,
                wp.scope_combine, wp.updated_at,
                COALESCE(array_agg(DISTINCT wps.scope_id::text) FILTER (WHERE wps.scope_type = 'location'), ARRAY[]::text[]) AS location_ids,
-               COALESCE(array_agg(DISTINCT wps.scope_id::text) FILTER (WHERE wps.scope_type = 'category'), ARRAY[]::text[]) AS category_ids
+               COALESCE(array_agg(DISTINCT wps.scope_id::text) FILTER (WHERE wps.scope_type = 'session'), ARRAY[]::text[]) AS session_ids
         FROM wiki_page wp
         LEFT JOIN wiki_page_scope wps ON wps.page_id = wp.id
         WHERE wp.slug = %s
@@ -669,8 +669,8 @@ def update_wiki_page(slug, body, token_info=None):
     proposed_scopes = []
     for lid in (page.get("location_ids") or []):
         proposed_scopes.append({"type": "location", "id": lid})
-    for cid in (page.get("category_ids") or []):
-        proposed_scopes.append({"type": "category", "id": cid})
+    for cid in (page.get("session_ids") or []):
+        proposed_scopes.append({"type": "session", "id": cid})
     if not _user_can_review_suggestion(user_id, proposed_scopes):
         return ErrorModel(403, "Not authorized to edit this page"), 403
 
@@ -686,8 +686,8 @@ def update_wiki_page(slug, body, token_info=None):
           scopes_json, page.get("scope_combine", "or"), user_id))
 
     # Update the page
-    new_title = body.get("title") or body.get("proposedTitle") or page["title"]
-    new_description = body.get("description") or body.get("proposedSummary")
+    new_title = _sanitize_text(body.get("title") or body.get("proposedTitle")) or page["title"]
+    new_description = _sanitize_text(body.get("description") or body.get("proposedSummary"))
     new_content = body.get("content") or body.get("proposedContent")
     new_wiki_category = body.get("wikiCategory") or body.get("proposedWikiCategory")
     new_scope_combine = body.get("scopeCombine") or body.get("proposedScopeCombine") or page.get("scope_combine", "or")
@@ -727,20 +727,16 @@ def update_wiki_page(slug, body, token_info=None):
     return get_wiki_page(slug, token_info=token_info)
 
 
-def update_glossary_term(slug, body, token_info=None):
+@require_auth("normal")
+def update_glossary_term(slug, body, token_info=None, user_id=None):
     """PUT /glossary/terms/{slug} — direct edit by authorized user."""
-    ok, err = authorization("normal", token_info)
-    if not ok:
-        return err, err.code
-
-    user_id = token_info["sub"]
 
     # Fetch existing term
     term = db.execute_query("""
         SELECT gt.id, gt.slug, gt.term, gt.aliases, gt.summary, gt.content,
                gt.wiki_category, gt.scope_combine, gt.updated_at,
                COALESCE(array_agg(DISTINCT gts.scope_id::text) FILTER (WHERE gts.scope_type = 'location'), ARRAY[]::text[]) AS location_ids,
-               COALESCE(array_agg(DISTINCT gts.scope_id::text) FILTER (WHERE gts.scope_type = 'category'), ARRAY[]::text[]) AS category_ids
+               COALESCE(array_agg(DISTINCT gts.scope_id::text) FILTER (WHERE gts.scope_type = 'session'), ARRAY[]::text[]) AS session_ids
         FROM glossary_term gt
         LEFT JOIN glossary_term_scope gts ON gts.term_id = gt.id
         WHERE gt.slug = %s
@@ -754,8 +750,8 @@ def update_glossary_term(slug, body, token_info=None):
     proposed_scopes = []
     for lid in (term.get("location_ids") or []):
         proposed_scopes.append({"type": "location", "id": lid})
-    for cid in (term.get("category_ids") or []):
-        proposed_scopes.append({"type": "category", "id": cid})
+    for cid in (term.get("session_ids") or []):
+        proposed_scopes.append({"type": "session", "id": cid})
     if not _user_can_review_suggestion(user_id, proposed_scopes):
         return ErrorModel(403, "Not authorized to edit this term"), 403
 
@@ -819,13 +815,9 @@ def update_glossary_term(slug, body, token_info=None):
 # Direct create endpoints
 # ---------------------------------------------------------------------------
 
-def create_glossary_term(body, token_info=None):
+@require_auth("normal")
+def create_glossary_term(body, token_info=None, user_id=None):
     """POST /glossary/terms — directly create a new glossary term."""
-    ok, err = authorization("normal", token_info)
-    if not ok:
-        return err, err.code
-
-    user_id = token_info["sub"]
 
     term_name = (body.get("term") or "").strip()
     if not term_name:
@@ -892,15 +884,11 @@ def create_glossary_term(body, token_info=None):
     return body, 201
 
 
-def create_wiki_page(body, token_info=None):
+@require_auth("normal")
+def create_wiki_page(body, token_info=None, user_id=None):
     """POST /wiki/pages — directly create a new wiki page."""
-    ok, err = authorization("normal", token_info)
-    if not ok:
-        return err, err.code
 
-    user_id = token_info["sub"]
-
-    title = (body.get("title") or "").strip()
+    title = _sanitize_text((body.get("title") or "").strip())
     if not title:
         return ErrorModel(400, "Title is required"), 400
 
@@ -922,7 +910,7 @@ def create_wiki_page(body, token_info=None):
     if existing:
         return ErrorModel(409, "A page with this title already exists"), 409
 
-    description = body.get("description")
+    description = _sanitize_text(body.get("description"))
     content = body.get("content")
     wiki_category = body.get("wikiCategory")
     scope_combine = body.get("scopeCombine") or "or"
@@ -963,363 +951,25 @@ def create_wiki_page(body, token_info=None):
     return body, 201
 
 
-def check_create_authority(body, token_info=None):
-    """POST /wiki/check-create-authority — check if user can directly create."""
-    ok, err = authorization("normal", token_info)
-    if not ok:
-        return err, err.code
-
-    user_id = token_info["sub"]
-    scopes = body.get("scopes") or []
+@require_auth("normal")
+def get_wiki_authority(location_ids=None, session_ids=None, token_info=None, user_id=None):
+    """GET /wiki/authority — check if user can directly create."""
+    scopes = []
+    for loc_id in (location_ids or []):
+        scopes.append({"type": "location", "id": loc_id})
+    for sess_id in (session_ids or []):
+        scopes.append({"type": "session", "id": sess_id})
     can_create = _user_can_review_suggestion(user_id, scopes)
     return {"canCreate": can_create}, 200
-
-
-# ---------------------------------------------------------------------------
-# Glossary term upsert helper (used by suggestion approval)
-# ---------------------------------------------------------------------------
-
-def _upsert_glossary_term(slug, parsed):
-    """Insert or update a glossary term and its scope rows."""
-    row = db.execute_query("""
-        INSERT INTO glossary_term (slug, term, aliases, summary, content,
-                                   wiki_category, scope_combine, updated_at)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
-        ON CONFLICT (slug) DO UPDATE SET
-            term = EXCLUDED.term,
-            aliases = EXCLUDED.aliases,
-            summary = EXCLUDED.summary,
-            content = EXCLUDED.content,
-            wiki_category = EXCLUDED.wiki_category,
-            scope_combine = EXCLUDED.scope_combine,
-            updated_at = NOW()
-        RETURNING id
-    """, (slug, parsed["term"], parsed["aliases"], parsed["summary"],
-          parsed["content"], parsed["wiki_category"],
-          parsed["scope_combine"]),
-        fetchone=True)
-
-    if not row:
-        return None
-
-    term_id = row["id"]
-
-    # Replace scope rows
-    db.execute_query("DELETE FROM glossary_term_scope WHERE term_id = %s", (term_id,))
-
-    for loc_id in parsed["location_ids"]:
-        db.execute_query(
-            "INSERT INTO glossary_term_scope (term_id, scope_type, scope_id) VALUES (%s, 'location', %s)",
-            (term_id, loc_id))
-
-    for cat_id in parsed["category_ids"]:
-        db.execute_query(
-            "INSERT INTO glossary_term_scope (term_id, scope_type, scope_id) VALUES (%s, 'category', %s)",
-            (term_id, cat_id))
-
-    return term_id
-
-
-# ---------------------------------------------------------------------------
-# Wiki suggestion helpers
-# ---------------------------------------------------------------------------
-
-def _find_suggestion_reviewers(proposed_scopes):
-    """Find user IDs who can review a suggestion based on its scopes.
-
-    Reviewer qualifications:
-    - Site admins can review anything
-    - Admin/moderator at a scope's location (or ancestor) can review
-    - Expert/liaison at a scope's location (or ancestor) can review
-    - Facilitator for a scope's category can review
-    - If no scopes (global): site admins + experts/liaisons at any location
-    """
-    reviewer_ids = set()
-
-    # Site admins can always review
-    admin_rows = db.execute_query("""
-        SELECT DISTINCT ur.user_id::text
-        FROM user_role ur
-        JOIN location l ON l.id = ur.location_id
-        WHERE ur.role = 'admin' AND l.parent_location_id IS NULL
-          AND l.deleted_at IS NULL
-    """)
-    for r in (admin_rows or []):
-        reviewer_ids.add(r["user_id"])
-
-    location_ids = []
-    category_ids = []
-    for scope in (proposed_scopes or []):
-        if scope.get("type") == "location":
-            location_ids.append(str(scope["id"]))
-        elif scope.get("type") == "category":
-            category_ids.append(str(scope["id"]))
-
-    if not location_ids and not category_ids:
-        # Global scope: any expert or liaison can review
-        rows = db.execute_query("""
-            SELECT DISTINCT user_id::text
-            FROM user_role WHERE role IN ('expert', 'liaison')
-        """)
-        for r in (rows or []):
-            reviewer_ids.add(r["user_id"])
-        return list(reviewer_ids)
-
-    # Location-scoped: admin/mod/expert/liaison at location or ancestor
-    for loc_id in location_ids:
-        ancestors = get_location_ancestors(loc_id)
-        if not ancestors:
-            ancestors = [loc_id]
-        rows = db.execute_query("""
-            SELECT DISTINCT user_id::text
-            FROM user_role
-            WHERE role IN ('admin', 'moderator', 'expert', 'liaison')
-              AND location_id = ANY(%s::uuid[])
-        """, (ancestors,))
-        for r in (rows or []):
-            reviewer_ids.add(r["user_id"])
-
-    # Category-scoped: facilitator or expert for that category
-    for cat_id in category_ids:
-        rows = db.execute_query("""
-            SELECT DISTINCT user_id::text
-            FROM user_role
-            WHERE role IN ('facilitator', 'expert')
-              AND position_category_id = %s
-        """, (cat_id,))
-        for r in (rows or []):
-            reviewer_ids.add(r["user_id"])
-
-        # Also admins/moderators at any location can review category-scoped
-        rows = db.execute_query("""
-            SELECT DISTINCT user_id::text
-            FROM user_role WHERE role IN ('admin', 'moderator')
-        """)
-        for r in (rows or []):
-            reviewer_ids.add(r["user_id"])
-
-    return list(reviewer_ids)
-
-
-def _user_can_review_suggestion(user_id, proposed_scopes):
-    """Check if a user is among the qualified reviewers for the given scopes."""
-    if is_root_admin(user_id):
-        return True
-    reviewers = _find_suggestion_reviewers(proposed_scopes)
-    return str(user_id) in reviewers
-
-
-def _format_user(row, prefix=""):
-    """Format a user dict from a DB row with optional column prefix."""
-    uid = row.get(f"{prefix}user_id") or row.get(f"{prefix}id")
-    if not uid:
-        return None
-    return {
-        "id": str(uid),
-        "username": row.get(f"{prefix}username"),
-        "displayName": row.get(f"{prefix}display_name"),
-        "avatarIconUrl": row.get(f"{prefix}avatar_icon_url"),
-        "status": row.get(f"{prefix}status", "active"),
-    }
-
-
-def _format_suggestion(row):
-    """Format a wiki_suggestion DB row into API response dict."""
-    scopes = row.get("proposed_scopes") or []
-    if scopes:
-        scopes = _enrich_scopes(scopes)
-
-    original_scopes = row.get("original_scopes") or []
-    if original_scopes:
-        original_scopes = _enrich_scopes(original_scopes)
-
-    result = {
-        "id": str(row["id"]),
-        "suggestionType": row["suggestion_type"],
-        "glossaryTermId": row.get("glossary_term_id"),
-        "glossaryTermSlug": row.get("term_slug"),
-        "wikiPagePath": row.get("wiki_page_path"),
-        "proposedTitle": row["proposed_title"],
-        "proposedAliases": row.get("proposed_aliases") or [],
-        "proposedSummary": row.get("proposed_summary"),
-        "proposedContent": row.get("proposed_content"),
-        "proposedWikiCategory": row.get("proposed_wiki_category"),
-        "proposedScopes": scopes,
-        "proposedScopeCombine": row.get("proposed_scope_combine", "or"),
-        "originalTitle": row.get("original_title"),
-        "originalAliases": row.get("original_aliases") or [],
-        "originalSummary": row.get("original_summary"),
-        "originalContent": row.get("original_content"),
-        "originalWikiCategory": row.get("original_wiki_category"),
-        "originalScopes": original_scopes,
-        "originalScopeCombine": row.get("original_scope_combine", "or"),
-        "suggestedBy": _format_user(row, "suggester_"),
-        "suggestionReason": row.get("suggestion_reason"),
-        "status": row["status"],
-        "reviewedBy": _format_user(row, "reviewer_") if row.get("reviewer_user_id") else None,
-        "reviewNote": row.get("review_note"),
-        "reviewedAt": row["reviewed_at"].isoformat() if row.get("reviewed_at") else None,
-        "originalUpdatedAt": row["original_updated_at"].isoformat() if row.get("original_updated_at") else None,
-        "createdAt": row["created_at"].isoformat() if row.get("created_at") else None,
-    }
-    return result
-
-
-def _enrich_scopes(scopes):
-    """Add human-readable labels to scope objects by looking up location/category names."""
-    loc_ids = [s["id"] for s in scopes if s.get("type") == "location"]
-    cat_ids = [s["id"] for s in scopes if s.get("type") == "category"]
-
-    loc_map = {}
-    if loc_ids:
-        rows = db.execute_query(
-            "SELECT id, name FROM location WHERE id = ANY(%s::uuid[])", (loc_ids,))
-        loc_map = {str(r["id"]): r["name"] for r in (rows or [])}
-
-    cat_map = {}
-    if cat_ids:
-        rows = db.execute_query(
-            "SELECT id, label FROM position_category WHERE id = ANY(%s::uuid[])", (cat_ids,))
-        cat_map = {str(r["id"]): r["label"] for r in (rows or [])}
-
-    enriched = []
-    for s in scopes:
-        entry = {"type": s["type"], "id": s["id"]}
-        if s["type"] == "location":
-            entry["label"] = loc_map.get(str(s["id"]), s["id"])
-        elif s["type"] == "category":
-            entry["label"] = cat_map.get(str(s["id"]), s["id"])
-        enriched.append(entry)
-    return enriched
-
-
-_SUGGESTION_SELECT = """
-    SELECT ws.*,
-           su.id AS suggester_user_id, su.username AS suggester_username,
-           su.display_name AS suggester_display_name,
-           su.avatar_icon_url AS suggester_avatar_icon_url,
-           su.status AS suggester_status,
-           ru.id AS reviewer_user_id, ru.username AS reviewer_username,
-           ru.display_name AS reviewer_display_name,
-           ru.avatar_icon_url AS reviewer_avatar_icon_url,
-           ru.status AS reviewer_status,
-           gt.slug AS term_slug
-    FROM wiki_suggestion ws
-    JOIN users su ON su.id = ws.suggested_by
-    LEFT JOIN users ru ON ru.id = ws.reviewed_by
-    LEFT JOIN glossary_term gt ON gt.id = ws.glossary_term_id
-"""
-
-
-def _snapshot_scopes(scope_table, id_column, item_id):
-    """Build a JSONB-ready list of scope snapshots with labels for a wiki page or glossary term."""
-    rows = db.execute_query(f"""
-        SELECT s.scope_type, s.scope_id::text,
-               CASE WHEN s.scope_type = 'location' THEN l.name
-                    WHEN s.scope_type = 'category' THEN pc.label
-               END AS label
-        FROM {scope_table} s
-        LEFT JOIN location l ON s.scope_type = 'location' AND l.id = s.scope_id
-        LEFT JOIN position_category pc ON s.scope_type = 'category' AND pc.id = s.scope_id
-        WHERE s.{id_column} = %s
-    """, (item_id,))
-    return json.dumps([
-        {"type": r["scope_type"], "id": r["scope_id"], "label": r.get("label")}
-        for r in (rows or [])
-    ])
-
-
-def _supersede_pending_for_item(suggestion_type, glossary_term_id=None,
-                                wiki_page_path=None, exclude_id=None,
-                                actor_user_id=None):
-    """Set all other pending suggestions for the same item to 'superseded'."""
-    if suggestion_type in ('new_term', 'edit_term') and glossary_term_id:
-        rows = db.execute_query("""
-            UPDATE wiki_suggestion
-            SET status = 'superseded', updated_at = NOW()
-            WHERE glossary_term_id = %s AND status = 'pending'
-              AND id != %s
-            RETURNING suggested_by
-        """, (glossary_term_id, str(exclude_id) if exclude_id else '00000000-0000-0000-0000-000000000000'))
-    elif suggestion_type in ('new_page', 'edit_page') and wiki_page_path:
-        rows = db.execute_query("""
-            UPDATE wiki_suggestion
-            SET status = 'superseded', updated_at = NOW()
-            WHERE wiki_page_path = %s AND status = 'pending'
-              AND id != %s
-            RETURNING suggested_by
-        """, (wiki_page_path, str(exclude_id) if exclude_id else '00000000-0000-0000-0000-000000000000'))
-    else:
-        return
-
-    if not rows:
-        return
-
-    # Notify superseded submitters
-    try:
-        from candid.controllers.helpers.push_notifications import send_or_queue_notification
-        for r in rows:
-            send_or_queue_notification(
-                "Wiki suggestion superseded",
-                "The item you suggested changes to has been updated. Please review and re-submit if needed.",
-                {"action": "open_wiki_suggestions"},
-                r["suggested_by"], db,
-                notification_type='wiki_suggestion',
-                actor_user_id=actor_user_id)
-    except Exception as e:
-        logger.error("Failed to notify superseded submitters: %s", e)
-
-
-def _supersede_pending_new_by_slug(suggestion_type, slug, item_id, actor_user_id):
-    """Supersede pending new_term/new_page suggestions whose title matches the given slug."""
-    if suggestion_type == "new_term":
-        rows = db.execute_query("""
-            UPDATE wiki_suggestion
-            SET status = 'superseded', glossary_term_id = %s, updated_at = NOW()
-            WHERE status = 'pending' AND suggestion_type = 'new_term'
-              AND trim(both '-' from regexp_replace(lower(proposed_title), '[^a-z0-9]+', '-', 'g')) = %s
-            RETURNING suggested_by
-        """, (item_id, slug))
-    elif suggestion_type == "new_page":
-        rows = db.execute_query("""
-            UPDATE wiki_suggestion
-            SET status = 'superseded', wiki_page_path = %s, wiki_page_id = %s, updated_at = NOW()
-            WHERE status = 'pending' AND suggestion_type = 'new_page'
-              AND trim(both '-' from regexp_replace(lower(proposed_title), '[^a-z0-9/]+', '-', 'g')) = %s
-            RETURNING suggested_by
-        """, (slug, str(item_id), slug))
-    else:
-        return
-
-    if not rows:
-        return
-
-    # Notify superseded submitters
-    try:
-        from candid.controllers.helpers.push_notifications import send_or_queue_notification
-        for r in rows:
-            send_or_queue_notification(
-                "Wiki suggestion superseded",
-                "The item you suggested has been created directly. Your suggestion has been superseded.",
-                {"action": "open_wiki_suggestions"},
-                r["suggested_by"], db,
-                notification_type='wiki_suggestion',
-                actor_user_id=actor_user_id)
-    except Exception as e:
-        logger.error("Failed to notify superseded submitters: %s", e)
 
 
 # ---------------------------------------------------------------------------
 # Wiki suggestion endpoints
 # ---------------------------------------------------------------------------
 
-def create_wiki_suggestion(body, token_info=None):
+@require_auth("normal")
+def create_wiki_suggestion(body, token_info=None, user_id=None):
     """POST /wiki/suggestions — submit a suggestion."""
-    ok, err = authorization("normal", token_info)
-    if not ok:
-        return err, err.code
-
-    user_id = token_info["sub"]
 
     suggestion_type = body.get("suggestionType") or body.get("suggestion_type")
     proposed_title = body.get("proposedTitle") or body.get("proposed_title", "")
@@ -1470,14 +1120,12 @@ def create_wiki_suggestion(body, token_info=None):
     return _format_suggestion(result), 201
 
 
-def get_wiki_suggestions(token_info=None, view=None):
+@require_auth("normal", allow_banned=True)
+def get_wiki_suggestions(token_info=None, user_id=None, view=None, offset=0, limit=50):
     """GET /wiki/suggestions — list suggestions."""
-    ok, err = authorization_allow_banned("normal", token_info)
-    if not ok:
-        return err, err.code
-
-    user_id = token_info["sub"]
     view = view or "mine"
+    _offset = max(offset or 0, 0)
+    _limit = min(max(limit or 50, 1), 100)
 
     if view == "mine":
         rows = db.execute_query(
@@ -1502,14 +1150,14 @@ def get_wiki_suggestions(token_info=None, view=None):
     else:
         return ErrorModel(400, "Invalid view parameter"), 400
 
-    return [_format_suggestion(r) for r in (rows or [])], 200
+    # Apply pagination after filtering
+    paginated = (rows or [])[_offset:_offset + _limit]
+    return [_format_suggestion(r) for r in paginated], 200
 
 
-def get_wiki_suggestion(suggestion_id, token_info=None):
+@require_auth("normal", allow_banned=True)
+def get_wiki_suggestion(suggestion_id, token_info=None, user_id=None):
     """GET /wiki/suggestions/{suggestionId} — suggestion detail."""
-    ok, err = authorization_allow_banned("normal", token_info)
-    if not ok:
-        return err, err.code
 
     row = db.execute_query(
         _SUGGESTION_SELECT + " WHERE ws.id = %s",
@@ -1543,13 +1191,9 @@ def get_wiki_suggestion(suggestion_id, token_info=None):
     return result, 200
 
 
-def update_wiki_suggestion(suggestion_id, body, token_info=None):
+@require_auth("normal")
+def update_wiki_suggestion(suggestion_id, body, token_info=None, user_id=None):
     """PUT /wiki/suggestions/{suggestionId} — review (approve/deny/withdraw)."""
-    ok, err = authorization("normal", token_info)
-    if not ok:
-        return err, err.code
-
-    user_id = token_info["sub"]
 
     row = db.execute_query(
         "SELECT * FROM wiki_suggestion WHERE id = %s",
@@ -1691,537 +1335,9 @@ def update_wiki_suggestion(suggestion_id, body, token_info=None):
     return _format_suggestion(result), 200
 
 
-def _three_way_merge_text(original, proposed, current):
-    """Line-based 3-way merge for text fields.
-
-    Returns (merged_text, has_conflict).
-    - If original == current: no intervening edit → use proposed.
-    - If original == proposed: suggestion didn't change → use current.
-    - If current == proposed: same change made → use current.
-    - Otherwise: attempt line-level merge via difflib.
-    """
-    if original == current:
-        return proposed, False
-    if original == proposed:
-        return current, False
-    if current == proposed:
-        return current, False
-
-    # Attempt line-level merge using difflib
-    import difflib
-    orig_lines = (original or '').splitlines(keepends=True)
-    prop_lines = (proposed or '').splitlines(keepends=True)
-    curr_lines = (current or '').splitlines(keepends=True)
-
-    # Get changes: original→proposed and original→current
-    sm_prop = difflib.SequenceMatcher(None, orig_lines, prop_lines)
-    sm_curr = difflib.SequenceMatcher(None, orig_lines, curr_lines)
-
-    prop_changes = set()
-    for tag, i1, i2, j1, j2 in sm_prop.get_opcodes():
-        if tag != 'equal':
-            for i in range(i1, i2):
-                prop_changes.add(i)
-
-    curr_changes = set()
-    for tag, i1, i2, j1, j2 in sm_curr.get_opcodes():
-        if tag != 'equal':
-            for i in range(i1, i2):
-                curr_changes.add(i)
-
-    # If changes overlap, it's a conflict
-    if prop_changes & curr_changes:
-        return None, True
-
-    # Non-overlapping changes — apply proposed changes on top of current
-    # Since they don't overlap, we can safely use the proposed version
-    return proposed, False
-
-
-def _three_way_merge_scalar(original, proposed, current):
-    """3-way merge for scalar fields (title, summary, category, scope_combine).
-
-    Returns (merged_value, has_conflict).
-    """
-    if original == current:
-        return proposed, False
-    if original == proposed:
-        return current, False
-    if current == proposed:
-        return current, False
-    return None, True
-
-
-def _three_way_merge_array(original, proposed, current):
-    """Set-based 3-way merge for array fields (aliases).
-
-    Adds new items from proposed, removes items deleted in proposed, keeps intervening additions.
-    Returns (merged_list, has_conflict). Never conflicts.
-    """
-    orig_set = set(original or [])
-    prop_set = set(proposed or [])
-    curr_set = set(current or [])
-
-    added_by_proposal = prop_set - orig_set
-    removed_by_proposal = orig_set - prop_set
-
-    merged = (curr_set | added_by_proposal) - removed_by_proposal
-    return sorted(merged), False
-
-
-def _three_way_merge_scopes(original, proposed, current):
-    """Set-based 3-way merge for scope arrays.
-
-    Returns (merged_scopes, has_conflict). Never conflicts.
-    """
-    def scope_key(s):
-        return (s.get("type"), str(s.get("id")))
-
-    orig_keys = {scope_key(s) for s in (original or [])}
-    prop_keys = {scope_key(s) for s in (proposed or [])}
-    curr_keys = {scope_key(s) for s in (current or [])}
-    curr_map = {scope_key(s): s for s in (current or [])}
-    prop_map = {scope_key(s): s for s in (proposed or [])}
-
-    added_by_proposal = prop_keys - orig_keys
-    removed_by_proposal = orig_keys - prop_keys
-
-    merged_keys = (curr_keys | added_by_proposal) - removed_by_proposal
-    merged = []
-    for key in merged_keys:
-        if key in prop_map:
-            merged.append(prop_map[key])
-        elif key in curr_map:
-            merged.append(curr_map[key])
-    return merged, False
-
-
-def _reviewer_actually_changed(original_proposed, row):
-    """Compare original proposed values to the (possibly reviewer-modified) row.
-
-    Returns True if any of title, summary, content, wiki_category, or aliases
-    differ between what the submitter proposed and what's now in the row.
-    """
-    if not original_proposed:
-        return False
-    fields = [
-        ("proposed_title", "proposed_title"),
-        ("proposed_summary", "proposed_summary"),
-        ("proposed_content", "proposed_content"),
-        ("proposed_wiki_category", "proposed_wiki_category"),
-    ]
-    for orig_key, row_key in fields:
-        orig_val = original_proposed.get(orig_key)
-        row_val = row.get(row_key)
-        if orig_val != row_val:
-            return True
-    # Compare aliases (normalize None to [])
-    orig_aliases = original_proposed.get("proposed_aliases") or []
-    row_aliases = row.get("proposed_aliases") or []
-    if orig_aliases != row_aliases:
-        return True
-    return False
-
-
-def _apply_suggestion(row, reviewer_user_id, original_proposed=None):
-    """Apply an approved suggestion — create/update term or page.
-
-    For edit types, performs 3-way merge comparing original snapshot to current
-    content. Returns (ErrorModel, status_code) on conflict/failure, None on success.
-    """
-    suggestion_type = row["suggestion_type"]
-    proposed_scopes = row.get("proposed_scopes") or []
-
-    if suggestion_type in ("new_term", "edit_term"):
-        # Build slug from title
-        slug = re.sub(r'[^a-z0-9]+', '-', row["proposed_title"].lower()).strip('-')
-        if not slug:
-            return ErrorModel(400, "Cannot derive slug from title"), 400
-
-        merged_title = row["proposed_title"]
-        merged_aliases = row.get("proposed_aliases") or []
-        merged_summary = row.get("proposed_summary")
-        merged_content = row.get("proposed_content")
-        merged_wiki_category = row.get("proposed_wiki_category")
-        merged_scope_combine = row.get("proposed_scope_combine", "or")
-        merged_scopes = proposed_scopes
-
-        old_content = None
-        if suggestion_type == "edit_term" and row.get("glossary_term_id"):
-            # Get existing slug and current content
-            existing = db.execute_query(
-                "SELECT slug, term, aliases, summary, content, wiki_category, scope_combine FROM glossary_term WHERE id = %s",
-                (row["glossary_term_id"],), fetchone=True)
-            if existing:
-                slug = existing["slug"]
-                old_content = existing.get("content")
-
-                # 3-way merge if we have original snapshot
-                if row.get("original_title") is not None:
-                    conflicts = []
-                    orig = row
-
-                    val, conflict = _three_way_merge_scalar(orig.get("original_title"), row["proposed_title"], existing["term"])
-                    if conflict:
-                        conflicts.append("title")
-                    else:
-                        merged_title = val
-
-                    val, conflict = _three_way_merge_text(orig.get("original_summary"), row.get("proposed_summary"), existing.get("summary"))
-                    if conflict:
-                        conflicts.append("summary")
-                    else:
-                        merged_summary = val
-
-                    val, conflict = _three_way_merge_text(orig.get("original_content"), row.get("proposed_content"), existing.get("content"))
-                    if conflict:
-                        conflicts.append("content")
-                    else:
-                        merged_content = val
-
-                    val, conflict = _three_way_merge_scalar(orig.get("original_wiki_category"), row.get("proposed_wiki_category"), existing.get("wiki_category"))
-                    if conflict:
-                        conflicts.append("category")
-                    else:
-                        merged_wiki_category = val
-
-                    val, conflict = _three_way_merge_scalar(orig.get("original_scope_combine"), row.get("proposed_scope_combine", "or"), existing.get("scope_combine", "or"))
-                    if conflict:
-                        conflicts.append("scope combine")
-                    else:
-                        merged_scope_combine = val
-
-                    merged_aliases, _ = _three_way_merge_array(orig.get("original_aliases"), row.get("proposed_aliases"), existing.get("aliases"))
-
-                    # Merge scopes
-                    orig_scopes = orig.get("original_scopes") or []
-                    curr_scope_rows = db.execute_query(
-                        "SELECT scope_type, scope_id FROM glossary_term_scope WHERE term_id = %s",
-                        (row["glossary_term_id"],))
-                    curr_scopes = [{"type": r["scope_type"], "id": str(r["scope_id"])} for r in (curr_scope_rows or [])]
-                    merged_scopes, _ = _three_way_merge_scopes(orig_scopes, proposed_scopes, curr_scopes)
-
-                    if conflicts:
-                        return ErrorModel(409, f"Cannot auto-merge: conflicting changes in {', '.join(conflicts)}. Deny and ask submitter to update."), 409
-
-        parsed = {
-            "term": merged_title,
-            "aliases": merged_aliases,
-            "summary": merged_summary,
-            "content": merged_content,
-            "wiki_category": merged_wiki_category,
-            "scope_combine": merged_scope_combine,
-            "location_ids": [s["id"] for s in merged_scopes if s.get("type") == "location"],
-            "category_ids": [s["id"] for s in merged_scopes if s.get("type") == "category"],
-        }
-
-        # For edit_term: snapshot current content before updating
-        if suggestion_type == "edit_term" and row.get("glossary_term_id"):
-            existing_term = db.execute_query(
-                "SELECT id, term, aliases, summary, content, wiki_category FROM glossary_term WHERE id = %s",
-                (row["glossary_term_id"],), fetchone=True)
-            if existing_term:
-                term_scopes_json = _snapshot_scopes("glossary_term_scope", "term_id", existing_term["id"])
-                existing_scope_combine = db.execute_query(
-                    "SELECT scope_combine FROM glossary_term WHERE id = %s",
-                    (existing_term["id"],), fetchone=True)
-                existing_sc = existing_scope_combine.get("scope_combine", "or") if existing_scope_combine else "or"
-                if original_proposed and _reviewer_actually_changed(original_proposed, row):
-                    # Two versions: submitter's changes then reviewer's modifications
-                    # Version 1: pre-edit content, attributed to submitter
-                    db.execute_query("""
-                        INSERT INTO glossary_term_version (term_id, term, aliases, summary, content, wiki_category, scopes, scope_combine, edited_by, created_at)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
-                    """, (existing_term["id"], existing_term["term"],
-                          existing_term.get("aliases") or [],
-                          existing_term.get("summary"), existing_term.get("content"),
-                          existing_term.get("wiki_category"),
-                          term_scopes_json, existing_sc, row["suggested_by"]))
-                    # Version 2: submitter's original proposed content, attributed to reviewer
-                    orig_proposed_scopes = json.dumps(original_proposed.get("proposed_scopes") or [])
-                    db.execute_query("""
-                        INSERT INTO glossary_term_version (term_id, term, aliases, summary, content, wiki_category, scopes, scope_combine, edited_by, created_at)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW() + INTERVAL '1 second')
-                    """, (existing_term["id"],
-                          original_proposed.get("proposed_title") or existing_term["term"],
-                          original_proposed.get("proposed_aliases") or existing_term.get("aliases") or [],
-                          original_proposed.get("proposed_summary") if original_proposed.get("proposed_summary") is not None else existing_term.get("summary"),
-                          original_proposed.get("proposed_content") if original_proposed.get("proposed_content") is not None else existing_term.get("content"),
-                          original_proposed.get("proposed_wiki_category") if original_proposed.get("proposed_wiki_category") is not None else existing_term.get("wiki_category"),
-                          orig_proposed_scopes,
-                          original_proposed.get("proposed_scope_combine", "or"),
-                          reviewer_user_id))
-                else:
-                    # Single version: pre-edit content, attributed to submitter
-                    db.execute_query("""
-                        INSERT INTO glossary_term_version (term_id, term, aliases, summary, content, wiki_category, scopes, scope_combine, edited_by)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (existing_term["id"], existing_term["term"],
-                          existing_term.get("aliases") or [],
-                          existing_term.get("summary"), existing_term.get("content"),
-                          existing_term.get("wiki_category"),
-                          term_scopes_json, existing_sc, row["suggested_by"]))
-
-        term_id = _upsert_glossary_term(slug, parsed)
-        if not term_id:
-            return ErrorModel(500, "Failed to apply term changes"), 500
-
-        # Clean up images that were in old content but not in merged
-        if old_content:
-            removed = _extract_image_ids(old_content) - _extract_image_ids(merged_content)
-            if removed:
-                try:
-                    _cleanup_orphan_images(removed)
-                except Exception as e:
-                    logger.error("Failed to clean up images on term approval: %s", e)
-
-        # If new_term, update the glossary_term_id on the suggestion and log creation version
-        if suggestion_type == "new_term":
-            db.execute_query(
-                "UPDATE wiki_suggestion SET glossary_term_id = %s WHERE id = %s",
-                (term_id, str(row["id"])))
-            new_term_scopes_json = _snapshot_scopes("glossary_term_scope", "term_id", term_id)
-            if original_proposed and _reviewer_actually_changed(original_proposed, row):
-                orig_proposed_scopes = json.dumps(original_proposed.get("proposed_scopes") or [])
-                # Two versions: submitter's original then reviewer attribution
-                # Version 1: submitter's original proposed content
-                db.execute_query("""
-                    INSERT INTO glossary_term_version (term_id, term, aliases, summary, content, wiki_category, scopes, scope_combine, edited_by, created_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
-                """, (term_id,
-                      original_proposed.get("proposed_title"),
-                      original_proposed.get("proposed_aliases") or [],
-                      original_proposed.get("proposed_summary"),
-                      original_proposed.get("proposed_content"),
-                      original_proposed.get("proposed_wiki_category"),
-                      orig_proposed_scopes,
-                      original_proposed.get("proposed_scope_combine", "or"),
-                      row["suggested_by"]))
-                # Version 2: same submitter content, attributed to reviewer
-                db.execute_query("""
-                    INSERT INTO glossary_term_version (term_id, term, aliases, summary, content, wiki_category, scopes, scope_combine, edited_by, created_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW() + INTERVAL '1 second')
-                """, (term_id,
-                      original_proposed.get("proposed_title"),
-                      original_proposed.get("proposed_aliases") or [],
-                      original_proposed.get("proposed_summary"),
-                      original_proposed.get("proposed_content"),
-                      original_proposed.get("proposed_wiki_category"),
-                      orig_proposed_scopes,
-                      original_proposed.get("proposed_scope_combine", "or"),
-                      reviewer_user_id))
-            else:
-                # Single creation version
-                db.execute_query("""
-                    INSERT INTO glossary_term_version (term_id, term, aliases, summary, content, wiki_category, scopes, scope_combine, edited_by)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """, (term_id, merged_title, merged_aliases or [],
-                      merged_summary, merged_content, merged_wiki_category,
-                      new_term_scopes_json, merged_scope_combine, row["suggested_by"]))
-
-    elif suggestion_type == "new_page":
-        # Create page in native wiki_page table
-        slug = re.sub(r'[^a-z0-9/]+', '-', row["proposed_title"].lower()).strip('-')
-        if not slug:
-            return ErrorModel(400, "Cannot derive slug from title"), 400
-
-        scope_combine = row.get("proposed_scope_combine", "or")
-
-        page_row = db.execute_query("""
-            INSERT INTO wiki_page (slug, title, description, content, wiki_category,
-                                   scope_combine, created_by, updated_by)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (slug) DO UPDATE SET
-                title = EXCLUDED.title,
-                description = EXCLUDED.description,
-                content = EXCLUDED.content,
-                wiki_category = EXCLUDED.wiki_category,
-                scope_combine = EXCLUDED.scope_combine,
-                updated_by = EXCLUDED.updated_by,
-                updated_at = NOW()
-            RETURNING id
-        """, (slug, row["proposed_title"], row.get("proposed_summary"),
-              row.get("proposed_content"), row.get("proposed_wiki_category"),
-              scope_combine, reviewer_user_id, reviewer_user_id),
-            fetchone=True)
-
-        if page_row:
-            page_id = str(page_row["id"])
-            # Add scope rows
-            for s in proposed_scopes:
-                db.execute_query("""
-                    INSERT INTO wiki_page_scope (page_id, scope_type, scope_id)
-                    VALUES (%s, %s, %s) ON CONFLICT DO NOTHING
-                """, (page_id, s["type"], s["id"]))
-
-            # Update suggestion with the page path
-            db.execute_query(
-                "UPDATE wiki_suggestion SET wiki_page_path = %s, wiki_page_id = %s WHERE id = %s",
-                (slug, page_id, str(row["id"])))
-
-            # Log creation version(s)
-            new_page_scopes_json = _snapshot_scopes("wiki_page_scope", "page_id", page_id)
-            if original_proposed and _reviewer_actually_changed(original_proposed, row):
-                orig_proposed_scopes = json.dumps(original_proposed.get("proposed_scopes") or [])
-                # Two versions: submitter's original then reviewer attribution
-                db.execute_query("""
-                    INSERT INTO wiki_page_version (page_id, title, description, content, wiki_category, scopes, scope_combine, edited_by, created_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
-                """, (page_id,
-                      original_proposed.get("proposed_title"),
-                      original_proposed.get("proposed_summary"),
-                      original_proposed.get("proposed_content"),
-                      original_proposed.get("proposed_wiki_category"),
-                      orig_proposed_scopes,
-                      original_proposed.get("proposed_scope_combine", "or"),
-                      row["suggested_by"]))
-                db.execute_query("""
-                    INSERT INTO wiki_page_version (page_id, title, description, content, wiki_category, scopes, scope_combine, edited_by, created_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW() + INTERVAL '1 second')
-                """, (page_id,
-                      original_proposed.get("proposed_title"),
-                      original_proposed.get("proposed_summary"),
-                      original_proposed.get("proposed_content"),
-                      original_proposed.get("proposed_wiki_category"),
-                      orig_proposed_scopes,
-                      original_proposed.get("proposed_scope_combine", "or"),
-                      reviewer_user_id))
-            else:
-                db.execute_query("""
-                    INSERT INTO wiki_page_version (page_id, title, description, content, wiki_category, scopes, scope_combine, edited_by)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                """, (page_id, row["proposed_title"], row.get("proposed_summary"),
-                      row.get("proposed_content"), row.get("proposed_wiki_category"),
-                      new_page_scopes_json, scope_combine, row["suggested_by"]))
-
-    elif suggestion_type == "edit_page" and row.get("wiki_page_path"):
-        page = db.execute_query(
-            "SELECT id, title, description, content, wiki_category, scope_combine FROM wiki_page WHERE slug = %s",
-            (row["wiki_page_path"],), fetchone=True)
-        if page:
-            page_id = str(page["id"])
-
-            merged_title = row["proposed_title"]
-            merged_summary = row.get("proposed_summary")
-            merged_content = row.get("proposed_content")
-            merged_wiki_category = row.get("proposed_wiki_category")
-            merged_scope_combine = row.get("proposed_scope_combine", "or")
-            merged_scopes = proposed_scopes
-
-            # 3-way merge if we have original snapshot
-            if row.get("original_title") is not None:
-                conflicts = []
-                orig = row
-
-                val, conflict = _three_way_merge_scalar(orig.get("original_title"), row["proposed_title"], page["title"])
-                if conflict:
-                    conflicts.append("title")
-                else:
-                    merged_title = val
-
-                val, conflict = _three_way_merge_text(orig.get("original_summary"), row.get("proposed_summary"), page.get("description"))
-                if conflict:
-                    conflicts.append("summary")
-                else:
-                    merged_summary = val
-
-                val, conflict = _three_way_merge_text(orig.get("original_content"), row.get("proposed_content"), page.get("content"))
-                if conflict:
-                    conflicts.append("content")
-                else:
-                    merged_content = val
-
-                val, conflict = _three_way_merge_scalar(orig.get("original_wiki_category"), row.get("proposed_wiki_category"), page.get("wiki_category"))
-                if conflict:
-                    conflicts.append("category")
-                else:
-                    merged_wiki_category = val
-
-                val, conflict = _three_way_merge_scalar(orig.get("original_scope_combine"), row.get("proposed_scope_combine", "or"), page.get("scope_combine", "or"))
-                if conflict:
-                    conflicts.append("scope combine")
-                else:
-                    merged_scope_combine = val
-
-                # Merge scopes
-                orig_scopes = orig.get("original_scopes") or []
-                curr_scope_rows = db.execute_query(
-                    "SELECT scope_type, scope_id FROM wiki_page_scope WHERE page_id = %s",
-                    (page_id,))
-                curr_scopes = [{"type": r["scope_type"], "id": str(r["scope_id"])} for r in (curr_scope_rows or [])]
-                merged_scopes, _ = _three_way_merge_scopes(orig_scopes, proposed_scopes, curr_scopes)
-
-                if conflicts:
-                    return ErrorModel(409, f"Cannot auto-merge: conflicting changes in {', '.join(conflicts)}. Deny and ask submitter to update."), 409
-
-            # Snapshot current content into wiki_page_version
-            page_scopes_json = _snapshot_scopes("wiki_page_scope", "page_id", page_id)
-            if original_proposed and _reviewer_actually_changed(original_proposed, row):
-                orig_proposed_scopes = json.dumps(original_proposed.get("proposed_scopes") or [])
-                # Two versions: submitter's changes then reviewer's modifications
-                # Version 1: pre-edit content, attributed to submitter
-                db.execute_query("""
-                    INSERT INTO wiki_page_version (page_id, title, description, content, wiki_category, scopes, scope_combine, edited_by, created_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
-                """, (page_id, page["title"], page.get("description"),
-                      page.get("content"), page.get("wiki_category"),
-                      page_scopes_json, page.get("scope_combine", "or"), row["suggested_by"]))
-                # Version 2: submitter's original proposed content, attributed to reviewer
-                db.execute_query("""
-                    INSERT INTO wiki_page_version (page_id, title, description, content, wiki_category, scopes, scope_combine, edited_by, created_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW() + INTERVAL '1 second')
-                """, (page_id,
-                      original_proposed.get("proposed_title") or page["title"],
-                      original_proposed.get("proposed_summary") if original_proposed.get("proposed_summary") is not None else page.get("description"),
-                      original_proposed.get("proposed_content") if original_proposed.get("proposed_content") is not None else page.get("content"),
-                      original_proposed.get("proposed_wiki_category") if original_proposed.get("proposed_wiki_category") is not None else page.get("wiki_category"),
-                      orig_proposed_scopes,
-                      original_proposed.get("proposed_scope_combine", "or"),
-                      reviewer_user_id))
-            else:
-                # Single version: pre-edit content, attributed to submitter
-                db.execute_query("""
-                    INSERT INTO wiki_page_version (page_id, title, description, content, wiki_category, scopes, scope_combine, edited_by)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                """, (page_id, page["title"], page.get("description"),
-                      page.get("content"), page.get("wiki_category"),
-                      page_scopes_json, page.get("scope_combine", "or"), row["suggested_by"]))
-
-            # Update page with merged values
-            db.execute_query("""
-                UPDATE wiki_page SET title = %s, description = %s, content = %s,
-                       wiki_category = %s, scope_combine = %s,
-                       updated_by = %s, updated_at = NOW()
-                WHERE id = %s
-            """, (merged_title, merged_summary, merged_content,
-                  merged_wiki_category, merged_scope_combine, reviewer_user_id, page_id))
-
-            # Update scopes
-            db.execute_query("DELETE FROM wiki_page_scope WHERE page_id = %s", (page_id,))
-            for s in merged_scopes:
-                db.execute_query("""
-                    INSERT INTO wiki_page_scope (page_id, scope_type, scope_id)
-                    VALUES (%s, %s, %s) ON CONFLICT DO NOTHING
-                """, (page_id, s["type"], s["id"]))
-
-            # Clean up images that were in old content but not in merged
-            removed = _extract_image_ids(page.get("content")) - _extract_image_ids(merged_content)
-            if removed:
-                try:
-                    _cleanup_orphan_images(removed)
-                except Exception as e:
-                    logger.error("Failed to clean up images on page approval: %s", e)
-
-    return None
-
-
-def get_wiki_suggestion_count(token_info=None):
+@require_auth("normal", allow_banned=True)
+def get_wiki_suggestion_count(token_info=None, user_id=None):
     """GET /wiki/suggestions/count — pending reviewable count."""
-    ok, err = authorization_allow_banned("normal", token_info)
-    if not ok:
-        return err, err.code
-
-    user_id = token_info["sub"]
 
     # Get all pending suggestions
     rows = db.execute_query(
@@ -2240,52 +1356,19 @@ def get_wiki_suggestion_count(token_info=None):
 # Wiki image upload & serve (native PostgreSQL bytea storage)
 # ---------------------------------------------------------------------------
 
-_WIKI_IMAGE_ID_RE = re.compile(r'/api/v1/wiki/images/([0-9a-f-]{36})')
-
-
-def _extract_image_ids(content):
-    """Extract wiki image UUIDs from markdown/HTML content."""
-    if not content:
-        return set()
-    return set(_WIKI_IMAGE_ID_RE.findall(content))
-
-
-def _cleanup_orphan_images(image_ids):
-    """Delete wiki images that are not referenced by any live content.
-
-    Checks glossary_term.content, wiki_page.content, and pending wiki_suggestion
-    proposed_content for references before deleting.
-    """
-    if not image_ids:
-        return
-    for image_id in image_ids:
-        pattern = f'%/wiki/images/{image_id}%'
-        # Check if image is used in any live glossary term or wiki page
-        used = db.execute_query("""
-            SELECT 1 FROM glossary_term WHERE content LIKE %s
-            UNION ALL
-            SELECT 1 FROM wiki_page WHERE content LIKE %s
-            UNION ALL
-            SELECT 1 FROM wiki_suggestion
-              WHERE status = 'pending' AND proposed_content LIKE %s
-            LIMIT 1
-        """, (pattern, pattern, pattern), fetchone=True)
-        if not used:
-            db.execute_query("DELETE FROM wiki_image WHERE id = %s", (image_id,))
-
-
-ALLOWED_IMAGE_TYPES = {'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml'}
-ALLOWED_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'}
+ALLOWED_IMAGE_TYPES = {'image/png', 'image/jpeg', 'image/gif', 'image/webp'}
+ALLOWED_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp'}
 MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5MB
 
 
-def upload_wiki_image(token_info=None, **kwargs):
+@require_auth("normal")
+def upload_wiki_image(token_info=None, user_id=None, **kwargs):
     """POST /wiki/images — upload an image for wiki content."""
-    ok, err = authorization("normal", token_info)
-    if not ok:
-        return err, err.code
 
-    user_id = token_info["sub"]
+    # Rate limit: 10 uploads per hour
+    allowed, _ = check_rate_limit(user_id, "wiki_image_upload", limit=10, window_seconds=3600)
+    if not allowed:
+        return ErrorModel(429, "Upload rate limit exceeded. Try again later."), 429
 
     files = connexion.request.files
     if 'file' not in files:
@@ -2337,8 +1420,10 @@ def get_wiki_image(image_id, token_info=None):
     if not row:
         return ErrorModel(404, "Image not found"), 404
 
+    import re as _re
     response = make_response(bytes(row["data"]))
     response.headers['Content-Type'] = row["content_type"]
     response.headers['Cache-Control'] = 'public, max-age=86400'
-    response.headers['Content-Disposition'] = f'inline; filename="{row["filename"]}"'
+    safe_name = _re.sub(r'[^\w.\-]', '_', row["filename"])
+    response.headers['Content-Disposition'] = f'inline; filename="{safe_name}"'
     return response

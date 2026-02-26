@@ -1,3 +1,4 @@
+import contextlib
 import os
 import logging
 import psycopg2
@@ -81,9 +82,75 @@ class Database:
 		finally:
 			self.pool.putconn(conn)
 
+	@contextlib.contextmanager
+	def transaction(self):
+		"""Context manager for atomic multi-statement transactions.
+
+		Usage::
+
+			with db.transaction() as tx:
+				tx.execute("INSERT INTO ...", (val1,))
+				tx.execute("INSERT INTO ...", (val2,))
+			# Auto-committed on exit, rolled back on exception
+
+		The yielded ``Transaction`` object supports ``execute()`` (returns
+		rows for SELECT/RETURNING) and ``fetchone()`` / ``fetchall()``.
+		"""
+		if self.pool is None:
+			raise DatabaseError("Database connection pool not established")
+
+		conn = self.pool.getconn()
+		try:
+			tx = Transaction(conn)
+			yield tx
+			conn.commit()
+		except Exception:
+			conn.rollback()
+			raise
+		finally:
+			self.pool.putconn(conn)
+
 	def close_db_connection(self):
 		"""Closes all connections in the pool."""
 		if self.pool:
 			self.pool.closeall()
 			logger.info("Database connection pool closed.")
 			self.pool = None
+
+
+class Transaction:
+	"""Lightweight transaction handle yielded by ``Database.transaction()``.
+
+	Executes all statements on a single connection without intermediate
+	commits. The owning context manager handles commit/rollback.
+	"""
+
+	def __init__(self, conn):
+		self._conn = conn
+
+	def execute(self, query, params=None, fetchone=False):
+		"""Execute a query within this transaction.
+
+		Returns:
+			For SELECT / RETURNING queries: a list of RealDictRow (or a
+			single row if ``fetchone=True``), or None on empty result set.
+			For DML without RETURNING: None.
+		"""
+		query_upper = query.strip().upper()
+		is_select = query_upper.startswith("SELECT")
+		if query_upper.startswith("WITH"):
+			is_select = not any(
+				kw in query_upper for kw in ("UPDATE ", "INSERT ", "DELETE ")
+			)
+		has_returning = "RETURNING" in query_upper
+
+		with self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+			cur.execute(query, params)
+			if is_select or has_returning:
+				try:
+					if fetchone:
+						return cur.fetchone()
+					return cur.fetchall()
+				except psycopg2.ProgrammingError:
+					return None
+		return None

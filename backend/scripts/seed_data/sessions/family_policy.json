@@ -1,0 +1,134 @@
+{
+  "session_name": "Family Policy",
+  "location_code": "TRAV",
+  "target_stage": "opinion_curation",
+  "topic_vocabulary": {
+    "topic_noun": ["family policy", "family values", "social policy"],
+    "topic_adj": ["family-related", "social", "domestic"],
+    "location_name": ["Texas", "Travis County"],
+    "stakeholder": ["families", "LGBTQ+ individuals", "religious organizations", "childcare providers", "school boards"],
+    "specific_issue": ["childcare affordability", "marriage equality", "transgender rights", "religious liberty", "homelessness"],
+    "policy_example": ["Texas family code", "Obergefell v. Hodges", "RFRA laws", "Housing First programs"],
+    "data_point": ["$9,000/year average childcare cost in TX", "over 27,000 unhoused individuals in TX on any given night"]
+  },
+  "positions": {
+    "proposal_issue": [
+      {"type": "anchor", "statement": "Traditional family values should be promoted and protected by government policy.",
+       "votes": [-1, -1, -1, -1, -1, -1, -1, 1, 1, 1]},
+      {"type": "anchor", "statement": "Same-sex marriage should be legally recognized and protected.",
+       "votes": [1, 1, 1, 1, 1, 1, 1, -1, -1, -1]},
+      {"type": "generated", "lean": "strong_left", "topic_focus": "equity"},
+      {"type": "generated", "lean": "right", "topic_focus": "individual_collective"},
+      {"type": "generated", "lean": "center", "topic_focus": "governance"}
+    ],
+    "proposal_qualify": [
+      {"type": "generated", "lean": "center_left", "topic_focus": "reform"},
+      {"type": "generated", "lean": "center_right", "topic_focus": "funding"},
+      {"type": "generated", "lean": "bipartisan", "topic_focus": "implementation"}
+    ],
+    "proposal_stakeholders": [
+      {"type": "generated", "lean": "left", "topic_focus": "equity"},
+      {"type": "generated", "lean": "right", "topic_focus": "individual_collective"},
+      {"type": "generated", "lean": "populist_cross", "topic_focus": "governance"}
+    ],
+    "opinion_discussion": [
+      {"type": "anchor", "statement": "Transgender individuals should be able to use bathrooms matching their gender identity.",
+       "votes": [1, 1, 1, 1, 1, 0, 0, -1, -1, -1]},
+      {"type": "anchor", "statement": "Prayer and religious education should be allowed in public schools.",
+       "votes": [-1, -1, -1, -1, -1, -1, -1, 1, 1, 1]},
+      {"type": "generated", "lean": "center_left", "topic_focus": "reform"},
+      {"type": "generated", "lean": "libertarian_cross", "topic_focus": "individual_collective"},
+      {"type": "generated", "lean": "divisive", "topic_focus": "equity"}
+    ],
+    "opinion_curation": [
+      {"type": "generated", "lean": "center", "topic_focus": "reform"},
+      {"type": "generated", "lean": "bipartisan", "topic_focus": "implementation"},
+      {"type": "generated", "lean": "center_left", "topic_focus": "funding"}
+    ]
+  },
+  "posts": {
+    "proposal_issue": {
+      "anchors": [
+        {
+          "post_type": "discussion",
+          "title": "Homelessness crisis: What approaches actually work?",
+          "body": "Cities across Texas are grappling with homelessness. Austin has tried camping bans, Houston has invested heavily in Housing First, and San Antonio uses a mix of shelter-based approaches. The results are mixed at best.\n\nWhat's actually working? Are camping bans just moving the problem around, or do they serve a legitimate public safety function? Is Housing First the answer, or does it ignore the root causes?",
+          "comments": [
+            {"body": "Housing First has the strongest evidence base of any approach. It's counterintuitive, but giving people stable housing first — before requiring sobriety or employment — actually leads to better outcomes across every metric.", "author_prefix": "lib", "replies": [
+              {"body": "Housing First works well for the chronically homeless, but it's not a one-size-fits-all solution. People with severe mental illness or active addiction often need supportive housing with wraparound services, not just an apartment.", "author_prefix": "mod"}
+            ]},
+            {"body": "We need to enforce existing laws. Public camping in parks and on sidewalks creates real safety and sanitation issues for everyone. Compassion doesn't mean letting people live in dangerous conditions.", "author_prefix": "con", "replies": [
+              {"body": "Enforcement without alternatives just shuffles people from one block to the next. You can't arrest your way out of a housing and mental health crisis.", "author_prefix": "prog"}
+            ]}
+          ]
+        }
+      ],
+      "generated_count": 7,
+      "generated_types": {"discussion": 4, "question": 2, "proposal": 1},
+      "comments_per_generated": [5, 6, 4, 5, 5, 6, 4]
+    },
+    "proposal_qualify": {
+      "anchors": [
+        {
+          "post_type": "proposal",
+          "title": "Proposal: Launch a Travis County Employer-Supported Childcare Initiative",
+          "body": "Childcare in Texas averages $9,000 per year, and in urban areas like Austin it can exceed $15,000. For many families, especially single-parent households, this cost rivals or exceeds college tuition and forces parents — disproportionately mothers — out of the workforce entirely. The economic impact ripples outward: businesses struggle to fill positions, and families fall deeper into financial hardship.\n\nThis proposal would create a Travis County Employer-Supported Childcare Initiative that offers matching grants and tax incentives to businesses that provide on-site or near-site childcare for their employees. Companies with 50+ employees that establish licensed childcare facilities or contract with nearby providers would receive a county tax credit covering up to 40% of setup costs and 20% of ongoing operational costs. Small businesses under 50 employees could join a childcare cooperative, pooling resources to share a facility, with the county covering coordination and licensing support.\n\nThe initiative would be funded through a reallocation of existing economic development incentives — the same type of tax breaks Travis County currently offers to attract tech companies and large employers. The argument is straightforward: investing in childcare infrastructure is economic development. When parents can work, businesses can hire, and the tax base grows. A pilot program in San Antonio showed that employer-supported childcare reduced employee turnover by 60% and absenteeism by 30%.",
+          "comments": [
+            {"body": "As an employer in Austin, I'd use this program tomorrow. We lose talented employees constantly because they can't afford childcare. The turnover cost alone is far more than what subsidized childcare would run us. The 40% setup credit makes this financially viable for mid-size companies that have wanted to offer this but couldn't justify the capital outlay.", "author_prefix": "mod", "replies": [
+              {"body": "This sounds great for white-collar companies with office space to spare, but what about retail, food service, and construction? Most low-wage workers can't benefit from on-site childcare because their workplaces aren't set up for it. We need a broader solution that reaches all families, not just those who work for companies with conference rooms to convert.", "author_prefix": "prog"}
+            ]},
+            {"body": "Government has no business subsidizing private companies' employee benefits. If childcare is valuable to employees, employers will offer it to compete for talent — that's how markets work. Using tax dollars to give one company a childcare facility while the small business next door gets nothing is picking winners and losers.", "author_prefix": "con", "replies": [
+              {"body": "The cooperative model in the proposal addresses exactly this concern for small businesses. And the tax credits come from redirecting existing corporate incentive budgets, not new spending. We're already subsidizing businesses — this proposal just redirects those subsidies toward something that benefits working families.", "author_prefix": "cen"}
+            ]}
+          ]
+        }
+      ],
+      "generated_count": 8,
+      "generated_types": {"discussion": 5, "question": 2, "proposal": 1},
+      "comments_per_generated": [5, 4, 6, 5, 5, 4, 6, 5]
+    },
+    "proposal_stakeholders": {
+      "anchors": [],
+      "generated_count": 7,
+      "generated_types": {"discussion": 4, "question": 2, "proposal": 1},
+      "comments_per_generated": [6, 5, 4, 5, 6, 5, 4]
+    },
+    "opinion_discussion": {
+      "anchors": [
+        {
+          "post_type": "discussion",
+          "title": "Childcare costs in Texas: A family policy crisis",
+          "body": "The average cost of childcare in Texas is about $9,000 per year — and significantly higher in urban areas like Austin. For many families, that's more than college tuition. The result is that parents, especially mothers, are being pushed out of the workforce entirely.\n\nIs this a market failure that government should address, or a personal responsibility issue? What policy solutions would actually make a difference without creating new problems?",
+          "comments": []
+        }
+      ],
+      "generated_count": 7,
+      "generated_types": {"discussion": 4, "question": 2, "proposal": 1},
+      "comments_per_generated": [6, 5, 5, 6, 4, 5, 6]
+    },
+    "opinion_curation": {
+      "anchors": [],
+      "generated_count": 8,
+      "generated_types": {"discussion": 4, "question": 2, "proposal": 2},
+      "comments_per_generated": [5, 6, 4, 5, 5, 6, 4, 5]
+    }
+  },
+  "surveys": [
+    {
+      "title": "Family Policy Priorities for Travis County",
+      "type": "standard",
+      "session_name": "Family Policy",
+      "target_stage": "opinion_curation",
+      "questions": [
+        {"question": "What is the most pressing family policy issue in Texas?",
+         "options": ["Childcare affordability and availability", "LGBTQ+ family recognition and protections", "Support for single-parent households", "Work-life balance and parental leave"]},
+        {"question": "What role should government play in defining family structure?",
+         "options": ["Government should promote traditional family structures", "Government should protect all family forms equally", "Government should stay out of family matters entirely", "Government should focus only on child welfare regardless of family structure"]},
+        {"question": "How should Texas address the childcare affordability crisis?",
+         "options": ["Subsidize childcare for low- and middle-income families", "Provide tax credits to employers who offer childcare benefits", "Expand public pre-K programs to cover younger children", "Let the market determine childcare pricing and availability"]},
+        {"question": "How should public schools handle religious and values education?",
+         "options": ["Schools should teach about multiple religions in a comparative context", "A moment of silence should be provided but no organized prayer", "Voluntary prayer and religious clubs should be allowed", "Religion should be entirely separate from public education"]}
+      ]
+    }
+  ]
+}

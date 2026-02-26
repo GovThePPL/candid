@@ -12,6 +12,7 @@ from candid.controllers import db
 from candid.controllers.helpers.auth import (
     get_location_ancestors, get_root_location_id,
 )
+from candid.controllers.helpers.serializers import get_user_card
 from candid.models.user import User
 from candid.models.survey import Survey
 from candid.models.survey_question import SurveyQuestion
@@ -23,38 +24,22 @@ VALID_CONTENT_TYPES = {'position', 'chat_log', 'post', 'comment'}
 
 # Roles admins can assign (at their location or descendants)
 ADMIN_ASSIGNABLE = {'admin', 'moderator', 'facilitator'}
-# Roles facilitators can assign (at their location+category)
+# Roles facilitators can assign (at their location+session)
 FACILITATOR_ASSIGNABLE = {'assistant_moderator', 'expert', 'liaison'}
 
 ALL_ASSIGNABLE = ADMIN_ASSIGNABLE | FACILITATOR_ASSIGNABLE
 
 
-def get_user_card(user_id):
-    """Helper to fetch and return a User model for API responses."""
-    user = db.execute_query("""
-        SELECT id, username, display_name, status
-        FROM users WHERE id = %s
-    """, (user_id,), fetchone=True)
-    if user is not None:
-        return User(
-            id=str(user['id']),
-            username=user['username'],
-            display_name=user['display_name'],
-            status=user['status'],
-        )
-    return None
-
-
 def build_survey_with_nested_data(survey_id):
     """Fetch survey with creator User, questions, and options nested."""
     survey_row = db.execute_query("""
-        SELECT s.id, s.creator_user_id, s.position_category_id, s.location_id,
+        SELECT s.id, s.creator_user_id, s.session_id, s.location_id,
                s.survey_title, s.survey_type, s.created_time, s.start_time, s.end_time, s.status,
                l.name AS location_name, l.code AS location_code,
-               pc.label AS category_name
+               pc.label AS session_name
         FROM survey s
         LEFT JOIN location l ON s.location_id = l.id
-        LEFT JOIN position_category pc ON s.position_category_id = pc.id
+        LEFT JOIN session pc ON s.session_id = pc.id
         WHERE s.id = %s
     """, (survey_id,), fetchone=True)
 
@@ -100,14 +85,13 @@ def build_survey_with_nested_data(survey_id):
     return Survey(
         id=str(survey_row['id']),
         creator=creator,
-        position_category_id=str(survey_row['position_category_id']) if survey_row['position_category_id'] else None,
+        session_id=str(survey_row['session_id']) if survey_row['session_id'] else None,
         survey_title=survey_row['survey_title'],
         survey_type=survey_row['survey_type'],
         location_id=str(survey_row['location_id']) if survey_row['location_id'] else None,
         location_code=survey_row['location_code'],
         location_name=survey_row['location_name'],
-        category_id=str(survey_row['position_category_id']) if survey_row['position_category_id'] else None,
-        category_name=survey_row['category_name'],
+        session_name=survey_row['session_name'],
         created_time=survey_row['created_time'],
         start_time=survey_row['start_time'],
         end_time=survey_row['end_time'],
@@ -120,14 +104,14 @@ def build_pairwise_survey(survey_id):
     survey_row = db.execute_query("""
         SELECT s.id, s.creator_user_id, s.survey_title, s.survey_type,
                s.comparison_question, s.polis_conversation_id,
-               s.location_id, s.position_category_id,
+               s.location_id, s.session_id,
                s.start_time, s.end_time, s.status, s.created_time,
-               s.is_group_labeling,
+               s.is_group_labeling, s.phase,
                l.name AS location_name, l.code AS location_code,
-               pc.label AS category_name
+               pc.label AS session_name
         FROM survey s
         LEFT JOIN location l ON s.location_id = l.id
-        LEFT JOIN position_category pc ON s.position_category_id = pc.id
+        LEFT JOIN session pc ON s.session_id = pc.id
         WHERE s.id = %s
     """, (survey_id,), fetchone=True)
 
@@ -158,9 +142,10 @@ def build_pairwise_survey(survey_id):
         "locationId": str(survey_row['location_id']) if survey_row['location_id'] else None,
         "locationCode": survey_row['location_code'],
         "locationName": survey_row['location_name'],
-        "categoryId": str(survey_row['position_category_id']) if survey_row['position_category_id'] else None,
-        "categoryName": survey_row['category_name'],
+        "sessionId": str(survey_row['session_id']) if survey_row['session_id'] else None,
+        "sessionName": survey_row['session_name'],
         "isGroupLabeling": bool(survey_row.get('is_group_labeling')),
+        "phase": survey_row.get('phase'),
         "items": items,
         "startTime": survey_row['start_time'].isoformat() if survey_row['start_time'] else None,
         "endTime": survey_row['end_time'].isoformat() if survey_row['end_time'] else None,
@@ -323,19 +308,19 @@ def apply_role_change(request_row):
         existing = db.execute_query("""
             SELECT id FROM user_role
             WHERE user_id = %s AND role = %s AND location_id = %s
-            AND (position_category_id = %s OR (position_category_id IS NULL AND %s IS NULL))
+            AND (session_id = %s OR (session_id IS NULL AND %s IS NULL))
             LIMIT 1
         """, (request_row['target_user_id'], request_row['role'],
               request_row['location_id'],
-              request_row['position_category_id'], request_row['position_category_id']),
+              request_row['session_id'], request_row['session_id']),
             fetchone=True)
         if not existing:
             role_id = str(uuid.uuid4())
             db.execute_query("""
-                INSERT INTO user_role (id, user_id, role, location_id, position_category_id, assigned_by)
+                INSERT INTO user_role (id, user_id, role, location_id, session_id, assigned_by)
                 VALUES (%s, %s, %s, %s, %s, %s)
             """, (role_id, request_row['target_user_id'], request_row['role'],
-                  request_row['location_id'], request_row['position_category_id'],
+                  request_row['location_id'], request_row['session_id'],
                   request_row['requested_by']))
     elif request_row['action'] == 'remove':
         if request_row.get('user_role_id'):
@@ -353,7 +338,7 @@ def find_approval_peer(request_row):
       3. None -> auto-approve
 
     Facilitator requesting (asst_mod/expert/liaison):
-      1. Peer facilitator at same location+category
+      1. Peer facilitator at same location+session
       2. Location moderator
       3. Location admin
       4. None -> auto-approve
@@ -361,7 +346,7 @@ def find_approval_peer(request_row):
     requester_id = str(request_row['requested_by'])
     role = request_row['role']
     target_loc = str(request_row['location_id']) if request_row.get('location_id') else None
-    target_cat = str(request_row['position_category_id']) if request_row.get('position_category_id') else None
+    target_cat = str(request_row['session_id']) if request_row.get('session_id') else None
     authority_loc = str(request_row['requester_authority_location_id'])
 
     if role in ADMIN_ASSIGNABLE:
@@ -395,7 +380,7 @@ def find_approval_peer(request_row):
                 SELECT ur.user_id FROM user_role ur
                 JOIN users u ON ur.user_id = u.id
                 WHERE ur.role = 'facilitator' AND ur.location_id = %s
-                AND ur.position_category_id = %s AND ur.user_id != %s
+                AND ur.session_id = %s AND ur.user_id != %s
                 AND u.keycloak_id IS NOT NULL
             """, (target_loc, target_cat, requester_id))
             if rows:
@@ -429,7 +414,7 @@ def find_approval_peer(request_row):
     return None
 
 
-def get_requester_authority_location(user_id, role, location_id, category_id=None):
+def get_requester_authority_location(user_id, role, location_id, session_id=None):
     """Determine the requester's authority location for a role change.
 
     Returns the location_id where the requester has authority, or None if unauthorized.
@@ -453,14 +438,14 @@ def get_requester_authority_location(user_id, role, location_id, category_id=Non
         return None
 
     elif role in FACILITATOR_ASSIGNABLE:
-        # Facilitator must have facilitator role at exact location+category
-        if category_id:
+        # Facilitator must have facilitator role at exact location+session
+        if session_id:
             row = db.execute_query("""
                 SELECT 1 FROM user_role
                 WHERE user_id = %s AND role = 'facilitator'
-                AND location_id = %s AND position_category_id = %s
+                AND location_id = %s AND session_id = %s
                 LIMIT 1
-            """, (str(user_id), str(location_id), str(category_id)), fetchone=True)
+            """, (str(user_id), str(location_id), str(session_id)), fetchone=True)
             if row:
                 return str(location_id)
         return None
@@ -488,10 +473,10 @@ def format_role_request(r):
             'name': r['location_name'],
             'code': r['location_code'],
         } if r.get('location_id') else None,
-        'category': {
-            'id': str(r['position_category_id']),
-            'label': r['category_label'],
-        } if r.get('position_category_id') else None,
+        'session': {
+            'id': str(r['session_id']),
+            'label': r['session_label'],
+        } if r.get('session_id') else None,
         'requester': {
             'id': str(r['requested_by']),
             'username': r['requester_username'],
@@ -526,7 +511,7 @@ def format_role_request(r):
 
 
 def build_rule_response(row):
-    """Maps a DB rule row (with JOINed location/category names) to API response dict."""
+    """Maps a DB rule row (with JOINed location/session names) to API response dict."""
     content_types = row.get('applicable_content_types')
     if content_types is None:
         content_types = ['position', 'chat_log', 'post', 'comment']
@@ -553,12 +538,12 @@ def build_rule_response(row):
     else:
         result['locationId'] = None
         result['locationName'] = None
-    if row.get('position_category_id'):
-        result['positionCategoryId'] = str(row['position_category_id'])
-        result['categoryLabel'] = row.get('category_label')
+    if row.get('session_id'):
+        result['sessionId'] = str(row['session_id'])
+        result['sessionLabel'] = row.get('session_label')
     else:
-        result['positionCategoryId'] = None
-        result['categoryLabel'] = None
+        result['sessionId'] = None
+        result['sessionLabel'] = None
     if row.get('creator_user_id'):
         result['creatorUserId'] = str(row['creator_user_id'])
     else:
@@ -568,14 +553,14 @@ def build_rule_response(row):
     return result
 
 
-def get_rule_authority_location(user_id, location_id, category_id):
+def get_rule_authority_location(user_id, location_id, session_id):
     """Determine the requester's authority location for a rule scope.
 
     Returns the location_id where the requester has authority, or None if unauthorized.
 
     - Global rule (location_id=None): must be root admin -> return root location ID
     - Location-scoped: admin at target location or ancestor -> return deepest admin location
-    - Location+category: above checks OR facilitator at exact scope -> return that location
+    - Location+session: above checks OR facilitator at exact scope -> return that location
     """
     user_id_str = str(user_id)
 
@@ -618,14 +603,14 @@ def get_rule_authority_location(user_id, location_id, category_id):
                 if anc in mod_set:
                     return anc
 
-    # If category-scoped, check facilitator at exact location+category
-    if category_id:
+    # If session-scoped, check facilitator at exact location+session
+    if session_id:
         row = db.execute_query("""
             SELECT 1 FROM user_role
             WHERE user_id = %s AND role = 'facilitator'
-            AND location_id = %s AND position_category_id = %s
+            AND location_id = %s AND session_id = %s
             LIMIT 1
-        """, (user_id_str, loc_str, str(category_id)), fetchone=True)
+        """, (user_id_str, loc_str, str(session_id)), fetchone=True)
         if row:
             return loc_str
 
@@ -638,7 +623,7 @@ def find_rule_approval_peer(request_row):
     Mirrors find_approval_peer() logic but uses rule scope from proposed_rule:
     - Global rule change: find peer root admin -> None = auto-approve
     - Location-scoped: find peer admin at authority location -> admin at rule's location -> None
-    - Location+category (facilitator): peer facilitator -> location moderator -> location admin -> None
+    - Location+session (facilitator): peer facilitator -> location moderator -> location admin -> None
     """
     requester_id = str(request_row['requested_by'])
     authority_loc = str(request_row['requester_authority_location_id'])
@@ -649,7 +634,7 @@ def find_rule_approval_peer(request_row):
         proposed = json.loads(proposed)
 
     rule_location_id = proposed.get('locationId')
-    rule_category_id = proposed.get('positionCategoryId')
+    rule_session_id = proposed.get('sessionId')
 
     if rule_location_id is None:
         # Global rule: find peer root admin
@@ -684,15 +669,15 @@ def find_rule_approval_peer(request_row):
         if rows:
             return [str(r['user_id']) for r in rows]
 
-    # If category-scoped and requester is facilitator, try peer facilitator -> moderator -> admin
-    if rule_category_id:
+    # If session-scoped and requester is facilitator, try peer facilitator -> moderator -> admin
+    if rule_session_id:
         rows = db.execute_query("""
             SELECT ur.user_id FROM user_role ur
             JOIN users u ON ur.user_id = u.id
             WHERE ur.role = 'facilitator' AND ur.location_id = %s
-            AND ur.position_category_id = %s AND ur.user_id != %s
+            AND ur.session_id = %s AND ur.user_id != %s
             AND u.keycloak_id IS NOT NULL
-        """, (str(rule_location_id), str(rule_category_id), requester_id))
+        """, (str(rule_location_id), str(rule_session_id), requester_id))
         if rows:
             return [str(r['user_id']) for r in rows]
 
@@ -735,7 +720,7 @@ def apply_rule_change(request_row):
         db.execute_query("""
             INSERT INTO rule (id, creator_user_id, title, text, severity,
                              default_actions, sentencing_guidelines,
-                             location_id, position_category_id, applicable_content_types)
+                             location_id, session_id, applicable_content_types)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             rule_id,
@@ -746,7 +731,7 @@ def apply_rule_change(request_row):
             json.dumps(proposed.get('defaultActions', [])),
             proposed.get('sentencingGuidelines'),
             proposed.get('locationId'),
-            proposed.get('positionCategoryId'),
+            proposed.get('sessionId'),
             content_types,
         ))
 
@@ -774,9 +759,9 @@ def apply_rule_change(request_row):
         if 'locationId' in proposed:
             set_clauses.append("location_id = %s")
             params.append(proposed['locationId'])
-        if 'positionCategoryId' in proposed:
-            set_clauses.append("position_category_id = %s")
-            params.append(proposed['positionCategoryId'])
+        if 'sessionId' in proposed:
+            set_clauses.append("session_id = %s")
+            params.append(proposed['sessionId'])
         if 'applicableContentTypes' in proposed:
             set_clauses.append("applicable_content_types = %s")
             params.append(proposed['applicableContentTypes'])
@@ -880,11 +865,14 @@ def check_rule_auto_approve_expired():
 
 def get_admins_at_location(location_id):
     """Return user IDs of admins/moderators at a location or its ancestors."""
+    ancestors = get_location_ancestors(location_id)
+    if not ancestors:
+        return []
     rows = db.execute_query("""
         SELECT DISTINCT ur.user_id FROM user_role ur
         WHERE ur.role IN ('admin', 'moderator')
-          AND ur.location_id IN (SELECT id FROM get_location_ancestors(%s))
-    """, (str(location_id),))
+          AND ur.location_id = ANY(%s::uuid[])
+    """, (ancestors,))
     return [str(r['user_id']) for r in (rows or [])]
 
 

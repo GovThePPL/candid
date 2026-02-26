@@ -1,6 +1,6 @@
 import { StyleSheet, View, TouchableOpacity, FlatList, ScrollView, ActivityIndicator, TextInput, Alert, Platform } from 'react-native'
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { useRouter } from 'expo-router'
+import { useRouter, useLocalSearchParams } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
@@ -16,7 +16,7 @@ import { useToast } from '../../../components/Toast'
 import { useUser } from '../../../hooks/useUser'
 import { getHighestRole, hasRole, canManageRuleScope } from '../../../lib/roles'
 import LocationPicker from '../../../components/LocationPicker'
-import LocationCategoryBadge from '../../../components/LocationCategoryBadge'
+import LocationSessionBadge from '../../../components/LocationSessionBadge'
 import useSurveyForm from '../../../hooks/useSurveyForm'
 
 const SURVEY_TYPES = ['standard', 'pairwise']
@@ -24,18 +24,13 @@ const SURVEY_TYPES = ['standard', 'pairwise']
 export default function SurveysScreen() {
   const { t } = useTranslation('admin')
   const router = useRouter()
+  const { sessionId: paramSessionId, sessionName: paramSessionName } = useLocalSearchParams()
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const toast = useToast()
   const { user } = useUser()
 
   const canWrite = useMemo(() => hasRole(user, 'facilitator'), [user])
-
-  // Per-survey delete permission: scoped surveys need facilitator+ at scope,
-  // unscoped (global) surveys need site admin.
-  const canDeleteSurvey = useCallback((survey) => {
-    return canManageRuleScope(user, survey.locationId || null, survey.positionCategoryId || null, locations)
-  }, [user, locations])
 
   const defaultLocationId = useMemo(() => {
     if (!user?.roles?.length) return null
@@ -48,9 +43,15 @@ export default function SurveysScreen() {
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(null)
 
-  // Location/category data
+  // Location/session data
   const [locations, setLocations] = useState([])
-  const [allCategories, setAllCategories] = useState([])
+
+  // Per-survey delete permission: scoped surveys need facilitator+ at scope,
+  // unscoped (global) surveys need site admin.
+  const canDeleteSurvey = useCallback((survey) => {
+    return canManageRuleScope(user, survey.locationId || null, survey.sessionId || null, locations)
+  }, [user, locations])
+  const [allSessions, setAllSessions] = useState([])
 
   // Location filter for survey list — default to user's highest role location
   const [filterLocationId, setFilterLocationId] = useState(defaultLocationId)
@@ -69,27 +70,29 @@ export default function SurveysScreen() {
   const fetchSurveys = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await api.admin.getSurveys({ locationId: filterLocationId || undefined })
+      const opts = { locationId: filterLocationId || undefined }
+      if (paramSessionId) opts.sessionId = paramSessionId
+      const data = await api.admin.getSurveys(opts)
       setSurveys(data || [])
     } catch (err) {
       toast?.(translateError(err.message, t) || t('loadError'), 'error')
     } finally {
       setLoading(false)
     }
-  }, [t, toast, filterLocationId])
+  }, [t, toast, filterLocationId, paramSessionId])
 
   useEffect(() => { fetchSurveys() }, [fetchSurveys])
 
-  // Fetch locations and categories for pickers
+  // Fetch locations and sessions for pickers
   useEffect(() => {
     const load = async () => {
       try {
-        const [locs, cats] = await Promise.all([
+        const [locs, sess] = await Promise.all([
           api.users.getAllLocations(),
-          api.admin.getAllCategories(),
+          api.admin.getAllSessions(),
         ])
         setLocations(locs || [])
-        setAllCategories(cats || [])
+        setAllSessions(sess || [])
       } catch {
         // non-critical — pickers will just be empty
       }
@@ -98,7 +101,7 @@ export default function SurveysScreen() {
   }, [])
 
   // --- Survey form (hook) ---
-  const form = useSurveyForm({ user, locations, allCategories, defaultLocationId, fetchSurveys })
+  const form = useSurveyForm({ user, locations, allSessions, defaultLocationId, fetchSurveys })
 
   const handleDelete = useCallback(async (survey) => {
     const title = survey.surveyTitle || ''
@@ -133,21 +136,21 @@ export default function SurveysScreen() {
 
   const getSurveyTitle = (survey) => survey.surveyTitle || ''
   const getSurveyType = (survey) => survey.surveyType === 'pairwise' ? 'pairwise' : 'standard'
-  const getCategoryName = (survey) => survey.categoryName
+  const getSessionName = (survey) => survey.sessionName
 
   const renderSurvey = useCallback(({ item }) => {
     const title = getSurveyTitle(item)
     const type = getSurveyType(item)
     const start = item.startTime
     const end = item.endTime
-    const catName = getCategoryName(item)
+    const sessName = getSessionName(item)
 
     return (
       <View style={styles.surveyCard}>
         <View style={styles.cardTopRow}>
-          <LocationCategoryBadge
+          <LocationSessionBadge
             location={item.locationCode ? { code: item.locationCode } : null}
-            category={{ label: catName || t('allCategories') }}
+            session={{ label: sessName || t('admin:allSessions') }}
             size="md"
           />
           <View style={[styles.typeBadge, type === 'pairwise' ? styles.typeBadgePairwise : styles.typeBadgeStandard]}>
@@ -208,15 +211,15 @@ export default function SurveysScreen() {
     const type = getSurveyType(viewSurvey)
     const start = viewSurvey.startTime
     const end = viewSurvey.endTime
-    const catName = getCategoryName(viewSurvey)
+    const sessName = getSessionName(viewSurvey)
 
     return (
       <ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
-        {/* Location/category + type */}
+        {/* Location/session + type */}
         <View style={styles.cardTopRow}>
-          <LocationCategoryBadge
+          <LocationSessionBadge
             location={viewSurvey.locationCode ? { code: viewSurvey.locationCode } : null}
-            category={{ label: catName || t('allCategories') }}
+            session={{ label: sessName || t('admin:allSessions') }}
             size="md"
           />
           <View style={[styles.typeBadge, type === 'pairwise' ? styles.typeBadgePairwise : styles.typeBadgeStandard]}>
@@ -286,7 +289,9 @@ export default function SurveysScreen() {
       <Header onBack={() => router.back()} />
       <View style={styles.content}>
         <View style={styles.titleRow}>
-          <ThemedText variant="h1" title={true} style={styles.pageTitle}>{t('surveysTitle')}</ThemedText>
+          <ThemedText variant="h1" title={true} style={styles.pageTitle}>
+            {paramSessionName ? t('surveysForSession', { name: decodeURIComponent(paramSessionName) }) : t('surveysTitle')}
+          </ThemedText>
           {canWrite && (
             <TouchableOpacity
               style={styles.createButton}
@@ -419,21 +424,21 @@ export default function SurveysScreen() {
             </>
           )}
 
-          {/* Category picker */}
-          {form.allowableCategories.length > 0 && (
+          {/* Session picker */}
+          {form.allowableSessions.length > 0 && (
             <>
-              <ThemedText variant="label" color="secondary">{t('selectCategoryOptional')}</ThemedText>
+              <ThemedText variant="label" color="secondary">{t('selectSessionOptional')}</ThemedText>
               <TouchableOpacity
                 style={styles.pickerButton}
-                onPress={() => form.setCategoryPickerVisible(true)}
+                onPress={() => form.setSessionPickerVisible(true)}
                 accessibilityRole="button"
-                accessibilityLabel={t('selectCategoryA11y')}
+                accessibilityLabel={t('selectSessionA11y')}
               >
                 <Ionicons name="pricetag-outline" size={16} color={colors.secondaryText} />
                 <ThemedText variant="body" color="dark" style={styles.pickerButtonText}>
-                  {form.selectedCategoryId
-                    ? form.allowableCategories.find(c => c.id === form.selectedCategoryId)?.label || t('allCategories')
-                    : t('allCategories')}
+                  {form.selectedSessionId
+                    ? form.allowableSessions.find(s => s.id === form.selectedSessionId)?.label || t('admin:allSessions')
+                    : t('admin:allSessions')}
                 </ThemedText>
                 <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
               </TouchableOpacity>
@@ -599,38 +604,38 @@ export default function SurveysScreen() {
         saving={false}
       />
 
-      {/* Category Picker Modal */}
+      {/* Session Picker Modal */}
       <BottomDrawerModal
-        visible={form.categoryPickerVisible}
-        onClose={() => form.setCategoryPickerVisible(false)}
-        title={t('selectCategory')}
+        visible={form.sessionPickerVisible}
+        onClose={() => form.setSessionPickerVisible(false)}
+        title={t('selectSession')}
       >
-        <ScrollView contentContainerStyle={styles.categoryList}>
+        <ScrollView contentContainerStyle={styles.sessionList}>
           <TouchableOpacity
-            style={[styles.categoryRow, !form.selectedCategoryId && styles.categoryRowSelected]}
-            onPress={() => { form.setSelectedCategoryId(null); form.setCategoryPickerVisible(false) }}
+            style={[styles.sessionRow, !form.selectedSessionId && styles.sessionRowSelected]}
+            onPress={() => { form.setSelectedSessionId(null); form.setSessionPickerVisible(false) }}
             accessibilityRole="button"
-            accessibilityLabel={t('allCategories')}
-            accessibilityState={{ selected: !form.selectedCategoryId }}
+            accessibilityLabel={t('admin:allSessions')}
+            accessibilityState={{ selected: !form.selectedSessionId }}
           >
-            <ThemedText variant="body" color={!form.selectedCategoryId ? 'primary' : 'dark'}>
-              {t('allCategories')}
+            <ThemedText variant="body" color={!form.selectedSessionId ? 'primary' : 'dark'}>
+              {t('admin:allSessions')}
             </ThemedText>
-            {!form.selectedCategoryId && <Ionicons name="checkmark" size={20} color={colors.primary} />}
+            {!form.selectedSessionId && <Ionicons name="checkmark" size={20} color={colors.primary} />}
           </TouchableOpacity>
-          {form.allowableCategories.map(cat => {
-            const selected = form.selectedCategoryId === cat.id
+          {form.allowableSessions.map(sess => {
+            const selected = form.selectedSessionId === sess.id
             return (
               <TouchableOpacity
-                key={cat.id}
-                style={[styles.categoryRow, selected && styles.categoryRowSelected]}
-                onPress={() => { form.setSelectedCategoryId(cat.id); form.setCategoryPickerVisible(false) }}
+                key={sess.id}
+                style={[styles.sessionRow, selected && styles.sessionRowSelected]}
+                onPress={() => { form.setSelectedSessionId(sess.id); form.setSessionPickerVisible(false) }}
                 accessibilityRole="button"
-                accessibilityLabel={cat.label || cat.name}
+                accessibilityLabel={sess.label || sess.name}
                 accessibilityState={{ selected }}
               >
                 <ThemedText variant="body" color={selected ? 'primary' : 'dark'}>
-                  {cat.label || cat.name}
+                  {sess.label || sess.name}
                 </ThemedText>
                 {selected && <Ionicons name="checkmark" size={20} color={colors.primary} />}
               </TouchableOpacity>
@@ -766,11 +771,11 @@ const createStyles = (colors) => StyleSheet.create({
   pickerButtonText: {
     flex: 1,
   },
-  categoryList: {
+  sessionList: {
     padding: 16,
     paddingBottom: 40,
   },
-  categoryRow: {
+  sessionRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -779,7 +784,7 @@ const createStyles = (colors) => StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.cardBorder,
   },
-  categoryRowSelected: {
+  sessionRowSelected: {
     backgroundColor: colors.primaryLight + '20',
   },
   chipRow: {

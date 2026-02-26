@@ -12,9 +12,9 @@ from conftest import (
 
 GLOSSARY_TERMS_URL = f"{BASE_URL}/glossary/terms"
 WIKI_PAGES_URL = f"{BASE_URL}/wiki/pages"
-WIKI_PAGE_URL = f"{BASE_URL}/wiki/page"
+WIKI_PAGE_URL = f"{BASE_URL}/wiki/pages/content"
 WIKI_CATEGORIES_URL = f"{BASE_URL}/wiki/categories"
-WIKI_PAGE_HISTORY_URL = f"{BASE_URL}/wiki/page/history"
+WIKI_PAGE_HISTORY_URL = f"{BASE_URL}/wiki/pages/history"
 
 
 # ---------------------------------------------------------------------------
@@ -34,7 +34,7 @@ def _cleanup_test_data():
 
 
 def _seed_test_term(slug="test-filibuster", term="Filibuster", summary="A delay tactic",
-                    content="Full article", scope_combine="or", location_ids=None, category_ids=None):
+                    content="Full article", scope_combine="or", location_ids=None, session_ids=None):
     """Seed a glossary term directly in the DB for testing."""
     db_execute("""
         INSERT INTO glossary_term (slug, term, summary, content, scope_combine)
@@ -52,17 +52,17 @@ def _seed_test_term(slug="test-filibuster", term="Filibuster", summary="A delay 
             INSERT INTO glossary_term_scope (term_id, scope_type, scope_id)
             VALUES (%s, 'location', %s) ON CONFLICT DO NOTHING
         """, (term_id, loc_id))
-    for cat_id in (category_ids or []):
+    for sess_id in (session_ids or []):
         db_execute("""
             INSERT INTO glossary_term_scope (term_id, scope_type, scope_id)
-            VALUES (%s, 'category', %s) ON CONFLICT DO NOTHING
-        """, (term_id, cat_id))
+            VALUES (%s, 'session', %s) ON CONFLICT DO NOTHING
+        """, (term_id, sess_id))
 
     return term_id
 
 
 def _seed_test_page(slug="test-page", title="Test Page", description="Test desc",
-                    content="Page content", wiki_category=None, location_ids=None, category_ids=None):
+                    content="Page content", wiki_category=None, location_ids=None, session_ids=None):
     """Seed a wiki page directly in the DB for testing."""
     db_execute("""
         INSERT INTO wiki_page (slug, title, description, content, wiki_category)
@@ -80,11 +80,11 @@ def _seed_test_page(slug="test-page", title="Test Page", description="Test desc"
             INSERT INTO wiki_page_scope (page_id, scope_type, scope_id)
             VALUES (%s, 'location', %s) ON CONFLICT DO NOTHING
         """, (page_id, loc_id))
-    for cat_id in (category_ids or []):
+    for sess_id in (session_ids or []):
         db_execute("""
             INSERT INTO wiki_page_scope (page_id, scope_type, scope_id)
-            VALUES (%s, 'category', %s) ON CONFLICT DO NOTHING
-        """, (page_id, cat_id))
+            VALUES (%s, 'session', %s) ON CONFLICT DO NOTHING
+        """, (page_id, sess_id))
 
     return page_id
 
@@ -127,7 +127,7 @@ class TestGetGlossaryTerms:
         assert "aliases" in term
         assert "scopeCombine" in term
         assert "locationIds" in term
-        assert "categoryIds" in term
+        assert "sessionIds" in term
 
     def test_location_filter(self, normal_headers):
         """Location filter includes global and location-matching terms."""
@@ -436,7 +436,7 @@ class TestWikiPageHistory:
         # Get version detail
         version_id = versions[0]["id"]
         resp = requests.get(
-            f"{WIKI_PAGE_HISTORY_URL}/{version_id}",
+            f"{BASE_URL}/wiki/pages/versions/{version_id}",
             headers=admin_headers,
             params={"slug": "test-history-detail"})
         assert resp.status_code == 200

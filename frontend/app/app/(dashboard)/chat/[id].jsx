@@ -280,7 +280,7 @@ export default function ChatScreen() {
   // Moderation state
   const checkModerateScope = useModerateChecker()
   const userCanModerate = chatInfo?.position
-    ? checkModerateScope(chatInfo.position.location?.id, chatInfo.position.category?.id)
+    ? checkModerateScope(chatInfo.position.location?.id, chatInfo.position.session?.id)
     : false
   const [moderateTarget, setModerateTarget] = useState(null)
   const [moderateRule, setModerateRule] = useState(null)
@@ -1230,7 +1230,7 @@ export default function ChatScreen() {
   const handleModerateActionSubmit = useCallback(async (actionData) => {
     if (!moderateTarget || !moderateRule) return
     try {
-      await api.moderation.inlineAction({
+      await api.moderation.createAction({
         targetType: moderateTarget.type,
         targetId: moderateTarget.id,
         ruleId: moderateRule.id,

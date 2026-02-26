@@ -1,0 +1,127 @@
+{
+  "session_name": "Border Communities",
+  "location_code": "TX",
+  "target_stage": "opinion_discussion",
+  "topic_vocabulary": {
+    "topic_noun": ["border policy", "immigration", "border security"],
+    "topic_adj": ["border-related", "immigration", "cross-border"],
+    "location_name": ["Texas", "the Texas-Mexico border region"],
+    "stakeholder": ["border communities", "immigrant families", "Border Patrol", "local businesses", "landowners"],
+    "specific_issue": ["cross-border commerce", "family separation", "labor shortages", "border wall construction"],
+    "policy_example": ["DACA", "Title 42", "Operation Lone Star", "sanctuary city policies"],
+    "data_point": ["$100B annual cross-border trade in TX", "over 1.7 million border crossings monthly at TX ports of entry"]
+  },
+  "positions": {
+    "proposal_issue": [
+      {"type": "anchor", "statement": "A physical wall on the southern border is necessary for national security.",
+       "votes": [-1, -1, -1, -1, -1, -1, -1, 1, 1, 1]},
+      {"type": "anchor", "statement": "Undocumented immigrants who have lived here for years should have a path to citizenship.",
+       "votes": [1, 1, 1, 1, 1, 1, 0, -1, -1, -1]},
+      {"type": "generated", "lean": "strong_left", "topic_focus": "equity"},
+      {"type": "generated", "lean": "right", "topic_focus": "governance"},
+      {"type": "generated", "lean": "center", "topic_focus": "implementation"}
+    ],
+    "proposal_qualify": [
+      {"type": "anchor", "statement": "Immigration levels should be reduced to protect American jobs.",
+       "votes": [-1, -1, -1, -1, -1, -1, 0, 1, 1, 1]},
+      {"type": "generated", "lean": "center_left", "topic_focus": "reform"},
+      {"type": "generated", "lean": "center_right", "topic_focus": "funding"},
+      {"type": "generated", "lean": "bipartisan", "topic_focus": "implementation"}
+    ],
+    "proposal_stakeholders": [
+      {"type": "generated", "lean": "left", "topic_focus": "equity"},
+      {"type": "generated", "lean": "right", "topic_focus": "governance"},
+      {"type": "generated", "lean": "populist_cross", "topic_focus": "individual_collective"}
+    ],
+    "opinion_discussion": [
+      {"type": "anchor", "statement": "Sanctuary cities that don't cooperate with federal immigration enforcement should lose funding.",
+       "votes": [-1, -1, -1, -1, 0, -1, 1, 1, 1, 1]},
+      {"type": "generated", "lean": "center_left", "topic_focus": "reform"},
+      {"type": "generated", "lean": "libertarian_cross", "topic_focus": "individual_collective"},
+      {"type": "generated", "lean": "divisive", "topic_focus": "governance"}
+    ]
+  },
+  "posts": {
+    "proposal_issue": {
+      "anchors": [
+        {
+          "post_type": "discussion",
+          "title": "Texas border communities: Beyond the headlines",
+          "body": "Living near the border is nothing like what most Americans see on cable news. These are real communities with deep history, cross-border commerce, family ties that span generations, and a shared culture that doesn't fit neatly into political talking points.\n\nWhat's the actual day-to-day reality for people living in border communities? How do federal policies affect local life, trade, and relationships?",
+          "comments": [
+            {"body": "I live in El Paso and cross the border regularly. The reality is that the border isn't some war zone — it's a community. People cross daily for work, school, family, and shopping. The economic interdependence is real.", "author_prefix": "mod", "replies": [
+              {"body": "Cross-border commerce is huge. El Paso and Ciudad Juárez together form one of the largest binational metro areas in the world. Disrupting that flow hurts both sides.", "author_prefix": "lib"}
+            ]},
+            {"body": "My family's ranch land was literally cut in half by the border wall. We lost access to water sources our cattle had used for generations. Nobody in Washington asked us about it.", "author_prefix": "libt"}
+          ]
+        }
+      ],
+      "generated_count": 8,
+      "generated_types": {"discussion": 5, "question": 2, "proposal": 1},
+      "comments_per_generated": [5, 6, 4, 5, 5, 6, 4, 5]
+    },
+    "proposal_qualify": {
+      "anchors": [
+        {
+          "post_type": "proposal",
+          "title": "Proposal: Create a Texas Border Economic Development Zone",
+          "body": "Texas border communities generate over $100 billion in annual cross-border trade, yet many border towns remain among the poorest in the state. The economic potential of these communities is enormous, but outdated infrastructure, understaffed ports of entry, and a lack of business investment hold them back.\n\nThis proposal would establish a Texas Border Economic Development Zone spanning the counties within 50 miles of the Mexico border. Businesses operating within the zone would receive tax incentives for hiring locally, expedited permitting for cross-border commerce, and access to a state-funded infrastructure modernization fund for roads, bridges, and port facilities. The zone would also create a binational business incubator program to help small entrepreneurs on both sides of the border develop joint ventures.\n\nCritically, this proposal separates economic policy from immigration enforcement. The goal is to invest in the communities that already exist along the border — communities with deep cultural roots, binational families, and an economy that depends on cross-border flow. Strengthening these communities economically would reduce poverty-driven migration, improve security through prosperity, and capture trade revenue that currently bypasses Texas border towns for larger inland cities.",
+          "comments": [
+            {"body": "This makes sense economically. El Paso and Ciudad Juarez together form one of the largest binational metro areas in the world, but El Paso's infrastructure is decades behind what the trade volume demands. Investing in port modernization alone would pay for itself in increased customs revenue within a few years.", "author_prefix": "mod", "replies": [
+              {"body": "I agree on infrastructure investment, but tax incentives for a 50-mile zone is incredibly broad. That would include parts of San Antonio's metro area. We need tighter geographic targeting to make sure the benefits go to actual border communities, not suburban developers gaming the system.", "author_prefix": "cen"}
+            ]},
+            {"body": "You can't separate economics from immigration enforcement — that's the fundamental flaw here. Any economic development zone on the border will attract more illegal crossings as people try to access jobs and services. We need to secure the border first, then talk about development.", "author_prefix": "con", "replies": [
+              {"body": "The evidence actually shows the opposite. Prosperous border communities with strong legal crossing infrastructure have lower rates of illegal crossing. People cross illegally when legal pathways are too slow or unavailable. Investment in ports of entry and legal commerce reduces illegal activity.", "author_prefix": "prog"}
+            ]}
+          ]
+        }
+      ],
+      "generated_count": 7,
+      "generated_types": {"discussion": 4, "question": 2, "proposal": 1},
+      "comments_per_generated": [5, 4, 6, 5, 5, 4, 6]
+    },
+    "proposal_stakeholders": {
+      "anchors": [],
+      "generated_count": 8,
+      "generated_types": {"discussion": 4, "question": 2, "proposal": 2},
+      "comments_per_generated": [6, 5, 4, 5, 6, 5, 4, 5]
+    },
+    "opinion_discussion": {
+      "anchors": [
+        {
+          "post_type": "discussion",
+          "title": "Immigration and Texas labor markets",
+          "body": "Texas industries like construction, agriculture, and hospitality depend heavily on immigrant labor — both documented and undocumented. Without this workforce, large parts of the Texas economy would struggle to function.\n\nHow should we think about immigration policy when so much of our economic growth is tied to immigrant workers? What happens to these industries if immigration is significantly curtailed?",
+          "comments": [
+            {"body": "Texas construction would collapse without immigrant labor. I've worked in the industry for 15 years and the reality is that most Americans don't want these jobs at any wage.", "author_prefix": "mod", "replies": [
+              {"body": "Wages Americans won't accept? Or wages that are suppressed because employers can exploit undocumented workers who can't complain? These are different problems.", "author_prefix": "pop", "replies": [
+                {"body": "Fair point, but have you ever worked roofing in August in Houston? These are physically demanding, dangerous jobs in extreme heat. Even at higher wages, the applicant pool from native-born workers is tiny.", "author_prefix": "mod"}
+              ]}
+            ]}
+          ]
+        }
+      ],
+      "generated_count": 7,
+      "generated_types": {"discussion": 4, "question": 2, "proposal": 1},
+      "comments_per_generated": [6, 5, 5, 6, 4, 5, 6]
+    }
+  },
+  "surveys": [
+    {
+      "title": "Border Policy Priorities for Texas Communities",
+      "type": "standard",
+      "session_name": "Border Communities",
+      "target_stage": "opinion_discussion",
+      "questions": [
+        {"question": "What should be the top priority for U.S. border policy?",
+         "options": ["Strengthening physical border security", "Reforming legal immigration pathways", "Supporting border community economies", "Increasing interior enforcement and deportation"]},
+        {"question": "How should undocumented immigrants who have lived in the U.S. for over 10 years be treated?",
+         "options": ["Offered a path to citizenship", "Given permanent legal residency without citizenship", "Required to leave and apply from abroad", "Allowed to stay with work permits but no path to citizenship"]},
+        {"question": "Which best describes the economic impact of immigration on Texas?",
+         "options": ["Mostly positive — fills labor gaps and drives growth", "Mixed — benefits some industries but depresses wages in others", "Mostly negative — takes jobs from American workers", "Depends entirely on whether immigration is legal or illegal"]},
+        {"question": "How should federal immigration enforcement interact with local communities?",
+         "options": ["Local police should actively assist federal immigration enforcement", "Local police should cooperate only on serious criminal matters", "Local communities should set their own enforcement policies", "Federal enforcement should handle immigration independently of local police"]}
+      ]
+    }
+  ]
+}

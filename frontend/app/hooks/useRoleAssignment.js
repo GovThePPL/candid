@@ -1,42 +1,43 @@
 /**
  * Hook for managing role assignment and removal within admin screens.
  *
- * Handles: user search with debounce, role/location/category picker state,
+ * Handles: user search with debounce, role/location/session picker state,
  * cascading field resets, role assignment submission, and role removal with
  * confirmation dialogs.
  */
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Platform, Alert } from 'react-native'
 import { useTranslation } from 'react-i18next'
-import { ROLE_LABEL_KEYS, getAssignableRoles, getAssignableLocations, getAssignableCategories } from '../lib/roles'
+import { ROLE_LABEL_KEYS, getAssignableRoles, getAssignableLocations, getAssignableSessions } from '../lib/roles'
 import api, { translateError } from '../lib/api'
 import { useToast } from '../components/Toast'
 
-const CATEGORY_REQUIRED_ROLES = new Set(['assistant_moderator', 'expert', 'liaison'])
+const SESSION_REQUIRED_ROLES = new Set(['assistant_moderator', 'expert', 'liaison'])
 
-export { CATEGORY_REQUIRED_ROLES }
+export { SESSION_REQUIRED_ROLES }
 
-export default function useRoleAssignment({ user, locations, allCategories, fetchRoles }) {
+export default function useRoleAssignment({ user, locations, allSessions, fetchRoles }) {
   const { t } = useTranslation('admin')
   const toast = useToast()
 
   // --- Modal + form state ---
   const [assignModalVisible, setAssignModalVisible] = useState(false)
   const [prefilledLocationId, setPrefilledLocationId] = useState(null)
+  const [prefilledSessionId, setPrefilledSessionId] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
   const [selectedUser, setSelectedUser] = useState(null)
   const [selectedRole, setSelectedRole] = useState(null)
   const [selectedLocation, setSelectedLocation] = useState(null)
-  const [selectedCategory, setSelectedCategory] = useState(null)
+  const [selectedSession, setSelectedSession] = useState(null)
   const [assignReason, setAssignReason] = useState('')
   const [assignSubmitting, setAssignSubmitting] = useState(false)
 
   // --- Picker visibility ---
   const [rolePickerVisible, setRolePickerVisible] = useState(false)
   const [locationPickerVisible, setLocationPickerVisible] = useState(false)
-  const [categoryPickerVisible, setCategoryPickerVisible] = useState(false)
+  const [sessionPickerVisible, setSessionPickerVisible] = useState(false)
 
   // --- Computed values ---
   const assignableRoles = useMemo(() => getAssignableRoles(user), [user])
@@ -46,15 +47,15 @@ export default function useRoleAssignment({ user, locations, allCategories, fetc
     [user, selectedRole, locations]
   )
 
-  const assignableCategoryIds = useMemo(
-    () => getAssignableCategories(user, selectedRole, selectedLocation),
+  const assignableSessionIds = useMemo(
+    () => getAssignableSessions(user, selectedRole, selectedLocation),
     [user, selectedRole, selectedLocation]
   )
 
-  const assignableCategories = useMemo(() => {
-    if (assignableCategoryIds === null) return allCategories
-    return allCategories.filter(c => assignableCategoryIds.has(c.id))
-  }, [allCategories, assignableCategoryIds])
+  const assignableSessions = useMemo(() => {
+    if (assignableSessionIds === null) return allSessions
+    return allSessions.filter(c => assignableSessionIds.has(c.id))
+  }, [allSessions, assignableSessionIds])
 
   const allowableLocationsForPicker = useMemo(() => {
     if (!assignableLocations.length) return []
@@ -63,17 +64,17 @@ export default function useRoleAssignment({ user, locations, allCategories, fetc
       allowedIds.has(l.parentLocationId) ? l : { ...l, parentLocationId: null })
   }, [assignableLocations])
 
-  const showCategoryPicker = selectedRole && CATEGORY_REQUIRED_ROLES.has(selectedRole)
+  const showSessionPicker = selectedRole && SESSION_REQUIRED_ROLES.has(selectedRole)
 
   // --- Cascading resets ---
   useEffect(() => {
     setSelectedLocation(prefilledLocationId)
-    setSelectedCategory(null)
-  }, [selectedRole, prefilledLocationId])
+    setSelectedSession(prefilledSessionId)
+  }, [selectedRole, prefilledLocationId, prefilledSessionId])
 
   useEffect(() => {
-    setSelectedCategory(null)
-  }, [selectedLocation])
+    setSelectedSession(prefilledSessionId)
+  }, [selectedLocation, prefilledSessionId])
 
   // --- User search debounce ---
   useEffect(() => {
@@ -95,10 +96,24 @@ export default function useRoleAssignment({ user, locations, allCategories, fetc
   // --- Handlers ---
   const openAssignAtLocation = useCallback((locationId) => {
     setPrefilledLocationId(locationId)
+    setPrefilledSessionId(null)
     setSelectedUser(null)
     setSelectedRole(null)
     setSelectedLocation(locationId)
-    setSelectedCategory(null)
+    setSelectedSession(null)
+    setAssignReason('')
+    setSearchQuery('')
+    setSearchResults([])
+    setAssignModalVisible(true)
+  }, [])
+
+  const openAssignForSession = useCallback((locationId, sessionId) => {
+    setPrefilledLocationId(locationId)
+    setPrefilledSessionId(sessionId)
+    setSelectedUser(null)
+    setSelectedRole(null)
+    setSelectedLocation(locationId)
+    setSelectedSession(sessionId)
     setAssignReason('')
     setSearchQuery('')
     setSearchResults([])
@@ -109,19 +124,20 @@ export default function useRoleAssignment({ user, locations, allCategories, fetc
     setSelectedUser(null)
     setSelectedRole(null)
     setSelectedLocation(null)
-    setSelectedCategory(null)
+    setSelectedSession(null)
     setAssignReason('')
     setSearchQuery('')
     setSearchResults([])
     setPrefilledLocationId(null)
+    setPrefilledSessionId(null)
   }, [])
 
   const handleAssignRole = useCallback(async () => {
     if (!selectedUser) { toast?.(t('userRequired'), 'error'); return }
     if (!selectedRole) { toast?.(t('roleRequired'), 'error'); return }
     if (!selectedLocation) { toast?.(t('locationRequired'), 'error'); return }
-    if (CATEGORY_REQUIRED_ROLES.has(selectedRole) && !selectedCategory) {
-      toast?.(t('categoryRequired'), 'error'); return
+    if (SESSION_REQUIRED_ROLES.has(selectedRole) && !selectedSession) {
+      toast?.(t('sessionRequired'), 'error'); return
     }
 
     setAssignSubmitting(true)
@@ -130,7 +146,7 @@ export default function useRoleAssignment({ user, locations, allCategories, fetc
         targetUserId: selectedUser.id,
         role: selectedRole,
         locationId: selectedLocation,
-        positionCategoryId: selectedCategory || undefined,
+        sessionId: selectedSession || undefined,
         reason: assignReason || undefined,
       })
       toast?.(t('roleAssigned'), 'success')
@@ -142,7 +158,7 @@ export default function useRoleAssignment({ user, locations, allCategories, fetc
     } finally {
       setAssignSubmitting(false)
     }
-  }, [selectedUser, selectedRole, selectedLocation, selectedCategory, assignReason, fetchRoles, resetAssignForm, t, toast])
+  }, [selectedUser, selectedRole, selectedLocation, selectedSession, assignReason, fetchRoles, resetAssignForm, t, toast])
 
   const handleRemoveRole = useCallback(async (roleAssignment) => {
     const roleName = t(ROLE_LABEL_KEYS[roleAssignment.role] || roleAssignment.role)
@@ -177,18 +193,19 @@ export default function useRoleAssignment({ user, locations, allCategories, fetc
     selectedUser, setSelectedUser,
     selectedRole, setSelectedRole,
     selectedLocation, setSelectedLocation,
-    selectedCategory, setSelectedCategory,
+    selectedSession, setSelectedSession,
     assignReason, setAssignReason,
     assignSubmitting,
     rolePickerVisible, setRolePickerVisible,
     locationPickerVisible, setLocationPickerVisible,
-    categoryPickerVisible, setCategoryPickerVisible,
+    sessionPickerVisible, setSessionPickerVisible,
     assignableRoles,
     assignableLocations,
-    assignableCategories,
+    assignableSessions,
     allowableLocationsForPicker,
-    showCategoryPicker,
+    showSessionPicker,
     openAssignAtLocation,
+    openAssignForSession,
     resetAssignForm,
     handleAssignRole,
     handleRemoveRole,

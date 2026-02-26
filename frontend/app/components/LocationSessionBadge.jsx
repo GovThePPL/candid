@@ -6,7 +6,7 @@ import ThemedText from './ThemedText'
 const SIZE_CONFIG = {
   lg: {
     locationVariant: 'buttonSmall',
-    categoryVariant: 'bodySmall',
+    sessionVariant: 'bodySmall',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -14,7 +14,7 @@ const SIZE_CONFIG = {
   },
   md: {
     locationVariant: 'badge',
-    categoryVariant: 'caption',
+    sessionVariant: 'caption',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 10,
@@ -22,8 +22,8 @@ const SIZE_CONFIG = {
   },
   sm: {
     locationVariant: 'badge',
-    categoryVariant: 'badge',
-    categoryStyle: { fontWeight: '400' },
+    sessionVariant: 'badge',
+    sessionStyle: { fontWeight: '400' },
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 8,
@@ -32,24 +32,24 @@ const SIZE_CONFIG = {
 }
 
 /**
- * Unified location code pill + category label display.
+ * Unified location code pill + session label display.
  *
  * @param {Object} props
  * @param {{ code: string, name?: string } | null} props.location
- * @param {{ label: string } | null} props.category
+ * @param {{ label: string } | null} props.session
  * @param {'lg'|'md'|'sm'} [props.size='sm']
  * @param {string} [props.locationFallback] - Text for the location pill when location is null (e.g. "All")
- * @param {string} [props.categoryFallback] - Text for the category when category is null (e.g. "All Categories")
+ * @param {string} [props.sessionFallback] - Text for the session when session is null (e.g. "All Sessions")
  */
-export default memo(function LocationCategoryBadge({ location, category, size = 'sm', locationFallback, categoryFallback }) {
+export default memo(function LocationSessionBadge({ location, session, size = 'sm', locationFallback, sessionFallback }) {
   const colors = useThemeColors()
   const cfg = SIZE_CONFIG[size] || SIZE_CONFIG.sm
   const styles = useMemo(() => createStyles(colors, cfg), [colors, cfg])
 
   const locText = location?.code || locationFallback
-  const catText = category?.label || categoryFallback
+  const sessText = session?.label || sessionFallback
 
-  if (!locText && !catText) return null
+  if (!locText && !sessText) return null
 
   return (
     <View style={styles.row}>
@@ -58,8 +58,8 @@ export default memo(function LocationCategoryBadge({ location, category, size = 
           <ThemedText variant={cfg.locationVariant} color="badge" style={cfg.locationStyle}>{locText}</ThemedText>
         </View>
       ) : null}
-      {catText ? (
-        <ThemedText variant={cfg.categoryVariant} color="badge" style={cfg.categoryStyle}>{catText}</ThemedText>
+      {sessText ? (
+        <ThemedText variant={cfg.sessionVariant} color="badge" style={cfg.sessionStyle}>{sessText}</ThemedText>
       ) : null}
     </View>
   )

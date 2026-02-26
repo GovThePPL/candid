@@ -236,7 +236,7 @@ export default function DemographicsSettings() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <Header onBack={() => router.back()} showSettingsButton settingsActive onSettingsBack={() => navigation.getParent()?.goBack()} />
+        <Header onBack={() => router.back()} showSettingsButton settingsActive onSettingsBack={() => navigation.getParent()?.goBack()} hideSessionBar />
         <LoadingView message={t('loadingDemographics')} />
       </SafeAreaView>
     )
@@ -244,7 +244,7 @@ export default function DemographicsSettings() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <Header onBack={() => router.back()} showSettingsButton settingsActive onSettingsBack={() => navigation.getParent()?.goBack()} />
+      <Header onBack={() => router.back()} showSettingsButton settingsActive onSettingsBack={() => navigation.getParent()?.goBack()} hideSessionBar />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.pageHeader}>
           <ThemedText variant="h1" title={true} style={styles.pageTitle}>

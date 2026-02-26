@@ -8,8 +8,8 @@ pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_auth():
-    """Patch authorization and token_to_user for all tests."""
-    with patch('candid.controllers.users_controller.authorization') as mock_authz:
+    """Patch authorization for all tests (at the auth module level, where require_auth calls it)."""
+    with patch('candid.controllers.helpers.auth.authorization') as mock_authz:
         mock_authz.return_value = (True, None)
         yield mock_authz
 
@@ -85,10 +85,10 @@ class TestGetUserByUsername:
         mock_roles.return_value = [{
             'role': 'moderator',
             'location_id': 'loc1',
-            'position_category_id': None,
+            'session_id': None,
             'location_name': 'Oregon',
             'location_code': 'OR',
-            'category_label': None,
+            'session_label': None,
         }]
 
         from candid.controllers.users_controller import get_user_by_username
@@ -99,7 +99,7 @@ class TestGetUserByUsername:
 
     def test_returns_auth_error_when_unauthorized(self, mock_db, mock_roles):
         from candid.models.error_model import ErrorModel
-        with patch('candid.controllers.users_controller.authorization') as mock_authz:
+        with patch('candid.controllers.helpers.auth.authorization') as mock_authz:
             err = ErrorModel(401, "Unauthorized")
             err.code = 401
             mock_authz.return_value = (False, err)

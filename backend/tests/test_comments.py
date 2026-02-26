@@ -5,7 +5,7 @@ import requests
 from conftest import (
     BASE_URL,
     OREGON_LOCATION_ID,
-    HEALTHCARE_CAT_ID,
+    HEALTHCARE_SESSION_ID,
     NORMAL1_ID,
     NORMAL2_ID,
     NONEXISTENT_UUID,
@@ -35,7 +35,7 @@ def _cleanup_test_data():
 
 
 def _create_post(headers, title="CTEST discussion post", post_type="discussion",
-                 category_id=None, location_id=OREGON_LOCATION_ID):
+                 session_id=None, location_id=OREGON_LOCATION_ID):
     """Create a post via API."""
     payload = {
         "title": title,
@@ -43,8 +43,8 @@ def _create_post(headers, title="CTEST discussion post", post_type="discussion",
         "locationId": location_id,
         "postType": post_type,
     }
-    if category_id:
-        payload["categoryId"] = category_id
+    if session_id:
+        payload["sessionId"] = session_id
     resp = requests.post(POSTS_URL, headers=headers, json=payload)
     assert resp.status_code == 201, f"Failed to create post: {resp.text}"
     return resp.json()
@@ -139,7 +139,7 @@ class TestCreateCommentQA:
             normal_headers,
             title="CTEST qa facilitator",
             post_type="question",
-            category_id=HEALTHCARE_CAT_ID,
+            session_id=HEALTHCARE_SESSION_ID,
         )
         resp = _create_comment(normal_headers, post["id"], body="Expert answer")
         assert resp.status_code == 201
@@ -150,7 +150,7 @@ class TestCreateCommentQA:
             normal_headers,
             title="CTEST qa moderator",
             post_type="question",
-            category_id=HEALTHCARE_CAT_ID,
+            session_id=HEALTHCARE_SESSION_ID,
         )
         resp = _create_comment(moderator_headers, post["id"], body="Moderator answer")
         assert resp.status_code == 201
@@ -161,7 +161,7 @@ class TestCreateCommentQA:
             normal_headers,
             title="CTEST qa normal blocked",
             post_type="question",
-            category_id=HEALTHCARE_CAT_ID,
+            session_id=HEALTHCARE_SESSION_ID,
         )
         resp = _create_comment(normal2_headers, post["id"], body="Unauthorized answer")
         assert resp.status_code == 403
@@ -172,7 +172,7 @@ class TestCreateCommentQA:
             normal_headers,
             title="CTEST qa reply to expert",
             post_type="question",
-            category_id=HEALTHCARE_CAT_ID,
+            session_id=HEALTHCARE_SESSION_ID,
         )
         expert_comment = _create_comment(normal_headers, post["id"], body="Expert answer")
         assert expert_comment.status_code == 201
@@ -191,7 +191,7 @@ class TestCreateCommentQA:
             normal_headers,
             title="CTEST qa normal reply blocked",
             post_type="question",
-            category_id=HEALTHCARE_CAT_ID,
+            session_id=HEALTHCARE_SESSION_ID,
         )
         # normal1 (facilitator) answers first
         expert_comment = _create_comment(normal_headers, post["id"], body="Expert answer")
@@ -220,7 +220,7 @@ class TestCreateCommentQA:
             normal_headers,
             title="CTEST qa expert reply",
             post_type="question",
-            category_id=HEALTHCARE_CAT_ID,
+            session_id=HEALTHCARE_SESSION_ID,
         )
         # normal1 answers
         answer = _create_comment(normal_headers, post["id"], body="Answer")
@@ -298,7 +298,7 @@ class TestGetComments:
 
         # normal2 upvotes
         requests.post(
-            f"{COMMENTS_URL}/{c['id']}/vote",
+            f"{COMMENTS_URL}/{c['id']}/votes",
             headers=normal2_headers,
             json={"voteType": "upvote"},
         )
@@ -348,7 +348,7 @@ class TestGetComments:
             normal_headers,
             title="CTEST qa badge",
             post_type="question",
-            category_id=HEALTHCARE_CAT_ID,
+            session_id=HEALTHCARE_SESSION_ID,
         )
         _create_comment(normal_headers, post["id"], body="Facilitator answer")
 
@@ -434,14 +434,14 @@ class TestDeleteComment:
 
 
 class TestVoteOnComment:
-    """POST /comments/{commentId}/vote"""
+    """POST /comments/{commentId}/votes"""
 
     def test_upvote(self, normal_headers, normal2_headers):
         post = _create_post(normal_headers, title="CTEST vote comment")
         c = _create_comment(normal_headers, post["id"]).json()
 
         resp = requests.post(
-            f"{COMMENTS_URL}/{c['id']}/vote",
+            f"{COMMENTS_URL}/{c['id']}/votes",
             headers=normal2_headers,
             json={"voteType": "upvote"},
         )
@@ -455,12 +455,12 @@ class TestVoteOnComment:
         c = _create_comment(normal_headers, post["id"]).json()
 
         requests.post(
-            f"{COMMENTS_URL}/{c['id']}/vote",
+            f"{COMMENTS_URL}/{c['id']}/votes",
             headers=normal2_headers,
             json={"voteType": "upvote"},
         )
         resp = requests.post(
-            f"{COMMENTS_URL}/{c['id']}/vote",
+            f"{COMMENTS_URL}/{c['id']}/votes",
             headers=normal2_headers,
             json={"voteType": "upvote"},
         )
@@ -473,7 +473,7 @@ class TestVoteOnComment:
         c = _create_comment(normal_headers, post["id"]).json()
 
         resp = requests.post(
-            f"{COMMENTS_URL}/{c['id']}/vote",
+            f"{COMMENTS_URL}/{c['id']}/votes",
             headers=normal_headers,
             json={"voteType": "upvote"},
         )
@@ -485,7 +485,7 @@ class TestVoteOnComment:
         c = _create_comment(normal_headers, post["id"]).json()
 
         resp = requests.post(
-            f"{COMMENTS_URL}/{c['id']}/vote",
+            f"{COMMENTS_URL}/{c['id']}/votes",
             headers=normal2_headers,
             json={"voteType": "upvote"},
         )
@@ -500,12 +500,12 @@ class TestVoteOnComment:
         c = _create_comment(normal_headers, post["id"]).json()
 
         requests.post(
-            f"{COMMENTS_URL}/{c['id']}/vote",
+            f"{COMMENTS_URL}/{c['id']}/votes",
             headers=normal2_headers,
             json={"voteType": "upvote"},
         )
         resp = requests.post(
-            f"{COMMENTS_URL}/{c['id']}/vote",
+            f"{COMMENTS_URL}/{c['id']}/votes",
             headers=normal2_headers,
             json={"voteType": "upvote"},
         )
@@ -517,12 +517,12 @@ class TestVoteOnComment:
         c = _create_comment(normal_headers, post["id"]).json()
 
         requests.post(
-            f"{COMMENTS_URL}/{c['id']}/vote",
+            f"{COMMENTS_URL}/{c['id']}/votes",
             headers=normal2_headers,
             json={"voteType": "upvote"},
         )
         requests.post(
-            f"{COMMENTS_URL}/{c['id']}/vote",
+            f"{COMMENTS_URL}/{c['id']}/votes",
             headers=normal3_headers,
             json={"voteType": "downvote", "downvoteReason": "offtopic"},
         )

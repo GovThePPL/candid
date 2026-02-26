@@ -83,7 +83,7 @@ export default function useCardHandlers({ currentCard, goToNextCard }) {
         createdTime: now.toISOString(),
         expiresAt: new Date(now.getTime() + CHAT_REQUEST_TIMEOUT_MS).toISOString(),
         positionStatement: currentCard.data.statement,
-        category: currentCard.data.category,
+        session: currentCard.data.session,
         location: currentCard.data.location,
         author: {
           displayName: author.displayName,

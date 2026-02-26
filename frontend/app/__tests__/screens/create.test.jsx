@@ -85,17 +85,24 @@ jest.mock('../../components/Header', () => {
   }
 })
 
-jest.mock('../../components/LocationCategorySelector', () => {
+jest.mock('../../contexts/LocationSessionContext', () => ({
+  useLocationSession: () => ({
+    selectedLocation: null,
+    selectedSession: null,
+  }),
+}))
+
+jest.mock('../../components/LocationSessionSelector', () => {
   const React = require('react')
   const { View, Text } = require('react-native')
-  return function MockLocationCategorySelector({ onLocationChange, onCategoryChange }) {
+  return function MockLocationSessionSelector({ onLocationChange, onSessionChange }) {
     React.useEffect(() => {
       onLocationChange?.('loc-1')
-      onCategoryChange?.('cat-1')
+      onSessionChange?.('sess-1')
     }, [])
     return (
       <View>
-        <Text>LocationCategorySelector</Text>
+        <Text>LocationSessionSelector</Text>
       </View>
     )
   }
@@ -153,10 +160,10 @@ import PositionManagerContent from '../../components/PositionManagerContent'
 function renderCreate(contextOverrides = {}) {
   mockCurrentContext = { ...mockUserContext, ...contextOverrides }
   // Suppress act() warnings from async effects — these are expected in smoke tests
+  const origError = console.error.bind(console)
   const errSpy = jest.spyOn(console, 'error').mockImplementation((msg) => {
     if (typeof msg === 'string' && msg.includes('not wrapped in act')) return
-    // eslint-disable-next-line no-console
-    console.error(msg)
+    origError(msg)
   })
   const result = render(
     <UserContext.Provider value={mockCurrentContext}>
@@ -212,7 +219,7 @@ describe('PositionManagerContent', () => {
     })
 
     await waitFor(() => {
-      expect(mockCreate).toHaveBeenCalledWith('My position statement', 'cat-1', 'loc-1')
+      expect(mockCreate).toHaveBeenCalledWith('My position statement', 'sess-1', 'loc-1')
     })
   })
 

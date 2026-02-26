@@ -23,7 +23,7 @@ from candid.controllers.helpers.constants import ROLE_HIERARCHY
 from candid.controllers.helpers.rate_limiting import check_rate_limit_for
 from candid.controllers.helpers.auth import (
     authorization, authorization_allow_banned, authorization_scoped,
-    token_to_user, invalidate_ban_cache,
+    require_auth, token_to_user, invalidate_ban_cache,
     is_admin_anywhere, is_moderator_anywhere, get_facilitator_scopes,
     is_admin_at_location, is_moderator_at_location,
     get_highest_role_at_location, get_location_ancestors,
@@ -53,7 +53,8 @@ from candid.controllers.helpers.moderation import (
 )
 
 
-def check_toxicity(body, token_info=None):  # noqa: E501
+@require_auth("normal")
+def check_toxicity(body, token_info=None, user_id=None):  # noqa: E501
     """Check text for toxicity
 
      # noqa: E501
@@ -63,10 +64,6 @@ def check_toxicity(body, token_info=None):  # noqa: E501
 
     :rtype: Union[ToxicityCheckResult, Tuple[ToxicityCheckResult, int]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
     user = token_to_user(token_info)
 
     # Rate limit
@@ -222,7 +219,8 @@ def get_user_moderation_history(user_id, token_info=None):  # noqa: E501
     return events
 
 
-def get_rules(content_type=None, token_info=None):  # noqa: E501
+@require_auth("normal")
+def get_rules(content_type=None, offset=0, limit=50, token_info=None, user_id=None):  # noqa: E501
     """Get all active community rules
 
      # noqa: E501
@@ -232,9 +230,6 @@ def get_rules(content_type=None, token_info=None):  # noqa: E501
 
     :rtype: Union[List[Rule], Tuple[List[Rule], int], Tuple[List[Rule], int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
 
     conditions = ["status = 'active'"]
     params = []
@@ -250,7 +245,8 @@ def get_rules(content_type=None, token_info=None):  # noqa: E501
         FROM rule
         WHERE {where}
         ORDER BY created_time ASC
-    """, tuple(params) if params else None)
+        LIMIT %s OFFSET %s
+    """, tuple(params) + (min(max(limit or 50, 1), 100), max(offset or 0, 0)))
 
     result = []
     for r in (rules or []):
@@ -268,7 +264,8 @@ def get_rules(content_type=None, token_info=None):  # noqa: E501
     return result
 
 
-def create_appeal(action_id, body, token_info=None):  # noqa: E501
+@require_auth("normal", allow_banned=True)
+def create_appeal(action_id, body, token_info=None, user_id=None):  # noqa: E501
     """Create an appeal for a moderation action
 
      # noqa: E501
@@ -280,10 +277,6 @@ def create_appeal(action_id, body, token_info=None):  # noqa: E501
 
     :rtype: Union[ModActionAppeal, Tuple[ModActionAppeal, int]]
     """
-    authorized, auth_err = authorization_allow_banned("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
     user = token_to_user(token_info)
 
     if connexion.request.is_json:
@@ -414,7 +407,7 @@ def update_report(report_id, body, token_info=None):  # noqa: E501
         return {'status': 'released', 'claimedBy': None}
 
 
-def get_moderation_queue(token_info=None):  # noqa: E501
+def get_moderation_queue(offset=0, limit=50, token_info=None):  # noqa: E501
     """Get unified moderation queue with all items requiring moderator attention
 
      # noqa: E501
@@ -653,10 +646,14 @@ def get_moderation_queue(token_info=None):  # noqa: E501
     for item in queue:
         del item['_created_time']
 
-    return queue
+    # Apply pagination
+    _offset = max(offset or 0, 0)
+    _limit = min(max(limit or 50, 1), 100)
+    return queue[_offset:_offset + _limit]
 
 
-def report_chat(chat_id, body, token_info=None):  # noqa: E501
+@require_auth("normal")
+def report_chat(chat_id, body, token_info=None, user_id=None):  # noqa: E501
     """Report a chat
 
      # noqa: E501
@@ -669,10 +666,6 @@ def report_chat(chat_id, body, token_info=None):  # noqa: E501
 
     :rtype: Union[Report, Tuple[Report, int], Tuple[Report, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
     user = token_to_user(token_info)
 
     # Rate limit reports (all report types share one key per user)
@@ -739,7 +732,8 @@ def report_chat(chat_id, body, token_info=None):  # noqa: E501
     return _map_db_report_to_model(report_row), 201
 
 
-def report_position(position_id, body, token_info=None):  # noqa: E501
+@require_auth("normal")
+def report_position(position_id, body, token_info=None, user_id=None):  # noqa: E501
     """Report a position statement
 
      # noqa: E501
@@ -752,10 +746,6 @@ def report_position(position_id, body, token_info=None):  # noqa: E501
 
     :rtype: Union[Report, Tuple[Report, int], Tuple[Report, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
     user = token_to_user(token_info)
 
     # Rate limit reports (all report types share one key per user)
@@ -814,12 +804,9 @@ def report_position(position_id, body, token_info=None):  # noqa: E501
     return _map_db_report_to_model(report_row), 201
 
 
-def report_post(post_id, body, token_info=None):  # noqa: E501
+@require_auth("normal")
+def report_post(post_id, body, token_info=None, user_id=None):  # noqa: E501
     """Report a post."""
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
     user = token_to_user(token_info)
 
     # Rate limit reports (all report types share one key per user)
@@ -876,12 +863,9 @@ def report_post(post_id, body, token_info=None):  # noqa: E501
     return _map_db_report_to_model(report_row), 201
 
 
-def report_comment(comment_id, body, token_info=None):  # noqa: E501
+@require_auth("normal")
+def report_comment(comment_id, body, token_info=None, user_id=None):  # noqa: E501
     """Report a comment."""
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
     user = token_to_user(token_info)
 
     # Rate limit reports (all report types share one key per user)
@@ -1394,8 +1378,8 @@ def take_moderator_action(report_id, body, token_info=None):  # noqa: E501
     )
 
 
-def inline_moderator_action(body, token_info=None):  # noqa: E501
-    """Take inline moderation action on content (creates report + takes action in one step).
+def create_moderation_action(body, token_info=None):  # noqa: E501
+    """Take moderation action on content (creates report + takes action in one step).
 
     :param body:
     :type body: dict | bytes

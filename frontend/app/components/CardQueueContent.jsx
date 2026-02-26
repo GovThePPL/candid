@@ -15,6 +15,7 @@ import api from '../lib/api'
 import ThemedText from './ThemedText'
 import { useToast } from './Toast'
 import { useAuth, useChatContext } from '../contexts/UserContext'
+import { useLocationSession } from '../contexts/LocationSessionContext'
 import { CacheManager, CacheKeys, CacheDurations } from '../lib/cache'
 import {
   PositionCard,
@@ -108,6 +109,16 @@ export default function CardQueueContent() {
   const { t } = useTranslation('cards')
   const { user } = useAuth()
   const { incomingChatRequest, clearIncomingChatRequest, restoreIncomingChatRequest, pendingChatRequest: pendingChatCtx, clearPendingChatRequest } = useChatContext()
+  const { selectedSession, effectiveStage, viewingStage } = useLocationSession()
+
+  // Derive phase and archived state from effective stage
+  const STAGE_TO_PHASE = {
+    proposal_issue: 'proposal', proposal_qualify: 'proposal', proposal_stakeholders: 'proposal',
+    opinion_discussion: 'opinion', opinion_curation: 'opinion', opinion_proposals: 'opinion',
+    reflection: 'reflection', consensus: 'consensus',
+  }
+  const phase = effectiveStage ? STAGE_TO_PHASE[effectiveStage] : null
+  const isArchived = viewingStage != null
   const isFocused = useIsFocused()
   const [cards, setCards] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -301,7 +312,8 @@ export default function CardQueueContent() {
 
       // Fetch card queue (always) and chatting list (only if stale) in parallel
       const fetchSize = isInitial ? INITIAL_FETCH_SIZE : REFETCH_SIZE
-      const fetches = [api.cards.getCardQueue(fetchSize)]
+      const sessionId = selectedSession && selectedSession !== 'all' ? selectedSession : null
+      const fetches = [api.cards.getCardQueue(fetchSize, sessionId, phase, isArchived)]
       if (needsChattingListFetch) {
         fetches.push(refreshChattingList())
       }
@@ -336,12 +348,15 @@ export default function CardQueueContent() {
         setInitialLoading(false)
       }
     }
-  }, [getCardKey, user?.id, refreshChattingList])
+  }, [getCardKey, user?.id, refreshChattingList, selectedSession, phase, isArchived])
 
-  // Initial fetch
+  // Initial fetch + reset when session or phase changes
   useEffect(() => {
+    seenCardIdsRef.current.clear()
+    setCards([])
+    setCurrentIndex(0)
     fetchMoreCards(true)
-  }, [])
+  }, [selectedSession, phase, isArchived])
 
   // Heartbeat: send presence signal every 30s while on card queue
   useEffect(() => {
@@ -629,7 +644,7 @@ export default function CardQueueContent() {
   const handleModerateActionSubmit = useCallback(async (actionData) => {
     if (!moderateTarget || !moderateRule) return
     try {
-      await api.moderation.inlineAction({
+      await api.moderation.createAction({
         targetType: moderateTarget.type,
         targetId: moderateTarget.id,
         ruleId: moderateRule.id,
@@ -890,6 +905,12 @@ export default function CardQueueContent() {
     ],
   }))
 
+  // Archived handler: show toast and advance to next card
+  const archivedHandler = useCallback(() => {
+    showToast(t('archivedStageNoActions'))
+    goToNextCard()
+  }, [showToast, t, goToNextCard])
+
   const renderCard = (card, isBackCard = false) => {
     if (!card) return null
 
@@ -902,27 +923,28 @@ export default function CardQueueContent() {
     switch (card.type) {
       case 'position':
         const isFromChattingList = card.data?.source === 'chatting_list'
-        const cardCanModerate = checkModerateScope(card.data?.location?.id, card.data?.category?.id)
+        const cardCanModerate = checkModerateScope(card.data?.location?.id, card.data?.session?.id)
         return (
           <PositionCard
             ref={isBackCard ? undefined : currentCardRef}
             key={key}
             position={card.data}
-            onAgree={isBackCard ? undefined : handleAgree}
-            onDisagree={isBackCard ? undefined : handleDisagree}
-            onPass={isBackCard ? undefined : handlePass}
-            onChatRequest={isBackCard || pendingChatRequest ? undefined : handleChatRequest}
+            onAgree={isBackCard ? undefined : (isArchived ? archivedHandler : handleAgree)}
+            onDisagree={isBackCard ? undefined : (isArchived ? archivedHandler : handleDisagree)}
+            onPass={isBackCard ? undefined : (isArchived ? archivedHandler : handlePass)}
+            onChatRequest={isBackCard || pendingChatRequest || isArchived ? undefined : handleChatRequest}
             onReport={isBackCard ? undefined : handleReport}
             onModerate={isBackCard ? undefined : handleModeratePosition}
             canModerate={cardCanModerate}
-            onAddPosition={isBackCard ? undefined : handleAddPosition}
+            onAddPosition={isBackCard || isArchived ? undefined : handleAddPosition}
             isBackCard={isBackCard}
             backCardAnimatedValue={backCardProgress}
             isFromChattingList={isFromChattingList}
             hasPendingRequests={card.data?.hasPendingRequests || false}
-            onRemoveFromChattingList={isBackCard ? undefined : handleRemoveFromChattingList}
-            onAddToChattingList={isBackCard ? undefined : handleAddToChattingList}
+            onRemoveFromChattingList={isBackCard || isArchived ? undefined : handleRemoveFromChattingList}
+            onAddToChattingList={isBackCard || isArchived ? undefined : handleAddToChattingList}
             onTermPress={onGlossaryTermPress}
+            disabled={isArchived}
           />
         )
 
@@ -945,10 +967,11 @@ export default function CardQueueContent() {
             ref={isBackCard ? undefined : currentCardRef}
             key={key}
             survey={card.data}
-            onRespond={isBackCard ? undefined : handleSurveyResponse}
-            onSkip={isBackCard ? undefined : handleSurveySkip}
+            onRespond={isBackCard ? undefined : (isArchived ? archivedHandler : handleSurveyResponse)}
+            onSkip={isBackCard ? undefined : (isArchived ? archivedHandler : handleSurveySkip)}
             isBackCard={isBackCard}
             backCardAnimatedValue={backCardProgress}
+            disabled={isArchived}
           />
         )
 
@@ -985,10 +1008,11 @@ export default function CardQueueContent() {
             ref={isBackCard ? undefined : currentCardRef}
             key={key}
             pairwise={card}
-            onRespond={isBackCard ? undefined : handlePairwiseResponse}
-            onSkip={isBackCard ? undefined : handlePairwiseSkip}
+            onRespond={isBackCard ? undefined : (isArchived ? archivedHandler : handlePairwiseResponse)}
+            onSkip={isBackCard ? undefined : (isArchived ? archivedHandler : handlePairwiseSkip)}
             isBackCard={isBackCard}
             backCardAnimatedValue={backCardProgress}
+            disabled={isArchived}
           />
         )
 

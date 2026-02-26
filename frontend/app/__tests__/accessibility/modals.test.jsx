@@ -109,9 +109,9 @@ jest.mock('../../components/LocationPicker', () => {
   const { View } = require('react-native')
   return () => <View testID="location-picker" />
 })
-jest.mock('../../components/LocationCategorySelector', () => {
+jest.mock('../../components/LocationSessionSelector', () => {
   const { View } = require('react-native')
-  return () => <View testID="location-category-selector" />
+  return () => <View testID="location-session-selector" />
 })
 jest.mock('../../components/PositionListManager', () => {
   const React = require('react')
@@ -161,7 +161,7 @@ describe('ChatRequestIndicator accessibility', () => {
     createdTime: new Date(Date.now() - 60000).toISOString(),
     positionStatement: 'Test position',
     author: { displayName: 'Alice', username: 'alice' },
-    category: { label: 'Politics' },
+    session: { label: 'Politics' },
     location: { name: 'USA' },
   }
 

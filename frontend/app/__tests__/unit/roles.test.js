@@ -9,7 +9,7 @@ import {
   getAssignableRoles,
   getDescendantLocationIds,
   getAssignableLocations,
-  getAssignableCategories,
+  getAssignableSessions,
   canManageRoleAssignment,
   isAdminAtLocation,
   hasQAAuthority,
@@ -18,10 +18,10 @@ import {
 } from '../../lib/roles'
 
 const makeUser = (roles) => ({ id: '1', roles })
-const role = (name, loc = 'loc1', cat = null) => ({
+const role = (name, loc = 'loc1', sess = null) => ({
   role: name,
   locationId: loc,
-  positionCategoryId: cat,
+  sessionId: sess,
 })
 
 describe('roles utilities', () => {
@@ -85,11 +85,11 @@ describe('roles utilities', () => {
     })
 
     it('returns true for facilitator', () => {
-      expect(canModerate(makeUser([role('facilitator', 'loc1', 'cat1')]))).toBe(true)
+      expect(canModerate(makeUser([role('facilitator', 'loc1', 'sess1')]))).toBe(true)
     })
 
     it('returns true for assistant_moderator', () => {
-      expect(canModerate(makeUser([role('assistant_moderator', 'loc1', 'cat1')]))).toBe(true)
+      expect(canModerate(makeUser([role('assistant_moderator', 'loc1', 'sess1')]))).toBe(true)
     })
 
     it('returns false for normal user', () => {
@@ -202,7 +202,7 @@ describe('roles utilities', () => {
     })
 
     it('returns facilitator-assignable roles for facilitator user', () => {
-      const u = makeUser([role('facilitator', 'loc1', 'cat1')])
+      const u = makeUser([role('facilitator', 'loc1', 'sess1')])
       expect(getAssignableRoles(u)).toEqual(['assistant_moderator', 'expert', 'liaison'])
     })
 
@@ -212,12 +212,12 @@ describe('roles utilities', () => {
     })
 
     it('returns empty for liaison user', () => {
-      const u = makeUser([role('liaison', 'loc1', 'cat1')])
+      const u = makeUser([role('liaison', 'loc1', 'sess1')])
       expect(getAssignableRoles(u)).toEqual([])
     })
 
     it('returns combined roles for user with admin + facilitator', () => {
-      const u = makeUser([role('admin', 'loc1'), role('facilitator', 'loc2', 'cat1')])
+      const u = makeUser([role('admin', 'loc1'), role('facilitator', 'loc2', 'sess1')])
       const result = getAssignableRoles(u)
       expect(result).toContain('admin')
       expect(result).toContain('moderator')
@@ -273,7 +273,7 @@ describe('roles utilities', () => {
     })
 
     it('returns exact location for facilitator assigning assistant_moderator', () => {
-      const u = makeUser([role('facilitator', 2, 'cat1')])
+      const u = makeUser([role('facilitator', 2, 'sess1')])
       const result = getAssignableLocations(u, 'assistant_moderator', testLocations)
       expect(result).toHaveLength(1)
       expect(result[0].id).toBe(2)
@@ -298,37 +298,37 @@ describe('roles utilities', () => {
     })
   })
 
-  describe('getAssignableCategories', () => {
-    it('returns null for admin-assignable roles (categories N/A)', () => {
+  describe('getAssignableSessions', () => {
+    it('returns null for admin-assignable roles (sessions N/A)', () => {
       const u = makeUser([role('admin', 1)])
-      expect(getAssignableCategories(u, 'admin', 1)).toBeNull()
-      expect(getAssignableCategories(u, 'moderator', 1)).toBeNull()
-      expect(getAssignableCategories(u, 'facilitator', 1)).toBeNull()
+      expect(getAssignableSessions(u, 'admin', 1)).toBeNull()
+      expect(getAssignableSessions(u, 'moderator', 1)).toBeNull()
+      expect(getAssignableSessions(u, 'facilitator', 1)).toBeNull()
     })
 
-    it('returns matching category for facilitator at location', () => {
-      const u = makeUser([role('facilitator', 2, 'catA')])
-      const result = getAssignableCategories(u, 'expert', 2)
-      expect(result).toEqual(new Set(['catA']))
+    it('returns matching session for facilitator at location', () => {
+      const u = makeUser([role('facilitator', 2, 'sessA')])
+      const result = getAssignableSessions(u, 'expert', 2)
+      expect(result).toEqual(new Set(['sessA']))
     })
 
-    it('returns empty set for facilitator at wrong location', () => {
-      const u = makeUser([role('facilitator', 2, 'catA')])
-      const result = getAssignableCategories(u, 'expert', 3)
+    it('returns empty set for facilitator at wrong location for session', () => {
+      const u = makeUser([role('facilitator', 2, 'sessA')])
+      const result = getAssignableSessions(u, 'expert', 3)
       expect(result).toEqual(new Set())
     })
 
-    it('returns multiple categories from multiple facilitator roles at same location', () => {
+    it('returns multiple sessions from multiple facilitator roles at same location', () => {
       const u = makeUser([
-        role('facilitator', 2, 'catA'),
-        role('facilitator', 2, 'catB'),
+        role('facilitator', 2, 'sessA'),
+        role('facilitator', 2, 'sessB'),
       ])
-      const result = getAssignableCategories(u, 'liaison', 2)
-      expect(result).toEqual(new Set(['catA', 'catB']))
+      const result = getAssignableSessions(u, 'liaison', 2)
+      expect(result).toEqual(new Set(['sessA', 'sessB']))
     })
 
     it('returns empty for null user', () => {
-      expect(getAssignableCategories(null, 'expert', 1)).toEqual(new Set())
+      expect(getAssignableSessions(null, 'expert', 1)).toEqual(new Set())
     })
   })
 
@@ -357,7 +357,7 @@ describe('roles utilities', () => {
     })
 
     it('moderator/facilitator returns false (only admin counts)', () => {
-      const u = makeUser([role('moderator', 1), role('facilitator', 1, 'cat1')])
+      const u = makeUser([role('moderator', 1), role('facilitator', 1, 'sess1')])
       expect(isAdminAtLocation(u, 1, testLocations)).toBe(false)
       expect(isAdminAtLocation(u, 2, testLocations)).toBe(false)
     })
@@ -377,10 +377,10 @@ describe('roles utilities', () => {
   })
 
   describe('canManageRoleAssignment', () => {
-    const assignment = (roleName, locId, catId = null) => ({
+    const assignment = (roleName, locId, sessId = null) => ({
       role: roleName,
       location: { id: locId, name: 'Test' },
-      category: catId ? { id: catId, label: 'Test' } : null,
+      session: sessId ? { id: sessId, label: 'Test' } : null,
     })
 
     it('admin at root can remove admin at any location', () => {
@@ -400,25 +400,25 @@ describe('roles utilities', () => {
       expect(canManageRoleAssignment(u, assignment('moderator', 3), testLocations)).toBe(false)
     })
 
-    it('facilitator can remove assistant_moderator at exact location + category', () => {
-      const u = makeUser([role('facilitator', 2, 'catA')])
-      expect(canManageRoleAssignment(u, assignment('assistant_moderator', 2, 'catA'), testLocations)).toBe(true)
+    it('facilitator can remove assistant_moderator at exact location + session', () => {
+      const u = makeUser([role('facilitator', 2, 'sessA')])
+      expect(canManageRoleAssignment(u, assignment('assistant_moderator', 2, 'sessA'), testLocations)).toBe(true)
     })
 
     it('facilitator cannot remove at different location', () => {
-      const u = makeUser([role('facilitator', 2, 'catA')])
-      expect(canManageRoleAssignment(u, assignment('expert', 3, 'catA'), testLocations)).toBe(false)
+      const u = makeUser([role('facilitator', 2, 'sessA')])
+      expect(canManageRoleAssignment(u, assignment('expert', 3, 'sessA'), testLocations)).toBe(false)
     })
 
-    it('facilitator cannot remove at different category', () => {
-      const u = makeUser([role('facilitator', 2, 'catA')])
-      expect(canManageRoleAssignment(u, assignment('liaison', 2, 'catB'), testLocations)).toBe(false)
+    it('facilitator cannot remove at different session', () => {
+      const u = makeUser([role('facilitator', 2, 'sessA')])
+      expect(canManageRoleAssignment(u, assignment('liaison', 2, 'sessB'), testLocations)).toBe(false)
     })
 
     it('moderator cannot remove any role', () => {
       const u = makeUser([role('moderator', 1)])
       expect(canManageRoleAssignment(u, assignment('facilitator', 1), testLocations)).toBe(false)
-      expect(canManageRoleAssignment(u, assignment('expert', 1, 'catA'), testLocations)).toBe(false)
+      expect(canManageRoleAssignment(u, assignment('expert', 1, 'sessA'), testLocations)).toBe(false)
     })
 
     it('returns false for null user', () => {
@@ -476,29 +476,29 @@ describe('roles utilities', () => {
       expect(canManageRuleScope(u, null, null, testLocations)).toBe(false)
     })
 
-    it('facilitator at exact location+category can manage category-scoped rules', () => {
-      const u = makeUser([role('facilitator', 2, 'catA')])
-      expect(canManageRuleScope(u, 2, 'catA', testLocations)).toBe(true)
+    it('facilitator at exact location+session can manage session-scoped rules', () => {
+      const u = makeUser([role('facilitator', 2, 'sessA')])
+      expect(canManageRuleScope(u, 2, 'sessA', testLocations)).toBe(true)
     })
 
-    it('facilitator at wrong category cannot manage rules', () => {
-      const u = makeUser([role('facilitator', 2, 'catA')])
-      expect(canManageRuleScope(u, 2, 'catB', testLocations)).toBe(false)
+    it('facilitator at wrong session cannot manage rules', () => {
+      const u = makeUser([role('facilitator', 2, 'sessA')])
+      expect(canManageRuleScope(u, 2, 'sessB', testLocations)).toBe(false)
     })
 
     it('facilitator at wrong location cannot manage rules', () => {
-      const u = makeUser([role('facilitator', 2, 'catA')])
-      expect(canManageRuleScope(u, 3, 'catA', testLocations)).toBe(false)
+      const u = makeUser([role('facilitator', 2, 'sessA')])
+      expect(canManageRuleScope(u, 3, 'sessA', testLocations)).toBe(false)
     })
 
-    it('facilitator cannot manage location-only scoped rules (no category match)', () => {
-      const u = makeUser([role('facilitator', 2, 'catA')])
+    it('facilitator cannot manage location-only scoped rules (no session match)', () => {
+      const u = makeUser([role('facilitator', 2, 'sessA')])
       expect(canManageRuleScope(u, 2, null, testLocations)).toBe(false)
     })
 
     it('liaison/expert/assistant_moderator cannot manage rules', () => {
-      const u = makeUser([role('liaison', 1, 'catA')])
-      expect(canManageRuleScope(u, 1, 'catA', testLocations)).toBe(false)
+      const u = makeUser([role('liaison', 1, 'sessA')])
+      expect(canManageRuleScope(u, 1, 'sessA', testLocations)).toBe(false)
       expect(canManageRuleScope(u, null, null, testLocations)).toBe(false)
     })
 
@@ -543,19 +543,19 @@ describe('roles utilities', () => {
     })
 
     it('facilitator at Oregon/Healthcare can moderate Oregon/Healthcare', () => {
-      const u = makeUser([role('facilitator', 2, 'catA')])
-      expect(canModerateAtScope(u, 2, 'catA', testLocations)).toBe(true)
+      const u = makeUser([role('facilitator', 2, 'sessA')])
+      expect(canModerateAtScope(u, 2, 'sessA', testLocations)).toBe(true)
     })
 
     it('facilitator at Oregon/Healthcare cannot moderate Oregon/Education', () => {
-      const u = makeUser([role('facilitator', 2, 'catA')])
-      expect(canModerateAtScope(u, 2, 'catB', testLocations)).toBe(false)
+      const u = makeUser([role('facilitator', 2, 'sessA')])
+      expect(canModerateAtScope(u, 2, 'sessB', testLocations)).toBe(false)
     })
 
-    it('facilitator at Oregon (null category) can moderate Oregon/any-category', () => {
+    it('facilitator at Oregon (null session) can moderate Oregon/any-session', () => {
       const u = makeUser([role('facilitator', 2, null)])
-      expect(canModerateAtScope(u, 2, 'catA', testLocations)).toBe(true)
-      expect(canModerateAtScope(u, 2, 'catB', testLocations)).toBe(true)
+      expect(canModerateAtScope(u, 2, 'sessA', testLocations)).toBe(true)
+      expect(canModerateAtScope(u, 2, 'sessB', testLocations)).toBe(true)
     })
 
     it('facilitator at Oregon cannot moderate Portland content (no inheritance)', () => {
@@ -578,13 +578,13 @@ describe('roles utilities', () => {
     })
 
     it('liaison/expert cannot moderate (below facilitator threshold)', () => {
-      const u = makeUser([role('liaison', 2, 'catA')])
-      expect(canModerateAtScope(u, 2, 'catA', testLocations)).toBe(false)
+      const u = makeUser([role('liaison', 2, 'sessA')])
+      expect(canModerateAtScope(u, 2, 'sessA', testLocations)).toBe(false)
     })
 
     it('assistant_moderator can moderate at exact scope', () => {
-      const u = makeUser([role('assistant_moderator', 2, 'catA')])
-      expect(canModerateAtScope(u, 2, 'catA', testLocations)).toBe(true)
+      const u = makeUser([role('assistant_moderator', 2, 'sessA')])
+      expect(canModerateAtScope(u, 2, 'sessA', testLocations)).toBe(true)
     })
   })
 })

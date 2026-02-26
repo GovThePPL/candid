@@ -1,5 +1,5 @@
-import { useEffect } from "react"
-import { View } from "react-native"
+import { useEffect, useRef } from "react"
+import { View, Platform } from "react-native"
 import { Stack, useRouter, usePathname } from "expo-router"
 import { useThemeColors } from "../../hooks/useThemeColors"
 import useIsDesktop from "../../hooks/useIsDesktop"
@@ -13,6 +13,10 @@ import DesktopNav from "../../components/DesktopNav"
 import DesktopRightPanel from "../../components/DesktopRightPanel"
 import CardQueueContent from "../../components/CardQueueContent"
 import ModerationQueueContent from "../../components/ModerationQueueContent"
+import SessionStageBar from "../../components/SessionStageBar"
+import SessionSelectorModal from "../../components/SessionSelectorModal"
+import AcceptedProposalModal from "../../components/AcceptedProposalModal"
+import { useLocationSession } from "../../contexts/LocationSessionContext"
 
 export default function DashboardLayout() {
   const router = useRouter()
@@ -21,8 +25,14 @@ export default function DashboardLayout() {
   const { pendingDeepLink, clearPendingDeepLink } = useNavigationContext()
   const colors = useThemeColors()
   const isDesktop = useIsDesktop()
+  const {
+    selectedSession, selectedLocation, viewingStage,
+    sessionSelectorVisible, closeSessionSelector,
+    acceptedProposal, proposalModalVisible, closeProposalModal,
+  } = useLocationSession()
 
   const isChatRoute = pathname.startsWith('/chat/')
+  const isAdminRoute = pathname.startsWith('/admin')
 
   // Handle navigation when a chat starts (via socket event) - works from any tab
   useEffect(() => {
@@ -53,11 +63,47 @@ export default function DashboardLayout() {
     }
   }, [pendingDeepLink, router, clearPendingDeepLink])
 
+  // Navigate to tab root when session, location, or viewing stage changes
+  // (avoids showing stale subpage content for the previous selection)
+  const prevSessionRef = useRef({ selectedSession, selectedLocation, viewingStage })
+  useEffect(() => {
+    const prev = prevSessionRef.current
+    const changed = (
+      prev.selectedSession !== selectedSession ||
+      prev.selectedLocation !== selectedLocation ||
+      prev.viewingStage !== viewingStage
+    )
+    prevSessionRef.current = { selectedSession, selectedLocation, viewingStage }
+
+    if (!changed) return
+
+    // Tab roots — don't navigate if already at root
+    const TAB_ROOTS = ['/discuss', '/stats', '/cards', '/moderation', '/wiki']
+    const isAtTabRoot = TAB_ROOTS.some(root => pathname === root || pathname === root + '/')
+    const isOnTabSubpage = !isAtTabRoot && TAB_ROOTS.some(root => pathname.startsWith(root + '/'))
+
+    if (isOnTabSubpage) {
+      const tabRoot = TAB_ROOTS.find(root => pathname.startsWith(root + '/'))
+      if (tabRoot) {
+        router.replace(tabRoot)
+      }
+    }
+  }, [selectedSession, selectedLocation, viewingStage, pathname, router])
+
   const stackNavigator = (
     <Stack
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: colors.background },
+      }}
+      screenListeners={{
+        focus: () => {
+          // On web, blur the previously focused element so React Navigation can
+          // set aria-hidden on the inactive screen without the browser blocking it
+          if (Platform.OS === 'web' && document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur()
+          }
+        },
       }}
     >
       <Stack.Screen name="(tabs)" />
@@ -82,7 +128,9 @@ export default function DashboardLayout() {
           <View style={{ flex: 1, flexDirection: 'row' }}>
             <DesktopNav />
             <View style={{ flex: 1, alignItems: 'center' }}>
-              <View style={{ flex: 1, flexDirection: 'row', width: '100%', maxWidth: isChatRoute ? 720 : 1100 }}>
+              <View style={{ flex: 1, flexDirection: 'column', width: '100%', maxWidth: isChatRoute ? 720 : 1100 }}>
+              {!isAdminRoute && <SessionStageBar />}
+              <View style={{ flex: 1, flexDirection: 'row' }}>
                 <View style={{ flex: 1 }}>
                   {stackNavigator}
                 </View>
@@ -93,8 +141,11 @@ export default function DashboardLayout() {
                   />
                 )}
               </View>
+              </View>
             </View>
           </View>
+          <SessionSelectorModal visible={sessionSelectorVisible} onClose={closeSessionSelector} />
+          <AcceptedProposalModal visible={proposalModalVisible} onClose={closeProposalModal} proposal={acceptedProposal} />
         </ToastProvider>
         </GlossaryProvider>
         </NotificationProvider>
@@ -108,6 +159,8 @@ export default function DashboardLayout() {
       <GlossaryProvider>
       <ToastProvider>
         {stackNavigator}
+        <SessionSelectorModal visible={sessionSelectorVisible} onClose={closeSessionSelector} />
+        <AcceptedProposalModal visible={proposalModalVisible} onClose={closeProposalModal} proposal={acceptedProposal} />
       </ToastProvider>
       </GlossaryProvider>
       </NotificationProvider>

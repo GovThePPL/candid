@@ -1,9 +1,9 @@
-"""Unit tests for polis_sync.py — sync queue and vote mapping."""
+"""Unit tests for polis_sync.py — sync queue, vote mapping, and phase routing."""
 
 import json
 from datetime import date
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, call
 
 pytestmark = pytest.mark.unit
 
@@ -62,7 +62,7 @@ class TestQueuePositionSync:
             payload = json.loads(call_args[0][1][1])
             assert payload["position_id"] == "pos-1"
             assert payload["statement"] == "test statement"
-            assert payload["category_id"] == "cat-1"
+            assert payload["session_id"] == "cat-1"
             assert payload["location_id"] == "loc-1"
             assert payload["creator_user_id"] == "user-1"
 
@@ -161,7 +161,7 @@ class TestActiveWindowDates:
 # ---------------------------------------------------------------------------
 
 class TestGetActiveConversations:
-    def test_with_category(self):
+    def test_with_session(self):
         mock_db = MagicMock()
         conv_rows = [
             {"id": "c-1", "polis_conversation_id": "p-1",
@@ -174,10 +174,10 @@ class TestGetActiveConversations:
             result = get_active_conversations("loc-1", "cat-1")
             assert len(result) == 1
             sql = mock_db.execute_query.call_args[0][0]
-            assert "category_id" in sql
-            assert "category_id IS NULL" not in sql
+            assert "session_id" in sql
+            assert "session_id IS NULL" not in sql
 
-    def test_without_category(self):
+    def test_without_session(self):
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value=[
             {"id": "c-1", "polis_conversation_id": "p-1",
@@ -189,7 +189,7 @@ class TestGetActiveConversations:
             result = get_active_conversations("loc-1", None)
             assert len(result) == 1
             sql = mock_db.execute_query.call_args[0][0]
-            assert "category_id IS NULL" in sql
+            assert "session_id IS NULL" in sql
 
     def test_empty_returns_empty_list(self):
         mock_db = MagicMock()
@@ -244,7 +244,7 @@ class TestGetOrCreateConversation:
             result = get_or_create_conversation("loc-1", "cat-1", "USA", "Politics")
             assert result == "existing-conv"
 
-    def test_creates_new_with_category(self):
+    def test_creates_new_with_session(self):
         mock_db = MagicMock()
         # First call: no existing, second: INSERT returning row
         mock_db.execute_query = MagicMock(side_effect=[
@@ -263,7 +263,7 @@ class TestGetOrCreateConversation:
             result = get_or_create_conversation("loc-1", "cat-1", "USA", "Politics")
             assert result == "new-conv"
             mock_client.create_conversation.assert_called_once()
-            # Verify topic includes location and category
+            # Verify topic includes location and session
             topic = mock_client.create_conversation.call_args[0][0]
             assert "USA" in topic
             assert "Politics" in topic
@@ -312,11 +312,11 @@ class TestGetOrCreateConversation:
 class TestSyncPosition:
     def test_syncs_to_active_conversations(self):
         mock_db = MagicMock()
-        # Calls: location lookup, category lookup, (get_active_conversations x2 handled by patches)
+        # Calls: location lookup, session lookup, (get_active_conversations x2 handled by patches)
         mock_db.execute_query = MagicMock(side_effect=[
             {"name": "USA"},     # location lookup
-            {"label": "Politics"},  # category lookup
-            None,  # INSERT polis_comment (category conv)
+            {"label": "Politics"},  # session lookup
+            None,  # INSERT polis_comment (session conv)
             None,  # INSERT polis_comment (location conv)
         ])
 
@@ -327,13 +327,13 @@ class TestSyncPosition:
              patch("candid.controllers.helpers.polis_sync.get_client", return_value=mock_client), \
              patch("candid.controllers.helpers.polis_sync.get_active_conversations",
                    side_effect=[
-                       [{"polis_conversation_id": "cat-conv"}],  # category convs
+                       [{"polis_conversation_id": "cat-conv"}],  # session convs
                        [{"polis_conversation_id": "loc-conv"}],  # location convs
                    ]):
             from candid.controllers.helpers.polis_sync import sync_position
             payload = {
                 "position_id": "pos-1", "statement": "test",
-                "category_id": "cat-1", "location_id": "loc-1",
+                "session_id": "cat-1", "location_id": "loc-1",
                 "creator_user_id": "user-1",
             }
             success, error = sync_position(payload)
@@ -352,7 +352,7 @@ class TestSyncPosition:
             from candid.controllers.helpers.polis_sync import sync_position
             payload = {
                 "position_id": "pos-1", "statement": "test",
-                "category_id": "cat-1", "location_id": "loc-bad",
+                "session_id": "cat-1", "location_id": "loc-bad",
                 "creator_user_id": "user-1",
             }
             success, error = sync_position(payload)
@@ -363,7 +363,7 @@ class TestSyncPosition:
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(side_effect=[
             {"name": "USA"},     # location lookup
-            {"label": "Politics"},  # category lookup
+            {"label": "Politics"},  # session lookup
             None,  # INSERT from get_or_create
             None,  # INSERT polis_comment
             None,  # INSERT from get_or_create (location)
@@ -382,7 +382,7 @@ class TestSyncPosition:
             from candid.controllers.helpers.polis_sync import sync_position
             payload = {
                 "position_id": "pos-1", "statement": "test",
-                "category_id": "cat-1", "location_id": "loc-1",
+                "session_id": "cat-1", "location_id": "loc-1",
                 "creator_user_id": "user-1",
             }
             success, error = sync_position(payload)
@@ -475,7 +475,7 @@ class TestSyncAdoptedPosition:
     def test_queues_position(self):
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(side_effect=[
-            {"statement": "test", "category_id": "cat-1", "location_id": "loc-1"},  # position lookup
+            {"statement": "test", "session_id": "cat-1", "location_id": "loc-1"},  # position lookup
             None,  # queue INSERT
         ])
 
@@ -500,7 +500,7 @@ class TestSyncAdoptedPosition:
 # ---------------------------------------------------------------------------
 
 class TestLookupConversationForMonth:
-    def test_with_category(self):
+    def test_with_session(self):
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value={"polis_conversation_id": "conv-1"})
 
@@ -509,10 +509,10 @@ class TestLookupConversationForMonth:
             result = _lookup_conversation_for_month("loc-1", "cat-1", date(2026, 2, 1))
             assert result["polis_conversation_id"] == "conv-1"
             sql = mock_db.execute_query.call_args[0][0]
-            assert "category_id = %s" in sql
-            assert "category_id IS NULL" not in sql
+            assert "session_id = %s" in sql
+            assert "session_id IS NULL" not in sql
 
-    def test_without_category(self):
+    def test_without_session(self):
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value={"polis_conversation_id": "conv-2"})
 
@@ -521,7 +521,7 @@ class TestLookupConversationForMonth:
             result = _lookup_conversation_for_month("loc-1", None, date(2026, 2, 1))
             assert result["polis_conversation_id"] == "conv-2"
             sql = mock_db.execute_query.call_args[0][0]
-            assert "category_id IS NULL" in sql
+            assert "session_id IS NULL" in sql
 
     def test_not_found(self):
         mock_db = MagicMock()
@@ -628,3 +628,235 @@ class TestSyncPositionToConvGroup:
                 "loc-1", None, "USA", None, errors
             )
             assert count == 0
+
+
+# ---------------------------------------------------------------------------
+# Phase routing in sync_position
+# ---------------------------------------------------------------------------
+
+class TestSyncPositionPhaseRouting:
+    """Tests that sync_position routes positions to the correct phase conversation."""
+
+    def test_proposal_stage_routes_to_proposal_phase(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            {"name": "USA"},      # location lookup
+            {"label": "Education"},  # session lookup
+        ])
+
+        mock_client = MagicMock()
+        mock_client.create_comment = MagicMock(return_value=42)
+
+        mock_sync_group = MagicMock(return_value=1)
+
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db), \
+             patch("candid.controllers.helpers.polis_sync.get_client", return_value=mock_client), \
+             patch("candid.controllers.helpers.polis_sync._sync_position_to_conv_group", mock_sync_group):
+            from candid.controllers.helpers.polis_sync import sync_position
+            payload = {
+                "position_id": "pos-1", "statement": "test",
+                "session_id": "sess-1", "location_id": "loc-1",
+                "creator_user_id": "user-1",
+                "created_during_stage": "proposal_qualify",
+            }
+            success, error = sync_position(payload)
+            assert success is True
+
+            # First call should be session conv with phase='proposal'
+            session_call = mock_sync_group.call_args_list[0]
+            assert session_call[1].get("phase") == "proposal" or \
+                   session_call[0][-1] == "proposal" if len(session_call[0]) > 9 else \
+                   session_call[1].get("phase") == "proposal"
+
+    def test_opinion_stage_routes_to_opinion_phase(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            {"name": "USA"},
+            {"label": "Education"},
+        ])
+
+        mock_client = MagicMock()
+        mock_sync_group = MagicMock(return_value=1)
+
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db), \
+             patch("candid.controllers.helpers.polis_sync.get_client", return_value=mock_client), \
+             patch("candid.controllers.helpers.polis_sync._sync_position_to_conv_group", mock_sync_group):
+            from candid.controllers.helpers.polis_sync import sync_position
+            payload = {
+                "position_id": "pos-1", "statement": "test",
+                "session_id": "sess-1", "location_id": "loc-1",
+                "creator_user_id": "user-1",
+                "created_during_stage": "opinion_discussion",
+            }
+            success, error = sync_position(payload)
+            assert success is True
+
+            # Session call should have phase='opinion'
+            session_call = mock_sync_group.call_args_list[0]
+            assert session_call[1].get("phase") == "opinion"
+
+    def test_location_all_conv_has_no_phase(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            {"name": "USA"},
+            {"label": "Education"},
+        ])
+
+        mock_client = MagicMock()
+        mock_sync_group = MagicMock(return_value=1)
+
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db), \
+             patch("candid.controllers.helpers.polis_sync.get_client", return_value=mock_client), \
+             patch("candid.controllers.helpers.polis_sync._sync_position_to_conv_group", mock_sync_group):
+            from candid.controllers.helpers.polis_sync import sync_position
+            payload = {
+                "position_id": "pos-1", "statement": "test",
+                "session_id": "sess-1", "location_id": "loc-1",
+                "creator_user_id": "user-1",
+                "created_during_stage": "proposal_issue",
+            }
+            sync_position(payload)
+
+            # Second call is location-all — should have no phase
+            location_call = mock_sync_group.call_args_list[1]
+            assert location_call[1].get("phase") is None or "phase" not in location_call[1]
+
+    def test_no_stage_defaults_to_no_phase(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            {"name": "USA"},
+            {"label": "Education"},
+        ])
+
+        mock_client = MagicMock()
+        mock_sync_group = MagicMock(return_value=1)
+
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db), \
+             patch("candid.controllers.helpers.polis_sync.get_client", return_value=mock_client), \
+             patch("candid.controllers.helpers.polis_sync._sync_position_to_conv_group", mock_sync_group):
+            from candid.controllers.helpers.polis_sync import sync_position
+            payload = {
+                "position_id": "pos-1", "statement": "test",
+                "session_id": "sess-1", "location_id": "loc-1",
+                "creator_user_id": "user-1",
+                # No created_during_stage
+            }
+            sync_position(payload)
+
+            # Session call should have phase=None
+            session_call = mock_sync_group.call_args_list[0]
+            assert session_call[1].get("phase") is None
+
+
+class TestQueuePositionSyncWithStage:
+    """Tests that queue_position_sync includes created_during_stage in payload."""
+
+    def test_includes_stage_in_payload(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=None)
+
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db), \
+             patch("candid.controllers.helpers.polis_sync.config", MagicMock(POLIS_ENABLED=True)):
+            from candid.controllers.helpers.polis_sync import queue_position_sync
+            result = queue_position_sync(
+                "pos-1", "test", "sess-1", "loc-1", "user-1",
+                created_during_stage="proposal_qualify"
+            )
+            assert result is True
+            call_args = mock_db.execute_query.call_args
+            payload = json.loads(call_args[0][1][1])
+            assert payload["created_during_stage"] == "proposal_qualify"
+
+    def test_stage_none_when_not_provided(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=None)
+
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db), \
+             patch("candid.controllers.helpers.polis_sync.config", MagicMock(POLIS_ENABLED=True)):
+            from candid.controllers.helpers.polis_sync import queue_position_sync
+            queue_position_sync("pos-1", "test", "sess-1", "loc-1", "user-1")
+            call_args = mock_db.execute_query.call_args
+            payload = json.loads(call_args[0][1][1])
+            assert payload["created_during_stage"] is None
+
+
+class TestGetActiveConversationsWithPhase:
+    """Tests that get_active_conversations filters by phase."""
+
+    def test_with_phase_filters(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=[
+            {"id": "c-1", "polis_conversation_id": "p-1",
+             "active_from": "2026-01-01", "active_until": "2026-07-01"},
+        ])
+
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db):
+            from candid.controllers.helpers.polis_sync import get_active_conversations
+            result = get_active_conversations("loc-1", "sess-1", phase="proposal")
+            assert len(result) == 1
+            sql = mock_db.execute_query.call_args[0][0]
+            assert "phase = %s" in sql
+            params = mock_db.execute_query.call_args[0][1]
+            assert "proposal" in params
+
+    def test_without_phase_no_filter(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=[])
+
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db):
+            from candid.controllers.helpers.polis_sync import get_active_conversations
+            get_active_conversations("loc-1", "sess-1")
+            sql = mock_db.execute_query.call_args[0][0]
+            assert "phase" not in sql
+
+    def test_location_all_ignores_phase(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=[])
+
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db):
+            from candid.controllers.helpers.polis_sync import get_active_conversations
+            get_active_conversations("loc-1", None, phase="proposal")
+            sql = mock_db.execute_query.call_args[0][0]
+            assert "session_id IS NULL" in sql
+            assert "phase" not in sql
+
+
+class TestGetOrCreateConversationWithPhase:
+    """Tests that get_or_create_conversation uses phase."""
+
+    def test_creates_with_phase_in_topic(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            None,  # no existing
+            {"polis_conversation_id": "new-conv"},  # INSERT RETURNING
+        ])
+
+        mock_client = MagicMock()
+        mock_client.create_conversation = MagicMock(return_value="new-conv")
+
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db), \
+             patch("candid.controllers.helpers.polis_sync.get_client", return_value=mock_client), \
+             patch("candid.controllers.helpers.polis_sync.config",
+                   MagicMock(POLIS_CONVERSATION_WINDOW_MONTHS=6)):
+            from candid.controllers.helpers.polis_sync import get_or_create_conversation
+            result = get_or_create_conversation(
+                "loc-1", "sess-1", "USA", "Education", phase="opinion"
+            )
+            assert result == "new-conv"
+            topic = mock_client.create_conversation.call_args[0][0]
+            assert "(opinion)" in topic
+
+    def test_lookup_includes_phase(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value={"polis_conversation_id": "existing"})
+
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db), \
+             patch("candid.controllers.helpers.polis_sync.config",
+                   MagicMock(POLIS_CONVERSATION_WINDOW_MONTHS=6)):
+            from candid.controllers.helpers.polis_sync import get_or_create_conversation
+            result = get_or_create_conversation(
+                "loc-1", "sess-1", "USA", "Education", phase="proposal"
+            )
+            assert result == "existing"
+            sql = mock_db.execute_query.call_args[0][0]
+            assert "phase = %s" in sql

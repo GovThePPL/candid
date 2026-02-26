@@ -30,7 +30,7 @@ PROTECTED_ENDPOINTS = [
     ("GET",    f"/users/{_UUID}"),
     ("DELETE", "/users/me"),
     ("PUT",    "/users/me/push-token"),
-    ("POST",   "/users/me/avatar"),
+    ("PUT",    "/users/me/avatar"),
 
     # --- User demographics ---
     ("GET",    "/users/me/demographics"),
@@ -54,9 +54,9 @@ PROTECTED_ENDPOINTS = [
     # --- Locations (now public, no auth required) ---
     # ("GET",    "/locations"),
 
-    # --- Categories ---
-    ("GET",    "/categories"),
-    ("POST",   "/categories/suggestions"),
+    # --- Sessions ---
+    ("GET",    "/sessions"),
+    ("GET",    "/sessions/suggestions"),
 
     # --- Positions ---
     ("GET",    f"/positions/{_UUID}"),
@@ -64,7 +64,7 @@ PROTECTED_ENDPOINTS = [
     ("POST",   "/positions/responses"),
     ("POST",   "/positions/search"),
     ("GET",    f"/positions/{_UUID}/agreed-closures"),
-    ("POST",   "/positions/search-stats"),
+    ("GET",    "/positions/stats"),
 
     # --- Card queue ---
     ("GET",    "/card-queue"),
@@ -73,17 +73,17 @@ PROTECTED_ENDPOINTS = [
     ("POST",   "/chats/requests"),
     ("DELETE", f"/chats/requests/{_UUID}"),
     ("GET",    f"/chats/{_UUID}/log"),
-    ("GET",    f"/chats/user/{_UUID}"),
+    ("GET",    f"/users/{_UUID}/chats"),
     ("POST",   f"/chats/{_UUID}/kudos"),
     ("DELETE", f"/chats/{_UUID}/kudos/prompt"),
-    ("GET",    f"/chats/user/{_UUID}/metadata"),
+    ("GET",    f"/users/{_UUID}/chats/metadata"),
 
     # --- Chat matching ---
     ("POST",   "/users/me/heartbeat"),
 
     # --- Chatting list ---
     ("GET",    "/users/me/chatting-list/metadata"),
-    ("PUT",    "/users/me/chatting-list/explanation-seen"),
+    ("PATCH",  "/users/me/chatting-list/explanation-seen"),
     ("DELETE", "/users/me/chatting-list"),
     ("PATCH",  f"/users/me/chatting-list/{_UUID}"),
     ("DELETE", f"/users/me/chatting-list/{_UUID}"),
@@ -134,8 +134,8 @@ PROTECTED_ENDPOINTS = [
     ("POST",   "/admin/locations"),
     ("PUT",    f"/admin/locations/{_UUID}"),
     ("DELETE", f"/admin/locations/{_UUID}"),
-    ("POST",   f"/admin/locations/{_UUID}/categories"),
-    ("DELETE", f"/admin/locations/{_UUID}/categories/{_UUID}"),
+    ("POST",   f"/admin/locations/{_UUID}/sessions"),
+    ("DELETE", f"/admin/locations/{_UUID}/sessions/{_UUID}"),
 ]
 
 

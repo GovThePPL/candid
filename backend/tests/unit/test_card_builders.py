@@ -49,8 +49,8 @@ class TestPositionToCard:
             "creator_trust_score": 0.8,
             "creator_avatar_url": "http://img/a.png",
             "creator_avatar_icon_url": "http://img/a_icon.png",
-            "category_id": "c1",
-            "category_name": "Policy",
+            "session_id": "c1",
+            "session_name": "Policy",
             "location_id": "loc1",
             "location_code": "US",
             "location_name": "United States",
@@ -73,19 +73,19 @@ class TestPositionToCard:
         assert card["data"]["agreeCount"] == 10
         assert card["data"]["userPositionId"] == "up1"
 
-    def test_category_included(self):
+    def test_session_included(self):
         card = position_to_card(self._base_pos())
-        assert card["data"]["category"] == {"id": "c1", "label": "Policy"}
+        assert card["data"]["session"] == {"id": "c1", "label": "Policy"}
 
     def test_location_included(self):
         card = position_to_card(self._base_pos())
         assert card["data"]["location"] == {"id": "loc1", "code": "US", "name": "United States"}
 
-    def test_no_category(self):
+    def test_no_session(self):
         pos = self._base_pos()
-        pos["category_name"] = None
+        pos["session_name"] = None
         card = position_to_card(pos)
-        assert card["data"]["category"] is None
+        assert card["data"]["session"] is None
 
     def test_no_location(self):
         pos = self._base_pos()
@@ -120,8 +120,8 @@ class TestChattingListPositionToCard:
             "creator_id": "u2",
             "creator_display_name": "Bob",
             "creator_username": "bob",
-            "category_name": "Economy",
-            "category_id": "c2",
+            "session_name": "Economy",
+            "session_id": "c2",
             "location_id": "loc3",
             "location_code": "OR",
             "location_name": "Oregon",
@@ -199,7 +199,7 @@ class TestChatRequestToCard:
             "user_position_id": 50,
             "position_id": 30,
             "position_statement": "We should improve transit",
-            "position_category_name": "Infrastructure",
+            "position_session_name": "Infrastructure",
             "position_location_id": "loc2",
             "position_location_code": "PDX",
             "position_location_name": "Portland",
@@ -215,19 +215,19 @@ class TestChatRequestToCard:
         assert card["data"]["position"]["statement"] == "We should improve transit"
         assert card["data"]["response"] == "pending"
 
-    def test_position_category(self):
+    def test_position_session(self):
         card = chat_request_to_card(self._base_req())
-        assert card["data"]["position"]["category"] == {"label": "Infrastructure"}
+        assert card["data"]["position"]["session"] == {"label": "Infrastructure"}
 
     def test_position_location(self):
         card = chat_request_to_card(self._base_req())
         assert card["data"]["position"]["location"] == {"id": "loc2", "code": "PDX", "name": "Portland"}
 
-    def test_no_category(self):
+    def test_no_session(self):
         req = self._base_req()
-        req["position_category_name"] = None
+        req["position_session_name"] = None
         card = chat_request_to_card(req)
-        assert "category" not in card["data"]["position"]
+        assert "session" not in card["data"]["position"]
 
     def test_no_location(self):
         req = self._base_req()
@@ -266,8 +266,8 @@ class TestKudosToCard:
             "position_author_trust_score": 0.95,
             "position_author_avatar_url": None,
             "position_author_avatar_icon_url": None,
-            "position_category_id": "c3",
-            "position_category_name": "Environment",
+            "position_session_id": "c3",
+            "position_session_name": "Environment",
             "position_location_id": "loc4",
             "position_location_code": "US",
             "position_location_name": "United States",
@@ -292,15 +292,15 @@ class TestKudosToCard:
         card = kudos_to_card(kudos, "u1")
         assert card["data"]["chatEndTime"] is None
 
-    def test_position_category(self):
+    def test_position_session(self):
         card = kudos_to_card(self._base_kudos(), "u1")
-        assert card["data"]["position"]["category"] == {"id": "c3", "label": "Environment"}
+        assert card["data"]["position"]["session"] == {"id": "c3", "label": "Environment"}
 
-    def test_no_category(self):
+    def test_no_session(self):
         kudos = self._base_kudos()
-        kudos["position_category_name"] = None
+        kudos["position_session_name"] = None
         card = kudos_to_card(kudos, "u1")
-        assert "category" not in card["data"]["position"]
+        assert "session" not in card["data"]["position"]
 
     def test_no_location(self):
         kudos = self._base_kudos()

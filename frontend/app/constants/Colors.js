@@ -90,7 +90,7 @@ export const LightTheme = {
   buttonDefaultText: "#2C3842",
   buttonSelectedText: "#FFFFFF",
 
-  // Location/category badges and accent text
+  // Location/session badges and accent text
   badgeBg: "#5C005C18",
   badgeText: "#5C005C",
 
@@ -180,7 +180,7 @@ export const DarkTheme = {
   buttonDefaultText: "#E8E8E8",
   buttonSelectedText: "#1A1A1A",
 
-  // Location/category badges and accent text — solid colors for dark backgrounds
+  // Location/session badges and accent text — solid colors for dark backgrounds
   badgeBg: "#6E206E",
   badgeText: "#BBBBBB",
 

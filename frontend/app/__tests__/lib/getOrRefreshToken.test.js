@@ -1,4 +1,13 @@
-import AsyncStorage from '@react-native-async-storage/async-storage'
+// Mock secureStorage (api.js now uses secureStorage for token operations)
+const mockGetSecureItem = jest.fn(() => Promise.resolve(null))
+const mockSetSecureItem = jest.fn(() => Promise.resolve())
+const mockDeleteSecureItem = jest.fn(() => Promise.resolve())
+
+jest.mock('../../lib/secureStorage', () => ({
+  getSecureItem: (...args) => mockGetSecureItem(...args),
+  setSecureItem: (...args) => mockSetSecureItem(...args),
+  deleteSecureItem: (...args) => mockDeleteSecureItem(...args),
+}))
 
 // Mock keycloak before importing api module
 jest.mock('../../lib/keycloak', () => ({
@@ -30,7 +39,7 @@ describe('getOrRefreshToken', () => {
   it('returns token as-is when >60s remaining', async () => {
     const exp = Math.floor(Date.now() / 1000) + 600 // 10 min from now
     const token = makeJwt(exp)
-    AsyncStorage.getItem.mockResolvedValue(token)
+    mockGetSecureItem.mockResolvedValue(token)
 
     const result = await getOrRefreshToken()
     expect(result).toBe(token)
@@ -40,7 +49,7 @@ describe('getOrRefreshToken', () => {
   it('refreshes token when <=60s remaining', async () => {
     const exp = Math.floor(Date.now() / 1000) + 30 // 30s from now
     const oldToken = makeJwt(exp)
-    AsyncStorage.getItem.mockResolvedValue(oldToken)
+    mockGetSecureItem.mockResolvedValue(oldToken)
 
     const newExp = Math.floor(Date.now() / 1000) + 3600
     const freshToken = makeJwt(newExp)
@@ -49,14 +58,14 @@ describe('getOrRefreshToken', () => {
     const result = await getOrRefreshToken()
     expect(result).toBe(freshToken)
     expect(keycloak.refreshToken).toHaveBeenCalledTimes(1)
-    // Verify setToken was called (stores via AsyncStorage.setItem)
-    expect(AsyncStorage.setItem).toHaveBeenCalledWith('candid_auth_token', freshToken)
+    // Verify setToken was called (stores via secureStorage)
+    expect(mockSetSecureItem).toHaveBeenCalledWith('candid_auth_token', freshToken)
   })
 
   it('falls back to existing token when refresh fails', async () => {
     const exp = Math.floor(Date.now() / 1000) + 10 // About to expire
     const token = makeJwt(exp)
-    AsyncStorage.getItem.mockResolvedValue(token)
+    mockGetSecureItem.mockResolvedValue(token)
 
     keycloak.refreshToken.mockRejectedValue(new Error('Network error'))
 
@@ -68,7 +77,7 @@ describe('getOrRefreshToken', () => {
   it('falls back when refresh returns null', async () => {
     const exp = Math.floor(Date.now() / 1000) + 10
     const token = makeJwt(exp)
-    AsyncStorage.getItem.mockResolvedValue(token)
+    mockGetSecureItem.mockResolvedValue(token)
 
     keycloak.refreshToken.mockResolvedValue(null)
 
@@ -77,14 +86,14 @@ describe('getOrRefreshToken', () => {
   })
 
   it('returns null when no token stored', async () => {
-    AsyncStorage.getItem.mockResolvedValue(null)
+    mockGetSecureItem.mockResolvedValue(null)
 
     const result = await getOrRefreshToken()
     expect(result).toBeNull()
   })
 
   it('returns token as-is for malformed JWT (not 3 parts)', async () => {
-    AsyncStorage.getItem.mockResolvedValue('not-a-jwt')
+    mockGetSecureItem.mockResolvedValue('not-a-jwt')
 
     const result = await getOrRefreshToken()
     expect(result).toBe('not-a-jwt')
@@ -95,7 +104,7 @@ describe('getOrRefreshToken', () => {
     const header = Buffer.from(JSON.stringify({ alg: 'RS256' })).toString('base64url')
     const payload = Buffer.from(JSON.stringify({ sub: 'user1' })).toString('base64url')
     const token = `${header}.${payload}.signature`
-    AsyncStorage.getItem.mockResolvedValue(token)
+    mockGetSecureItem.mockResolvedValue(token)
 
     const result = await getOrRefreshToken()
     expect(result).toBe(token)

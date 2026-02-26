@@ -457,7 +457,7 @@ class TestLoadPolisCoords:
 class TestStoreMfResults:
     def test_issues_correct_sql(self):
         mock_db = MagicMock()
-        mock_db.execute_query.return_value = {"location_id": "loc1", "category_id": "cat1"}
+        mock_db.execute_query.return_value = {"location_id": "loc1", "session_id": "cat1"}
 
         model = {
             "user_factors": np.array([[0.1, 0.2], [0.3, 0.4]]),

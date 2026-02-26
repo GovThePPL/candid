@@ -1,4 +1,4 @@
-import { StyleSheet, View, TouchableOpacity, Pressable, ScrollView, ActivityIndicator, TextInput, Alert, Platform, Switch, Modal } from 'react-native'
+import { StyleSheet, View, TouchableOpacity, Pressable, ScrollView, ActivityIndicator, TextInput, Alert, Platform, Modal } from 'react-native'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -8,7 +8,6 @@ import { useThemeColors } from '../../../hooks/useThemeColors'
 import { SemanticColors } from '../../../constants/Colors'
 import { ROLE_LABEL_KEYS, canManageRoleAssignment, isAdminAtLocation } from '../../../lib/roles'
 import { useUser } from '../../../hooks/useUser'
-import useCategoryManagement from '../../../hooks/useCategoryManagement'
 import useRoleAssignment from '../../../hooks/useRoleAssignment'
 import api, { translateError } from '../../../lib/api'
 import ThemedText from '../../../components/ThemedText'
@@ -35,10 +34,10 @@ function RoleUserCard({ item, user, locations, onRemove, colors, styles, t }) {
             {t(ROLE_LABEL_KEYS[item.role] || item.role)}
           </ThemedText>
         </View>
-        {item.category && (
-          <View style={styles.categoryBadge}>
+        {item.session && (
+          <View style={styles.sessionBadge}>
             <ThemedText variant="micro" color="secondary">
-              {item.category.label}
+              {item.session.label}
             </ThemedText>
           </View>
         )}
@@ -105,7 +104,7 @@ function getDescendantIds(locationId, allLocations) {
   return descendants
 }
 
-function LocationSection({ location, allLocations, depth, expandedLocations, toggleLocation, rolesByLocationId, onEdit, onDelete, onAddChild, onManageCategories, onAssignRole, onRemoveRole, canManageLocation, user, colors, styles, t }) {
+function LocationSection({ location, allLocations, depth, expandedLocations, toggleLocation, rolesByLocationId, onEdit, onDelete, onAddChild, onAssignRole, onRemoveRole, canManageLocation, user, colors, styles, t }) {
   const childLocations = allLocations.filter(l => l.parentLocationId === location.id)
   const hasChildren = childLocations.length > 0
   const isExpanded = expandedLocations.has(location.id)
@@ -171,15 +170,6 @@ function LocationSection({ location, allLocations, depth, expandedLocations, tog
             </ThemedText>
             {canManage && (
               <>
-                <TouchableOpacity
-                  style={styles.actionMenuRow}
-                  onPress={() => { setActionsMenuVisible(false); onManageCategories(location) }}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('actionManageCategories')}
-                >
-                  <Ionicons name="pricetag-outline" size={20} color={colors.primary} />
-                  <ThemedText variant="bodySmall" color="dark">{t('actionManageCategories')}</ThemedText>
-                </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.actionMenuRow}
                   onPress={() => { setActionsMenuVisible(false); onAddChild(location) }}
@@ -261,7 +251,6 @@ function LocationSection({ location, allLocations, depth, expandedLocations, tog
               onEdit={onEdit}
               onDelete={onDelete}
               onAddChild={onAddChild}
-              onManageCategories={onManageCategories}
               onAssignRole={onAssignRole}
               onRemoveRole={onRemoveRole}
               canManageLocation={canManageLocation}
@@ -287,7 +276,7 @@ export default function OrganizationScreen() {
 
   // --- Location state ---
   const [locations, setLocations] = useState([])
-  const [allCategories, setAllCategories] = useState([])
+  const [allSessions, setAllSessions] = useState([])
   const [loading, setLoading] = useState(true)
 
   // --- Roles state ---
@@ -310,14 +299,14 @@ export default function OrganizationScreen() {
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const [locs, roleData, cats] = await Promise.all([
+      const [locs, roleData, sess] = await Promise.all([
         api.users.getAllLocations(),
         api.admin.listRoles(),
-        api.admin.getAllCategories(),
+        api.admin.getAllSessions(),
       ])
       setLocations(locs || [])
       setRoles(roleData || [])
-      setAllCategories(Array.isArray(cats) ? cats : [])
+      setAllSessions(Array.isArray(sess) ? sess : [])
     } catch (err) {
       toast?.(translateError(err.message, t) || t('loadError'), 'error')
     } finally {
@@ -343,22 +332,19 @@ export default function OrganizationScreen() {
     }
   }, [])
 
-  const fetchAllCategories = useCallback(async () => {
+  const fetchAllSessions = useCallback(async () => {
     try {
-      const data = await api.admin.getAllCategories()
-      setAllCategories(Array.isArray(data) ? data : [])
+      const data = await api.admin.getAllSessions()
+      setAllSessions(Array.isArray(data) ? data : [])
     } catch (err) {
-      console.warn('[organization] Failed to fetch categories:', err)
+      console.warn('[organization] Failed to fetch sessions:', err)
     }
   }, [])
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  // --- Category management (hook) ---
-  const categoryMgmt = useCategoryManagement({ allCategories, fetchAllCategories })
-
   // --- Role assignment (hook) ---
-  const roleAssign = useRoleAssignment({ user, locations, allCategories, fetchRoles })
+  const roleAssign = useRoleAssignment({ user, locations, allSessions, fetchRoles })
 
   // --- Computed values ---
   const rootLocations = useMemo(() => {
@@ -535,7 +521,6 @@ export default function OrganizationScreen() {
                 onEdit={handleEdit}
                 onDelete={handleDelete}
                 onAddChild={handleAddChild}
-                onManageCategories={categoryMgmt.handleManageCategories}
                 onAssignRole={roleAssign.openAssignAtLocation}
                 onRemoveRole={roleAssign.handleRemoveRole}
                 canManageLocation={canManageLocation}
@@ -619,256 +604,6 @@ export default function OrganizationScreen() {
         </View>
       </BottomDrawerModal>
 
-      {/* Categories Modal */}
-      <BottomDrawerModal
-        visible={categoryMgmt.catModalVisible}
-        onClose={() => categoryMgmt.setCatModalVisible(false)}
-        title={categoryMgmt.catLocation ? t('manageCategoriesFor', { name: categoryMgmt.catLocation.name }) : t('manageCategories')}
-      >
-        <ScrollView contentContainerStyle={styles.modalContent}>
-          {categoryMgmt.catLoading ? (
-            <ActivityIndicator size="small" color={colors.primary} />
-          ) : (
-            <>
-              <ThemedText variant="label" color="secondary" style={styles.catSectionLabel}>{t('assignedCategories')}</ThemedText>
-              {categoryMgmt.assignedCategories.length === 0 ? (
-                <ThemedText variant="caption" color="secondary">{t('noCategories')}</ThemedText>
-              ) : (
-                categoryMgmt.assignedCategories.map(cat => {
-                  const labelSurvey = categoryMgmt.categoryLabelSurveys[cat.id]
-                  const hasLabelSurvey = !!labelSurvey
-                  return (
-                    <View key={cat.id} style={styles.catRowExpanded}>
-                      <View style={styles.catRow}>
-                        <ThemedText variant="bodySmall" color="dark" style={styles.catLabel}>{cat.label}</ThemedText>
-                        <View style={styles.catBadgeRow}>
-                          <View style={[styles.labelSurveyBadge, hasLabelSurvey ? styles.labelSurveyBadgeActive : styles.labelSurveyBadgeInactive]}>
-                            <ThemedText variant="micro" style={hasLabelSurvey ? styles.labelSurveyBadgeTextActive : styles.labelSurveyBadgeTextInactive}>
-                              {hasLabelSurvey ? t('labelSurvey') : t('noLabelSurvey')}
-                            </ThemedText>
-                          </View>
-                          <TouchableOpacity
-                            onPress={() => categoryMgmt.handleRemoveCategory(cat.id)}
-                            accessibilityRole="button"
-                            accessibilityLabel={t('removeCategoryA11y', { category: cat.label })}
-                          >
-                            <Ionicons name="close-circle" size={20} color={SemanticColors.warning} />
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                      {hasLabelSurvey ? (
-                        <TouchableOpacity
-                          style={styles.labelSurveyAction}
-                          onPress={() => categoryMgmt.handleDeleteLabelSurvey(cat.id, labelSurvey.id)}
-                          accessibilityRole="button"
-                          accessibilityLabel={t('deleteLabelSurvey')}
-                        >
-                          <Ionicons name="trash-outline" size={14} color={SemanticColors.warning} />
-                          <ThemedText variant="caption" color="error">{t('deleteLabelSurvey')}</ThemedText>
-                        </TouchableOpacity>
-                      ) : (
-                        categoryMgmt.inlineLabelCatId === cat.id ? (
-                          <View style={styles.inlineLabelForm}>
-                            {categoryMgmt.inlineLabelItems.map((item, i) => (
-                              <View key={i} style={styles.inlineLabelRow}>
-                                <TextInput
-                                  style={[styles.modalInput, { flex: 1 }]}
-                                  value={item}
-                                  onChangeText={(text) => {
-                                    const updated = [...categoryMgmt.inlineLabelItems]
-                                    updated[i] = text
-                                    categoryMgmt.setInlineLabelItems(updated)
-                                  }}
-                                  placeholder={t('itemPlaceholder', { number: i + 1 })}
-                                  placeholderTextColor={colors.placeholderText}
-                                  maxFontSizeMultiplier={1.5}
-                                  accessibilityLabel={t('itemA11y', { number: i + 1 })}
-                                />
-                                {categoryMgmt.inlineLabelItems.length > 2 && (
-                                  <TouchableOpacity
-                                    onPress={() => categoryMgmt.setInlineLabelItems(prev => prev.filter((_, j) => j !== i))}
-                                    accessibilityRole="button"
-                                    accessibilityLabel={t('removeItemA11y', { number: i + 1 })}
-                                  >
-                                    <Ionicons name="close-circle" size={18} color={SemanticColors.warning} />
-                                  </TouchableOpacity>
-                                )}
-                              </View>
-                            ))}
-                            {categoryMgmt.inlineLabelItems.length < 20 && (
-                              <TouchableOpacity
-                                style={styles.addItemRow}
-                                onPress={() => categoryMgmt.setInlineLabelItems(prev => [...prev, ''])}
-                                accessibilityRole="button"
-                                accessibilityLabel={t('addItemA11y')}
-                              >
-                                <Ionicons name="add" size={14} color={colors.primary} />
-                                <ThemedText variant="caption" color="primary">{t('addItem')}</ThemedText>
-                              </TouchableOpacity>
-                            )}
-                            <TextInput
-                              style={styles.modalInput}
-                              value={categoryMgmt.inlineLabelComparison}
-                              onChangeText={categoryMgmt.setInlineLabelComparison}
-                              placeholder={t('comparisonQuestionPlaceholder')}
-                              placeholderTextColor={colors.placeholderText}
-                              maxFontSizeMultiplier={1.5}
-                              accessibilityLabel={t('comparisonQuestionA11y')}
-                            />
-                            <View style={styles.inlineLabelActions}>
-                              <TouchableOpacity
-                                style={[styles.catChip, { backgroundColor: colors.cardBorder }]}
-                                onPress={() => { categoryMgmt.setInlineLabelCatId(null); categoryMgmt.setInlineLabelItems(['', '']); categoryMgmt.setInlineLabelComparison('') }}
-                                accessibilityRole="button"
-                                accessibilityLabel={t('cancel')}
-                              >
-                                <ThemedText variant="caption" color="secondary">{t('cancel')}</ThemedText>
-                              </TouchableOpacity>
-                              <TouchableOpacity
-                                style={[styles.catChip, styles.catChipActive, { opacity: categoryMgmt.inlineLabelCreating ? 0.5 : 1 }]}
-                                onPress={() => categoryMgmt.handleCreateLabelSurvey(cat.id)}
-                                disabled={categoryMgmt.inlineLabelCreating}
-                                accessibilityRole="button"
-                                accessibilityLabel={t('createLabelSurvey')}
-                              >
-                                {categoryMgmt.inlineLabelCreating ? (
-                                  <ActivityIndicator size="small" color="#FFFFFF" />
-                                ) : (
-                                  <ThemedText variant="caption" color="inverse">{t('createLabelSurvey')}</ThemedText>
-                                )}
-                              </TouchableOpacity>
-                            </View>
-                          </View>
-                        ) : (
-                          <TouchableOpacity
-                            style={styles.labelSurveyAction}
-                            onPress={() => { categoryMgmt.setInlineLabelCatId(cat.id); categoryMgmt.setInlineLabelItems(['', '']); categoryMgmt.setInlineLabelComparison('') }}
-                            accessibilityRole="button"
-                            accessibilityLabel={t('createLabelSurvey')}
-                          >
-                            <Ionicons name="add-circle-outline" size={14} color={colors.primary} />
-                            <ThemedText variant="caption" color="primary">{t('createLabelSurvey')}</ThemedText>
-                          </TouchableOpacity>
-                        )
-                      )}
-                    </View>
-                  )
-                })
-              )}
-
-              {categoryMgmt.unassignedCategories.length > 0 && (
-                <>
-                  <ThemedText variant="label" color="secondary" style={styles.catSectionLabel}>{t('addCategory')}</ThemedText>
-                  <View style={styles.catChipRow}>
-                    {categoryMgmt.unassignedCategories.map(cat => (
-                      <TouchableOpacity
-                        key={cat.id}
-                        style={styles.catChip}
-                        onPress={() => categoryMgmt.handleAssignCategory(cat.id)}
-                        accessibilityRole="button"
-                        accessibilityLabel={t('addCategoryA11y', { category: cat.label })}
-                      >
-                        <Ionicons name="add" size={14} color={colors.primary} />
-                        <ThemedText variant="caption" color="dark">{cat.label}</ThemedText>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </>
-              )}
-
-              {allCategories.length === 0 && (
-                <ThemedText variant="caption" color="secondary" style={{ marginTop: 8 }}>{t('noCategoriesAvailable')}</ThemedText>
-              )}
-
-              <ThemedText variant="label" color="secondary" style={styles.catSectionLabel}>{t('createNewCategory')}</ThemedText>
-              <TextInput
-                style={styles.modalInput}
-                value={categoryMgmt.newCategoryLabel}
-                onChangeText={categoryMgmt.setNewCategoryLabel}
-                placeholder={t('categoryLabelPlaceholder')}
-                placeholderTextColor={colors.placeholderText}
-                maxFontSizeMultiplier={1.5}
-                accessibilityLabel={t('categoryLabelA11y')}
-              />
-              <View style={styles.labelSurveyToggleRow}>
-                <ThemedText variant="bodySmall" color="dark">{t('createLabelSurveyToggle')}</ThemedText>
-                <Switch
-                  value={categoryMgmt.createLabelSurvey}
-                  onValueChange={categoryMgmt.setCreateLabelSurvey}
-                  trackColor={{ false: colors.cardBorder, true: colors.primary }}
-                  accessibilityRole="switch"
-                  accessibilityLabel={t('createLabelSurveyToggle')}
-                  accessibilityState={{ checked: categoryMgmt.createLabelSurvey }}
-                />
-              </View>
-              {categoryMgmt.createLabelSurvey && (
-                <View style={styles.inlineLabelForm}>
-                  {categoryMgmt.labelSurveyItems.map((item, i) => (
-                    <View key={i} style={styles.inlineLabelRow}>
-                      <TextInput
-                        style={[styles.modalInput, { flex: 1 }]}
-                        value={item}
-                        onChangeText={(text) => {
-                          const updated = [...categoryMgmt.labelSurveyItems]
-                          updated[i] = text
-                          categoryMgmt.setLabelSurveyItems(updated)
-                        }}
-                        placeholder={t('itemPlaceholder', { number: i + 1 })}
-                        placeholderTextColor={colors.placeholderText}
-                        maxFontSizeMultiplier={1.5}
-                        accessibilityLabel={t('itemA11y', { number: i + 1 })}
-                      />
-                      {categoryMgmt.labelSurveyItems.length > 2 && (
-                        <TouchableOpacity
-                          onPress={() => categoryMgmt.setLabelSurveyItems(prev => prev.filter((_, j) => j !== i))}
-                          accessibilityRole="button"
-                          accessibilityLabel={t('removeItemA11y', { number: i + 1 })}
-                        >
-                          <Ionicons name="close-circle" size={18} color={SemanticColors.warning} />
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  ))}
-                  {categoryMgmt.labelSurveyItems.length < 20 && (
-                    <TouchableOpacity
-                      style={styles.addItemRow}
-                      onPress={() => categoryMgmt.setLabelSurveyItems(prev => [...prev, ''])}
-                      accessibilityRole="button"
-                      accessibilityLabel={t('addItemA11y')}
-                    >
-                      <Ionicons name="add" size={14} color={colors.primary} />
-                      <ThemedText variant="caption" color="primary">{t('addItem')}</ThemedText>
-                    </TouchableOpacity>
-                  )}
-                  <TextInput
-                    style={styles.modalInput}
-                    value={categoryMgmt.labelSurveyComparisonQuestion}
-                    onChangeText={categoryMgmt.setLabelSurveyComparisonQuestion}
-                    placeholder={t('comparisonQuestionPlaceholder')}
-                    placeholderTextColor={colors.placeholderText}
-                    maxFontSizeMultiplier={1.5}
-                    accessibilityLabel={t('comparisonQuestionA11y')}
-                  />
-                </View>
-              )}
-              <TouchableOpacity
-                style={[styles.saveButton, { opacity: (!categoryMgmt.newCategoryLabel.trim() || categoryMgmt.creatingCategory) ? 0.5 : 1 }]}
-                onPress={categoryMgmt.handleCreateCategory}
-                disabled={!categoryMgmt.newCategoryLabel.trim() || categoryMgmt.creatingCategory}
-                accessibilityRole="button"
-                accessibilityLabel={t('createCategoryA11y')}
-              >
-                {categoryMgmt.creatingCategory ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <ThemedText variant="button" color="inverse">{t('createNewCategory')}</ThemedText>
-                )}
-              </TouchableOpacity>
-            </>
-          )}
-        </ScrollView>
-      </BottomDrawerModal>
-
       {/* Assign Role Modal */}
       <BottomDrawerModal
         visible={roleAssign.assignModalVisible}
@@ -948,21 +683,21 @@ export default function OrganizationScreen() {
             <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
           </TouchableOpacity>
 
-          {/* Category picker */}
-          {roleAssign.showCategoryPicker && (
+          {/* Session picker */}
+          {roleAssign.showSessionPicker && (
             <>
-              <ThemedText variant="label" color="secondary" style={styles.fieldLabel}>{t('selectCategory')}</ThemedText>
+              <ThemedText variant="label" color="secondary" style={styles.fieldLabel}>{t('selectSession')}</ThemedText>
               <TouchableOpacity
                 style={styles.pickerButton}
-                onPress={() => roleAssign.setCategoryPickerVisible(true)}
+                onPress={() => roleAssign.setSessionPickerVisible(true)}
                 accessibilityRole="button"
-                accessibilityLabel={t('selectCategory')}
+                accessibilityLabel={t('selectSession')}
               >
                 <Ionicons name="pricetag-outline" size={16} color={colors.secondaryText} />
                 <ThemedText variant="body" color="dark" style={styles.pickerButtonText}>
-                  {roleAssign.selectedCategory
-                    ? roleAssign.assignableCategories.find(c => c.id === roleAssign.selectedCategory)?.label || t('selectCategory')
-                    : t('selectCategory')}
+                  {roleAssign.selectedSession
+                    ? roleAssign.assignableSessions.find(s => s.id === roleAssign.selectedSession)?.label || t('selectSession')
+                    : t('selectSession')}
                 </ThemedText>
                 <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
               </TouchableOpacity>
@@ -1033,20 +768,20 @@ export default function OrganizationScreen() {
         onSelect={(id) => { roleAssign.setSelectedLocation(id); roleAssign.setLocationPickerVisible(false) }}
       />
 
-      {/* Category Picker Modal */}
+      {/* Session Picker Modal */}
       <BottomDrawerModal
-        visible={roleAssign.categoryPickerVisible}
-        onClose={() => roleAssign.setCategoryPickerVisible(false)}
-        title={t('selectCategory')}
+        visible={roleAssign.sessionPickerVisible}
+        onClose={() => roleAssign.setSessionPickerVisible(false)}
+        title={t('selectSession')}
       >
         <ScrollView contentContainerStyle={styles.pickerList}>
-          {roleAssign.assignableCategories.map(c => {
-            const selected = roleAssign.selectedCategory === c.id
+          {roleAssign.assignableSessions.map(c => {
+            const selected = roleAssign.selectedSession === c.id
             return (
               <TouchableOpacity
                 key={c.id}
                 style={[styles.pickerRow, selected && styles.pickerRowSelected]}
-                onPress={() => { roleAssign.setSelectedCategory(c.id); roleAssign.setCategoryPickerVisible(false) }}
+                onPress={() => { roleAssign.setSelectedSession(c.id); roleAssign.setSessionPickerVisible(false) }}
                 accessibilityRole="button"
                 accessibilityLabel={c.label}
                 accessibilityState={{ selected }}
@@ -1190,7 +925,7 @@ const createStyles = (colors) => StyleSheet.create({
     color: colors.badgeText,
     fontWeight: '600',
   },
-  categoryBadge: {
+  sessionBadge: {
     backgroundColor: colors.cardBorder,
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -1249,103 +984,6 @@ const createStyles = (colors) => StyleSheet.create({
     letterSpacing: 0.5,
     marginTop: 4,
   },
-  catSectionLabel: {
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginTop: 4,
-  },
-  catRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.cardBorder,
-  },
-  catLabel: {
-    flex: 1,
-  },
-  catChipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  catChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: colors.buttonDefault,
-  },
-  catChipActive: {
-    backgroundColor: colors.primarySurface,
-  },
-  catRowExpanded: {
-    borderBottomWidth: 1,
-    borderBottomColor: colors.cardBorder,
-    paddingBottom: 10,
-    gap: 6,
-  },
-  catBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  labelSurveyBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  labelSurveyBadgeActive: {
-    backgroundColor: SemanticColors.success,
-  },
-  labelSurveyBadgeInactive: {
-    backgroundColor: colors.cardBorder,
-  },
-  labelSurveyBadgeTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
-  labelSurveyBadgeTextInactive: {
-    color: colors.secondaryText,
-  },
-  labelSurveyAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingLeft: 4,
-  },
-  labelSurveyToggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 4,
-  },
-  inlineLabelForm: {
-    gap: 8,
-    paddingLeft: 8,
-    borderLeftWidth: 2,
-    borderLeftColor: colors.primary,
-  },
-  inlineLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  inlineLabelActions: {
-    flexDirection: 'row',
-    gap: 8,
-    justifyContent: 'flex-end',
-  },
-  addItemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 2,
-  },
-
   // Assign modal
   pickerButton: {
     flexDirection: 'row',

@@ -13,7 +13,7 @@ jest.mock('../../hooks/useUser', () => ({
       id: 'u1',
       username: 'admin1',
       roles: [
-        { role: 'admin', locationId: 'loc1', positionCategoryId: null },
+        { role: 'admin', locationId: 'loc1', positionSessionId: null },
       ],
     },
   }),
@@ -31,7 +31,7 @@ jest.mock('../../lib/api', () => ({
     users: {
       getAllLocations: jest.fn(() => Promise.resolve([])),
     },
-    categories: {
+    sessions: {
       getAll: jest.fn(() => Promise.resolve([])),
     },
   },

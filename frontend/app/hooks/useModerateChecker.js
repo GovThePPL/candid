@@ -10,7 +10,7 @@ const LOCATIONS_TTL = 5 * 60 * 1000 // 5 minutes
 /**
  * Hook that returns a per-item moderation checker.
  * Fetches the location tree once (cached) and returns a callback
- * `(locationId, categoryId) => boolean` that checks scope-based authority.
+ * `(locationId, sessionId) => boolean` that checks scope-based authority.
  *
  * Only fetches locations if the user has any facilitator+ role.
  */
@@ -46,8 +46,8 @@ export default function useModerateChecker() {
     return () => { cancelled = true }
   }, [hasModerationRole])
 
-  return useCallback((locationId, categoryId) => {
+  return useCallback((locationId, sessionId) => {
     if (!hasModerationRole) return false
-    return canModerateAtScope(user, locationId, categoryId, locations)
+    return canModerateAtScope(user, locationId, sessionId, locations)
   }, [user, hasModerationRole, locations])
 }

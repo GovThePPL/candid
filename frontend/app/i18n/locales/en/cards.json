@@ -42,7 +42,7 @@
   "kudosA11yHintSendBack": "Swipe right to send kudos back, left to dismiss",
 
   "pairwiseTitle": "Survey",
-  "pairwiseDefaultCategory": "General",
+  "pairwiseDefaultSession": "General",
   "pairwiseDefaultQuestion": "Which better describes your views?",
   "pairwiseOptionA": "Option A",
   "pairwiseOptionB": "Option B",
@@ -131,7 +131,7 @@
   "banAppealError": "Failed to submit appeal",
   "banTemporaryDuration": "Temporary ({{days}} days)",
   "banChatLabel": "Chat: {{participants}}",
-  "surveyDefaultCategory": "General",
+  "surveyDefaultSession": "General",
 
   "emptyTitle": "No more cards",
   "emptyText": "Check back later for more positions, or create your own!",
@@ -167,5 +167,10 @@
   "sendKudosAction": "Send Kudos",
   "acknowledgeAction": "OK",
   "enableAction": "Enable",
-  "noThanksAction": "No Thanks"
+  "noThanksAction": "No Thanks",
+
+  "archivedStageNoActions": "You're viewing an archived stage — responses are disabled",
+  "archivedStageLabel": "Archived",
+  "swipeArchived": "Archived",
+  "archivedA11yHint": "This card is from an archived stage. Swipe to dismiss — no response will be recorded"
 }

@@ -12,7 +12,7 @@ const mockUser = {
   username: 'admin1',
   displayName: 'Admin 1',
   roles: [
-    { role: 'admin', locationId: 'loc1', positionCategoryId: null, locationName: 'United States' },
+    { role: 'admin', locationId: 'loc1', sessionId: null, locationName: 'United States' },
   ],
 }
 const mockUserState = { user: mockUser }
@@ -22,7 +22,7 @@ jest.mock('../../hooks/useUser', () => ({
 
 const mockGetAdminRules = jest.fn()
 const mockGetAllLocations = jest.fn()
-const mockGetAllCategories = jest.fn()
+const mockGetAllSessions = jest.fn()
 const mockCreateRuleRequest = jest.fn()
 
 jest.mock('../../lib/api', () => ({
@@ -31,7 +31,7 @@ jest.mock('../../lib/api', () => ({
   default: {
     admin: {
       getAdminRules: (...args) => mockGetAdminRules(...args),
-      getAllCategories: (...args) => mockGetAllCategories(...args),
+      getAllSessions: (...args) => mockGetAllSessions(...args),
       createRuleRequest: (...args) => mockCreateRuleRequest(...args),
     },
     users: {
@@ -108,9 +108,9 @@ const makeRule = (id, overrides = {}) => ({
   status: 'active',
   applicableContentTypes: ['position', 'chat_log', 'post', 'comment'],
   locationId: null,
-  positionCategoryId: null,
+  sessionId: null,
   locationName: null,
-  categoryLabel: null,
+  sessionLabel: null,
   sentencingGuidelines: null,
   defaultActions: null,
   ...overrides,
@@ -126,7 +126,7 @@ beforeEach(() => {
   jest.clearAllMocks()
   mockGetAdminRules.mockResolvedValue([])
   mockGetAllLocations.mockResolvedValue(testLocations)
-  mockGetAllCategories.mockResolvedValue([])
+  mockGetAllSessions.mockResolvedValue([])
 })
 
 describe('Admin Rules screen', () => {
@@ -148,13 +148,13 @@ describe('Admin Rules screen', () => {
     })
   })
 
-  it('fetches rules, locations, and categories on mount', async () => {
+  it('fetches rules, locations, and sessions on mount', async () => {
     render(<RulesScreen />)
 
     await waitFor(() => {
       expect(mockGetAdminRules).toHaveBeenCalled()
       expect(mockGetAllLocations).toHaveBeenCalled()
-      expect(mockGetAllCategories).toHaveBeenCalled()
+      expect(mockGetAllSessions).toHaveBeenCalled()
     })
   })
 
@@ -243,9 +243,9 @@ describe('Admin Rules screen', () => {
     })
   })
 
-  it('shows category chip on rule card when category exists', async () => {
+  it('shows session chip on rule card when session exists', async () => {
     mockGetAdminRules.mockResolvedValue([
-      makeRule('r1', { categoryLabel: 'Healthcare' }),
+      makeRule('r1', { sessionLabel: 'Healthcare' }),
     ])
     render(<RulesScreen />)
 

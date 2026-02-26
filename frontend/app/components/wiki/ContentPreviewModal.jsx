@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
+import useModalBackHandler from '../../hooks/useModalBackHandler'
 import { Typography, Spacing, BorderRadius } from '../../constants/Theme'
 import ThemedText from '../ThemedText'
 import MarkdownRenderer from '../discuss/MarkdownRenderer'
@@ -131,6 +132,7 @@ const TABS = ['original', 'changes', 'diff']
 export default function ContentPreviewModal({ visible, onClose, originalContent, proposedContent }) {
   const { t } = useTranslation('glossary')
   const colors = useThemeColors()
+  useModalBackHandler(visible, onClose)
   const styles = useMemo(() => createStyles(colors), [colors])
   const [activeTab, setActiveTab] = useState('diff')
 

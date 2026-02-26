@@ -8,13 +8,14 @@ from candid import util
 
 from candid.controllers import db
 from candid.controllers.helpers.config import Config
-from candid.controllers.helpers.auth import authorization, token_to_user
+from candid.controllers.helpers.auth import require_auth, token_to_user
 from candid.controllers.helpers.cache_headers import add_cache_headers
 
 import uuid
 
 
-def get_chatting_list(token_info=None):
+@require_auth("normal")
+def get_chatting_list(token_info=None, user_id=None):
     """Get user's chatting list positions
 
     Returns positions the user has swiped up on and wants to continue chatting about
@@ -24,10 +25,6 @@ def get_chatting_list(token_info=None):
 
     :rtype: Union[List[ChattingListItem], Tuple[List[ChattingListItem], int], Tuple[List[ChattingListItem], int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
     user = token_to_user(token_info)
 
     items = db.execute_query("""
@@ -40,7 +37,7 @@ def get_chatting_list(token_info=None):
             ucl.chat_count,
             -- Position data
             p.statement,
-            p.category_id,
+            p.session_id,
             p.creator_user_id,
             p.agree_count,
             p.disagree_count,
@@ -54,8 +51,8 @@ def get_chatting_list(token_info=None):
             u.status as creator_status,
             u.trust_score as creator_trust_score,
             u.kudos_count as creator_kudos_count,
-            -- Category
-            pc.label as category_name,
+            -- Session
+            pc.label as session_name,
             -- Location
             l.code as location_code,
             l.name as location_name,
@@ -71,7 +68,7 @@ def get_chatting_list(token_info=None):
         FROM user_chatting_list ucl
         JOIN position p ON ucl.position_id = p.id
         JOIN users u ON p.creator_user_id = u.id
-        LEFT JOIN position_category pc ON p.category_id = pc.id
+        LEFT JOIN session pc ON p.session_id = pc.id
         LEFT JOIN location l ON p.location_id = l.id
         WHERE ucl.user_id = %s
           AND p.status = 'active'
@@ -89,11 +86,11 @@ def get_chatting_list(token_info=None):
             "trustScore": float(item["creator_trust_score"]) if item.get("creator_trust_score") else None
         }
 
-        category = None
-        if item.get("category_name"):
-            category = {
-                "id": str(item["category_id"]) if item.get("category_id") else None,
-                "label": item["category_name"]
+        session = None
+        if item.get("session_name"):
+            session = {
+                "id": str(item["session_id"]) if item.get("session_id") else None,
+                "label": item["session_name"]
             }
 
         location = None
@@ -107,8 +104,8 @@ def get_chatting_list(token_info=None):
             "id": str(item["position_id"]),
             "creator": creator,
             "statement": item["statement"],
-            "categoryId": str(item["category_id"]) if item.get("category_id") else None,
-            "category": category,
+            "sessionId": str(item["session_id"]) if item.get("session_id") else None,
+            "session": session,
             "location": location,
             "createdTime": item["position_created_time"],
             "agreeCount": item["agree_count"],
@@ -152,7 +149,8 @@ def get_chatting_list(token_info=None):
     return response
 
 
-def get_chatting_list_metadata(token_info=None):
+@require_auth("normal")
+def get_chatting_list_metadata(token_info=None, user_id=None):
     """Get metadata about user's chatting list for cache validation.
 
     Returns count and last updated time without full item data.
@@ -162,10 +160,6 @@ def get_chatting_list_metadata(token_info=None):
 
     :rtype: Union[dict, Tuple[dict, int]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
     user = token_to_user(token_info)
 
     result = db.execute_query("""
@@ -192,7 +186,8 @@ def get_chatting_list_metadata(token_info=None):
     return response
 
 
-def add_to_chatting_list(body, token_info=None):
+@require_auth("normal")
+def add_to_chatting_list(body, token_info=None, user_id=None):
     """Add a position to the chatting list
 
     :param body: Request body containing positionId
@@ -202,10 +197,6 @@ def add_to_chatting_list(body, token_info=None):
 
     :rtype: Union[ChattingListItem, Tuple[ChattingListItem, int], Tuple[ChattingListItem, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
     user = token_to_user(token_info)
 
     if connexion.request.is_json:
@@ -256,7 +247,8 @@ def add_to_chatting_list(body, token_info=None):
     return _get_chatting_list_item(item_id, str(user.id)), 201
 
 
-def update_chatting_list_item(id_, body, token_info=None):
+@require_auth("normal")
+def update_chatting_list_item(id_, body, token_info=None, user_id=None):
     """Update a chatting list item (toggle active status)
 
     :param id: Chatting list item ID
@@ -268,10 +260,6 @@ def update_chatting_list_item(id_, body, token_info=None):
 
     :rtype: Union[ChattingListItem, Tuple[ChattingListItem, int], Tuple[ChattingListItem, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
     user = token_to_user(token_info)
 
     if connexion.request.is_json:
@@ -300,7 +288,8 @@ def update_chatting_list_item(id_, body, token_info=None):
     return _get_chatting_list_item(id_, str(user.id)), 200
 
 
-def remove_from_chatting_list(id_, token_info=None):
+@require_auth("normal")
+def remove_from_chatting_list(id_, token_info=None, user_id=None):
     """Remove a position from the chatting list
 
     :param id: Chatting list item ID
@@ -310,10 +299,6 @@ def remove_from_chatting_list(id_, token_info=None):
 
     :rtype: Union[None, Tuple[None, int], Tuple[None, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
     user = token_to_user(token_info)
 
     # Verify ownership
@@ -334,7 +319,8 @@ def remove_from_chatting_list(id_, token_info=None):
     return None, 204
 
 
-def mark_chatting_list_explanation_seen(token_info=None):
+@require_auth("normal")
+def mark_chatting_list_explanation_seen(token_info=None, user_id=None):
     """Mark the chatting list explanation as seen
 
     :param token_info: JWT token info from authentication
@@ -342,10 +328,6 @@ def mark_chatting_list_explanation_seen(token_info=None):
 
     :rtype: Union[None, Tuple[None, int], Tuple[None, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
     user = token_to_user(token_info)
 
     db.execute_query("""
@@ -357,10 +339,11 @@ def mark_chatting_list_explanation_seen(token_info=None):
     return None, 204
 
 
-def bulk_delete_chatting_list_items(body=None, token_info=None):
+@require_auth("normal")
+def bulk_delete_chatting_list_items(body=None, token_info=None, user_id=None):
     """Remove multiple positions from chatting list
 
-    Bulk remove by category, location, or specific item IDs.
+    Bulk remove by session, location, or specific item IDs.
 
     :param body: Request body with filters
     :type body: dict | bytes
@@ -369,22 +352,18 @@ def bulk_delete_chatting_list_items(body=None, token_info=None):
 
     :rtype: Union[dict, Tuple[dict, int], Tuple[dict, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
     user = token_to_user(token_info)
 
     if connexion.request.is_json:
         body = connexion.request.get_json()
 
-    category_id = body.get("categoryId")
+    session_id = body.get("sessionId")
     location_code = body.get("locationCode")
     item_ids = body.get("itemIds")
 
     # At least one filter must be provided
-    if not category_id and not location_code and not item_ids:
-        return ErrorModel(code=400, message="At least one of categoryId, locationCode, or itemIds is required"), 400
+    if not session_id and not location_code and not item_ids:
+        return ErrorModel(code=400, message="At least one of sessionId, locationCode, or itemIds is required"), 400
 
     # Build the DELETE query dynamically based on filters
     conditions = ["ucl.user_id = %s"]
@@ -396,9 +375,9 @@ def bulk_delete_chatting_list_items(body=None, token_info=None):
         conditions.append(f"ucl.id IN ({placeholders})")
         params.extend(item_ids)
 
-    if category_id:
-        conditions.append("p.category_id = %s")
-        params.append(category_id)
+    if session_id:
+        conditions.append("p.session_id = %s")
+        params.append(session_id)
 
     if location_code:
         conditions.append("l.code = %s")
@@ -446,7 +425,7 @@ def _get_chatting_list_item(item_id: str, user_id: str) -> dict:
             ucl.chat_count,
             -- Position data
             p.statement,
-            p.category_id,
+            p.session_id,
             p.creator_user_id,
             p.agree_count,
             p.disagree_count,
@@ -460,8 +439,8 @@ def _get_chatting_list_item(item_id: str, user_id: str) -> dict:
             u.status as creator_status,
             u.trust_score as creator_trust_score,
             u.kudos_count as creator_kudos_count,
-            -- Category
-            pc.label as category_name,
+            -- Session
+            pc.label as session_name,
             -- Location
             l.code as location_code,
             l.name as location_name,
@@ -477,7 +456,7 @@ def _get_chatting_list_item(item_id: str, user_id: str) -> dict:
         FROM user_chatting_list ucl
         JOIN position p ON ucl.position_id = p.id
         JOIN users u ON p.creator_user_id = u.id
-        LEFT JOIN position_category pc ON p.category_id = pc.id
+        LEFT JOIN session pc ON p.session_id = pc.id
         LEFT JOIN location l ON p.location_id = l.id
         WHERE ucl.id = %s
     """, (Config.TIMESTAMP_FORMAT, Config.TIMESTAMP_FORMAT, Config.TIMESTAMP_FORMAT, user_id, item_id), fetchone=True)
@@ -494,11 +473,11 @@ def _get_chatting_list_item(item_id: str, user_id: str) -> dict:
         "trustScore": float(item["creator_trust_score"]) if item.get("creator_trust_score") else None
     }
 
-    category = None
-    if item.get("category_name"):
-        category = {
-            "id": str(item["category_id"]) if item.get("category_id") else None,
-            "label": item["category_name"]
+    session = None
+    if item.get("session_name"):
+        session = {
+            "id": str(item["session_id"]) if item.get("session_id") else None,
+            "label": item["session_name"]
         }
 
     location = None
@@ -512,8 +491,8 @@ def _get_chatting_list_item(item_id: str, user_id: str) -> dict:
         "id": str(item["position_id"]),
         "creator": creator,
         "statement": item["statement"],
-        "categoryId": str(item["category_id"]) if item.get("category_id") else None,
-        "category": category,
+        "sessionId": str(item["session_id"]) if item.get("session_id") else None,
+        "session": session,
         "location": location,
         "createdTime": item["position_created_time"],
         "agreeCount": item["agree_count"],

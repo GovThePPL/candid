@@ -9,7 +9,7 @@ import ThemedText from './ThemedText'
 import EmptyState from './EmptyState'
 import CardShell from './CardShell'
 import PositionInfoCard from './PositionInfoCard'
-import LocationCategoryBadge from './LocationCategoryBadge'
+import LocationSessionBadge from './LocationSessionBadge'
 import MarkdownRenderer from './discuss/MarkdownRenderer'
 import ModerationActionModal from './ModerationActionModal'
 import ModerationHistoryModal from './ModerationHistoryModal'
@@ -55,7 +55,7 @@ function PostTargetContent({ target, colors, styles }) {
   return (
     <View style={styles.targetContentContainer}>
       <RemovedBanner status={target.status} colors={colors} styles={styles} />
-      <LocationCategoryBadge location={target.location} category={target.category} size="md" />
+      <LocationSessionBadge location={target.location} session={target.session} size="md" />
       <ThemedText variant="h3">{target.title}</ThemedText>
       {target.body && (
         expanded ? (

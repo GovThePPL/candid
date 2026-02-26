@@ -49,8 +49,8 @@ export default function PreferencesSettings() {
   const [error, setError] = useState(null)
 
   // Settings state
-  const [categories, setCategories] = useState([])
-  const [categoryWeights, setCategoryWeights] = useState({})
+  const [sessions, setSessions] = useState([])
+  const [sessionWeights, setSessionWeights] = useState({})
   const [chatRequestLikelihood, setChatRequestLikelihood] = useState('normal')
   const [chattingListLikelihood, setChattingListLikelihood] = useState('normal')
 
@@ -59,27 +59,27 @@ export default function PreferencesSettings() {
   const isInitialLoadRef = useRef(true)
 
   // Refs to track current values for auto-save (avoids stale closure issues)
-  const categoryWeightsRef = useRef(categoryWeights)
+  const sessionWeightsRef = useRef(sessionWeights)
   const chatRequestLikelihoodRef = useRef(chatRequestLikelihood)
   const chattingListLikelihoodRef = useRef(chattingListLikelihood)
 
   // Keep refs in sync with state
-  categoryWeightsRef.current = categoryWeights
+  sessionWeightsRef.current = sessionWeights
   chatRequestLikelihoodRef.current = chatRequestLikelihood
   chattingListLikelihoodRef.current = chattingListLikelihood
 
   // Modal state
   const [weightModalOpen, setWeightModalOpen] = useState(false)
-  const [selectedCategoryForWeight, setSelectedCategoryForWeight] = useState(null)
+  const [selectedSessionForWeight, setSelectedSessionForWeight] = useState(null)
 
   const applySettingsData = useCallback((settingsData) => {
     const weightsMap = {}
-    if (settingsData?.categoryWeights) {
-      settingsData.categoryWeights.forEach(cw => {
-        weightsMap[cw.categoryId] = cw.weight
+    if (settingsData?.sessionWeights) {
+      settingsData.sessionWeights.forEach(cw => {
+        weightsMap[cw.sessionId] = cw.weight
       })
     }
-    setCategoryWeights(weightsMap)
+    setSessionWeights(weightsMap)
     setChatRequestLikelihood(settingsData?.chatRequestLikelihood || 'normal')
     setChattingListLikelihood(settingsData?.chattingListLikelihood || 'normal')
   }, [])
@@ -89,11 +89,11 @@ export default function PreferencesSettings() {
       setLoading(true)
       setError(null)
 
-      const [{ data: categoriesData }, { data: settingsData }] = await Promise.all([
+      const [{ data: sessionsData }, { data: settingsData }] = await Promise.all([
         CacheManager.fetchOrCache(
-          CacheKeys.categories(),
-          () => api.categories.getAll(),
-          { maxAge: CacheDurations.CATEGORIES }
+          CacheKeys.sessions(),
+          () => api.sessions.getAll(),
+          { maxAge: CacheDurations.SESSIONS }
         ),
         CacheManager.fetchOrCache(
           CacheKeys.settings(user?.id),
@@ -102,8 +102,8 @@ export default function PreferencesSettings() {
         ),
       ])
 
-      if (categoriesData) {
-        setCategories(categoriesData)
+      if (sessionsData) {
+        setSessions(sessionsData)
       }
       if (settingsData) {
         applySettingsData(settingsData)
@@ -150,16 +150,16 @@ export default function PreferencesSettings() {
         setSaving(true)
         setError(null)
 
-        const currentWeights = categoryWeightsRef.current
+        const currentWeights = sessionWeightsRef.current
         const currentChatRequestLikelihood = chatRequestLikelihoodRef.current
         const currentChattingListLikelihood = chattingListLikelihoodRef.current
 
-        const categoryWeightsArray = Object.entries(currentWeights)
+        const sessionWeightsArray = Object.entries(currentWeights)
           .filter(([_, weight]) => weight && weight !== 'default')
-          .map(([categoryId, weight]) => ({ categoryId, weight }))
+          .map(([sessionId, weight]) => ({ sessionId, weight }))
 
         const settingsPayload = {
-          categoryWeights: categoryWeightsArray,
+          sessionWeights: sessionWeightsArray,
           chatRequestLikelihood: currentChatRequestLikelihood,
           chattingListLikelihood: currentChattingListLikelihood,
         }
@@ -182,14 +182,14 @@ export default function PreferencesSettings() {
     }, 500)
   }, [])
 
-  const handleCategoryWeightChange = (categoryId, weight) => {
-    setCategoryWeights(prev => {
-      const newWeights = { ...prev, [categoryId]: weight }
-      categoryWeightsRef.current = newWeights
+  const handleSessionWeightChange = (sessionId, weight) => {
+    setSessionWeights(prev => {
+      const newWeights = { ...prev, [sessionId]: weight }
+      sessionWeightsRef.current = newWeights
       return newWeights
     })
     setWeightModalOpen(false)
-    setSelectedCategoryForWeight(null)
+    setSelectedSessionForWeight(null)
     performAutoSave()
   }
 
@@ -205,13 +205,13 @@ export default function PreferencesSettings() {
     performAutoSave()
   }
 
-  const openWeightModal = (category) => {
-    setSelectedCategoryForWeight(category)
+  const openWeightModal = (session) => {
+    setSelectedSessionForWeight(session)
     setWeightModalOpen(true)
   }
 
-  const getCategoryWeight = (categoryId) => {
-    return categoryWeights[categoryId] || 'default'
+  const getSessionWeight = (sessionId) => {
+    return sessionWeights[sessionId] || 'default'
   }
 
   const getWeightLabel = (weight) => {
@@ -222,7 +222,7 @@ export default function PreferencesSettings() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <Header onBack={() => router.back()} showSettingsButton settingsActive onSettingsBack={() => navigation.getParent()?.goBack()} />
+        <Header onBack={() => router.back()} showSettingsButton settingsActive onSettingsBack={() => navigation.getParent()?.goBack()} hideSessionBar />
         <LoadingView message={t('loadingPreferences')} />
       </SafeAreaView>
     )
@@ -230,7 +230,7 @@ export default function PreferencesSettings() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <Header onBack={() => router.back()} showSettingsButton settingsActive onSettingsBack={() => navigation.getParent()?.goBack()} />
+      <Header onBack={() => router.back()} showSettingsButton settingsActive onSettingsBack={() => navigation.getParent()?.goBack()} hideSessionBar />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.pageHeader}>
           <ThemedText variant="h1" title={true} style={styles.pageTitle}>
@@ -245,34 +245,34 @@ export default function PreferencesSettings() {
           </View>
         )}
 
-        {/* Category Preferences Section */}
+        {/* Session Preferences Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="grid-outline" size={22} color={colors.primary} />
-            <ThemedText variant="h2" color="dark">{t('categoryPreferences')}</ThemedText>
+            <ThemedText variant="h2" color="dark">{t('sessionPreferences')}</ThemedText>
           </View>
           <ThemedText variant="bodySmall" color="secondary" style={styles.sectionDescription}>
-            {t('categoryPreferencesDesc')}
+            {t('sessionPreferencesDesc')}
           </ThemedText>
 
-          <View style={styles.categoryList}>
-            {categories.map((category) => {
-              const weight = getCategoryWeight(category.id)
+          <View style={styles.sessionList}>
+            {sessions.map((session) => {
+              const weight = getSessionWeight(session.id)
               const isNonDefault = weight !== 'default'
 
               return (
                 <TouchableOpacity
-                  key={category.id}
-                  style={[styles.categoryItem, isNonDefault && styles.categoryItemModified]}
-                  onPress={() => openWeightModal(category)}
+                  key={session.id}
+                  style={[styles.sessionItem, isNonDefault && styles.sessionItemModified]}
+                  onPress={() => openWeightModal(session)}
                   accessibilityRole="button"
-                  accessibilityLabel={t('categoryWeightA11y', { category: category.label, weight: getWeightLabel(weight) })}
+                  accessibilityLabel={t('sessionWeightA11y', { session: session.label, weight: getWeightLabel(weight) })}
                 >
-                  <ThemedText variant="body" color="dark" style={styles.categoryName}>{category.label}</ThemedText>
-                  <View style={styles.categoryWeightButton}>
+                  <ThemedText variant="body" color="dark" style={styles.sessionName}>{session.label}</ThemedText>
+                  <View style={styles.sessionWeightButton}>
                     <ThemedText variant="bodySmall" color="secondary" style={[
-                      styles.categoryWeightText,
-                      isNonDefault && styles.categoryWeightTextModified
+                      styles.sessionWeightText,
+                      isNonDefault && styles.sessionWeightTextModified
                     ]}>
                       {getWeightLabel(weight)}
                     </ThemedText>
@@ -389,12 +389,12 @@ export default function PreferencesSettings() {
         <Pressable style={shared.modalOverlay} onPress={() => setWeightModalOpen(false)}>
           <View style={styles.modalContent}>
             <ThemedText variant="h2" color="dark" style={styles.modalTitle}>
-              {selectedCategoryForWeight?.label || selectedCategoryForWeight?.name}
+              {selectedSessionForWeight?.label || selectedSessionForWeight?.name}
             </ThemedText>
-            <ThemedText variant="bodySmall" color="secondary" style={styles.modalSubtitle}>{t('categoryModalSubtitle')}</ThemedText>
+            <ThemedText variant="bodySmall" color="secondary" style={styles.modalSubtitle}>{t('sessionModalSubtitle')}</ThemedText>
             <ScrollView style={styles.modalScrollView}>
               {WEIGHT_OPTIONS.map((option, index) => {
-                const isSelected = getCategoryWeight(selectedCategoryForWeight?.id) === option.value
+                const isSelected = getSessionWeight(selectedSessionForWeight?.id) === option.value
 
                 return (
                   <TouchableOpacity
@@ -404,7 +404,7 @@ export default function PreferencesSettings() {
                       isSelected && styles.modalItemSelected,
                       index === WEIGHT_OPTIONS.length - 1 && styles.modalItemLast,
                     ]}
-                    onPress={() => handleCategoryWeightChange(selectedCategoryForWeight?.id, option.value)}
+                    onPress={() => handleSessionWeightChange(selectedSessionForWeight?.id, option.value)}
                     accessibilityRole="radio"
                     accessibilityState={{ checked: isSelected }}
                     accessibilityLabel={option.label}
@@ -477,11 +477,11 @@ const createStyles = (colors) => StyleSheet.create({
   sectionDescription: {
     marginBottom: 16,
   },
-  categoryList: {
+  sessionList: {
     borderRadius: 8,
     overflow: 'hidden',
   },
-  categoryItem: {
+  sessionItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -491,13 +491,13 @@ const createStyles = (colors) => StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.cardBorder,
   },
-  categoryItemModified: {
+  sessionItemModified: {
     backgroundColor: colors.primaryLight + '30',
   },
-  categoryName: {
+  sessionName: {
     flex: 1,
   },
-  categoryWeightButton: {
+  sessionWeightButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -508,9 +508,9 @@ const createStyles = (colors) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.cardBorder,
   },
-  categoryWeightText: {
+  sessionWeightText: {
   },
-  categoryWeightTextModified: {
+  sessionWeightTextModified: {
     color: colors.primary,
   },
   likelihoodSelector: {

@@ -3,6 +3,7 @@ Message handling for chat.
 """
 
 import logging
+import time
 from typing import Any, Optional
 
 import aiohttp
@@ -13,6 +14,34 @@ from ..services import get_redis_store, get_room_manager, get_nlp_session
 from ..services.quote_validator import parse_quotes, validate_quotes
 
 logger = logging.getLogger(__name__)
+
+# Rate limit: max messages per user within the sliding window
+_MSG_RATE_LIMIT = 30
+_MSG_RATE_WINDOW = 60  # seconds
+
+
+async def _check_message_rate(redis_client, user_id: str) -> bool:
+    """Check per-user message rate limit using a Redis sorted set sliding window.
+
+    Returns True if allowed, False if rate-limited.
+    """
+    key = f"rate:chat_msg:{user_id}"
+    now = time.time()
+    cutoff = now - _MSG_RATE_WINDOW
+
+    async with redis_client.pipeline(transaction=False) as pipe:
+        pipe.zremrangebyscore(key, 0, cutoff)
+        pipe.zcard(key)
+        pipe.zadd(key, {str(now): now})
+        pipe.expire(key, _MSG_RATE_WINDOW + 10)
+        results = await pipe.execute()
+
+    count = results[1]  # count before adding current
+    if count >= _MSG_RATE_LIMIT:
+        # Over limit — remove the optimistic add
+        await redis_client.zrem(key, str(now))
+        return False
+    return True
 
 
 async def _check_toxicity(text: str) -> Optional[float]:
@@ -122,6 +151,15 @@ def register_message_handlers(sio: socketio.AsyncServer) -> None:
 
         # Update activity timestamp
         room_manager.update_activity(sid)
+
+        # Per-user message rate limiting
+        redis_store = get_redis_store()
+        if not await _check_message_rate(redis_store._redis, user_id):
+            return {
+                "status": "error",
+                "code": "RATE_LIMITED",
+                "message": "Too many messages. Please wait before sending more.",
+            }
 
         chat_id = data.get("chatId")
         content = data.get("content")

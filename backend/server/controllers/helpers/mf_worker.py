@@ -77,7 +77,7 @@ class MFWorker:
     def _train_all_conversations(self):
         """Find active conversations and train MF models."""
         conversations = db.execute_query("""
-            SELECT polis_conversation_id, location_id, category_id
+            SELECT polis_conversation_id, location_id, session_id
             FROM polis_conversation
             WHERE status = 'active'
               AND active_from <= CURRENT_DATE
@@ -125,7 +125,7 @@ class MFWorker:
                     JOIN comment c ON cv.comment_id = c.id
                     JOIN post p ON c.post_id = p.id
                     JOIN polis_conversation pc ON p.location_id = pc.location_id
-                         AND COALESCE(p.category_id::text, '') = COALESCE(pc.category_id::text, '')
+                         AND COALESCE(p.session_id::text, '') = COALESCE(pc.session_id::text, '')
                     WHERE pc.polis_conversation_id = %s
                       AND pc.status = 'active'
 
@@ -135,7 +135,7 @@ class MFWorker:
                     FROM post_vote pv
                     JOIN post p ON pv.post_id = p.id
                     JOIN polis_conversation pc ON p.location_id = pc.location_id
-                         AND COALESCE(p.category_id::text, '') = COALESCE(pc.category_id::text, '')
+                         AND COALESCE(p.session_id::text, '') = COALESCE(pc.session_id::text, '')
                     WHERE pc.polis_conversation_id = %s
                       AND pc.status = 'active'
                 ) sub
@@ -153,20 +153,20 @@ class MFWorker:
         except Exception as e:
             # Log error to mf_training_log
             conv_row = db.execute_query("""
-                SELECT location_id, category_id
+                SELECT location_id, session_id
                 FROM polis_conversation
                 WHERE polis_conversation_id = %s
             """, (conversation_id,), fetchone=True)
 
             location_id = conv_row["location_id"] if conv_row else None
-            category_id = conv_row.get("category_id") if conv_row else None
+            session_id = conv_row.get("session_id") if conv_row else None
 
             db.execute_query("""
                 INSERT INTO mf_training_log
-                    (polis_conversation_id, location_id, category_id,
+                    (polis_conversation_id, location_id, session_id,
                      n_users, n_comments, n_votes, error_message)
                 VALUES (%s, %s, %s, 0, 0, 0, %s)
-            """, (conversation_id, location_id, category_id, str(e)))
+            """, (conversation_id, location_id, session_id, str(e)))
 
             logger.error("MF training failed for %s: %s", conversation_id, e,
                          exc_info=True)

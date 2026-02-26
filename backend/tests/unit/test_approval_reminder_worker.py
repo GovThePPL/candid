@@ -40,7 +40,7 @@ def _make_role_request(req_id=REQUEST_ID_1, auto_approve_hours=20):
         'target_user_id': TARGET_USER,
         'role': 'moderator',
         'location_id': OREGON,
-        'position_category_id': None,
+        'session_id': None,
         'requested_by': FACILITATOR_USER,
         'requester_authority_location_id': OREGON,
         'auto_approve_at': datetime.now(timezone.utc) + timedelta(hours=auto_approve_hours),

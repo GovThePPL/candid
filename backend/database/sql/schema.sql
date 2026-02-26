@@ -59,23 +59,6 @@ CREATE TABLE user_activity (
     activity_end_time TIMESTAMPTZ
 );
 
--- Position categories
-CREATE TABLE position_category (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    label VARCHAR(255) NOT NULL,
-    parent_position_category_id UUID REFERENCES position_category(id) ON DELETE SET NULL
-);
-
--- User position category preferences
-CREATE TABLE user_position_categories (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    position_category_id UUID NOT NULL REFERENCES position_category(id) ON DELETE RESTRICT,
-    priority INTEGER NOT NULL DEFAULT 0,
-    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_id, position_category_id)
-);
-
 -- Locations
 CREATE TABLE location (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -95,6 +78,49 @@ CREATE TABLE user_location (
     location_id UUID NOT NULL REFERENCES location(id) ON DELETE CASCADE,
     created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, location_id)
+);
+
+-- Sessions (time-bounded deliberation processes, formerly position_category)
+CREATE TABLE session (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    label VARCHAR(255) NOT NULL,
+    description TEXT,
+    location_id UUID NOT NULL REFERENCES location(id) ON DELETE CASCADE,
+    stage VARCHAR(30) NOT NULL DEFAULT 'proposal_issue'
+        CHECK (stage IN ('proposal_issue', 'proposal_qualify', 'proposal_stakeholders',
+                         'opinion_discussion', 'opinion_curation',
+                         'opinion_proposals', 'reflection', 'consensus')),
+    stage_changed_at TIMESTAMPTZ,
+    stage_changed_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    facilitator_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'active'
+        CHECK (status IN ('active', 'archived', 'cancelled')),
+    proposal_method VARCHAR(20) NOT NULL DEFAULT 'user_driven'
+        CHECK (proposal_method IN ('user_driven', 'admin_provided')),
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Session stage history (audit trail for stage transitions)
+CREATE TABLE session_stage_history (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    session_id UUID NOT NULL REFERENCES session(id) ON DELETE CASCADE,
+    from_stage VARCHAR(30),
+    to_stage VARCHAR(30) NOT NULL,
+    changed_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    reason TEXT,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- User session preferences (formerly user_position_categories)
+CREATE TABLE user_session_preferences (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    session_id UUID NOT NULL REFERENCES session(id) ON DELETE RESTRICT,
+    priority INTEGER NOT NULL DEFAULT 0,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, session_id)
 );
 
 -- Affiliations
@@ -126,10 +152,11 @@ CREATE TABLE user_demographics (
 CREATE TABLE position (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     creator_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
-    category_id UUID NOT NULL REFERENCES position_category(id) ON DELETE RESTRICT,
+    session_id UUID NOT NULL REFERENCES session(id) ON DELETE RESTRICT,
     location_id UUID REFERENCES location(id) ON DELETE SET NULL,
     statement TEXT NOT NULL,
     embedding vector(384),
+    created_during_stage VARCHAR(30),
     created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     agree_count INTEGER DEFAULT 0,
@@ -188,7 +215,8 @@ CREATE TABLE chat_request (
     response_time TIMESTAMPTZ,
     created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    delivery_context VARCHAR(20) DEFAULT 'swiping' CHECK (delivery_context IN ('swiping', 'in_app', 'notification'))
+    delivery_context VARCHAR(20) DEFAULT 'swiping' CHECK (delivery_context IN ('swiping', 'in_app', 'notification')),
+    created_during_stage VARCHAR(30)
 );
 
 -- Chat logs
@@ -217,13 +245,14 @@ CREATE TABLE kudos (
 CREATE TABLE survey (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     creator_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
-    position_category_id UUID REFERENCES position_category(id) ON DELETE SET NULL,
+    session_id UUID REFERENCES session(id) ON DELETE SET NULL,
     location_id UUID REFERENCES location(id) ON DELETE SET NULL,
     survey_title VARCHAR(255) NOT NULL,
     survey_type VARCHAR(50) NOT NULL DEFAULT 'standard' CHECK (survey_type IN ('standard', 'pairwise')),
     polis_conversation_id VARCHAR(255),
     comparison_question TEXT,
     is_group_labeling BOOLEAN NOT NULL DEFAULT false,
+    phase VARCHAR(20) CHECK (phase IN ('proposal', 'opinion')),
     created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     start_time TIMESTAMPTZ,
@@ -235,6 +264,7 @@ COMMENT ON COLUMN survey.survey_type IS 'Type of survey: standard (multiple choi
 COMMENT ON COLUMN survey.polis_conversation_id IS 'Link to Polis conversation for group-specific aggregation';
 COMMENT ON COLUMN survey.comparison_question IS 'Question template for pairwise comparisons (e.g., "Which better describes this group?")';
 COMMENT ON COLUMN survey.is_group_labeling IS 'True if this survey is used for group identity labeling (excluded from survey results modal)';
+COMMENT ON COLUMN survey.phase IS 'Session phase this label survey applies to (proposal or opinion). NULL means legacy/unscoped.';
 
 -- Survey questions
 CREATE TABLE survey_question (
@@ -294,7 +324,7 @@ CREATE TABLE rule (
     default_actions JSONB DEFAULT '[]'::jsonb,
     sentencing_guidelines TEXT,
     location_id UUID REFERENCES location(id) ON DELETE SET NULL,
-    position_category_id UUID REFERENCES position_category(id) ON DELETE SET NULL,
+    session_id UUID REFERENCES session(id) ON DELETE SET NULL,
     applicable_content_types TEXT[] DEFAULT '{position,chat_log,post,comment}',
     created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -400,28 +430,29 @@ CREATE TABLE mod_appeal_response_notification (
     UNIQUE(mod_action_appeal_id, user_id)
 );
 
--- Polis integration: Map category+location to Polis conversations (time-windowed)
+-- Polis integration: Map session+location to Polis conversations (time-windowed)
 CREATE TABLE polis_conversation (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     location_id UUID NOT NULL REFERENCES location(id),
-    category_id UUID REFERENCES position_category(id),
+    session_id UUID REFERENCES session(id),
     polis_conversation_id VARCHAR(255) NOT NULL UNIQUE,
-    conversation_type VARCHAR(50) NOT NULL CHECK (conversation_type IN ('category', 'location_all')),
+    conversation_type VARCHAR(50) NOT NULL CHECK (conversation_type IN ('session', 'location_all')),
+    phase VARCHAR(20) CHECK (phase IN ('proposal', 'opinion')),
     active_from DATE NOT NULL,
     active_until DATE NOT NULL,
     created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'expired')),
-    UNIQUE(location_id, category_id, active_from)
+    UNIQUE(location_id, session_id, phase, active_from)
 );
 
 -- PostgreSQL UNIQUE constraints treat NULLs as distinct, so the above constraint
--- doesn't prevent duplicate location_all conversations (where category_id IS NULL).
+-- doesn't prevent duplicate location_all conversations (where session_id IS NULL).
 -- This partial index ensures at most one location_all per location per window.
 CREATE UNIQUE INDEX uq_polis_conversation_location_all
     ON polis_conversation (location_id, active_from)
-    WHERE category_id IS NULL;
+    WHERE session_id IS NULL;
 
-COMMENT ON TABLE polis_conversation IS 'Maps Candid location+category combinations to time-windowed Polis conversations';
+COMMENT ON TABLE polis_conversation IS 'Maps Candid location+session combinations to time-windowed Polis conversations';
 
 -- Polis integration: Map positions to Polis comments
 CREATE TABLE polis_comment (
@@ -481,7 +512,7 @@ CREATE TABLE bug_report (
 
 -- User roles (location-scoped, hierarchical)
 -- Admin + Moderator: location-scoped, inherit DOWN the location tree
--- Facilitator + below: location + category scoped, NO location inheritance
+-- Facilitator + below: location + session scoped, NO location inheritance
 CREATE TABLE user_role (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -489,34 +520,34 @@ CREATE TABLE user_role (
         'admin','moderator','facilitator','assistant_moderator','liaison','expert'
     )),
     location_id UUID REFERENCES location(id) ON DELETE CASCADE,
-    position_category_id UUID REFERENCES position_category(id) ON DELETE CASCADE,
+    session_id UUID REFERENCES session(id) ON DELETE CASCADE,
     assigned_by UUID REFERENCES users(id) ON DELETE SET NULL,
     created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_role_scope CHECK (
         CASE
-            -- Hierarchical roles: location required, no category
+            -- Hierarchical roles: location required, no session
             WHEN role IN ('admin','moderator') THEN
-                location_id IS NOT NULL AND position_category_id IS NULL
-            -- Category-scoped roles: location required, category optional
+                location_id IS NOT NULL AND session_id IS NULL
+            -- Session-scoped roles: location required, session optional
             WHEN role IN ('facilitator','assistant_moderator','expert','liaison') THEN
                 location_id IS NOT NULL
         END
     )
 );
 
--- Unique indexes handling NULLs for category
-CREATE UNIQUE INDEX idx_ur_with_cat ON user_role(user_id, role, location_id, position_category_id)
-    WHERE position_category_id IS NOT NULL;
-CREATE UNIQUE INDEX idx_ur_no_cat ON user_role(user_id, role, location_id)
-    WHERE position_category_id IS NULL;
+-- Unique indexes handling NULLs for session
+CREATE UNIQUE INDEX idx_ur_with_session ON user_role(user_id, role, location_id, session_id)
+    WHERE session_id IS NOT NULL;
+CREATE UNIQUE INDEX idx_ur_no_session ON user_role(user_id, role, location_id)
+    WHERE session_id IS NULL;
 
--- Location-category assignments (which categories are available at which locations)
-CREATE TABLE location_category (
+-- Location-session assignments (which sessions are available at which locations)
+CREATE TABLE location_session (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     location_id UUID NOT NULL REFERENCES location(id) ON DELETE CASCADE,
-    position_category_id UUID NOT NULL REFERENCES position_category(id) ON DELETE CASCADE,
+    session_id UUID NOT NULL REFERENCES session(id) ON DELETE CASCADE,
     created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(location_id, position_category_id)
+    UNIQUE(location_id, session_id)
 );
 
 -- Role change requests (approval workflow for role assignments and removals)
@@ -528,7 +559,7 @@ CREATE TABLE role_change_request (
         'admin','moderator','facilitator','assistant_moderator','liaison','expert'
     )),
     location_id UUID REFERENCES location(id) ON DELETE CASCADE,
-    position_category_id UUID REFERENCES position_category(id) ON DELETE CASCADE,
+    session_id UUID REFERENCES session(id) ON DELETE CASCADE,
     user_role_id UUID REFERENCES user_role(id) ON DELETE CASCADE,  -- for removals
     requested_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     requester_authority_location_id UUID NOT NULL REFERENCES location(id) ON DELETE CASCADE,
@@ -570,7 +601,7 @@ CREATE TABLE notification_type_preferences (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     notification_type VARCHAR(50) NOT NULL CHECK (notification_type IN (
-        'comment_reply', 'post_comment', 'chat_request', 'role_change', 'rule_change', 'admin_action', 'moderation', 'bridging_kudos', 'wiki_suggestion', 'mention'
+        'comment_reply', 'post_comment', 'chat_request', 'role_change', 'rule_change', 'admin_action', 'moderation', 'bridging_kudos', 'wiki_suggestion', 'mention', 'stage_advance'
     )),
     enabled BOOLEAN NOT NULL DEFAULT true,
     created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -594,7 +625,7 @@ CREATE TABLE notification_inbox (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     notification_type VARCHAR(50) NOT NULL CHECK (notification_type IN (
-        'comment_reply', 'post_comment', 'chat_request', 'role_change', 'rule_change', 'admin_action', 'moderation', 'bridging_kudos', 'wiki_suggestion', 'mention'
+        'comment_reply', 'post_comment', 'chat_request', 'role_change', 'rule_change', 'admin_action', 'moderation', 'bridging_kudos', 'wiki_suggestion', 'mention', 'stage_advance'
     )),
     actor_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     title TEXT NOT NULL,
@@ -614,11 +645,12 @@ CREATE TABLE post (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     creator_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     location_id UUID NOT NULL REFERENCES location(id) ON DELETE CASCADE,
-    category_id UUID REFERENCES position_category(id) ON DELETE SET NULL,
+    session_id UUID REFERENCES session(id) ON DELETE SET NULL,
     post_type VARCHAR(20) NOT NULL DEFAULT 'discussion'
-        CHECK (post_type IN ('discussion', 'question')),
+        CHECK (post_type IN ('discussion', 'question', 'proposal')),
     title TEXT NOT NULL,
     body TEXT NOT NULL,
+    created_during_stage VARCHAR(30),
     status VARCHAR(50) NOT NULL DEFAULT 'active'
         CHECK (status IN ('active', 'deleted', 'removed', 'locked')),
     deleted_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
@@ -633,14 +665,19 @@ CREATE TABLE post (
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     show_creator_role BOOLEAN NOT NULL DEFAULT false,
     pinned_comment_id UUID,
-    glossary_highlight BOOLEAN NOT NULL DEFAULT true
+    glossary_highlight BOOLEAN NOT NULL DEFAULT true,
+    proposal_status VARCHAR(20)
+        CHECK (proposal_status IN ('draft', 'finalized')),
+    proposal_metadata JSONB
 );
 
 CREATE INDEX idx_post_location ON post(location_id);
-CREATE INDEX idx_post_category ON post(location_id, category_id);
+CREATE INDEX idx_post_session ON post(location_id, session_id);
 CREATE INDEX idx_post_creator ON post(creator_user_id);
 CREATE INDEX idx_post_score ON post(location_id, score DESC);
 CREATE INDEX idx_post_created ON post(location_id, created_time DESC);
+CREATE INDEX idx_post_proposal_status ON post(session_id, proposal_status)
+    WHERE proposal_status IS NOT NULL;
 
 -- ========== Comments ==========
 
@@ -662,6 +699,7 @@ CREATE TABLE comment (
     score DOUBLE PRECISION NOT NULL DEFAULT 0,
     child_count INTEGER NOT NULL DEFAULT 0,
     mf_intercept DOUBLE PRECISION,
+    created_during_stage VARCHAR(30),
     created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     show_creator_role BOOLEAN NOT NULL DEFAULT false,
@@ -714,7 +752,7 @@ CREATE TABLE user_ideological_coords (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     polis_conversation_id VARCHAR(255) NOT NULL,
     location_id UUID NOT NULL REFERENCES location(id) ON DELETE CASCADE,
-    category_id UUID REFERENCES position_category(id) ON DELETE SET NULL,
+    session_id UUID REFERENCES session(id) ON DELETE SET NULL,
     x DOUBLE PRECISION NOT NULL,
     y DOUBLE PRECISION NOT NULL,
     polis_group_id INTEGER,
@@ -737,7 +775,7 @@ CREATE TABLE mf_training_log (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     polis_conversation_id VARCHAR(255) NOT NULL,
     location_id UUID NOT NULL REFERENCES location(id) ON DELETE CASCADE,
-    category_id UUID REFERENCES position_category(id) ON DELETE SET NULL,
+    session_id UUID REFERENCES session(id) ON DELETE SET NULL,
     n_users INTEGER NOT NULL,
     n_comments INTEGER NOT NULL,
     n_votes INTEGER NOT NULL,
@@ -757,7 +795,7 @@ CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_user_type ON users(user_type);
 CREATE INDEX idx_user_activity_user_id ON user_activity(user_id);
 CREATE INDEX idx_position_creator_user_id ON position(creator_user_id);
-CREATE INDEX idx_position_category_id ON position(category_id);
+CREATE INDEX idx_position_session_id ON position(session_id);
 CREATE INDEX idx_position_status ON position(status);
 CREATE INDEX idx_user_position_user_id ON user_position(user_id);
 CREATE INDEX idx_user_position_position_id ON user_position(position_id);
@@ -785,7 +823,7 @@ CREATE INDEX idx_mod_action_responder_user_id ON mod_action(responder_user_id);
 CREATE INDEX idx_mod_action_target_user_id ON mod_action_target(user_id);
 CREATE INDEX idx_appeal_claimed_by ON mod_action_appeal(claimed_by_user_id) WHERE claimed_by_user_id IS NOT NULL;
 CREATE INDEX idx_mod_action_appeal_modified_action ON mod_action_appeal(modified_mod_action_id) WHERE modified_mod_action_id IS NOT NULL;
-CREATE INDEX idx_polis_conversation_active ON polis_conversation(location_id, category_id, active_from, active_until) WHERE status = 'active';
+CREATE INDEX idx_polis_conversation_active ON polis_conversation(location_id, session_id, active_from, active_until) WHERE status = 'active';
 CREATE INDEX idx_polis_conversation_lookup ON polis_conversation(polis_conversation_id);
 CREATE INDEX idx_polis_comment_position ON polis_comment(position_id);
 CREATE INDEX idx_polis_comment_conversation ON polis_comment(polis_conversation_id);
@@ -800,9 +838,9 @@ CREATE INDEX idx_bug_report_created_time ON bug_report(created_time DESC);
 CREATE INDEX idx_user_role_user_id ON user_role(user_id);
 CREATE INDEX idx_user_role_location ON user_role(location_id);
 CREATE INDEX idx_user_role_role ON user_role(role);
-CREATE INDEX idx_user_role_category ON user_role(position_category_id) WHERE position_category_id IS NOT NULL;
-CREATE INDEX idx_location_category_location ON location_category(location_id);
-CREATE INDEX idx_location_category_category ON location_category(position_category_id);
+CREATE INDEX idx_user_role_session ON user_role(session_id) WHERE session_id IS NOT NULL;
+CREATE INDEX idx_location_session_location ON location_session(location_id);
+CREATE INDEX idx_location_session_session ON location_session(session_id);
 CREATE INDEX idx_role_change_request_target ON role_change_request(target_user_id);
 CREATE INDEX idx_role_change_request_status ON role_change_request(status) WHERE status = 'pending';
 CREATE INDEX idx_role_change_request_requested_by ON role_change_request(requested_by);
@@ -829,20 +867,20 @@ CREATE INDEX idx_mod_action_class_mod_action_id ON mod_action_class(mod_action_i
 CREATE INDEX idx_mod_action_target_mod_action_class_id ON mod_action_target(mod_action_class_id);
 CREATE INDEX idx_mod_appeal_response_notification_user_id ON mod_appeal_response_notification(user_id);
 CREATE INDEX idx_pairwise_response_loser_item_id ON pairwise_response(loser_item_id);
-CREATE INDEX idx_polis_conversation_category_id ON polis_conversation(category_id);
+CREATE INDEX idx_polis_conversation_session_id ON polis_conversation(session_id);
 CREATE INDEX idx_position_location_id ON position(location_id);
-CREATE INDEX idx_position_category_parent ON position_category(parent_position_category_id);
-CREATE INDEX idx_post_category_id_fk ON post(category_id);
+CREATE INDEX idx_session_location ON session(location_id);
+CREATE INDEX idx_post_session_id_fk ON post(session_id);
 CREATE INDEX idx_post_deleted_by_user_id ON post(deleted_by_user_id);
 CREATE INDEX idx_report_rule_id ON report(rule_id);
 CREATE INDEX idx_role_change_request_location_id ON role_change_request(location_id);
-CREATE INDEX idx_role_change_request_position_category_id ON role_change_request(position_category_id);
+CREATE INDEX idx_role_change_request_session_id ON role_change_request(session_id);
 CREATE INDEX idx_role_change_request_authority_location ON role_change_request(requester_authority_location_id);
 CREATE INDEX idx_role_change_request_reviewed_by ON role_change_request(reviewed_by);
 CREATE INDEX idx_role_change_request_user_role_id ON role_change_request(user_role_id);
 CREATE INDEX idx_rule_creator_user_id ON rule(creator_user_id);
 CREATE INDEX idx_rule_location_id ON rule(location_id);
-CREATE INDEX idx_rule_category_id ON rule(position_category_id);
+CREATE INDEX idx_rule_session_id ON rule(session_id);
 CREATE INDEX idx_rule_status ON rule(status);
 CREATE INDEX idx_rule_change_request_status ON rule_change_request(status) WHERE status = 'pending';
 CREATE INDEX idx_rule_change_request_requested_by ON rule_change_request(requested_by);
@@ -851,18 +889,122 @@ CREATE INDEX idx_rule_change_request_auto_approve ON rule_change_request(auto_ap
 CREATE INDEX idx_rule_change_request_authority_location ON rule_change_request(requester_authority_location_id);
 CREATE INDEX idx_rule_change_request_reviewed_by ON rule_change_request(reviewed_by);
 CREATE INDEX idx_survey_creator_user_id ON survey(creator_user_id);
-CREATE INDEX idx_survey_position_category_id ON survey(position_category_id);
+CREATE INDEX idx_survey_session_id ON survey(session_id);
 CREATE INDEX idx_survey_question_survey_id ON survey_question(survey_id);
 CREATE INDEX idx_survey_question_option_survey_question_id ON survey_question_option(survey_question_id);
 CREATE INDEX idx_survey_question_response_user_id ON survey_question_response(user_id);
 CREATE INDEX idx_user_chatting_list_position_id ON user_chatting_list(position_id);
 CREATE INDEX idx_user_demographics_affiliation_id ON user_demographics(affiliation_id);
 CREATE INDEX idx_user_demographics_location_id ON user_demographics(location_id);
-CREATE INDEX idx_user_ideological_coords_category_id ON user_ideological_coords(category_id);
+CREATE INDEX idx_user_ideological_coords_session_id ON user_ideological_coords(session_id);
 CREATE INDEX idx_user_ideological_coords_location_id ON user_ideological_coords(location_id);
 CREATE INDEX idx_user_location_location_id ON user_location(location_id);
-CREATE INDEX idx_user_position_categories_category ON user_position_categories(position_category_id);
+CREATE INDEX idx_user_session_preferences_session ON user_session_preferences(session_id);
 CREATE INDEX idx_user_role_assigned_by ON user_role(assigned_by);
+
+-- ========== Session Voting & Curation ==========
+
+-- Ranked-Choice Voting: voting rounds for proposal selection
+CREATE TABLE voting_round (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    session_id UUID NOT NULL REFERENCES session(id) ON DELETE CASCADE,
+    round_type VARCHAR(30) NOT NULL
+        CHECK (round_type IN ('issue_selection', 'policy_selection')),
+    status VARCHAR(20) NOT NULL DEFAULT 'proposals_open'
+        CHECK (status IN ('proposals_open', 'finalization_open', 'proposals_closed',
+                          'voting_open', 'voting_closed')),
+    ballot_size INTEGER NOT NULL DEFAULT 7,
+    winner_count INTEGER NOT NULL DEFAULT 1,
+    opened_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    closed_at TIMESTAMPTZ,
+    results_json JSONB,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(session_id, round_type)
+);
+
+-- Proposal endorsements (max 3 per user per round, replaces upvote/downvote on proposals)
+CREATE TABLE proposal_endorsement (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    voting_round_id UUID NOT NULL REFERENCES voting_round(id) ON DELETE CASCADE,
+    proposal_post_id UUID NOT NULL REFERENCES post(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(voting_round_id, proposal_post_id, user_id)
+);
+
+-- Individual RCV ballots (one per user per round)
+CREATE TABLE rcv_ballot (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    voting_round_id UUID NOT NULL REFERENCES voting_round(id) ON DELETE CASCADE,
+    voter_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(voting_round_id, voter_user_id)
+);
+
+-- Rankings within a ballot (rank 1 = most preferred)
+CREATE TABLE rcv_ranking (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    ballot_id UUID NOT NULL REFERENCES rcv_ballot(id) ON DELETE CASCADE,
+    proposal_post_id UUID NOT NULL REFERENCES post(id) ON DELETE CASCADE,
+    rank INTEGER NOT NULL,
+    UNIQUE(ballot_id, proposal_post_id),
+    UNIQUE(ballot_id, rank)
+);
+
+-- Qualified candidates for a voting round ballot (populated when proposals_closed → voting_open)
+CREATE TABLE voting_round_candidate (
+    voting_round_id UUID NOT NULL REFERENCES voting_round(id) ON DELETE CASCADE,
+    proposal_post_id UUID NOT NULL REFERENCES post(id) ON DELETE CASCADE,
+    endorsement_count INTEGER NOT NULL DEFAULT 0,
+    display_order INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (voting_round_id, proposal_post_id)
+);
+
+-- Comment curation (Opinion-Curation sub-stage onward)
+CREATE TABLE curated_comment (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    session_id UUID NOT NULL REFERENCES session(id) ON DELETE CASCADE,
+    comment_id UUID NOT NULL REFERENCES comment(id) ON DELETE CASCADE,
+    curated_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    curation_reason TEXT,
+    group_id INTEGER,
+    display_order INTEGER NOT NULL DEFAULT 0,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(session_id, comment_id)
+);
+
+-- Reference drawer clips (session-scoped, per-user)
+CREATE TABLE reference_clip (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    session_id UUID NOT NULL REFERENCES session(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    source_type VARCHAR(30) NOT NULL
+        CHECK (source_type IN ('post', 'comment', 'wiki', 'position', 'stat', 'closure')),
+    source_id TEXT NOT NULL,
+    source_version_id UUID,
+    excerpt TEXT NOT NULL,
+    full_content TEXT,
+    metadata JSONB,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(session_id, user_id, source_type, source_id)
+);
+CREATE INDEX idx_reference_clip_user_session ON reference_clip(user_id, session_id);
+
+-- Consensus document (Consensus stage)
+CREATE TABLE consensus_document (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    session_id UUID NOT NULL REFERENCES session(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    status VARCHAR(50) NOT NULL DEFAULT 'draft'
+        CHECK (status IN ('draft', 'published', 'superseded')),
+    created_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(session_id, version)
+);
 
 -- ========== Bridging Award Tracking ==========
 
@@ -1149,10 +1291,10 @@ CREATE TABLE glossary_term (
     created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Many-to-many scope tags: a term can belong to multiple locations and categories
+-- Many-to-many scope tags: a term can belong to multiple locations and sessions
 CREATE TABLE glossary_term_scope (
     term_id       INTEGER NOT NULL REFERENCES glossary_term(id) ON DELETE CASCADE,
-    scope_type    TEXT NOT NULL CHECK (scope_type IN ('location', 'category')),
+    scope_type    TEXT NOT NULL CHECK (scope_type IN ('location', 'session')),
     scope_id      UUID NOT NULL,
     PRIMARY KEY (term_id, scope_type, scope_id)
 );
@@ -1176,7 +1318,7 @@ CREATE TABLE wiki_page (
 -- Wiki page scope (same pattern as glossary_term_scope)
 CREATE TABLE wiki_page_scope (
     page_id     UUID NOT NULL REFERENCES wiki_page(id) ON DELETE CASCADE,
-    scope_type  TEXT NOT NULL CHECK (scope_type IN ('location', 'category')),
+    scope_type  TEXT NOT NULL CHECK (scope_type IN ('location', 'session')),
     scope_id    UUID NOT NULL,
     PRIMARY KEY (page_id, scope_type, scope_id)
 );
@@ -1274,3 +1416,18 @@ CREATE INDEX idx_wiki_suggestion_status ON wiki_suggestion(status);
 CREATE INDEX idx_wiki_suggestion_by ON wiki_suggestion(suggested_by);
 CREATE INDEX idx_wiki_suggestion_term ON wiki_suggestion(glossary_term_id) WHERE glossary_term_id IS NOT NULL;
 CREATE INDEX idx_wiki_suggestion_page ON wiki_suggestion(wiki_page_path) WHERE wiki_page_path IS NOT NULL;
+
+-- Pinned posts: facilitators/moderators can pin up to 3 posts per session+stage
+CREATE TABLE pinned_post (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    post_id         UUID NOT NULL REFERENCES post(id) ON DELETE CASCADE,
+    session_id      UUID NOT NULL REFERENCES session(id) ON DELETE CASCADE,
+    stage           VARCHAR(30) NOT NULL CHECK (stage IN (
+        'proposal_issue','proposal_qualify','proposal_stakeholders',
+        'opinion_discussion','opinion_curation','opinion_proposals',
+        'reflection','consensus')),
+    pinned_by       UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    pinned_at       TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(session_id, stage, post_id)
+);
+CREATE INDEX idx_pinned_post_session_stage ON pinned_post(session_id, stage);

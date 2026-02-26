@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef } from 'react'
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { View, ScrollView, TouchableOpacity, StyleSheet, Platform, ActivityIndicator } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router'
@@ -14,7 +14,8 @@ import Header from '../../../../components/Header'
 import ThemedText from '../../../../components/ThemedText'
 import ThemedTextInput from '../../../../components/ThemedTextInput'
 import ThemedButton from '../../../../components/ThemedButton'
-import LocationCategorySelector from '../../../../components/LocationCategorySelector'
+import LocationSessionSelector from '../../../../components/LocationSessionSelector'
+import { useLocationSession } from '../../../../contexts/LocationSessionContext'
 import WysiwygEditor from '../../../../components/WysiwygEditor'
 
 const MAX_TITLE_LENGTH = 200
@@ -23,6 +24,13 @@ const MAX_BODY_LENGTH = 10000
 export default function CreatePost() {
   const { type } = useLocalSearchParams()
   const router = useRouter()
+
+  // Redirect proposal type to the wizard screen
+  useEffect(() => {
+    if (type === 'proposal') {
+      router.replace('/discuss/proposal-wizard')
+    }
+  }, [type, router])
   const navigation = useNavigation()
   const { t } = useTranslation('discuss')
   const { user } = useUser()
@@ -30,16 +38,20 @@ export default function CreatePost() {
   const styles = useMemo(() => createStyles(colors), [colors])
   const { keyboardHeight, webInitialHeight } = useKeyboardHeight()
 
-  const [postType, setPostType] = useState(type === 'question' ? 'question' : 'discussion')
+  const { canCreateProposals } = useLocationSession()
+  const [postType, setPostType] = useState(
+    type === 'question' ? 'question' : type === 'proposal' ? 'proposal' : 'discussion'
+  )
   const [title, setTitle] = useState('')
   const [selectedLocation, setSelectedLocation] = useState(null)
-  const [selectedCategory, setSelectedCategory] = useState(null)
+  const [selectedSession, setSelectedSession] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
   const [bodyLength, setBodyLength] = useState(0)
   const editorRef = useRef(null)
 
   const isQuestion = postType === 'question'
+  const isProposal = postType === 'proposal'
 
   const titleLength = title.length
   const isTitleOver = titleLength > MAX_TITLE_LENGTH
@@ -50,7 +62,7 @@ export default function CreatePost() {
     && !isTitleOver
     && !isBodyOver
     && selectedLocation
-    && (!isQuestion || selectedCategory)
+    && (!(isQuestion || isProposal) || selectedSession)
     && !submitting
 
   const handleBodyChange = useCallback((html) => {
@@ -71,8 +83,8 @@ export default function CreatePost() {
       setError(t('errorBodyTooLong'))
       return
     }
-    if (isQuestion && !selectedCategory) {
-      setError(t('errorCategoryRequired'))
+    if (isQuestion && !selectedSession) {
+      setError(t('errorSessionRequired'))
       return
     }
 
@@ -91,7 +103,7 @@ export default function CreatePost() {
         title: title.trim(),
         body: trimmedBody,
         locationId: selectedLocation,
-        categoryId: selectedCategory || undefined,
+        sessionId: selectedSession || undefined,
         postType,
       })
       if (user?.id) CacheManager.invalidate(CacheKeys.activityPosts(user.id))
@@ -104,7 +116,7 @@ export default function CreatePost() {
       }
       setSubmitting(false)
     }
-  }, [title, selectedLocation, selectedCategory, postType, isQuestion, isTitleOver, isBodyOver, submitting, t])
+  }, [title, selectedLocation, selectedSession, postType, isQuestion, isTitleOver, isBodyOver, submitting, t])
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -125,9 +137,9 @@ export default function CreatePost() {
 
         {/* Post type toggle */}
         <View style={styles.typeToggle} accessibilityRole="tablist">
-          {['discussion', 'question'].map((typeOption) => {
+          {['discussion', 'question', ...(canCreateProposals ? ['proposal'] : [])].map((typeOption) => {
             const isActive = postType === typeOption
-            const label = typeOption === 'discussion' ? t('typeDiscussion') : t('typeQuestion')
+            const label = typeOption === 'discussion' ? t('typeDiscussion') : typeOption === 'question' ? t('typeQuestion') : t('typeProposal')
             return (
               <TouchableOpacity
                 key={typeOption}
@@ -149,12 +161,12 @@ export default function CreatePost() {
           })}
         </View>
 
-        {/* Location & Category */}
-        <LocationCategorySelector
+        {/* Location & Session */}
+        <LocationSessionSelector
           selectedLocation={selectedLocation}
-          selectedCategory={selectedCategory}
+          selectedSession={selectedSession}
           onLocationChange={setSelectedLocation}
-          onCategoryChange={setSelectedCategory}
+          onSessionChange={setSelectedSession}
           showLabels
           defaultLocation="last"
           style={{ paddingHorizontal: 0, marginBottom: Spacing.md }}

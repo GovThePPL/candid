@@ -16,7 +16,7 @@ from candid import util
 
 from candid.controllers import db
 from candid.controllers.helpers.config import Config
-from candid.controllers.helpers.auth import authorization, authorization_allow_banned, token_to_user, is_moderator_anywhere
+from candid.controllers.helpers.auth import authorization, authorization_allow_banned, require_auth, token_to_user, is_moderator_anywhere, check_session_stage
 from candid.controllers.helpers.chat_events import publish_chat_accepted, publish_chat_request_response, publish_chat_request_received
 from candid.controllers.cards_controller import _get_pending_chat_requests
 from candid.controllers.helpers.card_builders import chat_request_to_card as _chat_request_to_card
@@ -35,7 +35,8 @@ from flask import jsonify, make_response
 import uuid
 
 
-def create_chat_request(body, token_info=None):
+@require_auth("normal")
+def create_chat_request(body, token_info=None, user_id=None):
     """Request to chat about a position statement
 
     Creates a chat request for a specific user_position. The recipient
@@ -48,9 +49,6 @@ def create_chat_request(body, token_info=None):
 
     :rtype: Union[ChatRequest, Tuple[ChatRequest, int], Tuple[ChatRequest, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
     user = token_to_user(token_info)
 
     # Rate limit
@@ -67,7 +65,7 @@ def create_chat_request(body, token_info=None):
 
     # Verify the user_position exists and get the owner
     result = db.execute_query("""
-        SELECT up.id, up.user_id, up.position_id, p.statement
+        SELECT up.id, up.user_id, up.position_id, p.statement, p.session_id
         FROM user_position up
         JOIN position p ON up.position_id = p.id
         WHERE up.id = %s AND up.status = 'active'
@@ -78,6 +76,12 @@ def create_chat_request(body, token_info=None):
 
     recipient_user_id = str(result["user_id"])
     position_id = str(result["position_id"])
+
+    # Stage gating
+    chat_session_id = str(result["session_id"]) if result.get("session_id") else None
+    allowed_stage, stage_err = check_session_stage(chat_session_id, 'chat')
+    if not allowed_stage:
+        return stage_err, stage_err.code
 
     # Safety check: reject if recipient has chat requests turned off
     recipient_settings = db.execute_query("""
@@ -183,7 +187,8 @@ def create_chat_request(body, token_info=None):
     }, 201
 
 
-def respond_to_chat_request(request_id, body, token_info=None):
+@require_auth("normal")
+def respond_to_chat_request(request_id, body, token_info=None, user_id=None):
     """Respond to a chat request
 
     Accept or dismiss a chat request. If accepted, creates a chat_log
@@ -198,9 +203,6 @@ def respond_to_chat_request(request_id, body, token_info=None):
 
     :rtype: Union[ChatRequest, Tuple[ChatRequest, int], Tuple[ChatRequest, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
     user = token_to_user(token_info)
 
     if connexion.request.is_json:
@@ -311,7 +313,8 @@ def respond_to_chat_request(request_id, body, token_info=None):
     return response_data, 200
 
 
-def rescind_chat_request(request_id, token_info=None):
+@require_auth("normal")
+def rescind_chat_request(request_id, token_info=None, user_id=None):
     """Rescind a chat request
 
     Cancel a pending chat request. Only the initiator can rescind.
@@ -323,9 +326,6 @@ def rescind_chat_request(request_id, token_info=None):
 
     :rtype: Union[ChatRequest, Tuple[ChatRequest, int], Tuple[ChatRequest, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
     user = token_to_user(token_info)
 
     # Get the chat request and verify the user is the initiator
@@ -354,7 +354,8 @@ def rescind_chat_request(request_id, token_info=None):
     return '', 204
 
 
-def get_chat_log(chat_id, token_info=None):
+@require_auth("normal", allow_banned=True)
+def get_chat_log(chat_id, token_info=None, user_id=None):
     """Get JSON blob of a chat log
 
     Retrieves a complete JSON blob of a chat log. Only participants
@@ -367,9 +368,6 @@ def get_chat_log(chat_id, token_info=None):
 
     :rtype: Union[GetChatLogResponse, Tuple[GetChatLogResponse, int], Tuple[GetChatLogResponse, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization_allow_banned("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
     user = token_to_user(token_info)
 
     # Get chat log and verify user is a participant
@@ -387,9 +385,9 @@ def get_chat_log(chat_id, token_info=None):
             -- Position info
             p.id as position_id,
             p.statement as position_statement,
-            -- Category info
-            cat.id as category_id,
-            cat.label as category_name,
+            -- Session info
+            s.id as session_id,
+            s.label as session_name,
             -- Location info
             loc.id as location_id,
             loc.code as location_code,
@@ -419,7 +417,7 @@ def get_chat_log(chat_id, token_info=None):
         JOIN chat_request cr ON cl.chat_request_id = cr.id
         JOIN user_position up ON cr.user_position_id = up.id
         JOIN position p ON up.position_id = p.id
-        LEFT JOIN position_category cat ON p.category_id = cat.id
+        LEFT JOIN session s ON p.session_id = s.id
         LEFT JOIN location loc ON p.location_id = loc.id
         JOIN users pos_holder ON up.user_id = pos_holder.id
         JOIN users init_u ON cr.initiator_user_id = init_u.id
@@ -494,14 +492,14 @@ def get_chat_log(chat_id, token_info=None):
             "kudosCount": result["initiator_kudos_count"],
         }
 
-    # Build position object with category, location, and creator
+    # Build position object with session, location, and creator
     position = {
         "id": str(result["position_id"]),
         "statement": result["position_statement"],
-        "category": {
-            "id": str(result["category_id"]) if result["category_id"] else None,
-            "label": result["category_name"],
-        } if result["category_id"] else None,
+        "session": {
+            "id": str(result["session_id"]) if result["session_id"] else None,
+            "label": result["session_name"],
+        } if result["session_id"] else None,
         "location": {
             "id": str(result["location_id"]) if result["location_id"] else None,
             "code": result["location_code"],
@@ -674,9 +672,9 @@ def get_user_chats(user_id, position_id=None, limit=None, offset=None, token_inf
             -- Position info
             p.id as position_id,
             p.statement as position_statement,
-            -- Category info
-            cat.id as category_id,
-            cat.label as category_name,
+            -- Session info
+            s.id as session_id,
+            s.label as session_name,
             -- Location info
             loc.id as location_id,
             loc.code as location_code,
@@ -709,7 +707,7 @@ def get_user_chats(user_id, position_id=None, limit=None, offset=None, token_inf
         JOIN chat_request cr ON cl.chat_request_id = cr.id
         JOIN user_position up ON cr.user_position_id = up.id
         JOIN position p ON up.position_id = p.id
-        LEFT JOIN position_category cat ON p.category_id = cat.id
+        LEFT JOIN session s ON p.session_id = s.id
         LEFT JOIN location loc ON p.location_id = loc.id
         JOIN users pos_holder ON up.user_id = pos_holder.id
         JOIN users init_u ON cr.initiator_user_id = init_u.id
@@ -799,10 +797,10 @@ def get_user_chats(user_id, position_id=None, limit=None, offset=None, token_inf
         position = {
             "id": str(row["position_id"]),
             "statement": row["position_statement"],
-            "category": {
-                "id": str(row["category_id"]) if row["category_id"] else None,
-                "label": row["category_name"],
-            } if row["category_id"] else None,
+            "session": {
+                "id": str(row["session_id"]) if row["session_id"] else None,
+                "label": row["session_name"],
+            } if row["session_id"] else None,
             "location": {
                 "id": str(row["location_id"]) if row["location_id"] else None,
                 "code": row["location_code"],
@@ -862,7 +860,8 @@ def get_user_chats(user_id, position_id=None, limit=None, offset=None, token_inf
     return response
 
 
-def send_kudos(chat_id, token_info=None):
+@require_auth("normal")
+def send_kudos(chat_id, token_info=None, user_id=None):
     """Send kudos to a user after a chat
 
     :param chat_id: Chat log ID
@@ -872,9 +871,6 @@ def send_kudos(chat_id, token_info=None):
 
     :rtype: Union[Kudos, Tuple[Kudos, int], Tuple[Kudos, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
     user = token_to_user(token_info)
 
     # Get chat and verify user is a participant
@@ -956,7 +952,8 @@ def send_kudos(chat_id, token_info=None):
     }, 201
 
 
-def delete_kudos_prompt(chat_id, token_info=None):
+@require_auth("normal")
+def delete_kudos_prompt(chat_id, token_info=None, user_id=None):
     """Dismiss a kudos prompt without sending kudos
 
     Records that the user dismissed the kudos prompt, preventing the
@@ -969,9 +966,6 @@ def delete_kudos_prompt(chat_id, token_info=None):
 
     :rtype: Union[None, Tuple[None, int], Tuple[None, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
     user = token_to_user(token_info)
 
     # Get chat and verify user is a participant

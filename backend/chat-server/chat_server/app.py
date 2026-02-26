@@ -3,6 +3,7 @@ Main application setup for the chat server.
 """
 
 import logging
+import os
 
 import socketio
 from aiohttp import web
@@ -34,11 +35,11 @@ def create_app() -> web.Application:
     from .services import initialize_services
 
     # Create Socket.IO server
-    # CORS is "*" because real security is token auth at the handshake level,
-    # not origin checking.  Every connect must pass a valid JWT in auth.token.
+    cors_raw = os.environ.get('CORS_ORIGINS', '')
+    cors_origins = [o for o in cors_raw.split(',') if o] if cors_raw else '*'
     sio = socketio.AsyncServer(
         async_mode="aiohttp",
-        cors_allowed_origins="*",
+        cors_allowed_origins=cors_origins,
         logger=False,
         engineio_logger=False,
     )

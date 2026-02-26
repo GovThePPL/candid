@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import api from '../lib/api'
 import { CacheManager, CacheKeys, CacheDurations } from '../lib/cache'
-import { useLocationCategory } from './LocationCategoryContext'
+import { useLocationSession } from './LocationSessionContext'
 
 const GlossaryContext = createContext()
 
@@ -51,7 +51,7 @@ function buildTermMap(terms) {
     const info = {
       slug: t.slug,
       term: t.term,
-      categoryIds: t.categoryIds || [],
+      sessionIds: t.sessionIds || [],
       locationIds: t.locationIds || [],
       scopeCombine: t.scopeCombine || 'or',
     }
@@ -67,7 +67,7 @@ function buildTermMap(terms) {
 
 export function GlossaryProvider({ children }) {
   const [terms, setTerms] = useState([])
-  const { selectedLocation } = useLocationCategory()
+  const { selectedLocation } = useLocationSession()
   const intervalRef = useRef(null)
 
   const fetchTerms = useCallback(async () => {
@@ -106,7 +106,7 @@ export function GlossaryProvider({ children }) {
   const matchPattern = useMemo(() => buildMatchPattern(terms), [terms])
   const termMap = useMemo(() => buildTermMap(terms), [terms])
 
-  // Memoized filtered patterns per categoryId
+  // Memoized filtered patterns per sessionId
   const filteredPatternCache = useRef(new Map())
 
   // Reset cache when terms change
@@ -114,34 +114,34 @@ export function GlossaryProvider({ children }) {
     filteredPatternCache.current = new Map()
   }, [terms])
 
-  const getFilteredPattern = useCallback((categoryId) => {
-    if (!categoryId) return matchPattern
+  const getFilteredPattern = useCallback((sessionId) => {
+    if (!sessionId) return matchPattern
     if (!terms || terms.length === 0) return null
 
-    const cached = filteredPatternCache.current.get(categoryId)
+    const cached = filteredPatternCache.current.get(sessionId)
     if (cached !== undefined) return cached
 
-    // Filter terms visible in this category context
+    // Filter terms visible in this session context
     const filtered = terms.filter((t) => {
-      const hasCats = t.categoryIds && t.categoryIds.length > 0
+      const hasSessions = t.sessionIds && t.sessionIds.length > 0
       const hasLocs = t.locationIds && t.locationIds.length > 0
-      const isGlobal = !hasCats && !hasLocs
+      const isGlobal = !hasSessions && !hasLocs
 
       // Global terms always show
       if (isGlobal) return true
 
-      const catMatch = hasCats && t.categoryIds.includes(categoryId)
+      const sessMatch = hasSessions && t.sessionIds.includes(sessionId)
 
       if (t.scopeCombine === 'and') {
-        // AND: must match category if category tags exist
-        return !hasCats || catMatch
+        // AND: must match session if session tags exist
+        return !hasSessions || sessMatch
       }
-      // OR: included if category matches, or if term has no category tags (location-only)
-      return catMatch || !hasCats
+      // OR: included if session matches, or if term has no session tags (location-only)
+      return sessMatch || !hasSessions
     })
 
     const pattern = buildMatchPattern(filtered)
-    filteredPatternCache.current.set(categoryId, pattern)
+    filteredPatternCache.current.set(sessionId, pattern)
     return pattern
   }, [terms, matchPattern])
 

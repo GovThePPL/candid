@@ -14,15 +14,15 @@
 
   "preferences": "Preferences",
   "loadingPreferences": "Loading preferences...",
-  "categoryPreferences": "Category Preferences",
-  "categoryPreferencesDesc": "Adjust how often you see positions from each category in your feed.",
-  "categoryWeightA11y": "{{category}}, weight: {{weight}}",
+  "sessionPreferences": "Session Preferences",
+  "sessionPreferencesDesc": "Adjust how often you see positions from each session in your feed.",
+  "sessionWeightA11y": "{{session}}, weight: {{weight}}",
   "chatRequestFrequency": "Chat Request Frequency",
   "chatRequestFrequencyDesc": "How often do you want to receive chat requests from others who want to discuss your positions?",
   "chattingListFrequency": "Chatting List Frequency",
   "chattingListFrequencyDesc": "How often should items reappear in your card queue from your Chatting List? This includes positions you've previously chatted about and positions you've saved by tapping the chat button on a card.",
   "saving": "Saving...",
-  "categoryModalSubtitle": "How often should this category appear?",
+  "sessionModalSubtitle": "How often should this session appear?",
   "failedLoadPreferences": "Failed to load preferences",
   "failedSavePreferences": "Failed to save preferences",
 
@@ -96,7 +96,7 @@
   "notifTypeRuleChange": "Rule changes",
   "notifTypeRuleChangeDesc": "When community rules are changed",
   "notifTypeAdminAction": "Admin actions",
-  "notifTypeAdminActionDesc": "Location, category, and account changes",
+  "notifTypeAdminActionDesc": "Location, session, and account changes",
   "notifTypeModeration": "Moderation",
   "notifTypeModerationDesc": "Moderation actions on your content",
   "notifTypeMention": "Mentions",
@@ -261,7 +261,7 @@
 
   "positionStatusActive": "Active",
   "positionStatusInactive": "Inactive",
-  "positionItemA11y": "{{statement}}, {{location}}, {{category}}, {{status}}",
+  "positionItemA11y": "{{statement}}, {{location}}, {{session}}, {{status}}",
 
   "chattingListChats": "{{count}} chats",
   "chattingListPending": "{{count}} pending",

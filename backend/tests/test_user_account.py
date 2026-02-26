@@ -116,11 +116,11 @@ class TestRegisterPushToken:
 
 
 class TestUploadAvatar:
-    """POST /users/me/avatar"""
+    """PUT /users/me/avatar"""
 
     def test_missing_image_400(self, normal_headers):
         """Missing imageBase64 returns 400."""
-        resp = requests.post(
+        resp = requests.put(
             f"{BASE_URL}/users/me/avatar",
             headers=normal_headers,
             json={},
@@ -129,7 +129,7 @@ class TestUploadAvatar:
 
     def test_invalid_image_data_400(self, normal_headers):
         """Invalid base64 image data returns 400 or 500."""
-        resp = requests.post(
+        resp = requests.put(
             f"{BASE_URL}/users/me/avatar",
             headers=normal_headers,
             json={"imageBase64": "not-valid-base64-image-data"},

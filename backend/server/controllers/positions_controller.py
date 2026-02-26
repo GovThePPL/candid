@@ -14,7 +14,7 @@ from candid import util
 
 from candid.controllers import db, config
 from candid.controllers.helpers.config import Config
-from candid.controllers.helpers.auth import authorization, authorization_allow_banned, token_to_user
+from candid.controllers.helpers.auth import authorization, authorization_allow_banned, require_auth, token_to_user, check_session_stage, get_session_stage
 from candid.controllers.helpers import polis_sync
 from candid.controllers.helpers import presence
 from candid.controllers.helpers import nlp
@@ -33,30 +33,11 @@ from candid.controllers.helpers.user_mappers import (
     row_to_user_position as _row_to_user_position,
 )
 from candid.controllers.helpers.rate_limiting import check_rate_limit_for
+from candid.controllers.helpers.serializers import get_user_card as _get_user_card
 import uuid
 
-def _get_user_card(user_id):
-    user = db.execute_query("""
-        SELECT
-            u.display_name,
-            u.id,
-            u.status,
-            u.username,
-            u.kudos_count as kudos_count
-        FROM users u
-        WHERE u.id = %s
-    """, (user_id,), fetchone=True)
-    if user is not None:
-        return User(
-            id=str(user['id']),
-            username=user['username'],
-            display_name=user['display_name'],
-            status=user['status'],
-            kudos_count=user.get('kudos_count', 0),
-        )
-    return None
-
-def create_position(body, token_info=None):  # noqa: E501
+@require_auth("normal")
+def create_position(body, token_info=None, user_id=None):  # noqa: E501
     """Create a new position statement
 
      # noqa: E501
@@ -70,10 +51,17 @@ def create_position(body, token_info=None):  # noqa: E501
     if connexion.request.is_json:
         create_position_request = CreatePositionRequest.from_dict(connexion.request.get_json())  # noqa: E501
 
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
     user = token_to_user(token_info)
+
+    # Stage gating
+    if connexion.request.is_json:
+        _body = connexion.request.get_json()
+        _session_id = _body.get('sessionId') or _body.get('session_id')
+    else:
+        _session_id = getattr(create_position_request, 'session_id', None)
+    allowed_stage, stage_err = check_session_stage(_session_id, 'position')
+    if not allowed_stage:
+        return stage_err, stage_err.code
 
     # Rate limit
     allowed, _ = check_rate_limit_for(str(user.id), "position_create")
@@ -89,29 +77,34 @@ def create_position(body, token_info=None):  # noqa: E501
     # Generate embedding for the statement
     embedding = nlp.get_embedding(create_position_request.statement)
 
+    # Get current stage for tagging
+    current_stage = get_session_stage(create_position_request.session_id) if create_position_request.session_id else None
+
     # TODO: Check that user in in location
     if embedding:
         ret = db.execute_query("""
-            INSERT INTO position (id, creator_user_id, category_id, location_id, statement, embedding)
+            INSERT INTO position (id, creator_user_id, session_id, location_id, statement, embedding, created_during_stage)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, (
+            position_id,
+            user.id,
+            create_position_request.session_id,
+            create_position_request.location_id,
+            create_position_request.statement,
+            embedding,
+            current_stage
+        ))
+    else:
+        ret = db.execute_query("""
+            INSERT INTO position (id, creator_user_id, session_id, location_id, statement, created_during_stage)
             VALUES (%s, %s, %s, %s, %s, %s)
         """, (
             position_id,
             user.id,
-            create_position_request.category_id,
+            create_position_request.session_id,
             create_position_request.location_id,
             create_position_request.statement,
-            embedding
-        ))
-    else:
-        ret = db.execute_query("""
-            INSERT INTO position (id, creator_user_id, category_id, location_id, statement)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (
-            position_id,
-            user.id,
-            create_position_request.category_id,
-            create_position_request.location_id,
-            create_position_request.statement
+            current_stage
         ))
 
     ret = db.execute_query("""
@@ -126,16 +119,17 @@ def create_position(body, token_info=None):  # noqa: E501
     polis_sync.queue_position_sync(
         position_id=position_id,
         statement=create_position_request.statement,
-        category_id=create_position_request.category_id,
+        session_id=create_position_request.session_id,
         location_id=create_position_request.location_id,
-        creator_user_id=user.id
+        creator_user_id=user.id,
+        created_during_stage=current_stage,
     )
 
     # Return the created position
     return {
         "id": position_id,
         "statement": create_position_request.statement,
-        "categoryId": create_position_request.category_id,
+        "sessionId": create_position_request.session_id,
         "locationId": create_position_request.location_id,
         "status": "active",
         "agreeCount": 0,
@@ -145,7 +139,8 @@ def create_position(body, token_info=None):  # noqa: E501
     }, 201
 
 
-def get_position_by_id(position_id, token_info=None):  # noqa: E501
+@require_auth("normal")
+def get_position_by_id(position_id, token_info=None, user_id=None):  # noqa: E501
     """Get a specific position statement
 
      # noqa: E501
@@ -156,14 +151,11 @@ def get_position_by_id(position_id, token_info=None):  # noqa: E501
 
     :rtype: Union[Position, Tuple[Position, int], Tuple[Position, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
 
     position = db.execute_query("""
         SELECT
             agree_count,
-            category_id,
+            session_id,
             chat_count,
             TO_CHAR(created_time, %s),
             disagree_count,
@@ -185,7 +177,7 @@ def get_position_by_id(position_id, token_info=None):  # noqa: E501
     ret = Position(
         id=str(position['id']),
         statement=position['statement'],
-        category_id=str(position['category_id']) if position.get('category_id') else None,
+        session_id=str(position['session_id']) if position.get('session_id') else None,
         status=position['status'],
         agree_count=position.get('agree_count', 0),
         disagree_count=position.get('disagree_count', 0),
@@ -197,7 +189,8 @@ def get_position_by_id(position_id, token_info=None):  # noqa: E501
     return ret
 
 
-def create_position_responses(body, token_info=None):  # noqa: E501
+@require_auth("normal")
+def create_position_responses(body, token_info=None, user_id=None):  # noqa: E501
     """Respond to one or more position statements
 
      # noqa: E501
@@ -211,9 +204,6 @@ def create_position_responses(body, token_info=None):  # noqa: E501
     if connexion.request.is_json:
         position_response = PositionResponse.from_dict(connexion.request.get_json())  # noqa: E501
 
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
     user = token_to_user(token_info)
 
     # Record presence: user is swiping (responding to positions)
@@ -258,7 +248,8 @@ def create_position_responses(body, token_info=None):  # noqa: E501
     # TODO: Update counts, change to have user respond to user_position rather than position
 
 
-def search_similar_positions(body, token_info=None):  # noqa: E501
+@require_auth("normal")
+def search_similar_positions(body, token_info=None, user_id=None):  # noqa: E501
     """Search for positions with similar meaning
 
     Uses semantic similarity to find existing positions that match the given statement.
@@ -268,13 +259,10 @@ def search_similar_positions(body, token_info=None):  # noqa: E501
 
     :rtype: Union[List[dict], Tuple[List[dict], int], Tuple[List[dict], int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
     user = token_to_user(token_info)
 
     statement = body.get('statement', '')
-    category_id = body.get('categoryId')
+    session_id = body.get('sessionId')
     location_id = body.get('locationId')
     limit = min(body.get('limit', 5), 10)
 
@@ -296,7 +284,7 @@ def search_similar_positions(body, token_info=None):  # noqa: E501
         SELECT
             p.id,
             p.creator_user_id,
-            p.category_id,
+            p.session_id,
             p.location_id,
             p.statement,
             p.status,
@@ -306,12 +294,12 @@ def search_similar_positions(body, token_info=None):  # noqa: E501
             p.chat_count,
             TO_CHAR(p.created_time, %s) as created_time,
             1 - (p.embedding <=> %s::vector) AS similarity,
-            c.label AS category_name,
+            c.label AS session_name,
             l.name AS location_name,
             l.code AS location_code,
             CASE WHEN up_deleted.id IS NOT NULL THEN true ELSE false END AS was_previously_held
         FROM position p
-        LEFT JOIN position_category c ON p.category_id = c.id
+        LEFT JOIN session c ON p.session_id = c.id
         LEFT JOIN location l ON p.location_id = l.id
         LEFT JOIN user_position up_active ON p.id = up_active.position_id
             AND up_active.user_id = %s
@@ -327,10 +315,10 @@ def search_similar_positions(body, token_info=None):  # noqa: E501
     """]
     params = [Config.TIMESTAMP_FORMAT, embedding, user.id, user.id, user.id, embedding]
 
-    # Add optional category filter
-    if category_id:
-        query_parts.append("AND p.category_id = %s")
-        params.append(category_id)
+    # Add optional session filter
+    if session_id:
+        query_parts.append("AND p.session_id = %s")
+        params.append(session_id)
 
     # Add optional location filter (include parent locations)
     if location_id:
@@ -368,7 +356,7 @@ def search_similar_positions(body, token_info=None):  # noqa: E501
         position_data = {
             'id': pos['id'],
             'statement': pos['statement'],
-            'categoryId': pos['category_id'],
+            'sessionId': pos['session_id'],
             'status': pos['status'],
             'agreeCount': pos['agree_count'],
             'disagreeCount': pos['disagree_count'],
@@ -378,11 +366,11 @@ def search_similar_positions(body, token_info=None):  # noqa: E501
             'creator': creator.to_dict() if creator else None,
         }
 
-        # Add category info if available
-        if pos['category_name']:
-            position_data['category'] = {
-                'id': pos['category_id'],
-                'label': pos['category_name']
+        # Add session info if available
+        if pos['session_name']:
+            position_data['session'] = {
+                'id': pos['session_id'],
+                'label': pos['session_name']
             }
 
         # Add location info if available
@@ -401,26 +389,29 @@ def search_similar_positions(body, token_info=None):  # noqa: E501
     return results, 200
 
 
-def search_stats_positions(body, token_info=None):  # noqa: E501
+@require_auth("normal")
+def get_positions_stats(query, location_id, offset=0, limit=20, token_info=None, user_id=None):  # noqa: E501
     """Search positions for the stats page
 
     Tries semantic (meaning) search for queries >= 3 words, falls back to
     text (ILIKE) search for shorter queries or when NLP is unavailable.
     Returns GroupPosition-shaped results compatible with the stats PositionCard.
 
-    :param body: Search parameters
-    :type body: dict
+    :param query: Search query text
+    :type query: str
+    :param location_id: Location UUID to search within
+    :type location_id: str
+    :param offset: Pagination offset
+    :type offset: int
+    :param limit: Max results to return
+    :type limit: int
 
     :rtype: Union[dict, Tuple[dict, int]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
 
-    query = body.get('query', '').strip()
-    location_id = body.get('locationId')
-    offset = max(body.get('offset', 0), 0)
-    limit = min(max(body.get('limit', 20), 1), 50)
+    query = (query or '').strip()
+    offset = max(offset or 0, 0)
+    limit = min(max(limit or 20, 1), 50)
 
     if len(query) < 2:
         return ErrorModel(400, "Query must be at least 2 characters"), 400
@@ -457,18 +448,18 @@ def search_stats_positions(body, token_info=None):  # noqa: E501
             SELECT
                 p.id,
                 p.statement,
-                p.category_id,
+                p.session_id,
                 p.location_id,
                 p.agree_count,
                 p.disagree_count,
                 p.pass_count,
                 p.creator_user_id,
-                c.label AS category_label,
+                c.label AS session_label,
                 l.name AS location_name,
                 l.code AS location_code,
                 1 - (p.embedding <=> %s::vector) AS similarity
             FROM position p
-            LEFT JOIN position_category c ON p.category_id = c.id
+            LEFT JOIN session c ON p.session_id = c.id
             LEFT JOIN location l ON p.location_id = l.id
             WHERE p.status = 'active'
               AND p.embedding IS NOT NULL
@@ -485,18 +476,18 @@ def search_stats_positions(body, token_info=None):  # noqa: E501
             SELECT
                 p.id,
                 p.statement,
-                p.category_id,
+                p.session_id,
                 p.location_id,
                 p.agree_count,
                 p.disagree_count,
                 p.pass_count,
                 p.creator_user_id,
-                c.label AS category_label,
+                c.label AS session_label,
                 l.name AS location_name,
                 l.code AS location_code,
                 NULL AS similarity
             FROM position p
-            LEFT JOIN position_category c ON p.category_id = c.id
+            LEFT JOIN session c ON p.session_id = c.id
             LEFT JOIN location l ON p.location_id = l.id
             WHERE p.status = 'active'
               AND p.statement ILIKE %s
@@ -550,10 +541,10 @@ def search_stats_positions(body, token_info=None):  # noqa: E501
         result = {
             "id": str(p["id"]),
             "statement": p["statement"],
-            "category": {
-                "id": str(p["category_id"]) if p.get("category_id") else None,
-                "label": p.get("category_label", "Uncategorized")
-            } if p.get("category_label") else None,
+            "session": {
+                "id": str(p["session_id"]) if p.get("session_id") else None,
+                "label": p.get("session_label", "Uncategorized")
+            } if p.get("session_label") else None,
             "location": {
                 "id": str(p["location_id"]) if p.get("location_id") else None,
                 "name": p.get("location_name", "Unknown"),
@@ -582,7 +573,8 @@ def search_stats_positions(body, token_info=None):  # noqa: E501
     }, 200
 
 
-def get_position_agreed_closures(position_id, token_info=None):  # noqa: E501
+@require_auth("normal", allow_banned=True)
+def get_position_agreed_closures(position_id, token_info=None, user_id=None):  # noqa: E501
     """Get all agreed closures for chats about a position.
 
     Returns all chats that ended with an agreed closure for the specified position,
@@ -594,18 +586,15 @@ def get_position_agreed_closures(position_id, token_info=None):  # noqa: E501
 
     :rtype: Union[Dict, Tuple[ErrorModel, int]]
     """
-    authorized, auth_err = authorization_allow_banned("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
 
     # Get position info
     position = db.execute_query("""
         SELECT
             p.id,
             p.statement,
-            p.category_id,
+            p.session_id,
             p.location_id,
-            c.label as category_label,
+            c.label as session_label,
             l.code as location_code,
             l.name as location_name,
             p.creator_user_id,
@@ -617,7 +606,7 @@ def get_position_agreed_closures(position_id, token_info=None):  # noqa: E501
             u.avatar_icon_url as creator_avatar_icon_url,
             u.kudos_count as creator_kudos_count
         FROM position p
-        LEFT JOIN position_category c ON p.category_id = c.id
+        LEFT JOIN session c ON p.session_id = c.id
         LEFT JOIN location l ON p.location_id = l.id
         LEFT JOIN users u ON p.creator_user_id = u.id
         WHERE p.id = %s AND p.status = 'active'
@@ -678,20 +667,20 @@ def get_position_agreed_closures(position_id, token_info=None):  # noqa: E501
     if closures_raw is None:
         closures_raw = []
 
-    # Get Polis groups for this position's location/category
+    # Get Polis groups for this position's location/session
     groups = []
     polis_conv_id = None
     math_data = None
 
-    # Also get location-wide (all categories) Polis data
-    all_categories_groups = []
-    all_categories_conv_id = None
-    all_categories_math_data = None
+    # Also get location-wide (all sessions) Polis data
+    all_sessions_groups = []
+    all_sessions_conv_id = None
+    all_sessions_math_data = None
 
     if config.POLIS_ENABLED:
         conversation = get_oldest_active_conversation(
             position['location_id'],
-            position['category_id']
+            position['session_id']
         )
         if conversation:
             polis_conv_id = conversation["polis_conversation_id"]
@@ -703,20 +692,20 @@ def get_position_agreed_closures(position_id, token_info=None):  # noqa: E501
             except PolisError as e:
                 print(f"Polis error getting groups: {e}", flush=True)
 
-        # Fetch location-wide conversation (all categories)
+        # Fetch location-wide conversation (all sessions)
         all_conv = get_oldest_active_conversation(
             position['location_id'],
             None
         )
         if all_conv and all_conv["polis_conversation_id"] != polis_conv_id:
-            all_categories_conv_id = all_conv["polis_conversation_id"]
+            all_sessions_conv_id = all_conv["polis_conversation_id"]
             try:
                 all_client = get_client()
-                all_categories_math_data = all_client.get_math_data(all_categories_conv_id)
-                if all_categories_math_data:
-                    all_categories_groups = _extract_groups_for_closures(all_categories_math_data, all_categories_conv_id)
+                all_sessions_math_data = all_client.get_math_data(all_sessions_conv_id)
+                if all_sessions_math_data:
+                    all_sessions_groups = _extract_groups_for_closures(all_sessions_math_data, all_sessions_conv_id)
             except PolisError as e:
-                print(f"Polis error getting all-categories groups: {e}", flush=True)
+                print(f"Polis error getting all-sessions groups: {e}", flush=True)
 
     # Process closures and add group info
     closures = []
@@ -743,20 +732,20 @@ def get_position_agreed_closures(position_id, token_info=None):  # noqa: E501
             groups
         ) if math_data else {'group': None, 'position': None}
 
-        # Get all-categories map positions
+        # Get all-sessions map positions
         ph_all_polis = _get_user_polis_info(
             closure['position_holder_user_id'],
-            all_categories_conv_id,
-            all_categories_math_data,
-            all_categories_groups
-        ) if all_categories_math_data else {'group': None, 'position': None}
+            all_sessions_conv_id,
+            all_sessions_math_data,
+            all_sessions_groups
+        ) if all_sessions_math_data else {'group': None, 'position': None}
 
         iu_all_polis = _get_user_polis_info(
             closure['initiator_user_id'],
-            all_categories_conv_id,
-            all_categories_math_data,
-            all_categories_groups
-        ) if all_categories_math_data else {'group': None, 'position': None}
+            all_sessions_conv_id,
+            all_sessions_math_data,
+            all_sessions_groups
+        ) if all_sessions_math_data else {'group': None, 'position': None}
 
         # Determine if cross-group (users in different groups)
         cross_group = (
@@ -783,7 +772,7 @@ def get_position_agreed_closures(position_id, token_info=None):  # noqa: E501
                 'sentKudos': closure['ph_sent_kudos'],
                 'opinionGroup': ph_polis_info['group'],
                 'mapPosition': ph_polis_info['position'],
-                'allCategoriesMapPosition': ph_all_polis['position'],
+                'allSessionsMapPosition': ph_all_polis['position'],
             },
             'initiatorUser': {
                 'id': str(closure['initiator_user_id']),
@@ -796,7 +785,7 @@ def get_position_agreed_closures(position_id, token_info=None):  # noqa: E501
                 'sentKudos': closure['iu_sent_kudos'],
                 'opinionGroup': iu_polis_info['group'],
                 'mapPosition': iu_polis_info['position'],
-                'allCategoriesMapPosition': iu_all_polis['position'],
+                'allSessionsMapPosition': iu_all_polis['position'],
             },
         })
 
@@ -836,10 +825,10 @@ def get_position_agreed_closures(position_id, token_info=None):  # noqa: E501
         'position': {
             'id': str(position['id']),
             'statement': position['statement'],
-            'category': {
-                'id': str(position['category_id']) if position['category_id'] else None,
-                'label': position['category_label'],
-            } if position['category_label'] else None,
+            'session': {
+                'id': str(position['session_id']) if position['session_id'] else None,
+                'label': position['session_label'],
+            } if position['session_label'] else None,
             'location': {
                 'id': str(position['location_id']) if position['location_id'] else None,
                 'code': position['location_code'],
@@ -848,7 +837,7 @@ def get_position_agreed_closures(position_id, token_info=None):  # noqa: E501
             'creator': creator,
         },
         'groups': groups,
-        'allCategoriesGroups': all_categories_groups,
+        'allSessionsGroups': all_sessions_groups,
         'closures': closures,
     }
 

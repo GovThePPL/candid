@@ -10,30 +10,10 @@ from candid.controllers.helpers.auth import (
     get_highest_role_at_location, get_location_ancestors,
     is_admin_anywhere, invalidate_ban_cache,
 )
+from candid.controllers.helpers.serializers import get_user_card
 from candid.models.user import User
 from candid.models.report import Report
 from candid.models.error_model import ErrorModel  # noqa: F401 – re-exported for callers
-
-
-def get_user_card(user_id):
-    """Helper to fetch and return a User model for API responses."""
-    user = db.execute_query("""
-        SELECT
-            id,
-            username,
-            display_name,
-            status
-        FROM users
-        WHERE id = %s
-    """, (user_id,), fetchone=True)
-    if user is not None:
-        return User(
-            id=str(user['id']),
-            username=user['username'],
-            display_name=user['display_name'],
-            status=user['status'],
-        )
-    return None
 
 
 def map_db_report_to_model(row):
@@ -163,9 +143,9 @@ def get_reported_user_ids(target_object_type, target_object_id):
 
 
 def get_content_scope(report_id):
-    """Get the location_id and category_id of a report's target content.
+    """Get the location_id and session_id of a report's target content.
 
-    Returns (location_id, category_id) or (None, None).
+    Returns (location_id, session_id) or (None, None).
     """
     report = db.execute_query("""
         SELECT target_object_type, target_object_id FROM report WHERE id = %s
@@ -175,16 +155,16 @@ def get_content_scope(report_id):
 
     if report['target_object_type'] == 'position':
         row = db.execute_query("""
-            SELECT location_id, category_id FROM position WHERE id = %s
+            SELECT location_id, session_id FROM position WHERE id = %s
         """, (report['target_object_id'],), fetchone=True)
         if row:
             return (str(row['location_id']) if row.get('location_id') else None,
-                    str(row['category_id']) if row.get('category_id') else None)
+                    str(row['session_id']) if row.get('session_id') else None)
 
     elif report['target_object_type'] == 'chat_log':
         # Chat's scope comes from the underlying position
         row = db.execute_query("""
-            SELECT p.location_id, p.category_id
+            SELECT p.location_id, p.session_id
             FROM chat_log cl
             JOIN chat_request cr ON cl.chat_request_id = cr.id
             JOIN user_position up ON cr.user_position_id = up.id
@@ -193,47 +173,47 @@ def get_content_scope(report_id):
         """, (report['target_object_id'],), fetchone=True)
         if row:
             return (str(row['location_id']) if row.get('location_id') else None,
-                    str(row['category_id']) if row.get('category_id') else None)
+                    str(row['session_id']) if row.get('session_id') else None)
 
     elif report['target_object_type'] == 'post':
         row = db.execute_query("""
-            SELECT location_id, category_id FROM post WHERE id = %s
+            SELECT location_id, session_id FROM post WHERE id = %s
         """, (report['target_object_id'],), fetchone=True)
         if row:
             return (str(row['location_id']) if row.get('location_id') else None,
-                    str(row['category_id']) if row.get('category_id') else None)
+                    str(row['session_id']) if row.get('session_id') else None)
 
     elif report['target_object_type'] == 'comment':
         # Comment's scope comes from its parent post
         row = db.execute_query("""
-            SELECT p.location_id, p.category_id
+            SELECT p.location_id, p.session_id
             FROM comment c
             JOIN post p ON c.post_id = p.id
             WHERE c.id = %s
         """, (report['target_object_id'],), fetchone=True)
         if row:
             return (str(row['location_id']) if row.get('location_id') else None,
-                    str(row['category_id']) if row.get('category_id') else None)
+                    str(row['session_id']) if row.get('session_id') else None)
 
     return None, None
 
 
 def get_content_scope_direct(target_type, target_id):
-    """Get the location_id and category_id directly from a target (no report_id needed).
+    """Get the location_id and session_id directly from a target (no report_id needed).
 
-    Returns (location_id, category_id) or (None, None).
+    Returns (location_id, session_id) or (None, None).
     """
     if target_type == 'position':
         row = db.execute_query("""
-            SELECT location_id, category_id FROM position WHERE id = %s
+            SELECT location_id, session_id FROM position WHERE id = %s
         """, (target_id,), fetchone=True)
         if row:
             return (str(row['location_id']) if row.get('location_id') else None,
-                    str(row['category_id']) if row.get('category_id') else None)
+                    str(row['session_id']) if row.get('session_id') else None)
 
     elif target_type == 'chat_log':
         row = db.execute_query("""
-            SELECT p.location_id, p.category_id
+            SELECT p.location_id, p.session_id
             FROM chat_log cl
             JOIN chat_request cr ON cl.chat_request_id = cr.id
             JOIN user_position up ON cr.user_position_id = up.id
@@ -242,26 +222,26 @@ def get_content_scope_direct(target_type, target_id):
         """, (target_id,), fetchone=True)
         if row:
             return (str(row['location_id']) if row.get('location_id') else None,
-                    str(row['category_id']) if row.get('category_id') else None)
+                    str(row['session_id']) if row.get('session_id') else None)
 
     elif target_type == 'post':
         row = db.execute_query("""
-            SELECT location_id, category_id FROM post WHERE id = %s
+            SELECT location_id, session_id FROM post WHERE id = %s
         """, (target_id,), fetchone=True)
         if row:
             return (str(row['location_id']) if row.get('location_id') else None,
-                    str(row['category_id']) if row.get('category_id') else None)
+                    str(row['session_id']) if row.get('session_id') else None)
 
     elif target_type == 'comment':
         row = db.execute_query("""
-            SELECT p.location_id, p.category_id
+            SELECT p.location_id, p.session_id
             FROM comment c
             JOIN post p ON c.post_id = p.id
             WHERE c.id = %s
         """, (target_id,), fetchone=True)
         if row:
             return (str(row['location_id']) if row.get('location_id') else None,
-                    str(row['category_id']) if row.get('category_id') else None)
+                    str(row['session_id']) if row.get('session_id') else None)
 
     return None, None
 
@@ -292,7 +272,7 @@ def find_appeal_reviewers(actioner_level, content_loc, content_cat, exclude_user
     """Find eligible reviewers for an appeal based on hierarchical escalation.
 
     Routes to next tier up:
-      assistant_moderator -> facilitator (same location+category)
+      assistant_moderator -> facilitator (same location+session)
       facilitator -> moderator (same location, walk ancestors)
       moderator -> admin (same location, walk ancestors)
       admin -> parent location admin
@@ -302,10 +282,10 @@ def find_appeal_reviewers(actioner_level, content_loc, content_cat, exclude_user
     exclude = str(exclude_user_id) if exclude_user_id else None
 
     if actioner_level == 'assistant_moderator' and content_loc and content_cat:
-        # Route to facilitator for this location+category
+        # Route to facilitator for this location+session
         rows = db.execute_query("""
             SELECT user_id FROM user_role
-            WHERE role = 'facilitator' AND location_id = %s AND position_category_id = %s
+            WHERE role = 'facilitator' AND location_id = %s AND session_id = %s
         """, (content_loc, content_cat))
         targets = [str(r['user_id']) for r in (rows or []) if str(r['user_id']) != exclude]
         if targets:
@@ -377,8 +357,8 @@ def find_peer_reviewers(actioner_level, content_loc, content_cat, exclude_user_i
     Peers are others with the same role at the same scope:
       admin: other admins with authority at content location
       moderator: other moderators with authority at content location
-      facilitator: other facilitators at same location+category
-      assistant_moderator: other assistant_moderators at same location+category
+      facilitator: other facilitators at same location+session
+      assistant_moderator: other assistant_moderators at same location+session
 
     If no peers found, falls through to find_appeal_reviewers (next tier up).
     Returns list of user_id strings.
@@ -398,16 +378,16 @@ def find_peer_reviewers(actioner_level, content_loc, content_cat, exclude_user_i
                 return targets
 
     elif actioner_level in ('facilitator', 'assistant_moderator') and content_loc:
-        # Category-scoped roles: find peers at exact location+category
+        # Session-scoped roles: find peers at exact location+session
         if content_cat:
             rows = db.execute_query("""
                 SELECT user_id FROM user_role
-                WHERE role = %s AND location_id = %s AND position_category_id = %s
+                WHERE role = %s AND location_id = %s AND session_id = %s
             """, (actioner_level, content_loc, content_cat))
         else:
             rows = db.execute_query("""
                 SELECT user_id FROM user_role
-                WHERE role = %s AND location_id = %s AND position_category_id IS NULL
+                WHERE role = %s AND location_id = %s AND session_id IS NULL
             """, (actioner_level, content_loc))
         targets = [str(r['user_id']) for r in (rows or []) if str(r['user_id']) != exclude]
         if targets:
@@ -461,10 +441,10 @@ def get_target_content(target_type, target_id):
     if target_type == 'position':
         row = db.execute_query("""
             SELECT p.id, p.statement, p.creator_user_id,
-                   pc.id AS category_id, pc.label AS category_label,
+                   pc.id AS session_id, pc.label AS session_label,
                    l.id AS location_id, l.name AS location_name, l.code AS location_code
             FROM position p
-            LEFT JOIN position_category pc ON p.category_id = pc.id
+            LEFT JOIN session pc ON p.session_id = pc.id
             LEFT JOIN location l ON p.location_id = l.id
             WHERE p.id = %s
         """, (target_id,), fetchone=True)
@@ -473,7 +453,7 @@ def get_target_content(target_type, target_id):
             return {
                 'type': 'position',
                 'statement': row['statement'],
-                'category': {'id': str(row['category_id']), 'label': row['category_label']} if row.get('category_id') else None,
+                'session': {'id': str(row['session_id']), 'label': row['session_label']} if row.get('session_id') else None,
                 'location': {'code': row['location_code'], 'name': row['location_name']} if row.get('location_id') else None,
                 'creator': creator,
             }
@@ -512,10 +492,10 @@ def get_target_content(target_type, target_id):
     elif target_type == 'post':
         row = db.execute_query("""
             SELECT p.id, p.title, p.body, p.status, p.creator_user_id,
-                   pc.id AS category_id, pc.label AS category_label,
+                   pc.id AS session_id, pc.label AS session_label,
                    l.id AS location_id, l.name AS location_name, l.code AS location_code
             FROM post p
-            LEFT JOIN position_category pc ON p.category_id = pc.id
+            LEFT JOIN session pc ON p.session_id = pc.id
             LEFT JOIN location l ON p.location_id = l.id
             WHERE p.id = %s
         """, (target_id,), fetchone=True)
@@ -527,7 +507,7 @@ def get_target_content(target_type, target_id):
                 'title': row['title'],
                 'body': row.get('body'),
                 'status': row['status'],
-                'category': {'id': str(row['category_id']), 'label': row['category_label']} if row.get('category_id') else None,
+                'session': {'id': str(row['session_id']), 'label': row['session_label']} if row.get('session_id') else None,
                 'location': {'code': row['location_code'], 'name': row['location_name']} if row.get('location_id') else None,
                 'creator': creator,
             }
@@ -598,30 +578,30 @@ def reverse_mod_action(mod_action_id):
 
 
 def get_user_polis_group(user_id, report):
-    """Get the Polis group of a user for the category/location of a report's target.
+    """Get the Polis group of a user for the session/location of a report's target.
 
     Returns the group ID (int) or None if not determinable.
     """
     try:
         from candid.controllers.helpers.polis_client import get_client, PolisError
 
-        # Get the position's category and location from the report target
+        # Get the position's session and location from the report target
         if report.get('target_object_type') != 'position':
             return None
 
         pos = db.execute_query("""
-            SELECT p.category_id, p.location_id
+            SELECT p.session_id, p.location_id
             FROM position p WHERE p.id = %s
         """, (report['target_object_id'],), fetchone=True)
-        if not pos or not pos.get('category_id') or not pos.get('location_id'):
+        if not pos or not pos.get('session_id') or not pos.get('location_id'):
             return None
 
-        # Find the polis conversation for this category+location
+        # Find the polis conversation for this session+location
         conv = db.execute_query("""
             SELECT polis_conversation_id FROM polis_conversation
-            WHERE position_category_id = %s AND location_id = %s
+            WHERE session_id = %s AND location_id = %s
             LIMIT 1
-        """, (pos['category_id'], pos['location_id']), fetchone=True)
+        """, (pos['session_id'], pos['location_id']), fetchone=True)
         if not conv or not conv.get('polis_conversation_id'):
             return None
 

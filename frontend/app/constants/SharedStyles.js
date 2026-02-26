@@ -46,7 +46,7 @@ export function createSharedStyles(colors) {
       padding: Spacing.xxl,
     },
 
-    // Picker item row (used in LocationCategorySelector, profile, settings)
+    // Picker item row (used in LocationSessionSelector, profile, settings)
     pickerItem: {
       flexDirection: 'row',
       alignItems: 'center',

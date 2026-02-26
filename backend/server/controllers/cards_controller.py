@@ -6,7 +6,7 @@ from candid import util
 
 from candid.controllers import db
 from candid.controllers.helpers.config import Config
-from candid.controllers.helpers.auth import authorization, authorization_allow_banned, token_to_user
+from candid.controllers.helpers.auth import authorization, authorization_allow_banned, require_auth, token_to_user
 from candid.controllers.helpers import polis_sync
 from candid.controllers.helpers import presence
 from candid.controllers.helpers.chat_availability import get_batch_availability
@@ -208,11 +208,11 @@ def _get_position_removed_notifications(user_id):
     """Get notification cards for positions that were removed."""
     removed = db.execute_query("""
         SELECT up.id as user_position_id, up.position_id,
-               p.statement, pc.label as category_name,
+               p.statement, pc.label as session_name,
                l.name as location_name
         FROM user_position up
         JOIN position p ON up.position_id = p.id
-        LEFT JOIN position_category pc ON p.category_id = pc.id
+        LEFT JOIN session pc ON p.session_id = pc.id
         LEFT JOIN location l ON p.location_id = l.id
         WHERE up.user_id = %s
           AND up.status = 'removed'
@@ -227,19 +227,16 @@ def _get_position_removed_notifications(user_id):
                 'userPositionId': str(r['user_position_id']),
                 'positionId': str(r['position_id']),
                 'statement': r['statement'],
-                'category': r.get('category_name'),
+                'session': r.get('session_name'),
                 'location': r.get('location_name'),
             }
         })
     return cards
 
 
-def delete_position_notification(position_id, token_info=None):
+@require_auth("normal", allow_banned=True)
+def delete_position_notification(position_id, token_info=None, user_id=None):
     """Delete a position removed notification."""
-    authorized, auth_err = authorization_allow_banned("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
     user = token_to_user(token_info)
     db.execute_query("""
         UPDATE user_position SET notified_removed = TRUE
@@ -250,20 +247,23 @@ def delete_position_notification(position_id, token_info=None):
 
 
 
-def get_card_queue(limit=None, token_info=None):  # noqa: E501
+@require_auth("normal", allow_banned=True)
+def get_card_queue(limit=None, session_id=None, phase=None, browse_all=None, token_info=None, user_id=None):  # noqa: E501
     """Get mixed queue of positions, surveys, kudos, and demographics
 
      # noqa: E501
 
     :param limit: Maximum number of cards to return
     :type limit: int
+    :param session_id: Filter session-scoped cards to this session
+    :type session_id: str
+    :param phase: Filter position cards by major phase
+    :type phase: str
+    :param browse_all: Return all cards including previously voted for archive browsing
+    :type browse_all: bool
 
     :rtype: Union[List[GetCardQueue200ResponseInner], Tuple[List[GetCardQueue200ResponseInner], int], Tuple[List[GetCardQueue200ResponseInner], int, Dict[str, str]]
     """
-    authorized, auth_err = authorization_allow_banned("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
     user = token_to_user(token_info)
     if limit is None:
         limit = 10
@@ -271,39 +271,47 @@ def get_card_queue(limit=None, token_info=None):  # noqa: E501
     # Record presence: user is on card queue = swiping
     presence.record_swiping(str(user.id))
 
-    # Check if user is banned - return only ban notification
-    ban_card = _get_ban_notification(str(user.id))
-    if ban_card:
-        return [ban_card]
+    # In browse_all mode, skip priority cards and non-content cards
+    if browse_all:
+        priority_cards = []
+    else:
+        # Check if user is banned - return only ban notification
+        ban_card = _get_ban_notification(str(user.id))
+        if ban_card:
+            return [ban_card]
 
-    # Check for position removal notifications - prepend to queue
-    removal_cards = _get_position_removed_notifications(str(user.id))
+        # Check for position removal notifications - prepend to queue
+        removal_cards = _get_position_removed_notifications(str(user.id))
 
-    # 1. Priority cards - time-sensitive items appear at front
-    priority_cards = list(removal_cards)
+        # 1. Priority cards - time-sensitive items appear at front
+        priority_cards = list(removal_cards)
 
-    # Pending chat requests (fallback for missed real-time delivery)
-    chat_request_rows = _get_pending_chat_requests(str(user.id), limit=2)
-    for row in chat_request_rows:
-        card = _chat_request_to_card(row)
-        card['data']['createdTime'] = row.get('created_time')
-        priority_cards.append(card)
+        # Pending chat requests (fallback for missed real-time delivery)
+        chat_request_rows = _get_pending_chat_requests(str(user.id), limit=2)
+        for row in chat_request_rows:
+            card = _chat_request_to_card(row)
+            card['data']['createdTime'] = row.get('created_time')
+            priority_cards.append(card)
 
-    # Kudos cards (only where other participant sent kudos first)
-    kudos_prompts = _get_pending_kudos_cards(user.id, limit=2)
-    for kudos in kudos_prompts:
-        priority_cards.append(_kudos_to_card(kudos, user.id))
+        # Kudos cards (only where other participant sent kudos first)
+        kudos_prompts = _get_pending_kudos_cards(user.id, limit=2)
+        for kudos in kudos_prompts:
+            priority_cards.append(_kudos_to_card(kudos, user.id))
 
-    # Bridging kudos cards
-    bridging_kudos = _get_pending_bridging_kudos(str(user.id), limit=2)
-    for bk in bridging_kudos:
-        priority_cards.append(_bridging_kudos_to_card(bk))
+        # Bridging kudos cards
+        bridging_kudos = _get_pending_bridging_kudos(str(user.id), limit=2)
+        for bk in bridging_kudos:
+            priority_cards.append(_bridging_kudos_to_card(bk))
 
     # 2. Get positions first to determine if we need to fill with other content
     position_cards = []
 
-    # Get user's location, category priorities, and chatting list likelihood (cached)
+    # Get user's location, session priorities, and chatting list likelihood (cached)
     location_id, priorities, chatting_list_likelihood = _get_user_context(user.id)
+
+    # When filtering by session, restrict priorities to only that session
+    if session_id:
+        priorities = {session_id: priorities.get(session_id, 3)}
 
     # Fetch unvoted positions (using Polis if enabled, otherwise DB)
     remaining_slots = max(1, limit - len(priority_cards))
@@ -312,8 +320,10 @@ def get_card_queue(limit=None, token_info=None):  # noqa: E501
         positions = polis_sync.get_unvoted_positions_for_user(
             user_id=str(user.id),
             location_id=str(location_id),
-            category_priorities=priorities,
-            limit=remaining_slots
+            session_priorities=priorities,
+            limit=remaining_slots,
+            phase=phase,
+            browse_all=browse_all,
         )
         for pos in positions:
             position_cards.append(_position_to_card(pos))
@@ -360,7 +370,17 @@ def get_card_queue(limit=None, token_info=None):  # noqa: E501
     shuffled_cards = []
     has_positions = len(position_cards) > 0
 
-    if has_positions:
+    if browse_all:
+        # In browse_all mode, skip demographics/diagnostics but include surveys/pairwise
+        if has_positions:
+            if random.random() < 0.30:
+                surveys = _get_pending_surveys(user.id, limit=1, session_id=session_id)
+                for survey in surveys:
+                    shuffled_cards.append(_survey_to_card(survey))
+            if random.random() < 0.25:
+                pairwise_cards = _get_pending_pairwise(user.id, limit=1, session_id=session_id)
+                shuffled_cards.extend(pairwise_cards)
+    elif has_positions:
         # Normal behavior: 20% chance for demographics, 30% for surveys, 25% for pairwise
         if random.random() < 0.20:
             demographics = _get_unanswered_demographics(user.id, limit=1)
@@ -369,12 +389,12 @@ def get_card_queue(limit=None, token_info=None):  # noqa: E501
                 shuffled_cards.append(_demographic_to_card(field, demo_options))
 
         if random.random() < 0.30:
-            surveys = _get_pending_surveys(user.id, limit=1)
+            surveys = _get_pending_surveys(user.id, limit=1, session_id=session_id)
             for survey in surveys:
                 shuffled_cards.append(_survey_to_card(survey))
 
         if random.random() < 0.25:
-            pairwise_cards = _get_pending_pairwise(user.id, limit=1)
+            pairwise_cards = _get_pending_pairwise(user.id, limit=1, session_id=session_id)
             shuffled_cards.extend(pairwise_cards)
     # When no positions: shuffled_cards stays empty, only priority + chatting list cards remain
 
@@ -383,7 +403,7 @@ def get_card_queue(limit=None, token_info=None):  # noqa: E501
     shuffled_cards.extend(chatting_list_cards)
 
     # 3b. Inject diagnostics consent card (10% chance, only if never asked)
-    if has_positions and random.random() < 0.10:
+    if has_positions and not browse_all and random.random() < 0.10:
         consent_row = db.execute_query("""
             SELECT diagnostics_consent FROM users WHERE id = %s
         """, (user.id,), fetchone=True)
@@ -413,7 +433,7 @@ def _get_chatting_list_cards(user_id: str, limit: int = 3) -> List[dict]:
             -- Position data
             p.id,
             p.statement,
-            p.category_id,
+            p.session_id,
             p.creator_user_id,
             p.agree_count,
             p.disagree_count,
@@ -430,8 +450,8 @@ def _get_chatting_list_cards(user_id: str, limit: int = 3) -> List[dict]:
             u.avatar_url as creator_avatar_url,
             u.avatar_icon_url as creator_avatar_icon_url,
             u.kudos_count as creator_kudos_count,
-            -- Category
-            pc.label as category_name,
+            -- Session
+            pc.label as session_name,
             -- Location
             l.id as location_id,
             l.code as location_code,
@@ -455,7 +475,7 @@ def _get_chatting_list_cards(user_id: str, limit: int = 3) -> List[dict]:
         FROM user_chatting_list ucl
         JOIN position p ON ucl.position_id = p.id
         JOIN users u ON p.creator_user_id = u.id
-        LEFT JOIN position_category pc ON p.category_id = pc.id
+        LEFT JOIN session pc ON p.session_id = pc.id
         LEFT JOIN location l ON p.location_id = l.id
         WHERE ucl.user_id = %s
           AND ucl.is_active = true
@@ -469,8 +489,8 @@ def _get_chatting_list_cards(user_id: str, limit: int = 3) -> List[dict]:
         result.append({
             "id": str(item["id"]),
             "statement": item["statement"],
-            "category_id": str(item["category_id"]) if item.get("category_id") else None,
-            "category_name": item["category_name"],
+            "session_id": str(item["session_id"]) if item.get("session_id") else None,
+            "session_name": item["session_name"],
             "location_id": str(item["location_id"]) if item.get("location_id") else None,
             "location_code": item["location_code"],
             "location_name": item["location_name"],
@@ -499,7 +519,7 @@ def _get_chatting_list_cards(user_id: str, limit: int = 3) -> List[dict]:
     return result
 
 
-# Per-user context cache: location + category priorities
+# Per-user context cache: location + session priorities
 _user_context_cache = {}  # {user_id: {"location_id": str, "priorities": dict, "time": float}}
 USER_CONTEXT_TTL = 300  # 5 minutes
 
@@ -525,7 +545,7 @@ def _get_chatting_list_likelihood(user_id: str) -> int:
 
 
 def _get_user_context(user_id: str):
-    """Get user's location, category priorities, and chatting list likelihood.
+    """Get user's location, session priorities, and chatting list likelihood.
 
     Location and priorities are cached (change rarely). Chatting list likelihood
     is always read fresh from DB.
@@ -544,20 +564,20 @@ def _get_user_context(user_id: str):
     """, (user_id,), fetchone=True)
     location_id = str(location["location_id"]) if location else None
 
-    # Fetch category priorities
+    # Fetch session priorities
     priorities_rows = db.execute_query("""
-        SELECT position_category_id, priority
-        FROM user_position_categories WHERE user_id = %s
+        SELECT session_id, priority
+        FROM user_session_preferences WHERE user_id = %s
     """, (user_id,))
 
     priorities = {}
     for p in (priorities_rows or []):
-        priorities[str(p["position_category_id"])] = p["priority"]
+        priorities[str(p["session_id"])] = p["priority"]
 
     # If no priorities set, default all categories to 3
     if not priorities:
-        categories = db.execute_query("SELECT id FROM position_category")
-        for c in (categories or []):
+        sessions = db.execute_query("SELECT id FROM session")
+        for c in (sessions or []):
             priorities[str(c["id"])] = 3
 
     _user_context_cache[uid] = {
@@ -569,7 +589,7 @@ def _get_user_context(user_id: str):
 
 
 def _get_unvoted_positions_fallback(user_id: str, location_id: str, limit: int = 10) -> List[dict]:
-    """Fallback: get unvoted positions directly from DB (no category weighting).
+    """Fallback: get unvoted positions directly from DB (no session weighting).
 
     Includes positions from the user's location and all parent locations.
     """
@@ -587,7 +607,7 @@ def _get_unvoted_positions_fallback(user_id: str, location_id: str, limit: int =
         SELECT
             p.id,
             p.statement,
-            p.category_id,
+            p.session_id,
             p.creator_user_id,
             p.agree_count,
             p.disagree_count,
@@ -603,14 +623,14 @@ def _get_unvoted_positions_fallback(user_id: str, location_id: str, limit: int =
             u.avatar_url as creator_avatar_url,
             u.avatar_icon_url as creator_avatar_icon_url,
             u.kudos_count as creator_kudos_count,
-            pc.label as category_name,
+            pc.label as session_name,
             l.id as location_id,
             l.code as location_code,
             l.name as location_name,
             up.id as user_position_id
         FROM position p
         JOIN users u ON p.creator_user_id = u.id
-        LEFT JOIN position_category pc ON p.category_id = pc.id
+        LEFT JOIN session pc ON p.session_id = pc.id
         LEFT JOIN location l ON p.location_id = l.id
         LEFT JOIN response r ON r.position_id = p.id AND r.user_id = %s
         -- Get an active user_position for chat requests (prefer creator's)
@@ -633,8 +653,8 @@ def _get_unvoted_positions_fallback(user_id: str, location_id: str, limit: int =
         result.append({
             "id": str(p["id"]),
             "statement": p["statement"],
-            "category_id": str(p["category_id"]),
-            "category_name": p["category_name"],
+            "session_id": str(p["session_id"]),
+            "session_name": p["session_name"],
             "location_id": str(p["location_id"]) if p.get("location_id") else None,
             "location_code": p["location_code"],
             "location_name": p["location_name"],
@@ -675,6 +695,7 @@ def _get_cached_surveys():
     rows = db.execute_query("""
         SELECT sq.id as question_id, sq.survey_question as question,
                s.id as survey_id, s.survey_title, s.end_time,
+               s.session_id,
                sqo.id as option_id, sqo.survey_question_option as option_text
         FROM survey_question sq
         JOIN survey s ON sq.survey_id = s.id
@@ -696,6 +717,7 @@ def _get_cached_surveys():
                 "question": row["question"],
                 "survey_id": str(row["survey_id"]),
                 "survey_title": row["survey_title"],
+                "session_id": str(row["session_id"]) if row.get("session_id") else None,
                 "options": []
             }
         if row.get("option_id"):
@@ -709,11 +731,15 @@ def _get_cached_surveys():
     return _survey_cache
 
 
-def _get_pending_surveys(user_id: str, limit: int = 2) -> List[dict]:
+def _get_pending_surveys(user_id: str, limit: int = 2, session_id: str = None) -> List[dict]:
     """Get survey questions the user hasn't answered yet."""
     all_surveys = _get_cached_surveys()
     if not all_surveys:
         return []
+
+    # Filter by session if provided
+    if session_id:
+        all_surveys = [s for s in all_surveys if s.get("session_id") == session_id]
 
     # Get question IDs the user has already answered (single query)
     answered = db.execute_query("""
@@ -755,7 +781,7 @@ def _get_pending_chat_requests(user_id: str, limit: int = 2) -> List[dict]:
             -- Position details
             p.id as position_id,
             p.statement as position_statement,
-            pc.label as position_category_name,
+            pc.label as session_name,
             loc.id as position_location_id,
             loc.code as position_location_code,
             loc.name as position_location_name,
@@ -773,7 +799,7 @@ def _get_pending_chat_requests(user_id: str, limit: int = 2) -> List[dict]:
         JOIN users u ON cr.initiator_user_id = u.id
         JOIN position p ON up.position_id = p.id
         JOIN users author ON up.user_id = author.id
-        LEFT JOIN position_category pc ON p.category_id = pc.id
+        LEFT JOIN session pc ON p.session_id = pc.id
         LEFT JOIN location loc ON p.location_id = loc.id
         WHERE up.user_id = %s
           AND cr.response = 'pending'
@@ -836,8 +862,8 @@ def _get_pending_kudos_cards(user_id: str, limit: int = 2) -> List[dict]:
             -- Position data
             p.id as position_id,
             p.statement as position_statement,
-            pc.id as position_category_id,
-            pc.label as position_category_name,
+            pc.id as session_id,
+            pc.label as session_name,
             loc.id as position_location_id,
             loc.code as position_location_code,
             loc.name as position_location_name,
@@ -856,7 +882,7 @@ def _get_pending_kudos_cards(user_id: str, limit: int = 2) -> List[dict]:
         JOIN position p ON up.position_id = p.id
         JOIN users initiator ON cr.initiator_user_id = initiator.id
         JOIN users responder ON up.user_id = responder.id
-        LEFT JOIN position_category pc ON p.category_id = pc.id
+        LEFT JOIN session pc ON p.session_id = pc.id
         LEFT JOIN location loc ON p.location_id = loc.id
         WHERE cl.end_type = 'agreed_closure'
           AND cl.log->'agreedClosure' IS NOT NULL
@@ -918,12 +944,9 @@ def _get_pending_bridging_kudos(user_id: str, limit: int = 2) -> List[dict]:
     return [dict(r) for r in (rows or [])]
 
 
-def dismiss_bridging_kudos(award_id, token_info=None):
+@require_auth("normal")
+def dismiss_bridging_kudos(award_id, token_info=None, user_id=None):
     """Dismiss a bridging kudos card."""
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
     user = token_to_user(token_info)
     db.execute_query("""
         UPDATE bridging_award SET dismissed = true
@@ -972,12 +995,13 @@ def _get_cached_pairwise_surveys():
 
     rows = db.execute_query("""
         SELECT s.id, s.survey_title, s.comparison_question,
+               s.session_id,
                loc.code as location_code, loc.name as location_name,
-               cat.label as category_name,
+               ses.label as session_name,
                pi.id as item_id, pi.item_text, pi.item_order
         FROM survey s
         LEFT JOIN location loc ON s.location_id = loc.id
-        LEFT JOIN position_category cat ON s.position_category_id = cat.id
+        LEFT JOIN session ses ON s.session_id = ses.id
         LEFT JOIN pairwise_item pi ON pi.survey_id = s.id
         WHERE s.survey_type = 'pairwise'
           AND s.status = 'active'
@@ -997,7 +1021,8 @@ def _get_cached_pairwise_surveys():
                 "comparison_question": row["comparison_question"],
                 "location_code": row.get("location_code"),
                 "location_name": row.get("location_name"),
-                "category_name": row.get("category_name"),
+                "session_id": str(row["session_id"]) if row.get("session_id") else None,
+                "session_name": row.get("session_name"),
                 "items": []
             }
         if row.get("item_id"):
@@ -1011,7 +1036,7 @@ def _get_cached_pairwise_surveys():
     return _pairwise_cache
 
 
-def _get_pending_pairwise(user_id: str, limit: int = 2) -> List[dict]:
+def _get_pending_pairwise(user_id: str, limit: int = 2, session_id: str = None) -> List[dict]:
     """Get smart pairwise comparisons using transitivity and graph algorithms.
 
     Uses preference graph to:
@@ -1021,6 +1046,12 @@ def _get_pending_pairwise(user_id: str, limit: int = 2) -> List[dict]:
     - Prioritize informative pairs (adjacency + optional group entropy)
     """
     all_surveys = _get_cached_pairwise_surveys()
+    if not all_surveys:
+        return []
+
+    # Filter by session if provided
+    if session_id:
+        all_surveys = [s for s in all_surveys if s.get("session_id") == session_id]
     if not all_surveys:
         return []
 
@@ -1079,9 +1110,9 @@ def _get_pending_pairwise(user_id: str, limit: int = 2) -> List[dict]:
                 "code": survey["location_code"],
                 "name": survey.get("location_name")
             }
-        if survey.get("category_name"):
-            card_data["category"] = {
-                "label": survey["category_name"]
+        if survey.get("session_name"):
+            card_data["session"] = {
+                "label": survey["session_name"]
             }
         cards.append({
             "type": "pairwise",

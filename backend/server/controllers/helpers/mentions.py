@@ -75,12 +75,12 @@ def resolve_mentioned_users(usernames, db):
     return {row['username']: str(row['id']) for row in rows}
 
 
-def resolve_role_users(role, location_id, category_id, db):
-    """Resolve a role keyword to a list of user_ids at the given location/category.
+def resolve_role_users(role, location_id, session_id, db):
+    """Resolve a role keyword to a list of user_ids at the given location/session.
 
-    Category-scoped roles (facilitator, liaison, expert):
-      First try exact match (location_id + category_id).
-      If empty, fall back to location-wide (category_id IS NULL).
+    Session-scoped roles (facilitator, liaison, expert):
+      First try exact match (location_id + session_id).
+      If empty, fall back to location-wide (session_id IS NULL).
 
     Location-only roles (admin, moderator):
       location_id match only.
@@ -88,28 +88,28 @@ def resolve_role_users(role, location_id, category_id, db):
     if not role or not location_id:
         return []
 
-    category_scoped = role in ('facilitator', 'liaison', 'expert')
+    session_scoped = role in ('facilitator', 'liaison', 'expert')
 
-    if category_scoped and category_id:
-        # Try exact location + category match first
+    if session_scoped and session_id:
+        # Try exact location + session match first
         rows = db.execute_query(
             "SELECT user_id FROM user_role "
-            "WHERE role = %s AND location_id = %s AND category_id = %s",
-            (role, location_id, category_id),
+            "WHERE role = %s AND location_id = %s AND session_id = %s",
+            (role, location_id, session_id),
         )
         if rows:
             return [str(r['user_id']) for r in rows]
-        # Fall back to location-wide (category IS NULL)
+        # Fall back to location-wide (session IS NULL)
         rows = db.execute_query(
             "SELECT user_id FROM user_role "
-            "WHERE role = %s AND location_id = %s AND category_id IS NULL",
+            "WHERE role = %s AND location_id = %s AND session_id IS NULL",
             (role, location_id),
         )
-    elif category_scoped:
-        # No category provided — location-wide only
+    elif session_scoped:
+        # No session provided — location-wide only
         rows = db.execute_query(
             "SELECT user_id FROM user_role "
-            "WHERE role = %s AND location_id = %s AND category_id IS NULL",
+            "WHERE role = %s AND location_id = %s AND session_id IS NULL",
             (role, location_id),
         )
     else:
@@ -124,7 +124,7 @@ def resolve_role_users(role, location_id, category_id, db):
 
 
 def process_mentions(body, author_id, author_display_name, post_id,
-                     location_id, category_id, db, comment_id=None):
+                     location_id, session_id, db, comment_id=None):
     """Orchestrator: extract, resolve, and send mention notifications.
 
     Args:
@@ -133,7 +133,7 @@ def process_mentions(body, author_id, author_display_name, post_id,
         author_display_name: Display name of the author.
         post_id: The post ID (for deep linking).
         location_id: Location scope for role resolution.
-        category_id: Category scope for role resolution (may be None).
+        session_id: Session scope for role resolution (may be None).
         db: Database module.
         comment_id: Comment ID if this is a comment mention (for deep linking).
     """
@@ -163,7 +163,7 @@ def process_mentions(body, author_id, author_display_name, post_id,
     # --- Role mention (first one wins) ---
     role = extract_role_mention(body)
     if role:
-        role_user_ids = resolve_role_users(role, location_id, category_id, db)
+        role_user_ids = resolve_role_users(role, location_id, session_id, db)
         for user_id in role_user_ids:
             # Don't self-notify
             if user_id == str(author_id):

@@ -14,8 +14,8 @@ jest.mock('../../hooks/useUser', () => ({
       username: 'admin1',
       displayName: 'Admin 1',
       roles: [
-        { role: 'moderator', locationId: 'loc2', positionCategoryId: 'cat1', locationName: 'Oregon', categoryLabel: 'Healthcare' },
-        { role: 'admin', locationId: 'loc1', positionCategoryId: null, locationName: 'United States', categoryLabel: null },
+        { role: 'moderator', locationId: 'loc2', sessionId: 'sess1', locationName: 'Oregon', sessionLabel: 'Healthcare' },
+        { role: 'admin', locationId: 'loc1', sessionId: null, locationName: 'United States', sessionLabel: null },
       ],
     },
   }),
@@ -96,16 +96,17 @@ describe('Admin Hub screen', () => {
     expect(mod).toBeTruthy()
   })
 
-  it('shows location and category for roles', () => {
+  it('shows location and session for roles', () => {
     render(<AdminHub />)
     // mockT appends interpolation values: t('atLocation', { location: 'Oregon' }) → 'atLocation Oregon'
     expect(screen.getByText('atLocation Oregon')).toBeTruthy()
-    expect(screen.getByText('inCategory Healthcare')).toBeTruthy()
+    expect(screen.getByText('inSession Healthcare')).toBeTruthy()
   })
 
-  it('shows menu items for organization, request log, users', () => {
+  it('shows menu items for organization, sessions, request log, users', () => {
     render(<AdminHub />)
     expect(screen.getByText('menuOrganization')).toBeTruthy()
+    expect(screen.getByText('menuSessions')).toBeTruthy()
     expect(screen.getByText('menuRequestLog')).toBeTruthy()
     expect(screen.getByText('menuUsers')).toBeTruthy()
   })

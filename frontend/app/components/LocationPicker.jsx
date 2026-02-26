@@ -4,12 +4,14 @@ import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { createSharedStyles } from '../constants/SharedStyles'
+import useModalBackHandler from '../hooks/useModalBackHandler'
 import ThemedText from './ThemedText'
 
 export default function LocationPicker({ visible, onClose, allLocations, currentLocationId, onSelect, saving, showGlobal, globalSelected, onSelectGlobal }) {
   const [breadcrumb, setBreadcrumb] = useState([]) // stack of {id, name} for drill-down
   const { t } = useTranslation()
   const colors = useThemeColors()
+  useModalBackHandler(visible, onClose)
   const styles = useMemo(() => createStyles(colors), [colors])
   const shared = useMemo(() => createSharedStyles(colors), [colors])
 

@@ -7,7 +7,7 @@ import { BrandColor, OnBrandColors } from '../../constants/Colors'
 import ThemedText from '../ThemedText'
 import SwipeableCard from './SwipeableCard'
 import CardShell from '../CardShell'
-import LocationCategoryBadge from '../LocationCategoryBadge'
+import LocationSessionBadge from '../LocationSessionBadge'
 
 const PairwiseCard = forwardRef(function PairwiseCard({
   pairwise,
@@ -15,6 +15,7 @@ const PairwiseCard = forwardRef(function PairwiseCard({
   onSkip,
   isBackCard = false,
   backCardAnimatedValue,
+  disabled = false,
 }, ref) {
   const { t } = useTranslation('cards')
   const colors = useThemeColors()
@@ -81,7 +82,7 @@ const PairwiseCard = forwardRef(function PairwiseCard({
   const optionA = data.optionA || { id: 'a', text: t('pairwiseOptionA') }
   const optionB = data.optionB || { id: 'b', text: t('pairwiseOptionB') }
   const location = data.location
-  const category = data.category
+  const session = data.session
 
   // Build options array
   const options = [
@@ -119,10 +120,11 @@ const PairwiseCard = forwardRef(function PairwiseCard({
       enableVerticalSwipe={true}
       rightSwipeAsSubmit={true}
       leftSwipeAsPass={true}
+      archivedMode={disabled}
       isBackCard={isBackCard}
       backCardAnimatedValue={backCardAnimatedValue}
       accessibilityLabel={t('pairwiseA11yLabel', { question })}
-      accessibilityHint={t('pairwiseA11yHint')}
+      accessibilityHint={disabled ? t('archivedA11yHint') : t('pairwiseA11yHint')}
     >
       <CardShell
         size="full"
@@ -130,11 +132,11 @@ const PairwiseCard = forwardRef(function PairwiseCard({
         header={headerContent}
         bodyStyle={styles.bodyContent}
       >
-        {/* Location & Category Header */}
+        {/* Location & Session Header */}
         <View style={styles.contentHeader}>
-          <LocationCategoryBadge
+          <LocationSessionBadge
             location={location}
-            category={category || { label: t('pairwiseDefaultCategory') }}
+            session={session || { label: t('pairwiseDefaultSession') }}
             size="lg"
           />
         </View>
@@ -144,14 +146,19 @@ const PairwiseCard = forwardRef(function PairwiseCard({
           <ThemedText variant="statement" color="dark" style={styles.question}>{question}</ThemedText>
         </View>
 
+        {/* Archived label */}
+        {disabled && (
+          <ThemedText variant="label" color="secondary" style={styles.archivedLabel}>{t('archivedStageLabel')}</ThemedText>
+        )}
+
         {/* Options */}
-        <View style={styles.optionsContainer}>
+        <View style={[styles.optionsContainer, disabled && styles.optionsDisabled]}>
           {options.map((option) => (
             <TouchableOpacity
               key={option.id}
               activeOpacity={0.7}
               onPress={() => handleOptionPress(option.id)}
-              disabled={isBackCard}
+              disabled={isBackCard || disabled}
               accessibilityRole="radio"
               accessibilityState={{ checked: selectedOption === option.id }}
               accessibilityLabel={option.option}
@@ -235,8 +242,17 @@ const createStyles = (colors) => StyleSheet.create({
   question: {
     textAlign: 'center',
   },
+  archivedLabel: {
+    fontWeight: '600',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
   optionsContainer: {
     gap: 12,
+  },
+  optionsDisabled: {
+    opacity: 0.4,
   },
   option: {
     backgroundColor: colors.buttonDefault,

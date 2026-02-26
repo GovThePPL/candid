@@ -75,22 +75,22 @@ def aggregate_demographics(
 
 def get_user_votes(
     user_id: str,
-    category_id: Optional[str],
+    session_id: Optional[str],
     location_id: str,
 ) -> Dict[str, str]:
-    """Get the user's votes on positions for this location/category.
+    """Get the user's votes on positions for this location/session.
 
     Returns a dict mapping position IDs to vote types (agree/disagree/pass).
     """
-    if category_id:
+    if session_id:
         votes = db.execute_query("""
             SELECT r.position_id, r.response
             FROM response r
             JOIN position p ON r.position_id = p.id
             WHERE r.user_id = %s
               AND p.location_id = %s
-              AND p.category_id = %s
-        """, (user_id, location_id, category_id))
+              AND p.session_id = %s
+        """, (user_id, location_id, session_id))
     else:
         votes = db.execute_query("""
             SELECT r.position_id, r.response
@@ -109,18 +109,18 @@ def get_user_votes(
 
 def get_user_position_ids(
     user_id: str,
-    category_id: Optional[str],
+    session_id: Optional[str],
     location_id: str,
 ) -> List[str]:
-    """Get IDs of positions created by the user for this location/category."""
-    if category_id:
+    """Get IDs of positions created by the user for this location/session."""
+    if session_id:
         positions = db.execute_query("""
             SELECT id FROM position
             WHERE creator_user_id = %s
               AND location_id = %s
-              AND category_id = %s
+              AND session_id = %s
               AND status = 'active'
-        """, (user_id, location_id, category_id))
+        """, (user_id, location_id, session_id))
     else:
         positions = db.execute_query("""
             SELECT id FROM position

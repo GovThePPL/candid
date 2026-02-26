@@ -26,13 +26,14 @@ class TestCreateMonthlyConversations:
 
     def test_skips_existing_conversations(self):
         mock_db = MagicMock()
-        combo = {"location_id": "loc-1", "category_id": "cat-1",
-                 "location_name": "USA", "category_name": "Politics"}
+        combo = {"location_id": "loc-1", "session_id": "cat-1",
+                 "location_name": "USA", "session_name": "Politics"}
 
-        # First call: active combos, second: existing check returns row
+        # First call: active combos; then dedup checks for proposal+opinion both exist
         mock_db.execute_query = MagicMock(side_effect=[
             [combo],        # active_combos query
-            {"id": "existing"},  # deduplication check → already exists
+            {"id": "existing-proposal"},  # dedup check proposal → exists
+            {"id": "existing-opinion"},   # dedup check opinion → exists
             [],             # active_locations query
         ])
 
@@ -43,16 +44,18 @@ class TestCreateMonthlyConversations:
             result = create_monthly_conversations()
             assert result["created"] == 0
 
-    def test_creates_category_and_location_conversations(self):
+    def test_creates_dual_phase_and_location_conversations(self):
         mock_db = MagicMock()
-        combo = {"location_id": "loc-1", "category_id": "cat-1",
-                 "location_name": "USA", "category_name": "Politics"}
+        combo = {"location_id": "loc-1", "session_id": "cat-1",
+                 "location_name": "USA", "session_name": "Politics"}
         location = {"location_id": "loc-1", "location_name": "USA"}
 
         mock_db.execute_query = MagicMock(side_effect=[
             [combo],    # active_combos
-            None,       # dedup check for category conv → not found
-            None,       # INSERT category conv
+            None,       # dedup check for proposal phase → not found
+            None,       # INSERT proposal conv
+            None,       # dedup check for opinion phase → not found
+            None,       # INSERT opinion conv
             [location], # active_locations
             None,       # dedup check for location conv → not found
             None,       # INSERT location conv
@@ -67,20 +70,26 @@ class TestCreateMonthlyConversations:
                    MagicMock(POLIS_CONVERSATION_WINDOW_MONTHS=6)):
             from candid.controllers.helpers.polis_scheduler import create_monthly_conversations
             result = create_monthly_conversations()
-            assert result["created"] == 2
+            assert result["created"] == 3  # proposal + opinion + location_all
             assert result["errors"] == []
-            assert mock_client.create_conversation.call_count == 2
+            assert mock_client.create_conversation.call_count == 3
+            # Verify phase appears in session conv topics
+            topics = [c[0][0] for c in mock_client.create_conversation.call_args_list]
+            assert any("(proposal)" in t for t in topics)
+            assert any("(opinion)" in t for t in topics)
 
     def test_collects_polis_errors(self):
         from candid.controllers.helpers.polis_client import PolisError
         mock_db = MagicMock()
-        combo = {"location_id": "loc-1", "category_id": "cat-1",
-                 "location_name": "USA", "category_name": "Politics"}
+        combo = {"location_id": "loc-1", "session_id": "cat-1",
+                 "location_name": "USA", "session_name": "Politics"}
 
         mock_db.execute_query = MagicMock(side_effect=[
             [combo],    # active_combos
-            None,       # dedup check → not found
-            # No INSERT because create_conversation raises
+            None,       # dedup check proposal → not found
+            # No INSERT because create_conversation raises for proposal
+            None,       # dedup check opinion → not found
+            # No INSERT because create_conversation raises for opinion
             [],         # active_locations (empty)
         ])
 
@@ -94,19 +103,22 @@ class TestCreateMonthlyConversations:
             from candid.controllers.helpers.polis_scheduler import create_monthly_conversations
             result = create_monthly_conversations()
             assert result["created"] == 0
-            assert len(result["errors"]) == 1
-            assert "USA/Politics" in result["errors"][0]
+            assert len(result["errors"]) == 2  # One per phase
+            assert any("proposal" in e for e in result["errors"])
+            assert any("opinion" in e for e in result["errors"])
 
     def test_returns_date_strings(self):
         """When conversations are created, result includes date strings."""
         mock_db = MagicMock()
-        combo = {"location_id": "loc-1", "category_id": "cat-1",
-                 "location_name": "USA", "category_name": "Politics"}
+        combo = {"location_id": "loc-1", "session_id": "cat-1",
+                 "location_name": "USA", "session_name": "Politics"}
 
         mock_db.execute_query = MagicMock(side_effect=[
             [combo],    # active_combos
-            None,       # dedup check → not found
-            None,       # INSERT
+            None,       # dedup check proposal → not found
+            None,       # INSERT proposal
+            None,       # dedup check opinion → not found
+            None,       # INSERT opinion
             [],         # active_locations (empty)
         ])
 
@@ -128,12 +140,13 @@ class TestCreateMonthlyConversations:
     def test_null_polis_conv_id_not_counted(self):
         """If Polis returns None for conversation ID, don't count as created."""
         mock_db = MagicMock()
-        combo = {"location_id": "loc-1", "category_id": "cat-1",
-                 "location_name": "USA", "category_name": "Politics"}
+        combo = {"location_id": "loc-1", "session_id": "cat-1",
+                 "location_name": "USA", "session_name": "Politics"}
 
         mock_db.execute_query = MagicMock(side_effect=[
             [combo],    # active_combos
-            None,       # dedup check → not found
+            None,       # dedup check proposal → not found
+            None,       # dedup check opinion → not found
             [],         # active_locations
         ])
 
@@ -158,9 +171,9 @@ class TestExpireOldConversations:
         mock_db = MagicMock()
         expired_rows = [
             {"id": "conv-1", "polis_conversation_id": "p-1",
-             "location_id": "loc-1", "category_id": "cat-1"},
+             "location_id": "loc-1", "session_id": "cat-1"},
             {"id": "conv-2", "polis_conversation_id": "p-2",
-             "location_id": "loc-1", "category_id": "cat-2"},
+             "location_id": "loc-1", "session_id": "cat-2"},
         ]
         mock_db.execute_query = MagicMock(return_value=expired_rows)
 
@@ -249,10 +262,10 @@ class TestGetConversationStats:
     def test_aggregation(self):
         mock_db = MagicMock()
         stats_rows = [
-            {"status": "active", "conversation_type": "category", "count": 10},
+            {"status": "active", "conversation_type": "session", "count": 10},
             {"status": "expired", "conversation_type": "location_all", "count": 5},
         ]
-        active_count = {"locations": 3, "categories": 7}
+        active_count = {"locations": 3, "sessions": 7}
 
         mock_db.execute_query = MagicMock(side_effect=[stats_rows, active_count])
 
@@ -261,7 +274,7 @@ class TestGetConversationStats:
             result = get_conversation_stats()
             assert len(result["by_status_and_type"]) == 2
             assert result["active_locations"] == 3
-            assert result["active_categories"] == 7
+            assert result["active_sessions"] == 7
 
     def test_empty_db(self):
         mock_db = MagicMock()
@@ -272,7 +285,7 @@ class TestGetConversationStats:
             result = get_conversation_stats()
             assert result["by_status_and_type"] == []
             assert result["active_locations"] == 0
-            assert result["active_categories"] == 0
+            assert result["active_sessions"] == 0
 
 
 # ---------------------------------------------------------------------------
@@ -284,9 +297,9 @@ class TestGetConversationsForLocation:
         mock_db = MagicMock()
         conv_rows = [
             {"id": "c-1", "polis_conversation_id": "p-1",
-             "conversation_type": "category", "active_from": date(2026, 1, 1),
+             "conversation_type": "session", "active_from": date(2026, 1, 1),
              "active_until": date(2026, 7, 1), "status": "active",
-             "category_name": "Politics"},
+             "session_name": "Politics"},
         ]
         mock_db.execute_query = MagicMock(return_value=conv_rows)
 

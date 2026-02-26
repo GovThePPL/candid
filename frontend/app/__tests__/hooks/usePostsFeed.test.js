@@ -12,6 +12,7 @@ jest.mock('react-i18next', () => ({
 
 const mockGetPosts = jest.fn()
 const mockVoteOnPost = jest.fn()
+const mockPatchPost = jest.fn()
 
 jest.mock('../../lib/api', () => ({
   __esModule: true,
@@ -19,6 +20,7 @@ jest.mock('../../lib/api', () => ({
     posts: {
       getPosts: (...args) => mockGetPosts(...args),
       voteOnPost: (...args) => mockVoteOnPost(...args),
+      patchPost: (...args) => mockPatchPost(...args),
     },
   },
 }))
@@ -28,6 +30,7 @@ import usePostsFeed from '../../hooks/usePostsFeed'
 beforeEach(() => {
   jest.clearAllMocks()
   mockGetPosts.mockResolvedValue({ posts: [], hasMore: false, nextCursor: null })
+  mockPatchPost.mockResolvedValue({})
 })
 
 const defaultPosts = [
@@ -50,12 +53,12 @@ describe('usePostsFeed', () => {
 
   it('fetches posts on mount when locationId is provided', async () => {
     mockGetPosts.mockResolvedValue({ posts: defaultPosts, hasMore: true, nextCursor: 'c1' })
-    const { result } = renderHook(() => usePostsFeed('loc1', 'cat1', 'discussion'))
+    const { result } = renderHook(() => usePostsFeed('loc1', 'sess1', 'discussion'))
 
     await waitFor(() => expect(result.current.loading).toBe(false))
 
     expect(mockGetPosts).toHaveBeenCalledWith('loc1', {
-      categoryId: 'cat1',
+      sessionId: 'sess1',
       postType: 'discussion',
       sort: 'hot',
       limit: 25,
@@ -264,5 +267,108 @@ describe('usePostsFeed', () => {
     expect(mockGetPosts.mock.calls.length).toBeGreaterThan(callsBefore)
     const lastCall = mockGetPosts.mock.calls[mockGetPosts.mock.calls.length - 1]
     expect(lastCall[1]).toEqual(expect.objectContaining({ answered: 'true' }))
+  })
+
+  it('passes phase option to API call', async () => {
+    mockGetPosts.mockResolvedValue({ posts: defaultPosts, hasMore: false, nextCursor: null })
+    const { result } = renderHook(() =>
+      usePostsFeed('loc1', 'sess1', 'discussion', { phase: 'opinion' })
+    )
+
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    expect(mockGetPosts).toHaveBeenCalledWith('loc1', expect.objectContaining({
+      phase: 'opinion',
+      sessionId: 'sess1',
+    }))
+  })
+
+  it('passes phase to loadMore call', async () => {
+    mockGetPosts
+      .mockResolvedValueOnce({ posts: [defaultPosts[0]], hasMore: true, nextCursor: 'c1' })
+      .mockResolvedValueOnce({ posts: [defaultPosts[1]], hasMore: false, nextCursor: null })
+
+    const { result } = renderHook(() =>
+      usePostsFeed('loc1', 'all', 'discussion', { phase: 'proposal' })
+    )
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    await act(async () => {
+      await result.current.loadMore()
+    })
+
+    expect(mockGetPosts).toHaveBeenLastCalledWith('loc1', expect.objectContaining({
+      phase: 'proposal',
+      cursor: 'c1',
+    }))
+  })
+
+  it('handlePinPost optimistically sets isPinned and calls API', async () => {
+    mockGetPosts.mockResolvedValue({
+      posts: [{ id: 'p1', title: 'Test', isPinned: false }],
+      hasMore: false,
+      nextCursor: null,
+    })
+
+    const { result } = renderHook(() =>
+      usePostsFeed('loc1', 'sess1', 'discussion', { phase: 'opinion', effectiveStage: 'opinion_discussion' })
+    )
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    await act(async () => {
+      await result.current.handlePinPost('p1', true)
+    })
+
+    // Optimistic update should set isPinned
+    expect(result.current.posts[0].isPinned).toBe(true)
+    expect(mockPatchPost).toHaveBeenCalledWith('p1', {
+      pinned: true,
+      pinSessionId: 'sess1',
+      pinStage: 'opinion_discussion',
+    })
+  })
+
+  it('handlePinPost rolls back on API error', async () => {
+    mockGetPosts.mockResolvedValue({
+      posts: [{ id: 'p1', title: 'Test', isPinned: false }],
+      hasMore: false,
+      nextCursor: null,
+    })
+
+    const { result } = renderHook(() =>
+      usePostsFeed('loc1', 'sess1', 'discussion', { phase: 'opinion', effectiveStage: 'opinion_discussion' })
+    )
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    mockPatchPost.mockRejectedValue(new Error('Server error'))
+
+    await act(async () => {
+      await result.current.handlePinPost('p1', true)
+    })
+
+    // Should have rolled back
+    expect(result.current.posts[0].isPinned).toBe(false)
+  })
+
+  it('handlePinPost handles 409 max pins error', async () => {
+    mockGetPosts.mockResolvedValue({
+      posts: [{ id: 'p1', title: 'Test', isPinned: false }],
+      hasMore: false,
+      nextCursor: null,
+    })
+
+    const { result } = renderHook(() =>
+      usePostsFeed('loc1', 'sess1', 'discussion', { phase: 'opinion', effectiveStage: 'opinion_discussion' })
+    )
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    mockPatchPost.mockRejectedValue({ status: 409 })
+
+    await act(async () => {
+      await result.current.handlePinPost('p1', true)
+    })
+
+    // Should have rolled back
+    expect(result.current.posts[0].isPinned).toBe(false)
   })
 })

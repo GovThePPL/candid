@@ -36,11 +36,19 @@ jest.mock('../../contexts/UserContext', () => ({
   useAuth: () => ({ user: { id: 'test-user' } }),
 }))
 
+const mockLocationSession = {
+  selectedLocation: null,
+  selectedSession: null,
+}
+jest.mock('../../contexts/LocationSessionContext', () => ({
+  useLocationSession: () => mockLocationSession,
+}))
+
 const mockGetPages = jest.fn()
 const mockGetCategories = jest.fn()
 const mockGetSuggestionCount = jest.fn()
 const mockGetAllLocations = jest.fn()
-const mockGetAllCategories = jest.fn()
+const mockGetAllSessions = jest.fn()
 const mockGetTerms = jest.fn()
 
 jest.mock('../../lib/api', () => ({
@@ -54,8 +62,8 @@ jest.mock('../../lib/api', () => ({
     users: {
       getAllLocations: (...args) => mockGetAllLocations(...args),
     },
-    categories: {
-      getAll: (...args) => mockGetAllCategories(...args),
+    sessions: {
+      getAll: (...args) => mockGetAllSessions(...args),
     },
     glossary: {
       getTerms: (...args) => mockGetTerms(...args),
@@ -110,9 +118,9 @@ const mockLocations = [
   { id: 'loc-2', name: 'Oregon', parentLocationId: 'loc-1' },
 ]
 
-const mockCats = [
-  { id: 'cat-1', label: 'Elections' },
-  { id: 'cat-2', label: 'Governance' },
+const mockSessions = [
+  { id: 'sess-1', label: 'Elections' },
+  { id: 'sess-2', label: 'Governance' },
 ]
 
 beforeEach(() => {
@@ -120,7 +128,7 @@ beforeEach(() => {
   mockGetPages.mockResolvedValue(mockPages)
   mockGetSuggestionCount.mockResolvedValue({ count: 0 })
   mockGetAllLocations.mockResolvedValue(mockLocations)
-  mockGetAllCategories.mockResolvedValue(mockCats)
+  mockGetAllSessions.mockResolvedValue(mockSessions)
   mockGetTerms.mockResolvedValue(mockTerms)
 })
 
@@ -170,7 +178,7 @@ describe('WikiScreen', () => {
     await waitFor(() => {
       expect(screen.getByText('Filibuster')).toBeTruthy()
     })
-    expect(screen.queryByText('wikiAllCategoriesLabel')).toBeNull()
+    expect(screen.queryByText('wikiAllSessionsLabel')).toBeNull()
     expect(screen.queryByText('wikiAllLocations')).toBeNull()
   })
 
@@ -182,7 +190,7 @@ describe('WikiScreen', () => {
     const filterBtn = screen.getByLabelText('wikiToggleFilterA11y')
     fireEvent.press(filterBtn)
     await waitFor(() => {
-      expect(screen.getByText('wikiAllCategoriesLabel')).toBeTruthy()
+      expect(screen.getByText('wikiAllSessionsLabel')).toBeTruthy()
       expect(screen.getByText('wikiAllLocations')).toBeTruthy()
     })
   })
@@ -194,7 +202,7 @@ describe('WikiScreen', () => {
     })
     fireEvent.press(screen.getByLabelText('wikiToggleFilterA11y'))
     await waitFor(() => {
-      expect(screen.getByText('wikiAllCategoriesLabel')).toBeTruthy()
+      expect(screen.getByText('wikiAllSessionsLabel')).toBeTruthy()
     })
   })
 
@@ -280,5 +288,25 @@ describe('WikiScreen', () => {
     await waitFor(() => {
       expect(screen.getByText('wikiNoTerms wikiNoTermsSubtitle')).toBeTruthy()
     })
+  })
+
+  it('syncs filters from LocationSessionContext on mount', async () => {
+    mockLocationSession.selectedLocation = 'loc-1'
+    mockLocationSession.selectedSession = 'sess-1'
+
+    render(<WikiScreen />)
+    await waitFor(() => {
+      // Pages should be fetched with the global session/location
+      expect(mockGetPages).toHaveBeenCalledWith(
+        expect.objectContaining({
+          locationId: 'loc-1',
+          sessionId: 'sess-1',
+        })
+      )
+    })
+
+    // Reset
+    mockLocationSession.selectedLocation = null
+    mockLocationSession.selectedSession = null
   })
 })

@@ -174,6 +174,53 @@ def check_toxicity(text: str, threshold: float = 0.7) -> dict:
         raise NLPServiceError(f"NLP service error: {e}")
 
 
+def proposal_assist(template: str, step: str, user_input: str,
+                    context: str = "", previous_sections: dict = None) -> dict:
+    """
+    Request AI-enhanced content for a proposal wizard step from the NLP service.
+
+    Unlike other NLP functions, this does NOT fail open — if the service is
+    unavailable or errors, the error is propagated so the frontend can show
+    the user an appropriate message.
+
+    Args:
+        template: "issue" or "policy"
+        step: Wizard step name
+        user_input: User's draft text
+        context: Pre-assembled context string
+        previous_sections: Dict of previous sections
+
+    Returns:
+        Dict with 'content' field
+
+    Raises:
+        NLPServiceError: If the service returns an error or is unavailable
+    """
+    payload = {
+        "template": template,
+        "step": step,
+        "user_input": user_input,
+        "context": context,
+    }
+    if previous_sections:
+        payload["previous_sections"] = previous_sections
+
+    try:
+        response = requests.post(
+            f"{Config.NLP_SERVICE_URL}/llm/proposal-assist",
+            json=payload,
+            timeout=60  # Longer timeout for LLM generation
+        )
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.ConnectionError:
+        raise NLPServiceError("NLP service unavailable for proposal assistance")
+    except requests.exceptions.Timeout:
+        raise NLPServiceError("NLP service timeout during proposal assistance")
+    except requests.exceptions.RequestException as e:
+        raise NLPServiceError(f"Proposal assist error: {e}")
+
+
 def process_avatar(image_base64: str, threshold: float = 0.6) -> dict:
     """
     Process an avatar image: validate NSFW and resize to full/icon sizes.

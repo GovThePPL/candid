@@ -71,8 +71,26 @@ jest.mock('../../components/ChatRequestIndicator', () => {
   return () => <View testID="chat-indicator" />
 })
 
+jest.mock('../../components/SessionStageBar', () => {
+  const { View } = require('react-native')
+  return () => <View testID="session-stage-bar" />
+})
+
 jest.mock('../../contexts/NotificationContext', () => ({
   useNotificationCount: () => ({ unreadCount: 0 }),
+}))
+
+jest.mock('../../contexts/LocationSessionContext', () => ({
+  useLocationSession: () => ({
+    openSessionSelector: jest.fn(),
+    selectedLocation: null,
+    selectedSession: null,
+    sessionData: null,
+    currentStage: null,
+    viewingStage: null,
+    setViewingStage: jest.fn(),
+    refreshSessionData: jest.fn(),
+  }),
 }))
 
 import Header from '../../components/Header'
@@ -129,7 +147,7 @@ describe('GroupTabBar accessibility', () => {
 })
 
 describe('PositionListManager expand headers accessibility', () => {
-  // Generate 25+ items to trigger collapsible mode (grouped by location → category)
+  // Generate 25+ items to trigger collapsible mode (grouped by location → session)
   function makeItems(count) {
     return Array.from({ length: count }, (_, i) => ({
       id: `p${i}`,
@@ -137,8 +155,8 @@ describe('PositionListManager expand headers accessibility', () => {
       isActive: true,
       locationName: i < 15 ? 'USA' : 'Canada',
       locationCode: i < 15 ? 'US' : 'CA',
-      categoryName: i % 2 === 0 ? 'Politics' : 'Science',
-      categoryId: i % 2 === 0 ? 'cat1' : 'cat2',
+      sessionName: i % 2 === 0 ? 'Politics' : 'Science',
+      sessionId: i % 2 === 0 ? 'sess1' : 'sess2',
     }))
   }
 
@@ -157,10 +175,10 @@ describe('PositionListManager expand headers accessibility', () => {
     expect(usaHeader).toBeExpanded()
   })
 
-  test('category headers have expanded state and label with count', () => {
+  test('session headers have expanded state and label with count', () => {
     render(<PositionListManager {...defaultProps} />)
     // Under USA: 8 Politics (0,2,4,6,8,10,12,14), 7 Science (1,3,5,7,9,11,13)
-    const politicsHeader = screen.getByRole('button', { name: /categoryGroupA11y.*Politics.*8/ })
+    const politicsHeader = screen.getByRole('button', { name: /sessionGroupA11y.*Politics.*8/ })
     expect(politicsHeader).toBeTruthy()
     expect(politicsHeader).toBeExpanded()
   })

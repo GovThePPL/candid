@@ -1,0 +1,150 @@
+{
+  "session_name": "Living Wage",
+  "location_code": "OR",
+  "target_stage": "opinion_curation",
+  "topic_vocabulary": {
+    "topic_noun": ["living wage", "worker compensation", "wage policy"],
+    "topic_adj": ["wage-related", "economic", "labor"],
+    "location_name": ["Oregon", "the Portland metro area"],
+    "stakeholder": ["workers", "employers", "labor unions", "small business owners", "policymakers"],
+    "specific_issue": ["minimum wage adequacy", "cost of living increases", "wage stagnation", "income inequality"],
+    "policy_example": ["Oregon's tiered minimum wage", "the Fight for $15 movement", "earned income tax credits"],
+    "data_point": ["Portland's minimum wage trails cost-of-living by 20%", "median rent exceeds 30% of income for minimum-wage workers"]
+  },
+  "positions": {
+    "proposal_issue": [
+      {"type": "anchor", "statement": "The free market should operate with minimal government intervention.",
+       "votes": [-1, -1, -1, -1, 1, 0, 1, 1, 1, 1]},
+      {"type": "anchor", "statement": "Wealthy corporations should pay significantly higher taxes to fund social programs.",
+       "votes": [1, 1, 1, 1, 1, -1, -1, -1, 1, -1]},
+      {"type": "anchor", "statement": "Tariffs on imported goods protect American workers and should be increased.",
+       "votes": [0, -1, 0, 0, -1, -1, -1, 0, 1, 1]},
+      {"type": "generated", "lean": "left", "topic_focus": "equity"},
+      {"type": "generated", "lean": "center_right", "topic_focus": "governance"}
+    ],
+    "proposal_qualify": [
+      {"type": "generated", "lean": "center_left", "topic_focus": "reform"},
+      {"type": "generated", "lean": "right", "topic_focus": "implementation"},
+      {"type": "generated", "lean": "center", "topic_focus": "funding"}
+    ],
+    "proposal_stakeholders": [
+      {"type": "generated", "lean": "left", "topic_focus": "worker_rights"},
+      {"type": "generated", "lean": "center_right", "topic_focus": "business_impact"},
+      {"type": "generated", "lean": "bipartisan", "topic_focus": "stakeholder_inclusion"}
+    ],
+    "opinion_discussion": [
+      {"type": "anchor", "statement": "A universal basic income would reduce poverty more effectively than current welfare programs.",
+       "votes": [1, 1, 1, 1, -1, -1, 0, -1, -1, -1]},
+      {"type": "anchor", "statement": "Labor unions are essential for protecting workers' rights.",
+       "votes": [1, 1, 1, 1, 1, 1, -1, -1, 1, -1]},
+      {"type": "generated", "lean": "center", "topic_focus": "individual_collective"},
+      {"type": "generated", "lean": "strong_left", "topic_focus": "equity"}
+    ],
+    "opinion_curation": [
+      {"type": "generated", "lean": "center_left", "topic_focus": "reform"},
+      {"type": "generated", "lean": "center_right", "topic_focus": "implementation"},
+      {"type": "generated", "lean": "bipartisan", "topic_focus": "consensus"}
+    ]
+  },
+  "posts": {
+    "proposal_issue": {
+      "anchors": [
+        {
+          "post_type": "discussion",
+          "title": "Should Portland invest more in public transit or road infrastructure?",
+          "body": "Portland faces real transportation challenges as the city grows. Fuel costs keep climbing, and the MAX light rail still has significant coverage gaps in East Portland and the suburbs. At the same time, many of our roads and bridges are in serious need of maintenance.\n\nAre we better served by expanding public transit options, or should we prioritize fixing and expanding our road infrastructure? What have you experienced in your daily commute?",
+          "comments": [
+            {"body": "Public transit investment removes cars from the road and helps lower-income workers who can't afford vehicle ownership. That's a win-win for congestion and equity.", "author_prefix": "prog", "replies": [
+              {"body": "But bus service in outer SE is terrible. You can wait 30+ minutes for a bus that's supposed to come every 15. We need reliability before expansion.", "author_prefix": "mod"}
+            ]},
+            {"body": "Our roads are literally crumbling. The Burnside Bridge replacement has been delayed for years. You can't have a functioning city if basic infrastructure is falling apart.", "author_prefix": "con", "replies": [
+              {"body": "This feels like a false choice. We need both. The question is really about how we fund the backlog, not whether we pick one or the other.", "author_prefix": "cen"}
+            ]}
+          ]
+        }
+      ],
+      "generated_count": 8,
+      "generated_types": {"discussion": 5, "question": 2, "proposal": 1},
+      "comments_per_generated": [5, 6, 4, 5, 5, 6, 4, 5]
+    },
+    "proposal_qualify": {
+      "anchors": [
+        {
+          "post_type": "proposal",
+          "title": "Proposal: Create a Portland Living Wage Certification Program",
+          "body": "Portland's minimum wage currently trails the actual cost of living by roughly 20%. While raising the statewide minimum is a slow legislative process, the city could act now by creating a voluntary Living Wage Certification program for local businesses.\n\nUnder this proposal, businesses that pay all employees at least $22/hour (the estimated living wage for a single adult in Portland) would receive a \"Portland Living Wage Certified\" designation. Certified businesses would get priority in city procurement contracts, reduced permitting fees, and a marketing boost through a city-sponsored directory and storefront decal program. The certification would be administered by an existing city bureau with minimal new overhead.\n\nThis approach avoids the political fight over mandated wage increases while creating market incentives for businesses to pay livable wages. Consumers who want to support fair-wage employers would have a clear way to do so. Small businesses that can't yet meet the threshold could apply for a \"Living Wage Pathway\" designation showing they're working toward it, with access to business development resources to help them get there.",
+          "comments": [
+            {"body": "I run a small restaurant in SE Portland and I already pay above $22/hour because I can't retain staff otherwise. A certification program that gives me a competitive edge and reduced city fees would be a real incentive. The procurement priority alone could bring in significant revenue for qualifying businesses.", "author_prefix": "mod", "replies": [
+              {"body": "That's great for your situation, but most small businesses in Portland are already operating on razor-thin margins. A voluntary program sounds nice until you realize it creates a two-tier system where uncertified businesses get stigmatized. It's a soft mandate dressed up as a choice.", "author_prefix": "con"}
+            ]},
+            {"body": "Voluntary programs have a terrible track record. Look at any \"green business\" certification — they become marketing tools for companies that were already doing the right thing, while bad actors just ignore them. If the wage is too low to live on, mandate it. Don't make it optional.", "author_prefix": "prog", "replies": [
+              {"body": "A mandate would crush businesses in the rural parts of the metro area where cost of living is lower. The certification approach lets the market sort it out in different neighborhoods. A taco truck in Gresham has different economics than a tech company downtown.", "author_prefix": "cen"}
+            ]}
+          ]
+        }
+      ],
+      "generated_count": 8,
+      "generated_types": {"discussion": 5, "question": 2, "proposal": 1},
+      "comments_per_generated": [5, 4, 6, 5, 5, 4, 6, 5]
+    },
+    "proposal_stakeholders": {
+      "anchors": [],
+      "generated_count": 8,
+      "generated_types": {"discussion": 4, "question": 2, "proposal": 2},
+      "comments_per_generated": [6, 5, 5, 4, 6, 5, 4, 5]
+    },
+    "opinion_discussion": {
+      "anchors": [
+        {
+          "post_type": "discussion",
+          "title": "The impact of remote work on Portland's downtown",
+          "body": "Portland's downtown has changed dramatically since the pandemic. Empty office buildings line the streets, and many of the small businesses that depended on office workers have closed or are struggling.\n\nBut remote work has also been a lifeline for many workers — no commute, more flexibility, better work-life balance. Should we be trying to bring people back downtown, or is it time to reimagine what downtown Portland looks like?",
+          "comments": [
+            {"body": "Convert the empty offices to housing. Portland has a housing crisis and a glut of empty commercial space. This seems like an obvious solution.", "author_prefix": "prog", "replies": [
+              {"body": "Office-to-residential conversion is incredibly expensive. The plumbing, HVAC, and floor plate layouts don't translate easily. It's not as simple as it sounds.", "author_prefix": "cen"}
+            ]},
+            {"body": "The real question is whether downtown *should* go back to what it was. Maybe a mixed-use neighborhood with housing, parks, and small businesses is better than a 9-to-5 office district that dies at 6pm.", "author_prefix": "libt"}
+          ]
+        },
+        {
+          "post_type": "question",
+          "title": "How does Oregon's property tax system work?",
+          "body": "I keep hearing about property taxes in debates about school funding and city services, but I honestly don't understand how Oregon's system works. Something about Measure 5 and Measure 50? Can someone explain how assessed value differs from market value and why this matters for our community?",
+          "comments": [
+            {"body": "Great question. Here's the basics:\n\n- **Measure 5 (1990)** capped property tax rates at $5 per $1,000 of real market value for education, $10 per $1,000 for general government\n- **Measure 50 (1997)** rolled back assessed values to 90% of 1995-96 levels and capped annual growth at 3%\n\nThe key issue is that assessed value can diverge significantly from market value over time. A home bought in 1996 might be assessed at $200K but worth $600K on the market. This means longtime homeowners pay much less than recent buyers for equivalent properties.", "author_prefix": "moderator", "replies": [
+              {"body": "Thank you for breaking this down! That explains why my neighbor's tax bill is so different from mine even though our houses are similar.", "author_prefix": "normal"}
+            ]},
+            {"body": "One more thing to add — you can look up any property's assessed vs. real market value on your county assessor's website. It's public information and really eye-opening.", "author_prefix": "cen"}
+          ]
+        }
+      ],
+      "generated_count": 7,
+      "generated_types": {"discussion": 4, "question": 2, "proposal": 1},
+      "comments_per_generated": [6, 5, 5, 6, 4, 5, 6]
+    },
+    "opinion_curation": {
+      "anchors": [],
+      "generated_count": 8,
+      "generated_types": {"discussion": 4, "question": 2, "proposal": 2},
+      "comments_per_generated": [5, 6, 4, 5, 5, 6, 4, 5]
+    }
+  },
+  "surveys": [
+    {
+      "title": "Living Wage Priorities for Oregon Workers",
+      "type": "standard",
+      "session_name": "Living Wage",
+      "target_stage": "opinion_curation",
+      "questions": [
+        {"question": "What is the most important factor in determining a living wage?",
+         "options": ["Cost of housing", "Cost of healthcare", "Family size and dependents", "Regional cost of living differences"]},
+        {"question": "Which approach would most effectively raise wages for low-income workers?",
+         "options": ["Higher minimum wage", "Earned income tax credits", "Universal basic income", "Stronger union protections"]},
+        {"question": "How should the cost of higher wages be distributed?",
+         "options": ["Primarily by large corporations through reduced profits", "Shared between businesses and consumers through modest price increases", "Offset by government tax credits to small businesses", "Let the market determine wages without intervention"]},
+        {"question": "What role should Oregon's state government play in wage policy?",
+         "options": ["Set a single statewide minimum wage", "Continue the tiered system (Portland, standard, rural)", "Let cities set their own minimums", "Defer to federal minimum wage standards"]}
+      ]
+    }
+  ]
+}

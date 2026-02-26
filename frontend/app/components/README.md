@@ -31,10 +31,12 @@ components/
 │   ├── SwipeableCard.jsx         # Swipeable card wrapper with gesture handling
 │   └── index.js                  # Card type registry and factory
 ├── discuss/                      # Discussion forum components
+│   ├── BallotCard.jsx            # Tap-to-rank RCV ballot for voting on qualified proposals
 │   ├── BridgingBadge.jsx         # Bridging score badge
 │   ├── CommentItem.jsx           # Threaded comment with voting
 │   ├── CommentSortControl.jsx    # Comment sort order picker
 │   ├── DownvoteReasonPicker.jsx  # Reason selector for downvotes
+│   ├── ElectionResults.jsx       # Election results display (Condorcet/IRV method, rounds, pairwise record)
 │   ├── EditCommentModal.jsx      # Modal for editing an existing comment's body
 │   ├── EditPostModal.jsx         # Modal for editing an existing post's title and body
 │   ├── FeedTabBar.jsx            # Post feed tab switcher
@@ -42,6 +44,9 @@ components/
 │   ├── PostCard.jsx              # Discussion post card
 │   ├── PostHeader.jsx            # Post header with author info
 │   ├── ReplyComposer.jsx         # WYSIWYG reply composer with modal and inline modes
+│   ├── ProposalBadge.jsx         # Draft/Final status badge for proposal posts
+│   ├── ProposalReview.jsx        # Proposal review form with title editing and section display
+│   ├── ProposalWizardStep.jsx    # Single wizard step: user writes draft, optionally enhances with AI
 │   ├── RoleBadge.jsx             # User role indicator badge
 │   ├── SortDropdown.jsx          # Sort option dropdown
 │   └── VoteControl.jsx           # Upvote/downvote control
@@ -67,6 +72,7 @@ components/
 │   ├── PositionSummaryCard.jsx   # Summarized position stats
 │   ├── SurveyResultsModal.jsx    # Survey results display modal
 │   └── VoteDistributionBar.jsx   # Vote distribution bar chart
+├── AcceptedProposalModal.jsx     # Modal displaying an accepted proposal with full content and author
 ├── AdoptPositionExplanationModal.jsx # Explanation modal for adopting positions
 ├── Avatar.jsx                    # User avatar with optional trust badge
 ├── BottomDrawerModal.jsx         # Bottom sheet modal
@@ -86,9 +92,12 @@ components/
 ├── KudosMedallion.jsx            # Kudos score medallion display
 ├── LanguagePicker.jsx            # Language selection control (en/es)
 ├── LoadingView.jsx               # Full-screen loading spinner
-├── LocationCategoryBadge.jsx     # Location/category badge pill
-├── LocationCategorySelector.jsx  # Location and category multi-selector
+├── LocationSessionBadge.jsx      # Location/session badge pill
+├── LocationSessionSelector.jsx   # Location and session multi-selector
 ├── LocationFilterButton.jsx      # Location filter toggle button
+├── SessionProgressBar.jsx        # Session phase progress bar (proposal/opinion/reflection/consensus)
+├── SessionSelectorModal.jsx      # Modal for selecting session with location-grouped section list
+├── SessionStageBar.jsx           # Session stage indicator bar with advance controls
 ├── LocationPicker.jsx            # Location hierarchy picker
 ├── ModerationActionModal.jsx     # Moderation action confirmation modal
 ├── ModerationHistoryModal.jsx    # Moderation history viewer modal

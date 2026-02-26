@@ -10,7 +10,7 @@
   "adoptA11y": "Adoptar postura: {{statement}}",
   "noSimilarFound": "\u00a1No se encontraron posturas similares. \u00a1Crea la tuya!",
   "errorEnterStatement": "Por favor, ingresa una declaraci\u00f3n",
-  "errorSelectCategory": "Por favor, selecciona una categor\u00eda",
+  "errorSelectSession": "Por favor, selecciona una sesi\u00f3n",
   "errorSelectLocation": "Por favor, selecciona una ubicaci\u00f3n",
   "creating": "Creando...",
   "createPosition": "Crear Postura",

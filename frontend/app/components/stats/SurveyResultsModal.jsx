@@ -21,7 +21,7 @@ export default function SurveyResultsModal({
   visible,
   onClose,
   locationId,
-  categoryId,
+  sessionId,
   selectedGroup,
   groups,
   polisConversationId,
@@ -80,13 +80,13 @@ export default function SurveyResultsModal({
     if (visible && locationId) {
       loadSurveys()
     }
-  }, [visible, locationId, categoryId])
+  }, [visible, locationId, sessionId])
 
   const loadSurveys = async () => {
     try {
       setLoading(true)
       setError(null)
-      const result = await fetchSurveys(locationId, categoryId)
+      const result = await fetchSurveys(locationId, sessionId)
       setSurveys(result || [])
     } catch (err) {
       console.error('Error fetching surveys:', err)

@@ -422,12 +422,12 @@ describe('CacheKeys', () => {
   it('generates expected key formats', () => {
     expect(CacheKeys.chatLog('abc')).toBe('chatlog:v2:abc')
     expect(CacheKeys.userChats('u1')).toBe('chats:v2:user:u1')
-    expect(CacheKeys.stats('loc1', 'cat1')).toBe('stats:loc1:cat1')
+    expect(CacheKeys.stats('loc1', 'sess1')).toBe('stats:loc1:sess1')
     expect(CacheKeys.userPositions('u1')).toBe('positions:user:u1')
     expect(CacheKeys.profile('u1')).toBe('profile:user:u1')
     expect(CacheKeys.demographics('u1')).toBe('demographics:user:u1')
     expect(CacheKeys.settings('u1')).toBe('settings:user:u1')
-    expect(CacheKeys.categories()).toBe('categories')
+    expect(CacheKeys.sessions()).toBe('sessions')
     expect(CacheKeys.chattingList('u1')).toBe('chattinglist:user:u1')
     expect(CacheKeys.activityPosts('u1')).toBe('activity:posts:u1')
     expect(CacheKeys.activityComments('u1')).toBe('activity:comments:u1')
@@ -436,12 +436,12 @@ describe('CacheKeys', () => {
 
 describe('CacheDurations', () => {
   it('has expected duration values', () => {
-    expect(CacheDurations.CHAT_LOG_ENDED).toBe(Infinity)
+    expect(CacheDurations.CHAT_LOG_ENDED).toBe(24 * 60 * 60 * 1000)
     expect(CacheDurations.CHAT_LOG_ACTIVE).toBe(0)
     expect(CacheDurations.CHAT_LIST).toBe(5 * 60 * 1000)
     expect(CacheDurations.STATS).toBe(5 * 60 * 1000)
     expect(CacheDurations.PROFILE).toBe(60 * 60 * 1000)
-    expect(CacheDurations.CATEGORIES).toBe(Infinity)
+    expect(CacheDurations.SESSIONS).toBe(5 * 60 * 1000)
     expect(CacheDurations.ACTIVITY).toBe(5 * 60 * 1000)
   })
 })

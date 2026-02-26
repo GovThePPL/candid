@@ -16,56 +16,55 @@ jest.mock('../../constants/SharedStyles', () => ({
 }))
 
 const mockGetLocations = jest.fn()
-const mockGetCategories = jest.fn()
+const mockGetSessions = jest.fn()
 jest.mock('../../lib/api', () => ({
   __esModule: true,
   usersApiWrapper: {
     getLocations: (...args) => mockGetLocations(...args),
   },
-  categoriesApiWrapper: {
-    getAll: (...args) => mockGetCategories(...args),
+  sessionsApiWrapper: {
+    getAll: (...args) => mockGetSessions(...args),
   },
 }))
 
-import LocationCategorySelector from '../../components/LocationCategorySelector'
+import LocationSessionSelector from '../../components/LocationSessionSelector'
 
 const sampleLocations = [
   { id: 'loc-1', name: 'United States' },
   { id: 'loc-2', name: 'Canada' },
 ]
 
-const sampleCategories = [
-  { id: 'cat-1', label: 'Healthcare', name: 'Healthcare' },
-  { id: 'cat-2', label: 'Education', name: 'Education' },
+const sampleSessions = [
+  { id: 'sess-1', label: 'Healthcare', name: 'Healthcare' },
+  { id: 'sess-2', label: 'Education', name: 'Education' },
 ]
 
-describe('LocationCategorySelector', () => {
+describe('LocationSessionSelector', () => {
   const defaultProps = {
     selectedLocation: null,
-    selectedCategory: null,
+    selectedSession: null,
     onLocationChange: jest.fn(),
-    onCategoryChange: jest.fn(),
+    onSessionChange: jest.fn(),
   }
 
   beforeEach(() => {
     jest.clearAllMocks()
     mockGetLocations.mockResolvedValue(sampleLocations)
-    mockGetCategories.mockResolvedValue(sampleCategories)
+    mockGetSessions.mockResolvedValue(sampleSessions)
   })
 
   it('shows loading state initially', () => {
-    // Make the API calls hang
+    // Make the locations call hang
     mockGetLocations.mockReturnValue(new Promise(() => {}))
-    mockGetCategories.mockReturnValue(new Promise(() => {}))
 
-    render(<LocationCategorySelector {...defaultProps} />)
+    render(<LocationSessionSelector {...defaultProps} />)
     expect(screen.getByText('loading')).toBeTruthy()
   })
 
-  it('renders location and category selector buttons after load', async () => {
+  it('renders location and session selector buttons after load', async () => {
     const onLocationChange = jest.fn()
     render(
-      <LocationCategorySelector
+      <LocationSessionSelector
         {...defaultProps}
         onLocationChange={onLocationChange}
         selectedLocation="loc-1"
@@ -75,13 +74,14 @@ describe('LocationCategorySelector', () => {
     await waitFor(() => {
       expect(screen.getByText('United States')).toBeTruthy()
     })
-    expect(screen.getByText('selectCategory')).toBeTruthy()
+    // Sessions loaded for loc-1
+    expect(mockGetSessions).toHaveBeenCalledWith('loc-1')
   })
 
   it('auto-selects first location on load', async () => {
     const onLocationChange = jest.fn()
     render(
-      <LocationCategorySelector
+      <LocationSessionSelector
         {...defaultProps}
         onLocationChange={onLocationChange}
       />
@@ -92,27 +92,41 @@ describe('LocationCategorySelector', () => {
     })
   })
 
-  it('shows "All Categories" option when showAllCategories is true', async () => {
-    const onCategoryChange = jest.fn()
+  it('fetches sessions filtered by selected location', async () => {
     render(
-      <LocationCategorySelector
+      <LocationSessionSelector
         {...defaultProps}
-        showAllCategories={true}
-        onCategoryChange={onCategoryChange}
-        selectedLocation="loc-1"
-        selectedCategory="all"
+        selectedLocation="loc-2"
+        selectedSession="sess-1"
       />
     )
 
     await waitFor(() => {
-      // When selectedCategory='all', the selector button shows "allCategories" text
-      expect(screen.getByText('allCategories')).toBeTruthy()
+      expect(mockGetSessions).toHaveBeenCalledWith('loc-2')
+    })
+  })
+
+  it('shows "All Sessions" option when showAllSessions is true', async () => {
+    const onSessionChange = jest.fn()
+    render(
+      <LocationSessionSelector
+        {...defaultProps}
+        showAllSessions={true}
+        onSessionChange={onSessionChange}
+        selectedLocation="loc-1"
+        selectedSession="all"
+      />
+    )
+
+    await waitFor(() => {
+      // When selectedSession='all', the selector button shows "allSessions" text
+      expect(screen.getByText('allSessions')).toBeTruthy()
     })
   })
 
   it('opens location picker on press', async () => {
     render(
-      <LocationCategorySelector
+      <LocationSessionSelector
         {...defaultProps}
         selectedLocation="loc-1"
       />
@@ -132,12 +146,12 @@ describe('LocationCategorySelector', () => {
     })
   })
 
-  it('opens category picker on press', async () => {
+  it('opens session picker on press', async () => {
     render(
-      <LocationCategorySelector
+      <LocationSessionSelector
         {...defaultProps}
         selectedLocation="loc-1"
-        selectedCategory="cat-1"
+        selectedSession="sess-1"
       />
     )
 
@@ -145,13 +159,13 @@ describe('LocationCategorySelector', () => {
       expect(screen.getByText('Healthcare')).toBeTruthy()
     })
 
-    // Press the category selector button
-    const catButton = screen.getByLabelText('categorySelectorA11y Healthcare')
-    fireEvent.press(catButton)
+    // Press the session selector button
+    const sessButton = screen.getByLabelText('sessionSelectorA11y Healthcare')
+    fireEvent.press(sessButton)
 
-    // The picker modal should show the category list
+    // The picker modal should show the session list
     await waitFor(() => {
-      expect(screen.getByText('selectCategory')).toBeTruthy()
+      expect(screen.getByText('selectSession')).toBeTruthy()
     })
   })
 })

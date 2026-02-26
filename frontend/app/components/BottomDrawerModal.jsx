@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   View,
-  Pressable,
   StyleSheet,
   Modal,
   TouchableOpacity,
@@ -125,19 +124,17 @@ export default function BottomDrawerModal({
         </Animated.View>
 
         {isDesktop ? (
-          <Pressable style={styles.popupCenter} onPress={onClose}>
+          <View style={styles.popupCenter} pointerEvents="box-none">
             <Animated.View
               testID="drawer-content"
               style={[styles.popupContent, popupContentStyle]}
             >
-              <Pressable onPress={(e) => e.stopPropagation()} accessible={false} importantForAccessibility="no">
-                {header}
-                <View style={shrink ? { maxHeight: maxHeight * 0.7 } : { height: maxHeight * 0.7 }}>
-                  {children}
-                </View>
-              </Pressable>
+              {header}
+              <View style={shrink ? { maxHeight: maxHeight * 0.7 } : { height: maxHeight * 0.7 }}>
+                {children}
+              </View>
             </Animated.View>
-          </Pressable>
+          </View>
         ) : (
           <Animated.View
             testID="drawer-content"

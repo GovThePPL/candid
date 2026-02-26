@@ -1,0 +1,112 @@
+{
+  "session_name": "Criminal Justice",
+  "location_code": "TX",
+  "target_stage": "proposal_stakeholders",
+  "topic_vocabulary": {
+    "topic_noun": ["criminal justice", "policing", "public safety"],
+    "topic_adj": ["criminal justice", "law enforcement", "judicial"],
+    "location_name": ["Texas", "Texas cities"],
+    "stakeholder": ["police departments", "incarcerated individuals", "prosecutors", "public defenders", "community organizations"],
+    "specific_issue": ["police accountability", "mass incarceration", "drug courts", "reentry services", "racial disparities"],
+    "policy_example": ["Texas drug courts", "Right on Crime initiative", "Austin Office of Police Oversight", "bail reform"],
+    "data_point": ["Texas has the 7th highest incarceration rate nationally", "TX drug courts reduce recidivism by 15-20%"]
+  },
+  "positions": {
+    "proposal_issue": [
+      {"type": "anchor", "statement": "Police departments need more funding, not less.",
+       "votes": [-1, -1, -1, -1, 1, 1, 1, 1, 1, 1]},
+      {"type": "anchor", "statement": "The criminal justice system is biased against minorities and needs fundamental reform.",
+       "votes": [1, 1, 1, 1, 1, 0, -1, -1, -1, -1]},
+      {"type": "generated", "lean": "strong_left", "topic_focus": "equity"},
+      {"type": "generated", "lean": "center_right", "topic_focus": "governance"},
+      {"type": "generated", "lean": "center", "topic_focus": "funding"}
+    ],
+    "proposal_qualify": [
+      {"type": "anchor", "statement": "Drug possession should be decriminalized and treated as a health issue.",
+       "votes": [1, 1, 1, 1, 1, 1, 1, -1, -1, -1]},
+      {"type": "generated", "lean": "left", "topic_focus": "reform"},
+      {"type": "generated", "lean": "right", "topic_focus": "implementation"},
+      {"type": "generated", "lean": "bipartisan", "topic_focus": "individual_collective"}
+    ],
+    "proposal_stakeholders": [
+      {"type": "generated", "lean": "center_left", "topic_focus": "equity"},
+      {"type": "generated", "lean": "libertarian_cross", "topic_focus": "governance"},
+      {"type": "generated", "lean": "populist_cross", "topic_focus": "reform"}
+    ]
+  },
+  "posts": {
+    "proposal_issue": {
+      "anchors": [
+        {
+          "post_type": "discussion",
+          "title": "Criminal justice reform in Texas: What's working?",
+          "body": "Texas is actually a national leader in criminal justice reform, which surprises a lot of people. The state has invested in drug courts, expanded reentry services, and closed several prisons over the past decade while crime rates continued to decline.\n\nWhat reforms have you seen working in your community? What still needs to change?",
+          "comments": [
+            {"body": "Drug courts work. I've seen it firsthand — people who would have been sent to prison for years get treatment instead, at a fraction of the cost, and actually come out functional.", "author_prefix": "cen", "replies": [
+              {"body": "The Right on Crime initiative is a great example of conservative-led reform. It proved you can be tough on crime and smart on spending at the same time.", "author_prefix": "con"}
+            ]},
+            {"body": "Reform is good but we need to address root causes: poverty, lack of mental health services, inadequate education. The system catches people after they've already fallen through every other safety net.", "author_prefix": "prog"}
+          ]
+        }
+      ],
+      "generated_count": 8,
+      "generated_types": {"discussion": 5, "question": 2, "proposal": 1},
+      "comments_per_generated": [5, 6, 4, 5, 5, 6, 4, 5]
+    },
+    "proposal_qualify": {
+      "anchors": [
+        {
+          "post_type": "proposal",
+          "title": "Proposal: Expand Texas Drug Courts and Diversion Programs Statewide",
+          "body": "Texas drug courts have proven remarkably effective — participants show 15-20% lower recidivism rates compared to those who go through traditional incarceration, and the programs cost a fraction of what prison does per person. Yet drug courts are only available in about half of Texas counties, leaving many communities without this evidence-based alternative.\n\nThis proposal calls for expanding drug court availability to all 254 Texas counties within five years, with a particular focus on rural areas that currently lack any diversion programs. For counties too small to sustain a standalone drug court, the proposal creates regional circuits where a traveling judge and treatment team serve multiple counties on a rotating schedule. The expansion would be funded through a reallocation of savings from reduced incarceration costs, supplemented by federal Byrne Justice Assistance Grants.\n\nIn addition to expanding drug courts, the proposal would establish pre-arrest diversion programs modeled on Houston's successful HART (Harris County Arraignment and Treatment) program. Under these programs, law enforcement officers would have the option to refer individuals caught with small amounts of drugs directly to treatment rather than arresting them. This keeps people out of the criminal justice system entirely while still connecting them to help.",
+          "comments": [
+            {"body": "The Right on Crime initiative already proved this works from a conservative perspective — it saves taxpayer money and produces better outcomes. Expanding drug courts should be the easiest bipartisan win in criminal justice. The regional circuit idea is smart for addressing rural access.", "author_prefix": "con", "replies": [
+              {"body": "Agreed on drug courts, but the pre-arrest diversion piece gives me pause. Officers making treatment referrals on the street without judicial oversight is a big ask. Who ensures accountability? What happens when someone refuses treatment — do they just walk?", "author_prefix": "cen"}
+            ]},
+            {"body": "Drug courts are a step forward but they still operate within a punitive framework. Participants face jail if they fail drug tests or miss appointments. True public health approaches don't threaten people with incarceration for having a relapse. We should be investing in voluntary community-based treatment, not court-mandated programs.", "author_prefix": "prog", "replies": [
+              {"body": "The data disagrees. Court-mandated treatment has significantly higher completion rates than voluntary programs precisely because of the accountability structure. Perfect shouldn't be the enemy of good here.", "author_prefix": "mod"}
+            ]}
+          ]
+        }
+      ],
+      "generated_count": 7,
+      "generated_types": {"discussion": 4, "question": 2, "proposal": 1},
+      "comments_per_generated": [5, 4, 6, 5, 5, 4, 6]
+    },
+    "proposal_stakeholders": {
+      "anchors": [
+        {
+          "post_type": "question",
+          "title": "How do citizen oversight boards for police actually work?",
+          "body": "I keep hearing about civilian oversight as a solution to police accountability, but I'm not clear on the specifics. What can an oversight board actually investigate? How are members selected? How does this work compared to other states?\n\nWould love to hear from anyone who has experience with these boards.",
+          "comments": [
+            {"body": "Texas oversight boards are mostly advisory — they can review complaints and make recommendations, but typically can't subpoena or discipline officers directly. Austin has the Office of Police Oversight, which reviews use-of-force incidents and complaint patterns. Board members are usually appointed by city council.", "author_prefix": "admin", "replies": [
+              {"body": "That's exactly the design flaw. If the board can only recommend and the police department can ignore those recommendations, what's the point? We need boards with actual enforcement power.", "author_prefix": "prog"}
+            ]}
+          ]
+        }
+      ],
+      "generated_count": 7,
+      "generated_types": {"discussion": 4, "question": 2, "proposal": 1},
+      "comments_per_generated": [6, 5, 4, 5, 6, 5, 4]
+    }
+  },
+  "surveys": [
+    {
+      "title": "Criminal Justice Reform Priorities for Texas",
+      "type": "standard",
+      "session_name": "Criminal Justice",
+      "target_stage": "proposal_stakeholders",
+      "questions": [
+        {"question": "What should be the top priority for criminal justice reform in Texas?",
+         "options": ["Reducing incarceration rates through alternative sentencing", "Improving police accountability and oversight", "Expanding drug courts and treatment programs", "Increasing funding for law enforcement training"]},
+        {"question": "How should Texas handle nonviolent drug offenses?",
+         "options": ["Full decriminalization with mandatory treatment referral", "Reduced penalties with optional treatment programs", "Maintain current penalties but expand drug courts", "Keep current enforcement approach unchanged"]},
+        {"question": "What role should civilian oversight play in policing?",
+         "options": ["Independent boards with subpoena and disciplinary power", "Advisory boards that review complaints and recommend action", "Internal affairs should handle all police oversight", "Elected civilian review commissioners"]},
+        {"question": "Which stakeholder group is most underrepresented in criminal justice policy discussions?",
+         "options": ["Formerly incarcerated individuals and their families", "Victims of crime", "Front-line police officers", "Community organizations in high-crime neighborhoods"]}
+      ]
+    }
+  ]
+}

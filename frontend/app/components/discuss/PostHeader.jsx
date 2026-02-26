@@ -13,7 +13,7 @@ import VoteControl from './VoteControl'
 import BridgingBadge from './BridgingBadge'
 import MarkdownRenderer from './MarkdownRenderer'
 import BottomDrawerModal from '../BottomDrawerModal'
-import LocationCategoryBadge from '../LocationCategoryBadge'
+import LocationSessionBadge from '../LocationSessionBadge'
 
 /**
  * Full post display used as FlatList ListHeaderComponent on the post detail screen.
@@ -25,7 +25,7 @@ import LocationCategoryBadge from '../LocationCategoryBadge'
  * @param {Function} props.onDownvote - Called when downvote is tapped
  * @param {Function} props.onToggleRole - Called with (postId, showCreatorRole)
  */
-export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, onToggleRole, onToggleMute, onLock, onEdit, onDelete, isMuted, canModerate, onReport, onModerate, glossaryRules }) {
+export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, onToggleRole, onToggleMute, onLock, onEdit, onDelete, isMuted, canModerate, onReport, onModerate, glossaryRules, readOnly }) {
   const { t } = useTranslation('discuss')
   const router = useRouter()
   const colors = useThemeColors()
@@ -56,7 +56,7 @@ export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, 
       {/* Top row: badges left, time right */}
       <View style={styles.topRow} onLayout={e => { rowWidthRef.current = e.nativeEvent.layout.width; updateAvailableRight() }}>
         <View style={styles.topRowLeft} onLayout={e => { leftWidthRef.current = e.nativeEvent.layout.width; updateAvailableRight() }}>
-          <LocationCategoryBadge location={post.location} category={post.category} size="lg" />
+          <LocationSessionBadge location={post.location} session={post.session} size="lg" />
         </View>
         <View style={styles.topRowRight}>
           <BridgingBadge item={post} compact={compactBadges} />
@@ -134,7 +134,7 @@ export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, 
             onDownvote={onDownvote}
             authorName={authorName}
             targetType="post"
-            disabled={isOwnPost}
+            disabled={isOwnPost || readOnly}
           />
         </View>
       </View>

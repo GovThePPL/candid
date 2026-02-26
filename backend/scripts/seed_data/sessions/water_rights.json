@@ -1,0 +1,377 @@
+{
+  "session_name": "Water Rights",
+  "location_code": "CA/LAX",
+  "target_stage": "reflection",
+  "topic_vocabulary": {
+    "topic_noun": [
+      "water rights",
+      "water policy",
+      "water management"
+    ],
+    "topic_adj": [
+      "water",
+      "hydrological",
+      "water-related"
+    ],
+    "location_name": [
+      "California",
+      "Los Angeles",
+      "the Central Valley",
+      "Southern California"
+    ],
+    "stakeholder": [
+      "farmers",
+      "urban water districts",
+      "environmental groups",
+      "tribal nations",
+      "desalination companies"
+    ],
+    "specific_issue": [
+      "agricultural water allocations",
+      "desalination feasibility",
+      "groundwater depletion",
+      "Colorado River compact",
+      "water recycling"
+    ],
+    "policy_example": [
+      "the State Water Project",
+      "SGMA (Sustainable Groundwater Management Act)",
+      "the Poseidon desalination plant proposal",
+      "LA's recycled water initiative"
+    ],
+    "data_point": [
+      "agriculture uses 80% of California's developed water",
+      "almond farming alone uses 10% of the state's water",
+      "LA imports 85% of its water",
+      "the Colorado River is at historically low levels"
+    ]
+  },
+  "positions": {
+    "proposal_issue": [
+      {
+        "type": "anchor",
+        "statement": "Agricultural water allocations should be reduced to protect urban water supplies.",
+        "votes": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          0,
+          -1,
+          -1,
+          -1,
+          -1
+        ]
+      },
+      {
+        "type": "anchor",
+        "statement": "Desalination plants are the long-term solution to California's water shortage.",
+        "votes": [
+          0,
+          -1,
+          0,
+          -1,
+          1,
+          1,
+          1,
+          1,
+          0,
+          0
+        ]
+      },
+      {
+        "type": "generated",
+        "lean": "left",
+        "topic_focus": "equity"
+      },
+      {
+        "type": "generated",
+        "lean": "center_right",
+        "topic_focus": "governance"
+      },
+      {
+        "type": "generated",
+        "lean": "center",
+        "topic_focus": "implementation"
+      }
+    ],
+    "proposal_qualify": [
+      {
+        "type": "generated",
+        "lean": "center_left",
+        "topic_focus": "reform"
+      },
+      {
+        "type": "generated",
+        "lean": "right",
+        "topic_focus": "funding"
+      },
+      {
+        "type": "generated",
+        "lean": "bipartisan",
+        "topic_focus": "individual_collective"
+      }
+    ],
+    "proposal_stakeholders": [
+      {
+        "type": "generated",
+        "lean": "populist_cross",
+        "topic_focus": "equity"
+      },
+      {
+        "type": "generated",
+        "lean": "libertarian_cross",
+        "topic_focus": "governance"
+      },
+      {
+        "type": "generated",
+        "lean": "center",
+        "topic_focus": "implementation"
+      }
+    ],
+    "opinion_discussion": [
+      {
+        "type": "anchor",
+        "statement": "Water is a human right and should never be privatized.",
+        "votes": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          0,
+          -1,
+          -1,
+          1,
+          0
+        ]
+      },
+      {
+        "type": "generated",
+        "lean": "left",
+        "topic_focus": "equity"
+      },
+      {
+        "type": "generated",
+        "lean": "center",
+        "topic_focus": "funding"
+      },
+      {
+        "type": "generated",
+        "lean": "divisive",
+        "topic_focus": "governance"
+      }
+    ],
+    "opinion_curation": [
+      {
+        "type": "generated",
+        "lean": "bipartisan",
+        "topic_focus": "reform"
+      },
+      {
+        "type": "generated",
+        "lean": "center_left",
+        "topic_focus": "implementation"
+      },
+      {
+        "type": "generated",
+        "lean": "center_right",
+        "topic_focus": "funding"
+      }
+    ],
+    "opinion_proposals": [
+      {
+        "type": "generated",
+        "lean": "left",
+        "topic_focus": "governance"
+      },
+      {
+        "type": "generated",
+        "lean": "center",
+        "topic_focus": "reform"
+      },
+      {
+        "type": "generated",
+        "lean": "right",
+        "topic_focus": "implementation"
+      }
+    ]
+  },
+  "posts": {
+    "proposal_issue": {
+      "anchors": [
+        {
+          "post_type": "discussion",
+          "title": "California's water crisis: Agriculture vs. urban needs",
+          "body": "Agriculture uses roughly 80% of California's developed water supply. Almond farms alone consume about 10% of the state's water. Meanwhile, cities face mandatory water restrictions during droughts and LA imports 85% of its water from hundreds of miles away.\n\nFarmers argue that they feed the nation and the world \u2014 California produces over a third of the country's vegetables and two-thirds of its fruits and nuts. Cutting agricultural water would mean higher food prices and lost jobs in the Central Valley.\n\nUrban advocates counter that water-intensive crops like almonds and alfalfa (much of which is exported) shouldn't take priority over drinking water for 40 million residents.\n\nHow should California balance these competing needs?"
+        }
+      ],
+      "generated_count": 8,
+      "generated_types": {
+        "discussion": 5,
+        "question": 2,
+        "proposal": 1
+      },
+      "comments_per_generated": [
+        5,
+        4,
+        6,
+        5,
+        4,
+        5,
+        6,
+        5
+      ]
+    },
+    "proposal_qualify": {
+      "anchors": [
+        {
+          "post_type": "proposal",
+          "title": "Proposal: Establish a Los Angeles Regional Water Recycling and Stormwater Capture Program",
+          "body": "Los Angeles imports 85% of its water from hundreds of miles away — the Colorado River, the Sacramento-San Joaquin Delta, and the Eastern Sierra. This dependence on distant water sources is unsustainable as drought intensifies, the Colorado River shrinks to historically low levels, and competing demands from agriculture and other states grow. LA needs to become water self-sufficient, and the technology to do it already exists.\n\nThis proposal calls for a $2 billion, 15-year program to make LA 70% water self-sufficient through two proven strategies: advanced water recycling (purifying treated wastewater to drinking water standards) and large-scale stormwater capture. LA currently sends billions of gallons of stormwater to the ocean through its concrete channel system every year. The program would retrofit 200 miles of the LA River and its tributaries with infiltration basins and spreading grounds to capture stormwater and recharge the groundwater basin. Simultaneously, it would expand the Hyperion Water Reclamation Plant's advanced purification capacity to produce 150 million gallons per day of recycled drinking water.\n\nOrange County's Groundwater Replenishment System has proven that recycled water can meet or exceed the quality of imported water at a lower cost per gallon. LA's program would be modeled on this success. The $2 billion investment would be recovered through reduced water importation costs within 20 years, and the infrastructure would serve the city for generations. Funding would come from a combination of state water bonds, federal infrastructure grants, and a modest rate increase phased in over five years.",
+          "comments": [
+            {"body": "Orange County's recycling program has been running for over 15 years and the water quality consistently exceeds federal standards. The technology is proven and the economics work. LA is behind the curve on this — every gallon we recycle locally is a gallon we don't have to pipe in from 400 miles away. The $2 billion price tag sounds big, but LA spends billions importing water already.", "author_prefix": "mod", "replies": [
+              {"body": "The stormwater capture piece is arguably even more important than recycling. LA gets 15 inches of rain per year and almost all of it washes out to sea. Other cities would kill for that much precipitation. We've just built an infrastructure that treats rainwater as a nuisance instead of a resource.", "author_prefix": "prog"}
+            ]},
+            {"body": "I support water recycling in theory, but 'toilet to tap' programs face massive public acceptance challenges for a reason. People have a visceral reaction to drinking recycled wastewater, even if the science says it's safe. This proposal needs a serious public education component, or it will die the same way the San Diego program nearly did before rebranding.", "author_prefix": "cen", "replies": [
+              {"body": "The 'toilet to tap' framing is a scare tactic. All water on Earth is recycled — we're all drinking water that dinosaurs urinated in. The advanced purification process produces water that is cleaner than most bottled water. Orange County proved you can overcome the perception problem with transparency and education. Let the science speak.", "author_prefix": "con"}
+            ]}
+          ]
+        }
+      ],
+      "generated_count": 8,
+      "generated_types": {
+        "discussion": 5,
+        "question": 2,
+        "proposal": 1
+      },
+      "comments_per_generated": [
+        5,
+        6,
+        4,
+        5,
+        5,
+        6,
+        4,
+        5
+      ]
+    },
+    "proposal_stakeholders": {
+      "anchors": [],
+      "generated_count": 7,
+      "generated_types": {
+        "discussion": 4,
+        "question": 2,
+        "proposal": 1
+      },
+      "comments_per_generated": [
+        6,
+        5,
+        5,
+        4,
+        6,
+        5,
+        4
+      ]
+    },
+    "opinion_discussion": {
+      "anchors": [
+        {
+          "post_type": "discussion",
+          "title": "Desalination: Silver bullet or environmental disaster?",
+          "body": "Desalination has long been proposed as the ultimate solution to California's water woes \u2014 after all, we're right next to the Pacific Ocean. But it comes with serious trade-offs:\n\n**The case for**: Drought-proof water supply, technology is improving, several countries (Israel, Saudi Arabia) rely on it heavily.\n\n**The case against**: Extremely energy-intensive (increasing carbon emissions), produces toxic brine that harms marine ecosystems, and costs 2-3x more than other water sources.\n\nThe proposed Poseidon plant in Huntington Beach was rejected in 2022 over environmental concerns. But as droughts worsen, should we revisit it?\n\nIs desalination part of California's water future, or should we focus on conservation, recycling, and better management of existing supplies?"
+        }
+      ],
+      "generated_count": 7,
+      "generated_types": {
+        "discussion": 4,
+        "question": 2,
+        "proposal": 1
+      },
+      "comments_per_generated": [
+        5,
+        6,
+        4,
+        5,
+        5,
+        6,
+        4
+      ]
+    },
+    "opinion_curation": {
+      "anchors": [],
+      "generated_count": 8,
+      "generated_types": {
+        "discussion": 4,
+        "question": 2,
+        "proposal": 2
+      },
+      "comments_per_generated": [
+        5,
+        4,
+        6,
+        5,
+        4,
+        5,
+        6,
+        5
+      ]
+    },
+    "opinion_proposals": {
+      "anchors": [],
+      "generated_count": 7,
+      "generated_types": {
+        "discussion": 3,
+        "question": 1,
+        "proposal": 3
+      },
+      "comments_per_generated": [
+        6,
+        5,
+        5,
+        6,
+        4,
+        5,
+        6
+      ]
+    }
+  },
+  "surveys": [
+    {
+      "title": "Water Policy Priorities for Southern California",
+      "type": "standard",
+      "session_name": "Water Rights",
+      "target_stage": "opinion_discussion",
+      "questions": [
+        {
+          "question": "What is the most promising approach to solving California's water crisis?",
+          "options": [
+            "Reduce agricultural water allocations",
+            "Build desalination plants",
+            "Expand water recycling programs",
+            "Improve conservation and efficiency"
+          ]
+        },
+        {
+          "question": "Should water-intensive export crops (almonds, alfalfa) face higher water prices?",
+          "options": [
+            "Yes, market pricing would encourage conservation",
+            "No, it would devastate farming communities",
+            "Only during declared drought emergencies",
+            "Phase in gradually over 10 years"
+          ]
+        },
+        {
+          "question": "How should LA reduce its dependence on imported water?",
+          "options": [
+            "Invest in local water recycling",
+            "Mandate stricter conservation measures",
+            "Build desalination capacity",
+            "Capture and store more stormwater"
+          ]
+        }
+      ]
+    }
+  ]
+}

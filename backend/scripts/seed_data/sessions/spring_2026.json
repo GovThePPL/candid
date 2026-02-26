@@ -1,0 +1,53 @@
+{
+  "session_name": "Spring 2026",
+  "location_code": "CA/LA",
+  "target_stage": "proposal_issue",
+  "topic_vocabulary": {
+    "topic_noun": ["state priorities", "policy agenda", "community needs"],
+    "topic_adj": ["priority", "statewide", "community-driven"],
+    "location_name": ["California", "Los Angeles", "Southern California"],
+    "stakeholder": ["residents", "state legislators", "local officials", "community organizations", "business owners"],
+    "specific_issue": ["housing affordability", "wildfire preparedness", "water infrastructure", "homelessness", "public transit"],
+    "policy_example": ["Proposition 1 housing bond", "Cal Fire prevention programs", "the Bullet Train project", "LA Metro expansion"],
+    "data_point": ["median home price in LA is $950K", "2025 wildfires burned 40,000+ acres", "California has a $38B budget deficit", "1 in 3 Californians are cost-burdened renters"]
+  },
+  "positions": {
+    "proposal_issue": [
+      {"type": "anchor", "statement": "California's cost of living crisis is the most pressing issue facing the state.",
+       "votes": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]},
+      {"type": "anchor", "statement": "Wildfire preparedness should be the top priority for state funding.",
+       "votes": [1, 1, 1, 0, 1, 1, 0, 1, 0, 0]},
+      {"type": "generated", "lean": "left", "topic_focus": "equity"},
+      {"type": "generated", "lean": "center", "topic_focus": "governance"},
+      {"type": "generated", "lean": "right", "topic_focus": "funding"},
+      {"type": "generated", "lean": "populist_cross", "topic_focus": "reform"}
+    ]
+  },
+  "posts": {
+    "proposal_issue": {
+      "anchors": [
+        {
+          "post_type": "discussion",
+          "title": "What should California's top priorities be for 2026?",
+          "body": "Welcome to the new session! As we head into 2026, California faces a convergence of challenges: a housing affordability crisis, devastating wildfire seasons, ongoing water scarcity, aging infrastructure, and a significant budget deficit.\n\nThis is the place to discuss what should be at the top of the state's agenda. What issues are most urgent in your community? What should our leaders be focused on?\n\nSome areas to consider:\n- **Housing**: Costs keep rising, homelessness persists\n- **Wildfires**: Are we doing enough to prepare and prevent?\n- **Water**: Another drought cycle seems inevitable\n- **Infrastructure**: Roads, transit, broadband\n- **Budget**: How to fund priorities with a $38B deficit"
+        }
+      ],
+      "generated_count": 8,
+      "generated_types": {"discussion": 4, "question": 3, "proposal": 1},
+      "comments_per_generated": [6, 5, 5, 6, 4, 5, 6, 5]
+    }
+  },
+  "surveys": [
+    {
+      "title": "California Priority Issues - Spring 2026",
+      "type": "standard",
+      "session_name": "Spring 2026",
+      "target_stage": "proposal_issue",
+      "questions": [
+        {"question": "Which issue should California prioritize most in 2026?", "options": ["Housing affordability", "Wildfire prevention and preparedness", "Water infrastructure and conservation", "Public transit and transportation", "Homelessness services"]},
+        {"question": "How should California address its budget deficit?", "options": ["Cut spending across the board", "Raise taxes on high earners and corporations", "Prioritize essential services and cut everything else", "Borrow through bonds and pay later"]},
+        {"question": "What level of government is best positioned to address your top concern?", "options": ["Federal government", "State government", "Local city/county government", "Regional cooperation between municipalities"]}
+      ]
+    }
+  ]
+}

@@ -10,9 +10,9 @@ jest.mock('../../hooks/useThemeColors', () => ({
 // Mock GlossaryContext
 const mockMatchPattern = /\b(Filibuster|Gerrymandering|gerrymander)\b/gi
 const mockTermMap = new Map([
-  ['filibuster', { slug: 'filibuster', term: 'Filibuster', categoryIds: [], locationIds: [], scopeCombine: 'or' }],
-  ['gerrymandering', { slug: 'gerrymandering', term: 'Gerrymandering', categoryIds: ['cat1'], locationIds: [], scopeCombine: 'or' }],
-  ['gerrymander', { slug: 'gerrymandering', term: 'Gerrymandering', categoryIds: ['cat1'], locationIds: [], scopeCombine: 'or' }],
+  ['filibuster', { slug: 'filibuster', term: 'Filibuster', sessionIds: [], locationIds: [], scopeCombine: 'or' }],
+  ['gerrymandering', { slug: 'gerrymandering', term: 'Gerrymandering', sessionIds: ['sess1'], locationIds: [], scopeCombine: 'or' }],
+  ['gerrymander', { slug: 'gerrymandering', term: 'Gerrymandering', sessionIds: ['sess1'], locationIds: [], scopeCombine: 'or' }],
 ])
 
 jest.mock('../../contexts/GlossaryContext', () => ({

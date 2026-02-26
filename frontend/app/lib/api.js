@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { getSecureItem, setSecureItem, deleteSecureItem } from './secureStorage'
 import * as keycloak from './keycloak'
 import {
   ApiClient,
@@ -7,7 +8,7 @@ import {
   PositionsApi,
   ChatApi,
   SurveysApi,
-  CategoriesApi,
+  SessionsApi,
   ChattingListApi,
   StatsApi,
   ModerationApi,
@@ -58,7 +59,7 @@ const cardsApi = new CardsApi(apiClient)
 const positionsApi = new PositionsApi(apiClient)
 const chatApi = new ChatApi(apiClient)
 const surveysApi = new SurveysApi(apiClient)
-const categoriesApi = new CategoriesApi(apiClient)
+const sessionsApi = new SessionsApi(apiClient)
 const chattingListApi = new ChattingListApi(apiClient)
 const statsApi = new StatsApi(apiClient)
 const moderationApi = new ModerationApi(apiClient)
@@ -70,10 +71,10 @@ const commentsApi = new CommentsApi(apiClient)
 const notificationsApi = new NotificationsApi(apiClient)
 const glossaryApi = new GlossaryApi(apiClient)
 
-// Token management
+// Token management — stored in secure storage (Keychain/Keystore on native)
 export async function getToken() {
   try {
-    return await AsyncStorage.getItem(TOKEN_KEY)
+    return await getSecureItem(TOKEN_KEY)
   } catch {
     return null
   }
@@ -82,11 +83,11 @@ export async function getToken() {
 export async function setToken(token) {
   try {
     if (token) {
-      await AsyncStorage.setItem(TOKEN_KEY, token)
+      await setSecureItem(TOKEN_KEY, token)
       // Set the token on the API client for authenticated requests
       apiClient.authentications['BearerAuth'].accessToken = token
     } else {
-      await AsyncStorage.removeItem(TOKEN_KEY)
+      await deleteSecureItem(TOKEN_KEY)
       apiClient.authentications['BearerAuth'].accessToken = null
     }
   } catch (error) {
@@ -124,7 +125,7 @@ export async function setStoredUser(user) {
  */
 export async function getOrRefreshToken() {
   try {
-    const token = await AsyncStorage.getItem(TOKEN_KEY)
+    const token = await getSecureItem(TOKEN_KEY)
     if (!token) return null
 
     // Decode JWT payload (base64url, no verification)
@@ -149,7 +150,7 @@ export async function getOrRefreshToken() {
   } catch {
     // Graceful degradation: return whatever we have
     try {
-      return await AsyncStorage.getItem(TOKEN_KEY)
+      return await getSecureItem(TOKEN_KEY)
     } catch {
       return null
     }
@@ -338,12 +339,8 @@ export const usersApiWrapper = {
     )
   },
 
-  async muteNotifications(body) {
-    return await promisify(usersApi.muteNotifications.bind(usersApi), body)
-  },
-
-  async unmuteNotifications(body) {
-    return await promisify(usersApi.unmuteNotifications.bind(usersApi), body)
+  async updateNotificationMute(body) {
+    return await promisify(usersApi.updateNotificationMute.bind(usersApi), body)
   },
 
   async getNotificationMuteStatus(opts) {
@@ -387,13 +384,17 @@ export const usersApiWrapper = {
 
 // Cards API
 export const cardsApiWrapper = {
-  async getCardQueue(limit = 10) {
+  async getCardQueue(limit = 10, sessionId = null, phase = null, browseAll = false) {
     // Use a custom callback that ignores oneOf deserialization errors and returns
     // response.body (raw JSON) directly. The generated client's deserialize step
     // throws because the oneOf/discriminator validation rejects valid cards whose
     // nested data doesn't exactly match the spec schemas.
+    const opts = { limit }
+    if (sessionId) opts.sessionId = sessionId
+    if (phase) opts.phase = phase
+    if (browseAll) opts.browseAll = browseAll
     return new Promise((resolve, reject) => {
-      cardsApi.getCardQueue({ limit }, (error, data, response) => {
+      cardsApi.getCardQueue(opts, (error, data, response) => {
         if (response?.body) {
           resolve(response.body)
         } else if (error) {
@@ -430,10 +431,10 @@ export const positionsApiWrapper = {
     )
   },
 
-  async create(statement, categoryId, locationId) {
+  async create(statement, sessionId, locationId) {
     return await promisify(
       positionsApi.createPosition.bind(positionsApi),
-      { statement, categoryId, locationId }
+      { statement, sessionId, locationId }
     )
   },
 
@@ -456,9 +457,9 @@ export const positionsApiWrapper = {
   },
 
   async searchSimilar(statement, options = {}) {
-    const { categoryId, locationId, limit = 5 } = options
+    const { sessionId, locationId, limit = 5 } = options
     const body = { statement }
-    if (categoryId) body.categoryId = categoryId
+    if (sessionId) body.sessionId = sessionId
     if (locationId) body.locationId = locationId
     if (limit) body.limit = limit
 
@@ -469,10 +470,9 @@ export const positionsApiWrapper = {
   },
 
   async searchStats(query, locationId, { offset = 0, limit = 20 } = {}) {
-    const body = { query, locationId, offset, limit }
     return await promisify(
-      positionsApi.searchStatsPositions.bind(positionsApi),
-      body
+      positionsApi.getPositionsStats.bind(positionsApi),
+      query, locationId, { offset, limit }
     )
   },
 
@@ -632,10 +632,10 @@ export const surveysApiWrapper = {
     )
   },
 
-  async getPairwiseSurveys(locationId, categoryId) {
+  async getPairwiseSurveys(locationId, sessionId) {
     const opts = {}
     if (locationId) opts.locationId = locationId
-    if (categoryId && categoryId !== 'all') opts.categoryId = categoryId
+    if (sessionId && sessionId !== 'all') opts.sessionId = sessionId
 
     return await promisify(
       surveysApi.getPairwiseSurveys.bind(surveysApi),
@@ -643,10 +643,10 @@ export const surveysApiWrapper = {
     )
   },
 
-  async getStandardSurveys(locationId, categoryId) {
+  async getStandardSurveys(locationId, sessionId) {
     const opts = {}
     if (locationId) opts.locationId = locationId
-    if (categoryId && categoryId !== 'all') opts.categoryId = categoryId
+    if (sessionId && sessionId !== 'all') opts.sessionId = sessionId
 
     return await promisify(
       surveysApi.getActiveSurveys.bind(surveysApi),
@@ -654,10 +654,10 @@ export const surveysApiWrapper = {
     )
   },
 
-  async getAllSurveys(locationId, categoryId) {
+  async getAllSurveys(locationId, sessionId) {
     const [pairwise, standard] = await Promise.all([
-      this.getPairwiseSurveys(locationId, categoryId),
-      this.getStandardSurveys(locationId, categoryId),
+      this.getPairwiseSurveys(locationId, sessionId),
+      this.getStandardSurveys(locationId, sessionId),
     ])
 
     const combined = [...pairwise, ...standard]
@@ -714,18 +714,114 @@ export const surveysApiWrapper = {
   },
 }
 
-// Categories API
-export const categoriesApiWrapper = {
-  async getAll() {
+// Sessions API
+export const sessionsApiWrapper = {
+  async getAll(locationId) {
     return await promisify(
-      categoriesApi.getAllCategories.bind(categoriesApi)
+      sessionsApi.getAllSessions.bind(sessionsApi),
+      locationId ? { locationId } : {}
     )
   },
 
   async suggest(statement, limit = 3) {
     return await promisify(
-      categoriesApi.createCategorySuggestions.bind(categoriesApi),
-      { statement, limit }
+      sessionsApi.getSessionSuggestions.bind(sessionsApi),
+      statement, { limit }
+    )
+  },
+
+  async get(sessionId) {
+    return await promisify(
+      sessionsApi.getSession.bind(sessionsApi),
+      sessionId
+    )
+  },
+
+  async update(sessionId, data) {
+    return await promisify(
+      sessionsApi.updateSession.bind(sessionsApi),
+      sessionId,
+      data
+    )
+  },
+
+  async getVotingRound(sessionId, { roundType } = {}) {
+    return await promisify(
+      sessionsApi.getVotingRound.bind(sessionsApi),
+      sessionId,
+      { roundType }
+    )
+  },
+
+  async advanceVotingRound(sessionId) {
+    return await promisify(
+      sessionsApi.advanceVotingRound.bind(sessionsApi),
+      sessionId,
+      {}
+    )
+  },
+
+  async createVotingRound(sessionId, opts = {}) {
+    return await promisify(
+      sessionsApi.createVotingRound.bind(sessionsApi),
+      sessionId,
+      { createVotingRoundRequest: opts }
+    )
+  },
+
+  async getEndorsements(sessionId, { roundType } = {}) {
+    return await promisify(
+      sessionsApi.getEndorsements.bind(sessionsApi),
+      sessionId,
+      { roundType }
+    )
+  },
+
+  async createEndorsement(sessionId, proposalPostId) {
+    return await promisify(
+      sessionsApi.createEndorsement.bind(sessionsApi),
+      sessionId,
+      { proposalPostId }
+    )
+  },
+
+  async deleteEndorsement(sessionId, endorsementId) {
+    return await promisify(
+      sessionsApi.deleteEndorsement.bind(sessionsApi),
+      sessionId,
+      endorsementId
+    )
+  },
+
+  async getBallot(sessionId, { roundType } = {}) {
+    return await promisify(
+      sessionsApi.getBallot.bind(sessionsApi),
+      sessionId,
+      { roundType }
+    )
+  },
+
+  async submitBallot(sessionId, rankings) {
+    return await promisify(
+      sessionsApi.submitBallot.bind(sessionsApi),
+      sessionId,
+      { rankings }
+    )
+  },
+
+  async getCandidates(sessionId, { roundType } = {}) {
+    return await promisify(
+      sessionsApi.getCandidates.bind(sessionsApi),
+      sessionId,
+      { roundType }
+    )
+  },
+
+  async getResults(sessionId, { roundType } = {}) {
+    return await promisify(
+      sessionsApi.getResults.bind(sessionsApi),
+      sessionId,
+      { roundType }
     )
   },
 }
@@ -796,9 +892,9 @@ export const chattingListApiWrapper = {
     )
   },
 
-  async bulkRemove({ categoryId, locationCode, itemIds }) {
+  async bulkRemove({ sessionId, locationCode, itemIds }) {
     const body = {}
-    if (categoryId) body.categoryId = categoryId
+    if (sessionId) body.sessionId = sessionId
     if (locationCode) body.locationCode = locationCode
     if (itemIds) body.itemIds = itemIds
 
@@ -811,26 +907,52 @@ export const chattingListApiWrapper = {
 
 // Stats API
 export const statsApiWrapper = {
-  async getStats(locationId, categoryId) {
-    if (categoryId === 'all' || !categoryId) {
+  async getStats(locationId, sessionId, opts = {}) {
+    if (sessionId === 'all' || !sessionId) {
       return await promisify(
         statsApi.getLocationStats.bind(statsApi),
         locationId
       )
     }
+    // Pass phase as query parameter if provided
+    // The generated client doesn't have opts yet, so we call callApi directly
+    const { phase } = opts
+    if (phase) {
+      return new Promise((resolve, reject) => {
+        const StatsResponse = require('candid_api').StatsResponse
+        statsApi.apiClient.callApi(
+          '/stats/{locationId}/{sessionId}', 'GET',
+          { locationId, sessionId },
+          { phase },
+          {}, {}, null,
+          ['BearerAuth'], [], ['application/json'],
+          StatsResponse, null,
+          (error, data, response) => {
+            if (error) {
+              const status = response?.status || error?.status || 0
+              const path = response?.req?.path || ''
+              recordApiError(path, status, error?.message || String(error))
+              reject(error)
+            } else {
+              resolve(data)
+            }
+          }
+        )
+      })
+    }
     return await promisify(
       statsApi.getStats.bind(statsApi),
       locationId,
-      categoryId
+      sessionId
     )
   },
 
-  async getGroupDemographics(locationId, categoryId, groupId) {
-    const catId = categoryId === 'all' || !categoryId ? 'all' : categoryId
+  async getGroupDemographics(locationId, sessionId, groupId) {
+    const sessId = sessionId === 'all' || !sessionId ? 'all' : sessionId
     return await promisify(
       statsApi.getGroupDemographics.bind(statsApi),
       locationId,
-      catId,
+      sessId,
       groupId
     )
   },
@@ -847,7 +969,7 @@ export const moderationApiWrapper = {
   async getQueue() {
     // Use raw response.body pattern (like cards) since queue returns oneOf items
     return new Promise((resolve, reject) => {
-      moderationApi.getModerationQueue((error, data, response) => {
+      moderationApi.getModerationQueue({}, (error, data, response) => {
         if (response?.body) {
           resolve(response.body)
         } else if (error) {
@@ -892,9 +1014,9 @@ export const moderationApiWrapper = {
     )
   },
 
-  async inlineAction(body) {
+  async createAction(body) {
     return await promisify(
-      moderationApi.inlineModeratorAction.bind(moderationApi),
+      moderationApi.createModerationAction.bind(moderationApi),
       body
     )
   },
@@ -970,10 +1092,10 @@ export const adminApiWrapper = {
     )
   },
 
-  async listRoles({ userId, locationId, role } = {}) {
+  async listRoles({ userId, locationId, role, sessionId } = {}) {
     return await promisify(
       adminApi.listRoles.bind(adminApi),
-      { userId, locationId, role }
+      { userId, locationId, role, sessionId }
     )
   },
 
@@ -1050,46 +1172,53 @@ export const adminApiWrapper = {
     )
   },
 
-  async getAllCategories() {
+  async getAllSessions() {
     return await promisify(
-      categoriesApi.getAllCategories.bind(categoriesApi)
+      sessionsApi.getAllSessions.bind(sessionsApi),
+      {}
     )
   },
 
-  async getLocationCategories(locationId) {
+  async getAdminSessions() {
     return await promisify(
-      adminApi.getLocationCategories.bind(adminApi),
+      adminApi.getAdminSessions.bind(adminApi),
+    )
+  },
+
+  async getLocationSessions(locationId) {
+    return await promisify(
+      adminApi.getLocationSessions.bind(adminApi),
       locationId
     )
   },
 
-  async assignLocationCategory(locationId, categoryId) {
+  async assignLocationSession(locationId, sessionId) {
     return await promisify(
-      adminApi.assignLocationCategory.bind(adminApi),
+      adminApi.assignLocationSession.bind(adminApi),
       locationId,
-      { positionCategoryId: categoryId }
+      { sessionId }
     )
   },
 
-  async removeLocationCategory(locationId, categoryId) {
+  async removeLocationSession(locationId, sessionId) {
     return await promisify(
-      adminApi.removeLocationCategory.bind(adminApi),
+      adminApi.removeLocationSession.bind(adminApi),
       locationId,
-      categoryId
+      sessionId
     )
   },
 
-  async createCategory(label, parentPositionCategoryId, opts = {}) {
+  async createSession(label, parentSessionId, opts = {}) {
     return await promisify(
-      adminApi.createCategory.bind(adminApi),
-      { label, parentPositionCategoryId, ...opts }
+      adminApi.createSession.bind(adminApi),
+      { label, parentSessionId, ...opts }
     )
   },
 
-  async getCategoryLabelSurvey(categoryId) {
+  async getSessionLabelSurvey(sessionId) {
     return await promisify(
-      adminApi.getCategoryLabelSurvey.bind(adminApi),
-      categoryId
+      adminApi.getSessionLabelSurvey.bind(adminApi),
+      sessionId
     )
   },
 
@@ -1109,10 +1238,10 @@ export const adminApiWrapper = {
     )
   },
 
-  async getSurveys({ title, status, locationId } = {}) {
+  async getSurveys({ title, status, locationId, sessionId } = {}) {
     return await promisify(
       adminApi.getSurveys.bind(adminApi),
-      { title, status, locationId }
+      { title, status, locationId, sessionId }
     )
   },
 
@@ -1202,14 +1331,15 @@ export const bugReportsApiWrapper = {
 
 // Posts API
 export const postsApiWrapper = {
-  async getPosts(locationId, { categoryId, postType, sort, cursor, limit, answered } = {}) {
+  async getPosts(locationId, { sessionId, postType, sort, cursor, limit, answered, phase } = {}) {
     const opts = {}
-    if (categoryId && categoryId !== 'all') opts.categoryId = categoryId
+    if (sessionId && sessionId !== 'all') opts.sessionId = sessionId
     if (postType) opts.postType = postType
     if (sort) opts.sort = sort
     if (cursor) opts.cursor = cursor
     if (limit) opts.limit = limit
     if (answered != null) opts.answered = answered
+    if (phase) opts.phase = phase
     return await promisify(postsApi.getPosts.bind(postsApi), locationId, opts)
   },
 
@@ -1242,7 +1372,15 @@ export const postsApiWrapper = {
   },
 
   async pinComment(postId, commentId) {
-    return await promisify(postsApi.pinComment.bind(postsApi), postId, { commentId: commentId || null })
+    return await promisify(postsApi.patchPost.bind(postsApi), postId, { pinnedCommentId: commentId || null })
+  },
+
+  async proposalAssist(body) {
+    return await promisify(postsApi.proposalAssistance.bind(postsApi), body)
+  },
+
+  async finalizeProposal(postId) {
+    return await promisify(postsApi.patchPost.bind(postsApi), postId, { proposalStatus: 'finalized' })
   },
 }
 
@@ -1367,8 +1505,10 @@ export const wikiApiWrapper = {
     return await promisify(glossaryApi.createWikiPage.bind(glossaryApi), body)
   },
 
-  async checkCreateAuthority(body) {
-    return await promisify(glossaryApi.checkCreateAuthority.bind(glossaryApi), body)
+  async checkCreateAuthority(scopes) {
+    const locationIds = (scopes || []).filter(s => s.type === 'location').map(s => s.id)
+    const sessionIds = (scopes || []).filter(s => s.type === 'session').map(s => s.id)
+    return await promisify(glossaryApi.getWikiAuthority.bind(glossaryApi), { locationIds, sessionIds })
   },
 
   async getPageHistory(slug) {
@@ -1410,7 +1550,7 @@ export default {
   positions: positionsApiWrapper,
   chat: chatApiWrapper,
   surveys: surveysApiWrapper,
-  categories: categoriesApiWrapper,
+  sessions: sessionsApiWrapper,
   stats: statsApiWrapper,
   chattingList: chattingListApiWrapper,
   moderation: moderationApiWrapper,

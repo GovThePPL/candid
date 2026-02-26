@@ -1,0 +1,428 @@
+{
+  "session_name": "Rent Stabilization",
+  "location_code": "OR/PDX",
+  "target_stage": "reflection",
+  "topic_vocabulary": {
+    "topic_noun": [
+      "rent stabilization",
+      "housing affordability",
+      "tenant protections"
+    ],
+    "topic_adj": [
+      "housing-related",
+      "rental",
+      "tenant-focused"
+    ],
+    "location_name": [
+      "Portland",
+      "the Portland metro area",
+      "Oregon"
+    ],
+    "stakeholder": [
+      "tenants",
+      "landlords",
+      "housing developers",
+      "housing nonprofits",
+      "city planners",
+      "neighborhood associations"
+    ],
+    "specific_issue": [
+      "rent increases outpacing wages",
+      "tenant displacement",
+      "housing supply shortage",
+      "gentrification in historically Black neighborhoods"
+    ],
+    "policy_example": [
+      "Oregon's statewide rent control (SB 608)",
+      "Portland's relocation assistance ordinance",
+      "community land trusts like Proud Ground"
+    ],
+    "data_point": [
+      "Portland rents increased 40% between 2015-2025",
+      "over 6,000 Portlanders experience homelessness on any given night"
+    ]
+  },
+  "positions": {
+    "proposal_issue": [
+      {
+        "type": "anchor",
+        "statement": "Rent control policies protect tenants from displacement in rapidly gentrifying neighborhoods.",
+        "votes": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          0,
+          -1,
+          -1,
+          -1,
+          -1
+        ]
+      },
+      {
+        "type": "anchor",
+        "statement": "Landlords should be free to set rent prices based on market demand.",
+        "votes": [
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          0,
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      {
+        "type": "generated",
+        "lean": "left",
+        "topic_focus": "equity"
+      },
+      {
+        "type": "generated",
+        "lean": "right",
+        "topic_focus": "governance"
+      },
+      {
+        "type": "generated",
+        "lean": "center",
+        "topic_focus": "supply"
+      }
+    ],
+    "proposal_qualify": [
+      {
+        "type": "generated",
+        "lean": "center_left",
+        "topic_focus": "reform"
+      },
+      {
+        "type": "generated",
+        "lean": "center_right",
+        "topic_focus": "implementation"
+      },
+      {
+        "type": "generated",
+        "lean": "bipartisan",
+        "topic_focus": "compromise"
+      }
+    ],
+    "proposal_stakeholders": [
+      {
+        "type": "generated",
+        "lean": "left",
+        "topic_focus": "community_voice"
+      },
+      {
+        "type": "generated",
+        "lean": "center",
+        "topic_focus": "stakeholder_inclusion"
+      },
+      {
+        "type": "generated",
+        "lean": "right",
+        "topic_focus": "property_rights"
+      }
+    ],
+    "opinion_discussion": [
+      {
+        "type": "anchor",
+        "statement": "Community land trusts are the most sustainable path to affordable housing.",
+        "votes": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          0,
+          -1,
+          0,
+          -1
+        ]
+      },
+      {
+        "type": "generated",
+        "lean": "strong_left",
+        "topic_focus": "equity"
+      },
+      {
+        "type": "generated",
+        "lean": "center_right",
+        "topic_focus": "market_solutions"
+      },
+      {
+        "type": "generated",
+        "lean": "center",
+        "topic_focus": "individual_collective"
+      }
+    ],
+    "opinion_curation": [
+      {
+        "type": "generated",
+        "lean": "center_left",
+        "topic_focus": "reform"
+      },
+      {
+        "type": "generated",
+        "lean": "bipartisan",
+        "topic_focus": "consensus"
+      },
+      {
+        "type": "generated",
+        "lean": "center_right",
+        "topic_focus": "implementation"
+      }
+    ],
+    "opinion_proposals": [
+      {
+        "type": "generated",
+        "lean": "left",
+        "topic_focus": "tenant_protections"
+      },
+      {
+        "type": "generated",
+        "lean": "center",
+        "topic_focus": "balanced_policy"
+      },
+      {
+        "type": "generated",
+        "lean": "right",
+        "topic_focus": "market_incentives"
+      }
+    ]
+  },
+  "posts": {
+    "proposal_issue": {
+      "anchors": [
+        {
+          "post_type": "discussion",
+          "title": "Rent control: Has it helped or hurt Portland?",
+          "body": "Oregon passed statewide rent control in 2019 (SB 608), capping annual rent increases at 7% plus inflation. Portland was already seeing massive displacement in neighborhoods like Cully, Lents, and St. Johns.\n\nLandlords say the cap discourages investment in rental properties. Tenants say it doesn't go far enough \u2014 9-10% annual increases are still devastating for low-income renters.\n\nWhat's your experience? Has rent control helped stabilize your neighborhood, or has it had unintended consequences?",
+          "comments": [
+            {
+              "body": "My rent went up the full 9.9% allowed this year. That's almost $200/month more. For a 'protection,' it sure doesn't feel like one when you're living paycheck to paycheck.",
+              "author_prefix": "prog",
+              "replies": [
+                {
+                  "body": "Keep in mind that buildings less than 15 years old are exempt entirely. So newer apartment complexes in the Pearl or South Waterfront can raise rent as much as they want. The law has major gaps.",
+                  "author_prefix": "libt"
+                }
+              ]
+            },
+            {
+              "body": "Rent control always reduces housing supply in the long run. Economists across the political spectrum agree on this. We need to build more housing, not cap prices on existing units.",
+              "author_prefix": "con",
+              "replies": [
+                {
+                  "body": "That's a simplistic reading of the research. Well-designed rent stabilization with vacancy decontrol doesn't reduce supply significantly. The Stanford study on San Francisco controlled for building type and found the supply effect was concentrated in small landlords converting to condos.",
+                  "author_prefix": "socdem"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "generated_count": 8,
+      "generated_types": {
+        "discussion": 5,
+        "question": 2,
+        "proposal": 1
+      },
+      "comments_per_generated": [
+        5,
+        6,
+        4,
+        5,
+        6,
+        5,
+        4,
+        5
+      ]
+    },
+    "proposal_qualify": {
+      "anchors": [
+        {
+          "post_type": "proposal",
+          "title": "Proposal: Establish a Portland Community Land Trust Expansion Fund",
+          "body": "Portland's rent control law (SB 608) caps annual increases at 7% plus inflation, but even 9-10% annual hikes are devastating for low-income renters. Meanwhile, corporate landlords are buying up rental properties in historically affordable neighborhoods like Cully, Lents, and St. Johns, displacing longtime residents. Rent control alone cannot solve displacement — we need to permanently remove housing from the speculative market.\n\nThis proposal would create a $50 million Portland Community Land Trust Expansion Fund, financed through a 1% surcharge on commercial real estate transactions over $1 million within city limits. The fund would provide capital to existing community land trusts like Proud Ground to acquire properties in gentrifying neighborhoods before they're flipped by investors. Under the community land trust model, the land is owned permanently by the trust while homeowners or tenants own or lease the buildings at below-market rates, with resale restrictions that keep prices affordable in perpetuity.\n\nThe fund would target neighborhoods identified by the city's Anti-Displacement Action Plan as highest risk, prioritizing acquisition of small apartment buildings (4-20 units) and single-family homes in areas with rapidly rising property values. Over 10 years, the fund could bring an estimated 2,000 housing units into permanent affordability — units that would never return to market rate regardless of future real estate cycles.",
+          "comments": [
+            {"body": "Community land trusts are one of the few housing models with a proven track record of maintaining affordability long-term. Proud Ground homes in Portland have stayed affordable through two real estate booms. The 1% transaction surcharge is smart because it targets speculative investment without affecting regular homebuyers or small landlords.", "author_prefix": "prog", "replies": [
+              {"body": "Targeting speculative investment sounds good in theory, but a surcharge on commercial real estate transactions over $1M will hit small apartment building sales too. A local landlord selling a 10-unit building they've maintained for 20 years isn't a speculator — they're the backbone of Portland's rental housing.", "author_prefix": "con"}
+            ]},
+            {"body": "$50 million sounds like a lot, but Portland's annual real estate transaction volume is in the billions. This fund would acquire maybe 200 units per year. Meanwhile, Portland needs an estimated 25,000 new affordable units. I support land trusts, but we also need to dramatically increase housing supply through zoning reform and streamlined permitting. This proposal treats a symptom while ignoring the underlying supply crisis.", "author_prefix": "cen", "replies": [
+              {"body": "Supply-side solutions and demand-side protections aren't mutually exclusive. We absolutely need more housing construction, but new units take years to come online and market-rate construction doesn't serve people earning 30-60% of median income. Land trusts protect existing residents right now while we build the pipeline.", "author_prefix": "mod"}
+            ]}
+          ]
+        }
+      ],
+      "generated_count": 8,
+      "generated_types": {
+        "discussion": 5,
+        "question": 2,
+        "proposal": 1
+      },
+      "comments_per_generated": [
+        5,
+        4,
+        6,
+        5,
+        5,
+        4,
+        6,
+        5
+      ]
+    },
+    "proposal_stakeholders": {
+      "anchors": [],
+      "generated_count": 8,
+      "generated_types": {
+        "discussion": 4,
+        "question": 2,
+        "proposal": 2
+      },
+      "comments_per_generated": [
+        6,
+        5,
+        5,
+        4,
+        6,
+        5,
+        4,
+        5
+      ]
+    },
+    "opinion_discussion": {
+      "anchors": [
+        {
+          "post_type": "discussion",
+          "title": "Supporting local businesses vs. big box stores",
+          "body": "Another local shop on Hawthorne closed last month. That's the third one this year. Meanwhile, Amazon warehouses are going up all over the metro area and big box stores in the suburbs seem to be doing fine.\n\nI know chains can offer lower prices, and when you're struggling financially, that matters. But local businesses employ neighbors, keep money in the community, and give neighborhoods their character.\n\nIs there a way to support local businesses without asking people to pay more than they can afford?",
+          "comments": [
+            {
+              "body": "Local businesses pay local taxes and sponsor local events. When you buy from Amazon, that money leaves Portland entirely. The long-term cost to the community is way higher than the short-term savings.",
+              "author_prefix": "prog",
+              "replies": [
+                {
+                  "body": "Easy to say when you can afford it. I'm raising two kids on $45K. I can't pay 30% more for groceries just to feel good about shopping local.",
+                  "author_prefix": "con"
+                }
+              ]
+            },
+            {
+              "body": "The city could help by reducing permitting costs and commercial property taxes for small businesses. The regulatory burden in Portland is genuinely excessive for a small shop owner.",
+              "author_prefix": "libt",
+              "replies": [
+                {
+                  "body": "Portland already has some small business tax exemptions, but they're poorly publicized. Maybe better outreach about existing programs would help more than new ones.",
+                  "author_prefix": "cen"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "generated_count": 7,
+      "generated_types": {
+        "discussion": 4,
+        "question": 2,
+        "proposal": 1
+      },
+      "comments_per_generated": [
+        6,
+        5,
+        5,
+        6,
+        4,
+        5,
+        6
+      ]
+    },
+    "opinion_curation": {
+      "anchors": [],
+      "generated_count": 8,
+      "generated_types": {
+        "discussion": 4,
+        "question": 2,
+        "proposal": 2
+      },
+      "comments_per_generated": [
+        5,
+        6,
+        4,
+        5,
+        5,
+        6,
+        4,
+        5
+      ]
+    },
+    "opinion_proposals": {
+      "anchors": [],
+      "generated_count": 8,
+      "generated_types": {
+        "discussion": 3,
+        "question": 2,
+        "proposal": 3
+      },
+      "comments_per_generated": [
+        6,
+        5,
+        5,
+        4,
+        6,
+        5,
+        4,
+        5
+      ]
+    }
+  },
+  "surveys": [
+    {
+      "title": "Rent Stabilization Policy Preferences",
+      "type": "standard",
+      "session_name": "Rent Stabilization",
+      "target_stage": "reflection",
+      "questions": [
+        {
+          "question": "What is the primary cause of Portland's housing affordability crisis?",
+          "options": [
+            "Insufficient housing supply",
+            "Investor speculation and corporate landlords",
+            "Wage stagnation relative to cost of living",
+            "Zoning and land use restrictions"
+          ]
+        },
+        {
+          "question": "What is the most effective approach to keeping housing affordable?",
+          "options": [
+            "Strengthen rent control with lower caps",
+            "Build more housing at all price points",
+            "Expand community land trusts and public housing",
+            "Provide direct rental assistance to low-income tenants"
+          ]
+        },
+        {
+          "question": "How should Portland balance tenant protections with housing investment?",
+          "options": [
+            "Prioritize tenant stability even if it slows development",
+            "Incentivize developers to include affordable units",
+            "Remove regulations that discourage new construction",
+            "Create different rules for large corporate landlords vs. small property owners"
+          ]
+        },
+        {
+          "question": "What should Portland prioritize in its next housing policy update?",
+          "options": [
+            "Anti-displacement protections in gentrifying neighborhoods",
+            "Streamlining permits for new affordable housing",
+            "Expanding tenant legal protections and right to counsel",
+            "Incentivizing accessory dwelling units and missing middle housing"
+          ]
+        }
+      ]
+    }
+  ]
+}

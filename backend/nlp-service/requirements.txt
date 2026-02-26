@@ -6,3 +6,6 @@ pydantic==2.6.1
 nudenet==3.4.2
 pillow>=10.0.0
 detoxify>=0.5.2
+anthropic>=0.52.0
+openai>=1.30.0
+pyyaml>=6.0

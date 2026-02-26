@@ -8,14 +8,16 @@ import { useThemeColors } from '../hooks/useThemeColors'
 import useIsDesktop from '../hooks/useIsDesktop'
 import { useAuth, useChatContext } from '../contexts/UserContext'
 import { useNotificationCount } from '../contexts/NotificationContext'
+import { useLocationSession } from '../contexts/LocationSessionContext'
 import ChatRequestIndicator from './ChatRequestIndicator'
 import IncomingChatRequestIndicator from './IncomingChatRequestIndicator'
 import Avatar from './Avatar'
 import ThemedText from './ThemedText'
+import SessionStageBar from './SessionStageBar'
 import { useToast } from './Toast'
 import api from '../lib/api'
 
-export default function Header({ onBack, showCreateButton, showAvatar = true, disableAvatarPress = false, showSettingsButton = false, settingsActive = false, onSettingsBack }) {
+export default function Header({ onBack, showCreateButton, showAvatar = true, disableAvatarPress = false, showSettingsButton = false, settingsActive = false, onSettingsBack, hideSessionBar = false }) {
   const { t } = useTranslation()
   const router = useRouter()
   const pathname = usePathname()
@@ -27,6 +29,7 @@ export default function Header({ onBack, showCreateButton, showAvatar = true, di
   const { pendingChatRequest, clearPendingChatRequest, incomingChatRequest, clearIncomingChatRequest } = useChatContext()
   const isDesktop = useIsDesktop()
   const { unreadCount } = useNotificationCount()
+  const { openSessionSelector, viewingStage, isReadOnly } = useLocationSession()
   const [headerWidth, setHeaderWidth] = useState(0)
 
   const [rightWidth, setRightWidth] = useState(0)
@@ -112,144 +115,157 @@ export default function Header({ onBack, showCreateButton, showAvatar = true, di
   }
 
   return (
-    <View style={styles.header} onLayout={e => setHeaderWidth(e.nativeEvent.layout.width)}>
-      {/* Left section */}
-      <View style={[styles.headerLeft, hasActiveIndicator && !showLogo && styles.headerLeftExpanded]}>
-        {onBack && (
-          <TouchableOpacity onPress={onBack} style={styles.backButton} accessibilityLabel={t('goBack')} accessibilityRole="button">
-            <Ionicons name="arrow-back" size={22} color={colors.primary} />
-          </TouchableOpacity>
-        )}
-        {showLogo && (
-          <ThemedText
-            variant="brandCompact"
-            style={[styles.logo, { color: colors.logoText }]}
-            onLayout={e => { logoWidthRef.current = e.nativeEvent.layout.width }}
-          >
-            Candid{Platform.OS !== 'web' ? ' ' : ''}
-          </ThemedText>
-        )}
-        {/* Narrow: indicator replaces logo, left-aligned */}
-        {pendingChatRequest && !showLogo && (
-          <ChatRequestIndicator
-            pendingRequest={pendingChatRequest}
-            onTimeout={handleChatRequestTimeout}
-            onCancel={handleChatRequestCancel}
-          />
-        )}
-        {showReceivedIndicator && !showLogo && (
-          <IncomingChatRequestIndicator
-            incomingRequest={incomingChatRequest}
-            onExpire={clearIncomingChatRequest}
-          />
-        )}
-      </View>
-
-      {/* Center section: indicator between logo and right when there's room */}
-      {pendingChatRequest && showLogo && (
-        <View style={styles.headerCenter}>
-          <ChatRequestIndicator
-            pendingRequest={pendingChatRequest}
-            onTimeout={handleChatRequestTimeout}
-            onCancel={handleChatRequestCancel}
-          />
-        </View>
-      )}
-      {showReceivedIndicator && showLogo && (
-        <View style={styles.headerCenter}>
-          <IncomingChatRequestIndicator
-            incomingRequest={incomingChatRequest}
-            onExpire={clearIncomingChatRequest}
-          />
-        </View>
-      )}
-
-      {/* Right section */}
-      <View style={styles.headerRight} onLayout={e => setRightWidth(e.nativeEvent.layout.width)}>
-        {showCreateButton && (
-          <TouchableOpacity onPress={() => router.push('/profile?tab=positions')} style={styles.createButton} accessibilityLabel={t('createPositionA11y')} accessibilityRole="button">
-            <ThemedText variant="bodySmall" color="secondary" style={styles.createButtonText}>{t('tabAdd')}</ThemedText>
-            <Ionicons name="add" size={18} color={colors.secondaryText} />
-          </TouchableOpacity>
-        )}
-        {/* On desktop, notifications bell and avatar/settings are in the sidebar nav */}
-        {!isDesktop && (
-          <>
-            {pathname === '/notifications' ? (
-              <View
-                style={styles.bellButton}
-                accessibilityLabel={unreadCount > 0
-                  ? t('notifications:bellA11y', { count: unreadCount })
-                  : t('notifications:bellA11yNone')}
+    <View style={styles.headerWrapper}>
+      <View style={styles.header} onLayout={e => setHeaderWidth(e.nativeEvent.layout.width)}>
+        {/* Left section */}
+        <View style={[styles.headerLeft, hasActiveIndicator && !showLogo && styles.headerLeftExpanded]}>
+          {onBack && (
+            <TouchableOpacity onPress={onBack} style={styles.backButton} accessibilityLabel={t('goBack')} accessibilityRole="button">
+              <Ionicons name="arrow-back" size={22} color={colors.primary} />
+            </TouchableOpacity>
+          )}
+          {showLogo && (
+            <TouchableOpacity
+              onPress={openSessionSelector}
+              accessibilityRole="button"
+              accessibilityLabel={t('sessionSelectorOpenA11y')}
+            >
+              <ThemedText
+                variant="brandCompact"
+                style={[styles.logo, { color: colors.logoText }]}
+                onLayout={e => { logoWidthRef.current = e.nativeEvent.layout.width }}
               >
-                <Ionicons
-                  name={unreadCount > 0 ? 'notifications' : 'notifications-outline'}
-                  size={22}
-                  color={colors.secondaryText}
-                />
-                {unreadCount > 0 && (
-                  <View style={styles.badge}>
-                    <ThemedText variant="label" style={styles.badgeText}>
-                      {unreadCount > 99 ? '99+' : unreadCount}
-                    </ThemedText>
-                  </View>
-                )}
-              </View>
-            ) : (
-              <TouchableOpacity
-                onPress={() => router.push('/notifications')}
-                style={styles.bellButton}
-                accessibilityLabel={unreadCount > 0
-                  ? t('notifications:bellA11y', { count: unreadCount })
-                  : t('notifications:bellA11yNone')}
-                accessibilityRole="button"
-              >
-                <Ionicons
-                  name={unreadCount > 0 ? 'notifications' : 'notifications-outline'}
-                  size={22}
-                  color={colors.secondaryText}
-                />
-                {unreadCount > 0 && (
-                  <View style={styles.badge}>
-                    <ThemedText variant="label" style={styles.badgeText}>
-                      {unreadCount > 99 ? '99+' : unreadCount}
-                    </ThemedText>
-                  </View>
-                )}
-              </TouchableOpacity>
-            )}
-            {showSettingsButton ? (
-              settingsActive ? (
-                <TouchableOpacity onPress={onSettingsBack} style={styles.settingsButtonActive} accessibilityLabel={t('settings:settingsTitle')} accessibilityRole="button">
-                  <Ionicons name="settings" size={22} color="#FFFFFF" />
-                </TouchableOpacity>
+                Candid{Platform.OS !== 'web' ? ' ' : ''}
+              </ThemedText>
+            </TouchableOpacity>
+          )}
+          {/* Narrow: indicator replaces logo, left-aligned */}
+          {pendingChatRequest && !showLogo && (
+            <ChatRequestIndicator
+              pendingRequest={pendingChatRequest}
+              onTimeout={handleChatRequestTimeout}
+              onCancel={handleChatRequestCancel}
+            />
+          )}
+          {showReceivedIndicator && !showLogo && (
+            <IncomingChatRequestIndicator
+              incomingRequest={incomingChatRequest}
+              onExpire={clearIncomingChatRequest}
+            />
+          )}
+        </View>
+
+        {/* Center section: indicator between logo and right when there's room */}
+        {pendingChatRequest && showLogo && (
+          <View style={styles.headerCenter}>
+            <ChatRequestIndicator
+              pendingRequest={pendingChatRequest}
+              onTimeout={handleChatRequestTimeout}
+              onCancel={handleChatRequestCancel}
+            />
+          </View>
+        )}
+        {showReceivedIndicator && showLogo && (
+          <View style={styles.headerCenter}>
+            <IncomingChatRequestIndicator
+              incomingRequest={incomingChatRequest}
+              onExpire={clearIncomingChatRequest}
+            />
+          </View>
+        )}
+
+        {/* Right section */}
+        <View style={styles.headerRight} onLayout={e => setRightWidth(e.nativeEvent.layout.width)}>
+          {showCreateButton && (
+            <TouchableOpacity onPress={() => router.push('/profile?tab=positions')} style={styles.createButton} accessibilityLabel={t('createPositionA11y')} accessibilityRole="button">
+              <ThemedText variant="bodySmall" color="secondary" style={styles.createButtonText}>{t('tabAdd')}</ThemedText>
+              <Ionicons name="add" size={18} color={colors.secondaryText} />
+            </TouchableOpacity>
+          )}
+          {/* On desktop, notifications bell and avatar/settings are in the sidebar nav */}
+          {!isDesktop && (
+            <>
+              {pathname === '/notifications' ? (
+                <View
+                  style={styles.bellButton}
+                  accessibilityLabel={unreadCount > 0
+                    ? t('notifications:bellA11y', { count: unreadCount })
+                    : t('notifications:bellA11yNone')}
+                >
+                  <Ionicons
+                    name={unreadCount > 0 ? 'notifications' : 'notifications-outline'}
+                    size={22}
+                    color={colors.secondaryText}
+                  />
+                  {unreadCount > 0 && (
+                    <View style={styles.badge}>
+                      <ThemedText variant="label" style={styles.badgeText}>
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </ThemedText>
+                    </View>
+                  )}
+                </View>
               ) : (
-                <TouchableOpacity onPress={() => router.push('/settings')} style={styles.settingsButton} accessibilityLabel={t('settings:settingsTitle')} accessibilityRole="button">
-                  <Ionicons name="settings-outline" size={22} color={colors.primary} />
+                <TouchableOpacity
+                  onPress={() => router.push('/notifications')}
+                  style={styles.bellButton}
+                  accessibilityLabel={unreadCount > 0
+                    ? t('notifications:bellA11y', { count: unreadCount })
+                    : t('notifications:bellA11yNone')}
+                  accessibilityRole="button"
+                >
+                  <Ionicons
+                    name={unreadCount > 0 ? 'notifications' : 'notifications-outline'}
+                    size={22}
+                    color={colors.secondaryText}
+                  />
+                  {unreadCount > 0 && (
+                    <View style={styles.badge}>
+                      <ThemedText variant="label" style={styles.badgeText}>
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </ThemedText>
+                    </View>
+                  )}
                 </TouchableOpacity>
-              )
-            ) : showAvatar && (disableAvatarPress ? (
-              <View accessibilityLabel={t('viewProfile')}>
-                <Avatar user={user} size={36} showKudosBadge showKudosCount />
-              </View>
-            ) : (
-              <TouchableOpacity onPress={() => router.push('/profile')} accessibilityLabel={t('viewProfile')} accessibilityRole="button">
-                <Avatar user={user} size={36} showKudosBadge showKudosCount />
-              </TouchableOpacity>
-            ))}
-          </>
-        )}
+              )}
+              {showSettingsButton ? (
+                settingsActive ? (
+                  <TouchableOpacity onPress={onSettingsBack} style={styles.settingsButtonActive} accessibilityLabel={t('settings:settingsTitle')} accessibilityRole="button">
+                    <Ionicons name="settings" size={22} color="#FFFFFF" />
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity onPress={() => router.push('/settings')} style={styles.settingsButton} accessibilityLabel={t('settings:settingsTitle')} accessibilityRole="button">
+                    <Ionicons name="settings-outline" size={22} color={colors.primary} />
+                  </TouchableOpacity>
+                )
+              ) : showAvatar && (disableAvatarPress ? (
+                <View accessibilityLabel={t('viewProfile')}>
+                  <Avatar user={user} size={36} showKudosBadge showKudosCount />
+                </View>
+              ) : (
+                <TouchableOpacity onPress={() => router.push('/profile')} accessibilityLabel={t('viewProfile')} accessibilityRole="button">
+                  <Avatar user={user} size={36} showKudosBadge showKudosCount />
+                </TouchableOpacity>
+              ))}
+            </>
+          )}
+        </View>
       </View>
+      {!hideSessionBar && !pathname.startsWith('/admin') && <SessionStageBar />}
+      {!hideSessionBar && !pathname.startsWith('/admin') && isReadOnly && (
+        <View style={styles.readOnlyBanner}>
+          <Ionicons name="lock-closed" size={14} color={colors.secondaryText} />
+          <ThemedText variant="caption" color="secondary">
+            {viewingStage ? t('stageArchiveViewing') : t('stageReadOnly')}
+          </ThemedText>
+        </View>
+      )}
     </View>
   )
 }
 
 const createStyles = (colors, insets) => StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 12,
+  headerWrapper: {
     backgroundColor: colors.cardBackground,
     zIndex: 10,
     ...Platform.select({
@@ -257,17 +273,32 @@ const createStyles = (colors, insets) => StyleSheet.create({
       android: { elevation: 4 },
       default: { boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)' },
     }),
+  },
+  readOnlyBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 3,
+    backgroundColor: colors.warningBannerBg,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    backgroundColor: colors.cardBackground,
     ...Platform.select({
       web: {
-        height: 54,
+        height: 44,
       },
       default: {
         // Extend header background behind the status bar on native
         // Fixed height so it doesn't shift when chat request indicator appears/disappears
         marginTop: -insets.top,
         paddingTop: insets.top,
-        paddingBottom: 4,
-        height: insets.top + 58,
+        paddingBottom: 2,
+        height: insets.top + 46,
       },
     }),
   },
@@ -275,7 +306,7 @@ const createStyles = (colors, insets) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 6,
     gap: 12,
   },
   headerLeft: {
@@ -292,7 +323,7 @@ const createStyles = (colors, insets) => StyleSheet.create({
     marginRight: -2,
   },
   logo: {
-    lineHeight: 40,
+    lineHeight: 32,
     ...Platform.select({
       web: {
         fontFamily: 'Pacifico, cursive',

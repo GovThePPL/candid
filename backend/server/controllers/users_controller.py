@@ -14,16 +14,17 @@ from candid.models.user import User  # noqa: E501
 from candid.models.user_demographics import UserDemographics  # noqa: E501
 from candid.models.user_position import UserPosition  # noqa: E501
 from candid.models.user_settings import UserSettings  # noqa: E501
-from candid.models.user_settings_category_weights_inner import UserSettingsCategoryWeightsInner  # noqa: E501
+from candid.models.user_settings_session_weights_inner import UserSettingsSessionWeightsInner  # noqa: E501
 from candid import util
 
 from candid.controllers import db
 from candid.controllers.helpers.config import Config
-from candid.controllers.helpers.auth import authorization, authorization_allow_banned, token_to_user, get_user_roles
+from candid.controllers.helpers.auth import authorization, authorization_allow_banned, require_auth, token_to_user, get_user_roles
 from candid.controllers.helpers import keycloak
 from candid.controllers.helpers import nlp
 from candid.controllers.helpers import presence
 from candid.controllers.helpers.cache_headers import add_cache_headers
+from candid.controllers.helpers.rate_limiting import check_rate_limit_for
 from candid.controllers.helpers.user_mappers import (
     WEIGHT_TO_PRIORITY,
     PRIORITY_TO_WEIGHT,
@@ -44,16 +45,14 @@ import uuid
 logger = logging.getLogger(__name__)
 
 
-def get_user_locations(token_info=None):  # noqa: E501
+@require_auth("normal", allow_banned=True)
+def get_user_locations(token_info=None, user_id=None):  # noqa: E501
     """Get current user's locations with hierarchy
 
     Returns the user's locations ordered from highest level (country) to lowest level (city)
 
     :rtype: Union[List[Location], Tuple[List[Location], int], Tuple[List[Location], int, Dict[str, str]]
     """
-    authorized, auth_err = authorization_allow_banned("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
     user = token_to_user(token_info)
 
     # Get all locations the user is directly associated with (exclude soft-deleted)
@@ -119,7 +118,8 @@ def get_all_locations(token_info=None):  # noqa: E501
     return _compute_location_levels(all_locs)
 
 
-def set_user_location(body, token_info=None):  # noqa: E501
+@require_auth("normal")
+def set_user_location(body, token_info=None, user_id=None):  # noqa: E501
     """Set the current user's location
 
     :param body: Request body with locationId
@@ -127,9 +127,6 @@ def set_user_location(body, token_info=None):  # noqa: E501
 
     :rtype: Union[List[Location], Tuple[List[Location], int]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
     user = token_to_user(token_info)
 
     location_id = body.get('locationId')
@@ -161,7 +158,8 @@ def set_user_location(body, token_info=None):  # noqa: E501
     return get_user_locations(token_info=token_info)
 
 
-def get_current_user(token_info=None):  # noqa: E501
+@require_auth("normal", allow_banned=True)
+def get_current_user(token_info=None, user_id=None):  # noqa: E501
     """Get current user profile
 
      # noqa: E501
@@ -169,10 +167,6 @@ def get_current_user(token_info=None):  # noqa: E501
 
     :rtype: Union[CurrentUser, Tuple[CurrentUser, int], Tuple[CurrentUser, int, Dict[str, str]]
     """
-
-    authorized, auth_err = authorization_allow_banned("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
     user = token_to_user(token_info)
 
     current_user = db.execute_query("""
@@ -206,10 +200,10 @@ def get_current_user(token_info=None):  # noqa: E501
         {
             "role": r["role"],
             "locationId": r["location_id"],
-            "positionCategoryId": r["position_category_id"],
+            "sessionId": r["session_id"],
             "locationName": r.get("location_name"),
             "locationCode": r.get("location_code"),
-            "categoryLabel": r.get("category_label"),
+            "sessionLabel": r.get("session_label"),
         }
         for r in roles
     ]
@@ -217,7 +211,8 @@ def get_current_user(token_info=None):  # noqa: E501
     return result
 
 
-def get_current_user_positions(status='active', token_info=None):  # noqa: E501
+@require_auth("normal", allow_banned=True)
+def get_current_user_positions(status='active', token_info=None, user_id=None):  # noqa: E501
     """Get current user&#39;s position statements
 
      # noqa: E501
@@ -227,9 +222,6 @@ def get_current_user_positions(status='active', token_info=None):  # noqa: E501
 
     :rtype: Union[List[UserPosition], Tuple[List[UserPosition], int], Tuple[List[UserPosition], int, Dict[str, str]]
     """
-    authorized, auth_err = authorization_allow_banned("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
     user = token_to_user(token_info)
 
     ret = db.execute_query("""
@@ -242,16 +234,16 @@ def get_current_user_positions(status='active', token_info=None):  # noqa: E501
             p.id AS position_id,
             up.status,
             p.statement,
-            p.category_id,
+            p.session_id,
             p.location_id,
             u.id AS user_id,
-            c.label AS category_name,
+            c.label AS session_name,
             l.name AS location_name,
             l.code AS location_code
         FROM users AS u
         JOIN user_position AS up ON u.id = up.user_id
         JOIN position AS p ON up.position_id = p.id
-        LEFT JOIN position_category AS c ON p.category_id = c.id
+        LEFT JOIN session AS c ON p.session_id = c.id
         LEFT JOIN location AS l ON p.location_id = l.id
         WHERE u.id = %s
             AND (up.status = %s OR %s = 'all')
@@ -264,16 +256,14 @@ def get_current_user_positions(status='active', token_info=None):  # noqa: E501
     return [_row_to_user_position(p) for p in ret]
 
 
-def get_current_user_positions_metadata(token_info=None):  # noqa: E501
+@require_auth("normal", allow_banned=True)
+def get_current_user_positions_metadata(token_info=None, user_id=None):  # noqa: E501
     """Get metadata about current user's positions for cache validation.
 
     Returns count and last updated time without full position data.
 
     :rtype: Union[dict, Tuple[dict, int]]
     """
-    authorized, auth_err = authorization_allow_banned("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
     user = token_to_user(token_info)
 
     result = db.execute_query("""
@@ -299,7 +289,8 @@ def get_current_user_positions_metadata(token_info=None):  # noqa: E501
     return response
 
 
-def update_user_position(user_position_id, body, token_info=None):  # noqa: E501
+@require_auth("normal")
+def update_user_position(user_position_id, body, token_info=None, user_id=None):  # noqa: E501
     """Update a user position (toggle active/inactive)
 
      # noqa: E501
@@ -311,9 +302,6 @@ def update_user_position(user_position_id, body, token_info=None):  # noqa: E501
 
     :rtype: Union[UserPosition, Tuple[UserPosition, int], Tuple[UserPosition, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
     user = token_to_user(token_info)
 
     # Verify ownership
@@ -344,15 +332,15 @@ def update_user_position(user_position_id, body, token_info=None):  # noqa: E501
             p.id AS position_id,
             up.status,
             p.statement,
-            p.category_id,
+            p.session_id,
             p.location_id,
             up.user_id,
-            c.label AS category_name,
+            c.label AS session_name,
             l.name AS location_name,
             l.code AS location_code
         FROM user_position AS up
         JOIN position AS p ON up.position_id = p.id
-        LEFT JOIN position_category AS c ON p.category_id = c.id
+        LEFT JOIN session AS c ON p.session_id = c.id
         LEFT JOIN location AS l ON p.location_id = l.id
         WHERE up.id = %s
     """, (user_position_id,), fetchone=True)
@@ -363,7 +351,8 @@ def update_user_position(user_position_id, body, token_info=None):  # noqa: E501
     return _row_to_user_position(ret)
 
 
-def delete_user_position(user_position_id, token_info=None):  # noqa: E501
+@require_auth("normal")
+def delete_user_position(user_position_id, token_info=None, user_id=None):  # noqa: E501
     """Delete a user position (soft delete)
 
      # noqa: E501
@@ -373,9 +362,6 @@ def delete_user_position(user_position_id, token_info=None):  # noqa: E501
 
     :rtype: Union[None, Tuple[None, int], Tuple[None, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
     user = token_to_user(token_info)
 
     # Verify ownership
@@ -394,7 +380,8 @@ def delete_user_position(user_position_id, token_info=None):  # noqa: E501
     return None, 204
 
 
-def create_user_position(body, token_info=None):  # noqa: E501
+@require_auth("normal")
+def create_user_position(body, token_info=None, user_id=None):  # noqa: E501
     """Adopt a position and register an agree response
 
     Creates a user_position entry for the current user and registers an agree response.
@@ -404,9 +391,6 @@ def create_user_position(body, token_info=None):  # noqa: E501
 
     :rtype: Union[UserPosition, Tuple[UserPosition, int], Tuple[UserPosition, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
     user = token_to_user(token_info)
 
     if connexion.request.is_json:
@@ -418,7 +402,7 @@ def create_user_position(body, token_info=None):  # noqa: E501
 
     # Check if position exists
     position = db.execute_query("""
-        SELECT id, category_id, location_id, statement
+        SELECT id, session_id, location_id, statement
         FROM position
         WHERE id = %s AND status = 'active'
     """, (position_id,), fetchone=True)
@@ -481,14 +465,14 @@ def create_user_position(body, token_info=None):  # noqa: E501
             up.pass_count,
             up.chat_count,
             p.statement,
-            p.category_id,
+            p.session_id,
             p.location_id,
-            c.label AS category_name,
+            c.label AS session_name,
             l.name AS location_name,
             l.code AS location_code
         FROM user_position AS up
         JOIN position AS p ON up.position_id = p.id
-        LEFT JOIN position_category AS c ON p.category_id = c.id
+        LEFT JOIN session AS c ON p.session_id = c.id
         LEFT JOIN location AS l ON p.location_id = l.id
         WHERE up.id = %s
     """, (user_position_id,), fetchone=True)
@@ -496,7 +480,8 @@ def create_user_position(body, token_info=None):  # noqa: E501
     return _row_to_user_position(ret), 201
 
 
-def get_user_by_username(username, token_info=None):  # noqa: E501
+@require_auth("normal")
+def get_user_by_username(username, token_info=None, user_id=None):  # noqa: E501
     """Get a user by username
 
      # noqa: E501
@@ -506,9 +491,6 @@ def get_user_by_username(username, token_info=None):  # noqa: E501
 
     :rtype: Union[User, Tuple[User, int], Tuple[User, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
 
     ret = db.execute_query("""
         SELECT
@@ -534,10 +516,10 @@ def get_user_by_username(username, token_info=None):  # noqa: E501
         {
             "role": r["role"],
             "locationId": r["location_id"],
-            "positionCategoryId": r["position_category_id"],
+            "sessionId": r["session_id"],
             "locationName": r.get("location_name"),
             "locationCode": r.get("location_code"),
-            "categoryLabel": r.get("category_label"),
+            "sessionLabel": r.get("session_label"),
         }
         for r in roles
     ]
@@ -593,10 +575,10 @@ def get_user_by_id(user_id, token_info=None):  # noqa: E501
         {
             "role": r["role"],
             "locationId": r["location_id"],
-            "positionCategoryId": r["position_category_id"],
+            "sessionId": r["session_id"],
             "locationName": r.get("location_name"),
             "locationCode": r.get("location_code"),
-            "categoryLabel": r.get("category_label"),
+            "sessionLabel": r.get("session_label"),
         }
         for r in roles
     ]
@@ -615,7 +597,8 @@ def get_user_by_id(user_id, token_info=None):  # noqa: E501
     return result
 
 
-def get_user_demographics(token_info=None):  # noqa: E501
+@require_auth("normal")
+def get_user_demographics(token_info=None, user_id=None):  # noqa: E501
     """Get current user demographics
 
      # noqa: E501
@@ -623,10 +606,6 @@ def get_user_demographics(token_info=None):  # noqa: E501
 
     :rtype: Union[UserDemographics, Tuple[UserDemographics, int], Tuple[UserDemographics, int, Dict[str, str]]
     """
-
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
     user = token_to_user(token_info)
 
     ret = db.execute_query("""
@@ -651,7 +630,8 @@ def get_user_demographics(token_info=None):  # noqa: E501
     return _row_to_user_demographics(ret)
 
 
-def get_user_settings(token_info=None):  # noqa: E501
+@require_auth("normal", allow_banned=True)
+def get_user_settings(token_info=None, user_id=None):  # noqa: E501
     """Get current user settings
 
      # noqa: E501
@@ -659,15 +639,12 @@ def get_user_settings(token_info=None):  # noqa: E501
 
     :rtype: Union[UserSettings, Tuple[UserSettings, int], Tuple[UserSettings, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization_allow_banned("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
     user = token_to_user(token_info)
 
-    # Get category weights
+    # Get session weights
     rows = db.execute_query("""
-        SELECT position_category_id, priority
-        FROM user_position_categories
+        SELECT session_id, priority
+        FROM user_session_preferences
         WHERE user_id = %s
         """,
     (user.id,))
@@ -675,11 +652,11 @@ def get_user_settings(token_info=None):  # noqa: E501
     if rows is None:
         rows = []
 
-    category_weights = []
+    session_weights = []
     for row in rows:
         weight = PRIORITY_TO_WEIGHT.get(row['priority'], 'default')
-        category_weights.append(UserSettingsCategoryWeightsInner(
-            category_id=str(row['position_category_id']),
+        session_weights.append(UserSettingsSessionWeightsInner(
+            session_id=str(row['session_id']),
             weight=weight
         ))
 
@@ -718,7 +695,7 @@ def get_user_settings(token_info=None):  # noqa: E501
         notification_type_prefs[row['notification_type']] = row['enabled']
 
     return {
-        "categoryWeights": [{"categoryId": cw.category_id, "weight": cw.weight} for cw in category_weights],
+        "sessionWeights": [{"sessionId": cw.session_id, "weight": cw.weight} for cw in session_weights],
         "chatRequestLikelihood": chat_request_likelihood,
         "chattingListLikelihood": chatting_list_likelihood,
         "notificationsEnabled": notifications_enabled,
@@ -731,7 +708,8 @@ def get_user_settings(token_info=None):  # noqa: E501
     }
 
 
-def update_user_demographics_partial(body, token_info=None):  # noqa: E501
+@require_auth("normal")
+def update_user_demographics_partial(body, token_info=None, user_id=None):  # noqa: E501
     """Update specific user demographics fields
 
      # noqa: E501
@@ -741,9 +719,6 @@ def update_user_demographics_partial(body, token_info=None):  # noqa: E501
 
     :rtype: Union[UserDemographics, Tuple[UserDemographics, int], Tuple[UserDemographics, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
     user = token_to_user(token_info)
 
     raw = connexion.request.get_json()
@@ -804,7 +779,8 @@ def update_user_demographics_partial(body, token_info=None):  # noqa: E501
     return _row_to_user_demographics(ret)
 
 
-def update_user_profile(body, token_info=None):  # noqa: E501
+@require_auth("normal")
+def update_user_profile(body, token_info=None, user_id=None):  # noqa: E501
     """Update current user profile (displayName, email, avatarUrl)
 
      # noqa: E501
@@ -814,9 +790,6 @@ def update_user_profile(body, token_info=None):  # noqa: E501
 
     :rtype: Union[CurrentUser, Tuple[CurrentUser, int], Tuple[CurrentUser, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
     user = token_to_user(token_info)
 
     raw = connexion.request.get_json() if connexion.request.is_json else body
@@ -872,7 +845,8 @@ def update_user_profile(body, token_info=None):  # noqa: E501
     return _row_to_current_user(current_user)
 
 
-def update_user_settings(body, token_info=None):  # noqa: E501
+@require_auth("normal")
+def update_user_settings(body, token_info=None, user_id=None):  # noqa: E501
     """Update current user settings
 
      # noqa: E501
@@ -882,31 +856,28 @@ def update_user_settings(body, token_info=None):  # noqa: E501
 
     :rtype: Union[UserSettings, Tuple[UserSettings, int], Tuple[UserSettings, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
     user = token_to_user(token_info)
 
     user_settings = body
     if connexion.request.is_json:
         user_settings = UserSettings.from_dict(connexion.request.get_json())
 
-    # Handle category weights if provided
-    if user_settings.category_weights is not None:
-        # Delete existing category weights
+    # Handle session weights if provided
+    if user_settings.session_weights is not None:
+        # Delete existing session weights
         db.execute_query("""
-            DELETE FROM user_position_categories WHERE user_id = %s
+            DELETE FROM user_session_preferences WHERE user_id = %s
             """,
         (user.id,))
 
-        # Insert new category weights
-        for cw in user_settings.category_weights:
+        # Insert new session weights
+        for cw in user_settings.session_weights:
             priority = WEIGHT_TO_PRIORITY.get(cw.weight, 3)
             db.execute_query("""
-                INSERT INTO user_position_categories (user_id, position_category_id, priority)
+                INSERT INTO user_session_preferences (user_id, session_id, priority)
                 VALUES (%s, %s, %s)
                 """,
-            (user.id, cw.category_id, priority))
+            (user.id, cw.session_id, priority))
 
     # Handle likelihood settings and notification settings if provided
     set_clauses = []
@@ -977,7 +948,7 @@ def update_user_settings(body, token_info=None):  # noqa: E501
     if chat_request_likelihood_changed and chat_request_likelihood_int is not None:
         presence.set_chat_likelihood(str(user.id), chat_request_likelihood_int)
 
-    # Invalidate cached user context (category weights or chatting_list_likelihood may have changed)
+    # Invalidate cached user context (session weights or chatting_list_likelihood may have changed)
     invalidate_user_context_cache(user.id)
 
     return get_user_settings(token_info=token_info)
@@ -996,7 +967,8 @@ def get_available_avatars():  # noqa: E501
     return []
 
 
-def upload_avatar(body, token_info=None):  # noqa: E501
+@require_auth("normal")
+def upload_avatar(body, token_info=None, user_id=None):  # noqa: E501
     """Upload a custom avatar image
 
     Upload a base64 encoded image as avatar. The image will be validated for
@@ -1008,11 +980,12 @@ def upload_avatar(body, token_info=None):  # noqa: E501
 
     :rtype: Union[object, Tuple[object, int], Tuple[object, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
     user = token_to_user(token_info)
+
+    # Rate limit: 10 uploads per hour
+    allowed, _ = check_rate_limit_for(str(user["id"]), "avatar_upload")
+    if not allowed:
+        return ErrorModel(429, "Upload rate limit exceeded. Try again later."), 429
 
     if connexion.request.is_json:
         body = connexion.request.get_json()
@@ -1051,16 +1024,14 @@ def upload_avatar(body, token_info=None):  # noqa: E501
     }
 
 
-def delete_current_user(token_info=None):  # noqa: E501
+@require_auth("normal")
+def delete_current_user(token_info=None, user_id=None):  # noqa: E501
     """Soft delete current user account
 
      # noqa: E501
 
     :rtype: Union[None, Tuple[None, int], Tuple[None, int, Dict[str, str]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
     user = token_to_user(token_info)
 
     # Look up keycloak_id from DB (not on the User model)
@@ -1092,14 +1063,12 @@ def delete_current_user(token_info=None):  # noqa: E501
     return '', 204
 
 
-def heartbeat(token_info=None):  # noqa: E501
+@require_auth("normal")
+def heartbeat(token_info=None, user_id=None):  # noqa: E501
     """Record user heartbeat for presence tracking
 
     :rtype: Union[dict, Tuple[dict, int]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
     user = token_to_user(token_info)
 
     presence.record_heartbeat(str(user.id))
@@ -1114,7 +1083,8 @@ def heartbeat(token_info=None):  # noqa: E501
     return {"status": "ok"}
 
 
-def update_push_token(body, token_info=None):  # noqa: E501
+@require_auth("normal")
+def update_push_token(body, token_info=None, user_id=None):  # noqa: E501
     """Register a push notification token
 
     :param body: Request body with token and platform
@@ -1122,9 +1092,6 @@ def update_push_token(body, token_info=None):  # noqa: E501
 
     :rtype: Union[dict, Tuple[dict, int]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
     user = token_to_user(token_info)
 
     if connexion.request.is_json:
@@ -1148,21 +1115,22 @@ def update_push_token(body, token_info=None):  # noqa: E501
     return {"status": "ok"}
 
 
-def mute_notifications(body, token_info=None):  # noqa: E501
-    """Mute notifications for a specific post or comment (owner only)."""
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
+@require_auth("normal")
+def update_notification_mute(body, token_info=None, user_id=None):  # noqa: E501
+    """Mute or unmute notifications for a specific post or comment."""
     user = token_to_user(token_info)
 
     raw = connexion.request.get_json() if connexion.request.is_json else body
     target_type = raw.get('targetType')
     target_id = raw.get('targetId')
+    muted = raw.get('muted')
 
     if target_type not in ('post', 'comment'):
         return ErrorModel(400, "targetType must be 'post' or 'comment'"), 400
     if not target_id:
         return ErrorModel(400, "targetId is required"), 400
+    if muted is None:
+        return ErrorModel(400, "muted is required"), 400
 
     # Verify ownership
     if target_type == 'post':
@@ -1177,44 +1145,24 @@ def mute_notifications(body, token_info=None):  # noqa: E501
     if str(row["creator_user_id"]) != str(user.id):
         return ErrorModel(403, "Only the content owner can mute notifications"), 403
 
-    db.execute_query("""
-        INSERT INTO notification_mute (user_id, target_type, target_id)
-        VALUES (%s, %s, %s)
-        ON CONFLICT (user_id, target_type, target_id) DO NOTHING
-    """, (user.id, target_type, target_id))
+    if muted:
+        db.execute_query("""
+            INSERT INTO notification_mute (user_id, target_type, target_id)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (user_id, target_type, target_id) DO NOTHING
+        """, (user.id, target_type, target_id))
+    else:
+        db.execute_query("""
+            DELETE FROM notification_mute
+            WHERE user_id = %s AND target_type = %s AND target_id = %s
+        """, (user.id, target_type, target_id))
 
-    return {"muted": True}, 201
-
-
-def unmute_notifications(body=None, token_info=None):  # noqa: E501
-    """Unmute notifications for a specific post or comment."""
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-    user = token_to_user(token_info)
-
-    raw = connexion.request.get_json() if connexion.request.is_json else (body or {})
-    target_type = raw.get('targetType')
-    target_id = raw.get('targetId')
-
-    if target_type not in ('post', 'comment'):
-        return ErrorModel(400, "targetType must be 'post' or 'comment'"), 400
-    if not target_id:
-        return ErrorModel(400, "targetId is required"), 400
-
-    db.execute_query("""
-        DELETE FROM notification_mute
-        WHERE user_id = %s AND target_type = %s AND target_id = %s
-    """, (user.id, target_type, target_id))
-
-    return {"muted": False}
+    return {"muted": muted}
 
 
-def get_notification_mute_status(target_type, target_id, token_info=None):  # noqa: E501
+@require_auth("normal")
+def get_notification_mute_status(target_type, target_id, token_info=None, user_id=None):  # noqa: E501
     """Check if a post or comment is muted."""
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
     user = token_to_user(token_info)
 
     if target_type not in ('post', 'comment'):
@@ -1244,7 +1192,8 @@ def _decode_activity_cursor(cursor):
         return None
 
 
-def get_user_activity(type_=None, cursor=None, limit=None, token_info=None):  # noqa: E501
+@require_auth("normal")
+def get_user_activity(type_=None, cursor=None, limit=None, token_info=None, user_id=None):  # noqa: E501
     """Get current user's recent posts and comments.
 
     :param type_: Filter by activity type (posts, comments, all).
@@ -1255,11 +1204,6 @@ def get_user_activity(type_=None, cursor=None, limit=None, token_info=None):  # 
     :param token_info: JWT token info
     :rtype: Union[dict, Tuple[dict, int]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-    user = token_to_user(token_info)
-    user_id = str(user.id)
 
     activity_type = type_ or "all"
     if limit is None:
@@ -1285,12 +1229,12 @@ def get_user_activity(type_=None, cursor=None, limit=None, token_info=None):  # 
         parts.append(f"""
             SELECT p.id, 'post' AS type, p.title, p.body,
                    p.id AS post_id, p.title AS post_title,
-                   pc.label AS post_category_label,
+                   pc.label AS post_session_label,
                    pl.code AS post_location_code,
                    p.upvote_count, p.downvote_count, p.score,
                    p.comment_count, p.created_time, p.status
             FROM post p
-            LEFT JOIN position_category pc ON pc.id = p.category_id
+            LEFT JOIN session pc ON pc.id = p.session_id
             LEFT JOIN location pl ON pl.id = p.location_id
             WHERE p.creator_user_id = %s
               AND p.status != 'removed'
@@ -1309,13 +1253,13 @@ def get_user_activity(type_=None, cursor=None, limit=None, token_info=None):  # 
         parts.append(f"""
             SELECT c.id, 'comment' AS type, NULL AS title, c.body,
                    c.post_id, pt.title AS post_title,
-                   pc.label AS post_category_label,
+                   pc.label AS post_session_label,
                    pl.code AS post_location_code,
                    c.upvote_count, c.downvote_count, c.score,
                    NULL AS comment_count, c.created_time, c.status
             FROM comment c
             LEFT JOIN post pt ON pt.id = c.post_id
-            LEFT JOIN position_category pc ON pc.id = pt.category_id
+            LEFT JOIN session pc ON pc.id = pt.session_id
             LEFT JOIN location pl ON pl.id = pt.location_id
             WHERE c.creator_user_id = %s
               AND c.status != 'removed'
@@ -1351,7 +1295,7 @@ def get_user_activity(type_=None, cursor=None, limit=None, token_info=None):  # 
             "body": row["body"][:200] if row["body"] else "",
             "postId": str(row["post_id"]) if row["post_id"] else None,
             "postTitle": row["post_title"],
-            "postCategoryLabel": row["post_category_label"],
+            "postSessionLabel": row["post_session_label"],
             "postLocationCode": row["post_location_code"],
             "upvoteCount": row["upvote_count"] or 0,
             "downvoteCount": row["downvote_count"] or 0,
@@ -1415,12 +1359,12 @@ def get_user_activity_by_id(user_id, type_=None, cursor=None, limit=None, token_
         parts.append(f"""
             SELECT p.id, 'post' AS type, p.title, p.body,
                    p.id AS post_id, p.title AS post_title,
-                   pc.label AS post_category_label,
+                   pc.label AS post_session_label,
                    pl.code AS post_location_code,
                    p.upvote_count, p.downvote_count, p.score,
                    p.comment_count, p.created_time, p.status
             FROM post p
-            LEFT JOIN position_category pc ON pc.id = p.category_id
+            LEFT JOIN session pc ON pc.id = p.session_id
             LEFT JOIN location pl ON pl.id = p.location_id
             WHERE p.creator_user_id = %s
               AND p.status != 'removed'
@@ -1439,13 +1383,13 @@ def get_user_activity_by_id(user_id, type_=None, cursor=None, limit=None, token_
         parts.append(f"""
             SELECT c.id, 'comment' AS type, NULL AS title, c.body,
                    c.post_id, pt.title AS post_title,
-                   pc.label AS post_category_label,
+                   pc.label AS post_session_label,
                    pl.code AS post_location_code,
                    c.upvote_count, c.downvote_count, c.score,
                    NULL AS comment_count, c.created_time, c.status
             FROM comment c
             LEFT JOIN post pt ON pt.id = c.post_id
-            LEFT JOIN position_category pc ON pc.id = pt.category_id
+            LEFT JOIN session pc ON pc.id = pt.session_id
             LEFT JOIN location pl ON pl.id = pt.location_id
             WHERE c.creator_user_id = %s
               AND c.status != 'removed'
@@ -1481,7 +1425,7 @@ def get_user_activity_by_id(user_id, type_=None, cursor=None, limit=None, token_
             "body": row["body"][:200] if row["body"] else "",
             "postId": str(row["post_id"]) if row["post_id"] else None,
             "postTitle": row["post_title"],
-            "postCategoryLabel": row["post_category_label"],
+            "postSessionLabel": row["post_session_label"],
             "postLocationCode": row["post_location_code"],
             "upvoteCount": row["upvote_count"] or 0,
             "downvoteCount": row["downvote_count"] or 0,
@@ -1502,7 +1446,8 @@ def get_user_activity_by_id(user_id, type_=None, cursor=None, limit=None, token_
     return {"items": items, "nextCursor": next_cursor, "hasMore": has_more}
 
 
-def update_diagnostics_consent(body, token_info=None):  # noqa: E501
+@require_auth("normal")
+def update_diagnostics_consent(body, token_info=None, user_id=None):  # noqa: E501
     """Update diagnostics consent preference
 
     :param body: Request body with consent boolean
@@ -1512,9 +1457,6 @@ def update_diagnostics_consent(body, token_info=None):  # noqa: E501
 
     :rtype: Union[dict, Tuple[dict, int]]
     """
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
     user = token_to_user(token_info)
 
     consent = body.get('consent')

@@ -43,17 +43,17 @@ export default function SuggestionFormScreen() {
 
     const load = async () => {
       try {
-        // Fetch locations + categories in parallel for scope label resolution
-        const [allLocs, allCats] = await Promise.all([
+        // Fetch locations + sessions in parallel for scope label resolution
+        const [allLocs, allSessions] = await Promise.all([
           api.users.getAllLocations().catch(() => []),
-          api.categories.getAll().catch(() => []),
+          api.sessions.getAll().catch(() => []),
         ])
         const locMap = new Map((Array.isArray(allLocs) ? allLocs : []).map(l => [l.id, l.name]))
-        const catMap = new Map((Array.isArray(allCats) ? allCats : []).map(c => [c.id, c.label]))
+        const sessionMap = new Map((Array.isArray(allSessions) ? allSessions : []).map(c => [c.id, c.label]))
 
-        const resolveScopes = (locationIds, categoryIds) => [
+        const resolveScopes = (locationIds, sessionIds) => [
           ...(locationIds || []).map(id => ({ type: 'location', id, label: locMap.get(id) || id })),
-          ...(categoryIds || []).map(id => ({ type: 'category', id, label: catMap.get(id) || id })),
+          ...(sessionIds || []).map(id => ({ type: 'session', id, label: sessionMap.get(id) || id })),
         ]
 
         if (suggestionType === 'edit_page' && wikiPagePath) {
@@ -63,7 +63,7 @@ export default function SuggestionFormScreen() {
             summary: page.description || '',
             content: page.content || '',
             wikiCategory: page.wikiCategory || '',
-            scopes: resolveScopes(page.locationIds, page.categoryIds),
+            scopes: resolveScopes(page.locationIds, page.sessionIds),
             scopeCombine: page.scopeCombine || 'or',
           })
         } else if (suggestionType === 'edit_term' && termSlug) {
@@ -76,7 +76,7 @@ export default function SuggestionFormScreen() {
             summary: term.summary || '',
             content: term.content || '',
             wikiCategory: term.wikiCategory || '',
-            scopes: resolveScopes(term.locationIds, term.categoryIds),
+            scopes: resolveScopes(term.locationIds, term.sessionIds),
             scopeCombine: term.scopeCombine || 'or',
           })
         }

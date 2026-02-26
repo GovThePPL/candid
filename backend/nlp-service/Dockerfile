@@ -14,6 +14,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY app/ ./app/
 
+# Copy prompt templates (editable YAML files)
+COPY prompts/ ./prompts/
+
 # Expose port
 EXPOSE 5001
 

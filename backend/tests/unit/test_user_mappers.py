@@ -101,8 +101,8 @@ class TestRowToUserPosition:
     def test_basic_conversion(self):
         row = {
             'id': 'up1', 'user_id': 'u1', 'position_id': 'p1',
-            'location_id': 'loc1', 'category_id': 'cat1',
-            'category_name': 'Policy', 'location_name': 'Oregon',
+            'location_id': 'loc1', 'session_id': 'cat1',
+            'session_name': 'Policy', 'location_name': 'Oregon',
             'location_code': 'OR', 'statement': 'Test',
             'status': 'active', 'agree_count': 5,
             'disagree_count': 2, 'pass_count': 1, 'chat_count': 3,
@@ -119,7 +119,7 @@ class TestRowToUserPosition:
         }
         pos = row_to_user_position(row)
         assert pos.location_id is None
-        assert pos.category_id is None
+        assert pos.session_id is None
 
 
 class TestRowToUserDemographics:

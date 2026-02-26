@@ -2,12 +2,13 @@
 
 import os
 import connexion
-from flask import request, Response
+from flask import request, Response, jsonify
 from flask_cors import CORS
 import requests
 
 from candid import encoder
 from candid.controllers import config
+from candid.controllers.helpers.keycloak import validate_token
 
 
 def create_app():
@@ -27,12 +28,33 @@ def create_app():
         from candid.controllers.stats_controller import get_polis_report
         return get_polis_report(conversation_id)
 
+    # Allowed Polis API path prefixes (restrict proxy surface)
+    POLIS_ALLOWED_PREFIXES = (
+        'participationInit', 'votes', 'comments', 'math/pca2',
+        'conversations', 'reports',
+    )
+
     # Add Polis API proxy route (outside of OpenAPI spec to avoid /api/v1 prefix)
     @flask_app.route('/api/v3/<path:path>', methods=['GET', 'POST'])
     def proxy_polis_api(path):
         """Proxy Polis API calls to protect the Polis server from direct exposure."""
         if not config.POLIS_ENABLED:
             return {"error": "Polis is not enabled"}, 404
+
+        # Require JWT authentication
+        auth_header = request.headers.get('Authorization', '')
+        if not auth_header.startswith('Bearer '):
+            return jsonify({"code": 401, "detail": "Authentication required"}), 401
+        token = auth_header[7:]
+        token_info = validate_token(token)
+        if not token_info:
+            return jsonify({"code": 401, "detail": "Invalid token"}), 401
+
+        # Validate path: block traversal and restrict to allowed prefixes
+        if '..' in path or path.startswith('/'):
+            return jsonify({"code": 400, "detail": "Invalid path"}), 400
+        if not any(path.startswith(prefix) for prefix in POLIS_ALLOWED_PREFIXES):
+            return jsonify({"code": 403, "detail": "Path not allowed"}), 403
 
         try:
             # Build the Polis API URL
@@ -74,6 +96,16 @@ def create_app():
             "supports_credentials": True
         }
     })
+
+    # Security response headers
+    @flask_app.after_request
+    def add_security_headers(response):
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'DENY'
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        if not config.DEV:
+            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+        return response
 
     return app
 

@@ -298,4 +298,5 @@ class TestReconcileCounters:
             "comment.child_count",
             "post.vote_counts",
             "comment.vote_counts",
+            "users.kudos_count",
         }

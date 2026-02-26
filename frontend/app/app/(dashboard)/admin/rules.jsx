@@ -11,7 +11,6 @@ import ThemedText from '../../../components/ThemedText'
 import Header from '../../../components/Header'
 import EmptyState from '../../../components/EmptyState'
 import BottomDrawerModal from '../../../components/BottomDrawerModal'
-import LocationPicker from '../../../components/LocationPicker'
 import { useToast } from '../../../components/Toast'
 import { useUser } from '../../../hooks/useUser'
 import { getHighestRole, canManageRuleScope, getDescendantLocationIds } from '../../../lib/roles'
@@ -293,10 +292,10 @@ function RuleCard({ rule, canEdit, onView, onEdit, onDelete, deleting, colors, s
           )}
           <ThemedText variant="label" style={{ flex: 1 }}>{rule.title}</ThemedText>
         </View>
-        {rule.categoryLabel && (
-          <View style={styles.categoryChip}>
+        {rule.sessionLabel && (
+          <View style={styles.sessionChip}>
             <Ionicons name="pricetag-outline" size={10} color={colors.secondaryText} />
-            <ThemedText variant="micro" color="secondary">{rule.categoryLabel}</ThemedText>
+            <ThemedText variant="micro" color="secondary">{rule.sessionLabel}</ThemedText>
           </View>
         )}
       </View>
@@ -472,9 +471,9 @@ export default function RulesScreen() {
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(null)
 
-  // Location/category data
+  // Location/session data
   const [locations, setLocations] = useState([])
-  const [allCategories, setAllCategories] = useState([])
+  const [allSessions, setAllSessions] = useState([])
 
   // Expand/collapse state
   const [expandedLocations, setExpandedLocations] = useState(new Set())
@@ -494,26 +493,27 @@ export default function RulesScreen() {
   const [formSeverity, setFormSeverity] = useState(3)
   const [formContentTypes, setFormContentTypes] = useState([])
   const [formLocationId, setFormLocationId] = useState(null)
-  const [formCategoryId, setFormCategoryId] = useState(null)
+  const [formSessionId, setFormSessionId] = useState(null)
   const [formSentencingGuidelines, setFormSentencingGuidelines] = useState('')
   const [formDefaultActions, setFormDefaultActions] = useState(() => buildEmptyDefaultActions(CONTENT_TYPES))
   const [formReason, setFormReason] = useState('')
 
-  // Location picker for form
-  const [locationPickerVisible, setLocationPickerVisible] = useState(false)
-  const [categoryPickerVisible, setCategoryPickerVisible] = useState(false)
+  // Inline dropdowns for location/session pickers inside form
+  const [locationDropdownOpen, setLocationDropdownOpen] = useState(false)
+  const [sessionDropdownOpen, setSessionDropdownOpen] = useState(false)
+  const [locBreadcrumb, setLocBreadcrumb] = useState([]) // [{id, name}] for drill-down
 
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const [rulesData, locs, cats] = await Promise.all([
+      const [rulesData, locs, sess] = await Promise.all([
         api.admin.getAdminRules({}),
         api.users.getAllLocations(),
-        api.admin.getAllCategories(),
+        api.admin.getAllSessions(),
       ])
       setRules(rulesData || [])
       setLocations(locs || [])
-      setAllCategories(cats || [])
+      setAllSessions(sess || [])
     } catch (err) {
       toast?.(translateError(err.message, t) || t('loadError'), 'error')
     } finally {
@@ -562,7 +562,7 @@ export default function RulesScreen() {
   const globalRules = useMemo(() => rulesByLocationId.get(null) || [], [rulesByLocationId])
 
   const canManageAtScope = useCallback((rule) => {
-    return canManageRuleScope(user, rule.locationId || null, rule.positionCategoryId || null, locations)
+    return canManageRuleScope(user, rule.locationId || null, rule.sessionId || null, locations)
   }, [user, locations])
 
   const userCanCreateRules = useMemo(() => {
@@ -594,26 +594,26 @@ export default function RulesScreen() {
     [locations, allowedLocationIds]
   )
 
-  // Categories the user can scope rules to at the selected form location
-  const allowedFormCategories = useMemo(() => {
-    if (!formLocationId || !Array.isArray(user?.roles)) return allCategories
-    // Admin/moderator at this location → all categories
+  // Sessions the user can scope rules to at the selected form location
+  const allowedFormSessions = useMemo(() => {
+    if (!formLocationId || !Array.isArray(user?.roles)) return allSessions
+    // Admin/moderator at this location → all sessions
     for (const r of user.roles) {
       if ((r.role === 'admin' || r.role === 'moderator') && r.locationId) {
         if (getDescendantLocationIds(r.locationId, locations).has(formLocationId)) {
-          return allCategories
+          return allSessions
         }
       }
     }
-    // Facilitator → only their specific categories at this location
-    const catIds = new Set()
+    // Facilitator → only their specific sessions at this location
+    const sessIds = new Set()
     for (const r of user.roles) {
-      if (r.role === 'facilitator' && r.locationId === formLocationId && r.positionCategoryId) {
-        catIds.add(r.positionCategoryId)
+      if (r.role === 'facilitator' && r.locationId === formLocationId && r.sessionId) {
+        sessIds.add(r.sessionId)
       }
     }
-    return allCategories.filter(c => catIds.has(c.id))
-  }, [formLocationId, user, locations, allCategories])
+    return allSessions.filter(s => sessIds.has(s.id))
+  }, [formLocationId, user, locations, allSessions])
 
   const toggleLocation = useCallback((locationId) => {
     setExpandedLocations(prev => {
@@ -624,14 +624,14 @@ export default function RulesScreen() {
     })
   }, [])
 
-  // Compute default location/category from user's highest role
+  // Compute default location/session from user's highest role
   const defaultFormScope = useMemo(() => {
-    if (!Array.isArray(user?.roles) || user.roles.length === 0) return { locationId: null, categoryId: null }
+    if (!Array.isArray(user?.roles) || user.roles.length === 0) return { locationId: null, sessionId: null }
     const highest = getHighestRole(user)
     const match = user.roles.find(r => r.role === highest)
     return {
       locationId: match?.locationId || null,
-      categoryId: match?.positionCategoryId || null,
+      sessionId: match?.sessionId || null,
     }
   }, [user])
 
@@ -641,11 +641,14 @@ export default function RulesScreen() {
     setFormSeverity(3)
     setFormContentTypes([])
     setFormLocationId(defaultFormScope.locationId)
-    setFormCategoryId(defaultFormScope.categoryId)
+    setFormSessionId(defaultFormScope.sessionId)
     setFormSentencingGuidelines('')
     setFormDefaultActions(buildEmptyDefaultActions(CONTENT_TYPES))
     setFormReason('')
     setEditingRule(null)
+    setLocationDropdownOpen(false)
+    setSessionDropdownOpen(false)
+    setLocBreadcrumb([])
   }, [defaultFormScope])
 
   const openCreateForm = useCallback(() => {
@@ -661,7 +664,7 @@ export default function RulesScreen() {
     const cts = rule.applicableContentTypes || []
     setFormContentTypes(cts)
     setFormLocationId(rule.locationId || null)
-    setFormCategoryId(rule.positionCategoryId || null)
+    setFormSessionId(rule.sessionId || null)
     setFormSentencingGuidelines(rule.sentencingGuidelines || '')
     setFormDefaultActions(parseDefaultActions(rule.defaultActions, cts.length > 0 ? cts : CONTENT_TYPES))
     setFormReason('')
@@ -686,7 +689,7 @@ export default function RulesScreen() {
         severity: formSeverity,
         applicableContentTypes: formContentTypes.length > 0 ? formContentTypes : undefined,
         locationId: formLocationId || undefined,
-        positionCategoryId: formCategoryId || undefined,
+        sessionId: formSessionId || undefined,
         sentencingGuidelines: formSentencingGuidelines.trim() || undefined,
         defaultActions: serializeDefaultActions(formDefaultActions),
       }
@@ -717,7 +720,7 @@ export default function RulesScreen() {
     } finally {
       setSubmitting(false)
     }
-  }, [formTitle, formDescription, formSeverity, formContentTypes, formLocationId, formCategoryId, formSentencingGuidelines, formDefaultActions, formReason, editingRule, t, toast, fetchData, resetForm])
+  }, [formTitle, formDescription, formSeverity, formContentTypes, formLocationId, formSessionId, formSentencingGuidelines, formDefaultActions, formReason, editingRule, t, toast, fetchData, resetForm])
 
   const handleDelete = useCallback(async (rule) => {
     const confirmed = Platform.OS === 'web'
@@ -1035,9 +1038,29 @@ export default function RulesScreen() {
               <ThemedText variant="label" color="secondary">{t('ruleLocation')}</ThemedText>
               <TouchableOpacity
                 style={styles.pickerButton}
-                onPress={() => setLocationPickerVisible(true)}
+                onPress={() => {
+                  const opening = !locationDropdownOpen
+                  setLocationDropdownOpen(opening)
+                  if (opening) {
+                    setSessionDropdownOpen(false)
+                    // Pre-navigate breadcrumb to parent of current selection
+                    if (formLocationId) {
+                      const locMap = new Map(allowedFormLocations.map(l => [l.id, l]))
+                      const path = []
+                      let id = formLocationId
+                      while (id && locMap.get(id)) {
+                        path.unshift({ id, name: locMap.get(id).name })
+                        id = locMap.get(id).parentLocationId
+                      }
+                      setLocBreadcrumb(path.length > 1 ? path.slice(0, -1) : [])
+                    } else {
+                      setLocBreadcrumb([])
+                    }
+                  }
+                }}
                 accessibilityRole="button"
                 accessibilityLabel={t('selectLocationA11y')}
+                accessibilityState={{ expanded: locationDropdownOpen }}
               >
                 <Ionicons name="location-outline" size={16} color={colors.secondaryText} />
                 <ThemedText variant="body" color="dark" style={styles.pickerButtonText}>
@@ -1045,28 +1068,160 @@ export default function RulesScreen() {
                     ? locations.find(l => l.id === formLocationId)?.name || t('selectLocation')
                     : t('ruleLocationGlobal')}
                 </ThemedText>
-                <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
+                <Ionicons name={locationDropdownOpen ? 'chevron-up' : 'chevron-down'} size={16} color={colors.secondaryText} />
               </TouchableOpacity>
+              {locationDropdownOpen && (() => {
+                const locMap = new Map(allowedFormLocations.map(l => [l.id, l]))
+                const childrenMap = {}
+                for (const loc of allowedFormLocations) {
+                  const key = loc.parentLocationId || 'root'
+                  if (!childrenMap[key]) childrenMap[key] = []
+                  childrenMap[key].push(loc)
+                }
+                for (const key in childrenMap) childrenMap[key].sort((a, b) => a.name.localeCompare(b.name))
+                const parentId = locBreadcrumb.length > 0 ? locBreadcrumb[locBreadcrumb.length - 1].id : 'root'
+                const items = childrenMap[parentId] || []
+                return (
+                  <View style={styles.inlineDropdown}>
+                    {locBreadcrumb.length > 0 && (
+                      <TouchableOpacity
+                        style={styles.dropdownBackRow}
+                        onPress={() => setLocBreadcrumb(prev => prev.slice(0, -1))}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('back')}
+                      >
+                        <Ionicons name="chevron-back" size={16} color={colors.primary} />
+                        <ThemedText variant="bodySmall" color="primary">{t('back')}</ThemedText>
+                        <ThemedText variant="caption" color="secondary" style={{ flex: 1, marginLeft: 6 }} numberOfLines={1}>
+                          {locBreadcrumb.map(b => b.name).join(' > ')}
+                        </ThemedText>
+                      </TouchableOpacity>
+                    )}
+                    {locBreadcrumb.length > 0 && items.length > 0 && (
+                      <TouchableOpacity
+                        style={styles.dropdownSelectThis}
+                        onPress={() => {
+                          setFormLocationId(locBreadcrumb[locBreadcrumb.length - 1].id)
+                          setFormSessionId(null)
+                          setLocationDropdownOpen(false)
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('selectName', { name: locBreadcrumb[locBreadcrumb.length - 1].name })}
+                      >
+                        <Ionicons name="checkmark-circle-outline" size={16} color={colors.primary} />
+                        <ThemedText variant="bodySmall" color="primary">
+                          {t('selectName', { name: locBreadcrumb[locBreadcrumb.length - 1].name })}
+                        </ThemedText>
+                      </TouchableOpacity>
+                    )}
+                    <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                    {canCreateGlobal && locBreadcrumb.length === 0 && (
+                      <TouchableOpacity
+                        style={[styles.dropdownItem, !formLocationId && styles.dropdownItemSelected]}
+                        onPress={() => { setFormLocationId(null); setFormSessionId(null); setLocationDropdownOpen(false) }}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('ruleLocationGlobal')}
+                        accessibilityState={{ selected: !formLocationId }}
+                      >
+                        <View style={styles.dropdownItemLeft}>
+                          <Ionicons name="globe-outline" size={16} color={!formLocationId ? colors.primary : colors.text} />
+                          <ThemedText variant="bodySmall" color={!formLocationId ? 'primary' : 'dark'}>{t('ruleLocationGlobal')}</ThemedText>
+                        </View>
+                        {!formLocationId && <Ionicons name="checkmark" size={16} color={colors.primary} />}
+                      </TouchableOpacity>
+                    )}
+                    {items.map(loc => {
+                      const hasChildren = childrenMap[loc.id] && childrenMap[loc.id].length > 0
+                      const isSelected = loc.id === formLocationId
+                      return (
+                        <TouchableOpacity
+                          key={loc.id}
+                          style={[styles.dropdownItem, isSelected && styles.dropdownItemSelected]}
+                          onPress={() => {
+                            if (hasChildren) {
+                              setLocBreadcrumb(prev => [...prev, { id: loc.id, name: loc.name }])
+                            } else {
+                              setFormLocationId(loc.id)
+                              setFormSessionId(null)
+                              setLocationDropdownOpen(false)
+                            }
+                          }}
+                          accessibilityRole="button"
+                          accessibilityLabel={loc.name}
+                          accessibilityState={{ selected: isSelected }}
+                        >
+                          <View style={styles.dropdownItemLeft}>
+                            <ThemedText variant="bodySmall" color={isSelected ? 'primary' : 'dark'}>{loc.name}</ThemedText>
+                            {loc.code && <ThemedText variant="caption" color="secondary">{loc.code}</ThemedText>}
+                          </View>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                            {isSelected && <Ionicons name="checkmark" size={16} color={colors.primary} />}
+                            {hasChildren && <Ionicons name="chevron-forward" size={14} color={colors.secondaryText} />}
+                          </View>
+                        </TouchableOpacity>
+                      )
+                    })}
+                    {items.length === 0 && locBreadcrumb.length > 0 && (
+                      <ThemedText variant="bodySmall" color="secondary" style={{ padding: 12, textAlign: 'center' }}>{t('noLocationsAvailable')}</ThemedText>
+                    )}
+                    </ScrollView>
+                  </View>
+                )
+              })()}
             </>
           )}
 
-          {formLocationId && allowedFormCategories.length > 0 && (
+          {formLocationId && allowedFormSessions.length > 0 && (
             <>
-              <ThemedText variant="label" color="secondary">{t('ruleCategory')}</ThemedText>
+              <ThemedText variant="label" color="secondary">{t('ruleSession')}</ThemedText>
               <TouchableOpacity
                 style={styles.pickerButton}
-                onPress={() => setCategoryPickerVisible(true)}
+                onPress={() => {
+                  setSessionDropdownOpen(prev => !prev)
+                  setLocationDropdownOpen(false)
+                }}
                 accessibilityRole="button"
-                accessibilityLabel={t('selectCategoryA11y')}
+                accessibilityLabel={t('selectSessionA11y')}
+                accessibilityState={{ expanded: sessionDropdownOpen }}
               >
                 <Ionicons name="pricetag-outline" size={16} color={colors.secondaryText} />
                 <ThemedText variant="body" color="dark" style={styles.pickerButtonText}>
-                  {formCategoryId
-                    ? allCategories.find(c => c.id === formCategoryId)?.label || t('allCategories')
-                    : t('allCategories')}
+                  {formSessionId
+                    ? allSessions.find(s => s.id === formSessionId)?.label || t('admin:allSessions')
+                    : t('admin:allSessions')}
                 </ThemedText>
-                <Ionicons name="chevron-down" size={16} color={colors.secondaryText} />
+                <Ionicons name={sessionDropdownOpen ? 'chevron-up' : 'chevron-down'} size={16} color={colors.secondaryText} />
               </TouchableOpacity>
+              {sessionDropdownOpen && (
+                <View style={styles.inlineDropdown}>
+                  <TouchableOpacity
+                    style={[styles.dropdownItem, !formSessionId && styles.dropdownItemSelected]}
+                    onPress={() => { setFormSessionId(null); setSessionDropdownOpen(false) }}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('admin:allSessions')}
+                    accessibilityState={{ selected: !formSessionId }}
+                  >
+                    <ThemedText variant="bodySmall" color={!formSessionId ? 'primary' : 'dark'}>{t('admin:allSessions')}</ThemedText>
+                    {!formSessionId && <Ionicons name="checkmark" size={16} color={colors.primary} />}
+                  </TouchableOpacity>
+                  {allowedFormSessions.map(sess => {
+                    const selected = formSessionId === sess.id
+                    return (
+                      <TouchableOpacity
+                        key={sess.id}
+                        style={[styles.dropdownItem, selected && styles.dropdownItemSelected]}
+                        onPress={() => { setFormSessionId(sess.id); setSessionDropdownOpen(false) }}
+                        accessibilityRole="button"
+                        accessibilityLabel={sess.label}
+                        accessibilityState={{ selected }}
+                      >
+                        <ThemedText variant="bodySmall" color={selected ? 'primary' : 'dark'}>{sess.label}</ThemedText>
+                        {selected && <Ionicons name="checkmark" size={16} color={colors.primary} />}
+                      </TouchableOpacity>
+                    )
+                  })}
+                </View>
+              )}
             </>
           )}
 
@@ -1134,57 +1289,6 @@ export default function RulesScreen() {
         {renderViewContent()}
       </BottomDrawerModal>
 
-      {/* Location Picker Modal */}
-      <LocationPicker
-        visible={locationPickerVisible}
-        onClose={() => setLocationPickerVisible(false)}
-        allLocations={allowedFormLocations}
-        currentLocationId={formLocationId}
-        onSelect={(id) => { setFormLocationId(id); setFormCategoryId(null); setLocationPickerVisible(false) }}
-        showGlobal={canCreateGlobal}
-        globalSelected={!formLocationId}
-        onSelectGlobal={() => { setFormLocationId(null); setFormCategoryId(null); setLocationPickerVisible(false) }}
-      />
-
-      {/* Category Picker Modal */}
-      <BottomDrawerModal
-        visible={categoryPickerVisible}
-        onClose={() => setCategoryPickerVisible(false)}
-        title={t('selectCategory')}
-      >
-        <ScrollView contentContainerStyle={styles.categoryList}>
-          <TouchableOpacity
-            style={[styles.categoryRow, !formCategoryId && styles.categoryRowSelected]}
-            onPress={() => { setFormCategoryId(null); setCategoryPickerVisible(false) }}
-            accessibilityRole="button"
-            accessibilityLabel={t('allCategories')}
-            accessibilityState={{ selected: !formCategoryId }}
-          >
-            <ThemedText variant="body" color={!formCategoryId ? 'primary' : 'dark'}>
-              {t('allCategories')}
-            </ThemedText>
-            {!formCategoryId && <Ionicons name="checkmark" size={20} color={colors.primary} />}
-          </TouchableOpacity>
-          {allowedFormCategories.map(cat => {
-            const selected = formCategoryId === cat.id
-            return (
-              <TouchableOpacity
-                key={cat.id}
-                style={[styles.categoryRow, selected && styles.categoryRowSelected]}
-                onPress={() => { setFormCategoryId(cat.id); setCategoryPickerVisible(false) }}
-                accessibilityRole="button"
-                accessibilityLabel={cat.label}
-                accessibilityState={{ selected }}
-              >
-                <ThemedText variant="body" color={selected ? 'primary' : 'dark'}>
-                  {cat.label}
-                </ThemedText>
-                {selected && <Ionicons name="checkmark" size={20} color={colors.primary} />}
-              </TouchableOpacity>
-            )
-          })}
-        </ScrollView>
-      </BottomDrawerModal>
     </SafeAreaView>
   )
 }
@@ -1293,7 +1397,7 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  categoryChip: {
+  sessionChip: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
@@ -1565,21 +1669,51 @@ const createStyles = (colors) => StyleSheet.create({
     marginTop: 8,
   },
 
-  // Category picker
-  categoryList: {
-    padding: 16,
-    paddingBottom: 40,
+  // Inline dropdowns (location/session pickers inside form)
+  inlineDropdown: {
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    borderRadius: 10,
+    backgroundColor: colors.cardBackground,
+    marginTop: 4,
+    overflow: 'hidden',
+    maxHeight: 220,
   },
-  categoryRow: {
+  dropdownBackRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 4,
+    gap: 4,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     borderBottomWidth: 1,
     borderBottomColor: colors.cardBorder,
   },
-  categoryRowSelected: {
+  dropdownSelectThis: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.cardBorder,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.cardBorder,
+  },
+  dropdownItemSelected: {
     backgroundColor: colors.primaryLight + '20',
+  },
+  dropdownItemLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
 })

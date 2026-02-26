@@ -4,6 +4,8 @@ from decimal import Decimal
 
 import pytest
 
+pytestmark = pytest.mark.unit
+
 MODULE = "candid.controllers.helpers.user_summary"
 
 

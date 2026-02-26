@@ -42,7 +42,7 @@
   "kudosA11yHintSendBack": "Desliza a la derecha para devolver kudos, izquierda para descartar",
 
   "pairwiseTitle": "Encuesta",
-  "pairwiseDefaultCategory": "General",
+  "pairwiseDefaultSession": "General",
   "pairwiseDefaultQuestion": "¿Cuál describe mejor tus opiniones?",
   "pairwiseOptionA": "Opción A",
   "pairwiseOptionB": "Opción B",
@@ -131,7 +131,7 @@
   "banAppealError": "No se pudo enviar la apelación",
   "banTemporaryDuration": "Temporal ({{days}} días)",
   "banChatLabel": "Chat: {{participants}}",
-  "surveyDefaultCategory": "General",
+  "surveyDefaultSession": "General",
 
   "emptyTitle": "No hay más tarjetas",
   "emptyText": "Vuelve más tarde para más posiciones, ¡o crea la tuya!",
@@ -167,5 +167,10 @@
   "sendKudosAction": "Enviar Kudos",
   "acknowledgeAction": "OK",
   "enableAction": "Activar",
-  "noThanksAction": "No, gracias"
+  "noThanksAction": "No, gracias",
+
+  "archivedStageNoActions": "Estás viendo una etapa archivada — las respuestas están deshabilitadas",
+  "archivedStageLabel": "Archivado",
+  "swipeArchived": "Archivado",
+  "archivedA11yHint": "Esta tarjeta es de una etapa archivada. Desliza para descartar — no se registrará ninguna respuesta"
 }

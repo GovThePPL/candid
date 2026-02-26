@@ -14,15 +14,15 @@
 
   "preferences": "Preferencias",
   "loadingPreferences": "Cargando preferencias...",
-  "categoryPreferences": "Preferencias de Categor\u00eda",
-  "categoryPreferencesDesc": "Ajusta con qu\u00e9 frecuencia ves posturas de cada categor\u00eda en tu feed.",
-  "categoryWeightA11y": "{{category}}, peso: {{weight}}",
+  "sessionPreferences": "Preferencias de Sesi\u00f3n",
+  "sessionPreferencesDesc": "Ajusta con qu\u00e9 frecuencia ves posturas de cada sesi\u00f3n en tu feed.",
+  "sessionWeightA11y": "{{session}}, peso: {{weight}}",
   "chatRequestFrequency": "Frecuencia de Solicitudes de Chat",
   "chatRequestFrequencyDesc": "\u00bfCon qu\u00e9 frecuencia quieres recibir solicitudes de chat de otros que quieren discutir tus posturas?",
   "chattingListFrequency": "Frecuencia de Lista de Conversaciones",
   "chattingListFrequencyDesc": "\u00bfCon qu\u00e9 frecuencia deben reaparecer elementos de tu Lista de Conversaciones en tu cola de tarjetas? Esto incluye posturas sobre las que has conversado y posturas que guardaste al tocar el bot\u00f3n de chat.",
   "saving": "Guardando...",
-  "categoryModalSubtitle": "\u00bfCon qu\u00e9 frecuencia debe aparecer esta categor\u00eda?",
+  "sessionModalSubtitle": "\u00bfCon qu\u00e9 frecuencia debe aparecer esta sesi\u00f3n?",
   "failedLoadPreferences": "No se pudieron cargar las preferencias",
   "failedSavePreferences": "No se pudieron guardar las preferencias",
 
@@ -96,7 +96,7 @@
   "notifTypeRuleChange": "Cambios de reglas",
   "notifTypeRuleChangeDesc": "Cuando se cambian las reglas comunitarias",
   "notifTypeAdminAction": "Acciones administrativas",
-  "notifTypeAdminActionDesc": "Cambios de ubicación, categoría y cuenta",
+  "notifTypeAdminActionDesc": "Cambios de ubicación, sesión y cuenta",
   "notifTypeModeration": "Moderaci\u00f3n",
   "notifTypeModerationDesc": "Acciones de moderaci\u00f3n en tu contenido",
   "notifTypeMention": "Menciones",
@@ -261,7 +261,7 @@
 
   "positionStatusActive": "Activa",
   "positionStatusInactive": "Inactiva",
-  "positionItemA11y": "{{statement}}, {{location}}, {{category}}, {{status}}",
+  "positionItemA11y": "{{statement}}, {{location}}, {{session}}, {{status}}",
 
   "chattingListChats": "{{count}} chats",
   "chattingListPending": "{{count}} pendientes",

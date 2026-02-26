@@ -1,7 +1,13 @@
 import { marked } from 'marked'
 
 // Enable GFM features (strikethrough, tables, task lists)
-marked.use({ gfm: true })
+// Renderer escapes HTML by default; explicitly configure for safety
+marked.use({
+  gfm: true,
+  renderer: {
+    html: (token) => token.text.replace(/</g, '&lt;').replace(/>/g, '&gt;'),
+  },
+})
 
 let turndown = null
 
@@ -318,5 +324,6 @@ function decodeEntities(text) {
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+    .replace(/&#x27;/g, "'")
     .replace(/&nbsp;/g, ' ')
 }

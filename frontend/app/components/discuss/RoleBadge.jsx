@@ -37,17 +37,17 @@ export const ROLE_LABEL_KEYS = {
 /**
  * Small colored pill badge displaying a user's role.
  *
- * When category is provided, renders two lines:
- *   Line 1: "Location · Category"
+ * When session is provided, renders two lines:
+ *   Line 1: "Location · Session"
  *   Line 2: "Role"
  * Otherwise renders a single line: "Location · Role" or just "Role".
  *
  * @param {Object} props
  * @param {string} props.role - Role name (e.g., 'admin', 'moderator')
  * @param {string} [props.location] - Optional location code (e.g., 'US', 'OR')
- * @param {string} [props.category] - Optional category label (e.g., 'Healthcare')
+ * @param {string} [props.session] - Optional session label (e.g., 'Healthcare')
  */
-export default function RoleBadge({ role, location, category }) {
+export default function RoleBadge({ role, location, session }) {
   const { t } = useTranslation('discuss')
 
   const bgColor = ROLE_COLORS[role]
@@ -57,10 +57,10 @@ export default function RoleBadge({ role, location, category }) {
   const labelKey = ROLE_LABEL_KEYS[role]
   const label = labelKey ? t(labelKey) : role
 
-  // Two-line layout when category is present
-  if (category) {
-    const scopeLine = [location, category].filter(Boolean).join(' · ')
-    const a11yText = [location, category, label].filter(Boolean).join(' · ')
+  // Two-line layout when session is present
+  if (session) {
+    const scopeLine = [location, session].filter(Boolean).join(' · ')
+    const a11yText = [location, session, label].filter(Boolean).join(' · ')
     return (
       <View style={[styles.badge, { backgroundColor: bgColor }]} accessibilityLabel={a11yText}>
         <ThemedText style={styles.label}>{scopeLine}</ThemedText>

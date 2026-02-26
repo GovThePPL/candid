@@ -5,21 +5,33 @@ and that tests depend on by hardcoded UUID.
 Tables WITH seed data:
 
   1 users             - 10 users (all normal or guest; roles in user_role table)
-  2 position_category - 10 categories
-  3 location          - 4 locations (US > Oregon > Multnomah > Portland)
+  2 location          - 10 locations (US > {Oregon, California, Texas} > counties > cities)
+  3 session           - 15 sessions across 3 states (all 8 stages represented)
   4 user_location     - 10 entries linking all users to Oregon/Portland
   5 affiliation       - 7 political party affiliations in Oregon
-  6 rule              - 4 moderation rules
+  6 rule              - 6 moderation rules
   7 survey            - 3 surveys (active, inactive, future)
   8 survey_question   - 2 questions for the active survey
   9 survey_question_option - 6 options for the 2 questions
- 10 position          - 5 test-critical positions (referenced by conftest.py constants)
+ 10 position          - 7 test-critical positions (referenced by conftest.py constants)
  11 user_position     - 7 test-critical user_positions (referenced by conftest.py constants)
  12 chat_request      - 3 test-critical chat requests (for chat_log test data)
  13 chat_log          - 3 test-critical chat logs (2 active + 1 archived for tests)
  14 kudos             - 1 kudos entry (for card queue tests)
  15 user_role         - 4 role assignments (admin, 2 moderators, 1 facilitator)
- 16 location_category - 10 entries (all categories assigned to Oregon)
+ 16 location_session  - 15 entries (sessions assigned to their locations)
+ 17 session_stage_history - Stage transition audit records
+
+Session distribution (all 8 stages covered):
+  Oregon (5):     Healthcare Access (opinion_discussion), Living Wage (opinion_curation),
+                  School Funding (proposal_qualify), Civil Liberties (proposal_stakeholders),
+                  Rent Stabilization (reflection, archived)
+  California (5): Climate Action (opinion_proposals), Pacific Defense (consensus),
+                  Electoral Reform (opinion_discussion), Spring 2026 (proposal_issue),
+                  Water Rights (reflection)
+  Texas (5):      Border Communities (opinion_discussion), Criminal Justice (proposal_stakeholders),
+                  Family Policy (opinion_curation), Winter 2025-26 (proposal_qualify),
+                  Transit Expansion (opinion_proposals)
 
 All other data (additional positions, votes, demographics, moderation
 actions, chatting list, pairwise data, etc.) is created by the seed
@@ -49,27 +61,51 @@ INSERT INTO users (id, username, email, keycloak_id, created_time, updated_time,
 ('a82b485b-114f-44b7-aa0b-8ae8ca96e4f3', 'guest1', NULL, NULL, '2025-02-28 18:15:03+00', '2025-07-12 10:29:37+00', 'Guest 1', 'guest', 'active', 0),
 ('a2ec25a9-2a12-4a01-baf8-c0d1e254c3db', 'guest2', NULL, NULL, '2024-12-07 09:44:16+00', '2025-08-09 15:07:28+00', 'Guest 2', 'guest', 'active', 0);
 
--- Test data for position_categories
-INSERT INTO position_category (id, label, parent_position_category_id) VALUES
-('4d439108-2128-46ec-b4b2-80ec3dbf6aa3', 'Healthcare', NULL),
-('63e233e9-187e-441f-a7a9-f5f44dffadf0', 'Economy & Taxation', NULL),
-('be3305f5-df1a-4cf5-855e-49a88ed3cbd3', 'Education', NULL),
-('66344e48-ecfe-4b7f-aa33-fe05e0d08873', 'Environment & Climate', NULL),
-('e2e608f7-169e-409b-9678-6dee57fab9c3', 'Immigration', NULL),
-('04edc480-aded-4b93-94c4-d62cbb507dc4', 'Criminal Justice', NULL),
-('92d7131c-bf5c-40c1-89ef-e58b40e67bc8', 'Foreign Policy & Defense', NULL),
-('2d83d6eb-3000-47eb-b136-9d1c44f9b98d', 'Civil Rights & Liberties', NULL),
-('26c8146e-d080-419e-b98b-5089c3a81b5b', 'Social Issues', NULL),
-('cdc48d27-d636-481b-90b2-d6f6a2e6780e', 'Government & Democracy', NULL);
-
--- Test data for locations (hierarchical)
+-- Locations (hierarchical: US > states > counties > cities)
 INSERT INTO location (id, parent_location_id, code, name) VALUES
 ('f1a2b3c4-d5e6-7890-abcd-ef1234567890', NULL, 'US', 'United States'),
+-- Oregon hierarchy
 ('ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'f1a2b3c4-d5e6-7890-abcd-ef1234567890', 'OR', 'Oregon'),
 ('c2b3a4d5-e6f7-8901-bcde-f12345678901', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'MULT', 'Multnomah County'),
-('d3c4b5a6-f7e8-9012-cdef-123456789012', 'c2b3a4d5-e6f7-8901-bcde-f12345678901', 'PDX', 'Portland');
+('d3c4b5a6-f7e8-9012-cdef-123456789012', 'c2b3a4d5-e6f7-8901-bcde-f12345678901', 'PDX', 'Portland'),
+-- California hierarchy
+('a1b2c3d4-e5f6-7890-abcd-100000000001', 'f1a2b3c4-d5e6-7890-abcd-ef1234567890', 'CA', 'California'),
+('a1b2c3d4-e5f6-7890-abcd-100000000002', 'a1b2c3d4-e5f6-7890-abcd-100000000001', 'LA', 'Los Angeles County'),
+('a1b2c3d4-e5f6-7890-abcd-100000000003', 'a1b2c3d4-e5f6-7890-abcd-100000000002', 'LAX', 'Los Angeles'),
+-- Texas hierarchy
+('a1b2c3d4-e5f6-7890-abcd-200000000001', 'f1a2b3c4-d5e6-7890-abcd-ef1234567890', 'TX', 'Texas'),
+('a1b2c3d4-e5f6-7890-abcd-200000000002', 'a1b2c3d4-e5f6-7890-abcd-200000000001', 'TRAV', 'Travis County'),
+('a1b2c3d4-e5f6-7890-abcd-200000000003', 'a1b2c3d4-e5f6-7890-abcd-200000000002', 'AUS', 'Austin');
 
--- Test data for user_location entries
+-- Sessions (15 across 3 states, all 8 stages represented)
+-- facilitator_user_id = admin1 for all (seed_dev_data.py adds session-specific facilitators)
+INSERT INTO session (id, label, description, location_id, stage, stage_changed_at, stage_changed_by, facilitator_user_id, status, created_by, created_time) VALUES
+-- Oregon: state (2)
+('4d439108-2128-46ec-b4b2-80ec3dbf6aa3', 'Healthcare Access', 'Improving healthcare accessibility and affordability', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'opinion_discussion', '2025-07-15 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-06-01 10:00:00+00'),
+('63e233e9-187e-441f-a7a9-f5f44dffadf0', 'Living Wage', 'Establishing a living wage ordinance for workers', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'opinion_curation', '2025-08-01 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-05-15 10:00:00+00'),
+-- Multnomah County (2)
+('be3305f5-df1a-4cf5-855e-49a88ed3cbd3', 'School Funding', 'Reforming the funding model for public schools', 'c2b3a4d5-e6f7-8901-bcde-f12345678901', 'proposal_qualify', '2025-09-15 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-09-01 10:00:00+00'),
+('2d83d6eb-3000-47eb-b136-9d1c44f9b98d', 'Civil Liberties', 'Reviewing civil liberties protections', 'c2b3a4d5-e6f7-8901-bcde-f12345678901', 'proposal_stakeholders', '2025-09-01 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-08-01 10:00:00+00'),
+-- Portland (1)
+('55a55555-5555-5555-5555-555555555555', 'Rent Stabilization', 'Stabilizing rent prices', 'd3c4b5a6-f7e8-9012-cdef-123456789012', 'reflection', '2025-06-01 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'archived', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2024-12-01 10:00:00+00'),
+-- California: state (2)
+('66344e48-ecfe-4b7f-aa33-fe05e0d08873', 'Climate Action', 'Developing a response to climate change', 'a1b2c3d4-e5f6-7890-abcd-100000000001', 'opinion_proposals', '2025-08-15 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-04-01 10:00:00+00'),
+('92d7131c-bf5c-40c1-89ef-e58b40e67bc8', 'Pacific Defense', 'Evaluating defense posture in the Pacific region', 'a1b2c3d4-e5f6-7890-abcd-100000000001', 'consensus', '2025-10-01 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-03-01 10:00:00+00'),
+-- Los Angeles County (2)
+('cdc48d27-d636-481b-90b2-d6f6a2e6780e', 'Electoral Reform', 'Reforming electoral processes', 'a1b2c3d4-e5f6-7890-abcd-100000000002', 'opinion_discussion', '2025-08-01 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-06-15 10:00:00+00'),
+('55a11111-1111-1111-1111-111111111111', 'Spring 2026', 'New deliberation session — issue to be determined', 'a1b2c3d4-e5f6-7890-abcd-100000000002', 'proposal_issue', NULL, NULL, '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2026-01-15 10:00:00+00'),
+-- Los Angeles (1)
+('55a33333-3333-3333-3333-333333333333', 'Water Rights', 'Allocating water resources fairly', 'a1b2c3d4-e5f6-7890-abcd-100000000003', 'reflection', '2025-10-15 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-02-01 10:00:00+00'),
+-- Texas: state (2)
+('e2e608f7-169e-409b-9678-6dee57fab9c3', 'Border Communities', 'Supporting border communities with resources and services', 'a1b2c3d4-e5f6-7890-abcd-200000000001', 'opinion_discussion', '2025-08-15 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-07-01 10:00:00+00'),
+('04edc480-aded-4b93-94c4-d62cbb507dc4', 'Criminal Justice', 'Reforming the criminal justice system', 'a1b2c3d4-e5f6-7890-abcd-200000000001', 'proposal_stakeholders', '2025-09-15 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-08-15 10:00:00+00'),
+-- Travis County (2)
+('26c8146e-d080-419e-b98b-5089c3a81b5b', 'Family Policy', 'Debating family-related policy', 'a1b2c3d4-e5f6-7890-abcd-200000000002', 'opinion_curation', '2025-08-15 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-05-01 10:00:00+00'),
+('55a22222-2222-2222-2222-222222222222', 'Winter 2025-26', 'Winter deliberation session — narrowing issues', 'a1b2c3d4-e5f6-7890-abcd-200000000002', 'proposal_qualify', '2025-11-15 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-11-01 10:00:00+00'),
+-- Austin (1)
+('55a44444-4444-4444-4444-444444444444', 'Transit Expansion', 'Expanding public transit', 'a1b2c3d4-e5f6-7890-abcd-200000000003', 'opinion_proposals', '2025-09-01 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-04-15 10:00:00+00');
+
+-- User locations (all 10 users linked to Oregon/Portland)
 INSERT INTO user_location (id, user_id, location_id, created_time) VALUES
 ('9d77bc28-34ba-46eb-a93e-8c59cb5dfa6a', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'd3c4b5a6-f7e8-9012-cdef-123456789012', '2024-09-24 10:15:30+00'),
 ('68339e80-a17e-4f11-9bf4-add6aab95b10', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'd3c4b5a6-f7e8-9012-cdef-123456789012', '2024-11-10 14:22:18+00'),
@@ -82,7 +118,7 @@ INSERT INTO user_location (id, user_id, location_id, created_time) VALUES
 ('4da28b06-580f-4280-81a6-2e54bf82289c', 'a82b485b-114f-44b7-aa0b-8ae8ca96e4f3', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '2025-03-02 20:22:40+00'),
 ('c085a592-8889-4bd2-9854-95bad1ca419d', 'a2ec25a9-2a12-4a01-baf8-c0d1e254c3db', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '2024-12-09 13:15:28+00');
 
--- Test data for political party affiliations in Oregon
+-- Political party affiliations in Oregon
 INSERT INTO affiliation (id, location_id, name) VALUES
 ('6a76fec7-bf77-4333-937f-07d48c1ae966', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Democratic Party of Oregon'),
 ('3373d56e-2776-4524-9ef6-2053b85df3c3', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Oregon Republican Party'),
@@ -93,20 +129,21 @@ INSERT INTO affiliation (id, location_id, name) VALUES
 ('580e9aa8-08b0-4b58-a297-888bee037327', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Constitution Party of Oregon');
 
 -- Test-critical positions (referenced by conftest.py constants)
-INSERT INTO position (id, creator_user_id, category_id, location_id, statement, created_time, updated_time, agree_count, disagree_count, pass_count, chat_count, status) VALUES
--- POSITION1_ID: Healthcare position by admin1
+-- All positions at Oregon location; session_id references the session they belong to
+INSERT INTO position (id, creator_user_id, session_id, location_id, statement, created_time, updated_time, agree_count, disagree_count, pass_count, chat_count, status) VALUES
+-- POSITION1_ID: Healthcare Access position by admin1
 ('772d04ed-b2ad-4f95-a630-c739811fa615', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '4d439108-2128-46ec-b4b2-80ec3dbf6aa3', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Universal healthcare should be a fundamental right guaranteed by the government.', '2024-10-15 09:30:00+00', '2025-08-10 14:22:33+00', 4, 2, 0, 0, 'active'),
--- POSITION2_ID: Healthcare position by moderator1
+-- POSITION2_ID: Healthcare Access position by moderator1
 ('4d0b2198-414e-4cf9-93a9-83033b81ce76', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', '4d439108-2128-46ec-b4b2-80ec3dbf6aa3', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Private healthcare markets provide better quality care than government-run systems.', '2024-12-01 16:45:12+00', '2025-08-10 14:22:33+00', 1, 4, 0, 0, 'active'),
--- POSITION3_ID: Healthcare position by normal1
+-- POSITION3_ID: Healthcare Access position by normal1
 ('f7aeb957-a41a-4b1e-9482-6297f5f07743', '6c9344ed-0313-4b25-a616-5ac08967e84f', '4d439108-2128-46ec-b4b2-80ec3dbf6aa3', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Prescription drug prices should be regulated by the federal government.', '2024-11-20 11:15:30+00', '2025-08-10 14:22:33+00', 5, 0, 0, 0, 'active'),
--- Minimum wage position by moderator1 (needed for chat_log test: user_position 6b423ed7 -> chat_request a1111111 -> CHAT_LOG_1_ID)
+-- Minimum wage position by moderator1 (Living Wage session; needed for chat_log test)
 ('d61ccb9d-0b69-4eac-baf8-2f786d130535', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', '63e233e9-187e-441f-a7a9-f5f44dffadf0', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'The minimum wage should be raised to $15 per hour nationally.', '2025-02-28 12:35:55+00', '2025-08-10 14:22:33+00', 0, 0, 0, 0, 'active'),
--- Teachers salary position by normal5 (needed for chat_log test: user_position 927a0293 -> chat_request 2f58e635 -> CHAT_LOG_2_ID)
+-- Teachers salary position by normal5 (School Funding session; needed for chat_log test)
 ('27f11a1f-2b0e-4358-8f0f-13c3aee18d70', 'c922be05-e355-4052-8d3f-7774669ddd32', 'be3305f5-df1a-4cf5-855e-49a88ed3cbd3', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Teachers should be paid significantly higher salaries.', '2024-12-20 10:25:40+00', '2025-08-10 14:22:33+00', 4, 0, 0, 0, 'active'),
--- Mental health position by normal2 (needed for USER_POSITION_NORMAL2)
+-- Mental health position by normal2 (Healthcare Access session; needed for USER_POSITION_NORMAL2)
 ('28028e9a-90b5-4b2a-9054-d3d446180df7', '4a67d0e6-56a4-4396-916b-922d27db71d8', '4d439108-2128-46ec-b4b2-80ec3dbf6aa3', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Mental health services should receive equal insurance coverage as physical health.', '2025-02-10 08:22:45+00', '2025-08-10 14:22:33+00', 5, 0, 0, 0, 'active'),
--- Path to citizenship position by normal3 (needed for USER_POSITION_NORMAL3)
+-- Path to citizenship position by normal3 (Border Communities session; position at Oregon location for test compatibility)
 ('20fabff1-a37a-4941-8bc8-4f082da6a189', '735565c1-93d9-4813-b227-3d9c06b78c8f', 'e2e608f7-169e-409b-9678-6dee57fab9c3', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'A path to citizenship should be provided for undocumented immigrants.', '2024-10-30 15:45:20+00', '2025-08-10 14:22:33+00', 2, 0, 0, 0, 'active');
 
 -- Test-critical user_positions (referenced by conftest.py constants)
@@ -175,19 +212,19 @@ INSERT INTO chat_log (id, chat_request_id, start_time, end_time, log, end_type, 
 INSERT INTO kudos (id, sender_user_id, receiver_user_id, chat_log_id, status, created_time) VALUES
 ('a4c5d6e7-f8a9-b0c1-d2e3-f4a5b6c7d8e9', '2333392a-7c07-4733-8b46-00d32833d9bc', 'c922be05-e355-4052-8d3f-7774669ddd32', '1d06bf99-4d87-4700-8806-63de8c905eca', 'sent', '2025-07-15 14:30:00+00');
 
--- Test data for moderation rules
-INSERT INTO rule (id, creator_user_id, title, text, status, severity, default_actions, sentencing_guidelines, location_id, position_category_id, applicable_content_types, created_time, updated_time) VALUES
+-- Moderation rules
+INSERT INTO rule (id, creator_user_id, title, text, status, severity, default_actions, sentencing_guidelines, location_id, session_id, applicable_content_types, created_time, updated_time) VALUES
 ('b8a7c6d5-e4f3-4a2b-1c0d-9e8f7a6b5c4d', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'Violence or Hate Speech', 'This content calls for violence against people based on immutable/quasi-immutable characteristics or strong convictions', 'active', 5, '[{"userClass": "submitter", "action": "temporary_ban", "duration": 7}]'::jsonb, 'Immediate ban for threats or incitement. Temporary ban (7-30 days) for hostile language.', NULL, NULL, '{position,chat_log,post,comment}', '2024-09-25 10:00:00+00', '2024-09-25 10:00:00+00'),
 ('c9b8d7e6-f5a4-4b3c-2d1e-0f9a8b7c6d5e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'Sexual or Obscene Content', 'This content is sexual or obscene', 'active', 4, '[{"userClass": "submitter", "action": "removed"}]'::jsonb, 'Remove content. Warning for first offense, temporary ban (3-7 days) for repeat.', NULL, NULL, '{position,chat_log,post,comment}', '2024-09-25 10:05:00+00', '2024-09-25 10:05:00+00'),
 ('d0c9e8f7-a6b5-4c4d-3e2f-1a0b9c8d7e6f', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'Spam or Self-Promotion', 'This content contains spam or self-promotion', 'active', 2, '[{"userClass": "submitter", "action": "warning"}]'::jsonb, 'Remove content. Warning for first offense, temporary ban (1-3 days) for repeat.', NULL, NULL, '{position,chat_log,post,comment}', '2024-09-25 10:10:00+00', '2024-09-25 10:10:00+00'),
 ('e1d0f9a8-b7c6-4d5e-4f3a-2b1c0d9e8f7a', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'Not a Normative Political Statement', 'This content does not make a normative political statement', 'active', 1, '[{"userClass": "submitter", "action": "removed"}]'::jsonb, 'Remove content. No user action unless repeated violations.', NULL, NULL, '{position}', '2024-09-25 10:15:00+00', '2024-09-25 10:15:00+00'),
 -- Location-scoped test rule: Oregon-specific civility rule
 ('f2e1d0c9-b8a7-4e6f-5d4c-3b2a1c0d9e8f', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'Oregon Civility Standards', 'Content must meet Oregon community civility standards for respectful discourse', 'active', 3, '[{"userClass": "submitter", "action": "warning"}]'::jsonb, 'Warning for first offense. Temporary ban (1-3 days) for repeat violations.', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', NULL, '{position,post,comment}', '2024-09-25 10:20:00+00', '2024-09-25 10:20:00+00'),
--- Location+category scoped test rule: Oregon Healthcare specific
+-- Location+session scoped test rule: Oregon Healthcare Access specific
 ('a3b2c1d0-e9f8-4a7b-6c5d-4e3f2a1b0c9d', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'Healthcare Misinformation', 'Content contains unsubstantiated medical claims that could mislead public health decisions', 'active', 4, '[{"userClass": "submitter", "action": "removed"}]'::jsonb, 'Remove content immediately. Warning for first offense.', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '4d439108-2128-46ec-b4b2-80ec3dbf6aa3', '{position,post,comment}', '2024-09-25 10:25:00+00', '2024-09-25 10:25:00+00');
 
--- Test data for surveys
-INSERT INTO survey (id, creator_user_id, position_category_id, survey_title, start_time, end_time, status) VALUES
+-- Surveys
+INSERT INTO survey (id, creator_user_id, session_id, survey_title, start_time, end_time, status) VALUES
 ('aa111111-1111-1111-1111-111111111111', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '4d439108-2128-46ec-b4b2-80ec3dbf6aa3', 'Healthcare Priorities Survey', CURRENT_TIMESTAMP - INTERVAL '1 day', CURRENT_TIMESTAMP + INTERVAL '30 days', 'active'),
 ('bb222222-2222-2222-2222-222222222222', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '63e233e9-187e-441f-a7a9-f5f44dffadf0', 'Economic Policy Survey', CURRENT_TIMESTAMP - INTERVAL '60 days', CURRENT_TIMESTAMP - INTERVAL '30 days', 'inactive'),
 ('cc333333-3333-3333-3333-333333333333', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'be3305f5-df1a-4cf5-855e-49a88ed3cbd3', 'Education Priorities Survey', CURRENT_TIMESTAMP + INTERVAL '7 days', CURRENT_TIMESTAMP + INTERVAL '37 days', 'active');
@@ -207,25 +244,110 @@ INSERT INTO survey_question_option (id, survey_question_id, survey_question_opti
 ('ee666666-6666-6666-6666-666666666666', 'dd222222-2222-2222-2222-222222222222', 'Dissatisfied');
 
 -- User roles (scoped role assignments — replaces user_type for admin/moderator)
-INSERT INTO user_role (id, user_id, role, location_id, position_category_id, assigned_by) VALUES
+INSERT INTO user_role (id, user_id, role, location_id, session_id, assigned_by) VALUES
 -- admin1: admin at US root (= superadmin, inherits down to all locations)
 ('11111111-aaaa-bbbb-cccc-000000000001', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'admin', 'f1a2b3c4-d5e6-7890-abcd-ef1234567890', NULL, NULL),
 -- moderator1: moderator at Oregon (inherits down to Multnomah, Portland)
 ('11111111-aaaa-bbbb-cccc-000000000002', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', 'moderator', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', NULL, '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e'),
 -- moderator2: moderator at Portland (only Portland, no inheritance below)
 ('11111111-aaaa-bbbb-cccc-000000000003', '010f84ad-0abd-4352-a7b3-7f9b95d51983', 'moderator', 'd3c4b5a6-f7e8-9012-cdef-123456789012', NULL, '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e'),
--- normal1: facilitator for Oregon + Healthcare (category-scoped, no location inheritance)
+-- normal1: facilitator for Oregon + Healthcare Access session
 ('11111111-aaaa-bbbb-cccc-000000000004', '6c9344ed-0313-4b25-a616-5ac08967e84f', 'facilitator', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '4d439108-2128-46ec-b4b2-80ec3dbf6aa3', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e');
 
--- Location-category assignments (all 10 categories available in Oregon)
-INSERT INTO location_category (id, location_id, position_category_id) VALUES
+-- Location-session assignments (each session linked to exactly one location)
+INSERT INTO location_session (id, location_id, session_id) VALUES
+-- Oregon: state (2)
 ('22222222-aaaa-bbbb-cccc-000000000001', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '4d439108-2128-46ec-b4b2-80ec3dbf6aa3'),
 ('22222222-aaaa-bbbb-cccc-000000000002', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '63e233e9-187e-441f-a7a9-f5f44dffadf0'),
-('22222222-aaaa-bbbb-cccc-000000000003', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'be3305f5-df1a-4cf5-855e-49a88ed3cbd3'),
-('22222222-aaaa-bbbb-cccc-000000000004', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '66344e48-ecfe-4b7f-aa33-fe05e0d08873'),
-('22222222-aaaa-bbbb-cccc-000000000005', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'e2e608f7-169e-409b-9678-6dee57fab9c3'),
-('22222222-aaaa-bbbb-cccc-000000000006', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '04edc480-aded-4b93-94c4-d62cbb507dc4'),
-('22222222-aaaa-bbbb-cccc-000000000007', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '92d7131c-bf5c-40c1-89ef-e58b40e67bc8'),
-('22222222-aaaa-bbbb-cccc-000000000008', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '2d83d6eb-3000-47eb-b136-9d1c44f9b98d'),
-('22222222-aaaa-bbbb-cccc-000000000009', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', '26c8146e-d080-419e-b98b-5089c3a81b5b'),
-('22222222-aaaa-bbbb-cccc-000000000010', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'cdc48d27-d636-481b-90b2-d6f6a2e6780e');
+-- Multnomah County (2)
+('22222222-aaaa-bbbb-cccc-000000000003', 'c2b3a4d5-e6f7-8901-bcde-f12345678901', 'be3305f5-df1a-4cf5-855e-49a88ed3cbd3'),
+('22222222-aaaa-bbbb-cccc-000000000004', 'c2b3a4d5-e6f7-8901-bcde-f12345678901', '2d83d6eb-3000-47eb-b136-9d1c44f9b98d'),
+-- Portland (1)
+('22222222-aaaa-bbbb-cccc-000000000005', 'd3c4b5a6-f7e8-9012-cdef-123456789012', '55a55555-5555-5555-5555-555555555555'),
+-- California: state (2)
+('22222222-aaaa-bbbb-cccc-000000000006', 'a1b2c3d4-e5f6-7890-abcd-100000000001', '66344e48-ecfe-4b7f-aa33-fe05e0d08873'),
+('22222222-aaaa-bbbb-cccc-000000000007', 'a1b2c3d4-e5f6-7890-abcd-100000000001', '92d7131c-bf5c-40c1-89ef-e58b40e67bc8'),
+-- Los Angeles County (2)
+('22222222-aaaa-bbbb-cccc-000000000008', 'a1b2c3d4-e5f6-7890-abcd-100000000002', 'cdc48d27-d636-481b-90b2-d6f6a2e6780e'),
+('22222222-aaaa-bbbb-cccc-000000000009', 'a1b2c3d4-e5f6-7890-abcd-100000000002', '55a11111-1111-1111-1111-111111111111'),
+-- Los Angeles (1)
+('22222222-aaaa-bbbb-cccc-000000000010', 'a1b2c3d4-e5f6-7890-abcd-100000000003', '55a33333-3333-3333-3333-333333333333'),
+-- Texas: state (2)
+('22222222-aaaa-bbbb-cccc-000000000011', 'a1b2c3d4-e5f6-7890-abcd-200000000001', 'e2e608f7-169e-409b-9678-6dee57fab9c3'),
+('22222222-aaaa-bbbb-cccc-000000000012', 'a1b2c3d4-e5f6-7890-abcd-200000000001', '04edc480-aded-4b93-94c4-d62cbb507dc4'),
+-- Travis County (2)
+('22222222-aaaa-bbbb-cccc-000000000013', 'a1b2c3d4-e5f6-7890-abcd-200000000002', '26c8146e-d080-419e-b98b-5089c3a81b5b'),
+('22222222-aaaa-bbbb-cccc-000000000014', 'a1b2c3d4-e5f6-7890-abcd-200000000002', '55a22222-2222-2222-2222-222222222222'),
+-- Austin (1)
+('22222222-aaaa-bbbb-cccc-000000000015', 'a1b2c3d4-e5f6-7890-abcd-200000000003', '55a44444-4444-4444-4444-444444444444');
+
+-- Session stage history (audit trail of stage transitions)
+-- All transitions performed by admin1
+INSERT INTO session_stage_history (id, session_id, from_stage, to_stage, changed_by, created_time) VALUES
+-- Session 1: Healthcare Access → opinion_discussion (3 transitions)
+('55000101-aaaa-bbbb-cccc-000000000000', '4d439108-2128-46ec-b4b2-80ec3dbf6aa3', 'proposal_issue', 'proposal_qualify', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-06-15 12:00:00+00'),
+('55000102-aaaa-bbbb-cccc-000000000000', '4d439108-2128-46ec-b4b2-80ec3dbf6aa3', 'proposal_qualify', 'proposal_stakeholders', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-07-01 12:00:00+00'),
+('55000103-aaaa-bbbb-cccc-000000000000', '4d439108-2128-46ec-b4b2-80ec3dbf6aa3', 'proposal_stakeholders', 'opinion_discussion', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-07-15 12:00:00+00'),
+-- Session 2: Living Wage → opinion_curation (4 transitions)
+('55000201-aaaa-bbbb-cccc-000000000000', '63e233e9-187e-441f-a7a9-f5f44dffadf0', 'proposal_issue', 'proposal_qualify', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-06-01 12:00:00+00'),
+('55000202-aaaa-bbbb-cccc-000000000000', '63e233e9-187e-441f-a7a9-f5f44dffadf0', 'proposal_qualify', 'proposal_stakeholders', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-06-15 12:00:00+00'),
+('55000203-aaaa-bbbb-cccc-000000000000', '63e233e9-187e-441f-a7a9-f5f44dffadf0', 'proposal_stakeholders', 'opinion_discussion', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-07-01 12:00:00+00'),
+('55000204-aaaa-bbbb-cccc-000000000000', '63e233e9-187e-441f-a7a9-f5f44dffadf0', 'opinion_discussion', 'opinion_curation', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-08-01 12:00:00+00'),
+-- Session 3: School Funding → proposal_qualify (1 transition)
+('55000301-aaaa-bbbb-cccc-000000000000', 'be3305f5-df1a-4cf5-855e-49a88ed3cbd3', 'proposal_issue', 'proposal_qualify', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-09-15 12:00:00+00'),
+-- Session 4: Climate Action → opinion_proposals (5 transitions)
+('55000401-aaaa-bbbb-cccc-000000000000', '66344e48-ecfe-4b7f-aa33-fe05e0d08873', 'proposal_issue', 'proposal_qualify', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-04-15 12:00:00+00'),
+('55000402-aaaa-bbbb-cccc-000000000000', '66344e48-ecfe-4b7f-aa33-fe05e0d08873', 'proposal_qualify', 'proposal_stakeholders', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-05-01 12:00:00+00'),
+('55000403-aaaa-bbbb-cccc-000000000000', '66344e48-ecfe-4b7f-aa33-fe05e0d08873', 'proposal_stakeholders', 'opinion_discussion', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-05-15 12:00:00+00'),
+('55000404-aaaa-bbbb-cccc-000000000000', '66344e48-ecfe-4b7f-aa33-fe05e0d08873', 'opinion_discussion', 'opinion_curation', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-06-15 12:00:00+00'),
+('55000405-aaaa-bbbb-cccc-000000000000', '66344e48-ecfe-4b7f-aa33-fe05e0d08873', 'opinion_curation', 'opinion_proposals', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-08-15 12:00:00+00'),
+-- Session 5: Border Communities → opinion_discussion (3 transitions)
+('55000501-aaaa-bbbb-cccc-000000000000', 'e2e608f7-169e-409b-9678-6dee57fab9c3', 'proposal_issue', 'proposal_qualify', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-07-15 12:00:00+00'),
+('55000502-aaaa-bbbb-cccc-000000000000', 'e2e608f7-169e-409b-9678-6dee57fab9c3', 'proposal_qualify', 'proposal_stakeholders', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-08-01 12:00:00+00'),
+('55000503-aaaa-bbbb-cccc-000000000000', 'e2e608f7-169e-409b-9678-6dee57fab9c3', 'proposal_stakeholders', 'opinion_discussion', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-08-15 12:00:00+00'),
+-- Session 6: Criminal Justice → proposal_stakeholders (2 transitions)
+('55000601-aaaa-bbbb-cccc-000000000000', '04edc480-aded-4b93-94c4-d62cbb507dc4', 'proposal_issue', 'proposal_qualify', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-09-01 12:00:00+00'),
+('55000602-aaaa-bbbb-cccc-000000000000', '04edc480-aded-4b93-94c4-d62cbb507dc4', 'proposal_qualify', 'proposal_stakeholders', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-09-15 12:00:00+00'),
+-- Session 7: Pacific Defense → consensus (7 transitions)
+('55000701-aaaa-bbbb-cccc-000000000000', '92d7131c-bf5c-40c1-89ef-e58b40e67bc8', 'proposal_issue', 'proposal_qualify', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-03-15 12:00:00+00'),
+('55000702-aaaa-bbbb-cccc-000000000000', '92d7131c-bf5c-40c1-89ef-e58b40e67bc8', 'proposal_qualify', 'proposal_stakeholders', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-04-01 12:00:00+00'),
+('55000703-aaaa-bbbb-cccc-000000000000', '92d7131c-bf5c-40c1-89ef-e58b40e67bc8', 'proposal_stakeholders', 'opinion_discussion', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-04-15 12:00:00+00'),
+('55000704-aaaa-bbbb-cccc-000000000000', '92d7131c-bf5c-40c1-89ef-e58b40e67bc8', 'opinion_discussion', 'opinion_curation', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-05-15 12:00:00+00'),
+('55000705-aaaa-bbbb-cccc-000000000000', '92d7131c-bf5c-40c1-89ef-e58b40e67bc8', 'opinion_curation', 'opinion_proposals', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-06-15 12:00:00+00'),
+('55000706-aaaa-bbbb-cccc-000000000000', '92d7131c-bf5c-40c1-89ef-e58b40e67bc8', 'opinion_proposals', 'reflection', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-08-01 12:00:00+00'),
+('55000707-aaaa-bbbb-cccc-000000000000', '92d7131c-bf5c-40c1-89ef-e58b40e67bc8', 'reflection', 'consensus', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-10-01 12:00:00+00'),
+-- Session 8: Civil Liberties → proposal_stakeholders (2 transitions)
+('55000801-aaaa-bbbb-cccc-000000000000', '2d83d6eb-3000-47eb-b136-9d1c44f9b98d', 'proposal_issue', 'proposal_qualify', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-08-15 12:00:00+00'),
+('55000802-aaaa-bbbb-cccc-000000000000', '2d83d6eb-3000-47eb-b136-9d1c44f9b98d', 'proposal_qualify', 'proposal_stakeholders', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-09-01 12:00:00+00'),
+-- Session 9: Family Policy → opinion_curation (4 transitions)
+('55000901-aaaa-bbbb-cccc-000000000000', '26c8146e-d080-419e-b98b-5089c3a81b5b', 'proposal_issue', 'proposal_qualify', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-05-15 12:00:00+00'),
+('55000902-aaaa-bbbb-cccc-000000000000', '26c8146e-d080-419e-b98b-5089c3a81b5b', 'proposal_qualify', 'proposal_stakeholders', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-06-01 12:00:00+00'),
+('55000903-aaaa-bbbb-cccc-000000000000', '26c8146e-d080-419e-b98b-5089c3a81b5b', 'proposal_stakeholders', 'opinion_discussion', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-06-15 12:00:00+00'),
+('55000904-aaaa-bbbb-cccc-000000000000', '26c8146e-d080-419e-b98b-5089c3a81b5b', 'opinion_discussion', 'opinion_curation', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-08-15 12:00:00+00'),
+-- Session 10: Electoral Reform → opinion_discussion (3 transitions)
+('55001001-aaaa-bbbb-cccc-000000000000', 'cdc48d27-d636-481b-90b2-d6f6a2e6780e', 'proposal_issue', 'proposal_qualify', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-07-01 12:00:00+00'),
+('55001002-aaaa-bbbb-cccc-000000000000', 'cdc48d27-d636-481b-90b2-d6f6a2e6780e', 'proposal_qualify', 'proposal_stakeholders', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-07-15 12:00:00+00'),
+('55001003-aaaa-bbbb-cccc-000000000000', 'cdc48d27-d636-481b-90b2-d6f6a2e6780e', 'proposal_stakeholders', 'opinion_discussion', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-08-01 12:00:00+00'),
+-- Session 11: Spring 2026 → proposal_issue (0 transitions — starting stage)
+-- Session 12: Winter 2025-26 → proposal_qualify (1 transition)
+('55001201-aaaa-bbbb-cccc-000000000000', '55a22222-2222-2222-2222-222222222222', 'proposal_issue', 'proposal_qualify', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-11-15 12:00:00+00'),
+-- Session 13: Water Rights → reflection (6 transitions)
+('55001301-aaaa-bbbb-cccc-000000000000', '55a33333-3333-3333-3333-333333333333', 'proposal_issue', 'proposal_qualify', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-02-15 12:00:00+00'),
+('55001302-aaaa-bbbb-cccc-000000000000', '55a33333-3333-3333-3333-333333333333', 'proposal_qualify', 'proposal_stakeholders', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-03-01 12:00:00+00'),
+('55001303-aaaa-bbbb-cccc-000000000000', '55a33333-3333-3333-3333-333333333333', 'proposal_stakeholders', 'opinion_discussion', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-03-15 12:00:00+00'),
+('55001304-aaaa-bbbb-cccc-000000000000', '55a33333-3333-3333-3333-333333333333', 'opinion_discussion', 'opinion_curation', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-04-15 12:00:00+00'),
+('55001305-aaaa-bbbb-cccc-000000000000', '55a33333-3333-3333-3333-333333333333', 'opinion_curation', 'opinion_proposals', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-06-01 12:00:00+00'),
+('55001306-aaaa-bbbb-cccc-000000000000', '55a33333-3333-3333-3333-333333333333', 'opinion_proposals', 'reflection', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-10-15 12:00:00+00'),
+-- Session 14: Transit Expansion → opinion_proposals (5 transitions)
+('55001401-aaaa-bbbb-cccc-000000000000', '55a44444-4444-4444-4444-444444444444', 'proposal_issue', 'proposal_qualify', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-05-01 12:00:00+00'),
+('55001402-aaaa-bbbb-cccc-000000000000', '55a44444-4444-4444-4444-444444444444', 'proposal_qualify', 'proposal_stakeholders', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-05-15 12:00:00+00'),
+('55001403-aaaa-bbbb-cccc-000000000000', '55a44444-4444-4444-4444-444444444444', 'proposal_stakeholders', 'opinion_discussion', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-06-01 12:00:00+00'),
+('55001404-aaaa-bbbb-cccc-000000000000', '55a44444-4444-4444-4444-444444444444', 'opinion_discussion', 'opinion_curation', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-07-01 12:00:00+00'),
+('55001405-aaaa-bbbb-cccc-000000000000', '55a44444-4444-4444-4444-444444444444', 'opinion_curation', 'opinion_proposals', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-09-01 12:00:00+00'),
+-- Session 15: Rent Stabilization → reflection, archived (6 transitions)
+('55001501-aaaa-bbbb-cccc-000000000000', '55a55555-5555-5555-5555-555555555555', 'proposal_issue', 'proposal_qualify', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2024-12-15 12:00:00+00'),
+('55001502-aaaa-bbbb-cccc-000000000000', '55a55555-5555-5555-5555-555555555555', 'proposal_qualify', 'proposal_stakeholders', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-01-01 12:00:00+00'),
+('55001503-aaaa-bbbb-cccc-000000000000', '55a55555-5555-5555-5555-555555555555', 'proposal_stakeholders', 'opinion_discussion', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-01-15 12:00:00+00'),
+('55001504-aaaa-bbbb-cccc-000000000000', '55a55555-5555-5555-5555-555555555555', 'opinion_discussion', 'opinion_curation', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-02-15 12:00:00+00'),
+('55001505-aaaa-bbbb-cccc-000000000000', '55a55555-5555-5555-5555-555555555555', 'opinion_curation', 'opinion_proposals', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-04-01 12:00:00+00'),
+('55001506-aaaa-bbbb-cccc-000000000000', '55a55555-5555-5555-5555-555555555555', 'opinion_proposals', 'reflection', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-06-01 12:00:00+00');

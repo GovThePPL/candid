@@ -26,7 +26,7 @@ from conftest import (
     BASE_URL,
     NORMAL1_ID,
     NORMAL2_ID,
-    HEALTHCARE_CAT_ID,
+    HEALTHCARE_SESSION_ID,
     OREGON_LOCATION_ID,
     db_execute,
     db_query,
@@ -124,7 +124,7 @@ def wait_for_sync_completion(timeout=30, interval=1):
 def get_polis_conversations():
     """Get all Polis conversations from the database."""
     return db_query("""
-        SELECT id, location_id, category_id, polis_conversation_id,
+        SELECT id, location_id, session_id, polis_conversation_id,
                conversation_type, status, active_from, active_until
         FROM polis_conversation
         ORDER BY created_time DESC
@@ -551,7 +551,7 @@ class TestPolisSyncQueue:
         unique_id = str(uuid.uuid4())[:8]
         payload = {
             "statement": f"Polis integration test - queue test {unique_id}",
-            "categoryId": HEALTHCARE_CAT_ID,
+            "sessionId": HEALTHCARE_SESSION_ID,
             "locationId": OREGON_LOCATION_ID,
         }
         resp = requests.post(POSITIONS_URL, headers=normal_headers, json=payload)
@@ -573,7 +573,7 @@ class TestPolisSyncQueue:
         unique_id = str(uuid.uuid4())[:8]
         payload = {
             "statement": f"Polis integration test - processing {unique_id}",
-            "categoryId": HEALTHCARE_CAT_ID,
+            "sessionId": HEALTHCARE_SESSION_ID,
             "locationId": OREGON_LOCATION_ID,
         }
         resp = requests.post(POSITIONS_URL, headers=normal_headers, json=payload)
@@ -612,7 +612,7 @@ class TestPolisEndToEndSync:
         test_statement = f"Polis integration test - e2e sync {uuid.uuid4()}"
         payload = {
             "statement": test_statement,
-            "categoryId": HEALTHCARE_CAT_ID,
+            "sessionId": HEALTHCARE_SESSION_ID,
             "locationId": OREGON_LOCATION_ID,
         }
         resp = requests.post(POSITIONS_URL, headers=normal_headers, json=payload)
@@ -626,11 +626,11 @@ class TestPolisEndToEndSync:
 
         # Check that Polis conversations were created
         conversations = get_polis_conversations()
-        assert len(conversations) >= 2, "Should have at least 2 conversations (category + location_all)"
+        assert len(conversations) >= 2, "Should have at least 2 conversations (session + location_all)"
 
         # Verify conversation types
         conv_types = {c["conversation_type"] for c in conversations}
-        assert "category" in conv_types, "Should have a category conversation"
+        assert "session" in conv_types, "Should have a session conversation"
         assert "location_all" in conv_types, "Should have a location_all conversation"
 
     @pytest.mark.polis
@@ -641,7 +641,7 @@ class TestPolisEndToEndSync:
         test_statement = f"Polis integration test - comment mapping {uuid.uuid4()}"
         payload = {
             "statement": test_statement,
-            "categoryId": HEALTHCARE_CAT_ID,
+            "sessionId": HEALTHCARE_SESSION_ID,
             "locationId": OREGON_LOCATION_ID,
         }
         resp = requests.post(POSITIONS_URL, headers=normal_headers, json=payload)
@@ -680,7 +680,7 @@ class TestPolisEndToEndSync:
         test_statement = f"Polis integration test - vote sync {uuid.uuid4()}"
         payload = {
             "statement": test_statement,
-            "categoryId": HEALTHCARE_CAT_ID,
+            "sessionId": HEALTHCARE_SESSION_ID,
             "locationId": OREGON_LOCATION_ID,
         }
         resp = requests.post(POSITIONS_URL, headers=user1_headers, json=payload)
@@ -727,7 +727,7 @@ class TestPolisConversationLifecycle:
         # Create a position to trigger conversation creation
         payload = {
             "statement": "Polis integration test - time window test",
-            "categoryId": HEALTHCARE_CAT_ID,
+            "sessionId": HEALTHCARE_SESSION_ID,
             "locationId": OREGON_LOCATION_ID,
         }
         requests.post(POSITIONS_URL, headers=normal_headers, json=payload)
@@ -742,12 +742,12 @@ class TestPolisConversationLifecycle:
             assert conv["status"] == "active", "New conversations should be active"
 
     @pytest.mark.polis
-    def test_conversations_created_for_location_and_category(self, normal_headers):
-        """Test that both location and category conversations are created."""
+    def test_conversations_created_for_location_and_session(self, normal_headers):
+        """Test that both location and session conversations are created."""
         # Create position
         payload = {
             "statement": "Polis integration test - dual conversation test",
-            "categoryId": HEALTHCARE_CAT_ID,
+            "sessionId": HEALTHCARE_SESSION_ID,
             "locationId": OREGON_LOCATION_ID,
         }
         requests.post(POSITIONS_URL, headers=normal_headers, json=payload)
@@ -755,18 +755,18 @@ class TestPolisConversationLifecycle:
 
         # Get conversations for this location
         conversations = db_query("""
-            SELECT conversation_type, category_id
+            SELECT conversation_type, session_id
             FROM polis_conversation
             WHERE location_id = %s
             ORDER BY conversation_type
         """, (OREGON_LOCATION_ID,))
 
-        # Should have category conversation (with category_id)
-        category_convs = [c for c in conversations if c["conversation_type"] == "category"]
-        assert len(category_convs) >= 1, "Should have at least one category conversation"
-        assert category_convs[0]["category_id"] is not None, "Category conv should have category_id"
+        # Should have session conversation (with session_id)
+        session_convs = [c for c in conversations if c["conversation_type"] == "session"]
+        assert len(session_convs) >= 1, "Should have at least one session conversation"
+        assert session_convs[0]["session_id"] is not None, "Session conv should have session_id"
 
-        # Should have location_all conversation (no category_id)
+        # Should have location_all conversation (no session_id)
         location_convs = [c for c in conversations if c["conversation_type"] == "location_all"]
         assert len(location_convs) >= 1, "Should have at least one location_all conversation"
-        assert location_convs[0]["category_id"] is None, "Location conv should not have category_id"
+        assert location_convs[0]["session_id"] is None, "Location conv should not have session_id"

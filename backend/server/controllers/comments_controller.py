@@ -11,8 +11,9 @@ import connexion
 from candid.models.error_model import ErrorModel
 from candid.controllers import db
 from candid.controllers.helpers.auth import (
-    authorization, token_to_user, is_moderator_at_location,
+    require_auth, is_moderator_at_location,
     has_qa_authority, get_highest_role_at_location,
+    check_session_stage, get_session_stage,
 )
 from candid.controllers.helpers.rate_limiting import check_rate_limit_for
 from candid.controllers.helpers.scoring import wilson_score, vote_weight
@@ -28,14 +29,18 @@ from candid.controllers.helpers.discuss_events import (
     publish_vote_update,
 )
 from candid.controllers.helpers.mentions import process_mentions
+from candid.controllers.helpers.serializers import build_creator_dict
 
 
 def _strip_html(text):
-    """Remove HTML tags from text."""
-    return re.sub(r'<[^<]+?>', '', text) if text else text
+    """Remove HTML tags from user text to prevent injection."""
+    import re
+    if not text:
+        return text
+    return re.sub(r'<[^>]+>', '', text).strip()
 
 
-def _row_to_comment(row, post_type=None, post_location_id=None, post_category_id=None):
+def _row_to_comment(row, post_type=None, post_location_id=None, post_session_id=None):
     """Convert a DB row to a Comment response dict."""
     comment = {
         "id": str(row["id"]),
@@ -58,18 +63,9 @@ def _row_to_comment(row, post_type=None, post_location_id=None, post_category_id
     }
 
     # Creator
-    if row.get("creator_display_name") is not None:
-        comment["creator"] = {
-            "id": str(row["creator_user_id"]),
-            "username": row.get("creator_username"),
-            "displayName": row.get("creator_display_name"),
-            "avatarIconUrl": row.get("creator_avatar_icon_url"),
-            "status": row.get("creator_status"),
-            "trustScore": float(row["creator_trust_score"]) if row.get("creator_trust_score") is not None else None,
-            "kudosCount": row.get("creator_kudos_count", 0),
-        }
-    elif row.get("creator_user_id"):
-        comment["creator"] = {"id": str(row["creator_user_id"])}
+    creator = build_creator_dict(row)
+    if creator:
+        comment["creator"] = creator
 
     # Pinned
     comment["isPinned"] = bool(row.get("is_pinned", False))
@@ -86,6 +82,9 @@ def _row_to_comment(row, post_type=None, post_location_id=None, post_category_id
         }
     else:
         comment["userVote"] = None
+
+    # Stage tag
+    comment["createdDuringStage"] = row.get("created_during_stage")
 
     return comment
 
@@ -215,7 +214,7 @@ def get_comments(post_id, cursor=None, limit=None, max_descendants=None, token_i
 
     is_qa = post["post_type"] == "question"
     post_location_id = str(post["location_id"])
-    post_category_id = str(post["category_id"]) if post.get("category_id") else None
+    post_session_id = str(post["session_id"]) if post.get("session_id") else None
     pinned_id = str(post["pinned_comment_id"]) if post.get("pinned_comment_id") else None
 
     # Post-process: handle deleted/removed, add role badges
@@ -238,7 +237,7 @@ def get_comments(post_id, cursor=None, limit=None, max_descendants=None, token_i
 
         # Role badge visibility: check both user-level and item-level flags
         creator_role = get_highest_role_at_location(
-            str(row["creator_user_id"]), post_location_id, post_category_id
+            str(row["creator_user_id"]), post_location_id, post_session_id
         )
         show_creator_role = row_dict.get("show_creator_role", False)
         creator_show_role_badge = row_dict.get("creator_show_role_badge", True)
@@ -267,14 +266,9 @@ def get_comments(post_id, cursor=None, limit=None, max_descendants=None, token_i
     }, 200
 
 
-def create_comment(post_id, body, token_info=None):  # noqa: E501
+@require_auth("normal")
+def create_comment(post_id, body, token_info=None, user_id=None):  # noqa: E501
     """Create a comment on a post."""
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
-    user = token_to_user(token_info)
-    user_id = str(user.id)
 
     # Rate limit
     allowed, count = check_rate_limit_for(user_id, "comment_create")
@@ -293,6 +287,12 @@ def create_comment(post_id, body, token_info=None):  # noqa: E501
     if post["status"] == "locked":
         return ErrorModel(403, "Post is locked"), 403
 
+    # Stage gating
+    post_session_id = str(post["session_id"]) if post.get("session_id") else None
+    allowed_stage, stage_err = check_session_stage(post_session_id, 'comment')
+    if not allowed_stage:
+        return stage_err, stage_err.code
+
     data = connexion.request.get_json()
     body_text = _strip_html((data.get("body") or "").strip())
     parent_comment_id = data.get("parentCommentId")
@@ -303,17 +303,17 @@ def create_comment(post_id, body, token_info=None):  # noqa: E501
         return ErrorModel(400, "Body must be 2000 characters or less"), 400
 
     post_location_id = str(post["location_id"])
-    post_category_id = str(post["category_id"]) if post.get("category_id") else None
+    post_session_id = str(post["session_id"]) if post.get("session_id") else None
 
     # Q&A authorization
     if post["post_type"] == "question":
         if not parent_comment_id:
             # Top-level answer: requires QA authority
-            if not has_qa_authority(user_id, post_location_id, post_category_id):
+            if not has_qa_authority(user_id, post_location_id, post_session_id):
                 return ErrorModel(403, "Only authorized users can answer questions"), 403
         else:
             # Reply: user with QA authority can reply to anyone
-            if not has_qa_authority(user_id, post_location_id, post_category_id):
+            if not has_qa_authority(user_id, post_location_id, post_session_id):
                 # Normal user: can only reply to authorized users
                 parent = db.execute_query(
                     "SELECT * FROM comment WHERE id = %s",
@@ -321,7 +321,7 @@ def create_comment(post_id, body, token_info=None):  # noqa: E501
                 )
                 if not parent:
                     return ErrorModel(400, "Parent comment not found"), 400
-                if not has_qa_authority(str(parent["creator_user_id"]), post_location_id, post_category_id):
+                if not has_qa_authority(str(parent["creator_user_id"]), post_location_id, post_session_id):
                     return ErrorModel(403, "Can only reply to authorized answers"), 403
 
     # Compute path and depth
@@ -344,10 +344,11 @@ def create_comment(post_id, body, token_info=None):  # noqa: E501
 
     # Insert comment
     glossary_highlight = body.get("glossary_highlight", True)
+    current_stage = get_session_stage(post_session_id) if post_session_id else None
     db.execute_query("""
-        INSERT INTO comment (id, post_id, parent_comment_id, creator_user_id, body, path, depth, show_creator_role, glossary_highlight)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-    """, (comment_id, post_id, parent_comment_id, user_id, body_text, path, depth, show_creator_role, glossary_highlight))
+        INSERT INTO comment (id, post_id, parent_comment_id, creator_user_id, body, path, depth, show_creator_role, glossary_highlight, created_during_stage)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """, (comment_id, post_id, parent_comment_id, user_id, body_text, path, depth, show_creator_role, glossary_highlight, current_stage))
 
     # post.comment_count and comment.child_count are maintained by trg_comment_counts trigger
 
@@ -396,7 +397,7 @@ def create_comment(post_id, body, token_info=None):  # noqa: E501
         process_mentions(
             body_text, user_id,
             _mrow["display_name"] if _mrow else "Someone",
-            post_id, post_location_id, post_category_id, db,
+            post_id, post_location_id, post_session_id, db,
             comment_id=comment_id)
     except Exception as e:
         logging.getLogger(__name__).error("Mention processing error: %s", e)
@@ -415,7 +416,7 @@ def create_comment(post_id, body, token_info=None):  # noqa: E501
     """, (comment_id,), fetchone=True)
 
     # Add creator role — always compute for all post types
-    creator_role = get_highest_role_at_location(user_id, post_location_id, post_category_id)
+    creator_role = get_highest_role_at_location(user_id, post_location_id, post_session_id)
     row_dict = dict(row)
     row_dict["creator_role"] = creator_role
     row_dict["show_creator_role"] = show_creator_role
@@ -431,14 +432,9 @@ def create_comment(post_id, body, token_info=None):  # noqa: E501
     return comment_dict, 201
 
 
-def update_comment(comment_id, body, token_info=None):  # noqa: E501
+@require_auth("normal")
+def update_comment(comment_id, body, token_info=None, user_id=None):  # noqa: E501
     """Update a comment (author only, within 15-minute window)."""
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
-    user = token_to_user(token_info)
-    user_id = str(user.id)
 
     comment = db.execute_query(
         "SELECT * FROM comment WHERE id = %s AND status = 'active'",
@@ -486,7 +482,7 @@ def update_comment(comment_id, body, token_info=None):  # noqa: E501
     # Process @mentions for notifications on edit
     try:
         _post = db.execute_query(
-            "SELECT location_id, category_id FROM post WHERE id = %s",
+            "SELECT location_id, session_id FROM post WHERE id = %s",
             (comment["post_id"],), fetchone=True)
         if _post:
             process_mentions(
@@ -494,33 +490,28 @@ def update_comment(comment_id, body, token_info=None):  # noqa: E501
                 row["creator_display_name"] if row else "Someone",
                 str(comment["post_id"]),
                 str(_post["location_id"]),
-                str(_post["category_id"]) if _post.get("category_id") else None,
+                str(_post["session_id"]) if _post.get("session_id") else None,
                 db, comment_id=comment_id)
     except Exception as e:
         logging.getLogger(__name__).error("Mention processing error: %s", e)
 
     # Look up post for location context
     post = db.execute_query(
-        "SELECT location_id, category_id FROM post WHERE id = %s",
+        "SELECT location_id, session_id FROM post WHERE id = %s",
         (comment["post_id"],), fetchone=True,
     )
     post_location_id = str(post["location_id"]) if post else None
-    post_category_id = str(post["category_id"]) if post and post.get("category_id") else None
+    post_session_id = str(post["session_id"]) if post and post.get("session_id") else None
 
     row_dict = dict(row)
-    row_dict["creator_role"] = get_highest_role_at_location(user_id, post_location_id, post_category_id) if post_location_id else None
+    row_dict["creator_role"] = get_highest_role_at_location(user_id, post_location_id, post_session_id) if post_location_id else None
     row_dict["show_creator_role"] = row_dict.get("show_creator_role", False)
     return _row_to_comment(row_dict), 200
 
 
-def delete_comment(comment_id, token_info=None):  # noqa: E501
+@require_auth("normal")
+def delete_comment(comment_id, token_info=None, user_id=None):  # noqa: E501
     """Delete a comment (author soft-delete or moderator remove)."""
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
-    user = token_to_user(token_info)
-    user_id = str(user.id)
 
     comment = db.execute_query(
         "SELECT c.*, p.location_id AS post_location_id FROM comment c JOIN post p ON c.post_id = p.id WHERE c.id = %s AND c.status = 'active'",
@@ -545,14 +536,9 @@ def delete_comment(comment_id, token_info=None):  # noqa: E501
         return ErrorModel(403, "Forbidden"), 403
 
 
-def vote_on_comment(comment_id, body, token_info=None):  # noqa: E501
+@require_auth("normal")
+def vote_on_comment(comment_id, body, token_info=None, user_id=None):  # noqa: E501
     """Vote on a comment (upvote/downvote with toggle)."""
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
-    user = token_to_user(token_info)
-    user_id = str(user.id)
 
     # Rate limit
     allowed, count = check_rate_limit_for(user_id, "vote")
@@ -571,7 +557,7 @@ def vote_on_comment(comment_id, body, token_info=None):  # noqa: E501
 
     # Validate comment + fetch post context
     comment = db.execute_query("""
-        SELECT c.*, p.location_id AS post_location_id, p.category_id AS post_category_id
+        SELECT c.*, p.location_id AS post_location_id, p.session_id AS post_session_id
         FROM comment c
         JOIN post p ON c.post_id = p.id
         WHERE c.id = %s AND c.status = 'active'
@@ -579,6 +565,12 @@ def vote_on_comment(comment_id, body, token_info=None):  # noqa: E501
 
     if not comment:
         return ErrorModel(404, "Comment not found"), 404
+
+    # Stage gating
+    comment_session_id = str(comment["post_session_id"]) if comment.get("post_session_id") else None
+    allowed_stage, stage_err = check_session_stage(comment_session_id, 'comment_vote')
+    if not allowed_stage:
+        return stage_err, stage_err.code
 
     # Self-vote check
     if str(comment["creator_user_id"]) == user_id:
@@ -603,8 +595,8 @@ def vote_on_comment(comment_id, body, token_info=None):  # noqa: E501
         # Compute weight
         weight = 1.0
         post_location_id = str(comment["post_location_id"])
-        post_category_id = str(comment["post_category_id"]) if comment.get("post_category_id") else None
-        conversation_id = get_conversation_for_post(post_location_id, post_category_id)
+        post_session_id = str(comment["post_session_id"]) if comment.get("post_session_id") else None
+        conversation_id = get_conversation_for_post(post_location_id, post_session_id)
         if conversation_id:
             try:
                 voter_coords = get_effective_coords(user_id, conversation_id)
@@ -770,7 +762,7 @@ def get_comment_thread(post_id, comment_id, max_descendants=None, include_ancest
 
     is_qa = post["post_type"] == "question"
     post_location_id = str(post["location_id"])
-    post_category_id = str(post["category_id"]) if post.get("category_id") else None
+    post_session_id = str(post["session_id"]) if post.get("session_id") else None
     pinned_id = str(post["pinned_comment_id"]) if post.get("pinned_comment_id") else None
     target_depth = target["depth"]
 
@@ -797,7 +789,7 @@ def get_comment_thread(post_id, comment_id, max_descendants=None, include_ancest
 
         # Role badge visibility
         creator_role = get_highest_role_at_location(
-            str(row["creator_user_id"]), post_location_id, post_category_id
+            str(row["creator_user_id"]), post_location_id, post_session_id
         )
         show_creator_role = row_dict.get("show_creator_role", False)
         creator_show_role_badge = row_dict.get("creator_show_role_badge", True)
@@ -821,18 +813,13 @@ def get_comment_thread(post_id, comment_id, max_descendants=None, include_ancest
     }, 200
 
 
-def patch_comment(comment_id, body, token_info=None):  # noqa: E501
+@require_auth("normal")
+def patch_comment(comment_id, body, token_info=None, user_id=None):  # noqa: E501
     """Patch a comment — toggle role badge visibility (author only)."""
-    authorized, auth_err = authorization("normal", token_info)
-    if not authorized:
-        return auth_err, auth_err.code
-
-    user = token_to_user(token_info)
-    user_id = str(user.id)
 
     # Fetch comment with post context
     comment = db.execute_query("""
-        SELECT c.*, p.location_id AS post_location_id, p.category_id AS post_category_id
+        SELECT c.*, p.location_id AS post_location_id, p.session_id AS post_session_id
         FROM comment c
         JOIN post p ON c.post_id = p.id
         WHERE c.id = %s AND c.status = 'active'
@@ -846,8 +833,8 @@ def patch_comment(comment_id, body, token_info=None):  # noqa: E501
 
     # Verify user has a role at this location
     post_location_id = str(comment["post_location_id"])
-    post_category_id = str(comment["post_category_id"]) if comment.get("post_category_id") else None
-    creator_role = get_highest_role_at_location(user_id, post_location_id, post_category_id)
+    post_session_id = str(comment["post_session_id"]) if comment.get("post_session_id") else None
+    creator_role = get_highest_role_at_location(user_id, post_location_id, post_session_id)
     if not creator_role:
         return ErrorModel(403, "No role at this location"), 403
 

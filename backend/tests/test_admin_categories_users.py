@@ -1,7 +1,7 @@
-"""Integration tests for admin category creation and user ban/unban endpoints.
+"""Integration tests for admin session creation and user ban/unban endpoints.
 
 Tests:
-- POST /admin/categories — create category, duplicate, empty label, unauthorized
+- POST /admin/sessions — create session, duplicate, empty label, unauthorized
 - PATCH /admin/users/{userId}/status — ban active user, already banned, unauthorized
 - PATCH /admin/users/{userId}/status — unban banned user, not banned, nonexistent, unauthorized
 """
@@ -17,70 +17,70 @@ from conftest import (
     db_query_one,
 )
 
-ADMIN_CATEGORIES_URL = f"{BASE_URL}/admin/categories"
+ADMIN_SESSIONS_URL = f"{BASE_URL}/admin/sessions"
 ADMIN_USERS_URL = f"{BASE_URL}/admin/users"
 
 
 # ---------------------------------------------------------------------------
-# Category creation tests
+# Session creation tests
 # ---------------------------------------------------------------------------
 
-class TestCreateCategory:
-    """POST /admin/categories"""
+class TestCreateSession:
+    """POST /admin/sessions"""
 
     @pytest.mark.mutation
-    def test_create_category_success(self, admin_headers):
-        """Site admin can create a new category."""
+    def test_create_session_success(self, admin_headers):
+        """Site admin can create a new session."""
         resp = requests.post(
-            ADMIN_CATEGORIES_URL,
+            ADMIN_SESSIONS_URL,
             headers=admin_headers,
-            json={"label": "Test Category Integration"},
+            json={"label": "Test Session Integration"},
         )
         assert resp.status_code == 201
         data = resp.json()
-        assert data["label"] == "Test Category Integration"
+        assert data["label"] == "Test Session Integration"
         assert data["id"] is not None
 
         # Cleanup
-        db_execute("DELETE FROM position_category WHERE id = %s", (data["id"],))
+        db_execute("DELETE FROM session WHERE id = %s", (data["id"],))
 
     @pytest.mark.mutation
-    def test_create_category_duplicate(self, admin_headers):
-        """Duplicate category label (case-insensitive) returns 400."""
+    def test_create_session_duplicate(self, admin_headers):
+        """Duplicate session label (case-insensitive) returns 400."""
         resp = requests.post(
-            ADMIN_CATEGORIES_URL,
+            ADMIN_SESSIONS_URL,
             headers=admin_headers,
-            json={"label": "DupCatTest"},
+            json={"label": "DupSessionTest"},
         )
         assert resp.status_code == 201
-        cat_id = resp.json()["id"]
+        session_id = resp.json()["id"]
 
         try:
             resp2 = requests.post(
-                ADMIN_CATEGORIES_URL,
+                ADMIN_SESSIONS_URL,
                 headers=admin_headers,
-                json={"label": "dupcattest"},  # same label, different case
+                json={"label": "dupsessiontest"},  # same label, different case
             )
             assert resp2.status_code == 400
             assert "already exists" in resp2.json()["message"]
         finally:
-            db_execute("DELETE FROM position_category WHERE id = %s", (cat_id,))
+            db_execute("DELETE FROM session WHERE id = %s", (session_id,))
 
-    def test_create_category_empty_label(self, admin_headers):
+    def test_create_session_empty_label(self, admin_headers):
         """Empty label returns 400."""
         resp = requests.post(
-            ADMIN_CATEGORIES_URL,
+            ADMIN_SESSIONS_URL,
             headers=admin_headers,
             json={"label": "   "},
         )
         assert resp.status_code == 400
 
-    def test_create_category_unauthorized(self, normal_headers):
-        """Normal user cannot create categories."""
+    def test_create_session_unauthorized(self, normal_headers):
+        """Normal user cannot create sessions."""
         resp = requests.post(
-            ADMIN_CATEGORIES_URL,
+            ADMIN_SESSIONS_URL,
             headers=normal_headers,
-            json={"label": "Unauthorized Category"},
+            json={"label": "Unauthorized Session"},
         )
         assert resp.status_code in (401, 403)
 

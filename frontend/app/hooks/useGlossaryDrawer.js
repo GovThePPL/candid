@@ -40,17 +40,17 @@ export function useGlossaryDrawer() {
  *
  * @param {Function} onTermPress - Called with slug when a term is tapped
  * @param {Object} [opts]
- * @param {string} [opts.categoryId] - Filter terms to this category
+ * @param {string} [opts.sessionId] - Filter terms to this session
  * @param {boolean} [opts.inverse=false] - Use inverse (white) highlight style
  * @param {Function} [opts.onMentionPress] - Called with username when @mention tapped
  * @returns {Object|undefined} Rules object to pass as glossaryRules prop
  */
 export function useGlossaryRules(onTermPress, opts = {}) {
-  const { categoryId, inverse = false, onMentionPress } = opts
+  const { sessionId, inverse = false, onMentionPress } = opts
   const colors = useThemeColors()
   const { matchPattern, termMap, getFilteredPattern } = useGlossary()
 
-  const pattern = categoryId ? getFilteredPattern(categoryId) : matchPattern
+  const pattern = sessionId ? getFilteredPattern(sessionId) : matchPattern
 
   const highlightStyle = useMemo(() => ({
     color: inverse ? '#FFFFFF' : colors.primary,

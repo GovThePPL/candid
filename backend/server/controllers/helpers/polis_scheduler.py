@@ -21,7 +21,7 @@ def create_monthly_conversations() -> Dict[str, Any]:
     Create new Polis conversations for the current month.
     Should be run on the 1st of each month via cron.
 
-    Creates conversations for all active location+category combinations
+    Creates conversations for all active location+session combinations
     that have had activity in the past 6 months.
 
     Returns summary of created conversations.
@@ -30,18 +30,18 @@ def create_monthly_conversations() -> Dict[str, Any]:
     active_from = today.replace(day=1)
     active_until = active_from + relativedelta(months=config.POLIS_CONVERSATION_WINDOW_MONTHS)
 
-    # Find location+category combos with recent positions
+    # Find location+session combos with recent positions
     lookback = today - relativedelta(months=6)
 
     active_combos = db.execute_query("""
         SELECT DISTINCT
             p.location_id,
-            p.category_id,
+            p.session_id,
             l.name as location_name,
-            pc.label as category_name
+            s.label as session_name
         FROM position p
         JOIN location l ON p.location_id = l.id
-        JOIN position_category pc ON p.category_id = pc.id
+        JOIN session s ON p.session_id = s.id
         WHERE p.created_time >= %s
           AND p.status = 'active'
     """, (lookback,))
@@ -55,34 +55,35 @@ def create_monthly_conversations() -> Dict[str, Any]:
 
     for combo in active_combos:
         location_id = str(combo["location_id"])
-        category_id = str(combo["category_id"])
+        session_id = str(combo["session_id"])
         location_name = combo["location_name"]
-        category_name = combo["category_name"]
+        session_name = combo["session_name"]
 
-        # Check if conversation already exists for this month
-        existing = db.execute_query("""
-            SELECT id FROM polis_conversation
-            WHERE location_id = %s AND category_id = %s AND active_from = %s
-        """, (location_id, category_id, active_from), fetchone=True)
+        # Create one conversation per phase (proposal + opinion)
+        for phase in ('proposal', 'opinion'):
+            # Check if conversation already exists for this month+phase
+            existing = db.execute_query("""
+                SELECT id FROM polis_conversation
+                WHERE location_id = %s AND session_id = %s AND phase = %s AND active_from = %s
+            """, (location_id, session_id, phase, active_from), fetchone=True)
 
-        if existing:
-            continue
+            if existing:
+                continue
 
-        # Create category+location conversation
-        try:
-            topic = f"{location_name}: {category_name}"
-            description = f"Active from {active_from} to {active_until}"
-            polis_conv_id = client.create_conversation(topic, description)
+            try:
+                topic = f"{location_name}: {session_name} ({phase})"
+                description = f"Active from {active_from} to {active_until}"
+                polis_conv_id = client.create_conversation(topic, description)
 
-            if polis_conv_id:
-                db.execute_query("""
-                    INSERT INTO polis_conversation
-                    (id, location_id, category_id, polis_conversation_id, conversation_type, active_from, active_until)
-                    VALUES (%s, %s, %s, %s, 'category', %s, %s)
-                """, (str(uuid.uuid4()), location_id, category_id, polis_conv_id, active_from, active_until))
-                created += 1
-        except PolisError as e:
-            errors.append(f"{location_name}/{category_name}: {e}")
+                if polis_conv_id:
+                    db.execute_query("""
+                        INSERT INTO polis_conversation
+                        (id, location_id, session_id, polis_conversation_id, conversation_type, phase, active_from, active_until)
+                        VALUES (%s, %s, %s, %s, 'session', %s, %s, %s)
+                    """, (str(uuid.uuid4()), location_id, session_id, polis_conv_id, phase, active_from, active_until))
+                    created += 1
+            except PolisError as e:
+                errors.append(f"{location_name}/{session_name}/{phase}: {e}")
 
     # Create location-only conversations for active locations
     active_locations = db.execute_query("""
@@ -102,7 +103,7 @@ def create_monthly_conversations() -> Dict[str, Any]:
         # Check if location-only conversation exists
         existing = db.execute_query("""
             SELECT id FROM polis_conversation
-            WHERE location_id = %s AND category_id IS NULL AND active_from = %s
+            WHERE location_id = %s AND session_id IS NULL AND active_from = %s
         """, (location_id, active_from), fetchone=True)
 
         if existing:
@@ -116,8 +117,8 @@ def create_monthly_conversations() -> Dict[str, Any]:
             if polis_conv_id:
                 db.execute_query("""
                     INSERT INTO polis_conversation
-                    (id, location_id, category_id, polis_conversation_id, conversation_type, active_from, active_until)
-                    VALUES (%s, %s, NULL, %s, 'location_all', %s, %s)
+                    (id, location_id, session_id, polis_conversation_id, conversation_type, phase, active_from, active_until)
+                    VALUES (%s, %s, NULL, %s, 'location_all', NULL, %s, %s)
                 """, (str(uuid.uuid4()), location_id, polis_conv_id, active_from, active_until))
                 created += 1
         except PolisError as e:
@@ -146,7 +147,7 @@ def expire_old_conversations() -> Dict[str, Any]:
         SET status = 'expired'
         WHERE status = 'active'
           AND active_until <= %s
-        RETURNING id, polis_conversation_id, location_id, category_id
+        RETURNING id, polis_conversation_id, location_id, session_id
     """, (today,))
 
     # Note: We don't deactivate conversations in Polis itself,
@@ -215,7 +216,7 @@ def get_conversation_stats() -> Dict[str, Any]:
 
     active_count = db.execute_query("""
         SELECT COUNT(DISTINCT location_id) as locations,
-               COUNT(DISTINCT category_id) as categories
+               COUNT(DISTINCT session_id) as sessions
         FROM polis_conversation
         WHERE status = 'active'
     """, fetchone=True)
@@ -223,7 +224,7 @@ def get_conversation_stats() -> Dict[str, Any]:
     return {
         "by_status_and_type": [dict(s) for s in (stats or [])],
         "active_locations": active_count["locations"] if active_count else 0,
-        "active_categories": active_count["categories"] if active_count else 0,
+        "active_sessions": active_count["sessions"] if active_count else 0,
     }
 
 
@@ -237,9 +238,9 @@ def get_conversations_for_location(location_id: str) -> List[Dict[str, Any]]:
             pc.active_from,
             pc.active_until,
             pc.status,
-            cat.label as category_name
+            s.label as session_name
         FROM polis_conversation pc
-        LEFT JOIN position_category cat ON pc.category_id = cat.id
+        LEFT JOIN session s ON pc.session_id = s.id
         WHERE pc.location_id = %s
         ORDER BY pc.active_from DESC, pc.conversation_type
     """, (location_id,))

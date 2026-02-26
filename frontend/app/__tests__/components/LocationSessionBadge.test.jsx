@@ -6,64 +6,64 @@ jest.mock('../../hooks/useThemeColors', () => ({
   useThemeColors: () => mockColors,
 }))
 
-import LocationCategoryBadge from '../../components/LocationCategoryBadge'
+import LocationSessionBadge from '../../components/LocationSessionBadge'
 
 const location = { code: 'OR', name: 'Oregon' }
-const category = { label: 'Environment' }
+const session = { label: 'Environment' }
 
-describe('LocationCategoryBadge', () => {
-  it('returns null when both location and category are null', () => {
+describe('LocationSessionBadge', () => {
+  it('returns null when both location and session are null', () => {
     const { toJSON } = render(
-      <LocationCategoryBadge location={null} category={null} />
+      <LocationSessionBadge location={null} session={null} />
     )
     expect(toJSON()).toBeNull()
   })
 
   it('returns null when both are undefined', () => {
-    const { toJSON } = render(<LocationCategoryBadge />)
+    const { toJSON } = render(<LocationSessionBadge />)
     expect(toJSON()).toBeNull()
   })
 
-  it('renders location code only when no category', () => {
-    render(<LocationCategoryBadge location={location} category={null} size="lg" />)
+  it('renders location code only when no session', () => {
+    render(<LocationSessionBadge location={location} session={null} size="lg" />)
     expect(screen.getByText('OR')).toBeTruthy()
     expect(screen.queryByText('Environment')).toBeNull()
   })
 
-  it('renders category label only when no location', () => {
-    render(<LocationCategoryBadge location={null} category={category} size="lg" />)
+  it('renders session label only when no location', () => {
+    render(<LocationSessionBadge location={null} session={session} size="lg" />)
     expect(screen.getByText('Environment')).toBeTruthy()
     expect(screen.queryByText('OR')).toBeNull()
   })
 
   it('renders both when both are present', () => {
-    render(<LocationCategoryBadge location={location} category={category} />)
+    render(<LocationSessionBadge location={location} session={session} />)
     expect(screen.getByText('OR')).toBeTruthy()
     expect(screen.getByText('Environment')).toBeTruthy()
   })
 
   it('uses location.code not location.name', () => {
-    render(<LocationCategoryBadge location={location} category={null} />)
+    render(<LocationSessionBadge location={location} session={null} />)
     expect(screen.getByText('OR')).toBeTruthy()
     expect(screen.queryByText('Oregon')).toBeNull()
   })
 
   it('ignores location with no code', () => {
     const { toJSON } = render(
-      <LocationCategoryBadge location={{ name: 'Oregon' }} category={null} />
+      <LocationSessionBadge location={{ name: 'Oregon' }} session={null} />
     )
     expect(toJSON()).toBeNull()
   })
 
-  it('ignores category with no label', () => {
+  it('ignores session with no label', () => {
     const { toJSON } = render(
-      <LocationCategoryBadge location={null} category={{ id: 1 }} />
+      <LocationSessionBadge location={null} session={{ id: 1 }} />
     )
     expect(toJSON()).toBeNull()
   })
 
   it('defaults to sm size', () => {
-    render(<LocationCategoryBadge location={location} category={category} />)
+    render(<LocationSessionBadge location={location} session={session} />)
     // Just verify it renders without error at default size
     expect(screen.getByText('OR')).toBeTruthy()
     expect(screen.getByText('Environment')).toBeTruthy()

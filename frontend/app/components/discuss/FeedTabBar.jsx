@@ -5,20 +5,23 @@ import { useThemeColors } from '../../hooks/useThemeColors'
 import ThemedText from '../ThemedText'
 
 /**
- * Two square tab buttons for Discussion / Q&A filtering.
+ * Tab buttons for Discussion / Q&A / Proposals filtering.
  *
  * @param {Object} props
- * @param {string} props.activeTab - 'discussion' or 'question'
+ * @param {string} props.activeTab - 'discussion', 'question', or 'proposal'
  * @param {Function} props.onTabChange - Callback with new tab value
+ * @param {boolean} props.showProposals - Whether to show the Proposals tab
+ * @param {boolean} props.hideQA - Whether to hide the Q&A tab (during proposal_* stages)
  */
-export default function FeedTabBar({ activeTab, onTabChange }) {
+export default function FeedTabBar({ activeTab, onTabChange, showProposals, hideQA }) {
   const { t } = useTranslation('discuss')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
 
   const tabs = [
     { id: 'discussion', label: t('tabDiscussion') },
-    { id: 'question', label: t('tabQA') },
+    ...(!hideQA ? [{ id: 'question', label: t('tabQA') }] : []),
+    ...(showProposals ? [{ id: 'proposal', label: t('tabProposals') }] : []),
   ]
 
   return (

@@ -4,14 +4,14 @@ import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../hooks/useThemeColors'
 import ThemedText from './ThemedText'
 import UserCard from './UserCard'
-import LocationCategoryBadge from './LocationCategoryBadge'
+import LocationSessionBadge from './LocationSessionBadge'
 
 /**
  * Reusable card section displaying position info:
- * location badge, category label, statement text, and author row.
+ * location badge, session label, statement text, and author row.
  *
  * @param {Object} props
- * @param {Object} props.position - Position object with { statement, category, location, creator }
+ * @param {Object} props.position - Position object with { statement, session, location, creator }
  * @param {'userType'|'username'} [props.authorSubtitle='userType'] - What to show below creator name
  * @param {ReactNode} [props.headerRight] - Optional content on the right side of the header (e.g. vote badge)
  * @param {string} [props.label] - Optional label above the header (e.g. "Topic of Discussion")
@@ -37,7 +37,7 @@ export default memo(function PositionInfoCard({
 
   if (!position) return null
 
-  const { statement, category, location, creator } = position
+  const { statement, session, location, creator } = position
 
   return (
     <View style={[styles.container, style]}>
@@ -46,9 +46,9 @@ export default memo(function PositionInfoCard({
         <ThemedText variant="caption" color="secondary" style={styles.label}>{label}</ThemedText>
       )}
 
-      {/* Header row: Category/Location on left, optional content on right */}
+      {/* Header row: Session/Location on left, optional content on right */}
       <View style={styles.headerRow}>
-        <LocationCategoryBadge location={location} category={category} size={isFull ? 'lg' : 'md'} />
+        <LocationSessionBadge location={location} session={session} size={isFull ? 'lg' : 'md'} />
         {headerRight}
       </View>
 

@@ -32,6 +32,16 @@ _fake_detoxify = types.ModuleType("detoxify")
 _fake_detoxify.Detoxify = MagicMock
 sys.modules.setdefault("detoxify", _fake_detoxify)
 
+# Fake anthropic module (must happen before llm_providers import)
+_fake_anthropic = types.ModuleType("anthropic")
+_fake_anthropic.AsyncAnthropic = MagicMock
+sys.modules.setdefault("anthropic", _fake_anthropic)
+
+# Fake openai module (must happen before llm_providers import)
+_fake_openai = types.ModuleType("openai")
+_fake_openai.AsyncOpenAI = MagicMock
+sys.modules.setdefault("openai", _fake_openai)
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
