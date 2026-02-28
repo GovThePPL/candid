@@ -40,23 +40,56 @@ for _pkg_dir in [
         with open(_init, "w") as f:
             f.write("")
 
-# Create minimal model stubs if openapi-generator hasn't been run
+# Auto-stub any candid.models.* import when openapi-generator hasn't been run.
+# Instead of maintaining individual stubs, install a meta-path finder that
+# creates modules on demand with a generic model class.
 _MODELS_DIR = os.path.join(_GENERATED, "candid", "models")
-if not os.path.isdir(_MODELS_DIR):
-    os.makedirs(_MODELS_DIR, exist_ok=True)
-    with open(os.path.join(_MODELS_DIR, "__init__.py"), "w") as f:
-        f.write("from candid.models.user import User\nfrom candid.models.error_model import ErrorModel\n")
-    with open(os.path.join(_MODELS_DIR, "user.py"), "w") as f:
-        f.write("class User:\n    def __init__(self, id=None, username=None, display_name=None, "
-                "avatar_url=None, avatar_icon_url=None, status=None, trust_score=None, "
-                "kudos_count=None, **kwargs):\n"
-                "        self.id = id\n        self.username = username\n"
-                "        self.display_name = display_name\n        self.avatar_url = avatar_url\n"
-                "        self.avatar_icon_url = avatar_icon_url\n        self.status = status\n"
-                "        self.trust_score = trust_score\n        self.kudos_count = kudos_count\n")
-    with open(os.path.join(_MODELS_DIR, "error_model.py"), "w") as f:
-        f.write("class ErrorModel:\n    def __init__(self, code=None, detail=None, **kwargs):\n"
-                "        self.code = code\n        self.detail = detail\n")
+os.makedirs(_MODELS_DIR, exist_ok=True)
+_models_init = os.path.join(_MODELS_DIR, "__init__.py")
+if not os.path.exists(_models_init):
+    with open(_models_init, "w") as f:
+        f.write("")
+
+import importlib.abc
+import importlib.machinery
+import types
+
+class _ModelStubFinder(importlib.abc.MetaPathFinder):
+    """Auto-generate stub modules for candid.models.* imports."""
+
+    def find_module(self, fullname, path=None):
+        if fullname.startswith("candid.models.") and fullname not in sys.modules:
+            # Only stub if no real module exists on disk
+            parts = fullname.split(".")
+            model_file = os.path.join(_MODELS_DIR, parts[-1] + ".py")
+            if not os.path.exists(model_file):
+                return self
+        return None
+
+    def load_module(self, fullname):
+        if fullname in sys.modules:
+            return sys.modules[fullname]
+        # Create a module with a generic class matching the expected name
+        # e.g. candid.models.survey -> class Survey(**kwargs)
+        mod = types.ModuleType(fullname)
+        mod.__file__ = f"<stub:{fullname}>"
+        mod.__loader__ = self
+        # Generate class name from module name: survey_question -> SurveyQuestion
+        class_name = "".join(w.capitalize() for w in fullname.split(".")[-1].split("_"))
+        stub_class = type(class_name, (), {
+            "__init__": lambda self, *a, **kw: self.__dict__.update(kw),
+        })
+        setattr(mod, class_name, stub_class)
+        sys.modules[fullname] = mod
+        return mod
+
+sys.meta_path.insert(0, _ModelStubFinder())
+
+# Also stub candid.util (imported by generated controllers)
+if "candid.util" not in sys.modules:
+    _util_mod = types.ModuleType("candid.util")
+    _util_mod.__file__ = "<stub:candid.util>"
+    sys.modules["candid.util"] = _util_mod
 
 # Mock the Database class BEFORE importing candid — prevents real DB connections
 _mock_database_class = MagicMock()

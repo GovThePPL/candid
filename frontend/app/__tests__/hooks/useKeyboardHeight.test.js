@@ -105,6 +105,11 @@ describe('useKeyboardHeight - web', () => {
       addEventListener: jest.fn((event, cb) => { documentListeners[event] = cb }),
       removeEventListener: jest.fn((event) => { delete documentListeners[event] }),
     }
+
+    // navigator may not exist in RN test env
+    if (typeof global.navigator === 'undefined') {
+      global.navigator = { userAgent: '' }
+    }
   })
 
   // Don't delete window.addEventListener/removeEventListener in afterEach — React's
