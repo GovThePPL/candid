@@ -9,6 +9,7 @@
 - Captcha on sign-up
 
 ## Security
+- Majority vote role approval — replace single-peer approval with majority vote from eligible admins/moderators/facilitators at the authority level. 7-day voting window, role suspension during revocation votes, tie = denied. Prevents single bad actor from unilaterally granting/revoking roles. See [plan](.claude-plans/2026-02-27_role-approval-majority-vote.md)
 - Implement bot detection system
 - Captcha cards when necessary (triggered by suspicious behavior)
 - Only allow responses to items sent in the card queue (outside of dev mode)

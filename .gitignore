@@ -40,6 +40,9 @@ snapshots/
 # Claude Code plans
 .claude-plans/
 
+# Deployment configs (instance-specific, not committed)
+deploy/
+
 # Custom editor Vite build intermediate output (committed file is build/editorHtml.js)
 frontend/app/lib/customEditor/dist/
 

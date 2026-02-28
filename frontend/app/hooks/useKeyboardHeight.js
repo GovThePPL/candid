@@ -43,8 +43,8 @@ export default function useKeyboardHeight() {
       // on first open, so we estimate then poll to refine.
       // Chrome (including DevTools responsive mode) sets a mobile user agent but
       // handles keyboard via visualViewport resize — focusin would cause false positives.
-      const isFirefoxMobile = /Firefox/.test(navigator.userAgent) &&
-        /Mobi|Android/.test(navigator.userAgent)
+      const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
+      const isFirefoxMobile = /Firefox/.test(ua) && /Mobi|Android/.test(ua)
       let pollTimer = null
       let focusOutTimer = null
 

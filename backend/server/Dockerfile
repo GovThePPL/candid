@@ -28,7 +28,7 @@ RUN pip3 install --no-cache-dir -r requirements.txt --break-system-packages
 
 EXPOSE 8000
 
-RUN useradd -m -u 1000 app
+RUN useradd -m app
 USER app
 
 # Default: API server (gunicorn)

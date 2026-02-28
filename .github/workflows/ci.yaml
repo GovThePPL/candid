@@ -43,7 +43,7 @@ jobs:
     - name: Install dependencies
       run: |
         pip install -r backend/server/requirements.txt
-        pip install pytest
+        pip install pytest pytest-timeout requests
 
     - name: Run unit tests
       run: python -m pytest backend/tests/unit/ -v

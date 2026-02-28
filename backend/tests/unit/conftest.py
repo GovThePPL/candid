@@ -23,9 +23,22 @@ _CONTROLLERS_SRC = os.path.join(_REPO_ROOT, "backend", "server", "controllers")
 _GENERATED = os.path.join(_REPO_ROOT, "backend", "server", "generated")
 _CONTROLLERS_DST = os.path.join(_GENERATED, "candid", "controllers")
 
-# Copy real controllers over generated stubs (mirrors build.sh step)
-if os.path.isdir(_CONTROLLERS_SRC) and os.path.isdir(_CONTROLLERS_DST):
+# Copy real controllers over generated stubs (mirrors build.sh step).
+# In CI, the generated/ directory may not exist (openapi-generator not run),
+# so create the full package structure if needed.
+os.makedirs(_CONTROLLERS_DST, exist_ok=True)
+if os.path.isdir(_CONTROLLERS_SRC):
     shutil.copytree(_CONTROLLERS_SRC, _CONTROLLERS_DST, dirs_exist_ok=True)
+
+# Ensure candid package has __init__.py at each level
+for _pkg_dir in [
+    os.path.join(_GENERATED, "candid"),
+    _CONTROLLERS_DST,
+]:
+    _init = os.path.join(_pkg_dir, "__init__.py")
+    if not os.path.exists(_init):
+        with open(_init, "w") as f:
+            f.write("")
 
 # Create minimal model stubs if openapi-generator hasn't been run
 _MODELS_DIR = os.path.join(_GENERATED, "candid", "models")
