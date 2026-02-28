@@ -52,36 +52,38 @@ if not os.path.exists(_models_init):
 
 import importlib.abc
 import importlib.machinery
+import importlib.util
 import types
+
+class _ModelStubLoader(importlib.abc.Loader):
+    """Loader that creates a stub module with a generic model class."""
+
+    def create_module(self, spec):
+        return None  # use default module creation
+
+    def exec_module(self, module):
+        # Generate class name from module name: survey_question -> SurveyQuestion
+        class_name = "".join(
+            w.capitalize() for w in module.__name__.split(".")[-1].split("_")
+        )
+        stub_class = type(class_name, (), {
+            "__init__": lambda self, *a, **kw: self.__dict__.update(kw),
+        })
+        setattr(module, class_name, stub_class)
 
 class _ModelStubFinder(importlib.abc.MetaPathFinder):
     """Auto-generate stub modules for candid.models.* imports."""
 
-    def find_module(self, fullname, path=None):
+    def find_spec(self, fullname, path, target=None):
         if fullname.startswith("candid.models.") and fullname not in sys.modules:
             # Only stub if no real module exists on disk
             parts = fullname.split(".")
             model_file = os.path.join(_MODELS_DIR, parts[-1] + ".py")
             if not os.path.exists(model_file):
-                return self
+                return importlib.util.spec_from_loader(
+                    fullname, _ModelStubLoader(), origin="<stub>"
+                )
         return None
-
-    def load_module(self, fullname):
-        if fullname in sys.modules:
-            return sys.modules[fullname]
-        # Create a module with a generic class matching the expected name
-        # e.g. candid.models.survey -> class Survey(**kwargs)
-        mod = types.ModuleType(fullname)
-        mod.__file__ = f"<stub:{fullname}>"
-        mod.__loader__ = self
-        # Generate class name from module name: survey_question -> SurveyQuestion
-        class_name = "".join(w.capitalize() for w in fullname.split(".")[-1].split("_"))
-        stub_class = type(class_name, (), {
-            "__init__": lambda self, *a, **kw: self.__dict__.update(kw),
-        })
-        setattr(mod, class_name, stub_class)
-        sys.modules[fullname] = mod
-        return mod
 
 sys.meta_path.insert(0, _ModelStubFinder())
 
