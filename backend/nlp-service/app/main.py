@@ -129,6 +129,20 @@ class ProcessAvatarResponse(BaseModel):
     error: Optional[str] = Field(None, description="Error message if processing failed")
 
 
+class ResizeAvatarRequest(BaseModel):
+    """Request model for avatar resizing (no NSFW check)."""
+
+    image_base64: str = Field(..., description="Base64 encoded image (can include data URI prefix)")
+
+
+class ResizeAvatarResponse(BaseModel):
+    """Response model for avatar resizing."""
+
+    full_base64: Optional[str] = Field(None, description="Full size (256x256) avatar as base64 data URI")
+    icon_base64: Optional[str] = Field(None, description="Icon size (64x64) avatar as base64 data URI")
+    error: Optional[str] = Field(None, description="Error message if processing failed")
+
+
 class ProposalAssistRequest(BaseModel):
     """Request model for proposal AI assistance."""
 
@@ -244,6 +258,44 @@ async def toxicity_check(request: ToxicityCheckRequest):
         )
     except Exception as e:
         logger.error(f"Error checking toxicity: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/resize-avatar", response_model=ResizeAvatarResponse)
+async def resize_avatar_endpoint(request: ResizeAvatarRequest):
+    """
+    Resize an avatar image without NSFW check.
+
+    Accepts base64 encoded image data (with or without data URI prefix).
+    Returns resized images (256x256 full, 64x64 icon) as base64 data URIs.
+    Used for fast avatar upload with deferred NSFW checking.
+    """
+    try:
+        # Decode and validate image
+        image_bytes, error = decode_and_validate_image(request.image_base64)
+        if error:
+            return ResizeAvatarResponse(
+                full_base64=None,
+                icon_base64=None,
+                error=error
+            )
+
+        # Process and resize the avatar (no NSFW check)
+        avatar_result = process_avatar(image_bytes)
+        if avatar_result['error']:
+            return ResizeAvatarResponse(
+                full_base64=None,
+                icon_base64=None,
+                error=f"Failed to process image: {avatar_result['error']}"
+            )
+
+        return ResizeAvatarResponse(
+            full_base64=avatar_result['full_base64'],
+            icon_base64=avatar_result['icon_base64'],
+            error=None
+        )
+    except Exception as e:
+        logger.error(f"Error resizing avatar: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

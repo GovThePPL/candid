@@ -14,6 +14,7 @@ Version strings use **dollar-quoting** (`$$version$$`) instead of single quotes 
 migrations/
 ├── run_migrations.sh   # Runner script
 ├── 001_initial.sql     # Baseline marker (no-op, marks schema.sql as applied)
+├── 002_avatar_nsfw_queue.sql  # Avatar NSFW processing queue tables
 └── README.md
 ```
 

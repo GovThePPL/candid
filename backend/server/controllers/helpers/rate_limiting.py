@@ -20,7 +20,7 @@ RATE_LIMITS = {
     "post_create":     (5,   3600),   # 5 per hour per user
     "position_create": (5,   3600),   # 5 per hour per user
     "comment_create":  (30,  3600),   # 30 per hour per user
-    "vote":            (100, 3600),   # 100 per hour per user
+    "vote":            (600, 3600),   # 600 per hour per user (10/min)
     "toxicity_check":  (60,  60),     # 60 per minute per user
     "avatar_upload":   (10,  3600),   # 10 per hour per user
     "proposal_assist": (20,  3600),   # 20 per hour per user

@@ -33,3 +33,10 @@ if config.APPROVAL_REMINDER_ENABLED:
         start_worker as start_reminder, stop_worker as stop_reminder
     start_reminder()
     atexit.register(stop_reminder)
+
+# Start avatar NSFW worker if enabled
+if config.AVATAR_NSFW_ENABLED:
+    from candid.controllers.helpers.avatar_nsfw_worker import \
+        start_worker as start_avatar_nsfw, stop_worker as stop_avatar_nsfw
+    start_avatar_nsfw()
+    atexit.register(stop_avatar_nsfw)

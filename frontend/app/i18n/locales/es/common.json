@@ -230,5 +230,7 @@
   "sessionOverviewReturnCurrentA11y": "Volver a la etapa actual en vivo",
   "sessionOverviewViewingStage": "Viendo",
   "stageAdvanceConfirm": "¿Avanzar a {{stage}}?",
-  "imageTapFullSizeA11y": "Toca para ver tamaño completo"
+  "imageTapFullSizeA11y": "Toca para ver tamaño completo",
+
+  "avatarRejected": "Tu avatar fue eliminado porque contiene contenido inapropiado. Por favor sube una imagen diferente."
 }

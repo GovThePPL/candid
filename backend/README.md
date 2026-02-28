@@ -11,6 +11,7 @@ backend/
 ├── database/         # PostgreSQL schema and seed data
 ├── nlp-service/      # Sentence embeddings and NSFW detection
 ├── polis-integration/ # Pol.is integration (server + math worker)
+├── pgbouncer/        # PgBouncer connection pooler configuration
 ├── scripts/          # Dev/ops scripts (seeding, backfills)
 └── tests/            # Integration test suite
 ```

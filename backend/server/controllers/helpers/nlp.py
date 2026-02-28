@@ -225,6 +225,37 @@ def proposal_assist(template: str, step: str, user_input: str,
         raise NLPServiceError(f"Proposal assist error: {e}")
 
 
+def resize_avatar(image_base64: str) -> dict:
+    """
+    Resize avatar without NSFW check (fast, ~100ms).
+
+    Args:
+        image_base64: Base64 encoded image data (with or without data URI prefix)
+
+    Returns:
+        Dict with 'full_base64', 'icon_base64', 'error' fields
+
+    Raises:
+        NLPServiceError: If the service returns an error
+    """
+    try:
+        response = requests.post(
+            f"{Config.NLP_SERVICE_URL}/resize-avatar",
+            json={"image_base64": image_base64},
+            timeout=10  # Fast — no NSFW inference
+        )
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.ConnectionError:
+        print("NLP service unavailable - avatar resize failed", flush=True)
+        return {"full_base64": None, "icon_base64": None, "error": "Service unavailable"}
+    except requests.exceptions.Timeout:
+        print("NLP service timeout - avatar resize failed", flush=True)
+        return {"full_base64": None, "icon_base64": None, "error": "Service timeout"}
+    except requests.exceptions.RequestException as e:
+        raise NLPServiceError(f"NLP service error: {e}")
+
+
 def process_avatar(image_base64: str, threshold: float = 0.6) -> dict:
     """
     Process an avatar image: validate NSFW and resize to full/icon sizes.

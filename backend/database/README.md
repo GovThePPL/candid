@@ -54,6 +54,7 @@ database/
 ├── migrations/
 │   ├── run_migrations.sh          # Forward-only migration runner
 │   ├── 001_initial.sql            # Baseline marker
+│   ├── 002_avatar_nsfw_queue.sql  # Avatar NSFW processing queue
 │   └── README.md
 ├── test_data/
 │   ├── basic.sql         # Core seed data (users, categories, locations, rules)

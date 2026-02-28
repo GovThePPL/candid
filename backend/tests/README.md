@@ -93,6 +93,7 @@ python3 -m pytest backend/tests/unit/ --benchmark-only -v
 | `test_user_mappers.py` | `user_mappers.py` | User serialization: profile, public view, admin view |
 | `test_matrix_factorization.py` | `matrix_factorization.py` | MF SGD algorithm, convergence, group recovery, Polis regularization, DB interactions |
 | `test_approval_reminder_worker.py` | `approval_reminder_worker.py` | Auto-approve reminder worker: role/rule request reminders, peer notification, deduplication |
+| `test_avatar_nsfw_worker.py` | `avatar_nsfw_worker.py` | Avatar NSFW detection queue worker |
 | `test_mf_worker.py` | `mf_worker.py` | MF worker lifecycle, advisory locks, training trigger logic |
 | `test_discuss_events.py` | `discuss_events.py` | Redis pub/sub event publishing for discuss forum |
 | `test_endorsements.py` | `sessions_controller.py` | Endorsement constants, status gating, voting round dict helper |

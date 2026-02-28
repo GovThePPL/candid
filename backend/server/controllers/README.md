@@ -170,6 +170,7 @@ Separate from roles. `users.status = 'banned'` blocks all authorized endpoints e
 | `social_auth.py` | Social login token validation for Apple and Google identity tokens (JWKS) |
 | `matrix_factorization.py` | Community Notes-style MF on comment votes: SGD fitting, Polis regularization, DB I/O |
 | `approval_reminder_worker.py` | Background daemon for sending auto-approve reminder notifications to approval peers |
+| `avatar_nsfw_worker.py` | Background worker for processing avatar NSFW detection queue |
 | `mf_worker.py` | Background daemon for periodic MF training with advisory-lock concurrency control |
 | `moderation.py` | Moderation queue helpers (report aggregation, action resolution) |
 | `nlp.py` | NLP service client for embeddings |

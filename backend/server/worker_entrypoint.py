@@ -12,6 +12,7 @@ Environment variables (control which workers run):
     POLIS_ENABLED=true              Polis sync worker (5s poll)
     MF_ENABLED=true                 Matrix factorization worker (30min)
     APPROVAL_REMINDER_ENABLED=true  Approval reminder worker (1hr)
+    AVATAR_NSFW_ENABLED=true        Avatar NSFW check worker (5s poll)
 
 K8s deployment:
     API pods:    POLIS_ENABLED=false MF_ENABLED=false APPROVAL_REMINDER_ENABLED=false

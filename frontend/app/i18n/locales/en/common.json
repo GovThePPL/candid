@@ -230,5 +230,7 @@
   "sessionOverviewReturnCurrentA11y": "Return to the current live stage",
   "sessionOverviewViewingStage": "Viewing",
   "stageAdvanceConfirm": "Advance to {{stage}}?",
-  "imageTapFullSizeA11y": "Tap to view full size"
+  "imageTapFullSizeA11y": "Tap to view full size",
+
+  "avatarRejected": "Your avatar was removed because it contains inappropriate content. Please upload a different image."
 }

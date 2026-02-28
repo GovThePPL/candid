@@ -994,14 +994,11 @@ def upload_avatar(body, token_info=None, user_id=None):  # noqa: E501
     if not image_base64:
         return ErrorModel(400, "imageBase64 is required"), 400
 
-    # Process avatar: validate, check NSFW, and resize
+    # Step 1: Resize only (fast, ~100ms — no NSFW inference)
     try:
-        result = nlp.process_avatar(image_base64)
+        result = nlp.resize_avatar(image_base64)
 
         if result.get('error'):
-            # Check if it's an NSFW rejection
-            if not result.get('is_safe', True):
-                return ErrorModel(400, "Image contains inappropriate content and cannot be used as an avatar"), 400
             logger.warning("Image processing failed: %s", result['error'])
             return ErrorModel(400, "Image processing failed"), 400
 
@@ -1012,12 +1009,19 @@ def upload_avatar(body, token_info=None, user_id=None):  # noqa: E501
         logger.error("Image processing service error: %s", e)
         return ErrorModel(500, "Image processing service unavailable"), 500
 
-    # Update user's avatar URLs (full size and icon)
+    # Step 2: Save to DB immediately (user sees avatar right away)
     db.execute_query("""
         UPDATE users
         SET avatar_url = %s, avatar_icon_url = %s
         WHERE id = %s
     """, (result['full_base64'], result['icon_base64'], user.id))
+
+    # Step 3: Queue async NSFW check
+    if Config.AVATAR_NSFW_ENABLED:
+        db.execute_query("""
+            INSERT INTO avatar_nsfw_queue (user_id, image_base64)
+            VALUES (%s, %s)
+        """, (user.id, result['full_base64']))
 
     return {
         "avatarUrl": result['full_base64'],

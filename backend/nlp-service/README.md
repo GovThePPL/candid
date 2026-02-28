@@ -40,6 +40,7 @@ nlp-service/
 | `/embed` | POST | Generate sentence embeddings for position text |
 | `/nsfw` | POST | Check text for NSFW content |
 | `/toxicity-check` | POST | Check text for toxicity (returns is_toxic + score) |
+| `/resize-avatar` | POST | Resize avatar image |
 
 ## Configuration
 

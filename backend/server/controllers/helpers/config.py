@@ -58,6 +58,10 @@ class Config:
 	NLP_SERVICE_URL = os.environ.get('NLP_SERVICE_URL', 'http://nlp:5001')
 	NLP_SERVICE_TIMEOUT = int(os.environ.get('NLP_SERVICE_TIMEOUT', '10'))
 
+	# Avatar NSFW deferred check worker
+	AVATAR_NSFW_ENABLED = os.environ.get('AVATAR_NSFW_ENABLED', 'true').lower() == 'true'
+	AVATAR_NSFW_POLL_INTERVAL = int(os.environ.get('AVATAR_NSFW_POLL_INTERVAL', '5'))
+
 	# Role management
 	ROLE_APPROVAL_TIMEOUT_DAYS = int(os.environ.get('ROLE_APPROVAL_TIMEOUT_DAYS', '7'))
 

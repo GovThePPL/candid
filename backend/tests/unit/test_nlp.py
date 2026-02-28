@@ -127,6 +127,51 @@ class TestCheckNSFW:
 
 
 # ---------------------------------------------------------------------------
+# resize_avatar
+# ---------------------------------------------------------------------------
+
+class TestResizeAvatar:
+    def test_success(self):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "full_base64": "full_data",
+            "icon_base64": "icon_data",
+            "error": None,
+        }
+        mock_resp.raise_for_status = MagicMock()
+
+        with patch("candid.controllers.helpers.nlp.requests.post", return_value=mock_resp):
+            from candid.controllers.helpers.nlp import resize_avatar
+            result = resize_avatar("base64data")
+            assert result["full_base64"] == "full_data"
+            assert result["icon_base64"] == "icon_data"
+            assert result["error"] is None
+
+    def test_service_unavailable(self):
+        with patch("candid.controllers.helpers.nlp.requests.post",
+                    side_effect=requests.exceptions.ConnectionError()):
+            from candid.controllers.helpers.nlp import resize_avatar
+            result = resize_avatar("base64data")
+            assert result["full_base64"] is None
+            assert result["error"] == "Service unavailable"
+
+    def test_timeout(self):
+        with patch("candid.controllers.helpers.nlp.requests.post",
+                    side_effect=requests.exceptions.Timeout()):
+            from candid.controllers.helpers.nlp import resize_avatar
+            result = resize_avatar("base64data")
+            assert result["full_base64"] is None
+            assert result["error"] == "Service timeout"
+
+    def test_request_exception_raises(self):
+        with patch("candid.controllers.helpers.nlp.requests.post",
+                    side_effect=requests.exceptions.HTTPError("500")):
+            from candid.controllers.helpers.nlp import resize_avatar, NLPServiceError
+            with pytest.raises(NLPServiceError):
+                resize_avatar("base64data")
+
+
+# ---------------------------------------------------------------------------
 # process_avatar
 # ---------------------------------------------------------------------------
 

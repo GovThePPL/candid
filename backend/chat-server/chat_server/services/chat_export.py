@@ -27,6 +27,7 @@ class ChatExporter:
             config.DATABASE_URL,
             min_size=2,
             max_size=10,
+            statement_cache_size=0,  # Required for PgBouncer transaction mode
         )
         logger.info("Connected to PostgreSQL")
 
