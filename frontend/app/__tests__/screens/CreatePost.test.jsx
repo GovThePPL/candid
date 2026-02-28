@@ -40,27 +40,6 @@ jest.mock('../../components/Header', () => {
   }
 })
 
-jest.mock('../../components/LocationSessionSelector', () => {
-  const React = require('react')
-  const { View, Text, TouchableOpacity } = require('react-native')
-  return function MockLocationSessionSelector({ onLocationChange, onSessionChange }) {
-    React.useEffect(() => {
-      onLocationChange?.('loc-1')
-    }, [])
-    return (
-      <View>
-        <Text>LocationSessionSelector</Text>
-        <TouchableOpacity
-          testID="set-session"
-          onPress={() => onSessionChange?.('sess-1')}
-        >
-          <Text>Set Session</Text>
-        </TouchableOpacity>
-      </View>
-    )
-  }
-})
-
 // Mock WysiwygEditor with a TextInput that exposes the imperative API
 let mockEditorContent = ''
 jest.mock('../../components/WysiwygEditor', () => {
@@ -96,12 +75,12 @@ jest.mock('../../lib/cache', () => ({
   CacheKeys: { activityPosts: (id) => `activity-posts:${id}` },
 }))
 
-let mockCanCreateProposals = false
+let mockSelectedLocation = 'loc-1'
+let mockSelectedSession = 'sess-1'
 jest.mock('../../contexts/LocationSessionContext', () => ({
   useLocationSession: () => ({
-    canCreateProposals: mockCanCreateProposals,
-    selectedLocation: null,
-    selectedSession: null,
+    selectedLocation: mockSelectedLocation,
+    selectedSession: mockSelectedSession,
     sessionData: null,
     viewingStage: null,
     isReadOnly: false,
@@ -117,7 +96,8 @@ describe('CreatePost', () => {
     jest.clearAllMocks()
     mockSearchParams = {}
     mockEditorContent = ''
-    mockCanCreateProposals = false
+    mockSelectedLocation = 'loc-1'
+    mockSelectedSession = 'sess-1'
   })
 
   it('renders title input and editor', () => {
@@ -126,33 +106,15 @@ describe('CreatePost', () => {
     expect(screen.getByLabelText('bodyInputA11y')).toBeTruthy()
   })
 
-  it('shows "New Post" heading by default', () => {
+  it('uses discussion type by default', () => {
     render(<CreatePost />)
-    expect(screen.getByText('createPostTitle')).toBeTruthy()
+    expect(screen.getByText('submitPost')).toBeTruthy()
   })
 
-  it('shows "New Question" heading when type=question', () => {
+  it('uses question type from search params', () => {
     mockSearchParams = { type: 'question' }
     render(<CreatePost />)
-    expect(screen.getByText('createQuestionTitle')).toBeTruthy()
-  })
-
-  it('type toggle switches between discussion and question', () => {
-    render(<CreatePost />)
-    expect(screen.getByText('createPostTitle')).toBeTruthy()
-
-    fireEvent.press(screen.getByText('typeQuestion'))
-    expect(screen.getByText('createQuestionTitle')).toBeTruthy()
-
-    fireEvent.press(screen.getByText('typeDiscussion'))
-    expect(screen.getByText('createPostTitle')).toBeTruthy()
-  })
-
-  it('character count updates on title input', () => {
-    render(<CreatePost />)
-    const titleInput = screen.getByLabelText('titleInputA11y')
-    fireEvent.changeText(titleInput, 'Hello World')
-    expect(screen.getByText('charsRemaining 11 200')).toBeTruthy()
+    expect(screen.getByText('submitQuestion')).toBeTruthy()
   })
 
   it('submit button disabled when title empty', () => {
@@ -177,9 +139,6 @@ describe('CreatePost', () => {
 
     fireEvent.changeText(screen.getByLabelText('titleInputA11y'), 'My Post Title')
     fireEvent.changeText(screen.getByLabelText('bodyInputA11y'), 'My post body text')
-
-    // Location auto-set by mock, set session
-    fireEvent.press(screen.getByTestId('set-session'))
 
     await act(async () => {
       fireEvent.press(screen.getByLabelText('submitA11y'))
@@ -230,10 +189,10 @@ describe('CreatePost', () => {
     })
   })
 
-  it('session required validation for question type', async () => {
+  it('submit button disabled for question type when no session', () => {
+    mockSearchParams = { type: 'question' }
+    mockSelectedSession = null
     render(<CreatePost />)
-
-    fireEvent.press(screen.getByText('typeQuestion'))
 
     fireEvent.changeText(screen.getByLabelText('titleInputA11y'), 'My Question')
     fireEvent.changeText(screen.getByLabelText('bodyInputA11y'), 'Question details')
@@ -242,19 +201,20 @@ describe('CreatePost', () => {
     expect(submitBtn.props.accessibilityState?.disabled).toBe(true)
   })
 
-  it('does not show proposal type toggle when canCreateProposals is false', () => {
-    mockCanCreateProposals = false
+  it('submit button disabled when context has no location', () => {
+    mockSelectedLocation = null
     render(<CreatePost />)
-    expect(screen.getByText('typeDiscussion')).toBeTruthy()
-    expect(screen.getByText('typeQuestion')).toBeTruthy()
-    expect(screen.queryByText('typeProposal')).toBeNull()
+
+    fireEvent.changeText(screen.getByLabelText('titleInputA11y'), 'Some title')
+    fireEvent.changeText(screen.getByLabelText('bodyInputA11y'), 'Some body text')
+
+    const submitBtn = screen.getByLabelText('submitA11y')
+    expect(submitBtn.props.accessibilityState?.disabled).toBe(true)
   })
 
-  it('shows proposal type toggle when canCreateProposals is true', () => {
-    mockCanCreateProposals = true
+  it('redirects proposal type to wizard screen', () => {
+    mockSearchParams = { type: 'proposal' }
     render(<CreatePost />)
-    expect(screen.getByText('typeDiscussion')).toBeTruthy()
-    expect(screen.getByText('typeQuestion')).toBeTruthy()
-    expect(screen.getByText('typeProposal')).toBeTruthy()
+    expect(mockRouter.replace).toHaveBeenCalledWith('/discuss/proposal-wizard')
   })
 })

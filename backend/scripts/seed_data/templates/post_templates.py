@@ -353,9 +353,9 @@ POST_TEMPLATES = {
     },
 
     # =========================================================================
-    # OPINION_CURATION — Curating best ideas, distilling opinions
+    # REFLECTION_CURATION — Curating best ideas, distilling opinions
     # =========================================================================
-    "opinion_curation": {
+    "reflection_curation": {
         "discussion": [
             {
                 "title": "Ranking our {topic_adj} priorities: What comes first?",
@@ -415,9 +415,9 @@ POST_TEMPLATES = {
     },
 
     # =========================================================================
-    # OPINION_PROPOSALS — Formal proposals for action
+    # REFLECTION_PROPOSALS — Formal proposals for action
     # =========================================================================
-    "opinion_proposals": {
+    "reflection_proposals": {
         "discussion": [
             {
                 "title": "Evaluating the {topic_adj} proposals: Pros and cons",
@@ -477,9 +477,9 @@ POST_TEMPLATES = {
     },
 
     # =========================================================================
-    # REFLECTION — Looking back at the process
+    # CONSENSUS — Reflection, final agreement, and next steps
     # =========================================================================
-    "reflection": {
+    "consensus": {
         "discussion": [
             {
                 "title": "Reflecting on our {topic_noun} discussion: What worked?",
@@ -507,31 +507,6 @@ POST_TEMPLATES = {
                         "What concrete lessons should {location_name} take away from "
                         "this process?",
             },
-        ],
-        "question": [
-            {
-                "title": "Did this discussion change anyone's mind?",
-                "body": "Honest question: did participating in this {topic_noun} discussion "
-                        "actually change anyone's position on anything? I'm curious about "
-                        "the value of deliberation.",
-            },
-        ],
-        "proposal": [
-            {
-                "title": "Next steps: How to keep {topic_adj} momentum going",
-                "body": "This discussion shouldn't end here. I propose concrete next "
-                        "steps to keep the momentum going on {topic_noun} in "
-                        "{location_name}:\n\n1. Form a working group\n2. Schedule "
-                        "follow-up in 3 months\n3. Engage local officials",
-            },
-        ],
-    },
-
-    # =========================================================================
-    # CONSENSUS — Final agreement phase
-    # =========================================================================
-    "consensus": {
-        "discussion": [
             {
                 "title": "Building consensus on {topic_noun}: Where do we agree?",
                 "body": "After all our discussion about {topic_noun}, it's time to identify "
@@ -553,6 +528,12 @@ POST_TEMPLATES = {
         ],
         "question": [
             {
+                "title": "Did this discussion change anyone's mind?",
+                "body": "Honest question: did participating in this {topic_noun} discussion "
+                        "actually change anyone's position on anything? I'm curious about "
+                        "the value of deliberation.",
+            },
+            {
                 "title": "Can you live with the {topic_noun} consensus?",
                 "body": "Consensus doesn't mean everyone's first choice won. Can you "
                         "accept the emerging consensus on {topic_noun}, even if it's "
@@ -560,6 +541,13 @@ POST_TEMPLATES = {
             },
         ],
         "proposal": [
+            {
+                "title": "Next steps: How to keep {topic_adj} momentum going",
+                "body": "This discussion shouldn't end here. I propose concrete next "
+                        "steps to keep the momentum going on {topic_noun} in "
+                        "{location_name}:\n\n1. Form a working group\n2. Schedule "
+                        "follow-up in 3 months\n3. Engage local officials",
+            },
             {
                 "title": "Final consensus: {topic_adj} principles for {location_name}",
                 "body": "After extensive deliberation, here are the consensus principles "

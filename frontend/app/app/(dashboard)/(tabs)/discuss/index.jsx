@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef, memo } from 'react'
 import { View, FlatList, ActivityIndicator, StyleSheet, TouchableOpacity, Alert } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter, useFocusEffect } from 'expo-router'
@@ -25,7 +25,10 @@ import GlossaryDrawer from '../../../../components/GlossaryDrawer'
 import { useGlossaryDrawer, useGlossaryRules } from '../../../../hooks/useGlossaryDrawer'
 import BallotCard from '../../../../components/discuss/BallotCard'
 import ElectionResults from '../../../../components/discuss/ElectionResults'
+import EndorsementManageModal from '../../../../components/discuss/EndorsementManageModal'
+import CommunityRulesModal from '../../../../components/CommunityRulesModal'
 import EmptyState from '../../../../components/EmptyState'
+import SessionInfoCard from '../../../../components/SessionInfoCard'
 import ThemedText from '../../../../components/ThemedText'
 import { SkeletonPulse, SkeletonBox, SkeletonLine } from '../../../../components/Skeleton'
 
@@ -69,6 +72,43 @@ function FeedSkeleton({ styles }) {
   )
 }
 
+/**
+ * Wrapper that reads volatile props from a ref so the parent renderItem
+ * callback stays referentially stable and FlatList skips re-renders.
+ */
+const FeedPostCard = memo(function FeedPostCard({ item, feedPropsRef }) {
+  const p = feedPropsRef.current
+  const canMod = p.checkModerateScope(item.location?.id, item.session?.id)
+  const isEndorsed = !!p.myEndorsementMap[item.id]
+  return (
+    <PostCard
+      post={item}
+      onPress={() => p.handlePostPress(item)}
+      onUpvote={p.handleUpvote}
+      onDownvote={p.handlePostDownvote}
+      onToggleRole={p.handleToggleRole}
+      onLock={p.handleLockPost}
+      onEdit={p.handleEditPost}
+      onDelete={p.handleDeletePostConfirm}
+      currentUserId={p.userId}
+      canModerate={canMod}
+      onReport={p.handleReportPost}
+      onModerate={p.handleModeratePost}
+      onPin={p.handlePinPost}
+      onTermPress={p.onGlossaryTermPress}
+      glossaryRules={p.glossaryRules}
+      readOnly={p.isReadOnly}
+      onFinalize={p.handleFinalize}
+      votingRoundStatus={p.votingRoundStatus}
+      onEndorse={p.isEndorsementPhase ? p.handleEndorse : undefined}
+      isEndorsed={isEndorsed}
+      endorseLimitReached={p.endorseLimitReached}
+      onEndorseLimitReached={p.isEndorsementPhase ? p.handleEndorseLimitReached : undefined}
+      stage={p.effectiveStage}
+    />
+  )
+}, (prev, next) => prev.item === next.item)
+
 export default function DiscussFeed() {
   const { t } = useTranslation('discuss')
   const colors = useThemeColors()
@@ -89,8 +129,8 @@ export default function DiscussFeed() {
   // Derive major phase from effective stage for filtering
   const STAGE_TO_PHASE = {
     proposal_issue: 'proposal', proposal_qualify: 'proposal', proposal_stakeholders: 'proposal',
-    opinion_discussion: 'opinion', opinion_curation: 'opinion', opinion_proposals: 'opinion',
-    reflection: 'reflection', consensus: 'consensus',
+    opinion_discussion: 'opinion', reflection_curation: 'reflection', reflection_proposals: 'reflection',
+    consensus: 'consensus',
   }
   const phase = effectiveStage ? STAGE_TO_PHASE[effectiveStage] : null
 
@@ -98,11 +138,13 @@ export default function DiscussFeed() {
   const isProposalStage = effectiveStage?.startsWith('proposal_')
   const hideQA = !!isProposalStage
 
-  // Default to Proposals tab when voting round is proposals_open or finalization_open
+  // Default to Proposals tab during proposal stages and reflection_proposals
   const votingRoundStatus = votingRound?.status
-  const shouldDefaultToProposals = canCreateProposals
+  const showProposalsTab = isProposalStage
+    || effectiveStage === 'reflection_proposals'
+    || canCreateProposals
     || (votingRoundStatus && ['proposals_open', 'finalization_open'].includes(votingRoundStatus))
-    || (viewingStage && (phase === 'proposal' || phase === 'opinion'))
+  const shouldDefaultToProposals = showProposalsTab
 
   const [postType, setPostType] = useState(shouldDefaultToProposals ? 'proposal' : 'discussion')
 
@@ -119,6 +161,7 @@ export default function DiscussFeed() {
   const [proposalStatusFilter, setProposalStatusFilter] = useState(null)
   const showProposalFilters = postType === 'proposal' && votingRoundStatus && ['finalization_open', 'proposals_closed', 'voting_open', 'voting_closed'].includes(votingRoundStatus)
 
+  const [showRules, setShowRules] = useState(false)
   const isQAAuthority = hasQAAuthority(user)
 
   const {
@@ -143,6 +186,12 @@ export default function DiscussFeed() {
     handleDeletePost,
     handlePinPost,
   } = usePostsFeed(selectedLocation, selectedSession, postType, { phase, effectiveStage })
+
+  // Apply proposal status filter client-side
+  const filteredPosts = useMemo(() => {
+    if (!proposalStatusFilter) return posts
+    return posts.filter(p => p.proposalStatus === proposalStatusFilter)
+  }, [posts, proposalStatusFilter])
 
   // Refresh feed on focus (e.g. returning from creating a post)
   const hasMountedRef = useRef(false)
@@ -211,6 +260,7 @@ export default function DiscussFeed() {
   const handleTabChange = useCallback((tab) => {
     setPostType(tab)
     setAnsweredFilter(null)
+    setProposalStatusFilter(null)
   }, [setAnsweredFilter])
 
   const handlePostPress = useCallback((post) => {
@@ -299,7 +349,7 @@ export default function DiscussFeed() {
 
   // ── Endorsements ──
   const [endorsementData, setEndorsementData] = useState(null)
-  const isEndorsementPhase = votingRoundStatus === 'proposals_open' || votingRoundStatus === 'finalization_open'
+  const isEndorsementPhase = votingRoundStatus === 'finalization_open'
   // Show endorsement counts (read-only) for archived stages with voting round data
   const showArchivedEndorsements = isReadOnly && votingRound && postType === 'proposal'
 
@@ -335,6 +385,21 @@ export default function DiscussFeed() {
   const myEndorsementCount = endorsementData?.myEndorsements?.length || 0
   const endorseLimitReached = myEndorsementCount >= 3
 
+  // Manage modal state
+  const [manageModalVisible, setManageModalVisible] = useState(false)
+  const [pendingEndorsePostId, setPendingEndorsePostId] = useState(null)
+
+  // Build list of endorsed posts with titles for manage modal
+  const endorsedPosts = useMemo(() => {
+    if (!endorsementData?.myEndorsements || !posts) return []
+    const postMap = {}
+    for (const p of posts) postMap[p.id] = p
+    return endorsementData.myEndorsements.map(e => ({
+      id: e.proposalPostId,
+      title: postMap[e.proposalPostId]?.title || e.proposalPostId,
+    }))
+  }, [endorsementData?.myEndorsements, posts])
+
   const handleEndorse = useCallback(async (postId, currentlyEndorsed) => {
     try {
       if (currentlyEndorsed) {
@@ -348,10 +413,28 @@ export default function DiscussFeed() {
       // Refresh endorsement data
       const data = await sessionsApiWrapper.getEndorsements(selectedSession, { roundType })
       setEndorsementData(data)
+
+      // Auto-endorse pending post after un-endorsing brings count to 2
+      if (currentlyEndorsed && pendingEndorsePostId && (data?.myEndorsements?.length || 0) < 3) {
+        setPendingEndorsePostId(null)
+        try {
+          await sessionsApiWrapper.createEndorsement(selectedSession, pendingEndorsePostId)
+          const refreshed = await sessionsApiWrapper.getEndorsements(selectedSession, { roundType })
+          setEndorsementData(refreshed)
+        } catch {
+          Alert.alert(t('endorseFailed'))
+        }
+        setManageModalVisible(false)
+      }
     } catch (err) {
       Alert.alert(t('endorseFailed'))
     }
-  }, [selectedSession, myEndorsementMap, roundType, t])
+  }, [selectedSession, myEndorsementMap, roundType, t, pendingEndorsePostId])
+
+  const handleEndorseLimitReached = useCallback((postId) => {
+    setPendingEndorsePostId(postId)
+    setManageModalVisible(true)
+  }, [])
 
   // ── Ballot & Results ──
   const [ballotData, setBallotData] = useState(null)
@@ -385,46 +468,23 @@ export default function DiscussFeed() {
     }
   }, [selectedSession, t])
 
-  const renderPostCard = useCallback(({ item }) => {
-    const canMod = checkModerateScope(item.location?.id, item.session?.id)
-    const isEndorsed = !!myEndorsementMap[item.id]
-    return (
-      <PostCard
-        post={item}
-        onPress={() => handlePostPress(item)}
-        onUpvote={handleUpvote}
-        onDownvote={handlePostDownvote}
-        onToggleRole={handleToggleRole}
-        onLock={handleLockPost}
-        onEdit={handleEditPost}
-        onDelete={handleDeletePostConfirm}
-        currentUserId={user?.id}
-        canModerate={canMod}
-        onReport={handleReportPost}
-        onModerate={handleModeratePost}
-        onPin={handlePinPost}
-        onTermPress={onGlossaryTermPress}
-        glossaryRules={glossaryRules}
-        readOnly={isReadOnly}
-        onFinalize={handleFinalize}
-        votingRoundStatus={votingRoundStatus}
-        onEndorse={isEndorsementPhase ? handleEndorse : undefined}
-        isEndorsed={isEndorsed}
-        endorsementCount={endorsementCountMap[item.id] || 0}
-        endorseLimitReached={endorseLimitReached}
-      />
-    )
-  }, [handlePostPress, handleUpvote, handlePostDownvote, handleToggleRole, handleLockPost, handleEditPost, handleDeletePostConfirm, user?.id, checkModerateScope, handleReportPost, handleModeratePost, handlePinPost, onGlossaryTermPress, glossaryRules, handleFinalize, votingRoundStatus, isEndorsementPhase, handleEndorse, myEndorsementMap, endorsementCountMap, endorseLimitReached])
+  // Stable ref for all volatile feed-card props so renderPostCard stays referentially
+  // stable and FlatList doesn't re-render every card when a callback identity changes.
+  const feedPropsRef = useRef(null)
+  feedPropsRef.current = {
+    handlePostPress, handleUpvote, handlePostDownvote: handlePostDownvote, handleToggleRole,
+    handleLockPost, handleEditPost, handleDeletePostConfirm, userId: user?.id,
+    checkModerateScope, handleReportPost, handleModeratePost, handlePinPost,
+    onGlossaryTermPress, glossaryRules, isReadOnly, handleFinalize, votingRoundStatus,
+    isEndorsementPhase, handleEndorse, myEndorsementMap, endorseLimitReached,
+    handleEndorseLimitReached, effectiveStage,
+  }
+
+  const renderPostCard = useCallback(({ item }) => (
+    <FeedPostCard item={item} feedPropsRef={feedPropsRef} />
+  ), [])
 
   const keyExtractor = useCallback((item) => item.id, [])
-
-  // Estimated item height for FlatList optimization (avoids measuring on scroll)
-  const POST_ITEM_HEIGHT = 160
-  const getItemLayout = useCallback((data, index) => ({
-    length: POST_ITEM_HEIGHT,
-    offset: POST_ITEM_HEIGHT * index,
-    index,
-  }), [])
 
   const renderEmpty = useCallback(() => {
     if (loading) return null
@@ -448,10 +508,9 @@ export default function DiscussFeed() {
   }, [loading, error, postType, t])
 
   const renderFooter = useCallback(() => {
-    if (!loadingMore) return null
     return (
       <View style={styles.footer}>
-        <ActivityIndicator size="small" color={colors.primary} />
+        {loadingMore && <ActivityIndicator size="small" color={colors.primary} />}
       </View>
     )
   }, [loadingMore, colors.primary, styles.footer])
@@ -467,19 +526,38 @@ export default function DiscussFeed() {
     <View style={[styles.container, !isDesktop && { paddingTop: insets.top }]}>
       <Header />
 
+      {/* Sticky endorsement bar */}
+      {isEndorsementPhase && !isReadOnly && postType === 'proposal' && (
+        <TouchableOpacity
+          style={styles.endorseBanner}
+          onPress={() => { setPendingEndorsePostId(null); setManageModalVisible(true) }}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={t('endorsementBarA11y', { count: myEndorsementCount, max: 3 })}
+        >
+          <Ionicons name="heart" size={16} color={colors.primary} />
+          <ThemedText variant="caption" style={{ color: colors.primary, fontWeight: '600' }}>
+            {t('endorsementBarLabel', { count: myEndorsementCount, max: 3 })}
+          </ThemedText>
+        </TouchableOpacity>
+      )}
+
       <FlatList
-        data={posts}
+        data={filteredPosts}
         renderItem={renderPostCard}
         keyExtractor={keyExtractor}
-        getItemLayout={getItemLayout}
         onEndReached={hasMore ? loadMore : undefined}
         onEndReachedThreshold={0.5}
         refreshing={refreshing}
         onRefresh={handleRefresh}
+        removeClippedSubviews
+        maxToRenderPerBatch={8}
+        windowSize={7}
         ListEmptyComponent={renderEmpty}
         ListFooterComponent={renderFooter}
         ListHeaderComponent={
           <>
+            <SessionInfoCard />
             {isDesktop && (
               <View style={styles.sectionHeader}>
                 <ThemedText variant="h1" color="primary">{t('tabDiscuss')}</ThemedText>
@@ -488,9 +566,67 @@ export default function DiscussFeed() {
             )}
             {/* Tab bar + sort dropdown row */}
             <View style={styles.controlsRow}>
-              <FeedTabBar activeTab={postType} onTabChange={handleTabChange} showProposals={canCreateProposals || (viewingStage && (phase === 'proposal' || phase === 'opinion'))} hideQA={hideQA} />
+              <FeedTabBar activeTab={postType} onTabChange={handleTabChange} showProposals={showProposalsTab} hideQA={hideQA} />
               <SortDropdown sort={sort} onSortChange={setSort} />
             </View>
+
+            {/* Proposal filters + rules on one line; otherwise rules standalone */}
+            {showProposalFilters ? (
+              <View style={styles.filterRulesRow}>
+                <View style={styles.filterChips}>
+                  {[
+                    { id: null, label: t('filterAll') },
+                    { id: 'draft', label: t('proposalDraft') },
+                    { id: 'finalized', label: t('proposalFinal') },
+                  ].map((option) => {
+                    const isActive = proposalStatusFilter === option.id
+                    return (
+                      <TouchableOpacity
+                        key={String(option.id)}
+                        style={[styles.filterButton, isActive && styles.filterButtonActive]}
+                        onPress={() => setProposalStatusFilter(option.id)}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: isActive }}
+                        accessibilityLabel={t('filterA11y', { filter: option.label })}
+                      >
+                        <ThemedText
+                          variant="caption"
+                          style={[styles.filterButtonText, isActive && styles.filterButtonTextActive]}
+                        >
+                          {option.label}
+                        </ThemedText>
+                      </TouchableOpacity>
+                    )
+                  })}
+                </View>
+                <TouchableOpacity
+                  style={styles.rulesLinkInline}
+                  onPress={() => setShowRules(true)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('viewRulesA11y', { tab: t('tabProposals') })}
+                >
+                  <Ionicons name="book-outline" size={16} color={colors.primary} />
+                  <ThemedText variant="caption" style={{ color: colors.primary }}>
+                    {t('viewRules', { tab: t('tabProposals') })}
+                  </ThemedText>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.rulesLink}
+                onPress={() => setShowRules(true)}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={t('viewRulesA11y', { tab: t(postType === 'question' ? 'tabQA' : postType === 'proposal' ? 'tabProposals' : 'tabDiscussion') })}
+              >
+                <Ionicons name="book-outline" size={16} color={colors.primary} />
+                <ThemedText variant="caption" style={{ color: colors.primary }}>
+                  {t('viewRules', { tab: t(postType === 'question' ? 'tabQA' : postType === 'proposal' ? 'tabProposals' : 'tabDiscussion') })}
+                </ThemedText>
+              </TouchableOpacity>
+            )}
 
             {/* Q&A filter row */}
             {answerFilterOptions && (
@@ -502,37 +638,6 @@ export default function DiscussFeed() {
                       key={String(option.id)}
                       style={[styles.filterButton, isActive && styles.filterButtonActive]}
                       onPress={() => setAnsweredFilter(option.id)}
-                      activeOpacity={0.7}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: isActive }}
-                      accessibilityLabel={t('filterA11y', { filter: option.label })}
-                    >
-                      <ThemedText
-                        variant="caption"
-                        style={[styles.filterButtonText, isActive && styles.filterButtonTextActive]}
-                      >
-                        {option.label}
-                      </ThemedText>
-                    </TouchableOpacity>
-                  )
-                })}
-              </View>
-            )}
-
-            {/* Proposal status filter chips */}
-            {showProposalFilters && (
-              <View style={styles.filterRow}>
-                {[
-                  { id: null, label: t('filterAll') },
-                  { id: 'draft', label: t('proposalDraft') },
-                  { id: 'finalized', label: t('proposalFinal') },
-                ].map((option) => {
-                  const isActive = proposalStatusFilter === option.id
-                  return (
-                    <TouchableOpacity
-                      key={String(option.id)}
-                      style={[styles.filterButton, isActive && styles.filterButtonActive]}
-                      onPress={() => setProposalStatusFilter(option.id)}
                       activeOpacity={0.7}
                       accessibilityRole="button"
                       accessibilityState={{ selected: isActive }}
@@ -562,16 +667,6 @@ export default function DiscussFeed() {
             {/* Election results when voting_closed */}
             {isResultsPhase && postType === 'proposal' && electionResults && (
               <ElectionResults results={electionResults} />
-            )}
-
-            {/* Endorsement counter banner */}
-            {isEndorsementPhase && !isReadOnly && postType === 'proposal' && (
-              <View style={styles.endorseBanner} accessibilityLabel={t('endorsementsUsedA11y', { count: myEndorsementCount, max: 3 })}>
-                <Ionicons name="heart" size={16} color={colors.primary} />
-                <ThemedText variant="caption" style={{ color: colors.primary, fontWeight: '600' }}>
-                  {t('endorsementsUsed', { count: myEndorsementCount, max: 3 })}
-                </ThemedText>
-              </View>
             )}
 
             {/* Skeleton loading for initial load */}
@@ -623,6 +718,15 @@ export default function DiscussFeed() {
 
       <GlossaryDrawer {...glossaryDrawer} />
 
+      {/* Endorsement manage modal */}
+      <EndorsementManageModal
+        visible={manageModalVisible}
+        onClose={() => { setManageModalVisible(false); setPendingEndorsePostId(null) }}
+        endorsedPosts={endorsedPosts}
+        onRemove={(postId) => handleEndorse(postId, true)}
+        pendingPostTitle={pendingEndorsePostId ? posts.find(p => p.id === pendingEndorsePostId)?.title : null}
+      />
+
       {/* Edit post modal */}
       <EditPostModal
         visible={editingPost != null}
@@ -630,6 +734,16 @@ export default function DiscussFeed() {
         onSubmit={handleEditPostSubmit}
         onClose={() => setEditingPost(null)}
         saving={editSaving}
+      />
+
+      {/* Community rules modal */}
+      <CommunityRulesModal
+        visible={showRules}
+        onClose={() => setShowRules(false)}
+        contentType="post"
+        locationId={selectedLocation}
+        sessionId={selectedSession}
+        postType={postType}
       />
     </View>
   )
@@ -654,6 +768,30 @@ const createStyles = (colors) => StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm,
     gap: Spacing.sm,
+  },
+  rulesLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    gap: 4,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.sm,
+  },
+  filterRulesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.sm,
+  },
+  filterChips: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  rulesLinkInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   filterRow: {
     flexDirection: 'row',
@@ -712,7 +850,8 @@ const createStyles = (colors) => StyleSheet.create({
     marginTop: 14,
   },
   footer: {
-    paddingVertical: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: 80,
     alignItems: 'center',
   },
   fab: {

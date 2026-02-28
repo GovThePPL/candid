@@ -20,6 +20,7 @@ from candid.controllers.helpers.constants import (
     RuleStatus, MOD_RESPONSE_TO_REPORT_STATUS,
     STAGE_ORDER, STAGE_INDEX, WRITE_STAGES, STAGE_TO_PHASE, MAIN_PHASES,
     SessionStatus, MAX_ENDORSEMENTS_PER_USER,
+    VALID_PROPOSAL_METHODS, PROPOSAL_METHOD_INITIAL_STAGE,
 )
 
 
@@ -156,14 +157,14 @@ class TestModResponseMapping:
 class TestSessionStageConstants:
     """Verify session stage constants match the DB schema values."""
 
-    def test_stage_order_has_8_items(self):
-        assert len(STAGE_ORDER) == 8
+    def test_stage_order_has_7_items(self):
+        assert len(STAGE_ORDER) == 7
 
     def test_stage_order_values_match_schema(self):
         expected = [
             'proposal_issue', 'proposal_qualify', 'proposal_stakeholders',
-            'opinion_discussion', 'opinion_curation', 'opinion_proposals',
-            'reflection', 'consensus',
+            'opinion_discussion', 'reflection_curation', 'reflection_proposals',
+            'consensus',
         ]
         assert STAGE_ORDER == expected
 
@@ -175,12 +176,12 @@ class TestSessionStageConstants:
     def test_write_stages_position_equals_active_writing_stages(self):
         active_writing = {
             'proposal_issue', 'proposal_qualify', 'proposal_stakeholders',
-            'opinion_discussion', 'opinion_curation', 'opinion_proposals',
+            'opinion_discussion', 'reflection_curation', 'reflection_proposals',
         }
         assert WRITE_STAGES['position'] == active_writing
 
     def test_write_stages_proposal_post(self):
-        assert WRITE_STAGES['proposal_post'] == {'proposal_qualify', 'opinion_proposals'}
+        assert WRITE_STAGES['proposal_post'] == {'proposal_qualify', 'reflection_proposals'}
 
     def test_write_stages_glossary_covers_all_stages(self):
         assert WRITE_STAGES['glossary'] == set(STAGE_ORDER)
@@ -193,9 +194,8 @@ class TestSessionStageConstants:
         assert STAGE_TO_PHASE['proposal_qualify'] == 'proposal'
         assert STAGE_TO_PHASE['proposal_stakeholders'] == 'proposal'
         assert STAGE_TO_PHASE['opinion_discussion'] == 'opinion'
-        assert STAGE_TO_PHASE['opinion_curation'] == 'opinion'
-        assert STAGE_TO_PHASE['opinion_proposals'] == 'opinion'
-        assert STAGE_TO_PHASE['reflection'] == 'reflection'
+        assert STAGE_TO_PHASE['reflection_curation'] == 'reflection'
+        assert STAGE_TO_PHASE['reflection_proposals'] == 'reflection'
         assert STAGE_TO_PHASE['consensus'] == 'consensus'
         # Every stage must have a phase mapping
         for stage in STAGE_ORDER:
@@ -210,3 +210,19 @@ class TestSessionStageConstants:
 
     def test_max_endorsements_per_user(self):
         assert MAX_ENDORSEMENTS_PER_USER == 3
+
+    def test_valid_proposal_methods(self):
+        assert 'user_driven' in VALID_PROPOSAL_METHODS
+        assert 'admin_provided' in VALID_PROPOSAL_METHODS
+        assert 'direct_proposal' in VALID_PROPOSAL_METHODS
+        assert len(VALID_PROPOSAL_METHODS) == 3
+
+    def test_proposal_method_initial_stage_maps_to_valid_stages(self):
+        for method, stage in PROPOSAL_METHOD_INITIAL_STAGE.items():
+            assert method in VALID_PROPOSAL_METHODS, f"{method} not in VALID_PROPOSAL_METHODS"
+            assert stage in STAGE_ORDER, f"{stage} not in STAGE_ORDER"
+
+    def test_proposal_method_initial_stage_values(self):
+        assert PROPOSAL_METHOD_INITIAL_STAGE['user_driven'] == 'proposal_issue'
+        assert PROPOSAL_METHOD_INITIAL_STAGE['admin_provided'] == 'proposal_qualify'
+        assert PROPOSAL_METHOD_INITIAL_STAGE['direct_proposal'] == 'opinion_discussion'

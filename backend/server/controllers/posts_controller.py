@@ -1,10 +1,13 @@
 """Posts controller — CRUD, voting, and lock/unlock for posts."""
 
+import logging
 import re
 import uuid
 import base64
 import json
 from datetime import datetime, timezone, timedelta
+
+logger = logging.getLogger(__name__)
 
 import connexion
 
@@ -201,6 +204,18 @@ def create_post(body, token_info=None, user_id=None):  # noqa: E501
     allowed_stage, stage_err = check_session_stage(session_id, content_type)
     if not allowed_stage:
         return stage_err, stage_err.code
+
+    # One proposal per user per stage
+    if post_type == "proposal" and session_id:
+        current_stage = get_session_stage(session_id)
+        existing_proposal = db.execute_query("""
+            SELECT id FROM post
+            WHERE creator_user_id = %s AND session_id = %s
+              AND post_type = 'proposal' AND created_during_stage = %s
+              AND status IN ('active', 'locked')
+        """, (user_id, session_id, current_stage), fetchone=True)
+        if existing_proposal:
+            return ErrorModel(409, "You already have a proposal in this stage"), 409
 
     # Validate location exists
     loc = db.execute_query(
@@ -494,10 +509,12 @@ def get_posts(location_id, session_id=None, post_type=None, sort=None,
                 LEFT JOIN session pc ON p.session_id = pc.id
                 LEFT JOIN location l ON p.location_id = l.id
                 WHERE pp.session_id = %s AND pp.stage IN ({stage_placeholders})
+                  AND pp.post_type = %s
                   AND p.status IN ('active', 'locked')
                 ORDER BY pp.pinned_at DESC
             """
-            pinned_params = [session_id] + phase_stages
+            pin_type = post_type or 'discussion'
+            pinned_params = [session_id] + phase_stages + [pin_type]
             pinned_rows = db.execute_query(pinned_sql, tuple(pinned_params))
 
             if pinned_rows:
@@ -505,7 +522,10 @@ def get_posts(location_id, session_id=None, post_type=None, sort=None,
                 pinned_posts = []
                 for r in pinned_rows:
                     r_dict = dict(r)
-                    pinned_ids.add(str(r["id"]))
+                    pid = str(r["id"])
+                    if pid in pinned_ids:
+                        continue  # same post pinned at multiple stages in this phase
+                    pinned_ids.add(pid)
 
                     is_own = user_id and str(r["creator_user_id"]) == user_id
                     creator_role = r_dict.get("creator_role")
@@ -750,6 +770,10 @@ def vote_on_post(post_id, body, token_info=None, user_id=None):  # noqa: E501
     if not post:
         return ErrorModel(404, "Post not found"), 404
 
+    # Block votes on finalized proposals (use endorsements instead)
+    if post.get("proposal_status") == "finalized":
+        return ErrorModel(400, "Cannot vote on finalized proposals"), 400
+
     # Stage gating
     post_session_id = str(post["session_id"]) if post.get("session_id") else None
     allowed_stage, stage_err = check_session_stage(post_session_id, 'post_vote')
@@ -945,25 +969,27 @@ def patch_post(post_id, body, token_info=None, user_id=None):  # noqa: E501
             # Verify post belongs to the given session
             if str(post.get("session_id")) != pin_session_id:
                 return ErrorModel(400, "Post does not belong to the specified session"), 400
-            # Check max 3 pins per session+stage
+            pin_post_type = post.get("post_type", "discussion")
+            # Check max 3 pins per session+stage+post_type
             count = db.execute_query(
-                "SELECT COUNT(*) AS cnt FROM pinned_post WHERE session_id = %s AND stage = %s",
-                (pin_session_id, pin_stage), fetchone=True,
+                "SELECT COUNT(*) AS cnt FROM pinned_post WHERE session_id = %s AND stage = %s AND post_type = %s",
+                (pin_session_id, pin_stage, pin_post_type), fetchone=True,
             )
             if count and count["cnt"] >= 3:
                 return ErrorModel(409, "Maximum of 3 posts can be pinned per stage"), 409
             # Insert pin (ignore conflict if already pinned)
             db.execute_query("""
-                INSERT INTO pinned_post (post_id, session_id, stage, pinned_by)
-                VALUES (%s, %s, %s, %s)
-                ON CONFLICT (session_id, stage, post_id) DO NOTHING
-            """, (post_id, pin_session_id, pin_stage, user_id))
+                INSERT INTO pinned_post (post_id, session_id, stage, post_type, pinned_by)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (session_id, stage, post_type, post_id) DO NOTHING
+            """, (post_id, pin_session_id, pin_stage, pin_post_type, user_id))
         else:
             # Unpin — remove matching pin(s)
             if pin_session_id and pin_stage:
+                unpin_post_type = post.get("post_type", "discussion")
                 db.execute_query(
-                    "DELETE FROM pinned_post WHERE post_id = %s AND session_id = %s AND stage = %s",
-                    (post_id, pin_session_id, pin_stage),
+                    "DELETE FROM pinned_post WHERE post_id = %s AND session_id = %s AND stage = %s AND post_type = %s",
+                    (post_id, pin_session_id, pin_stage, unpin_post_type),
                 )
             else:
                 # Unpin from all stages in the post's session
@@ -1060,13 +1086,30 @@ def proposal_assist(body, token_info=None, user_id=None):  # noqa: E501
     stage = session["stage"]
     if stage in ('proposal_issue', 'proposal_qualify', 'proposal_stakeholders'):
         template = "issue"
-    elif stage == 'opinion_proposals':
+    elif stage == 'reflection_proposals':
         template = "policy"
     else:
         return ErrorModel(400, f"Proposal assist is not available during '{stage}' stage"), 400
 
     # Gather context
     context = gather_proposal_context(session_id)
+
+    # Get the location name (with parent) for the session
+    location_row = db.execute_query(
+        """SELECT l.name, pl.name AS parent_name
+           FROM location_session ls
+           JOIN location l ON l.id = ls.location_id
+           LEFT JOIN location pl ON pl.id = l.parent_location_id
+           WHERE ls.session_id = %s
+           LIMIT 1""",
+        (session_id,), fetchone=True,
+    )
+    location_name = None
+    if location_row:
+        if location_row.get("parent_name"):
+            location_name = f"{location_row['parent_name']} - {location_row['name']}"
+        else:
+            location_name = location_row["name"]
 
     # Get previous sections if provided
     previous_sections = data.get("previousSections")
@@ -1078,9 +1121,11 @@ def proposal_assist(body, token_info=None, user_id=None):  # noqa: E501
             user_input=user_input,
             context=context,
             previous_sections=previous_sections,
+            location_name=location_name,
         )
         return {"generatedContent": result.get("content", "")}, 200
     except nlp.NLPServiceError as e:
-        return ErrorModel(503, str(e)), 503
+        logger.error("Proposal assist NLP error: %s", e)
+        return ErrorModel(503, "AI assistance service temporarily unavailable"), 503
 
 

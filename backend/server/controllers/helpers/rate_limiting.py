@@ -1,13 +1,20 @@
 """Sliding-window rate limiting using Redis sorted sets."""
 
+import logging
 import time
 
 from candid.controllers.helpers.redis_pool import get_redis
 
+logger = logging.getLogger(__name__)
+_dev_warning_logged = False
+
 # Centralized rate limits: action -> (max_count, window_seconds)
 RATE_LIMITS = {
+    "social_login":    (10,  300),    # 10 per 5min per IP
     "login":           (10,  300),    # 10 per 5min per IP
     "register":        (5,   3600),   # 5 per hour per IP
+    "refresh":         (30,  300),    # 30 per 5min per IP
+    "logout":          (10,  300),    # 10 per 5min per IP
     "report":          (10,  3600),   # 10 per hour per user (all report types share)
     "chat_request":    (10,  3600),   # 10 per hour per user
     "post_create":     (5,   3600),   # 5 per hour per user
@@ -17,6 +24,9 @@ RATE_LIMITS = {
     "toxicity_check":  (60,  60),     # 60 per minute per user
     "avatar_upload":   (10,  3600),   # 10 per hour per user
     "proposal_assist": (20,  3600),   # 20 per hour per user
+    "sms_send":        (3,   3600),   # 3 per hour per phone
+    "sms_send_ip":     (10,  3600),   # 10 per hour per IP
+    "sms_verify":      (10,  3600),   # 10 per hour per phone
 }
 
 
@@ -40,6 +50,10 @@ def check_rate_limit(identifier, action, limit, window_seconds=3600):
     """
     from candid.controllers import config
     if config.DEV:
+        global _dev_warning_logged
+        if not _dev_warning_logged:
+            logger.warning("Rate limiting DISABLED (DEV mode). Set FLASK_ENV=production for production deployments.")
+            _dev_warning_logged = True
         return True, 0
 
     r = get_redis()

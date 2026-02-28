@@ -13,9 +13,9 @@ import DesktopNav from "../../components/DesktopNav"
 import DesktopRightPanel from "../../components/DesktopRightPanel"
 import CardQueueContent from "../../components/CardQueueContent"
 import ModerationQueueContent from "../../components/ModerationQueueContent"
-import SessionStageBar from "../../components/SessionStageBar"
 import SessionSelectorModal from "../../components/SessionSelectorModal"
 import AcceptedProposalModal from "../../components/AcceptedProposalModal"
+import SessionOverviewModal from "../../components/SessionOverviewModal"
 import { useLocationSession } from "../../contexts/LocationSessionContext"
 
 export default function DashboardLayout() {
@@ -28,6 +28,7 @@ export default function DashboardLayout() {
   const {
     selectedSession, selectedLocation, viewingStage,
     sessionSelectorVisible, closeSessionSelector,
+    sessionOverviewVisible, closeSessionOverview,
     acceptedProposal, proposalModalVisible, closeProposalModal,
   } = useLocationSession()
 
@@ -129,7 +130,6 @@ export default function DashboardLayout() {
             <DesktopNav />
             <View style={{ flex: 1, alignItems: 'center' }}>
               <View style={{ flex: 1, flexDirection: 'column', width: '100%', maxWidth: isChatRoute ? 720 : 1100 }}>
-              {!isAdminRoute && <SessionStageBar />}
               <View style={{ flex: 1, flexDirection: 'row' }}>
                 <View style={{ flex: 1 }}>
                   {stackNavigator}
@@ -146,6 +146,7 @@ export default function DashboardLayout() {
           </View>
           <SessionSelectorModal visible={sessionSelectorVisible} onClose={closeSessionSelector} />
           <AcceptedProposalModal visible={proposalModalVisible} onClose={closeProposalModal} proposal={acceptedProposal} />
+          <SessionOverviewModal />
         </ToastProvider>
         </GlossaryProvider>
         </NotificationProvider>
@@ -161,6 +162,7 @@ export default function DashboardLayout() {
         {stackNavigator}
         <SessionSelectorModal visible={sessionSelectorVisible} onClose={closeSessionSelector} />
         <AcceptedProposalModal visible={proposalModalVisible} onClose={closeProposalModal} proposal={acceptedProposal} />
+        <SessionOverviewModal />
       </ToastProvider>
       </GlossaryProvider>
       </NotificationProvider>

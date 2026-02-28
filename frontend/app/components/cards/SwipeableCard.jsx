@@ -51,6 +51,8 @@ const SwipeableCard = forwardRef(function SwipeableCard({
   rightSwipeLabel,
   // Custom label for left/down pass text overlay (only used when leftSwipeAsPass is true)
   leftSwipeLabel,
+  // Unique card identifier — when this changes, all animated values reset (ring buffer slot reuse)
+  cardId,
   // Accessibility
   accessibilityLabel,
   accessibilityHint,
@@ -108,6 +110,33 @@ const SwipeableCard = forwardRef(function SwipeableCard({
     hasDown.value = onSwipeDown ? 1 : 0
   }, [rightSwipeAsChatAccept, rightSwipeAsSubmit, rightSwipeAsKudos, leftSwipeAsPass, archivedMode, enableVerticalSwipe, !!onSwipeUp, !!onSwipeLeft, !!onSwipeDown])
 
+  // Reset animated values when this slot transitions to a back card (ring buffer rotation).
+  // After a swipe-off, posX is at EXIT_WIDTH. We reset while the slot is invisible (back/reserve)
+  // so that when it later cycles back to being the current card, posX is already 0 — no blink.
+  const prevIsBackCardRef = useRef(isBackCard)
+  useEffect(() => {
+    const wasBack = prevIsBackCardRef.current
+    prevIsBackCardRef.current = isBackCard
+    if (!wasBack && isBackCard) {
+      cancelAnimation(posX)
+      cancelAnimation(posY)
+      posX.value = 0
+      posY.value = 0
+      greenOverlay.value = 0
+      redOverlay.value = 0
+      grayOverlay.value = 0
+      yellowOverlay.value = 0
+      goldOverlay.value = 0
+      checkO.value = 0
+      xO.value = 0
+      passO.value = 0
+      chatO.value = 0
+      submitO.value = 0
+      plusO.value = 0
+      starO.value = 0
+    }
+  }, [isBackCard])
+
   // Stable refs for JS callbacks (accessed by swipeOffScreen on JS thread)
   const onSwipeRightRef = useRef(onSwipeRight)
   onSwipeRightRef.current = onSwipeRight
@@ -136,7 +165,23 @@ const SwipeableCard = forwardRef(function SwipeableCard({
     starO.value = withTiming(0, { duration: 150 })
   }, [])
 
-  // Swipe card off screen — runs on JS thread, calls handler, then animates departure
+  // Notify JS thread of swipe result — called after exit animation already started on UI thread.
+  // If handler returns false, springs back (cancels the in-progress exit animation).
+  const notifySwipe = useCallback((direction) => {
+    let result
+    switch (direction) {
+      case 'right': result = onSwipeRightRef.current?.(); break
+      case 'left': result = onSwipeLeftRef.current?.(); break
+      case 'up': result = onSwipeUpRef.current?.(); break
+      case 'down': result = onSwipeDownRef.current?.(); break
+    }
+    if (result === false) {
+      resetAll()
+    }
+  }, [resetAll])
+
+  // Swipe card off screen — used by imperative methods (keyboard swipes) where
+  // the overlay animation finishes first, then this starts the exit animation.
   const swipeOffScreen = useCallback((direction) => {
     let result
     switch (direction) {
@@ -146,7 +191,6 @@ const SwipeableCard = forwardRef(function SwipeableCard({
       case 'down': result = onSwipeDownRef.current?.(); break
     }
 
-    // If handler returns false, reset position instead of swiping off
     if (result === false) {
       resetAll()
       return
@@ -343,22 +387,26 @@ const SwipeableCard = forwardRef(function SwipeableCard({
       const canSwipeUp = flagVertical.value && hasUp.value
       const canSwipeDown = flagVertical.value && hasDown.value
 
+      // Determine swipe direction (null if below threshold)
+      let direction = null
       if (isHorizontal) {
-        if (e.translationX > SWIPE_THRESHOLD) {
-          runOnJS(swipeOffScreen)('right')
-        } else if (e.translationX < -SWIPE_THRESHOLD && hasLeft.value) {
-          runOnJS(swipeOffScreen)('left')
-        } else {
-          runOnJS(resetAll)()
-        }
+        if (e.translationX > SWIPE_THRESHOLD) direction = 'right'
+        else if (e.translationX < -SWIPE_THRESHOLD && hasLeft.value) direction = 'left'
       } else if (canSwipeUp || canSwipeDown) {
-        if (e.translationY < -VERTICAL_THRESHOLD && canSwipeUp) {
-          runOnJS(swipeOffScreen)('up')
-        } else if (e.translationY > VERTICAL_THRESHOLD && canSwipeDown) {
-          runOnJS(swipeOffScreen)('down')
-        } else {
-          runOnJS(resetAll)()
-        }
+        if (e.translationY < -VERTICAL_THRESHOLD && canSwipeUp) direction = 'up'
+        else if (e.translationY > VERTICAL_THRESHOLD && canSwipeDown) direction = 'down'
+      }
+
+      if (direction) {
+        // Start exit animation immediately on UI thread — no bridge delay
+        const x = direction === 'right' ? EXIT_WIDTH * 1.5 :
+                  direction === 'left' ? -EXIT_WIDTH * 1.5 : 0
+        const y = direction === 'up' ? -SCREEN_HEIGHT :
+                  direction === 'down' ? SCREEN_HEIGHT : 0
+        posX.value = withTiming(x, { duration: 250 })
+        posY.value = withTiming(y, { duration: 250 })
+        // Notify JS thread for handler callback (handler can still reject via resetAll)
+        runOnJS(notifySwipe)(direction)
       } else {
         runOnJS(resetAll)()
       }

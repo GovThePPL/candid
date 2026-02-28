@@ -1,24 +1,24 @@
 import { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { sessionsApiWrapper, postsApiWrapper } from '../lib/api'
+import { sessionsApiWrapper, postsApiWrapper, usersApiWrapper } from '../lib/api'
 import { AuthContext } from './UserContext'
 import { STAGE_TO_ROUND_TYPE } from '../constants/Sessions'
 
 // Stages where proposals exist (voting round may be present)
-const PROPOSAL_STAGES = new Set(['proposal_qualify', 'opinion_proposals'])
+const PROPOSAL_STAGES = new Set(['proposal_qualify', 'reflection_proposals'])
 
 // All stages at or past proposal_issue — voting round data may exist
 const VOTING_ROUND_STAGES = new Set([
   'proposal_issue', 'proposal_qualify', 'proposal_stakeholders',
-  'opinion_discussion', 'opinion_curation', 'opinion_proposals',
-  'reflection', 'consensus',
+  'opinion_discussion', 'reflection_curation', 'reflection_proposals',
+  'consensus',
 ])
 
 
 // Stages past the proposal phase — accepted proposal should be available
 const POST_PROPOSAL_STAGES = new Set([
-  'opinion_discussion', 'opinion_curation', 'opinion_proposals',
-  'reflection', 'consensus',
+  'opinion_discussion', 'reflection_curation', 'reflection_proposals',
+  'consensus',
 ])
 
 const LOCATION_KEY = '@candid:selectedLocation'
@@ -35,6 +35,7 @@ export function LocationSessionProvider({ children }) {
   const [viewingStage, setViewingStage] = useState(null)
   const [sessionLoading, setSessionLoading] = useState(false)
   const [sessionSelectorVisible, setSessionSelectorVisible] = useState(false)
+  const [sessionOverviewVisible, setSessionOverviewVisible] = useState(false)
   const [votingRound, setVotingRound] = useState(null)
   const [acceptedProposal, setAcceptedProposal] = useState(null)
   const [proposalModalVisible, setProposalModalVisible] = useState(false)
@@ -52,6 +53,42 @@ export function LocationSessionProvider({ children }) {
       .catch(() => {})
       .finally(() => setLoaded(true))
   }, [])
+
+  // Auto-resolve session when user logs in with no session selected
+  const autoResolvedRef = useRef(false)
+  useEffect(() => {
+    if (!loaded || !user || selectedSession || autoResolvedRef.current) return
+    autoResolvedRef.current = true
+
+    ;(async () => {
+      try {
+        const locations = await usersApiWrapper.getLocations()
+        if (!locations?.length) return
+
+        const sessResults = await Promise.all(
+          locations.map(loc => sessionsApiWrapper.getAll(loc.id).catch(() => []))
+        )
+
+        const activeSessions = []
+        locations.forEach((loc, i) => {
+          for (const s of (sessResults[i] || [])) {
+            if (s.status === 'active') {
+              activeSessions.push({ locationId: loc.id, sessionId: s.id })
+            }
+          }
+        })
+
+        if (activeSessions.length === 1) {
+          setSelectedLocation(activeSessions[0].locationId)
+          setSelectedSession(activeSessions[0].sessionId)
+        } else if (activeSessions.length > 1) {
+          openSessionSelector()
+        }
+      } catch (err) {
+        console.error('Auto-resolve session failed:', err)
+      }
+    })()
+  }, [loaded, user, selectedSession])
 
   const setSelectedLocation = useCallback((id) => {
     setSelectedLocationRaw(id)
@@ -157,10 +194,10 @@ export function LocationSessionProvider({ children }) {
   const openProposalModal = useCallback(() => setProposalModalVisible(true), [])
   const closeProposalModal = useCallback(() => setProposalModalVisible(false), [])
 
-  const refreshSessionData = useCallback(() => {
+  const refreshSessionData = useCallback((options = {}) => {
     if (!selectedSession) return
     const id = ++fetchIdRef.current
-    setSessionLoading(true)
+    if (!options.silent) setSessionLoading(true)
     sessionsApiWrapper.get(selectedSession)
       .then((data) => {
         if (fetchIdRef.current === id) {
@@ -183,16 +220,21 @@ export function LocationSessionProvider({ children }) {
   const currentStage = useMemo(() => sessionData?.stage || null, [sessionData])
   const effectiveStage = useMemo(() => viewingStage || currentStage, [viewingStage, currentStage])
   const isReadOnly = useMemo(
-    () => viewingStage != null || currentStage === 'reflection' || currentStage === 'consensus',
-    [viewingStage, currentStage]
+    () => viewingStage != null || currentStage === 'consensus' || (sessionData?.status && sessionData.status !== 'active'),
+    [viewingStage, currentStage, sessionData?.status]
   )
   const canCreateProposals = useMemo(
-    () => (currentStage === 'proposal_qualify' || currentStage === 'opinion_proposals') && !viewingStage,
-    [currentStage, viewingStage]
+    () => sessionData?.proposalMethod !== 'direct_proposal'
+      && (currentStage === 'proposal_qualify' || currentStage === 'reflection_proposals')
+      && !viewingStage
+      && !['proposals_closed', 'voting_open', 'voting_closed'].includes(votingRound?.status),
+    [currentStage, viewingStage, sessionData?.proposalMethod, votingRound?.status]
   )
 
   const openSessionSelector = useCallback(() => setSessionSelectorVisible(true), [])
   const closeSessionSelector = useCallback(() => setSessionSelectorVisible(false), [])
+  const openSessionOverview = useCallback(() => setSessionOverviewVisible(true), [])
+  const closeSessionOverview = useCallback(() => setSessionOverviewVisible(false), [])
 
   const value = useMemo(() => ({
     selectedLocation,
@@ -212,6 +254,9 @@ export function LocationSessionProvider({ children }) {
     sessionSelectorVisible,
     openSessionSelector,
     closeSessionSelector,
+    sessionOverviewVisible,
+    openSessionOverview,
+    closeSessionOverview,
     votingRound,
     roundType,
     acceptedProposal,
@@ -223,6 +268,7 @@ export function LocationSessionProvider({ children }) {
     sessionData, sessionLoading, viewingStage, setViewingStage, refreshSessionData,
     currentStage, effectiveStage, isReadOnly, canCreateProposals,
     sessionSelectorVisible, openSessionSelector, closeSessionSelector,
+    sessionOverviewVisible, openSessionOverview, closeSessionOverview,
     votingRound, roundType,
     acceptedProposal, proposalModalVisible, openProposalModal, closeProposalModal,
   ])

@@ -1,7 +1,7 @@
 {
   "session_name": "Transit Expansion",
   "location_code": "AUS",
-  "target_stage": "opinion_proposals",
+  "target_stage": "reflection_proposals",
   "topic_vocabulary": {
     "topic_noun": ["public transit", "transit expansion", "transportation infrastructure"],
     "topic_adj": ["transit-related", "transportation", "commuter"],
@@ -38,7 +38,7 @@
       {"type": "generated", "lean": "center_right", "topic_focus": "funding"},
       {"type": "generated", "lean": "divisive", "topic_focus": "governance"}
     ],
-    "opinion_proposals": [
+    "reflection_proposals": [
       {"type": "generated", "lean": "left", "topic_focus": "equity"},
       {"type": "generated", "lean": "center", "topic_focus": "implementation"},
       {"type": "generated", "lean": "bipartisan", "topic_focus": "reform"}
@@ -93,7 +93,7 @@
       "generated_types": {"discussion": 4, "question": 2, "proposal": 1},
       "comments_per_generated": [6, 5, 5, 6, 4, 5, 6]
     },
-    "opinion_proposals": {
+    "reflection_proposals": {
       "anchors": [
         {
           "post_type": "proposal",
@@ -112,7 +112,7 @@
       "title": "Transit Investment Priorities for Austin",
       "type": "standard",
       "session_name": "Transit Expansion",
-      "target_stage": "opinion_proposals",
+      "target_stage": "reflection_proposals",
       "questions": [
         {"question": "What is the best transit investment for Austin's future?",
          "options": ["Light rail along major corridors", "Bus rapid transit with dedicated lanes", "Commuter rail connecting suburbs to downtown", "Expanded highway capacity with managed lanes"]},

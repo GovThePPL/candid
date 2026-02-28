@@ -18,13 +18,22 @@ os.environ.setdefault("POLIS_ENABLED", "false")
 os.environ.setdefault("APPROVAL_REMINDER_ENABLED", "false")
 os.environ.setdefault("FLASK_ENV", "dev")
 
-# Add backend/server/generated to path so candid package is importable
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "server", "generated"))
+# Add candid package to path — works both on host (backend/server/generated/)
+# and inside the api container (/usr/src/app/)
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_host_path = os.path.join(_script_dir, "..", "server", "generated")
+_container_path = "/usr/src/app"
+if os.path.isdir(_host_path):
+    sys.path.insert(0, _host_path)
+else:
+    sys.path.insert(0, _container_path)
 
 os.environ.setdefault(
     "DATABASE_URL", "postgresql://user:postgres@localhost:5432/candid"
 )
 os.environ.setdefault("REDIS_URL", "redis://:candid-redis-dev@localhost:6379")
+os.environ.setdefault("POLIS_API_URL", "http://localhost:5000/api/v3")
+os.environ.setdefault("POLIS_BASE_URL", "http://localhost:5000")
 
 
 def main():

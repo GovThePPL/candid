@@ -211,6 +211,7 @@ class MockConfig:
     SQLALCHEMY_DATABASE_URI = "postgresql://test:test@localhost/test"
     REDIS_URL = "redis://localhost:6379"
     KEYCLOAK_URL = "http://keycloak:8180"
+    KEYCLOAK_ISSUER_URL = "http://keycloak:8180"
     KEYCLOAK_REALM = "candid"
     KEYCLOAK_BACKEND_CLIENT_ID = "candid-backend"
     KEYCLOAK_BACKEND_CLIENT_SECRET = "test-secret"
@@ -220,7 +221,6 @@ class MockConfig:
     POLIS_PUBLIC_URL = "http://localhost:5000"
     POLIS_ENABLED = True
     POLIS_TIMEOUT = 10
-    POLIS_CONVERSATION_WINDOW_MONTHS = 6
     POLIS_ADMIN_CLIENT_SECRET = "polis-admin-secret"
     POLIS_ADMIN_EMAIL = "polis-admin@candid.dev"
     POLIS_ADMIN_PASSWORD = "password"

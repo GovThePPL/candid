@@ -211,10 +211,10 @@ export const authApi = {
     return await promisify(usersApi.getCurrentUser.bind(usersApi))
   },
 
-  async registerAccount({ username, email, password }) {
+  async registerAccount({ username, email, password, phoneNumber, phoneVerifyToken }) {
     return await promisify(
       authenticationApi.registerUser.bind(authenticationApi),
-      { username, email, password }
+      { username, email, password, phoneNumber, phoneVerifyToken }
     )
   },
 }
@@ -431,10 +431,10 @@ export const positionsApiWrapper = {
     )
   },
 
-  async create(statement, sessionId, locationId) {
+  async create(statement, sessionId, locationId, chatsDisabled = false) {
     return await promisify(
       positionsApi.createPosition.bind(positionsApi),
-      { statement, sessionId, locationId }
+      { statement, sessionId, locationId, chatsDisabled }
     )
   },
 
@@ -756,8 +756,7 @@ export const sessionsApiWrapper = {
   async advanceVotingRound(sessionId) {
     return await promisify(
       sessionsApi.advanceVotingRound.bind(sessionsApi),
-      sessionId,
-      {}
+      sessionId
     )
   },
 
@@ -960,9 +959,12 @@ export const statsApiWrapper = {
 
 // Moderation API
 export const moderationApiWrapper = {
-  async getRules(contentType) {
+  async getRules(contentType, { locationId, sessionId, postType } = {}) {
     const opts = {}
     if (contentType) opts.contentType = contentType
+    if (locationId) opts.locationId = locationId
+    if (sessionId) opts.sessionId = sessionId
+    if (postType) opts.postType = postType
     return await promisify(moderationApi.getRules.bind(moderationApi), opts)
   },
 
@@ -1376,7 +1378,7 @@ export const postsApiWrapper = {
   },
 
   async proposalAssist(body) {
-    return await promisify(postsApi.proposalAssistance.bind(postsApi), body)
+    return await promisify(postsApi.proposalAssist.bind(postsApi), body)
   },
 
   async finalizeProposal(postId) {

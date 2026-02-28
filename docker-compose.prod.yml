@@ -1,0 +1,18 @@
+# Production override — removes dev-only host port mappings and volume mounts.
+# Usage: docker compose -f docker-compose.yaml -f docker-compose.prod.yml up -d
+#
+# Requires Docker Compose v2.24.0+ for the !reset directive.
+# db and redis become accessible only within the Docker network.
+
+services:
+  api:
+    volumes: !reset []
+
+  db:
+    ports: !reset []
+
+  redis:
+    ports: !reset []
+
+  keycloak:
+    command: start --import-realm

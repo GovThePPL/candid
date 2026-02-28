@@ -1,0 +1,70 @@
+# Candid PersistentVolumeClaim Manifests
+#
+# These PVCs provide persistent storage for databases and Redis.
+# All three are required for a production deployment.
+#
+# storageClassName examples by provider:
+#   AWS EKS:  gp3 (default), io2 (high IOPS)
+#   GCP GKE:  premium-rwo (SSD), standard-rwo (HDD)
+#   Azure AKS: managed-premium (SSD), managed (HDD)
+#   k3s/bare-metal: local-path (single-node), longhorn, rook-ceph
+#
+# Set storageClassName to match your cluster's provisioner.
+# Omit storageClassName to use the cluster default.
+#
+# Volume mount snippet (add to Deployment spec.template.spec):
+#
+#   volumes:
+#   - name: db-data
+#     persistentVolumeClaim:
+#       claimName: candid-db-data
+#   containers:
+#   - name: db
+#     volumeMounts:
+#     - name: db-data
+#       mountPath: /var/lib/postgresql/data
+
+---
+# Candid + Keycloak PostgreSQL data
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: candid-db-data
+  namespace: candid
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  # storageClassName: gp3
+
+---
+# Polis PostgreSQL data (separate instance for independent scaling)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: polis-db-data
+  namespace: candid
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  # storageClassName: gp3
+
+---
+# Redis AOF persistence (mostly TTL cache, small footprint)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-data
+  namespace: candid
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+  # storageClassName: gp3

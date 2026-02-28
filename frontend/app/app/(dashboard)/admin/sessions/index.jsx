@@ -1,5 +1,5 @@
-import { StyleSheet, View, TouchableOpacity, FlatList, ScrollView, ActivityIndicator, TextInput, Switch } from 'react-native'
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { StyleSheet, View, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Switch } from 'react-native'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -8,7 +8,7 @@ import { useThemeColors } from '../../../../hooks/useThemeColors'
 import { SemanticColors } from '../../../../constants/Colors'
 import { useUser } from '../../../../hooks/useUser'
 import { hasRole } from '../../../../lib/roles'
-import useAdminSessions, { getNextStage } from '../../../../hooks/useAdminSessions'
+import useAdminSessions from '../../../../hooks/useAdminSessions'
 import ThemedText from '../../../../components/ThemedText'
 import Header from '../../../../components/Header'
 import EmptyState from '../../../../components/EmptyState'
@@ -16,6 +16,7 @@ import BottomDrawerModal from '../../../../components/BottomDrawerModal'
 import LocationSessionBadge from '../../../../components/LocationSessionBadge'
 import SessionProgressBar from '../../../../components/SessionProgressBar'
 import LocationPicker from '../../../../components/LocationPicker'
+import LocationFilterButton from '../../../../components/LocationFilterButton'
 import { useToast } from '../../../../components/Toast'
 
 export default function AdminSessionsScreen() {
@@ -44,21 +45,26 @@ export default function AdminSessionsScreen() {
 
   // Location picker for create form
   const [locationPickerVisible, setLocationPickerVisible] = useState(false)
+  // Guard: prevent BDM overlay ghost-click close after LocationPicker closes
+  const lpClosingRef = useRef(false)
+  // Location filter for session list
+  const [filterLocationId, setFilterLocationId] = useState(null)
+  // Completed section toggle
+  const [completedExpanded, setCompletedExpanded] = useState(false)
 
-  const getStageDisplay = (stage) => {
-    if (!stage) return ''
-    const key = `stage${stage.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join('')}`
-    return tc(key, { defaultValue: stage.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) })
-  }
+  // Split filtered sessions into active and completed
+  const filteredSessions = useMemo(() => {
+    if (!filterLocationId) return visibleSessions
+    return visibleSessions.filter(s => s.locationId === filterLocationId)
+  }, [visibleSessions, filterLocationId])
 
-  const renderSession = useCallback(({ item }) => {
-    const surveys = mgmt.sessionLabelSurveys[item.id]
-    const hasLabel = surveys?.proposal || surveys?.opinion
-    const nextStage = getNextStage(item.stage)
+  const activeSessions = useMemo(() => filteredSessions.filter(s => s.stage !== 'consensus' && s.status === 'active'), [filteredSessions])
+  const completedSessions = useMemo(() => filteredSessions.filter(s => s.stage === 'consensus' || s.status !== 'active'), [filteredSessions])
 
+  const renderSession = useCallback((item) => {
     return (
-      <View style={styles.sessionCard}>
-        {/* Top row: location+session badge left, labels right */}
+      <View key={item.id} style={styles.sessionCard}>
+        {/* Top row: badge left, method label right */}
         <View style={styles.cardTopRow}>
           <View style={styles.badgeWrap}>
             <LocationSessionBadge
@@ -67,36 +73,28 @@ export default function AdminSessionsScreen() {
               size="md"
             />
           </View>
-          <View style={styles.labelsRow}>
-            <View style={[styles.methodBadge, item.proposalMethod === 'admin_provided' ? styles.methodBadgeAdmin : styles.methodBadgeCommunity]}>
-              <ThemedText variant="badge" color="inverse" style={styles.methodBadgeText}>
-                {item.proposalMethod === 'admin_provided' ? t('proposalMethodAdminProvided') : t('proposalMethodUserDriven')}
-              </ThemedText>
-            </View>
-            {hasLabel && (
-              <View style={styles.labelSurveyBadge}>
-                <Ionicons name="pricetag" size={12} color="#FFFFFF" />
+          <View style={styles.badgeRow}>
+            {item.status === 'archived' && (
+              <View style={styles.archivedBadge}>
+                <Ionicons name="archive-outline" size={12} color="#FFFFFF" />
+                <ThemedText variant="badge" color="inverse" style={styles.methodBadgeText}>
+                  {t('statusArchived')}
+                </ThemedText>
               </View>
             )}
+            <View style={[styles.methodBadge, item.proposalMethod === 'direct_proposal' ? styles.methodBadgeDirect : item.proposalMethod === 'admin_provided' ? styles.methodBadgeAdmin : styles.methodBadgeCommunity]}>
+              <ThemedText variant="badge" color="inverse" style={styles.methodBadgeText}>
+                {item.proposalMethod === 'direct_proposal' ? t('proposalMethodDirectProposal') : item.proposalMethod === 'admin_provided' ? t('proposalMethodAdminProvided') : t('proposalMethodUserDriven')}
+              </ThemedText>
+            </View>
           </View>
         </View>
 
         {/* Progress bar */}
-        <SessionProgressBar stage={item.stage} height={24} showStageLabel />
+        <SessionProgressBar stage={item.stage} height={24} showStageLabel proposalMethod={item.proposalMethod} />
 
         {/* Actions row */}
         <View style={styles.actionRow}>
-          {canManage && nextStage && (
-            <TouchableOpacity
-              style={styles.advanceButton}
-              onPress={() => mgmt.handleAdvanceStage(item)}
-              accessibilityRole="button"
-              accessibilityLabel={t('advanceStageTo', { stage: getStageDisplay(nextStage) })}
-            >
-              <Ionicons name="arrow-forward" size={16} color={colors.primary} />
-              <ThemedText variant="caption" color="primary">{t('advanceStage')}</ThemedText>
-            </TouchableOpacity>
-          )}
           <TouchableOpacity
             style={styles.manageButton}
             onPress={() => router.push(`/admin/sessions/${item.id}`)}
@@ -109,7 +107,7 @@ export default function AdminSessionsScreen() {
         </View>
       </View>
     )
-  }, [styles, colors, t, mgmt, canManage, tc, router])
+  }, [styles, colors, t, mgmt, router])
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -130,11 +128,33 @@ export default function AdminSessionsScreen() {
           )}
         </View>
 
+        {mgmt.locations.length > 0 && (
+          <View style={styles.filterRow}>
+            <View style={styles.filterButtonWrap}>
+              <LocationFilterButton
+                allLocations={mgmt.locations}
+                selectedLocationId={filterLocationId}
+                onSelect={setFilterLocationId}
+              />
+            </View>
+            {filterLocationId && (
+              <TouchableOpacity
+                onPress={() => setFilterLocationId(null)}
+                accessibilityRole="button"
+                accessibilityLabel={t('clearLocationFilterA11y')}
+                style={styles.clearFilterButton}
+              >
+                <Ionicons name="close-circle" size={20} color={colors.secondaryText} />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
         {mgmt.loading ? (
           <View style={styles.center}>
             <ActivityIndicator size="large" color={colors.primary} />
           </View>
-        ) : visibleSessions.length === 0 ? (
+        ) : filteredSessions.length === 0 ? (
           <EmptyState
             icon="pricetag-outline"
             title={t('noSessionsAdmin')}
@@ -142,20 +162,41 @@ export default function AdminSessionsScreen() {
             style={styles.emptyContainer}
           />
         ) : (
-          <FlatList
-            data={visibleSessions}
-            keyExtractor={(item) => item.id}
-            renderItem={renderSession}
-            contentContainerStyle={styles.listContent}
-            style={styles.sessionList}
-          />
+          <ScrollView style={styles.sessionList} contentContainerStyle={styles.listContent}>
+            {activeSessions.map(item => renderSession(item))}
+
+            {completedSessions.length > 0 && (
+              <>
+                <TouchableOpacity
+                  style={styles.completedHeader}
+                  onPress={() => setCompletedExpanded(prev => !prev)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('completedSessionsA11y')}
+                >
+                  <ThemedText variant="label" color="secondary">
+                    {t('completedSessionsCount', { count: completedSessions.length })}
+                  </ThemedText>
+                  <Ionicons
+                    name={completedExpanded ? 'chevron-down' : 'chevron-forward'}
+                    size={18}
+                    color={colors.secondaryText}
+                  />
+                </TouchableOpacity>
+                {completedExpanded && completedSessions.map(item => renderSession(item))}
+              </>
+            )}
+          </ScrollView>
         )}
       </View>
 
       {/* Create Session Modal */}
       <BottomDrawerModal
         visible={mgmt.createVisible}
-        onClose={() => { mgmt.setCreateVisible(false); mgmt.resetCreateForm() }}
+        onClose={() => {
+          // Guard: ignore close triggered by stacked modal dismissal (ghost click / popstate)
+          if (lpClosingRef.current) return
+          mgmt.setCreateVisible(false); mgmt.resetCreateForm()
+        }}
         title={t('createNewSession')}
       >
         <ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
@@ -225,7 +266,86 @@ export default function AdminSessionsScreen() {
                 {t('proposalMethodAdminProvidedDesc')}
               </ThemedText>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.methodOption, mgmt.newProposalMethod === 'direct_proposal' && styles.methodOptionActive]}
+              onPress={() => mgmt.setNewProposalMethod('direct_proposal')}
+              accessibilityRole="button"
+              accessibilityLabel={t('proposalMethodDirectProposal')}
+              accessibilityState={{ selected: mgmt.newProposalMethod === 'direct_proposal' }}
+            >
+              <Ionicons name="flash" size={18} color={mgmt.newProposalMethod === 'direct_proposal' ? '#FFFFFF' : colors.text} />
+              <ThemedText variant="caption" color={mgmt.newProposalMethod === 'direct_proposal' ? 'inverse' : 'dark'} style={styles.methodOptionLabel}>
+                {t('proposalMethodDirectProposal')}
+              </ThemedText>
+              <ThemedText variant="caption" color={mgmt.newProposalMethod === 'direct_proposal' ? 'inverse' : 'secondary'} style={styles.methodOptionDesc}>
+                {t('proposalMethodDirectProposalDesc')}
+              </ThemedText>
+            </TouchableOpacity>
           </View>
+
+          {/* Proposals input section (direct_proposal or admin_provided) */}
+          {(mgmt.newProposalMethod === 'direct_proposal' || mgmt.newProposalMethod === 'admin_provided') && (
+            <>
+              <ThemedText variant="label" color="secondary">{t('proposalsSection')}</ThemedText>
+              {mgmt.proposals.map((proposal, i) => (
+                <View key={i} style={styles.proposalCard}>
+                  <View style={styles.proposalCardHeader}>
+                    <ThemedText variant="caption" color="secondary">
+                      {t('proposalNumber', { number: i + 1 })}
+                    </ThemedText>
+                    {mgmt.newProposalMethod === 'admin_provided' && mgmt.proposals.length > 2 && (
+                      <TouchableOpacity
+                        onPress={() => mgmt.setProposals(prev => prev.filter((_, j) => j !== i))}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('removeProposalA11y', { number: i + 1 })}
+                      >
+                        <Ionicons name="close-circle" size={18} color={SemanticColors.warning} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  <TextInput
+                    style={styles.input}
+                    value={proposal.title}
+                    onChangeText={(text) => {
+                      const updated = [...mgmt.proposals]
+                      updated[i] = { ...updated[i], title: text }
+                      mgmt.setProposals(updated)
+                    }}
+                    placeholder={t('proposalTitlePlaceholder')}
+                    placeholderTextColor={colors.placeholderText}
+                    maxFontSizeMultiplier={1.5}
+                    accessibilityLabel={t('proposalTitleA11y', { number: i + 1 })}
+                  />
+                  <TextInput
+                    style={[styles.input, styles.multilineInput]}
+                    value={proposal.body}
+                    onChangeText={(text) => {
+                      const updated = [...mgmt.proposals]
+                      updated[i] = { ...updated[i], body: text }
+                      mgmt.setProposals(updated)
+                    }}
+                    placeholder={t('proposalBodyPlaceholder')}
+                    placeholderTextColor={colors.placeholderText}
+                    multiline
+                    numberOfLines={3}
+                    maxFontSizeMultiplier={1.5}
+                    accessibilityLabel={t('proposalBodyA11y', { number: i + 1 })}
+                  />
+                </View>
+              ))}
+              {mgmt.newProposalMethod === 'admin_provided' && mgmt.proposals.length < 10 && (
+                <TouchableOpacity
+                  style={styles.addRow}
+                  onPress={() => mgmt.setProposals(prev => [...prev, { title: '', body: '' }])}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('addProposalA11y')}
+                >
+                  <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
+                  <ThemedText variant="caption" color="primary">{t('addProposal')}</ThemedText>
+                </TouchableOpacity>
+              )}
+            </>
+          )}
 
           {/* Label survey toggle */}
           <View style={styles.switchRow}>
@@ -312,10 +432,10 @@ export default function AdminSessionsScreen() {
       {/* Location Picker Modal */}
       <LocationPicker
         visible={locationPickerVisible}
-        onClose={() => setLocationPickerVisible(false)}
+        onClose={() => { lpClosingRef.current = true; setLocationPickerVisible(false); setTimeout(() => { lpClosingRef.current = false }, 400) }}
         allLocations={mgmt.locations}
         currentLocationId={mgmt.newLocationId}
-        onSelect={(id) => { mgmt.setNewLocationId(id); setLocationPickerVisible(false) }}
+        onSelect={(id) => { mgmt.setNewLocationId(id); lpClosingRef.current = true; setLocationPickerVisible(false); setTimeout(() => { lpClosingRef.current = false }, 400) }}
         saving={false}
       />
     </SafeAreaView>
@@ -360,6 +480,17 @@ const createStyles = (colors) => StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 16,
   },
+  filterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  filterButtonWrap: {
+    flex: 1,
+  },
+  clearFilterButton: {
+    padding: 4,
+  },
   sessionList: {
     flex: 1,
   },
@@ -368,9 +499,16 @@ const createStyles = (colors) => StyleSheet.create({
     paddingHorizontal: 16,
     gap: 12,
   },
+  completedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+  },
 
   // Session card
   sessionCard: {
+    alignSelf: 'stretch',
     backgroundColor: colors.cardBackground,
     borderRadius: 12,
     padding: 14,
@@ -381,15 +519,24 @@ const createStyles = (colors) => StyleSheet.create({
   cardTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
   badgeWrap: {
     flexShrink: 1,
   },
-  labelsRow: {
+  badgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: 'auto',
     gap: 6,
+  },
+  archivedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+    backgroundColor: SemanticColors.warning,
   },
   methodBadge: {
     paddingHorizontal: 10,
@@ -402,35 +549,19 @@ const createStyles = (colors) => StyleSheet.create({
   methodBadgeAdmin: {
     backgroundColor: SemanticColors.pending,
   },
+  methodBadgeDirect: {
+    backgroundColor: SemanticColors.approved,
+  },
   methodBadgeText: {
     fontWeight: '700',
     letterSpacing: 0.5,
   },
-  labelSurveyBadge: {
-    backgroundColor: SemanticColors.approved,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   actionRow: {
     flexDirection: 'row',
-    gap: 8,
-  },
-  advanceButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    borderWidth: 1,
-    borderColor: colors.primary,
-    paddingVertical: 8,
-    borderRadius: 25,
+    justifyContent: 'flex-end',
   },
   manageButton: {
-    flex: 1,
+    minWidth: '33%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -492,6 +623,26 @@ const createStyles = (colors) => StyleSheet.create({
   },
   methodOptionDesc: {
     opacity: 0.8,
+  },
+
+  // Proposal input cards
+  proposalCard: {
+    backgroundColor: colors.cardBackground,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    borderRadius: 10,
+    padding: 12,
+    gap: 8,
+  },
+  proposalCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  multilineInput: {
+    borderRadius: 12,
+    minHeight: 60,
+    textAlignVertical: 'top',
   },
 
   // Switch row

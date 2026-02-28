@@ -1,4 +1,10 @@
+import logging
 import os
+
+logger = logging.getLogger(__name__)
+
+# Dev defaults that must NEVER be used in production
+_DEV_DEFAULTS = {'candid-backend-secret', 'polis-admin-secret', 'password', 'postgres', 'candid-dev-secret-key'}
 
 def _require_secret(name, dev_default=None):
 	"""Require env var in production, allow dev default otherwise."""
@@ -21,6 +27,7 @@ class Config:
 	REDIS_URL = os.environ.get('REDIS_URL', 'redis://redis:6379')
 	# Keycloak
 	KEYCLOAK_URL = os.environ.get('KEYCLOAK_URL', 'http://keycloak:8180')
+	KEYCLOAK_ISSUER_URL = os.environ.get('KEYCLOAK_ISSUER_URL', KEYCLOAK_URL)
 	KEYCLOAK_REALM = os.environ.get('KEYCLOAK_REALM', 'candid')
 	KEYCLOAK_BACKEND_CLIENT_ID = os.environ.get('KEYCLOAK_BACKEND_CLIENT_ID', 'candid-backend')
 	KEYCLOAK_BACKEND_CLIENT_SECRET = _require_secret('KEYCLOAK_BACKEND_CLIENT_SECRET', 'candid-backend-secret')
@@ -36,12 +43,16 @@ class Config:
 	POLIS_PUBLIC_URL = os.environ.get('POLIS_PUBLIC_URL', 'http://localhost:5000')  # Public URL for browser access
 	POLIS_ENABLED = os.environ.get('POLIS_ENABLED', 'true').lower() == 'true'
 	POLIS_TIMEOUT = int(os.environ.get('POLIS_TIMEOUT', '10'))
-	POLIS_CONVERSATION_WINDOW_MONTHS = 6  # How long each conversation stays active
-
 	# Polis Admin Credentials (Keycloak ROPC via polis-admin client)
 	POLIS_ADMIN_CLIENT_SECRET = _require_secret('POLIS_ADMIN_CLIENT_SECRET', 'polis-admin-secret')
 	POLIS_ADMIN_EMAIL = os.environ.get('POLIS_ADMIN_EMAIL', 'polis-admin@candid.dev')
 	POLIS_ADMIN_PASSWORD = _require_secret('POLIS_ADMIN_PASSWORD', 'password')
+
+	# Social login (Apple / Google)
+	GOOGLE_CLIENT_ID_IOS = os.environ.get('GOOGLE_CLIENT_ID_IOS', '')
+	GOOGLE_CLIENT_ID_ANDROID = os.environ.get('GOOGLE_CLIENT_ID_ANDROID', '')
+	GOOGLE_CLIENT_ID_WEB = os.environ.get('GOOGLE_CLIENT_ID_WEB', '')
+	APPLE_SERVICE_ID = os.environ.get('APPLE_SERVICE_ID', 'com.candid.app')
 
 	# NLP service
 	NLP_SERVICE_URL = os.environ.get('NLP_SERVICE_URL', 'http://nlp:5001')
@@ -66,6 +77,17 @@ class Config:
 	MF_MAX_EPOCHS = 300
 	MF_CONVERGENCE_TOL = 1e-5
 
+	# SMS / Phone verification
+	# Auto-disables if Twilio credentials are not configured, even if the flag is set
+	TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')
+	TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN', '')
+	TWILIO_PHONE_NUMBER = os.environ.get('TWILIO_PHONE_NUMBER', '')
+	_sms_requested = os.environ.get('SMS_VERIFICATION_ENABLED', 'false').lower() == 'true'
+	SMS_VERIFICATION_ENABLED = _sms_requested and bool(TWILIO_ACCOUNT_SID) and bool(TWILIO_AUTH_TOKEN)
+
+	# JWT secret for pending social login tokens
+	SECRET_KEY = _require_secret('SECRET_KEY', 'candid-dev-secret-key')
+
 	# Scoring parameters (tunable via env vars)
 	SCORING_WILSON_Z = float(os.environ.get('SCORING_WILSON_Z', '1.96'))
 	SCORING_HOT_GRAVITY = float(os.environ.get('SCORING_HOT_GRAVITY', '1.5'))
@@ -79,3 +101,36 @@ class DevelopmentConfig(Config):
 
 class ProductionConfig(Config):
 	DEV = False
+
+	def __init__(self):
+		super().__init__()
+		# Warn if any secrets still have dev defaults
+		secrets_to_check = {
+			'KEYCLOAK_BACKEND_CLIENT_SECRET': self.KEYCLOAK_BACKEND_CLIENT_SECRET,
+			'POLIS_ADMIN_CLIENT_SECRET': self.POLIS_ADMIN_CLIENT_SECRET,
+			'POLIS_ADMIN_PASSWORD': self.POLIS_ADMIN_PASSWORD,
+			'SECRET_KEY': self.SECRET_KEY,
+		}
+		if self._sms_requested and not self.SMS_VERIFICATION_ENABLED:
+			logger.critical(
+				"SECURITY: SMS_VERIFICATION_ENABLED is true but Twilio credentials are missing — "
+				"SMS verification is DISABLED. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, "
+				"and TWILIO_PHONE_NUMBER to enable phone verification."
+			)
+		for name, value in secrets_to_check.items():
+			if value in _DEV_DEFAULTS:
+				logger.critical(
+					"SECURITY: %s is using a dev default value. "
+					"Set it via environment variable before deploying to production.", name
+				)
+		if not os.environ.get('CORS_ORIGINS'):
+			logger.critical(
+				"SECURITY: CORS_ORIGINS is not set. "
+				"Falling back to localhost defaults. "
+				"Set CORS_ORIGINS to your production domain(s)."
+			)
+		if self.POLIS_PUBLIC_URL == 'http://localhost:5000':
+			logger.critical(
+				"SECURITY: POLIS_PUBLIC_URL is using the localhost default. "
+				"Set it to your production Polis URL."
+			)

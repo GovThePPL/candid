@@ -4,7 +4,7 @@ RUN apt install -y postgresql-common
 RUN /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
 
 RUN apt -y install default-jre python3 python3-pip postgresql-client-17
-RUN pip3 install openapi-generator-cli pipreqs psycopg2-binary "PyJWT[crypto]" cryptography camel-converter redis python-dateutil requests flask-cors gunicorn numpy scipy --break-system-packages
+RUN pip3 install openapi-generator-cli pipreqs psycopg2-binary "PyJWT[crypto]" cryptography camel-converter redis python-dateutil requests flask-cors gunicorn numpy scipy twilio --break-system-packages
 RUN mkdir -p /usr/src/docs
 
 COPY ./docs/api.yaml /usr/src/docs/
@@ -28,9 +28,16 @@ RUN pip3 install --no-cache-dir -r requirements.txt --break-system-packages
 
 EXPOSE 8000
 
-# Use gunicorn for production with configurable workers
+RUN useradd -m -u 1000 app
+USER app
+
+# Default: API server (gunicorn)
 # Each worker is a separate process with its own DB/Redis connection pools
-# Default: 4 workers, override via GUNICORN_WORKERS env var
+# Override via GUNICORN_WORKERS env var
+#
+# For K8s worker pod, override CMD to run background workers without Flask:
+#   command: ["python", "-m", "candid.worker_entrypoint"]
+# Set POLIS_ENABLED/MF_ENABLED/APPROVAL_REMINDER_ENABLED to control which workers run.
 CMD gunicorn \
     --bind 0.0.0.0:8000 \
     --workers ${GUNICORN_WORKERS:-4} \

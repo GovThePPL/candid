@@ -222,17 +222,17 @@ STAGE_ORDER = [
     'proposal_qualify',
     'proposal_stakeholders',
     'opinion_discussion',
-    'opinion_curation',
-    'opinion_proposals',
-    'reflection',
+    'reflection_curation',
+    'reflection_proposals',
     'consensus',
 ]
 
 STAGE_INDEX = {stage: i for i, stage in enumerate(STAGE_ORDER)}
 
 _PROPOSAL_STAGES = {'proposal_issue', 'proposal_qualify', 'proposal_stakeholders'}
-_OPINION_STAGES = {'opinion_discussion', 'opinion_curation', 'opinion_proposals'}
-_ACTIVE_WRITING_STAGES = _PROPOSAL_STAGES | _OPINION_STAGES
+_OPINION_STAGES = {'opinion_discussion'}
+_REFLECTION_STAGES = {'reflection_curation', 'reflection_proposals'}
+_ACTIVE_WRITING_STAGES = _PROPOSAL_STAGES | _OPINION_STAGES | _REFLECTION_STAGES
 
 # Which stages allow creating each content type
 WRITE_STAGES = {
@@ -242,13 +242,13 @@ WRITE_STAGES = {
     'comment':            _ACTIVE_WRITING_STAGES,
     'post_vote':          _ACTIVE_WRITING_STAGES,
     'comment_vote':       _ACTIVE_WRITING_STAGES,
-    'proposal_post':      {'proposal_qualify', 'opinion_proposals'},
-    'endorsement':        {'proposal_qualify', 'opinion_proposals'},
-    'rcv_vote':           {'proposal_qualify', 'opinion_proposals'},
+    'proposal_post':      {'proposal_qualify', 'reflection_proposals'},
+    'endorsement':        {'proposal_qualify', 'reflection_proposals'},
+    'rcv_vote':           {'proposal_qualify', 'reflection_proposals'},
     'glossary':           set(STAGE_ORDER),
     'wiki':               set(STAGE_ORDER),
-    'polis_vote':         _OPINION_STAGES,
-    'curated_comment':    {'opinion_curation', 'opinion_proposals'},
+    'polis_vote':         _OPINION_STAGES | _REFLECTION_STAGES,
+    'curated_comment':    {'reflection_curation', 'reflection_proposals'},
     'consensus_document': {'consensus'},
     'chat':               _ACTIVE_WRITING_STAGES,
 }
@@ -264,9 +264,8 @@ STAGE_TO_PHASE = {
     'proposal_qualify': 'proposal',
     'proposal_stakeholders': 'proposal',
     'opinion_discussion': 'opinion',
-    'opinion_curation': 'opinion',
-    'opinion_proposals': 'opinion',
-    'reflection': 'reflection',
+    'reflection_curation': 'reflection',
+    'reflection_proposals': 'reflection',
     'consensus': 'consensus',
 }
 
@@ -274,3 +273,14 @@ class SessionStatus:
     ACTIVE = 'active'
     ARCHIVED = 'archived'
     CANCELLED = 'cancelled'
+
+
+# ── Proposal methods ─────────────────────────────────────────────────
+VALID_PROPOSAL_METHODS = ('user_driven', 'admin_provided', 'direct_proposal')
+
+# Initial stage for each proposal method
+PROPOSAL_METHOD_INITIAL_STAGE = {
+    'user_driven': 'proposal_issue',
+    'admin_provided': 'proposal_qualify',
+    'direct_proposal': 'opinion_discussion',
+}

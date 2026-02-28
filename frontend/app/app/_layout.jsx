@@ -1,8 +1,9 @@
 import { useEffect, useMemo } from "react"
-import { Stack } from "expo-router"
+import { Stack, SplashScreen } from "expo-router"
 import { Platform, Text } from "react-native"
 import { StatusBar } from "expo-status-bar"
 import { useFonts, Pacifico_400Regular } from "@expo-google-fonts/pacifico"
+import AnimatedSplash from "../components/AnimatedSplash"
 
 // Global font scaling safety net — caps all Text at 2x even without a variant
 Text.defaultProps = Text.defaultProps || {}
@@ -21,6 +22,8 @@ import { I18nProvider } from "../contexts/I18nContext"
 import { LocationSessionProvider } from "../contexts/LocationSessionContext"
 import { CacheManager } from "../lib/cache"
 
+// Keep native splash visible until our animated splash is ready
+SplashScreen.preventAutoHideAsync()
 
 // Clear application cache on hard reload (Ctrl+Shift+R) so stale data doesn't persist
 function useClearCacheOnReload() {
@@ -121,7 +124,7 @@ function InnerLayout() {
 
 export default function RootLayout() {
   // Load Pacifico font on native
-  useFonts({ Pacifico_400Regular })
+  const [fontsLoaded] = useFonts({ Pacifico_400Regular })
 
   // Load Google Font for web
   useGoogleFont()
@@ -136,9 +139,11 @@ export default function RootLayout() {
     <UserProvider>
       <I18nProvider>
         <ThemeProvider>
-          <LocationSessionProvider>
-            <InnerLayout />
-          </LocationSessionProvider>
+          <AnimatedSplash fontsLoaded={fontsLoaded}>
+            <LocationSessionProvider>
+              <InnerLayout />
+            </LocationSessionProvider>
+          </AnimatedSplash>
         </ThemeProvider>
       </I18nProvider>
     </UserProvider>

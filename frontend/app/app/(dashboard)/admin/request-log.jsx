@@ -633,8 +633,6 @@ export default function RequestLogScreen() {
         visible={denyModalVisible}
         onClose={() => { setDenyModalVisible(false); setDenyReason(''); setDenyTargetId(null); setDenyTargetType('role') }}
         title={t('denyReason')}
-        shrink
-
       >
         <View style={styles.modalContent}>
           <TextInput

@@ -4,10 +4,13 @@
   "loginTheme": "candid",
   "registrationAllowed": true,
   "registrationEmailAsUsername": false,
+  "verifyEmail": false,
   "resetPasswordAllowed": true,
   "accessTokenLifespan": 3600,
-  "ssoSessionIdleTimeout": 1800,
-  "ssoSessionMaxLifespan": 36000,
+  "revokeRefreshToken": true,
+  "refreshTokenMaxReuse": 0,
+  "ssoSessionIdleTimeout": 2592000,
+  "ssoSessionMaxLifespan": 7776000,
   "defaultSignatureAlgorithm": "RS256",
   "roles": {
     "realm": [
@@ -309,7 +312,7 @@
       "enabled": true,
       "serviceAccountClientId": "candid-backend",
       "clientRoles": {
-        "realm-management": ["manage-users", "view-realm"]
+        "realm-management": ["manage-users", "view-realm", "impersonation"]
       }
     }
   ]

@@ -1,8 +1,10 @@
-import { StyleSheet, View, TouchableOpacity, Animated } from 'react-native'
+import { StyleSheet, View, TouchableOpacity } from 'react-native'
+import Animated from 'react-native-reanimated'
 import { useState, useRef, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
+import useFlashAnimation from '../../hooks/useFlashAnimation'
 import { BrandColor, OnBrandColors } from '../../constants/Colors'
 import ThemedText from '../ThemedText'
 import SwipeableCard from './SwipeableCard'
@@ -20,21 +22,8 @@ const SurveyCard = forwardRef(function SurveyCard({
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const [selectedOption, setSelectedOption] = useState(null)
-  const flashAnim = useRef(new Animated.Value(0)).current
+  const { triggerFlash, flashStyle } = useFlashAnimation(colors.buttonDefault, colors.buttonSelected)
   const swipeableRef = useRef(null)
-
-  // Flash animation to indicate selection needed (delayed until card stops moving)
-  const flashOptions = useCallback(() => {
-    // Wait for card to return to center before flashing
-    setTimeout(() => {
-      Animated.sequence([
-        Animated.timing(flashAnim, { toValue: 1, duration: 250, useNativeDriver: false }),
-        Animated.timing(flashAnim, { toValue: 0, duration: 250, useNativeDriver: false }),
-        Animated.timing(flashAnim, { toValue: 1, duration: 250, useNativeDriver: false }),
-        Animated.timing(flashAnim, { toValue: 0, duration: 250, useNativeDriver: false }),
-      ]).start()
-    }, 500)
-  }, [flashAnim])
 
   // Store selectedOption in a ref so handlers can access current value
   const selectedOptionRef = useRef(selectedOption)
@@ -46,11 +35,11 @@ const SurveyCard = forwardRef(function SurveyCard({
       onRespond(survey.surveyId, survey.id, selectedOptionRef.current)
     } else {
       // Flash options to indicate selection needed
-      flashOptions()
+      triggerFlash()
       // Return false to prevent the swipe (card stays in place)
       return false
     }
-  }, [onRespond, survey, flashOptions])
+  }, [onRespond, survey, triggerFlash])
 
   // Handle down swipe - skip survey
   const handleSkip = useCallback(() => {
@@ -74,12 +63,6 @@ const SurveyCard = forwardRef(function SurveyCard({
   const questionText = survey?.question || ''
   const surveyTitle = survey?.surveyTitle || null
   const session = survey?.session || t('surveyDefaultSession')
-
-  // Calculate flash background color (darkens to indicate selection needed)
-  const flashBackgroundColor = flashAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [colors.buttonDefault, colors.buttonSelected],
-  })
 
   const headerContent = (
     <View style={styles.headerRow}>
@@ -146,8 +129,8 @@ const SurveyCard = forwardRef(function SurveyCard({
                 <Animated.View
                   style={[
                     styles.option,
+                    flashStyle,
                     selectedOption === option.id && styles.optionSelected,
-                    selectedOption !== option.id && { backgroundColor: flashBackgroundColor },
                   ]}
                 >
                   <ThemedText

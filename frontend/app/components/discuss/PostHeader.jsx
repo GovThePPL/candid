@@ -14,6 +14,7 @@ import BridgingBadge from './BridgingBadge'
 import MarkdownRenderer from './MarkdownRenderer'
 import BottomDrawerModal from '../BottomDrawerModal'
 import LocationSessionBadge from '../LocationSessionBadge'
+import { useLocationSession } from '../../contexts/LocationSessionContext'
 
 /**
  * Full post display used as FlatList ListHeaderComponent on the post detail screen.
@@ -25,10 +26,11 @@ import LocationSessionBadge from '../LocationSessionBadge'
  * @param {Function} props.onDownvote - Called when downvote is tapped
  * @param {Function} props.onToggleRole - Called with (postId, showCreatorRole)
  */
-export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, onToggleRole, onToggleMute, onLock, onEdit, onDelete, isMuted, canModerate, onReport, onModerate, glossaryRules, readOnly }) {
+export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, onToggleRole, onToggleMute, onLock, onEdit, onDelete, isMuted, canModerate, onReport, onModerate, glossaryRules, readOnly, onEndorse, isEndorsed, endorseLimitReached, onEndorseLimitReached }) {
   const { t } = useTranslation('discuss')
   const router = useRouter()
   const colors = useThemeColors()
+  const { openSessionOverview } = useLocationSession()
   const styles = useMemo(() => createStyles(colors), [colors])
   const [optionsVisible, setOptionsVisible] = useState(false)
   const [availableRight, setAvailableRight] = useState(Infinity)
@@ -56,7 +58,14 @@ export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, 
       {/* Top row: badges left, time right */}
       <View style={styles.topRow} onLayout={e => { rowWidthRef.current = e.nativeEvent.layout.width; updateAvailableRight() }}>
         <View style={styles.topRowLeft} onLayout={e => { leftWidthRef.current = e.nativeEvent.layout.width; updateAvailableRight() }}>
-          <LocationSessionBadge location={post.location} session={post.session} size="lg" />
+          <TouchableOpacity
+            onPress={openSessionOverview}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={t('common:sessionInfoA11y')}
+          >
+            <LocationSessionBadge location={post.location} session={post.session} size="lg" />
+          </TouchableOpacity>
         </View>
         <View style={styles.topRowRight}>
           <BridgingBadge item={post} compact={compactBadges} />
@@ -125,17 +134,55 @@ export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, 
             {post.commentCount || 0}
           </ThemedText>
 
-          <VoteControl
-            size="sm"
-            upvoteCount={post.upvoteCount || 0}
-            downvoteCount={post.downvoteCount || 0}
-            userVote={post.userVote}
-            onUpvote={onUpvote}
-            onDownvote={onDownvote}
-            authorName={authorName}
-            targetType="post"
-            disabled={isOwnPost || readOnly}
-          />
+          {/* Endorsement button for finalized proposals */}
+          {post.proposalStatus === 'finalized' && onEndorse && (
+            <TouchableOpacity
+              onPress={() => {
+                if (isEndorsed) {
+                  onEndorse(post.id, true)
+                } else if (endorseLimitReached) {
+                  onEndorseLimitReached?.(post.id)
+                } else {
+                  onEndorse(post.id, false)
+                }
+              }}
+              activeOpacity={0.7}
+              disabled={readOnly}
+              accessibilityRole="button"
+              accessibilityLabel={isEndorsed ? t('unendorseA11y') : t('endorseA11y')}
+              accessibilityState={{ selected: !!isEndorsed }}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
+              <View style={[styles.endorseButton, isEndorsed && styles.endorseButtonActive]}>
+                <Ionicons
+                  name={isEndorsed ? 'heart' : 'heart-outline'}
+                  size={16}
+                  color={isEndorsed ? colors.primary : colors.secondaryText}
+                />
+                <ThemedText
+                  variant="caption"
+                  style={{ color: isEndorsed ? colors.primary : colors.secondaryText, fontWeight: isEndorsed ? '600' : '400' }}
+                >
+                  {isEndorsed ? t('endorsedButton') : t('endorseButton')}
+                </ThemedText>
+              </View>
+            </TouchableOpacity>
+          )}
+
+          {/* Hide VoteControl for finalized proposals */}
+          {!(post.postType === 'proposal' && post.proposalStatus === 'finalized') && (
+            <VoteControl
+              size="sm"
+              upvoteCount={post.upvoteCount || 0}
+              downvoteCount={post.downvoteCount || 0}
+              userVote={post.userVote}
+              onUpvote={onUpvote}
+              onDownvote={onDownvote}
+              authorName={authorName}
+              targetType="post"
+              disabled={isOwnPost || readOnly}
+            />
+          )}
         </View>
       </View>
 
@@ -154,7 +201,6 @@ export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, 
         visible={optionsVisible}
         onClose={() => setOptionsVisible(false)}
         title={t('postOptions')}
-        shrink
       >
         <View style={styles.optionsList}>
           {isOwnPost && post.creatorRole != null && (
@@ -350,6 +396,21 @@ const createStyles = (colors) => StyleSheet.create({
     ...Typography.caption,
     color: OnBrandColors.text,
     fontWeight: '600',
+  },
+  endorseButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.cardBackground,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  endorseButtonActive: {
+    backgroundColor: colors.primary + '20',
+    borderColor: colors.primary,
   },
   optionsList: {
     padding: Spacing.lg,

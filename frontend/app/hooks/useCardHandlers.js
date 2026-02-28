@@ -27,7 +27,7 @@ export default function useCardHandlers({ currentCard, goToNextCard }) {
       await api.positions.respond([{ positionId: currentCard.data.id, response: 'agree' }])
     } catch (err) {
       console.error('Failed to respond:', err)
-      showToast(t('errorResponseFailed'))
+      showToast(t('errorResponseFailed'), { position: 'top' })
     }
   }, [currentCard, goToNextCard, showToast, t])
 
@@ -38,7 +38,7 @@ export default function useCardHandlers({ currentCard, goToNextCard }) {
       await api.positions.respond([{ positionId: currentCard.data.id, response: 'disagree' }])
     } catch (err) {
       console.error('Failed to respond:', err)
-      showToast(t('errorResponseFailed'))
+      showToast(t('errorResponseFailed'), { position: 'top' })
     }
   }, [currentCard, goToNextCard, showToast, t])
 
@@ -49,7 +49,7 @@ export default function useCardHandlers({ currentCard, goToNextCard }) {
       await api.positions.respond([{ positionId: currentCard.data.id, response: 'pass' }])
     } catch (err) {
       console.error('Failed to respond:', err)
-      showToast(t('errorResponseFailed'))
+      showToast(t('errorResponseFailed'), { position: 'top' })
     }
   }, [currentCard, goToNextCard, showToast, t])
 
@@ -59,14 +59,14 @@ export default function useCardHandlers({ currentCard, goToNextCard }) {
 
     if (currentCard.data?.availability === 'none') {
       const isAlreadyInChattingList = currentCard.data?.source === 'chatting_list'
-      showToast(t('addedToChattingList'))
+      showToast(t('addedToChattingList'), { position: 'top' })
       goToNextCard()
       if (!isAlreadyInChattingList) {
         try {
           await api.chattingList.addPosition(currentCard.data.id)
         } catch (err) {
           console.error('Failed to add to chatting list:', err)
-          showToast(t('errorChattingListFailed'))
+          showToast(t('errorChattingListFailed'), { position: 'top' })
         }
       }
       return
@@ -97,7 +97,7 @@ export default function useCardHandlers({ currentCard, goToNextCard }) {
       })
     } catch (err) {
       console.error('Failed to create chat request:', err)
-      showToast(t('errorChatRequestFailed'))
+      showToast(t('errorChatRequestFailed'), { position: 'top' })
     }
   }, [currentCard, goToNextCard, setPendingChatRequest, pendingChatRequest, showToast, t])
 
@@ -108,7 +108,7 @@ export default function useCardHandlers({ currentCard, goToNextCard }) {
       await api.positions.report(positionId, ruleId, comment)
     } catch (err) {
       console.error('Failed to submit report:', err)
-      showToast(t('errorReportFailed'))
+      showToast(t('errorReportFailed'), { position: 'top' })
     }
   }, [goToNextCard, showToast, t])
 
@@ -119,7 +119,7 @@ export default function useCardHandlers({ currentCard, goToNextCard }) {
       await api.cards.dismissPositionRemovedNotification(currentCard.data.positionId)
     } catch (err) {
       console.error('Failed to dismiss removal notification:', err)
-      showToast(t('errorDismissFailed'))
+      showToast(t('errorDismissFailed'), { position: 'top' })
     }
   }, [currentCard, goToNextCard, showToast, t])
 
@@ -130,7 +130,7 @@ export default function useCardHandlers({ currentCard, goToNextCard }) {
       invalidatePositions()
     } catch (err) {
       console.error('Failed to adopt position:', err)
-      showToast(t('errorAdoptFailed'))
+      showToast(t('errorAdoptFailed'), { position: 'top' })
     }
   }, [currentCard, invalidatePositions, showToast, t])
 
@@ -145,7 +145,7 @@ export default function useCardHandlers({ currentCard, goToNextCard }) {
       }
     } catch (err) {
       console.error('Failed to accept chat:', err)
-      showToast(t('errorChatAcceptFailed'))
+      showToast(t('errorChatAcceptFailed'), { position: 'top' })
     }
   }, [currentCard, goToNextCard, router, showToast, t])
 
@@ -159,7 +159,7 @@ export default function useCardHandlers({ currentCard, goToNextCard }) {
       const is404 = err?.message?.includes('404') || err?.status === 404
       if (!is404) {
         console.error('Failed to decline chat:', err)
-        showToast(t('errorChatDeclineFailed'))
+        showToast(t('errorChatDeclineFailed'), { position: 'top' })
       }
     }
   }, [currentCard, goToNextCard, showToast, t])
@@ -171,7 +171,7 @@ export default function useCardHandlers({ currentCard, goToNextCard }) {
       await api.surveys.respond(surveyId, questionId, optionId)
     } catch (err) {
       console.error('Failed to submit survey response:', err)
-      showToast(t('errorSurveyFailed'))
+      showToast(t('errorSurveyFailed'), { position: 'top' })
     }
   }, [goToNextCard, showToast, t])
 
@@ -184,7 +184,7 @@ export default function useCardHandlers({ currentCard, goToNextCard }) {
       await api.users.updateDemographics({ [field]: value })
     } catch (err) {
       console.error('Failed to update demographics:', err)
-      showToast(t('errorDemographicFailed'))
+      showToast(t('errorDemographicFailed'), { position: 'top' })
     }
   }, [goToNextCard, showToast, t])
 
@@ -198,7 +198,7 @@ export default function useCardHandlers({ currentCard, goToNextCard }) {
       await api.chat.sendKudos(currentCard.data.id)
     } catch (err) {
       console.error('Failed to send kudos:', err)
-      showToast(t('errorKudosFailed'))
+      showToast(t('errorKudosFailed'), { position: 'top' })
     }
   }, [currentCard, goToNextCard, showToast, t])
 
@@ -209,7 +209,7 @@ export default function useCardHandlers({ currentCard, goToNextCard }) {
       await api.chat.dismissKudos(currentCard.data.id)
     } catch (err) {
       console.error('Failed to dismiss kudos:', err)
-      showToast(t('errorDismissFailed'))
+      showToast(t('errorDismissFailed'), { position: 'top' })
     }
   }, [currentCard, goToNextCard, showToast, t])
 
@@ -220,7 +220,7 @@ export default function useCardHandlers({ currentCard, goToNextCard }) {
       await api.chat.acknowledgeKudos(currentCard.data.id)
     } catch (err) {
       console.error('Failed to acknowledge kudos:', err)
-      showToast(t('errorKudosFailed'))
+      showToast(t('errorKudosFailed'), { position: 'top' })
     }
   }, [currentCard, goToNextCard, showToast, t])
 
@@ -231,7 +231,7 @@ export default function useCardHandlers({ currentCard, goToNextCard }) {
       await api.surveys.respondToPairwise(surveyId, winnerItemId, loserItemId)
     } catch (err) {
       console.error('Failed to submit pairwise response:', err)
-      showToast(t('errorResponseFailed'))
+      showToast(t('errorResponseFailed'), { position: 'top' })
     }
   }, [goToNextCard, showToast, t])
 
@@ -245,7 +245,7 @@ export default function useCardHandlers({ currentCard, goToNextCard }) {
       await api.cards.dismissBridgingKudos(currentCard.data.id)
     } catch (err) {
       console.error('Failed to dismiss bridging kudos:', err)
-      showToast(t('errorDismissFailed'))
+      showToast(t('errorDismissFailed'), { position: 'top' })
     }
   }, [currentCard, goToNextCard, showToast, t])
 
@@ -256,7 +256,7 @@ export default function useCardHandlers({ currentCard, goToNextCard }) {
       await api.users.updateDiagnosticsConsent(true)
     } catch (err) {
       console.error('Failed to update diagnostics consent:', err)
-      showToast(t('errorDiagnosticsFailed'))
+      showToast(t('errorDiagnosticsFailed'), { position: 'top' })
     }
   }, [goToNextCard, showToast, t])
 
@@ -266,7 +266,7 @@ export default function useCardHandlers({ currentCard, goToNextCard }) {
       await api.users.updateDiagnosticsConsent(false)
     } catch (err) {
       console.error('Failed to update diagnostics consent:', err)
-      showToast(t('errorDiagnosticsFailed'))
+      showToast(t('errorDiagnosticsFailed'), { position: 'top' })
     }
   }, [goToNextCard, showToast, t])
 

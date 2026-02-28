@@ -572,16 +572,26 @@ def get_session_stage(session_id):
 def check_session_stage(session_id, content_type):
     """Check if the session's current stage allows creating the given content type.
 
+    Also rejects writes to non-active sessions (archived/cancelled).
     Returns (True, None) if allowed, (False, ErrorModel) if blocked.
     None session_id always passes (unscoped content).
     """
     if not session_id:
         return True, None
 
-    stage = get_session_stage(session_id)
-    if stage is None:
+    row = db.execute_query(
+        "SELECT stage, status FROM session WHERE id = %s",
+        (str(session_id),), fetchone=True,
+    )
+    if row is None:
         return False, ErrorModel(404, "Session not found")
 
+    if row.get("status") and row["status"] != "active":
+        return False, ErrorModel(
+            403, "This session is archived and no longer accepts new content"
+        )
+
+    stage = row["stage"]
     allowed_stages = WRITE_STAGES.get(content_type)
     if allowed_stages is None:
         return True, None  # Unknown content type — don't gate
@@ -617,7 +627,7 @@ def validate_stage_advance(current_stage, requested_stage):
 # Ban checking (unchanged from original)
 # ---------------------------------------------------------------------------
 
-BAN_CACHE_TTL = 60  # seconds
+BAN_CACHE_TTL = 15  # seconds — keep short to minimize delay after ban actions
 
 
 def invalidate_ban_cache(user_id):

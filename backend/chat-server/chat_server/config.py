@@ -14,11 +14,11 @@ class Config:
 
     # Database settings
     DATABASE_URL: str = os.getenv(
-        "DATABASE_URL", "postgresql://user:postgres@localhost:5432/candid"
+        "DATABASE_URL", "postgresql://user:postgres@db:5432/candid"
     )
 
     # Redis settings
-    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://redis:6379")
 
     # Keycloak settings
     KEYCLOAK_URL: str = os.getenv("KEYCLOAK_URL", "http://keycloak:8180")

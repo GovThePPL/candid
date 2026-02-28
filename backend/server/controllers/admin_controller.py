@@ -20,6 +20,9 @@ from candid.controllers.helpers.auth import (
     get_location_descendants, get_location_ancestors, get_user_roles,
     invalidate_location_cache, invalidate_ban_cache,
 )
+from candid.controllers.helpers.constants import (
+    VALID_PROPOSAL_METHODS, PROPOSAL_METHOD_INITIAL_STAGE,
+)
 from candid.controllers.helpers.admin import (
     get_user_card as _get_user_card,
     build_survey_with_nested_data as _build_survey_with_nested_data,
@@ -46,6 +49,7 @@ from candid.controllers.helpers.admin import (
     format_rule_request as _format_rule_request,
     check_rule_auto_approve_expired as _check_rule_auto_approve_expired,
     VALID_CONTENT_TYPES as _VALID_CONTENT_TYPES,
+    VALID_POST_TYPES as _VALID_POST_TYPES,
 )
 
 
@@ -389,8 +393,8 @@ def create_pairwise_survey(body, token_info=None):  # noqa: E501
     is_group_labeling = body.get('isGroupLabeling', False)
 
     # Validate phase
-    if phase and phase not in ('proposal', 'opinion'):
-        return ErrorModel(400, "phase must be 'proposal' or 'opinion'"), 400
+    if phase and phase not in ('proposal', 'opinion', 'reflection'):
+        return ErrorModel(400, "phase must be 'proposal', 'opinion', or 'reflection'"), 400
 
     # Validate items
     if not items or len(items) < 2:
@@ -1521,12 +1525,27 @@ def create_session(body, token_info=None):  # noqa: E501
     label = (body.get('label') or '').strip()
     location_id = body.get('locationId')
     proposal_method = body.get('proposalMethod', 'user_driven')
+    proposals = body.get('proposals', [])
 
-    if proposal_method not in ('user_driven', 'admin_provided'):
-        return ErrorModel(400, "proposalMethod must be 'user_driven' or 'admin_provided'"), 400
+    if proposal_method not in VALID_PROPOSAL_METHODS:
+        return ErrorModel(400, f"proposalMethod must be one of: {', '.join(VALID_PROPOSAL_METHODS)}"), 400
 
     if not label:
         return ErrorModel(400, "Session label is required"), 400
+
+    # Validate proposals based on method
+    if proposal_method == 'direct_proposal':
+        if len(proposals) != 1:
+            return ErrorModel(400, "direct_proposal requires exactly 1 proposal"), 400
+        for p in proposals:
+            if not (p.get('title') or '').strip() or not (p.get('body') or '').strip():
+                return ErrorModel(400, "Each proposal must have a title and body"), 400
+    elif proposal_method == 'admin_provided':
+        if len(proposals) < 2:
+            return ErrorModel(400, "admin_provided requires at least 2 proposals"), 400
+        for p in proposals:
+            if not (p.get('title') or '').strip() or not (p.get('body') or '').strip():
+                return ErrorModel(400, "Each proposal must have a title and body"), 400
 
     # Check for duplicate (case-insensitive) within the same location
     if location_id:
@@ -1541,6 +1560,7 @@ def create_session(body, token_info=None):  # noqa: E501
         return ErrorModel(400, "A session with this label already exists"), 400
 
     user = token_to_user(token_info)
+    user_id = str(user.id)
 
     # Use provided location_id or fall back to root location
     if not location_id:
@@ -1549,11 +1569,78 @@ def create_session(body, token_info=None):  # noqa: E501
     if not location_id:
         return ErrorModel(400, "locationId is required"), 400
 
+    initial_stage = PROPOSAL_METHOD_INITIAL_STAGE[proposal_method]
+
     session_id = str(uuid.uuid4())
     db.execute_query("""
-        INSERT INTO session (id, label, location_id, created_by, proposal_method)
-        VALUES (%s, %s, %s, %s, %s)
-    """, (session_id, label, location_id, str(user.id), proposal_method))
+        INSERT INTO session (id, label, location_id, created_by, proposal_method, stage)
+        VALUES (%s, %s, %s, %s, %s, %s)
+    """, (session_id, label, location_id, user_id, proposal_method, initial_stage))
+
+    # Link session to its location via the join table
+    db.execute_query("""
+        INSERT INTO location_session (id, location_id, session_id)
+        VALUES (%s, %s, %s)
+    """, (str(uuid.uuid4()), location_id, session_id))
+
+    # Create proposal posts and related objects based on method
+    if proposal_method == 'direct_proposal':
+        p = proposals[0]
+        post_id = str(uuid.uuid4())
+        db.execute_query("""
+            INSERT INTO post (id, creator_user_id, location_id, session_id, post_type,
+                              title, body, proposal_status, created_during_stage)
+            VALUES (%s, %s, %s, %s, 'proposal', %s, %s, 'finalized', %s)
+        """, (post_id, user_id, location_id, session_id,
+              p['title'].strip(), p['body'].strip(), initial_stage))
+
+        # Pin to all opinion+ stages
+        opinion_plus_stages = [
+            'opinion_discussion', 'reflection_curation', 'reflection_proposals',
+            'consensus',
+        ]
+        for stage in opinion_plus_stages:
+            db.execute_query("""
+                INSERT INTO pinned_post (post_id, session_id, stage, post_type, pinned_by)
+                VALUES (%s, %s, %s, 'proposal', %s)
+            """, (post_id, session_id, stage, user_id))
+
+        # Create Polis conversation for the opinion phase
+        try:
+            from candid.controllers.helpers.polis_sync import get_or_create_conversation
+            loc_row = db.execute_query(
+                "SELECT name FROM location WHERE id = %s", (location_id,), fetchone=True)
+            loc_name = loc_row['name'] if loc_row else 'Unknown'
+            get_or_create_conversation(location_id, session_id, loc_name, label, phase='opinion')
+        except Exception:
+            pass  # Polis is optional; don't fail session creation
+
+    elif proposal_method == 'admin_provided':
+        # Create draft proposal posts and collect their IDs
+        proposal_post_ids = []
+        for p in proposals:
+            post_id = str(uuid.uuid4())
+            proposal_post_ids.append(post_id)
+            db.execute_query("""
+                INSERT INTO post (id, creator_user_id, location_id, session_id, post_type,
+                                  title, body, proposal_status, created_during_stage)
+                VALUES (%s, %s, %s, %s, 'proposal', %s, %s, 'draft', %s)
+            """, (post_id, user_id, location_id, session_id,
+                  p['title'].strip(), p['body'].strip(), initial_stage))
+
+        # Create voting round at voting_open (skip proposal/endorsement phases)
+        vr_row = db.execute_query("""
+            INSERT INTO voting_round (session_id, round_type, status, opened_by)
+            VALUES (%s, 'issue_selection', 'voting_open', %s)
+            RETURNING id
+        """, (session_id, user_id), fetchone=True)
+
+        # Populate voting round candidates with admin-provided proposals
+        for i, pid in enumerate(proposal_post_ids):
+            db.execute_query("""
+                INSERT INTO voting_round_candidate (voting_round_id, proposal_post_id, endorsement_count, display_order)
+                VALUES (%s, %s, 0, %s)
+            """, (str(vr_row['id']), pid, i))
 
     # Notify other site admins
     from candid.controllers.helpers.auth import get_root_location_id
@@ -1562,13 +1649,13 @@ def create_session(body, token_info=None):  # noqa: E501
         site_admins = db.execute_query("""
             SELECT DISTINCT ur.user_id FROM user_role ur
             WHERE ur.role = 'admin' AND ur.location_id = %s AND ur.user_id != %s
-        """, (root_loc, str(user.id)))
+        """, (root_loc, user_id))
         if site_admins:
             _notify_admin_action(
                 [str(r['user_id']) for r in site_admins],
                 "New session created",
                 f"{label} session was created",
-                actor_user_id=str(user.id))
+                actor_user_id=user_id)
 
     result = {
         'id': session_id,
@@ -1584,7 +1671,7 @@ def create_session(body, token_info=None):  # noqa: E501
         if len(label_items) >= 2:
             comp_question = (body.get('labelSurveyComparisonQuestion') or '').strip() or "Which better describes this group's views?"
             label_surveys = {}
-            for phase in ('proposal', 'opinion'):
+            for phase in ('proposal', 'opinion', 'reflection'):
                 sid = str(uuid.uuid4())
                 db.execute_query("""
                     INSERT INTO survey (id, creator_user_id, survey_title, survey_type, comparison_question,
@@ -1609,8 +1696,8 @@ def get_session_label_survey(session_id, token_info=None):  # noqa: E501
     GET /admin/sessions/{sessionId}/label-survey
     Auth: assistant_moderator+ (scoped).
 
-    Returns {labelSurveys: {proposal: ..., opinion: ...}}.
-    Legacy surveys with phase=NULL are returned under both phases as fallback.
+    Returns {labelSurveys: {proposal: ..., opinion: ..., reflection: ...}}.
+    Legacy surveys with phase=NULL are returned under all phases as fallback.
     """
     authorized, auth_err = authorization_scoped("assistant_moderator", token_info)
     if not authorized:
@@ -1622,18 +1709,18 @@ def get_session_label_survey(session_id, token_info=None):  # noqa: E501
         ORDER BY created_time DESC
     """, (session_id,))
 
-    label_surveys = {'proposal': None, 'opinion': None}
+    label_surveys = {'proposal': None, 'opinion': None, 'reflection': None}
     legacy_survey = None
 
     for row in (rows or []):
         phase = row.get('phase')
-        if phase in ('proposal', 'opinion') and label_surveys[phase] is None:
+        if phase in ('proposal', 'opinion', 'reflection') and label_surveys[phase] is None:
             label_surveys[phase] = _build_pairwise_survey(row['id'])
         elif phase is None and legacy_survey is None:
             legacy_survey = _build_pairwise_survey(row['id'])
 
     # Legacy fallback: if a phase has no survey but a legacy (NULL) one exists, use it
-    for phase in ('proposal', 'opinion'):
+    for phase in ('proposal', 'opinion', 'reflection'):
         if label_surveys[phase] is None and legacy_survey is not None:
             label_surveys[phase] = legacy_survey
 
@@ -1769,10 +1856,10 @@ def get_admin_actions(token_info=None):  # noqa: E501
 # Rule Management API
 # ---------------------------------------------------------------------------
 
-def get_admin_rules(status=None, location_id=None, content_type=None, token_info=None):  # noqa: E501
+def get_admin_rules(status=None, location_id=None, content_type=None, post_type=None, token_info=None):  # noqa: E501
     """Get rules (admin view with all statuses).
 
-    GET /admin/rules?status=&location_id=&content_type=
+    GET /admin/rules?status=&location_id=&content_type=&post_type=
     Auth: assistant_moderator+ (any scoped role holder).
     """
     authorized, auth_err = authorization_scoped("assistant_moderator", token_info)
@@ -1795,6 +1882,10 @@ def get_admin_rules(status=None, location_id=None, content_type=None, token_info
         conditions.append("%s = ANY(r.applicable_content_types)")
         params.append(content_type)
 
+    if post_type:
+        conditions.append("(r.applicable_post_types IS NULL OR %s = ANY(r.applicable_post_types))")
+        params.append(post_type)
+
     where = ""
     if conditions:
         where = "WHERE " + " AND ".join(conditions)
@@ -1803,6 +1894,7 @@ def get_admin_rules(status=None, location_id=None, content_type=None, token_info
         SELECT r.id, r.creator_user_id, r.title, r.text, r.status, r.severity,
                r.default_actions, r.sentencing_guidelines,
                r.location_id, r.session_id, r.applicable_content_types,
+               r.applicable_post_types,
                r.created_time, r.updated_time,
                l.name AS location_name, pc.label AS session_label
         FROM rule r
@@ -1848,7 +1940,8 @@ def create_rule_request(body, token_info=None):  # noqa: E501
             return ErrorModel(400, "ruleId is required for update/delete"), 400
         existing_rule = db.execute_query("""
             SELECT id, title, text, severity, default_actions, sentencing_guidelines,
-                   location_id, session_id, applicable_content_types, status
+                   location_id, session_id, applicable_content_types,
+                   applicable_post_types, status
             FROM rule WHERE id = %s
         """, (rule_id,), fetchone=True)
         if not existing_rule:
@@ -1858,6 +1951,7 @@ def create_rule_request(body, token_info=None):  # noqa: E501
 
     # For delete, store current state as proposed_rule for audit trail
     if action == 'delete' and existing_rule:
+        post_types_val = existing_rule.get('applicable_post_types')
         proposed_rule = {
             'title': existing_rule['title'],
             'text': existing_rule['text'],
@@ -1867,6 +1961,7 @@ def create_rule_request(body, token_info=None):  # noqa: E501
             'locationId': str(existing_rule['location_id']) if existing_rule.get('location_id') else None,
             'sessionId': str(existing_rule['session_id']) if existing_rule.get('session_id') else None,
             'applicableContentTypes': list(existing_rule.get('applicable_content_types', [])),
+            'applicablePostTypes': list(post_types_val) if post_types_val else None,
         }
 
     # Validate proposed_rule fields for create/update
@@ -1892,6 +1987,13 @@ def create_rule_request(body, token_info=None):  # noqa: E501
                 return ErrorModel(400, "At least one content type is required"), 400
             if not set(content_types).issubset(_VALID_CONTENT_TYPES):
                 return ErrorModel(400, "Invalid content type"), 400
+
+        post_types = proposed_rule.get('applicablePostTypes')
+        if post_types is not None:
+            if not isinstance(post_types, list):
+                return ErrorModel(400, "applicablePostTypes must be an array"), 400
+            if len(post_types) > 0 and not set(post_types).issubset(_VALID_POST_TYPES):
+                return ErrorModel(400, "Invalid post type"), 400
 
     # Determine scope from proposed_rule
     scope_location_id = proposed_rule.get('locationId')

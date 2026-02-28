@@ -23,6 +23,7 @@ import WysiwygEditor from '../WysiwygEditor'
 import TagSelectorModal from '../TagSelectorModal'
 import DiffView from './DiffView'
 import ReviewChanges from './ReviewChanges'
+import { useLocationSession } from '../../contexts/LocationSessionContext'
 import api from '../../lib/api'
 
 /**
@@ -53,6 +54,8 @@ export default function SuggestionForm({
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const { keyboardHeight, webInitialHeight } = useKeyboardHeight()
+
+  const { selectedLocation, selectedSession } = useLocationSession()
 
   const isTerm = suggestionType === 'new_term' || suggestionType === 'edit_term'
   const isEdit = suggestionType === 'edit_term' || suggestionType === 'edit_page'
@@ -115,6 +118,29 @@ export default function SuggestionForm({
     }
     load()
   }, [])
+
+  // Default scopes to current location + session for new items
+  const defaultScopesApplied = useRef(false)
+  useEffect(() => {
+    if (defaultScopesApplied.current) return
+    if (isEdit || existing?.scopes?.length > 0) return
+    if (allLocations.length === 0 && allSessions.length === 0) return
+
+    const defaults = []
+    if (selectedLocation) {
+      const loc = allLocations.find(l => l.id === selectedLocation)
+      if (loc) defaults.push({ type: 'location', id: loc.id, label: loc.name })
+    }
+    if (selectedSession && selectedSession !== 'all') {
+      const sess = allSessions.find(s => s.id === selectedSession)
+      if (sess) defaults.push({ type: 'session', id: sess.id, label: sess.label })
+    }
+    if (defaults.length > 0) {
+      defaultScopesApplied.current = true
+      setScopes(defaults)
+      if (defaults.length > 1) setScopeCombine('and')
+    }
+  }, [allLocations, allSessions, selectedLocation, selectedSession, isEdit, existing])
 
   // Check create authority when scopes change (new items only)
   useEffect(() => {

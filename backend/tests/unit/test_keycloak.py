@@ -267,6 +267,48 @@ class TestValidateToken:
             result = validate_token("fake-jwt")
             assert result == {"sub": "linked-uuid"}
 
+    def test_issuer_validation_passed_to_jwt_decode(self):
+        """jwt_decode must receive issuer to reject tokens from foreign realms."""
+        mock_jwks = MagicMock()
+        mock_signing_key = MagicMock()
+        mock_signing_key.key = "test-key"
+        mock_jwks.get_signing_key_from_jwt = MagicMock(return_value=mock_signing_key)
+
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value={"id": "candid-uuid"})
+
+        with patch("candid.controllers.helpers.keycloak.db", mock_db), \
+             patch("candid.controllers.helpers.keycloak._get_jwks_client", return_value=mock_jwks), \
+             patch("candid.controllers.helpers.keycloak.jwt_decode", return_value={
+                 "sub": "kc-uuid",
+                 "preferred_username": "testuser",
+             }) as mock_decode:
+            from candid.controllers.helpers.keycloak import validate_token
+            from candid.controllers import config
+            validate_token("fake-jwt")
+            mock_decode.assert_called_once_with(
+                "fake-jwt",
+                "test-key",
+                algorithms=["RS256"],
+                audience="users",
+                issuer=f"{config.KEYCLOAK_ISSUER_URL}/realms/{config.KEYCLOAK_REALM}",
+            )
+
+    def test_wrong_issuer_rejects_token(self):
+        """A token with wrong issuer should be rejected (PyJWTError)."""
+        from jwt.exceptions import InvalidIssuerError
+        mock_jwks = MagicMock()
+        mock_signing_key = MagicMock()
+        mock_signing_key.key = "test-key"
+        mock_jwks.get_signing_key_from_jwt = MagicMock(return_value=mock_signing_key)
+
+        with patch("candid.controllers.helpers.keycloak._get_jwks_client", return_value=mock_jwks), \
+             patch("candid.controllers.helpers.keycloak.jwt_decode",
+                   side_effect=InvalidIssuerError("Invalid issuer")):
+            from candid.controllers.helpers.keycloak import validate_token
+            result = validate_token("wrong-issuer-token")
+            assert result is None
+
     def test_missing_sub_returns_none(self):
         mock_jwks = MagicMock()
         mock_signing_key = MagicMock()
@@ -362,3 +404,205 @@ class TestCreateUser:
             from candid.controllers.helpers.keycloak import create_user
             with pytest.raises(ValueError, match="already exists"):
                 create_user("bob", "bob@test.com", "pass", raise_on_conflict=True)
+
+
+# ---------------------------------------------------------------------------
+# find_user_by_email
+# ---------------------------------------------------------------------------
+
+class TestFindUserByEmail:
+    def test_found(self):
+        mock_get = MagicMock()
+        mock_get.return_value.json.return_value = [{"id": "kc-email-user"}]
+        mock_get.return_value.raise_for_status = MagicMock()
+
+        with patch("candid.controllers.helpers.keycloak.requests.get", mock_get), \
+             patch("candid.controllers.helpers.keycloak.get_admin_token", return_value="tok"):
+            from candid.controllers.helpers.keycloak import find_user_by_email
+            result = find_user_by_email("user@test.com")
+            assert result == "kc-email-user"
+
+    def test_not_found(self):
+        mock_get = MagicMock()
+        mock_get.return_value.json.return_value = []
+        mock_get.return_value.raise_for_status = MagicMock()
+
+        with patch("candid.controllers.helpers.keycloak.requests.get", mock_get), \
+             patch("candid.controllers.helpers.keycloak.get_admin_token", return_value="tok"):
+            from candid.controllers.helpers.keycloak import find_user_by_email
+            result = find_user_by_email("nobody@test.com")
+            assert result is None
+
+
+# ---------------------------------------------------------------------------
+# find_user_by_federated_identity
+# ---------------------------------------------------------------------------
+
+class TestFindUserByFederatedIdentity:
+    def test_found(self):
+        mock_get = MagicMock()
+        mock_get.return_value.json.return_value = [{"id": "kc-fed-user"}]
+        mock_get.return_value.raise_for_status = MagicMock()
+
+        with patch("candid.controllers.helpers.keycloak.requests.get", mock_get), \
+             patch("candid.controllers.helpers.keycloak.get_admin_token", return_value="tok"):
+            from candid.controllers.helpers.keycloak import find_user_by_federated_identity
+            result = find_user_by_federated_identity("google", "google-sub-123")
+            assert result == "kc-fed-user"
+
+            # Verify correct params passed
+            call_kwargs = mock_get.call_args
+            assert call_kwargs[1]["params"]["idpAlias"] == "google"
+            assert call_kwargs[1]["params"]["idpUserId"] == "google-sub-123"
+
+    def test_not_found(self):
+        mock_get = MagicMock()
+        mock_get.return_value.json.return_value = []
+        mock_get.return_value.raise_for_status = MagicMock()
+
+        with patch("candid.controllers.helpers.keycloak.requests.get", mock_get), \
+             patch("candid.controllers.helpers.keycloak.get_admin_token", return_value="tok"):
+            from candid.controllers.helpers.keycloak import find_user_by_federated_identity
+            result = find_user_by_federated_identity("apple", "apple-sub-999")
+            assert result is None
+
+
+# ---------------------------------------------------------------------------
+# create_social_user
+# ---------------------------------------------------------------------------
+
+class TestCreateSocialUser:
+    def test_returns_existing_federated_user(self):
+        """If federated identity already exists, return that user directly."""
+        with patch("candid.controllers.helpers.keycloak.find_user_by_federated_identity",
+                   return_value="existing-kc-id"):
+            from candid.controllers.helpers.keycloak import create_social_user
+            result = create_social_user("google", "google-sub", "user@test.com")
+            assert result == "existing-kc-id"
+
+    def test_links_to_existing_email_user(self):
+        """If no federated link but email matches, link identity to that user."""
+        with patch("candid.controllers.helpers.keycloak.find_user_by_federated_identity",
+                   return_value=None), \
+             patch("candid.controllers.helpers.keycloak.find_user_by_email",
+                   return_value="email-kc-id"), \
+             patch("candid.controllers.helpers.keycloak.add_federated_identity_link") as mock_link:
+            from candid.controllers.helpers.keycloak import create_social_user
+            result = create_social_user("google", "google-sub", "user@test.com")
+            assert result == "email-kc-id"
+            mock_link.assert_called_once_with(
+                "email-kc-id", "google", "google-sub", "user@test.com"
+            )
+
+    def test_creates_new_user(self):
+        """If no existing user found, create a new one and link identity."""
+        mock_post = MagicMock()
+        mock_post.return_value.status_code = 201
+        mock_post.return_value.headers = {"Location": "/users/new-kc-id"}
+        mock_post.return_value.raise_for_status = MagicMock()
+
+        with patch("candid.controllers.helpers.keycloak.find_user_by_federated_identity",
+                   return_value=None), \
+             patch("candid.controllers.helpers.keycloak.find_user_by_email",
+                   return_value=None), \
+             patch("candid.controllers.helpers.keycloak.get_admin_token", return_value="tok"), \
+             patch("candid.controllers.helpers.keycloak.requests.post", mock_post), \
+             patch("candid.controllers.helpers.keycloak.add_federated_identity_link") as mock_link:
+            from candid.controllers.helpers.keycloak import create_social_user
+            result = create_social_user("apple", "apple-sub", "user@icloud.com", "Jane Doe")
+            assert result == "new-kc-id"
+            mock_link.assert_called_once()
+
+    def test_username_generation_from_email(self):
+        """Username should be derived from email with provider prefix."""
+        mock_post = MagicMock()
+        mock_post.return_value.status_code = 201
+        mock_post.return_value.headers = {"Location": "/users/new-id"}
+        mock_post.return_value.raise_for_status = MagicMock()
+
+        with patch("candid.controllers.helpers.keycloak.find_user_by_federated_identity",
+                   return_value=None), \
+             patch("candid.controllers.helpers.keycloak.find_user_by_email",
+                   return_value=None), \
+             patch("candid.controllers.helpers.keycloak.get_admin_token", return_value="tok"), \
+             patch("candid.controllers.helpers.keycloak.requests.post", mock_post), \
+             patch("candid.controllers.helpers.keycloak.add_federated_identity_link"):
+            from candid.controllers.helpers.keycloak import create_social_user
+            create_social_user("google", "sub123", "testuser@gmail.com")
+
+            # Check the username sent to Keycloak
+            create_call = mock_post.call_args_list[0]
+            user_data = create_call.kwargs.get("json") or create_call[1].get("json")
+            assert user_data["username"] == "google_testuser"
+
+
+# ---------------------------------------------------------------------------
+# exchange_for_user_tokens
+# ---------------------------------------------------------------------------
+
+class TestExchangeForUserTokens:
+    def test_success(self):
+        mock_post = MagicMock()
+        mock_post.return_value.json.return_value = {
+            "access_token": "user-access-token",
+            "refresh_token": "user-refresh-token",
+        }
+        mock_post.return_value.raise_for_status = MagicMock()
+
+        with patch("candid.controllers.helpers.keycloak.requests.post", mock_post):
+            from candid.controllers.helpers.keycloak import exchange_for_user_tokens
+            result = exchange_for_user_tokens("kc-user-id")
+
+            assert result["access_token"] == "user-access-token"
+            assert result["refresh_token"] == "user-refresh-token"
+
+            # Verify correct grant_type
+            call_data = mock_post.call_args[1].get("data") or mock_post.call_args[0][1]
+            assert call_data["grant_type"] == "urn:ietf:params:oauth:grant-type:token-exchange"
+            assert call_data["requested_subject"] == "kc-user-id"
+
+    def test_failure_raises(self):
+        import requests
+        mock_post = MagicMock()
+        mock_post.return_value.raise_for_status = MagicMock(
+            side_effect=requests.HTTPError("403 Forbidden")
+        )
+
+        with patch("candid.controllers.helpers.keycloak.requests.post", mock_post):
+            from candid.controllers.helpers.keycloak import exchange_for_user_tokens
+            with pytest.raises(requests.HTTPError):
+                exchange_for_user_tokens("kc-user-id")
+
+
+# ---------------------------------------------------------------------------
+# add_federated_identity_link
+# ---------------------------------------------------------------------------
+
+class TestAddFederatedIdentityLink:
+    def test_success(self):
+        mock_post = MagicMock()
+        mock_post.return_value.status_code = 204
+        mock_post.return_value.raise_for_status = MagicMock()
+
+        with patch("candid.controllers.helpers.keycloak.requests.post", mock_post), \
+             patch("candid.controllers.helpers.keycloak.get_admin_token", return_value="tok"):
+            from candid.controllers.helpers.keycloak import add_federated_identity_link
+            add_federated_identity_link("kc-user", "google", "google-sub", "user@gmail.com")
+
+            # Verify endpoint and payload
+            call_args = mock_post.call_args
+            assert "/federated-identity/google" in call_args[0][0]
+            link_data = call_args[1].get("json") or call_args[0][1]
+            assert link_data["identityProvider"] == "google"
+            assert link_data["userId"] == "google-sub"
+
+    def test_409_is_noop(self):
+        """If the link already exists (409), it should not raise."""
+        mock_post = MagicMock()
+        mock_post.return_value.status_code = 409
+
+        with patch("candid.controllers.helpers.keycloak.requests.post", mock_post), \
+             patch("candid.controllers.helpers.keycloak.get_admin_token", return_value="tok"):
+            from candid.controllers.helpers.keycloak import add_federated_identity_link
+            # Should not raise
+            add_federated_identity_link("kc-user", "apple", "apple-sub", "user@icloud.com")

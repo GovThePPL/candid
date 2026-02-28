@@ -78,7 +78,6 @@ python3 -m pytest backend/tests/unit/ --benchmark-only -v
 | `test_chat_events.py` | `chat_events.py` | Redis pub/sub event structure, optional fields, error handling |
 | `test_bug_reports.py` | `bug_reports_controller.py` | Bug report creation, diagnostics consent, input validation |
 | `test_database.py` | `database.py` | Connection pool and query execution |
-| `test_polis_scheduler.py` | `polis_scheduler.py` | Conversation lifecycle management |
 | `test_redis_pool.py` | `redis_pool.py` | Shared Redis connection pool singleton behavior |
 | `test_admin_helpers.py` | `admin_controller.py` | Role and rule management helpers: authority location, approval peers, role/rule changes, auto-approve, notification dispatchers |
 | `test_moderation_helpers.py` | `moderation_controller.py` | Hierarchical appeal routing: content scope, actioner level, peer/escalation reviewers |
@@ -104,6 +103,11 @@ python3 -m pytest backend/tests/unit/ --benchmark-only -v
 | `test_proposal_context.py` | `proposal_context.py` | Proposal context gathering: wiki, glossary, Q&A, expert content assembly |
 | `test_serializers.py` | `serializers.py` | Shared serialization: user card builder, creator dict, pagination clamping |
 | `test_sessions_controller.py` | `sessions_controller.py` | Voting round row helper for sessions controller |
+| `test_email_validation.py` | `email_validation.py` | Email normalization, disposable domain blocking, registration validation |
+| `test_sms.py` | `sms.py` | Phone normalization, SMS code send/verify, verification token flow |
+| `test_audit.py` | `audit.py` | Audit logging: DB insert, JSON serialization, error swallowing |
+| `test_social_auth.py` | `social_auth.py` | Social login token validation for Apple/Google identity tokens |
+| `test_posts_guards.py` | `posts_controller.py` | Post creation stage guards, type validation, permission checks |
 
 ## Key Files
 

@@ -6,7 +6,7 @@ BEGIN;
 
 -- Add phase column
 ALTER TABLE polis_conversation ADD COLUMN IF NOT EXISTS phase VARCHAR(20)
-    CHECK (phase IN ('proposal', 'opinion'));
+    CHECK (phase IN ('proposal', 'opinion', 'reflection'));
 
 -- Drop old unique constraint (location_id, session_id, active_from)
 ALTER TABLE polis_conversation DROP CONSTRAINT IF EXISTS polis_conversation_location_id_session_id_active_from_key;

@@ -9,6 +9,7 @@ import { useUser } from '../hooks/useUser'
 import ThemedText from './ThemedText'
 import LocationSessionBadge from './LocationSessionBadge'
 import { Spacing } from '../constants/Theme'
+import { PROPOSAL_METHOD_PHASES } from '../constants/Sessions'
 import api, { sessionsApiWrapper } from '../lib/api'
 
 // ── Stage / phase mappings ───────────────────────────────────────────
@@ -18,9 +19,8 @@ const STAGE_ORDER = [
   'proposal_qualify',
   'proposal_stakeholders',
   'opinion_discussion',
-  'opinion_curation',
-  'opinion_proposals',
-  'reflection',
+  'reflection_curation',
+  'reflection_proposals',
   'consensus',
 ]
 
@@ -33,7 +33,7 @@ const PHASE_INDEX = { proposal: 0, opinion: 1, reflection: 2, consensus: 3 }
 const PHASE_FIRST_STAGE = {
   proposal: 'proposal_issue',
   opinion: 'opinion_discussion',
-  reflection: 'reflection',
+  reflection: 'reflection_curation',
   consensus: 'consensus',
 }
 
@@ -42,9 +42,8 @@ const STAGE_TO_PHASE = {
   proposal_qualify: 'proposal',
   proposal_stakeholders: 'proposal',
   opinion_discussion: 'opinion',
-  opinion_curation: 'opinion',
-  opinion_proposals: 'opinion',
-  reflection: 'reflection',
+  reflection_curation: 'reflection',
+  reflection_proposals: 'reflection',
   consensus: 'consensus',
 }
 
@@ -53,6 +52,16 @@ const PHASE_I18N_KEYS = {
   opinion: 'phaseOpinion',
   reflection: 'phaseReflection',
   consensus: 'phaseConsensus',
+}
+
+const STAGE_NAME_I18N_KEYS = {
+  proposal_issue: 'stageProposalIssue',
+  proposal_qualify: 'stageProposalQualify',
+  proposal_stakeholders: 'stageProposalStakeholders',
+  opinion_discussion: 'stageOpinionDiscussion',
+  reflection_curation: 'stageReflectionCuration',
+  reflection_proposals: 'stageReflectionProposals',
+  consensus: 'stageConsensus',
 }
 
 const BAR_HEIGHT = 22
@@ -66,7 +75,7 @@ const CHEVRON_W = 6
  * The location+session badge occupies a dedicated first segment. The 4 phase
  * segments share the remaining width. All rendered as a single seamless SVG.
  */
-export default memo(function SessionStageBar() {
+export default memo(function SessionStageBar({ hideControls = false }) {
   const { t } = useTranslation('common')
   const colors = useThemeColors()
   const { width: screenWidth } = useWindowDimensions()
@@ -87,12 +96,23 @@ export default memo(function SessionStageBar() {
 
   const styles = useMemo(() => createStyles(colors), [colors])
 
+  const visiblePhases = useMemo(() => {
+    const method = sessionData?.proposalMethod || 'user_driven'
+    return PROPOSAL_METHOD_PHASES[method] || PHASE_ORDER
+  }, [sessionData?.proposalMethod])
+
+  const visiblePhaseIndex = useMemo(() => {
+    const idx = {}
+    visiblePhases.forEach((p, i) => { idx[p] = i })
+    return idx
+  }, [visiblePhases])
+
   const currentPhase = currentStage ? STAGE_TO_PHASE[currentStage] : null
-  const currentPhaseIdx = currentPhase != null ? PHASE_INDEX[currentPhase] : -1
+  const currentPhaseIdx = currentPhase != null ? (visiblePhaseIndex[currentPhase] ?? -1) : -1
 
   const viewingPhase = viewingStage ? STAGE_TO_PHASE[viewingStage] : null
   const highlightedPhaseIdx = viewingPhase != null
-    ? PHASE_INDEX[viewingPhase]
+    ? (visiblePhaseIndex[viewingPhase] ?? -1)
     : currentPhaseIdx
 
   const isFacilitator = !!(
@@ -111,10 +131,10 @@ export default memo(function SessionStageBar() {
   }, [currentStage])
 
   const handlePhaseTap = useCallback((phase) => {
-    const phaseIdx = PHASE_INDEX[phase]
+    const phaseIdx = visiblePhaseIndex[phase]
 
     if (viewingStage) {
-      const viewingPhaseIdx = PHASE_INDEX[STAGE_TO_PHASE[viewingStage]]
+      const viewingPhaseIdx = visiblePhaseIndex[STAGE_TO_PHASE[viewingStage]]
       if (phaseIdx === viewingPhaseIdx) {
         setViewingStage(null)
         return
@@ -132,16 +152,16 @@ export default memo(function SessionStageBar() {
         setViewingStage(PHASE_FIRST_STAGE[phase])
       }
     }
-  }, [viewingStage, currentPhaseIdx, setViewingStage])
+  }, [viewingStage, currentPhaseIdx, visiblePhaseIndex, setViewingStage])
 
   const handleAdvance = useCallback(() => {
     if (!nextStage || !selectedSession) return
 
-    const stageDisplay = nextStage.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+    const stageDisplay = STAGE_NAME_I18N_KEYS[nextStage] ? t(STAGE_NAME_I18N_KEYS[nextStage]) : nextStage
 
     Alert.alert(
       t('stageAdvance'),
-      stageDisplay,
+      t('stageAdvanceConfirm', { stage: stageDisplay }),
       [
         { text: t('cancel'), style: 'cancel' },
         {
@@ -162,7 +182,7 @@ export default memo(function SessionStageBar() {
   // Voting round controls for facilitator
   const votingRoundStatus = votingRound?.status
   const canCreateVotingRound = isFacilitator && !votingRound && (
-    currentStage === 'proposal_qualify' || currentStage === 'opinion_proposals'
+    currentStage === 'proposal_qualify' || currentStage === 'reflection_proposals'
   )
   const canAdvanceVotingRound = isFacilitator && votingRound && votingRoundStatus !== 'voting_closed'
 
@@ -250,11 +270,12 @@ export default memo(function SessionStageBar() {
   }
 
   // Segment layout: flat rectangles with chevron line separators
-  const advanceSpace = (isFacilitator && !isLastStage) ? 26 : 0
+  const showControls = !hideControls && isFacilitator
+  const advanceSpace = (showControls && !isLastStage) ? 26 : 0
   const totalWidth = containerWidth - advanceSpace
   const badgeSegW = badgeWidth > 0 ? badgeWidth + Spacing.xs * 2 : totalWidth * 0.3
   const phaseAreaWidth = totalWidth - badgeSegW
-  const phaseSegW = phaseAreaWidth / PHASE_ORDER.length
+  const phaseSegW = phaseAreaWidth / visiblePhases.length
 
   const svgPaths = []
 
@@ -269,12 +290,12 @@ export default memo(function SessionStageBar() {
 
   // Phase segments — all chevron-shaped, drawn right-to-left so left is on top
   const phasePaths = []
-  PHASE_ORDER.forEach((phase, idx) => {
-    const phaseIdx = PHASE_INDEX[phase]
+  visiblePhases.forEach((phase, idx) => {
+    const phaseIdx = visiblePhaseIndex[phase]
     const color = getSegmentColor(phaseIdx)
     const x = badgeSegW + idx * phaseSegW
     const right = x + phaseSegW
-    const isLast = idx === PHASE_ORDER.length - 1
+    const isLast = idx === visiblePhases.length - 1
 
     const d = isLast
       ? `M${x},0 L${right},0 L${right},${BAR_HEIGHT} L${x},${BAR_HEIGHT} Z`
@@ -296,7 +317,7 @@ export default memo(function SessionStageBar() {
   }
 
   // Chevron line after badge
-  const firstPhaseColor = getSegmentColor(0)
+  const firstPhaseColor = getSegmentColor(visiblePhaseIndex[visiblePhases[0]])
   const badgeSepColor = getChevronSepColor(colors.cardBackground, firstPhaseColor)
   if (badgeSepColor !== 'none') {
     const bx = badgeSegW
@@ -308,10 +329,10 @@ export default memo(function SessionStageBar() {
     )
   }
   // Chevron lines between phases
-  PHASE_ORDER.forEach((phase, idx) => {
-    if (idx === PHASE_ORDER.length - 1) return
-    const leftColor = getSegmentColor(PHASE_INDEX[phase])
-    const rightColor = getSegmentColor(PHASE_INDEX[PHASE_ORDER[idx + 1]])
+  visiblePhases.forEach((phase, idx) => {
+    if (idx === visiblePhases.length - 1) return
+    const leftColor = getSegmentColor(visiblePhaseIndex[phase])
+    const rightColor = getSegmentColor(visiblePhaseIndex[visiblePhases[idx + 1]])
     const sepColor = getChevronSepColor(leftColor, rightColor)
     if (sepColor === 'none') return
     const bx = badgeSegW + (idx + 1) * phaseSegW
@@ -349,8 +370,8 @@ export default memo(function SessionStageBar() {
         )}
 
         {/* Phase label + touch overlays */}
-        {PHASE_ORDER.map((phase, idx) => {
-          const phaseIdx = PHASE_INDEX[phase]
+        {visiblePhases.map((phase, idx) => {
+          const phaseIdx = visiblePhaseIndex[phase]
           const isFuture = phaseIdx > currentPhaseIdx
           const isHighlighted = phaseIdx === highlightedPhaseIdx
           const label = t(PHASE_I18N_KEYS[phase])
@@ -401,7 +422,7 @@ export default memo(function SessionStageBar() {
       </View>
 
       {/* Facilitator advance button */}
-      {isFacilitator && !isLastStage && (
+      {showControls && !isLastStage && (
         <TouchableOpacity
           onPress={handleAdvance}
           style={styles.advanceButton}
@@ -417,7 +438,7 @@ export default memo(function SessionStageBar() {
       )}
 
       {/* Voting round: create or advance */}
-      {canCreateVotingRound && (
+      {!hideControls && canCreateVotingRound && (
         <TouchableOpacity
           onPress={handleCreateVotingRound}
           style={styles.advanceButton}
@@ -427,7 +448,7 @@ export default memo(function SessionStageBar() {
           <MaterialCommunityIcons name="vote" size={18} color={colors.primary} />
         </TouchableOpacity>
       )}
-      {canAdvanceVotingRound && (
+      {!hideControls && canAdvanceVotingRound && (
         <TouchableOpacity
           onPress={handleAdvanceVotingRound}
           style={styles.advanceButton}

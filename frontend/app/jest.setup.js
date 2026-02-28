@@ -65,12 +65,18 @@ jest.mock('react-native-reanimated', () => {
     },
     useSharedValue: jest.fn((initial) => ({ value: initial })),
     useAnimatedStyle: jest.fn(() => ({})),
+    useAnimatedProps: jest.fn(() => ({})),
     withTiming: jest.fn((v) => v),
     withSpring: jest.fn((v) => v),
     withRepeat: jest.fn((v) => v),
+    withSequence: jest.fn((...args) => args[args.length - 1]),
+    withDelay: jest.fn((_, v) => v),
     interpolate: jest.fn((v) => v),
+    interpolateColor: jest.fn(() => 'transparent'),
+    processColor: jest.fn((c) => c),
     runOnJS: jest.fn((fn) => fn),
     cancelAnimation: jest.fn(),
+    Easing: { out: jest.fn((fn) => fn), cubic: jest.fn(), in: jest.fn((fn) => fn), inOut: jest.fn((fn) => fn) },
     FadeIn: { duration: jest.fn(() => ({})) },
     FadeOut: { duration: jest.fn(() => ({})) },
     SlideInRight: {},
@@ -160,6 +166,31 @@ jest.mock('react-native-keyboard-controller', () => {
     KeyboardAvoidingView: View,
   }
 })
+
+// Mock expo-apple-authentication
+jest.mock('expo-apple-authentication', () => {
+  const { Pressable, Text } = require('react-native')
+  return {
+    signInAsync: jest.fn(),
+    AppleAuthenticationScope: { FULL_NAME: 0, EMAIL: 1 },
+    AppleAuthenticationButton: ({ onPress, ...props }) => (
+      <Pressable onPress={onPress} {...props} testID="apple-native-button">
+        <Text>Sign in with Apple</Text>
+      </Pressable>
+    ),
+    AppleAuthenticationButtonType: { SIGN_IN: 0 },
+    AppleAuthenticationButtonStyle: { BLACK: 0, WHITE: 1 },
+  }
+})
+
+// Mock @react-native-google-signin/google-signin
+jest.mock('@react-native-google-signin/google-signin', () => ({
+  GoogleSignin: {
+    configure: jest.fn(),
+    hasPlayServices: jest.fn().mockResolvedValue(true),
+    signIn: jest.fn(),
+  },
+}))
 
 // Mock @react-native-async-storage/async-storage
 jest.mock('@react-native-async-storage/async-storage', () => ({

@@ -1,12 +1,13 @@
 import { useState, useRef, useMemo, useCallback, memo } from 'react'
-import { View, TouchableOpacity, Pressable, Animated, StyleSheet } from 'react-native'
+import { View, TouchableOpacity, Pressable, StyleSheet } from 'react-native'
+import Animated from 'react-native-reanimated'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { Spacing, BorderRadius, Shadows, Typography } from '../../constants/Theme'
-import { SemanticColors, OnBrandColors, BrandColor } from '../../constants/Colors'
+import { SemanticColors, OnBrandColors } from '../../constants/Colors'
 import ThemedText from '../ThemedText'
 import VoteControl from './VoteControl'
 import BridgingBadge from './BridgingBadge'
@@ -14,8 +15,14 @@ import MarkdownRenderer from './MarkdownRenderer'
 import LocationSessionBadge from '../LocationSessionBadge'
 import ProposalBadge from './ProposalBadge'
 import BottomDrawerModal from '../BottomDrawerModal'
+import useExpandCollapse from '../../hooks/useExpandCollapse'
+import { useLocationSession } from '../../contexts/LocationSessionContext'
 
 const COLLAPSED_HEIGHT = 100
+const POST_PROPOSAL_STAGES = new Set([
+  'opinion_discussion', 'reflection_curation', 'reflection_proposals',
+  'consensus',
+])
 // Available space right of left badges below which BridgingBadge/Answered go compact
 const COMPACT_BADGES_THRESHOLD = 200
 
@@ -30,19 +37,16 @@ const COMPACT_BADGES_THRESHOLD = 200
  * @param {Function} props.onToggleRole - Called with (postId, showCreatorRole)
  * @param {string} [props.currentUserId] - Current user's ID (disables voting on own posts)
  */
-export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onToggleRole, onLock, onEdit, onDelete, currentUserId, canModerate, onReport, onModerate, onPin, onTermPress, glossaryRules, readOnly, onFinalize, votingRoundStatus, onEndorse, isEndorsed, endorsementCount, endorseLimitReached }) {
+export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onToggleRole, onLock, onEdit, onDelete, currentUserId, canModerate, onReport, onModerate, onPin, onTermPress, glossaryRules, readOnly, onFinalize, votingRoundStatus, onEndorse, isEndorsed, endorseLimitReached, onEndorseLimitReached, stage }) {
   const { t } = useTranslation('discuss')
   const colors = useThemeColors()
   const router = useRouter()
+  const { openSessionOverview } = useLocationSession()
   const styles = useMemo(() => createStyles(colors), [colors])
-  const [expanded, setExpanded] = useState(false)
   const [optionsVisible, setOptionsVisible] = useState(false)
-  const [contentHeight, setContentHeight] = useState(0)
-  const [measured, setMeasured] = useState(false)
   const [availableRight, setAvailableRight] = useState(Infinity)
   const rowWidthRef = useRef(0)
   const leftWidthRef = useRef(0)
-  const expandAnim = useRef(new Animated.Value(0)).current
 
   const isLocked = post.status === 'locked'
   const isOwnPost = currentUserId && post.creator?.id === currentUserId
@@ -53,37 +57,22 @@ export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onT
     (Date.now() - new Date(post.createdTime).getTime() < 15 * 60 * 1000)
   const isEdited = post.updatedTime && post.createdTime &&
     new Date(post.updatedTime).getTime() - new Date(post.createdTime).getTime() > 1000
-  const needsCollapse = contentHeight > COLLAPSED_HEIGHT
+  const collapsedHeight = post.isPinned ? 0 : COLLAPSED_HEIGHT
+  const collapsedOpacity = post.isPinned ? 0 : 0.5
+  const {
+    expanded, contentHeight, measured,
+    handleContentLayout, toggle: handleExpand,
+    clipStyle, fadeOverlayStyle,
+  } = useExpandCollapse({ collapsedHeight, collapsedOpacity })
+  const needsCollapse = post.isPinned ? hasBody : contentHeight > COLLAPSED_HEIGHT
   const compactBadges = availableRight < COMPACT_BADGES_THRESHOLD
+  const isSessionTopic = !!(post.isPinned && post.proposalStatus === 'finalized' && stage && POST_PROPOSAL_STAGES.has(stage))
 
   const updateAvailableRight = useCallback(() => {
     if (rowWidthRef.current > 0 && leftWidthRef.current > 0) {
       setAvailableRight(rowWidthRef.current - leftWidthRef.current)
     }
   }, [])
-
-  const handleContentLayout = useCallback((e) => {
-    const h = e.nativeEvent.layout.height
-    // Use Math.max to prevent a Yoga feedback loop: when needsCollapse
-    // constrains the parent to COLLAPSED_HEIGHT, Yoga reports the child's
-    // *clipped* height, which would reset contentHeight and toggle
-    // needsCollapse off, causing an infinite expand/contract cycle.
-    if (h > 0) {
-      setContentHeight(prev => Math.max(prev, h))
-      setMeasured(true)
-    }
-  }, [])
-
-  const handleExpand = useCallback((e) => {
-    e?.stopPropagation?.()
-    const toExpanded = !expanded
-    setExpanded(toExpanded)
-    Animated.timing(expandAnim, {
-      toValue: toExpanded ? 1 : 0,
-      duration: 250,
-      useNativeDriver: false,
-    }).start()
-  }, [expanded, expandAnim])
 
   const handleOptionsPress = (e) => {
     e?.stopPropagation?.()
@@ -94,20 +83,25 @@ export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onT
     <Pressable
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
       onPress={onPress}
-      accessibilityLabel={t('postCardA11y', { author: displayName, title: post.title })}
+      accessibilityRole="button"
+      accessibilityLabel={isSessionTopic ? t('sessionTopicA11y') : t('postCardA11y', { author: displayName, title: post.title })}
     >
       {/* Top row: badges left, age right */}
       <View style={styles.topRow} onLayout={e => { rowWidthRef.current = e.nativeEvent.layout.width; updateAvailableRight() }}>
         <View style={styles.topRowLeft} onLayout={e => { leftWidthRef.current = e.nativeEvent.layout.width; updateAvailableRight() }}>
-          <LocationSessionBadge location={post.location} session={post.session} size="md" />
-          {post.isPinned && (
+          <TouchableOpacity
+            onPress={(e) => { e.stopPropagation(); openSessionOverview() }}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={t('common:sessionInfoA11y')}
+          >
+            <LocationSessionBadge location={post.location} session={post.session} size="md" />
+          </TouchableOpacity>
+          {post.isPinned && !isSessionTopic && (
             <View style={styles.pinnedBadge} accessibilityLabel={t('pinnedPost')}>
-              <Ionicons name="pin" size={12} color={BrandColor} />
+              <Ionicons name="pin" size={12} color={colors.primary} />
               <ThemedText variant="caption" style={styles.pinnedText}>{t('pinnedPost')}</ThemedText>
             </View>
-          )}
-          {post.proposalStatus && (
-            <ProposalBadge status={post.proposalStatus} />
           )}
           {isLocked && (
             <View style={styles.statusBadge}>
@@ -117,7 +111,10 @@ export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onT
           )}
         </View>
         <View style={styles.topRowRight}>
-          <BridgingBadge item={post} compact={compactBadges} />
+          {post.proposalStatus && (
+            <ProposalBadge status={post.proposalStatus} isSessionTopic={isSessionTopic} />
+          )}
+          {!isSessionTopic && <BridgingBadge item={post} compact={compactBadges} />}
           {post.isAnswered && (compactBadges ? (
             <Ionicons name="checkmark-circle" size={16} color={SemanticColors.success} accessibilityLabel={t('answered')} />
           ) : (
@@ -126,8 +123,10 @@ export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onT
               <ThemedText style={styles.answeredText}>{t('answered')}</ThemedText>
             </View>
           ))}
-          <ThemedText variant="caption" color="secondary">{relativeTime}</ThemedText>
-          {isEdited && (
+          {!isSessionTopic && (
+            <ThemedText variant="caption" color="secondary">{relativeTime}</ThemedText>
+          )}
+          {!isSessionTopic && isEdited && (
             <ThemedText variant="caption" color="secondary">{t('edited')}</ThemedText>
           )}
         </View>
@@ -145,17 +144,8 @@ export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onT
         <View style={styles.body}>
           <Animated.View style={[
             styles.bodyClip,
-            !measured && { height: COLLAPSED_HEIGHT },
-            measured && needsCollapse && {
-              height: expandAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [COLLAPSED_HEIGHT, contentHeight],
-              }),
-              opacity: expandAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0.5, 1],
-              }),
-            },
+            !measured && { height: collapsedHeight || COLLAPSED_HEIGHT },
+            measured && needsCollapse && clipStyle,
           ]}>
             <View
               style={!measured ? styles.measuringInner : undefined}
@@ -164,16 +154,16 @@ export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onT
               <MarkdownRenderer content={post.body} variant="post" glossaryRules={glossaryRules} />
             </View>
           </Animated.View>
-          {(!measured || (needsCollapse && !expanded)) && (
+          {collapsedHeight > 0 && (!measured || (needsCollapse && !expanded)) && (
             <Animated.View
-              style={[styles.fadeOverlay, measured
-                ? { opacity: expandAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }
-                : { opacity: 1 },
-              ]}
+              style={[styles.fadeOverlay, measured ? fadeOverlayStyle : { opacity: 1 }]}
               pointerEvents="none"
             >
               <LinearGradient
-                colors={[colors.cardBackground + '00', colors.cardBackground]}
+                colors={[
+                  colors.cardBackground + '00',
+                  colors.cardBackground,
+                ]}
                 style={styles.fadeGradient}
               />
             </Animated.View>
@@ -252,45 +242,56 @@ export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onT
             <ThemedText variant="caption" color="secondary">{post.commentCount || 0}</ThemedText>
           </View>
 
-          {/* Endorsement button for proposals during endorsement phase */}
-          {post.postType === 'proposal' && onEndorse &&
-           (votingRoundStatus === 'proposals_open' || votingRoundStatus === 'finalization_open') && (
+          {/* Endorsement button for finalized proposals during endorsement phase */}
+          {post.proposalStatus === 'finalized' && onEndorse && (
             <TouchableOpacity
-              onPress={(e) => { e?.stopPropagation?.(); onEndorse(post.id, isEndorsed) }}
-              disabled={readOnly || (!isEndorsed && endorseLimitReached)}
+              onPress={(e) => {
+                e?.stopPropagation?.()
+                if (isEndorsed) {
+                  onEndorse(post.id, true)
+                } else if (endorseLimitReached) {
+                  onEndorseLimitReached?.(post.id)
+                } else {
+                  onEndorse(post.id, false)
+                }
+              }}
               activeOpacity={0.7}
+              disabled={readOnly}
               accessibilityRole="button"
               accessibilityLabel={isEndorsed ? t('unendorseA11y') : t('endorseA11y')}
-              accessibilityState={{ selected: !!isEndorsed, disabled: !isEndorsed && endorseLimitReached }}
+              accessibilityState={{ selected: !!isEndorsed }}
               hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
-              <View style={[styles.endorsePill, isEndorsed && styles.endorsePillActive]}>
+              <View style={[styles.endorseButton, isEndorsed && styles.endorseButtonActive]}>
                 <Ionicons
                   name={isEndorsed ? 'heart' : 'heart-outline'}
                   size={16}
-                  color={isEndorsed ? colors.primary : (!isEndorsed && endorseLimitReached ? colors.disabledText : colors.secondaryText)}
+                  color={isEndorsed ? colors.primary : colors.secondaryText}
                 />
                 <ThemedText
                   variant="caption"
-                  style={{ color: isEndorsed ? colors.primary : (!isEndorsed && endorseLimitReached ? colors.disabledText : colors.secondaryText), fontWeight: isEndorsed ? '600' : '400' }}
+                  style={{ color: isEndorsed ? colors.primary : colors.secondaryText, fontWeight: isEndorsed ? '600' : '400' }}
                 >
-                  {endorsementCount || 0}
+                  {isEndorsed ? t('endorsedButton') : t('endorseButton')}
                 </ThemedText>
               </View>
             </TouchableOpacity>
           )}
 
-          <VoteControl
-            size="sm"
-            upvoteCount={post.upvoteCount || 0}
-            downvoteCount={post.downvoteCount || 0}
-            userVote={post.userVote}
-            onUpvote={() => onUpvote?.(post.id)}
-            onDownvote={() => onDownvote?.(post.id)}
-            authorName={displayName}
-            targetType="post"
-            disabled={isOwnPost || readOnly}
-          />
+          {/* Hide VoteControl for finalized proposals (use endorsements instead) */}
+          {!(post.postType === 'proposal' && post.proposalStatus === 'finalized') && (
+            <VoteControl
+              size="sm"
+              upvoteCount={post.upvoteCount || 0}
+              downvoteCount={post.downvoteCount || 0}
+              userVote={post.userVote}
+              onUpvote={() => onUpvote?.(post.id)}
+              onDownvote={() => onDownvote?.(post.id)}
+              authorName={displayName}
+              targetType="post"
+              disabled={isOwnPost || readOnly}
+            />
+          )}
         </View>
       </View>
 
@@ -299,7 +300,6 @@ export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onT
         visible={optionsVisible}
         onClose={() => setOptionsVisible(false)}
         title={t('postOptions')}
-        shrink
       >
         <View style={styles.optionsList}>
           {isOwnPost && post.creatorRole != null && (
@@ -448,7 +448,8 @@ export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onT
     prev.canModerate === next.canModerate &&
     prev.onEdit === next.onEdit &&
     prev.onDelete === next.onDelete &&
-    prev.votingRoundStatus === next.votingRoundStatus
+    prev.votingRoundStatus === next.votingRoundStatus &&
+    prev.stage === next.stage
   )
 })
 
@@ -490,7 +491,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   pinnedText: {
     ...Typography.caption,
-    color: BrandColor,
+    color: colors.primary,
     fontWeight: '600',
   },
   statusBadge: {
@@ -577,18 +578,18 @@ const createStyles = (colors) => StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
-  endorsePill: {
+  endorseButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
     backgroundColor: colors.cardBackground,
     borderWidth: 1,
     borderColor: colors.cardBorder,
     borderRadius: 16,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
   },
-  endorsePillActive: {
+  endorseButtonActive: {
     backgroundColor: colors.primary + '20',
     borderColor: colors.primary,
   },

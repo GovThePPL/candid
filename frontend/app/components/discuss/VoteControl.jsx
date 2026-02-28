@@ -1,5 +1,6 @@
 import { memo, useMemo, useRef, useEffect } from 'react'
-import { View, TouchableOpacity, Animated, Platform, StyleSheet } from 'react-native'
+import { View, TouchableOpacity, StyleSheet } from 'react-native'
+import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
@@ -40,26 +41,19 @@ export default memo(function VoteControl({
   const isDownvoted = userVote?.voteType === 'downvote'
 
   // Scale pulse animation for sm pill on upvote transition
-  const scaleAnim = useRef(new Animated.Value(1)).current
+  const scale = useSharedValue(1)
+  const scaleStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }))
   const prevUpvotedRef = useRef(isUpvoted)
   useEffect(() => {
     if (isUpvoted && !prevUpvotedRef.current && size === 'sm') {
-      Animated.spring(scaleAnim, {
-        toValue: 1.15,
-        friction: 5,
-        tension: 200,
-        useNativeDriver: Platform.OS !== 'web',
-      }).start(() => {
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          friction: 5,
-          tension: 150,
-          useNativeDriver: Platform.OS !== 'web',
-        }).start()
+      scale.value = withSpring(1.15, { damping: 10, stiffness: 200 }, () => {
+        scale.value = withSpring(1, { damping: 10, stiffness: 150 })
       })
     }
     prevUpvotedRef.current = isUpvoted
-  }, [isUpvoted, size, scaleAnim])
+  }, [isUpvoted, size])
 
   const upvoteA11yKey = targetType === 'post' ? 'upvotePostA11y' : 'upvoteCommentA11y'
   const downvoteA11yKey = targetType === 'post' ? 'downvotePostA11y' : 'downvoteCommentA11y'
@@ -120,7 +114,7 @@ export default memo(function VoteControl({
   const isActive = isUpvoted || isDownvoted
 
   return (
-    <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+    <Animated.View style={scaleStyle}>
       <View style={[
         styles.smPill,
         isUpvoted && styles.smPillUpvoted,

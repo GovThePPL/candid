@@ -1,4 +1,4 @@
-"""Unit tests for sessions_controller — _get_voting_round_row helper."""
+"""Unit tests for sessions_controller helpers."""
 
 import pytest
 from unittest.mock import patch, MagicMock
@@ -79,3 +79,65 @@ class TestGetVotingRoundRow:
         call_args = mock_db.execute_query.call_args
         params = call_args[0][1]
         assert params == ("123",)
+
+
+class TestRowToSession:
+    """Tests for _row_to_session serializer."""
+
+    def _import_helper(self):
+        from candid.controllers.sessions_controller import _row_to_session
+        return _row_to_session
+
+    def _base_row(self):
+        return {
+            'id': 'sess-1',
+            'label': 'Healthcare',
+            'description': 'A session about healthcare',
+            'location_id': 'loc-1',
+            'stage': 'opinion_discussion',
+            'stage_changed_at': datetime(2026, 2, 1, 12, 0),
+            'stage_changed_by': 'user-1',
+            'facilitator_user_id': 'user-2',
+            'status': 'active',
+            'created_by': 'user-1',
+            'proposal_method': 'user_driven',
+        }
+
+    def test_includes_accepted_proposal_title_when_present(self):
+        row_to_session = self._import_helper()
+        row = self._base_row()
+        row['accepted_proposal_title'] = 'Universal Healthcare Plan'
+
+        result = row_to_session(row)
+
+        assert result['acceptedProposalTitle'] == 'Universal Healthcare Plan'
+
+    def test_omits_accepted_proposal_title_when_none(self):
+        row_to_session = self._import_helper()
+        row = self._base_row()
+        row['accepted_proposal_title'] = None
+
+        result = row_to_session(row)
+
+        assert 'acceptedProposalTitle' not in result
+
+    def test_omits_accepted_proposal_title_when_absent(self):
+        row_to_session = self._import_helper()
+        row = self._base_row()
+        # No accepted_proposal_title key at all
+
+        result = row_to_session(row)
+
+        assert 'acceptedProposalTitle' not in result
+
+    def test_basic_fields(self):
+        row_to_session = self._import_helper()
+        row = self._base_row()
+
+        result = row_to_session(row)
+
+        assert result['id'] == 'sess-1'
+        assert result['label'] == 'Healthcare'
+        assert result['stage'] == 'opinion_discussion'
+        assert result['status'] == 'active'
+        assert result['proposalMethod'] == 'user_driven'

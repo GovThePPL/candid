@@ -30,7 +30,7 @@ import { hasQAAuthority } from '../../../../lib/roles'
 import useModerateChecker from '../../../../hooks/useModerateChecker'
 import { Spacing, BorderRadius, Shadows } from '../../../../constants/Theme'
 import { SemanticColors } from '../../../../constants/Colors'
-import api from '../../../../lib/api'
+import api, { sessionsApiWrapper } from '../../../../lib/api'
 import { useToast } from '../../../../components/Toast'
 import useCommentThread from '../../../../hooks/useCommentThread'
 import Header from '../../../../components/Header'
@@ -50,6 +50,8 @@ import EditCommentModal from '../../../../components/discuss/EditCommentModal'
 import GlossaryDrawer from '../../../../components/GlossaryDrawer'
 import { useGlossaryDrawer, useGlossaryRules } from '../../../../hooks/useGlossaryDrawer'
 import { THREAD_DEPTH_LIMIT, THREAD_DEPTH_LIMIT_DESKTOP, getReplyLineStates } from '../../../../lib/commentTree'
+import { STAGE_TO_PHASE, STAGE_INDEX } from '../../../../constants/Sessions'
+import CommentStageTabBar from '../../../../components/discuss/CommentStageTabBar'
 
 const screenHeight = Dimensions.get('window').height
 
@@ -73,7 +75,7 @@ export default function PostDetail() {
   const threadDepthLimit = isDesktop ? THREAD_DEPTH_LIMIT_DESKTOP : THREAD_DEPTH_LIMIT
   const styles = useMemo(() => createStyles(colors), [colors])
   const { user } = useAuth()
-  const { isReadOnly, viewingStage } = useLocationSession()
+  const { isReadOnly, viewingStage, selectedSession, votingRound, roundType, sessionData, effectiveStage } = useLocationSession()
   const showToast = useToast()
 
   // Post state
@@ -119,6 +121,47 @@ export default function PostDetail() {
     setRefreshing(false)
   }, [postId, refetchComments])
 
+  // Endorsement state for finalized proposals
+  const votingRoundStatus = votingRound?.status
+  const isEndorsementPhase = votingRoundStatus === 'finalization_open'
+  const [endorsementData, setEndorsementData] = useState(null)
+
+  useEffect(() => {
+    if (!selectedSession || !isEndorsementPhase || post?.proposalStatus !== 'finalized') {
+      setEndorsementData(null)
+      return
+    }
+    sessionsApiWrapper.getEndorsements(selectedSession, { roundType })
+      .then(setEndorsementData)
+      .catch(() => setEndorsementData(null))
+  }, [selectedSession, isEndorsementPhase, roundType, post?.proposalStatus])
+
+  const myEndorsementMap = useMemo(() => {
+    if (!endorsementData?.myEndorsements) return {}
+    const map = {}
+    for (const e of endorsementData.myEndorsements) map[e.proposalPostId] = e.id
+    return map
+  }, [endorsementData?.myEndorsements])
+
+  const myEndorsementCount = endorsementData?.myEndorsements?.length || 0
+  const endorseLimitReached = myEndorsementCount >= 3
+  const isEndorsed = !!myEndorsementMap[postId]
+
+  const handleEndorse = useCallback(async (pid, currentlyEndorsed) => {
+    try {
+      if (currentlyEndorsed) {
+        const eid = myEndorsementMap[pid]
+        if (eid) await sessionsApiWrapper.deleteEndorsement(selectedSession, eid)
+      } else {
+        await sessionsApiWrapper.createEndorsement(selectedSession, pid)
+      }
+      const data = await sessionsApiWrapper.getEndorsements(selectedSession, { roundType })
+      setEndorsementData(data)
+    } catch {
+      Alert.alert(t('endorseFailed'))
+    }
+  }, [selectedSession, myEndorsementMap, roundType, t])
+
   // Input state
   const [inputText, setInputText] = useState('')
   const [inputHeight, setInputHeight] = useState(40)
@@ -140,6 +183,9 @@ export default function PostDetail() {
   // inside a closing modal is swallowed on some platforms).
   const [pendingDeletePostId, setPendingDeletePostId] = useState(null)
   const [pendingDeleteCommentId, setPendingDeleteCommentId] = useState(null)
+
+  // Comment stage tab (proposal posts only)
+  const [selectedCommentTab, setSelectedCommentTab] = useState(null)
 
   // Downvote picker
   const [downvoteTarget, setDownvoteTarget] = useState(null)
@@ -833,6 +879,82 @@ export default function PostDetail() {
     return stableChains
   }, [flatList])
 
+  // Comment stage tabs — only shown for proposal posts
+  const commentStageTabs = useMemo(() => {
+    if (!post || post.postType !== 'proposal') return null
+
+    const postStageIdx = STAGE_INDEX[post.createdDuringStage] ?? -1
+    const postPhase = STAGE_TO_PHASE[post.createdDuringStage]
+
+    // Count root comments per tab bucket.
+    // Comments from the post's home phase split into Draft/Proposal by stage;
+    // comments from other phases go to their respective tabs.
+    const rootComments = flatList.filter(c => c.depth === 0)
+    const counts = { draft: 0, proposal: 0, opinion: 0, reflection: 0 }
+    for (const c of rootComments) {
+      const phase = STAGE_TO_PHASE[c.createdDuringStage]
+      if (phase === postPhase) {
+        const idx = STAGE_INDEX[c.createdDuringStage] ?? -1
+        if (idx <= postStageIdx) counts.draft++
+        else counts.proposal++
+      } else if (phase === 'opinion') counts.opinion++
+      else if (phase === 'reflection') counts.reflection++
+    }
+
+    // Determine current phase
+    const currentPhase = STAGE_TO_PHASE[effectiveStage]
+
+    // Determine active tab — the post's home phase maps to Draft/Proposal
+    let activeTabId = null
+    if (currentPhase === postPhase) {
+      activeTabId = post.proposalStatus === 'draft' ? 'draft' : 'proposal'
+    } else if (currentPhase === 'opinion') activeTabId = 'opinion'
+    else if (currentPhase === 'reflection') activeTabId = 'reflection'
+
+    // Build visible tabs (Reflection → Opinion → Proposal → Draft)
+    const tabs = []
+    if (counts.reflection > 0 || activeTabId === 'reflection')
+      tabs.push({ id: 'reflection', label: t('commentTabReflection') })
+    if (counts.opinion > 0 || activeTabId === 'opinion')
+      tabs.push({ id: 'opinion', label: t('commentTabOpinion') })
+    if (post.proposalStatus === 'finalized' || counts.proposal > 0 || activeTabId === 'proposal')
+      tabs.push({ id: 'proposal', label: t('commentTabFinal') })
+    if (post.proposalStatus === 'draft' || counts.draft > 0 || activeTabId === 'draft')
+      tabs.push({ id: 'draft', label: t('commentTabDraft') })
+
+    return { tabs, activeTabId }
+  }, [post, flatList, effectiveStage, t])
+
+  // Auto-select the active tab when tabs change
+  useEffect(() => {
+    if (commentStageTabs?.activeTabId) {
+      setSelectedCommentTab(commentStageTabs.activeTabId)
+    } else if (commentStageTabs?.tabs.length) {
+      setSelectedCommentTab(commentStageTabs.tabs[commentStageTabs.tabs.length - 1].id)
+    }
+  }, [commentStageTabs?.activeTabId])
+
+  // Filter chains by the selected comment stage tab
+  const filteredChains = useMemo(() => {
+    if (!commentStageTabs || !selectedCommentTab) return chains
+    const postStageIdx = STAGE_INDEX[post?.createdDuringStage] ?? -1
+    const postPhase = STAGE_TO_PHASE[post?.createdDuringStage]
+
+    return chains.filter(chain => {
+      const root = chain[0]
+      const phase = STAGE_TO_PHASE[root.createdDuringStage]
+      if (selectedCommentTab === 'draft') {
+        return phase === postPhase && (STAGE_INDEX[root.createdDuringStage] ?? -1) <= postStageIdx
+      }
+      if (selectedCommentTab === 'proposal') {
+        return phase === postPhase && (STAGE_INDEX[root.createdDuringStage] ?? -1) > postStageIdx
+      }
+      if (selectedCommentTab === 'opinion') return phase === 'opinion'
+      if (selectedCommentTab === 'reflection') return phase === 'reflection'
+      return true
+    })
+  }, [chains, commentStageTabs, selectedCommentTab, post?.createdDuringStage])
+
   // Stable refs for values that ChainBlock needs but shouldn't cause re-renders
   const truncatedRootsRef = useRef(truncatedRoots)
   useEffect(() => { truncatedRootsRef.current = truncatedRoots }, [truncatedRoots])
@@ -866,7 +988,9 @@ export default function PostDetail() {
     canModerate: userCanModerate,
     depthLimit: threadDepthLimit,
     glossaryRules,
-    isReadOnly,
+    isReadOnly: commentStageTabs
+      ? (isReadOnly || selectedCommentTab !== commentStageTabs.activeTabId)
+      : isReadOnly,
     // Inline reply (desktop only)
     inlineReplyTarget: isDesktop ? replyingTo : null,
     inlineReplyProps: isDesktop && replyingTo ? {
@@ -925,8 +1049,11 @@ export default function PostDetail() {
   }
 
   // Determine input state (inline bar is for top-level comments only)
-  const inputDisabled = isPostLocked || !canPostTopLevel || isReadOnly
-  const inputPlaceholder = isReadOnly
+  const tabReadOnly = commentStageTabs
+    ? (isReadOnly || selectedCommentTab !== commentStageTabs.activeTabId)
+    : isReadOnly
+  const inputDisabled = isPostLocked || !canPostTopLevel || tabReadOnly
+  const inputPlaceholder = tabReadOnly
     ? t('common:stageReadOnly')
     : isPostLocked
       ? t('postLocked')
@@ -954,8 +1081,21 @@ export default function PostDetail() {
           onModerate={handleModeratePost}
           glossaryRules={glossaryRules}
           readOnly={isReadOnly}
+          onEndorse={isEndorsementPhase ? handleEndorse : undefined}
+          isEndorsed={isEndorsed}
+          endorseLimitReached={endorseLimitReached}
         />
       </View>
+      {commentStageTabs && commentStageTabs.tabs.length > 1 && (
+        <View style={styles.commentTabBarWrap}>
+          <CommentStageTabBar
+            tabs={commentStageTabs.tabs}
+            selectedTab={selectedCommentTab}
+            activeTab={commentStageTabs.activeTabId}
+            onTabChange={setSelectedCommentTab}
+          />
+        </View>
+      )}
       {isDesktop && !inputDisabled && (
         <TouchableOpacity
           onPress={handleStartTopLevelComment}
@@ -971,7 +1111,7 @@ export default function PostDetail() {
       <View style={styles.commentSection}>
         <View style={styles.commentHeaderRow}>
           <ThemedText variant="h3">
-            {t('commentsHeader', { count: post?.commentCount ?? 0 })}
+            {t('commentsHeader', { count: commentStageTabs ? filteredChains.length : (post?.commentCount ?? 0) })}
           </ThemedText>
           <View style={styles.commentHeaderRight}>
             {isDesktop && !inputDisabled && (
@@ -1035,7 +1175,7 @@ export default function PostDetail() {
         {commentsLoading && flatList.length === 0 && (
           <ActivityIndicator size="small" color={colors.primary} style={styles.commentLoading} />
         )}
-        {!commentsLoading && flatList.length === 0 && (
+        {!commentsLoading && filteredChains.length === 0 && (
           <EmptyState
             icon="chatbubbles-outline"
             title={t('noComments')}
@@ -1058,7 +1198,7 @@ export default function PostDetail() {
       <Header onBack={isDesktop ? undefined : handleBack} />
       <FlatList
         ref={flatListRef}
-        data={chains}
+        data={filteredChains}
         renderItem={renderChain}
         keyExtractor={chainKeyExtractor}
         ListHeaderComponent={ListHeader}
@@ -1402,6 +1542,10 @@ const createStyles = (colors) => StyleSheet.create({
   },
   postHeaderShadow: {
     ...Shadows.card,
+  },
+  commentTabBarWrap: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
   },
   threadButtonRow: {
     flexDirection: 'row',

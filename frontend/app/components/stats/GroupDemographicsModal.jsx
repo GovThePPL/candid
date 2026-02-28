@@ -458,7 +458,7 @@ export default function GroupDemographicsModal({
 
 const createStyles = (colors) => StyleSheet.create({
   scrollContent: {
-    flex: 1,
+    flexShrink: 1,
     padding: 16,
   },
   errorContainer: {

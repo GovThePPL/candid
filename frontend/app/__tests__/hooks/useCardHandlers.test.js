@@ -282,7 +282,7 @@ describe('useCardHandlers', () => {
       })
 
       expect(goToNextCard).toHaveBeenCalledTimes(1)
-      expect(mockShowToast).toHaveBeenCalledWith('addedToChattingList')
+      expect(mockShowToast).toHaveBeenCalledWith('addedToChattingList', { position: 'top' })
       expect(mockAddPosition).toHaveBeenCalledWith('p1')
     })
 
@@ -327,7 +327,7 @@ describe('useCardHandlers', () => {
       })
 
       expect(goToNextCard).toHaveBeenCalledTimes(1)
-      expect(mockShowToast).toHaveBeenCalledWith('errorResponseFailed')
+      expect(mockShowToast).toHaveBeenCalledWith('errorResponseFailed', { position: 'top' })
     })
 
     it('handleDisagree shows toast on API failure', async () => {
@@ -338,7 +338,7 @@ describe('useCardHandlers', () => {
         await result.current.handleDisagree()
       })
 
-      expect(mockShowToast).toHaveBeenCalledWith('errorResponseFailed')
+      expect(mockShowToast).toHaveBeenCalledWith('errorResponseFailed', { position: 'top' })
     })
 
     it('handlePass shows toast on API failure', async () => {
@@ -349,7 +349,7 @@ describe('useCardHandlers', () => {
         await result.current.handlePass()
       })
 
-      expect(mockShowToast).toHaveBeenCalledWith('errorResponseFailed')
+      expect(mockShowToast).toHaveBeenCalledWith('errorResponseFailed', { position: 'top' })
     })
 
     it('handleChatRequest shows toast on API failure', async () => {
@@ -360,7 +360,7 @@ describe('useCardHandlers', () => {
         await result.current.handleChatRequest()
       })
 
-      expect(mockShowToast).toHaveBeenCalledWith('errorChatRequestFailed')
+      expect(mockShowToast).toHaveBeenCalledWith('errorChatRequestFailed', { position: 'top' })
     })
 
     it('handleAcceptChat shows toast on API failure', async () => {
@@ -371,7 +371,7 @@ describe('useCardHandlers', () => {
         await result.current.handleAcceptChat()
       })
 
-      expect(mockShowToast).toHaveBeenCalledWith('errorChatAcceptFailed')
+      expect(mockShowToast).toHaveBeenCalledWith('errorChatAcceptFailed', { position: 'top' })
     })
 
     it('handleDeclineChat shows toast on API failure', async () => {
@@ -382,7 +382,7 @@ describe('useCardHandlers', () => {
         await result.current.handleDeclineChat()
       })
 
-      expect(mockShowToast).toHaveBeenCalledWith('errorChatDeclineFailed')
+      expect(mockShowToast).toHaveBeenCalledWith('errorChatDeclineFailed', { position: 'top' })
     })
 
     it('handleSubmitReport shows toast on API failure', async () => {
@@ -393,7 +393,7 @@ describe('useCardHandlers', () => {
         await result.current.handleSubmitReport('p1', 'r1', 'comment')
       })
 
-      expect(mockShowToast).toHaveBeenCalledWith('errorReportFailed')
+      expect(mockShowToast).toHaveBeenCalledWith('errorReportFailed', { position: 'top' })
     })
 
     it('handleDismissRemoval shows toast on API failure', async () => {
@@ -404,7 +404,7 @@ describe('useCardHandlers', () => {
         await result.current.handleDismissRemoval()
       })
 
-      expect(mockShowToast).toHaveBeenCalledWith('errorDismissFailed')
+      expect(mockShowToast).toHaveBeenCalledWith('errorDismissFailed', { position: 'top' })
     })
 
     it('handleAdoptPosition shows toast on API failure', async () => {
@@ -415,7 +415,7 @@ describe('useCardHandlers', () => {
         await result.current.handleAdoptPosition()
       })
 
-      expect(mockShowToast).toHaveBeenCalledWith('errorAdoptFailed')
+      expect(mockShowToast).toHaveBeenCalledWith('errorAdoptFailed', { position: 'top' })
     })
 
     it('handleSurveyResponse shows toast on API failure', async () => {
@@ -426,7 +426,7 @@ describe('useCardHandlers', () => {
         await result.current.handleSurveyResponse('s1', 'q1', 'o1')
       })
 
-      expect(mockShowToast).toHaveBeenCalledWith('errorSurveyFailed')
+      expect(mockShowToast).toHaveBeenCalledWith('errorSurveyFailed', { position: 'top' })
     })
 
     it('handleDemographicResponse shows toast on API failure', async () => {
@@ -437,7 +437,7 @@ describe('useCardHandlers', () => {
         await result.current.handleDemographicResponse('age', '25-34')
       })
 
-      expect(mockShowToast).toHaveBeenCalledWith('errorDemographicFailed')
+      expect(mockShowToast).toHaveBeenCalledWith('errorDemographicFailed', { position: 'top' })
     })
 
     it('handleSendKudos shows toast on API failure', async () => {
@@ -448,7 +448,7 @@ describe('useCardHandlers', () => {
         await result.current.handleSendKudos()
       })
 
-      expect(mockShowToast).toHaveBeenCalledWith('errorKudosFailed')
+      expect(mockShowToast).toHaveBeenCalledWith('errorKudosFailed', { position: 'top' })
     })
 
     it('handleDiagnosticsAccept shows toast on API failure', async () => {
@@ -459,7 +459,7 @@ describe('useCardHandlers', () => {
         await result.current.handleDiagnosticsAccept()
       })
 
-      expect(mockShowToast).toHaveBeenCalledWith('errorDiagnosticsFailed')
+      expect(mockShowToast).toHaveBeenCalledWith('errorDiagnosticsFailed', { position: 'top' })
     })
 
     it('handlePairwiseResponse shows toast on API failure', async () => {
@@ -470,7 +470,7 @@ describe('useCardHandlers', () => {
         await result.current.handlePairwiseResponse('s1', 'w1', 'l1')
       })
 
-      expect(mockShowToast).toHaveBeenCalledWith('errorResponseFailed')
+      expect(mockShowToast).toHaveBeenCalledWith('errorResponseFailed', { position: 'top' })
     })
   })
 })

@@ -174,7 +174,7 @@ export default memo(function MarkdownRenderer({ content, variant = 'post', gloss
             activeOpacity={0.8}
             accessibilityRole="image"
             accessibilityLabel={node.attributes?.alt || ''}
-            accessibilityHint="Tap to view full size"
+            accessibilityHint={t('imageTapFullSizeA11y')}
           >
             <Image
               source={{ uri: src }}

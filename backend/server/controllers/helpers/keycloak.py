@@ -99,6 +99,7 @@ def validate_token(token):
             signing_key.key,
             algorithms=["RS256"],
             audience="users",
+            issuer=f"{config.KEYCLOAK_ISSUER_URL}/realms/{config.KEYCLOAK_REALM}",
         )
 
         keycloak_id = payload.get("sub")
@@ -138,12 +139,14 @@ def validate_token(token):
                 _ensure_root_admin_role(linked_user["id"])
             return {"sub": str(linked_user["id"])}
 
-        # Create a new user
+        # Create a new user (include normalized_email for anti-abuse)
+        from candid.controllers.helpers.email_validation import normalize_email
+        normalized = normalize_email(email) if email else None
         new_user = db.execute_query("""
-            INSERT INTO users (username, email, keycloak_id, display_name, user_type)
-            VALUES (%s, %s, %s, %s, %s)
+            INSERT INTO users (username, email, keycloak_id, display_name, user_type, normalized_email)
+            VALUES (%s, %s, %s, %s, %s, %s)
             RETURNING id
-        """, (username, email, keycloak_id, display_name, user_type), fetchone=True)
+        """, (username, email, keycloak_id, display_name, user_type, normalized), fetchone=True)
 
         if new_user:
             logger.info(f"Auto-registered user {username} (keycloak_id={keycloak_id})")
@@ -257,6 +260,191 @@ def get_user_by_username(username):
     if users:
         return users[0]["id"]
     return None
+
+
+def find_user_by_email(email):
+    """Look up a Keycloak user by exact email. Returns the Keycloak user ID or None."""
+    admin_token = get_admin_token()
+    base = f"{config.KEYCLOAK_URL}/admin/realms/{config.KEYCLOAK_REALM}"
+    headers = {"Authorization": f"Bearer {admin_token}"}
+
+    resp = requests.get(f"{base}/users", params={"email": email, "exact": "true"},
+                        headers=headers, timeout=10)
+    resp.raise_for_status()
+    users = resp.json()
+    if users:
+        return users[0]["id"]
+    return None
+
+
+def find_user_by_federated_identity(provider, provider_user_id):
+    """Look up a Keycloak user by federated identity link.
+
+    Args:
+        provider: Identity provider alias (e.g. 'apple', 'google').
+        provider_user_id: The 'sub' claim from the provider's token.
+
+    Returns:
+        Keycloak user ID or None.
+    """
+    admin_token = get_admin_token()
+    base = f"{config.KEYCLOAK_URL}/admin/realms/{config.KEYCLOAK_REALM}"
+    headers = {"Authorization": f"Bearer {admin_token}"}
+
+    # Keycloak Admin REST API: search by IdP alias + user ID
+    resp = requests.get(
+        f"{base}/users",
+        params={"idpAlias": provider, "idpUserId": provider_user_id},
+        headers=headers, timeout=10,
+    )
+    resp.raise_for_status()
+    users = resp.json()
+    if users:
+        return users[0]["id"]
+    return None
+
+
+def add_federated_identity_link(kc_user_id, provider, provider_user_id, provider_username):
+    """Add a federated identity link to an existing Keycloak user.
+
+    This allows Keycloak to track which social provider accounts are linked
+    to this user (for future direct IdP logins or account management).
+    """
+    admin_token = get_admin_token()
+    base = f"{config.KEYCLOAK_URL}/admin/realms/{config.KEYCLOAK_REALM}"
+    headers = {"Authorization": f"Bearer {admin_token}", "Content-Type": "application/json"}
+
+    link_data = {
+        "identityProvider": provider,
+        "userId": provider_user_id,
+        "userName": provider_username,
+    }
+    resp = requests.post(
+        f"{base}/users/{kc_user_id}/federated-identity/{provider}",
+        json=link_data, headers=headers, timeout=10,
+    )
+    if resp.status_code == 409:
+        # Link already exists — no-op
+        return
+    resp.raise_for_status()
+
+
+def create_social_user(provider, provider_user_id, email, display_name=None):
+    """Find or create a Keycloak user for social login and link the identity.
+
+    Strategy:
+    1. Check if a federated identity link already exists → return that user
+    2. Check if a user with the same email exists → link identity to them
+    3. Create a new user → link identity
+
+    Args:
+        provider: 'apple' or 'google'
+        provider_user_id: The 'sub' claim from the provider's token
+        email: Email from the provider (may be Apple private relay)
+        display_name: Full name (may be None for Apple after first sign-in)
+
+    Returns:
+        Keycloak user ID
+    """
+    # 1. Check for existing federated identity link
+    existing_id = find_user_by_federated_identity(provider, provider_user_id)
+    if existing_id:
+        return existing_id
+
+    # 2. Check for existing user with same email
+    if email:
+        email_user_id = find_user_by_email(email)
+        if email_user_id:
+            # Link the social identity to the existing account
+            add_federated_identity_link(
+                email_user_id, provider, provider_user_id,
+                email,  # use email as provider username
+            )
+            logger.info(f"Linked {provider} identity to existing user (email match): {email_user_id}")
+            return email_user_id
+
+    # 3. Create a new user
+    # Generate a username from email or provider sub
+    username = email.split("@")[0] if email else f"{provider}_{provider_user_id[:8]}"
+    # Ensure uniqueness by appending provider prefix
+    username = f"{provider}_{username}"
+
+    admin_token = get_admin_token()
+    base = f"{config.KEYCLOAK_URL}/admin/realms/{config.KEYCLOAK_REALM}"
+    headers = {"Authorization": f"Bearer {admin_token}", "Content-Type": "application/json"}
+
+    first_name = username
+    last_name = "User"
+    if display_name:
+        name_parts = display_name.rsplit(" ", 1)
+        first_name = name_parts[0] if len(name_parts) > 1 else display_name
+        last_name = name_parts[1] if len(name_parts) > 1 else "User"
+
+    user_data = {
+        "username": username,
+        "email": email or f"{provider}_{provider_user_id}@social.noreply",
+        "emailVerified": True,
+        "enabled": True,
+        "firstName": first_name,
+        "lastName": last_name,
+        "requiredActions": [],
+    }
+    resp = requests.post(f"{base}/users", json=user_data, headers=headers, timeout=10)
+
+    if resp.status_code == 409:
+        # Username conflict — try with a longer suffix
+        import uuid
+        user_data["username"] = f"{provider}_{uuid.uuid4().hex[:8]}"
+        resp = requests.post(f"{base}/users", json=user_data, headers=headers, timeout=10)
+
+    resp.raise_for_status()
+
+    # Get the created user's ID from Location header
+    location = resp.headers.get("Location", "")
+    kc_user_id = location.split("/")[-1]
+
+    # Link the social identity
+    add_federated_identity_link(
+        kc_user_id, provider, provider_user_id,
+        email or username,
+    )
+
+    logger.info(f"Created new social user {username} via {provider}: {kc_user_id}")
+    return kc_user_id
+
+
+def exchange_for_user_tokens(kc_user_id):
+    """Exchange service account credentials for user-specific tokens via token exchange.
+
+    Uses Keycloak's token exchange (RFC 8693) with the candid-backend service
+    account to obtain access + refresh tokens for the specified user.
+
+    Args:
+        kc_user_id: The Keycloak user UUID to impersonate.
+
+    Returns:
+        dict with {access_token, refresh_token}
+
+    Raises:
+        requests.HTTPError: If the token exchange fails.
+    """
+    token_url = f"{config.KEYCLOAK_URL}/realms/{config.KEYCLOAK_REALM}/protocol/openid-connect/token"
+
+    resp = requests.post(token_url, data={
+        "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange",
+        "client_id": config.KEYCLOAK_BACKEND_CLIENT_ID,
+        "client_secret": config.KEYCLOAK_BACKEND_CLIENT_SECRET,
+        "requested_subject": kc_user_id,
+        "requested_token_type": "urn:ietf:params:oauth:token-type:refresh_token",
+        "audience": "candid-app",
+    }, timeout=10)
+    resp.raise_for_status()
+
+    data = resp.json()
+    return {
+        "access_token": data["access_token"],
+        "refresh_token": data.get("refresh_token"),
+    }
 
 
 def delete_user(keycloak_user_id):

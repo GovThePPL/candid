@@ -166,7 +166,7 @@ check_deps
 
 # --- Volume names (must match docker-compose.yaml) ----------------------
 
-VOLUMES=(candid_postgres_data candid_redis_data)
+VOLUMES=(candid_postgres_data candid_polis_data candid_redis_data)
 SNAPSHOT_DIR="snapshots"
 
 # --- Snapshot functions --------------------------------------------------
@@ -276,12 +276,12 @@ fi
 if [[ "$RESET_ALL" == "true" ]]; then
     log "Removing DB and Redis volumes..."
     docker compose down 2>/dev/null || true
-    docker volume rm candid_postgres_data candid_redis_data 2>/dev/null || true
+    docker volume rm candid_postgres_data candid_polis_data candid_redis_data 2>/dev/null || true
     ok "Volumes removed"
 elif [[ "$RESET_DB" == "true" ]]; then
-    log "Removing DB volume..."
+    log "Removing DB volumes..."
     docker compose down 2>/dev/null || true
-    docker volume rm candid_postgres_data 2>/dev/null || true
+    docker volume rm candid_postgres_data candid_polis_data 2>/dev/null || true
     ok "DB volume removed"
 fi
 
@@ -349,6 +349,12 @@ if [[ "$SEED_ONLY" == "false" ]]; then
     wait_for_healthy "db" 60
     wait_for_healthy "redis" 15
     wait_for_healthy "keycloak" 60
+
+    # Configure Keycloak token exchange permissions (idempotent)
+    log "Configuring Keycloak token exchange permissions..."
+    python3 backend/scripts/setup_token_exchange.py && \
+        ok "Token exchange configured" || warn "Token exchange setup failed (social login may not work)"
+
     wait_for_healthy "api" 60
     wait_for_healthy "nlp" 180
     wait_for_healthy "chat" 30
@@ -421,9 +427,6 @@ if [[ "$SKIP_SEED" == "false" ]]; then
                     "SELECT COUNT(*) FROM polis_sync_queue WHERE operation_type='position' AND status IN ('pending','processing')" 2>/dev/null | tr -d '[:space:]')
                 if [ "$PENDING" = "0" ] 2>/dev/null; then
                     ok "Polis positions processed"
-                    log "Re-linking pairwise surveys to Polis conversations..."
-                    python3 backend/scripts/backfill_polis_positions.py --relink-only && \
-                        ok "Pairwise surveys linked" || warn "Pairwise survey linking failed"
                     break
                 fi
                 sleep 5
@@ -442,7 +445,7 @@ if [[ "$SKIP_SEED" == "false" ]]; then
                     # Force full math recompute — bulk vote seeding overwhelms
                     # the incremental math worker, causing it to miss participants.
                     log "Resetting Polis math for full recompute..."
-                    docker compose exec -T db psql -U user -d polis-dev -tAc "
+                    docker compose exec -T polis-db psql -U user -d polis-dev -tAc "
                         DELETE FROM math_main WHERE math_env = 'dev';
                         DELETE FROM math_ticks WHERE math_env = 'dev';
                         DELETE FROM math_bidtopid WHERE math_env = 'dev';
@@ -454,7 +457,7 @@ if [[ "$SKIP_SEED" == "false" ]]; then
                     # Run MF training + trust score computation now that
                     # polis_conversation records exist and votes are loaded.
                     log "Running MF training and trust score computation..."
-                    python3 backend/scripts/compute_trust_scores.py && \
+                    docker compose exec -T api python3 /usr/src/scripts/compute_trust_scores.py && \
                         ok "Trust scores computed from signals" || warn "Trust score computation failed (non-fatal)"
                     break
                 fi
@@ -467,7 +470,7 @@ if [[ "$SKIP_SEED" == "false" ]]; then
 
             # Still compute trust scores from non-bridging signals (kudos, chats, moderation)
             log "Computing trust scores (without bridging data)..."
-            python3 backend/scripts/compute_trust_scores.py && \
+            docker compose exec -T api python3 /usr/src/scripts/compute_trust_scores.py && \
                 ok "Trust scores computed" || warn "Trust score computation failed (non-fatal)"
         fi
         echo ""

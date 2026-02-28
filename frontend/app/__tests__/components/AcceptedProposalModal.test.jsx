@@ -59,11 +59,11 @@ describe('AcceptedProposalModal', () => {
     expect(screen.getByText('## Overview\n\nA comprehensive approach to healthcare.')).toBeTruthy()
   })
 
-  it('renders author name', () => {
+  it('renders proposal title in content area', () => {
     render(
       <AcceptedProposalModal visible={true} onClose={jest.fn()} proposal={MOCK_PROPOSAL} />
     )
-    expect(screen.getByText('Alice Smith')).toBeTruthy()
+    expect(screen.getByText('Healthcare Reform Plan')).toBeTruthy()
   })
 
   it('calls onClose when close button is pressed', () => {

@@ -11,16 +11,17 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#5C005C"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.candid.app"
+      "bundleIdentifier": "com.candid.app",
+      "usesAppleSignIn": true
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#5C005C"
       },
       "package": "com.candid.app",
       "permissions": [
@@ -38,7 +39,10 @@
       "expo-font",
       "expo-asset",
       "expo-notifications",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-apple-authentication",
+      "expo-build-properties",
+      "@react-native-google-signin/google-signin"
     ],
     "extra": {
       "router": {},

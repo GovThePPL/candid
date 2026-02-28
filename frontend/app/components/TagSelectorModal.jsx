@@ -169,7 +169,7 @@ export default function TagSelectorModal({
 
 const createStyles = (colors) => StyleSheet.create({
   content: {
-    flex: 1,
+    flexShrink: 1,
   },
   searchRow: {
     flexDirection: 'row',
@@ -191,7 +191,7 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 2,
   },
   list: {
-    flex: 1,
+    flexShrink: 1,
   },
   item: {
     flexDirection: 'row',

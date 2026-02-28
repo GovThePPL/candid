@@ -33,6 +33,12 @@ jest.mock('../../components/BottomDrawerModal', () => {
   }
 })
 
+jest.mock('../../contexts/LocationSessionContext', () => ({
+  useLocationSession: () => ({
+    openSessionOverview: jest.fn(),
+  }),
+}))
+
 import PostHeader from '../../components/discuss/PostHeader'
 
 const basePost = {

@@ -149,11 +149,10 @@ class TestActiveWindowDates:
         assert active_from.day == 1  # First of month
         assert active_until > active_from
 
-    def test_window_is_6_months(self):
+    def test_no_automatic_expiry(self):
         from candid.controllers.helpers.polis_sync import get_active_window_dates
         active_from, active_until = get_active_window_dates()
-        diff_months = (active_until.year - active_from.year) * 12 + (active_until.month - active_from.month)
-        assert diff_months == 6
+        assert active_until == date(2099, 12, 31)
 
 
 # ---------------------------------------------------------------------------
@@ -237,9 +236,7 @@ class TestGetOrCreateConversation:
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value={"polis_conversation_id": "existing-conv"})
 
-        with patch("candid.controllers.helpers.polis_sync.db", mock_db), \
-             patch("candid.controllers.helpers.polis_sync.config",
-                   MagicMock(POLIS_CONVERSATION_WINDOW_MONTHS=6)):
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db):
             from candid.controllers.helpers.polis_sync import get_or_create_conversation
             result = get_or_create_conversation("loc-1", "cat-1", "USA", "Politics")
             assert result == "existing-conv"
@@ -256,9 +253,7 @@ class TestGetOrCreateConversation:
         mock_client.create_conversation = MagicMock(return_value="new-conv")
 
         with patch("candid.controllers.helpers.polis_sync.db", mock_db), \
-             patch("candid.controllers.helpers.polis_sync.get_client", return_value=mock_client), \
-             patch("candid.controllers.helpers.polis_sync.config",
-                   MagicMock(POLIS_CONVERSATION_WINDOW_MONTHS=6)):
+             patch("candid.controllers.helpers.polis_sync.get_client", return_value=mock_client):
             from candid.controllers.helpers.polis_sync import get_or_create_conversation
             result = get_or_create_conversation("loc-1", "cat-1", "USA", "Politics")
             assert result == "new-conv"
@@ -279,9 +274,7 @@ class TestGetOrCreateConversation:
         mock_client.create_conversation = MagicMock(return_value="loc-conv")
 
         with patch("candid.controllers.helpers.polis_sync.db", mock_db), \
-             patch("candid.controllers.helpers.polis_sync.get_client", return_value=mock_client), \
-             patch("candid.controllers.helpers.polis_sync.config",
-                   MagicMock(POLIS_CONVERSATION_WINDOW_MONTHS=6)):
+             patch("candid.controllers.helpers.polis_sync.get_client", return_value=mock_client):
             from candid.controllers.helpers.polis_sync import get_or_create_conversation
             result = get_or_create_conversation("loc-1", None, "USA")
             assert result == "loc-conv"
@@ -297,9 +290,7 @@ class TestGetOrCreateConversation:
         mock_client.create_conversation = MagicMock(side_effect=PolisError("API down"))
 
         with patch("candid.controllers.helpers.polis_sync.db", mock_db), \
-             patch("candid.controllers.helpers.polis_sync.get_client", return_value=mock_client), \
-             patch("candid.controllers.helpers.polis_sync.config",
-                   MagicMock(POLIS_CONVERSATION_WINDOW_MONTHS=6)):
+             patch("candid.controllers.helpers.polis_sync.get_client", return_value=mock_client):
             from candid.controllers.helpers.polis_sync import get_or_create_conversation
             result = get_or_create_conversation("loc-1", "cat-1", "USA", "Politics")
             assert result is None
@@ -695,6 +686,33 @@ class TestSyncPositionPhaseRouting:
             session_call = mock_sync_group.call_args_list[0]
             assert session_call[1].get("phase") == "opinion"
 
+    def test_reflection_stage_routes_to_reflection_phase(self):
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            {"name": "USA"},
+            {"label": "Education"},
+        ])
+
+        mock_client = MagicMock()
+        mock_sync_group = MagicMock(return_value=1)
+
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db), \
+             patch("candid.controllers.helpers.polis_sync.get_client", return_value=mock_client), \
+             patch("candid.controllers.helpers.polis_sync._sync_position_to_conv_group", mock_sync_group):
+            from candid.controllers.helpers.polis_sync import sync_position
+            payload = {
+                "position_id": "pos-1", "statement": "test",
+                "session_id": "sess-1", "location_id": "loc-1",
+                "creator_user_id": "user-1",
+                "created_during_stage": "reflection_curation",
+            }
+            success, error = sync_position(payload)
+            assert success is True
+
+            # Session call should have phase='reflection'
+            session_call = mock_sync_group.call_args_list[0]
+            assert session_call[1].get("phase") == "reflection"
+
     def test_location_all_conv_has_no_phase(self):
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(side_effect=[
@@ -835,9 +853,7 @@ class TestGetOrCreateConversationWithPhase:
         mock_client.create_conversation = MagicMock(return_value="new-conv")
 
         with patch("candid.controllers.helpers.polis_sync.db", mock_db), \
-             patch("candid.controllers.helpers.polis_sync.get_client", return_value=mock_client), \
-             patch("candid.controllers.helpers.polis_sync.config",
-                   MagicMock(POLIS_CONVERSATION_WINDOW_MONTHS=6)):
+             patch("candid.controllers.helpers.polis_sync.get_client", return_value=mock_client):
             from candid.controllers.helpers.polis_sync import get_or_create_conversation
             result = get_or_create_conversation(
                 "loc-1", "sess-1", "USA", "Education", phase="opinion"
@@ -850,9 +866,7 @@ class TestGetOrCreateConversationWithPhase:
         mock_db = MagicMock()
         mock_db.execute_query = MagicMock(return_value={"polis_conversation_id": "existing"})
 
-        with patch("candid.controllers.helpers.polis_sync.db", mock_db), \
-             patch("candid.controllers.helpers.polis_sync.config",
-                   MagicMock(POLIS_CONVERSATION_WINDOW_MONTHS=6)):
+        with patch("candid.controllers.helpers.polis_sync.db", mock_db):
             from candid.controllers.helpers.polis_sync import get_or_create_conversation
             result = get_or_create_conversation(
                 "loc-1", "sess-1", "USA", "Education", phase="proposal"

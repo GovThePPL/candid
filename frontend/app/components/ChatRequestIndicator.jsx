@@ -1,5 +1,6 @@
-import { StyleSheet, View, TouchableOpacity, Pressable, Animated, Platform, Modal } from 'react-native'
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { StyleSheet, View, TouchableOpacity, Pressable, Modal } from 'react-native'
+import Animated, { useSharedValue, useAnimatedStyle, useAnimatedProps, withTiming, withSequence, interpolateColor } from 'react-native-reanimated'
+import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
 import Svg, { Circle, G } from 'react-native-svg'
@@ -16,7 +17,6 @@ const STROKE_WIDTH = 3
 const RADIUS = (INDICATOR_SIZE - STROKE_WIDTH) / 2
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 
-// Animated Circle component for progress
 const AnimatedCircle = Animated.createAnimatedComponent(Circle)
 
 import Avatar from './Avatar'
@@ -38,9 +38,21 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
 
   const [remainingSeconds, setRemainingSeconds] = useState(0)
   const [showCancelModal, setShowCancelModal] = useState(false)
-  const progressAnim = useRef(new Animated.Value(0)).current
-  const colorAnim = useRef(new Animated.Value(0)).current
-  const scaleAnim = useRef(new Animated.Value(1)).current
+  const progress = useSharedValue(0)
+  const colorAnim = useSharedValue(0)
+  const scale = useSharedValue(1)
+
+  const circleProps = useAnimatedProps(() => ({
+    strokeDashoffset: progress.value * CIRCUMFERENCE,
+  }))
+
+  const bubbleStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(colorAnim.value, [0, 1], [colors.primarySurface, SemanticColors.disagree]),
+  }), [colors.primarySurface])
+
+  const scaleStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }))
 
   // Calculate total duration and remaining time
   useEffect(() => {
@@ -54,8 +66,7 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
     const createdTime = new Date(pendingRequest.createdTime).getTime()
     const totalDuration = (expiresAt - createdTime) / 1000
     const elapsed = (now - createdTime) / 1000
-    const initialProgress = Math.min(1, Math.max(0, elapsed / totalDuration))
-    progressAnim.setValue(initialProgress)
+    progress.value = Math.min(1, Math.max(0, elapsed / totalDuration))
   }, [pendingRequest])
 
   // Countdown timer
@@ -79,13 +90,9 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
         const totalDuration = (expiresAt - createdTime) / 1000
         const now = Date.now()
         const elapsed = (now - createdTime) / 1000
-        const progress = Math.min(1, Math.max(0, elapsed / totalDuration))
+        const newProgress = Math.min(1, Math.max(0, elapsed / totalDuration))
 
-        Animated.timing(progressAnim, {
-          toValue: progress,
-          duration: 1000,
-          useNativeDriver: false,
-        }).start()
+        progress.value = withTiming(newProgress, { duration: 1000 })
       }
     }, 1000)
 
@@ -95,38 +102,16 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
   // Handle status changes (accepted/declined)
   useEffect(() => {
     if (pendingRequest?.status === 'declined') {
-      Animated.parallel([
-        Animated.timing(colorAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: false,
-        }),
-        Animated.sequence([
-          Animated.timing(scaleAnim, {
-            toValue: 1.2,
-            duration: 150,
-            useNativeDriver: Platform.OS !== 'web',
-          }),
-          Animated.timing(scaleAnim, {
-            toValue: 1,
-            duration: 150,
-            useNativeDriver: Platform.OS !== 'web',
-          }),
-        ]),
-      ]).start()
+      colorAnim.value = withTiming(1, { duration: 300 })
+      scale.value = withSequence(
+        withTiming(1.2, { duration: 150 }),
+        withTiming(1, { duration: 150 }),
+      )
     } else if (pendingRequest?.status === 'accepted') {
-      Animated.sequence([
-        Animated.timing(scaleAnim, {
-          toValue: 1.2,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start()
+      scale.value = withSequence(
+        withTiming(1.2, { duration: 150 }),
+        withTiming(0, { duration: 200 }),
+      )
     }
   }, [pendingRequest?.status])
 
@@ -146,17 +131,6 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
   const isDeclined = pendingRequest.status === 'declined'
   const author = pendingRequest.author
 
-  const bubbleBackground = colorAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [colors.primarySurface, SemanticColors.disagree],
-  })
-
-  // Purple ring shows time remaining: starts full, empties counterclockwise
-  const strokeDashoffset = progressAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, CIRCUMFERENCE],
-  })
-
   return (
     <>
       <TouchableOpacity
@@ -169,7 +143,7 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
           : t('chatRequestPendingLabel', { name: author?.displayName || 'user', seconds: remainingSeconds })}
         accessibilityHint={isDeclined ? undefined : t('cancelChatHint')}
       >
-        <Animated.View style={[styles.wrapper, { transform: [{ scale: scaleAnim }] }]}>
+        <Animated.View style={[styles.wrapper, scaleStyle]}>
           {/* Author avatar */}
           <Avatar user={author} size={AVATAR_SIZE} showKudosBadge showKudosCount />
 
@@ -185,7 +159,7 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
           <Animated.View
             style={[
               styles.bubble,
-              { backgroundColor: bubbleBackground },
+              bubbleStyle,
             ]}
           >
             <Svg width={INDICATOR_SIZE} height={INDICATOR_SIZE} style={styles.svgContainer}>
@@ -209,7 +183,7 @@ export default function ChatRequestIndicator({ pendingRequest, onTimeout, onCanc
                     strokeWidth={STROKE_WIDTH}
                     fill="transparent"
                     strokeDasharray={CIRCUMFERENCE}
-                    strokeDashoffset={strokeDashoffset}
+                    animatedProps={circleProps}
                     strokeLinecap="round"
                     rotation="-90"
                     origin={`${INDICATOR_SIZE / 2}, ${INDICATOR_SIZE / 2}`}

@@ -40,6 +40,8 @@ export default function useProposalWizard(template, sessionId) {
   const [enhancing, setEnhancing] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [title, setTitle] = useState('')
+  // { [stepId]: { requested: true, contentAtRequest: string, feedback: string } }
+  const [feedbackState, setFeedbackState] = useState({})
 
   const step = steps[currentStep]
   const isLastContentStep = currentStep === steps.length - 1
@@ -54,8 +56,19 @@ export default function useProposalWizard(template, sessionId) {
 
   const canAdvance = useMemo(() => {
     if (isReviewStep) return title.trim().length > 0
-    return (sections[step?.id] || '').trim().length > 0
-  }, [isReviewStep, title, sections, step])
+    const hasText = (sections[step?.id] || '').trim().length > 0
+    const hasFeedback = feedbackState[step?.id]?.requested === true
+    return hasText && hasFeedback
+  }, [isReviewStep, title, sections, step, feedbackState])
+
+  const canRequestFeedback = useMemo(() => {
+    if (!step) return false
+    const text = (sections[step.id] || '').trim()
+    if (!text) return false
+    const fs = feedbackState[step.id]
+    if (!fs?.requested) return true
+    return text !== fs.contentAtRequest
+  }, [step, sections, feedbackState])
 
   const goNext = useCallback(() => {
     if (currentStep < totalSteps - 1) {
@@ -93,6 +106,11 @@ export default function useProposalWizard(template, sessionId) {
         userInput,
         previousSections: Object.keys(previousSections).length > 0 ? previousSections : undefined,
       })
+
+      setFeedbackState(prev => ({
+        ...prev,
+        [stepId]: { requested: true, contentAtRequest: userInput.trim(), feedback: result.generatedContent },
+      }))
 
       return result.generatedContent
     } catch (err) {
@@ -146,6 +164,8 @@ export default function useProposalWizard(template, sessionId) {
     } catch (err) {
       if (err?.status === 429) {
         showToast(t('errorRateLimited'))
+      } else if (err?.status === 409) {
+        showToast(t('wizardOneProposalLimit'))
       } else {
         showToast(t('wizardSubmitFailed'))
       }
@@ -170,6 +190,8 @@ export default function useProposalWizard(template, sessionId) {
     isReviewStep,
     isLastContentStep,
     canAdvance,
+    canRequestFeedback,
+    feedbackState,
     sections,
     title,
     enhancing,

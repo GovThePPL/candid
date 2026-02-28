@@ -1002,13 +1002,15 @@ def upload_avatar(body, token_info=None, user_id=None):  # noqa: E501
             # Check if it's an NSFW rejection
             if not result.get('is_safe', True):
                 return ErrorModel(400, "Image contains inappropriate content and cannot be used as an avatar"), 400
-            return ErrorModel(400, f"Image processing failed: {result['error']}"), 400
+            logger.warning("Image processing failed: %s", result['error'])
+            return ErrorModel(400, "Image processing failed"), 400
 
         if not result.get('full_base64') or not result.get('icon_base64'):
             return ErrorModel(400, "Image processing failed"), 400
 
     except nlp.NLPServiceError as e:
-        return ErrorModel(500, f"Image processing service error: {str(e)}"), 500
+        logger.error("Image processing service error: %s", e)
+        return ErrorModel(500, "Image processing service unavailable"), 500
 
     # Update user's avatar URLs (full size and icon)
     db.execute_query("""

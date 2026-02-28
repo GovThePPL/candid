@@ -12,7 +12,7 @@ import { CacheManager, CacheKeys, CacheDurations } from '../lib/cache'
 
 /**
  * Bottom drawer that displays a glossary term definition.
- * Uses BottomDrawerModal with content-sized (shrink) mode.
+ * Uses BottomDrawerModal for content display.
  *
  * @param {Object} props
  * @param {boolean} props.visible - Whether the drawer is shown
@@ -131,7 +131,6 @@ export default memo(function GlossaryDrawer({ visible, slug, onClose, showAction
       onClose={onClose}
       title={term?.term || currentSlug || ''}
       subtitle={term?.summary || ''}
-      shrink
       headerLeft={history.length > 0 ? (
         <TouchableOpacity onPress={handleBack} accessibilityLabel={t('common:back')} accessibilityRole="button">
           <Ionicons name="chevron-back" size={24} color={colors.text} />

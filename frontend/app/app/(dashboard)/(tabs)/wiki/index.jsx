@@ -441,45 +441,15 @@ export default function WikiScreen() {
   // --- Shared action bar ---
   const actionBar = useMemo(() => (
     <View style={styles.actionBar}>
-      <View style={{ position: 'relative' }}>
-        <TouchableOpacity
-          style={styles.suggestButton}
-          onPress={() => setShowSuggestMenu(prev => !prev)}
-          accessibilityRole="button"
-          accessibilityLabel={t('suggestNewA11y')}
-        >
-          <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
-          <ThemedText variant="label" color="primary">{t('suggestNew')}</ThemedText>
-        </TouchableOpacity>
-        {showSuggestMenu && (
-          <View style={styles.suggestMenu}>
-            <TouchableOpacity
-              style={styles.suggestMenuItem}
-              onPress={() => {
-                setShowSuggestMenu(false)
-                router.push('/wiki/suggestion-form?type=new_term')
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={t('suggestNewTerm')}
-            >
-              <Ionicons name="text-outline" size={16} color={colors.text} />
-              <ThemedText variant="bodySmall" color="dark">{t('suggestNewTerm')}</ThemedText>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.suggestMenuItem}
-              onPress={() => {
-                setShowSuggestMenu(false)
-                router.push('/wiki/suggestion-form?type=new_page')
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={t('suggestNewPage')}
-            >
-              <Ionicons name="document-text-outline" size={16} color={colors.text} />
-              <ThemedText variant="bodySmall" color="dark">{t('suggestNewPage')}</ThemedText>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
+      <TouchableOpacity
+        style={styles.suggestButton}
+        onPress={() => setShowSuggestMenu(true)}
+        accessibilityRole="button"
+        accessibilityLabel={t('suggestNewA11y')}
+      >
+        <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
+        <ThemedText variant="label" color="primary">{t('suggestNew')}</ThemedText>
+      </TouchableOpacity>
       <TouchableOpacity
         style={styles.suggestionsButton}
         onPress={() => router.push('/wiki/suggestions')}
@@ -726,6 +696,48 @@ export default function WikiScreen() {
           </View>
         </TouchableOpacity>
       </Modal>}
+      <Modal
+        visible={showSuggestMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSuggestMenu(false)}
+      >
+        <TouchableOpacity
+          style={styles.suggestOverlay}
+          activeOpacity={1}
+          onPress={() => setShowSuggestMenu(false)}
+        >
+          <View style={styles.suggestPopup}>
+            <ThemedText variant="h3" style={styles.suggestPopupTitle}>
+              {t('suggestNew')}
+            </ThemedText>
+            <TouchableOpacity
+              style={styles.suggestMenuItem}
+              onPress={() => {
+                setShowSuggestMenu(false)
+                router.push('/wiki/suggestion-form?type=new_term')
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={t('suggestNewTerm')}
+            >
+              <Ionicons name="text-outline" size={20} color={colors.text} />
+              <ThemedText variant="body">{t('suggestNewTerm')}</ThemedText>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.suggestMenuItem, { borderBottomWidth: 0 }]}
+              onPress={() => {
+                setShowSuggestMenu(false)
+                router.push('/wiki/suggestion-form?type=new_page')
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={t('suggestNewPage')}
+            >
+              <Ionicons name="document-text-outline" size={20} color={colors.text} />
+              <ThemedText variant="body">{t('suggestNewPage')}</ThemedText>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   )
 }
@@ -798,12 +810,16 @@ const createStyles = (colors) => StyleSheet.create({
   },
   filterRow: {
     gap: 8,
+    backgroundColor: colors.cardBackground,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    padding: Spacing.sm,
   },
   filterItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    overflow: 'hidden',
   },
   clearFilter: {
     padding: 2,
@@ -874,30 +890,31 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.primary,
-  },
-  suggestMenu: {
-    position: 'absolute',
-    top: '100%',
-    left: 0,
-    marginTop: 4,
     backgroundColor: colors.cardBackground,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    minWidth: 160,
-    zIndex: 10,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
+  },
+  suggestOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  suggestPopup: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: 14,
+    width: 280,
+    overflow: 'hidden',
+  },
+  suggestPopupTitle: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.sm,
   },
   suggestMenuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    gap: 12,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.cardBorder,
   },

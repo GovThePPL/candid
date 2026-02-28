@@ -492,7 +492,7 @@ const createStyles = (colors) => StyleSheet.create({
 
   // History drawer
   historyScroll: {
-    flex: 1,
+    flexShrink: 1,
   },
   historyScrollContent: {
     padding: 16,

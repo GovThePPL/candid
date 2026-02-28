@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { View, StyleSheet } from 'react-native'
+import { useTranslation } from 'react-i18next'
 import { SemanticColors } from '../../constants/Colors'
 import { Typography } from '../../constants/Theme'
 import { useThemeColors } from '../../hooks/useThemeColors'
@@ -18,6 +19,7 @@ export default function VoteDistributionBar({
   showLabels = true,
   height = 24,
 }) {
+  const { t } = useTranslation('stats')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
 
@@ -47,7 +49,7 @@ export default function VoteDistributionBar({
         <View style={[styles.bar, { height }]}>
           <View style={[styles.segment, styles.emptySegment, { flex: 1 }]}>
             {showLabels && (
-              <ThemedText variant="badge" color="secondary" style={styles.segmentLabel}>No votes</ThemedText>
+              <ThemedText variant="badge" color="secondary" style={styles.segmentLabel}>{t('noVotes')}</ThemedText>
             )}
           </View>
         </View>

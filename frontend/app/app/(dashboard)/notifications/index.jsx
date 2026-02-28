@@ -45,8 +45,6 @@ export default function NotificationsScreen() {
       } else {
         router.push(`/post/${notification.data.postId}`)
       }
-    } else if (action === 'open_cards') {
-      router.back()
     } else if (action === 'open_organization') {
       router.push('/admin/organization')
     } else if (action === 'open_admin_pending') {

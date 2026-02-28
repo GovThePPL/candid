@@ -539,8 +539,6 @@ export default function OrganizationScreen() {
         visible={editModalVisible}
         onClose={() => setEditModalVisible(false)}
         title={editingLocation ? t('editLocation') : t('addLocation')}
-        shrink
-
       >
         <View style={styles.modalContent}>
           <ThemedText variant="label" color="secondary">{t('locationName')}</ThemedText>

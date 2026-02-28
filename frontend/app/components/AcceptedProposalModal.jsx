@@ -6,9 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useThemeColors } from '../hooks/useThemeColors'
 import ThemedText from './ThemedText'
 import MarkdownRenderer from './discuss/MarkdownRenderer'
-import ProposalBadge from './discuss/ProposalBadge'
-import Avatar from './Avatar'
-import { Spacing, BorderRadius } from '../constants/Theme'
+import { Spacing } from '../constants/Theme'
 
 /**
  * Full-screen modal showing the accepted (finalized) proposal for the current session.
@@ -32,12 +30,6 @@ export default memo(function AcceptedProposalModal({ visible, onClose, proposal 
 
   if (!proposal) return null
 
-  const creator = {
-    username: proposal.creatorUsername,
-    displayName: proposal.creatorDisplayName,
-    avatarIconUrl: proposal.creatorAvatarIconUrl,
-  }
-
   return (
     <Modal
       visible={visible}
@@ -49,12 +41,9 @@ export default memo(function AcceptedProposalModal({ visible, onClose, proposal 
         <View style={styles.container}>
           {/* Header */}
           <View style={styles.header}>
-            <View style={styles.headerLeft}>
-              <ProposalBadge status={proposal.proposalStatus} />
-              <ThemedText variant="h3" style={styles.headerTitle} numberOfLines={1}>
-                {t('acceptedProposalTitle')}
-              </ThemedText>
-            </View>
+            <ThemedText variant="h3" style={styles.headerTitle} numberOfLines={1}>
+              {t('acceptedProposalTitle')}
+            </ThemedText>
             <TouchableOpacity
               onPress={onClose}
               style={styles.closeButton}
@@ -75,14 +64,6 @@ export default memo(function AcceptedProposalModal({ visible, onClose, proposal 
             <ThemedText variant="h2" style={styles.proposalTitle}>
               {proposal.title}
             </ThemedText>
-
-            {/* Author row */}
-            <View style={styles.authorRow}>
-              <Avatar user={creator} size={28} />
-              <ThemedText variant="bodySmall" color="secondary">
-                {creator.displayName || creator.username}
-              </ThemedText>
-            </View>
 
             {/* Body */}
             <MarkdownRenderer content={proposal.body || ''} />
@@ -118,12 +99,6 @@ const createStyles = (colors, insets) => StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    flex: 1,
-  },
   headerTitle: {
     flex: 1,
   },
@@ -140,11 +115,5 @@ const createStyles = (colors, insets) => StyleSheet.create({
   },
   proposalTitle: {
     marginBottom: Spacing.sm,
-  },
-  authorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    marginBottom: Spacing.lg,
   },
 })

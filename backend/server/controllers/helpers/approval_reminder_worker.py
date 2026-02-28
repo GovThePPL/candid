@@ -73,12 +73,22 @@ class ApprovalReminderWorker:
 
     def _check_role_requests(self):
         """Send reminders for role change requests within 24h of auto-approve."""
+        # Atomically claim unclaimed rows to prevent duplicate reminders
+        # across replicas. FOR UPDATE SKIP LOCKED ensures concurrent workers
+        # don't process the same rows.
         rows = db.execute_query("""
-            SELECT * FROM role_change_request
-            WHERE status = 'pending'
-              AND auto_approve_at <= CURRENT_TIMESTAMP + INTERVAL '24 hours'
-              AND auto_approve_at > CURRENT_TIMESTAMP
-              AND reminder_sent_at IS NULL
+            UPDATE role_change_request
+            SET reminder_sent_at = CURRENT_TIMESTAMP
+            WHERE id IN (
+                SELECT id FROM role_change_request
+                WHERE status = 'pending'
+                  AND auto_approve_at <= CURRENT_TIMESTAMP + INTERVAL '24 hours'
+                  AND auto_approve_at > CURRENT_TIMESTAMP
+                  AND reminder_sent_at IS NULL
+                FOR UPDATE SKIP LOCKED
+                LIMIT 50
+            )
+            RETURNING *
         """)
 
         for row in (rows or []):
@@ -97,20 +107,22 @@ class ApprovalReminderWorker:
                 peers, desc, 'role_change',
                 requester_user_id=str(row['requested_by']))
 
-            db.execute_query("""
-                UPDATE role_change_request
-                SET reminder_sent_at = CURRENT_TIMESTAMP
-                WHERE id = %s
-            """, (str(row['id']),))
-
     def _check_rule_requests(self):
         """Send reminders for rule change requests within 24h of auto-approve."""
+        # Atomically claim unclaimed rows (same pattern as role requests)
         rows = db.execute_query("""
-            SELECT * FROM rule_change_request
-            WHERE status = 'pending'
-              AND auto_approve_at <= CURRENT_TIMESTAMP + INTERVAL '24 hours'
-              AND auto_approve_at > CURRENT_TIMESTAMP
-              AND reminder_sent_at IS NULL
+            UPDATE rule_change_request
+            SET reminder_sent_at = CURRENT_TIMESTAMP
+            WHERE id IN (
+                SELECT id FROM rule_change_request
+                WHERE status = 'pending'
+                  AND auto_approve_at <= CURRENT_TIMESTAMP + INTERVAL '24 hours'
+                  AND auto_approve_at > CURRENT_TIMESTAMP
+                  AND reminder_sent_at IS NULL
+                FOR UPDATE SKIP LOCKED
+                LIMIT 50
+            )
+            RETURNING *
         """)
 
         for row in (rows or []):
@@ -126,12 +138,6 @@ class ApprovalReminderWorker:
             send_auto_approve_reminder(
                 peers, desc, 'rule_change',
                 requester_user_id=str(row['requested_by']))
-
-            db.execute_query("""
-                UPDATE rule_change_request
-                SET reminder_sent_at = CURRENT_TIMESTAMP
-                WHERE id = %s
-            """, (str(row['id']),))
 
 
 # ========== Singleton Worker ==========

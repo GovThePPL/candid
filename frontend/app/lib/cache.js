@@ -352,6 +352,7 @@ export const CacheKeys = {
   demographics: (userId) => `demographics:user:${userId}`,
   settings: (userId) => `settings:user:${userId}`,
   sessions: () => 'sessions',
+  sessionSelector: () => 'session-selector',
   chattingList: (userId) => `chattinglist:user:${userId}`,
   activityPosts: (userId) => `activity:posts:${userId}`,
   activityComments: (userId) => `activity:comments:${userId}`,

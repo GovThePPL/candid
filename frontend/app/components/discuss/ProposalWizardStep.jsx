@@ -1,20 +1,27 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { View, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { Spacing, BorderRadius } from '../../constants/Theme'
 import ThemedText from '../ThemedText'
+import ThemedButton from '../ThemedButton'
+import MarkdownRenderer from './MarkdownRenderer'
 
 /**
- * Single wizard step: user writes draft, optionally enhances with AI, edits result.
+ * Single wizard step: user writes draft, gets AI coaching feedback, edits based on suggestions.
+ * Contains Get Feedback and Next buttons between the text input and feedback display.
  *
  * @param {Object} props
  * @param {Object} props.step - Step definition { id, keyPrefix }
  * @param {string} props.value - Current section text
  * @param {Function} props.onChange - Callback with new text
- * @param {Function} props.onEnhance - Callback to trigger AI enhancement
- * @param {boolean} props.enhancing - Whether AI is currently enhancing
+ * @param {Function} props.onGetFeedback - Callback to trigger AI feedback
+ * @param {boolean} props.enhancing - Whether AI is currently generating feedback
+ * @param {boolean} props.canRequestFeedback - Whether feedback can be requested
+ * @param {Function} props.onNext - Callback to advance to next step
+ * @param {boolean} props.canAdvance - Whether Next is enabled
+ * @param {string|null} props.initialFeedback - Persisted feedback from hook
  * @param {number} props.stepNumber - 1-based step number
  * @param {number} props.totalSteps - Total content steps (excluding review)
  */
@@ -22,42 +29,34 @@ export default function ProposalWizardStep({
   step,
   value,
   onChange,
-  onEnhance,
+  onGetFeedback,
   enhancing,
+  canRequestFeedback,
+  onNext,
+  canAdvance,
+  initialFeedback,
   stepNumber,
   totalSteps,
 }) {
   const { t } = useTranslation('discuss')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
-  const [showAiOutput, setShowAiOutput] = useState(false)
-  const [aiContent, setAiContent] = useState(null)
+  const [feedback, setFeedback] = useState(initialFeedback || null)
 
-  const handleEnhance = useCallback(async () => {
-    if (!value?.trim() || enhancing) return
-    const result = await onEnhance(step.id, value)
-    if (result) {
-      setAiContent(result)
-      setShowAiOutput(true)
-    }
-  }, [value, enhancing, onEnhance, step.id])
+  // Sync feedback from hook when navigating between steps or new feedback arrives
+  useEffect(() => {
+    setFeedback(initialFeedback || null)
+  }, [initialFeedback])
 
-  const handleAcceptAi = useCallback(() => {
-    if (aiContent) {
-      onChange(aiContent)
-      setShowAiOutput(false)
-      setAiContent(null)
-    }
-  }, [aiContent, onChange])
-
-  const handleRejectAi = useCallback(() => {
-    setShowAiOutput(false)
-    setAiContent(null)
+  const handleDismissFeedback = useCallback(() => {
+    setFeedback(null)
   }, [])
 
   const stepTitle = t(`${step.keyPrefix}Title`)
   const stepDesc = t(`${step.keyPrefix}Desc`)
   const stepPlaceholder = t(`${step.keyPrefix}Placeholder`)
+
+  const feedbackDisabled = !canRequestFeedback || enhancing
 
   return (
     <View style={styles.container}>
@@ -85,65 +84,48 @@ export default function ProposalWizardStep({
         accessibilityRole="text"
       />
 
-      {/* Enhance with AI button */}
-      <TouchableOpacity
-        style={[styles.enhanceButton, (!value?.trim() || enhancing) && styles.enhanceButtonDisabled]}
-        onPress={handleEnhance}
-        disabled={!value?.trim() || enhancing}
-        activeOpacity={0.7}
-        accessibilityRole="button"
-        accessibilityLabel={t('wizardEnhanceA11y')}
-        accessibilityState={{ disabled: !value?.trim() || enhancing }}
-      >
-        {enhancing ? (
-          <ActivityIndicator size="small" color={colors.primary} />
-        ) : (
-          <Ionicons name="sparkles" size={18} color={!value?.trim() ? colors.placeholderText : colors.primary} />
-        )}
-        <ThemedText
-          variant="buttonSmall"
-          style={[styles.enhanceLabel, (!value?.trim()) && { color: colors.placeholderText }]}
+      {/* Action buttons */}
+      <View style={styles.buttonRow}>
+        <ThemedButton
+          style={styles.compactButton}
+          onPress={onGetFeedback}
+          disabled={feedbackDisabled}
+          accessibilityLabel={t('wizardGetFeedbackA11y')}
         >
-          {enhancing ? t('wizardEnhancing') : t('wizardEnhanceButton')}
-        </ThemedText>
-      </TouchableOpacity>
+          {enhancing ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            t('wizardGetFeedback')
+          )}
+        </ThemedButton>
+        <ThemedButton
+          style={styles.compactButton}
+          onPress={onNext}
+          disabled={!canAdvance}
+          accessibilityLabel={t('wizardNextA11y')}
+        >
+          {t('wizardNext')}
+        </ThemedButton>
+      </View>
 
-      {/* AI output preview */}
-      {showAiOutput && aiContent && (
-        <View style={styles.aiOutputContainer}>
-          <ThemedText variant="label" color="secondary" style={styles.aiOutputLabel}>
-            {t('wizardAISuggestion')}
-          </ThemedText>
-          <View style={styles.aiOutputBox}>
-            <ThemedText variant="body" style={styles.aiOutputText}>
-              {aiContent}
+      {/* AI Feedback display */}
+      {feedback && (
+        <View style={styles.feedbackContainer}>
+          <View style={styles.feedbackHeader}>
+            <ThemedText variant="label" color="secondary">
+              {t('wizardAIFeedback')}
             </ThemedText>
+            <TouchableOpacity
+              onPress={handleDismissFeedback}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel={t('wizardDismissFeedbackA11y')}
+            >
+              <Ionicons name="close" size={18} color={colors.secondaryText} />
+            </TouchableOpacity>
           </View>
-          <View style={styles.aiActions}>
-            <TouchableOpacity
-              style={styles.aiAcceptButton}
-              onPress={handleAcceptAi}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={t('wizardAcceptAIA11y')}
-            >
-              <Ionicons name="checkmark" size={18} color="#FFFFFF" />
-              <ThemedText variant="buttonSmall" style={styles.aiAcceptLabel}>
-                {t('wizardAcceptAI')}
-              </ThemedText>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.aiRejectButton}
-              onPress={handleRejectAi}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={t('wizardRejectAIA11y')}
-            >
-              <Ionicons name="close" size={18} color={colors.text} />
-              <ThemedText variant="buttonSmall">
-                {t('wizardRejectAI')}
-              </ThemedText>
-            </TouchableOpacity>
+          <View style={styles.feedbackBox}>
+            <MarkdownRenderer content={feedback} />
           </View>
         </View>
       )}
@@ -175,66 +157,30 @@ const createStyles = (colors) => StyleSheet.create({
     minHeight: 160,
     maxHeight: 300,
   },
-  enhanceButton: {
+  buttonRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.sm,
-    borderWidth: 1,
-    borderColor: colors.primary,
-    alignSelf: 'flex-start',
+    justifyContent: 'flex-end',
+    gap: Spacing.sm,
     marginTop: Spacing.md,
   },
-  enhanceButtonDisabled: {
-    borderColor: colors.cardBorder,
+  compactButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
   },
-  enhanceLabel: {
-    color: colors.primary,
-  },
-  aiOutputContainer: {
+  feedbackContainer: {
     marginTop: Spacing.lg,
   },
-  aiOutputLabel: {
+  feedbackHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: Spacing.xs,
   },
-  aiOutputBox: {
+  feedbackBox: {
     backgroundColor: colors.cardBackground,
     borderWidth: 1,
     borderColor: colors.primary,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
-  },
-  aiOutputText: {
-    lineHeight: 22,
-  },
-  aiActions: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    marginTop: Spacing.sm,
-  },
-  aiAcceptButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.sm,
-    backgroundColor: colors.primarySurface,
-  },
-  aiAcceptLabel: {
-    color: '#FFFFFF',
-  },
-  aiRejectButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.sm,
-    backgroundColor: colors.cardBackground,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
   },
 })

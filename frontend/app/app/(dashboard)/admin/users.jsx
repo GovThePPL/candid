@@ -464,8 +464,6 @@ export default function UsersScreen() {
         visible={banModalVisible}
         onClose={() => { setBanModalVisible(false); setBanTarget(null); setBanReason('') }}
         title={banAction === 'ban' ? t('banConfirm') : t('unbanConfirm')}
-        shrink
-
       >
         <View style={styles.modalContent}>
           <ThemedText variant="body" color="dark">

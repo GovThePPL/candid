@@ -67,6 +67,11 @@ class TestCheckBridgingAwards:
             assert call_kwargs[1]["notification_type"] == "bridging_kudos"
             assert call_kwargs[1]["recipient_user_id"] == "author-1"
             assert "bridging" in call_kwargs[1]["title"].lower()
+            # Verify deep link data navigates to the comment
+            data = call_kwargs[1]["data"]
+            assert data["action"] == "open_post"
+            assert data["postId"] == "post-1"
+            assert data["commentId"] == "comment-1"
 
     @patch("candid.controllers.helpers.matrix_factorization.db")
     @patch("candid.controllers.helpers.matrix_factorization.config")
@@ -148,6 +153,11 @@ class TestCheckBridgingAwards:
 
             mock_notify.assert_called_once()
             assert "post" in mock_notify.call_args[1]["title"].lower()
+            # Verify deep link data navigates to the post
+            data = mock_notify.call_args[1]["data"]
+            assert data["action"] == "open_post"
+            assert data["postId"] == "post-1"
+            assert "commentId" not in data
 
     @patch("candid.controllers.helpers.matrix_factorization.db")
     @patch("candid.controllers.helpers.matrix_factorization.config")

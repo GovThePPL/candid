@@ -45,34 +45,41 @@ class TestAggregateDemographics:
         assert result["respondentCount"] == 0
         assert result["lean"] == {}
 
-    def test_single_respondent(self):
+    def test_single_respondent_suppressed(self):
+        """Single-respondent categories are suppressed by k-anonymity (threshold=5)."""
         data = [{"lean": "left", "sex": "female", "education": "college"}]
         result = aggregate_demographics(data, "0", "A", 10)
         assert result["respondentCount"] == 1
-        assert result["lean"] == {"left": 1}
-        assert result["sex"] == {"female": 1}
-        assert result["education"] == {"college": 1}
+        # All categories have count 1, below threshold of 5
+        assert result["lean"] == {}
+        assert result["sex"] == {}
+        assert result["education"] == {}
         assert result["race"] == {}
 
-    def test_multiple_respondents(self):
-        data = [
-            {"lean": "left", "sex": "male"},
-            {"lean": "right", "sex": "female"},
-            {"lean": "left", "sex": "male"},
-        ]
+    def test_multiple_respondents_above_threshold(self):
+        """Categories with >= 5 respondents are included."""
+        data = [{"lean": "left", "sex": "male"} for _ in range(6)] + \
+               [{"lean": "right", "sex": "male"} for _ in range(5)]
         result = aggregate_demographics(data, "1", "B", 20)
-        assert result["respondentCount"] == 3
-        assert result["lean"] == {"left": 2, "right": 1}
-        assert result["sex"] == {"male": 2, "female": 1}
+        assert result["respondentCount"] == 11
+        assert result["lean"] == {"left": 6, "right": 5}
+        assert result["sex"] == {"male": 11}
+
+    def test_k_anonymity_suppresses_small_categories(self):
+        """Categories below the k-anonymity threshold (5) are removed."""
+        data = [{"lean": "left", "sex": "male"} for _ in range(7)] + \
+               [{"lean": "right", "sex": "male"} for _ in range(2)]
+        result = aggregate_demographics(data, "1", "B", 20)
+        # "left" has 7 (shown), "right" has 2 (suppressed)
+        assert result["lean"] == {"left": 7}
+        assert result["sex"] == {"male": 9}
 
     def test_none_values_skipped(self):
-        data = [
-            {"lean": None, "sex": "male"},
-            {"lean": "center", "sex": None},
-        ]
-        result = aggregate_demographics(data, "0", "A", 5)
-        assert result["lean"] == {"center": 1}
-        assert result["sex"] == {"male": 1}
+        data = [{"lean": None, "sex": "male"} for _ in range(6)] + \
+               [{"lean": "center", "sex": None} for _ in range(5)]
+        result = aggregate_demographics(data, "0", "A", 15)
+        assert result["lean"] == {"center": 5}
+        assert result["sex"] == {"male": 6}
 
     def test_preserves_group_metadata(self):
         result = aggregate_demographics([], "2", "C", 100)

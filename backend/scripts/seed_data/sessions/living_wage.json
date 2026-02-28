@@ -1,7 +1,7 @@
 {
   "session_name": "Living Wage",
   "location_code": "OR",
-  "target_stage": "opinion_curation",
+  "target_stage": "reflection_curation",
   "topic_vocabulary": {
     "topic_noun": ["living wage", "worker compensation", "wage policy"],
     "topic_adj": ["wage-related", "economic", "labor"],
@@ -40,7 +40,7 @@
       {"type": "generated", "lean": "center", "topic_focus": "individual_collective"},
       {"type": "generated", "lean": "strong_left", "topic_focus": "equity"}
     ],
-    "opinion_curation": [
+    "reflection_curation": [
       {"type": "generated", "lean": "center_left", "topic_focus": "reform"},
       {"type": "generated", "lean": "center_right", "topic_focus": "implementation"},
       {"type": "generated", "lean": "bipartisan", "topic_focus": "consensus"}
@@ -122,7 +122,7 @@
       "generated_types": {"discussion": 4, "question": 2, "proposal": 1},
       "comments_per_generated": [6, 5, 5, 6, 4, 5, 6]
     },
-    "opinion_curation": {
+    "reflection_curation": {
       "anchors": [],
       "generated_count": 8,
       "generated_types": {"discussion": 4, "question": 2, "proposal": 2},
@@ -134,7 +134,7 @@
       "title": "Living Wage Priorities for Oregon Workers",
       "type": "standard",
       "session_name": "Living Wage",
-      "target_stage": "opinion_curation",
+      "target_stage": "reflection_curation",
       "questions": [
         {"question": "What is the most important factor in determining a living wage?",
          "options": ["Cost of housing", "Cost of healthcare", "Family size and dependents", "Regional cost of living differences"]},

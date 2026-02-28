@@ -11,6 +11,7 @@ services:
             FLASK_APP: "app.app:create_app"
             # Keycloak
             KEYCLOAK_URL: http://keycloak:8180
+            KEYCLOAK_ISSUER_URL: http://localhost:8180
             KEYCLOAK_REALM: candid
             KEYCLOAK_BACKEND_CLIENT_ID: candid-backend
             KEYCLOAK_BACKEND_CLIENT_SECRET: candid-backend-secret
@@ -32,6 +33,17 @@ services:
             GUNICORN_WORKERS: 4
             # NLP service
             NLP_SERVICE_URL: http://nlp:5001
+            # Social login (Apple / Google)
+            GOOGLE_CLIENT_ID_IOS: ${GOOGLE_CLIENT_ID_IOS:-}
+            GOOGLE_CLIENT_ID_ANDROID: ${GOOGLE_CLIENT_ID_ANDROID:-}
+            GOOGLE_CLIENT_ID_WEB: ${GOOGLE_CLIENT_ID_WEB:-}
+            APPLE_SERVICE_ID: ${APPLE_SERVICE_ID:-com.candid.app}
+            # SMS / Phone verification
+            SMS_VERIFICATION_ENABLED: ${SMS_VERIFICATION_ENABLED:-false}
+            TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+            TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+            TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:-}
+            SECRET_KEY: ${SECRET_KEY:-candid-dev-secret-key}
             # CORS (set by dev.sh at runtime with detected host IP)
             CORS_ORIGINS: ${CORS_ORIGINS:-}
         healthcheck:
@@ -53,6 +65,7 @@ services:
                 condition: service_started
         volumes:
             - ./backend/server/controllers:/usr/src/app/candid/controllers # Live-reload controllers in dev
+            - ./backend/scripts:/usr/src/scripts # Dev scripts (compute_trust_scores, etc.)
 
     db:
         build:
@@ -69,6 +82,19 @@ services:
             start_period: 30s
             retries: 5
 
+    polis-db:
+        build:
+            context: ./backend/polis-integration
+            dockerfile: database/Dockerfile
+        volumes:
+            - polis_data:/var/lib/postgresql/data
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U user -d polis-dev"]
+            interval: 5s
+            timeout: 5s
+            start_period: 30s
+            retries: 5
+
     polis-server:
         build:
             context: ./backend/polis-integration/polis/server
@@ -77,12 +103,12 @@ services:
         # No ports published — only accessible within the Docker network via http://polis-server:5000
         # All external access goes through the Candid API proxy (/api/v1/stats/report, /api/v1/polis-asset, /api/v1/polis-api)
         environment:
-            DATABASE_URL: postgres://user:postgres@db:5432/polis-dev
+            DATABASE_URL: postgres://user:postgres@polis-db:5432/polis-dev
             DEV_MODE: "true"
             API_SERVER_PORT: 5000
             MATH_ENV: dev
             # Auth via Keycloak OIDC
-            AUTH_ISSUER: http://keycloak:8180/realms/candid
+            AUTH_ISSUER: http://localhost:8180/realms/candid
             JWKS_URI: http://keycloak:8180/realms/candid/protocol/openid-connect/certs
             AUTH_AUDIENCE: users
             # Static file server for report/admin/participation pages
@@ -99,7 +125,7 @@ services:
             start_period: 90s
             retries: 5
         depends_on:
-            db:
+            polis-db:
                 condition: service_healthy
             keycloak:
                 condition: service_healthy
@@ -122,10 +148,10 @@ services:
             context: ./backend/polis-integration/polis/math
             dockerfile: Dockerfile
         environment:
-            DATABASE_URL: postgres://user:postgres@db:5432/polis-dev
+            DATABASE_URL: postgres://user:postgres@polis-db:5432/polis-dev
             MATH_ENV: dev
         depends_on:
-            db:
+            polis-db:
                 condition: service_healthy
 
     keycloak:
@@ -141,6 +167,13 @@ services:
             KC_BOOTSTRAP_ADMIN_USERNAME: admin
             KC_BOOTSTRAP_ADMIN_PASSWORD: admin
             KC_HTTP_PORT: 8180
+            # Fix issuer: all tokens use localhost:8180 regardless of access path
+            KC_HOSTNAME: localhost
+            KC_HOSTNAME_PORT: 8180
+            # Enable token exchange for social login (Apple/Google)
+            # token-exchange:v1 = direct naked impersonation grant
+            # admin-fine-grained-authz:v1 = permission policies required by token-exchange v1
+            KC_FEATURES: "token-exchange:v1,admin-fine-grained-authz:v1"
         volumes:
             - ./backend/keycloak/candid-realm.json:/opt/keycloak/data/import/candid-realm.json
             - ./backend/keycloak/themes/candid:/opt/keycloak/themes/candid
@@ -207,7 +240,7 @@ services:
             LLM_PROVIDER: ${LLM_PROVIDER:-}
             ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
             OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-            LLM_MODEL: ${LLM_MODEL:-}
+            LLM_MODEL: ${LLM_MODEL:-claude-sonnet-4-20250514}
         healthcheck:
             test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
             interval: 30s
@@ -217,4 +250,5 @@ services:
 
 volumes:
     postgres_data:
+    polis_data:
     redis_data:

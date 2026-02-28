@@ -671,7 +671,7 @@ const createStyles = (colors) => StyleSheet.create({
     padding: 4,
   },
   scrollContent: {
-    flex: 1,
+    flexShrink: 1,
     padding: 16,
   },
   errorContainer: {

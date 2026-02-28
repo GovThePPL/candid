@@ -1054,9 +1054,9 @@ class TestSessionStageGating:
             assert ok is True
             assert err is None
 
-    def test_proposal_post_allowed_in_opinion_proposals(self):
+    def test_proposal_post_allowed_in_reflection_proposals(self):
         mock_db = MagicMock()
-        mock_db.execute_query = MagicMock(return_value={'stage': 'opinion_proposals'})
+        mock_db.execute_query = MagicMock(return_value={'stage': 'reflection_proposals'})
 
         with patch("candid.controllers.helpers.auth.db", mock_db):
             ok, err = check_session_stage(self.SESSION_ID, 'proposal_post')

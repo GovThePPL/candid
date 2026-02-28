@@ -14,177 +14,147 @@ jest.mock('react-i18next', () => ({
         wizardIssueDescriptionDesc: 'Describe the issue...',
         wizardIssueDescriptionPlaceholder: 'Describe in your own words...',
         wizardStepOf: `Step ${opts?.current || '?'} of ${opts?.total || '?'}`,
-        wizardEnhanceButton: 'Enhance with AI',
-        wizardEnhancing: 'Enhancing...',
-        wizardAISuggestion: 'AI Suggestion',
-        wizardAcceptAI: 'Use This',
-        wizardRejectAI: 'Keep Mine',
+        wizardGetFeedback: 'Get Feedback',
+        wizardGettingFeedback: 'Getting feedback...',
+        wizardAIFeedback: 'AI Feedback',
+        wizardNext: 'Next',
         wizardStepInputA11y: `Text input for ${opts?.step || '?'}`,
-        wizardEnhanceA11y: 'Enhance this section with AI',
-        wizardAcceptAIA11y: 'Accept AI suggestion',
-        wizardRejectAIA11y: 'Reject AI suggestion and keep original',
+        wizardGetFeedbackA11y: 'Get AI feedback on this section',
+        wizardNextA11y: 'Go to next step',
+        wizardDismissFeedbackA11y: 'Dismiss AI feedback',
       }
       return map[key] || key
     },
   }),
 }))
 
+jest.mock('../../components/discuss/MarkdownRenderer', () => {
+  const { Text } = require('react-native')
+  return function MockMarkdownRenderer({ content }) {
+    return <Text>{content}</Text>
+  }
+})
+
+jest.mock('../../components/ThemedButton', () => {
+  const { TouchableOpacity, Text } = require('react-native')
+  return function MockThemedButton({ children, onPress, disabled, accessibilityLabel }) {
+    return (
+      <TouchableOpacity
+        onPress={onPress}
+        disabled={disabled}
+        accessibilityLabel={accessibilityLabel}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: !!disabled }}
+      >
+        <Text>{typeof children === 'string' ? children : null}</Text>
+        {typeof children !== 'string' ? children : null}
+      </TouchableOpacity>
+    )
+  }
+})
+
 import ProposalWizardStep from '../../components/discuss/ProposalWizardStep'
 
 const defaultStep = { id: 'description', keyPrefix: 'wizardIssueDescription' }
 
+const defaultProps = {
+  step: defaultStep,
+  value: '',
+  onChange: jest.fn(),
+  onGetFeedback: jest.fn(),
+  enhancing: false,
+  canRequestFeedback: false,
+  onNext: jest.fn(),
+  canAdvance: false,
+  initialFeedback: null,
+  stepNumber: 1,
+  totalSteps: 3,
+}
+
 describe('ProposalWizardStep', () => {
   it('renders step title and description', () => {
-    render(
-      <ProposalWizardStep
-        step={defaultStep}
-        value=""
-        onChange={jest.fn()}
-        onEnhance={jest.fn()}
-        enhancing={false}
-        stepNumber={1}
-        totalSteps={3}
-      />
-    )
+    render(<ProposalWizardStep {...defaultProps} />)
     expect(screen.getByText('Issue Description')).toBeTruthy()
     expect(screen.getByText('Describe the issue...')).toBeTruthy()
     expect(screen.getByText('Step 1 of 3')).toBeTruthy()
   })
 
-  it('shows enhance button', () => {
-    render(
-      <ProposalWizardStep
-        step={defaultStep}
-        value="Some text"
-        onChange={jest.fn()}
-        onEnhance={jest.fn()}
-        enhancing={false}
-        stepNumber={1}
-        totalSteps={3}
-      />
-    )
-    expect(screen.getByText('Enhance with AI')).toBeTruthy()
+  it('shows Get Feedback and Next buttons', () => {
+    render(<ProposalWizardStep {...defaultProps} value="Some text" canRequestFeedback={true} />)
+    expect(screen.getByText('Get Feedback')).toBeTruthy()
+    expect(screen.getByText('Next')).toBeTruthy()
   })
 
   it('calls onChange when text input changes', () => {
     const onChange = jest.fn()
-    render(
-      <ProposalWizardStep
-        step={defaultStep}
-        value=""
-        onChange={onChange}
-        onEnhance={jest.fn()}
-        enhancing={false}
-        stepNumber={1}
-        totalSteps={3}
-      />
-    )
+    render(<ProposalWizardStep {...defaultProps} onChange={onChange} />)
     const input = screen.getByLabelText('Text input for Issue Description')
     fireEvent.changeText(input, 'New text')
     expect(onChange).toHaveBeenCalledWith('New text')
   })
 
-  it('calls onEnhance when enhance button pressed with content', async () => {
-    const onEnhance = jest.fn().mockResolvedValue('Enhanced content')
+  it('calls onGetFeedback when Get Feedback pressed', () => {
+    const onGetFeedback = jest.fn()
     render(
       <ProposalWizardStep
-        step={defaultStep}
+        {...defaultProps}
         value="Some draft"
-        onChange={jest.fn()}
-        onEnhance={onEnhance}
-        enhancing={false}
-        stepNumber={1}
-        totalSteps={3}
+        onGetFeedback={onGetFeedback}
+        canRequestFeedback={true}
       />
     )
-
-    fireEvent.press(screen.getByText('Enhance with AI'))
-
-    await waitFor(() => {
-      expect(onEnhance).toHaveBeenCalledWith('description', 'Some draft')
-    })
+    fireEvent.press(screen.getByText('Get Feedback'))
+    expect(onGetFeedback).toHaveBeenCalled()
   })
 
-  it('shows AI suggestion after enhancement', async () => {
-    const onEnhance = jest.fn().mockResolvedValue('Enhanced content here')
+  it('calls onNext when Next pressed and canAdvance is true', () => {
+    const onNext = jest.fn()
     render(
       <ProposalWizardStep
-        step={defaultStep}
-        value="Draft text"
-        onChange={jest.fn()}
-        onEnhance={onEnhance}
-        enhancing={false}
-        stepNumber={1}
-        totalSteps={3}
-      />
-    )
-
-    fireEvent.press(screen.getByText('Enhance with AI'))
-
-    await waitFor(() => {
-      expect(screen.getByText('AI Suggestion')).toBeTruthy()
-      expect(screen.getByText('Enhanced content here')).toBeTruthy()
-      expect(screen.getByText('Use This')).toBeTruthy()
-      expect(screen.getByText('Keep Mine')).toBeTruthy()
-    })
-  })
-
-  it('accepts AI suggestion and updates value', async () => {
-    const onChange = jest.fn()
-    const onEnhance = jest.fn().mockResolvedValue('AI text')
-    render(
-      <ProposalWizardStep
-        step={defaultStep}
+        {...defaultProps}
         value="Draft"
-        onChange={onChange}
-        onEnhance={onEnhance}
-        enhancing={false}
-        stepNumber={1}
-        totalSteps={3}
+        onNext={onNext}
+        canAdvance={true}
       />
     )
-
-    fireEvent.press(screen.getByText('Enhance with AI'))
-    await waitFor(() => screen.getByText('Use This'))
-
-    fireEvent.press(screen.getByText('Use This'))
-    expect(onChange).toHaveBeenCalledWith('AI text')
+    fireEvent.press(screen.getByText('Next'))
+    expect(onNext).toHaveBeenCalled()
   })
 
-  it('rejects AI suggestion and keeps original', async () => {
-    const onChange = jest.fn()
-    const onEnhance = jest.fn().mockResolvedValue('AI text')
+  it('disables Next when canAdvance is false', () => {
+    render(<ProposalWizardStep {...defaultProps} value="Draft" canAdvance={false} />)
+    const btn = screen.getByLabelText('Go to next step')
+    expect(btn.props.accessibilityState.disabled).toBe(true)
+  })
+
+  it('disables Get Feedback when canRequestFeedback is false', () => {
+    render(<ProposalWizardStep {...defaultProps} value="Draft" canRequestFeedback={false} />)
+    const btn = screen.getByLabelText('Get AI feedback on this section')
+    expect(btn.props.accessibilityState.disabled).toBe(true)
+  })
+
+  it('shows initialFeedback on mount', () => {
     render(
       <ProposalWizardStep
-        step={defaultStep}
+        {...defaultProps}
         value="Draft"
-        onChange={onChange}
-        onEnhance={onEnhance}
-        enhancing={false}
-        stepNumber={1}
-        totalSteps={3}
+        initialFeedback="Previous feedback"
       />
     )
-
-    fireEvent.press(screen.getByText('Enhance with AI'))
-    await waitFor(() => screen.getByText('Keep Mine'))
-
-    fireEvent.press(screen.getByText('Keep Mine'))
-    expect(onChange).not.toHaveBeenCalled()
+    expect(screen.getByText('Previous feedback')).toBeTruthy()
+    expect(screen.getByText('AI Feedback')).toBeTruthy()
   })
 
-  it('shows enhancing state', () => {
+  it('dismisses feedback when dismiss button pressed', () => {
     render(
       <ProposalWizardStep
-        step={defaultStep}
-        value="Some text"
-        onChange={jest.fn()}
-        onEnhance={jest.fn()}
-        enhancing={true}
-        stepNumber={1}
-        totalSteps={3}
+        {...defaultProps}
+        value="Draft"
+        initialFeedback="Some feedback"
       />
     )
-    expect(screen.getByText('Enhancing...')).toBeTruthy()
+    expect(screen.getByText('Some feedback')).toBeTruthy()
+    fireEvent.press(screen.getByLabelText('Dismiss AI feedback'))
+    expect(screen.queryByText('Some feedback')).toBeNull()
   })
 })

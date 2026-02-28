@@ -284,7 +284,7 @@ const createStyles = (colors) => StyleSheet.create({
     gap: 12,
   },
   scrollContainer: {
-    flex: 1,
+    flexShrink: 1,
   },
   scrollContent: {
     padding: 16,

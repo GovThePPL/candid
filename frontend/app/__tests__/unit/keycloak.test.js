@@ -31,6 +31,7 @@ jest.mock('expo-web-browser', () => ({
 
 import {
   loginWithCredentials,
+  loginWithSocialToken,
   login,
   register,
   refreshToken,
@@ -103,6 +104,72 @@ describe('loginWithCredentials', () => {
   })
 })
 
+describe('loginWithSocialToken', () => {
+  it('returns tokens on success', async () => {
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({
+        access_token: 'social-at',
+        refresh_token: 'social-rt',
+      }),
+    })
+
+    const result = await loginWithSocialToken('google', 'google-jwt-123')
+    expect(result.accessToken).toBe('social-at')
+    expect(result.refreshToken).toBe('social-rt')
+    expect(mockSetSecureItem).toHaveBeenCalledWith('candid_refresh_token', 'social-rt')
+  })
+
+  it('sends correct request body with provider and token', async () => {
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ access_token: 'at', refresh_token: 'rt' }),
+    })
+
+    await loginWithSocialToken('apple', 'apple-jwt', { displayName: 'Jane' })
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/auth/social'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          provider: 'apple',
+          identityToken: 'apple-jwt',
+          userInfo: { displayName: 'Jane' },
+        }),
+      })
+    )
+  })
+
+  it('omits userInfo when not provided', async () => {
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ access_token: 'at', refresh_token: 'rt' }),
+    })
+
+    await loginWithSocialToken('google', 'jwt')
+    const body = JSON.parse(global.fetch.mock.calls[0][1].body)
+    expect(body).not.toHaveProperty('userInfo')
+  })
+
+  it('throws on error response', async () => {
+    global.fetch.mockResolvedValueOnce({
+      ok: false,
+      json: () => Promise.resolve({ detail: 'Invalid token' }),
+    })
+
+    await expect(loginWithSocialToken('google', 'bad-jwt')).rejects.toThrow('Invalid token')
+  })
+
+  it('throws default message when error has no detail', async () => {
+    global.fetch.mockResolvedValueOnce({
+      ok: false,
+      json: () => Promise.resolve({}),
+    })
+
+    await expect(loginWithSocialToken('google', 'bad')).rejects.toThrow('Social login failed')
+  })
+})
+
 describe('login (PKCE flow)', () => {
   it('returns tokens on success', async () => {
     mockPromptAsync.mockResolvedValueOnce({
@@ -164,15 +231,25 @@ describe('refreshToken', () => {
       if (key === 'candid_refresh_token') return Promise.resolve('old-rt')
       return Promise.resolve(null)
     })
-    mockRefreshAsync.mockResolvedValueOnce({
-      accessToken: 'new-at',
-      refreshToken: 'new-rt',
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({
+        access_token: 'new-at',
+        refresh_token: 'new-rt',
+      }),
     })
 
     const result = await refreshToken()
     expect(result.accessToken).toBe('new-at')
     expect(result.refreshToken).toBe('new-rt')
     expect(mockSetSecureItem).toHaveBeenCalledWith('candid_refresh_token', 'new-rt')
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/auth/refresh'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ refresh_token: 'old-rt' }),
+      })
+    )
   })
 
   it('returns null and clears token on failure', async () => {
@@ -180,7 +257,7 @@ describe('refreshToken', () => {
       if (key === 'candid_refresh_token') return Promise.resolve('old-rt')
       return Promise.resolve(null)
     })
-    mockRefreshAsync.mockRejectedValueOnce(new Error('expired'))
+    global.fetch.mockResolvedValueOnce({ ok: false, status: 401 })
 
     const result = await refreshToken()
     expect(result).toBeNull()
@@ -194,7 +271,7 @@ describe('logout', () => {
     expect(mockDeleteSecureItem).toHaveBeenCalledWith('candid_refresh_token')
   })
 
-  it('calls end-session endpoint when refresh token exists', async () => {
+  it('calls logout proxy when refresh token exists', async () => {
     mockGetSecureItem.mockImplementation((key) => {
       if (key === 'candid_refresh_token') return Promise.resolve('rt-to-revoke')
       return Promise.resolve(null)
@@ -203,8 +280,11 @@ describe('logout', () => {
 
     await logout()
     expect(global.fetch).toHaveBeenCalledWith(
-      expect.stringContaining('/logout'),
-      expect.objectContaining({ method: 'POST' })
+      expect.stringContaining('/auth/logout'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ refresh_token: 'rt-to-revoke' }),
+      })
     )
   })
 

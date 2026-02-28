@@ -27,6 +27,8 @@
   "wikiScopeAllLocations": "All",
   "wikiScopeAllSessions": "All Sessions",
   "wikiClearFilterA11y": "Clear {{filter}} filter",
+  "wikiClearFilters": "Clear",
+  "wikiClearFiltersA11y": "Clear all filters",
   "wikiNoResults": "No articles found",
   "wikiNoResultsSubtitle": "Try a different search or filter",
   "wikiNoTerms": "No terms found",

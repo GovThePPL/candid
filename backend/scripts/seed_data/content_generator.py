@@ -143,7 +143,7 @@ def generate_comment_tree(n_comments, vocab, post_lean="center"):
     return top_level
 
 
-PROPOSAL_POST_STAGES = {"proposal_qualify", "opinion_proposals"}
+PROPOSAL_POST_STAGES = {"proposal_qualify", "reflection_proposals"}
 
 
 def generate_posts_for_stage(stage, gen_config, vocab):

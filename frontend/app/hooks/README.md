@@ -21,4 +21,6 @@ Custom React hooks used across the app.
 | `useModalBackHandler.js` | Web-only hook that integrates modal visibility with browser history and Escape key |
 | `useThemeColors.js` | Theme-aware color tokens from `ThemeContext` |
 | `useUser.js` | Current user state, refresh, and auth status from `UserContext` |
+| `useExpandCollapse.js` | Reanimated expand/collapse animation with dynamic content height measurement |
+| `useFlashAnimation.js` | Shared reanimated hook for card option flash animation (PairwiseCard, SurveyCard, DemographicCard) |
 | `useIsDesktop.js` | Reactive desktop breakpoint hook (>= 1024px) using `useWindowDimensions` |

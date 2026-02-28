@@ -1,5 +1,6 @@
-import { StyleSheet, View, TouchableOpacity, Animated, Platform } from 'react-native'
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { StyleSheet, View, TouchableOpacity, Platform } from 'react-native'
+import Animated, { useSharedValue, useAnimatedStyle, useAnimatedProps, withTiming, withSequence, interpolateColor } from 'react-native-reanimated'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
@@ -38,48 +39,39 @@ export default function IncomingChatRequestIndicator({ incomingRequest, onExpire
   const styles = useMemo(() => createStyles(colors), [colors])
 
   const [remainingSeconds, setRemainingSeconds] = useState(0)
-  const progressAnim = useRef(new Animated.Value(0)).current
-  const flashAnim = useRef(new Animated.Value(0)).current
-  const scaleAnim = useRef(new Animated.Value(1)).current
+  const progress = useSharedValue(0)
+  const flash = useSharedValue(0)
+  const scale = useSharedValue(1)
   const reminderRef = useRef(null)
 
   const createdTime = incomingRequest?.data?.createdTime
   const requester = incomingRequest?.data?.requester
   const expiresAt = createdTime ? new Date(createdTime).getTime() + CHAT_REQUEST_TIMEOUT_MS : 0
 
-  // Play sound + haptic + flash animation
-  // useNativeDriver: false for all — borderColor interpolation requires JS driver,
-  // and mixing drivers on the same Animated.Value causes errors
-  const triggerAlert = useRef(() => {
+  const circleProps = useAnimatedProps(() => ({
+    strokeDashoffset: progress.value * CIRCUMFERENCE,
+  }))
+
+  const borderStyle = useAnimatedStyle(() => ({
+    borderColor: interpolateColor(flash.value, [0, 1], [colors.primary, '#FFFFFF']),
+  }), [colors.primary])
+
+  const scaleStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }))
+
+  const triggerAlert = useCallback(() => {
     playIncomingRequestSound()
     hapticTap()
-    Animated.parallel([
-      Animated.sequence([
-        Animated.timing(scaleAnim, {
-          toValue: 1.05,
-          duration: 200,
-          useNativeDriver: false,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: false,
-        }),
-      ]),
-      Animated.sequence([
-        Animated.timing(flashAnim, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: false,
-        }),
-        Animated.timing(flashAnim, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: false,
-        }),
-      ]),
-    ]).start()
-  }).current
+    scale.value = withSequence(
+      withTiming(1.05, { duration: 200 }),
+      withTiming(1, { duration: 200 }),
+    )
+    flash.value = withSequence(
+      withTiming(1, { duration: 200 }),
+      withTiming(0, { duration: 200 }),
+    )
+  }, [scale, flash])
 
   // Initialize remaining seconds and progress
   useEffect(() => {
@@ -90,7 +82,7 @@ export default function IncomingChatRequestIndicator({ incomingRequest, onExpire
 
     const totalDuration = CHAT_REQUEST_TIMEOUT_MS / 1000
     const elapsed = (now - new Date(createdTime).getTime()) / 1000
-    progressAnim.setValue(Math.min(1, Math.max(0, elapsed / totalDuration)))
+    progress.value = Math.min(1, Math.max(0, elapsed / totalDuration))
   }, [createdTime])
 
   // Initial alert + native sound init
@@ -133,13 +125,9 @@ export default function IncomingChatRequestIndicator({ incomingRequest, onExpire
         const totalDuration = CHAT_REQUEST_TIMEOUT_MS / 1000
         const now = Date.now()
         const elapsed = (now - new Date(createdTime).getTime()) / 1000
-        const progress = Math.min(1, Math.max(0, elapsed / totalDuration))
+        const newProgress = Math.min(1, Math.max(0, elapsed / totalDuration))
 
-        Animated.timing(progressAnim, {
-          toValue: progress,
-          duration: 1000,
-          useNativeDriver: false,
-        }).start()
+        progress.value = withTiming(newProgress, { duration: 1000 })
       }
     }, 1000)
 
@@ -152,16 +140,6 @@ export default function IncomingChatRequestIndicator({ incomingRequest, onExpire
     router.push('/cards')
   }
 
-  const borderColor = flashAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [colors.primary, '#FFFFFF'],
-  })
-
-  const strokeDashoffset = progressAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, CIRCUMFERENCE],
-  })
-
   return (
     <TouchableOpacity
       onPress={handlePress}
@@ -171,7 +149,7 @@ export default function IncomingChatRequestIndicator({ incomingRequest, onExpire
       accessibilityLabel={t('incomingChatRequestLabel', { name: requester.displayName || 'user', seconds: remainingSeconds })}
       accessibilityHint={t('viewChatRequestHint')}
     >
-      <Animated.View style={[styles.wrapper, { borderColor, transform: [{ scale: scaleAnim }] }]}>
+      <Animated.View style={[styles.wrapper, borderStyle, scaleStyle]}>
         {/* Requester avatar */}
         <Avatar user={requester} size={AVATAR_SIZE} showKudosBadge showKudosCount />
 
@@ -203,7 +181,7 @@ export default function IncomingChatRequestIndicator({ incomingRequest, onExpire
                 strokeWidth={STROKE_WIDTH}
                 fill="transparent"
                 strokeDasharray={CIRCUMFERENCE}
-                strokeDashoffset={strokeDashoffset}
+                animatedProps={circleProps}
                 strokeLinecap="round"
                 rotation="-90"
                 origin={`${INDICATOR_SIZE / 2}, ${INDICATOR_SIZE / 2}`}

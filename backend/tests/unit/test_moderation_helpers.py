@@ -1169,3 +1169,90 @@ class TestGetTargetUsers:
             from candid.controllers.helpers.moderation import get_target_users
             result = get_target_users("submitter", "position", POSITION_ID)
             assert result == []
+
+
+RULE_UUID = "aaa11111-1111-1111-1111-111111111111"
+
+
+def _fake_user():
+    """Create a minimal mock user for require_auth bypass."""
+    u = MagicMock()
+    u.id = NORMAL_USER
+    u.user_type = 'normal'
+    u.status = 'active'
+    return u
+
+
+class TestGetRulesPostTypeFilter:
+    """Tests for get_rules() post_type filtering logic."""
+
+    def _make_rule_row(self, applicable_post_types=None):
+        return {
+            'id': RULE_UUID,
+            'title': 'Test Rule',
+            'text': 'Test rule text.',
+            'severity': 3,
+            'default_actions': None,
+            'sentencing_guidelines': None,
+            'applicable_content_types': ['post'],
+            'applicable_post_types': applicable_post_types,
+        }
+
+    def _auth_patches(self):
+        """Return a context-manager stack that bypasses require_auth."""
+        from contextlib import ExitStack
+        stack = ExitStack()
+        stack.enter_context(patch(f"{AUTH}.authorization", return_value=(True, None)))
+        return stack
+
+    def test_post_type_filter_added_to_query(self):
+        """When post_type is provided, the SQL includes the ANY filter."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=[self._make_rule_row(['discussion'])])
+
+        with self._auth_patches(), patch(f"{MOD}.db", mock_db):
+            from candid.controllers.moderation_controller import get_rules
+            result = get_rules(post_type='discussion', token_info={'sub': NORMAL_USER})
+
+        call_args = mock_db.execute_query.call_args
+        sql = call_args[0][0]
+        params = call_args[0][1]
+        assert 'applicable_post_types IS NULL OR %s = ANY(applicable_post_types)' in sql
+        assert 'discussion' in params
+
+    def test_post_type_omitted_no_filter(self):
+        """When post_type is None, the SQL WHERE clause does not filter on post_types."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=[self._make_rule_row()])
+
+        with self._auth_patches(), patch(f"{MOD}.db", mock_db):
+            from candid.controllers.moderation_controller import get_rules
+            result = get_rules(token_info={'sub': NORMAL_USER})
+
+        call_args = mock_db.execute_query.call_args
+        sql = call_args[0][0]
+        assert 'ANY(applicable_post_types)' not in sql
+
+    def test_applicable_post_types_in_response(self):
+        """When rule has applicable_post_types, it appears in the response."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=[self._make_rule_row(['discussion', 'proposal'])])
+
+        with self._auth_patches(), patch(f"{MOD}.db", mock_db):
+            from candid.controllers.moderation_controller import get_rules
+            result = get_rules(token_info={'sub': NORMAL_USER})
+
+        assert len(result) == 1
+        assert result[0]['applicablePostTypes'] == ['discussion', 'proposal']
+
+    def test_applicable_post_types_none_not_in_response(self):
+        """When rule has no applicable_post_types (None), key is absent from response."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(return_value=[self._make_rule_row(None)])
+
+        with self._auth_patches(), patch(f"{MOD}.db", mock_db):
+            from candid.controllers.moderation_controller import get_rules
+            result = get_rules(token_info={'sub': NORMAL_USER})
+
+        assert len(result) == 1
+        assert 'applicablePostTypes' not in result[0]

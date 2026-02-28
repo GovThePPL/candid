@@ -34,11 +34,18 @@ def create_app() -> web.Application:
     from .handlers import register_handlers
     from .services import initialize_services
 
-    # Create Socket.IO server
+    # Create Socket.IO server with Redis adapter for cross-pod message delivery
     cors_raw = os.environ.get('CORS_ORIGINS', '')
-    cors_origins = [o for o in cors_raw.split(',') if o] if cors_raw else '*'
+    cors_origins = [o for o in cors_raw.split(',') if o] if cors_raw else [
+        'http://localhost:3001', 'http://localhost:8081',
+        'http://localhost:8082', 'http://localhost:19006',
+    ]
+    if not cors_raw:
+        logger.warning("CORS_ORIGINS not set, using localhost defaults")
+    mgr = socketio.AsyncRedisManager(config.REDIS_URL)
     sio = socketio.AsyncServer(
         async_mode="aiohttp",
+        client_manager=mgr,
         cors_allowed_origins=cors_origins,
         logger=False,
         engineio_logger=False,

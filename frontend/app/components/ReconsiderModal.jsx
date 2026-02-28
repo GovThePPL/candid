@@ -1,12 +1,12 @@
-import { useMemo, useEffect, useRef } from 'react'
+import { useMemo, useEffect } from 'react'
 import {
   View,
   StyleSheet,
   Modal,
   TouchableOpacity,
   Pressable,
-  Animated,
 } from 'react-native'
+import Animated, { useSharedValue, useAnimatedStyle, withSequence, withTiming } from 'react-native-reanimated'
 import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeColors } from '../hooks/useThemeColors'
@@ -34,7 +34,11 @@ export default function ReconsiderModal({
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const shared = useMemo(() => createSharedStyles(colors), [colors])
-  const pulseAnim = useRef(new Animated.Value(1)).current
+  const pulse = useSharedValue(1)
+
+  const pulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulse.value }],
+  }))
 
   useModalBackHandler(visible, onRevise)
 
@@ -44,20 +48,11 @@ export default function ReconsiderModal({
   useEffect(() => {
     if (!visible || canSend) return
 
-    const pulse = Animated.sequence([
-      Animated.timing(pulseAnim, {
-        toValue: 1.2,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-      Animated.timing(pulseAnim, {
-        toValue: 1,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-    ])
-    pulse.start()
-  }, [countdown, visible, canSend, pulseAnim])
+    pulse.value = withSequence(
+      withTiming(1.2, { duration: 150 }),
+      withTiming(1, { duration: 150 }),
+    )
+  }, [countdown, visible, canSend])
 
   return (
     <Modal
@@ -115,7 +110,7 @@ export default function ReconsiderModal({
           ) : (
             <Animated.View
               accessible={true}
-              style={[styles.countdownContainer, { transform: [{ scale: pulseAnim }] }]}
+              style={[styles.countdownContainer, pulseStyle]}
               accessibilityRole="button"
               accessibilityLabel={t('reconsiderSendAnywayA11y')}
               accessibilityState={{ disabled: true }}

@@ -93,6 +93,7 @@ export default function LocationFilterButton({
 
 const createStyles = (colors) => StyleSheet.create({
   button: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,

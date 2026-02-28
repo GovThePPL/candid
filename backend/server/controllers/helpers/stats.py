@@ -7,6 +7,11 @@ from typing import Any, Dict, List, Optional
 
 from candid.controllers import db
 
+# Minimum group size for demographic categories (k-anonymity).
+# Categories with fewer than K respondents are suppressed to prevent
+# deanonymization when combined with other data.
+K_ANONYMITY_THRESHOLD = 5
+
 
 def empty_demographics(
     group_id: str, group_label: str = "All", member_count: int = 0
@@ -58,18 +63,22 @@ def aggregate_demographics(
         if d.get("income_range"):
             income_range_counts[d["income_range"]] = income_range_counts.get(d["income_range"], 0) + 1
 
+    def _suppress(counts: Dict[str, int]) -> Dict[str, int]:
+        """Remove categories with fewer than K_ANONYMITY_THRESHOLD respondents."""
+        return {k: v for k, v in counts.items() if v >= K_ANONYMITY_THRESHOLD}
+
     return {
         "groupId": group_id,
         "groupLabel": group_label,
         "memberCount": member_count,
         "respondentCount": len(demographics),
-        "lean": lean_counts,
-        "education": education_counts,
-        "geoLocale": geo_locale_counts,
-        "sex": sex_counts,
-        "race": race_counts,
-        "ageRange": age_range_counts,
-        "incomeRange": income_range_counts,
+        "lean": _suppress(lean_counts),
+        "education": _suppress(education_counts),
+        "geoLocale": _suppress(geo_locale_counts),
+        "sex": _suppress(sex_counts),
+        "race": _suppress(race_counts),
+        "ageRange": _suppress(age_range_counts),
+        "incomeRange": _suppress(income_range_counts),
     }
 
 

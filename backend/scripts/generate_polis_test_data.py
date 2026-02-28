@@ -216,22 +216,22 @@ POSITIONS = [
     # Education
     {
         "statement": "Parents should have the right to choose where their children go to school using public funds.",
-        "session": "School Funding",
+        "session": "Fall 2025",
         "votes": (1, 1, 1, -1)  # MAGA/Christian/Liberal agree, Socialist disagrees
     },
     {
         "statement": "Critical race theory should not be taught in public schools.",
-        "session": "School Funding",
+        "session": "Fall 2025",
         "votes": (1, 1, 0, -1)  # MAGA/Christian agree, Socialist disagrees
     },
     {
         "statement": "College tuition should be free at public universities.",
-        "session": "School Funding",
+        "session": "Fall 2025",
         "votes": (-1, -1, -1, 1)  # Only Socialist agrees
     },
     {
         "statement": "Teachers should be paid significantly more than they currently are.",
-        "session": "School Funding",
+        "session": "Fall 2025",
         "votes": (0, 0, 0, 1)  # Socialist agrees strongly, others neutral
     },
 ]

@@ -50,7 +50,6 @@ export default function SortDropdown({ sort, onSortChange }) {
         visible={visible}
         onClose={() => setVisible(false)}
         title={t('sortLabel')}
-        shrink
       >
         <View style={styles.optionsList}>
           {SORT_OPTIONS.map((option) => {

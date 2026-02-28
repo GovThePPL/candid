@@ -1,7 +1,7 @@
 {
   "session_name": "Climate Action",
   "location_code": "CA",
-  "target_stage": "opinion_proposals",
+  "target_stage": "reflection_proposals",
   "topic_vocabulary": {
     "topic_noun": ["climate action", "climate policy", "emissions reduction"],
     "topic_adj": ["climate", "environmental", "emissions-related"],
@@ -38,12 +38,12 @@
       {"type": "generated", "lean": "center", "topic_focus": "implementation"},
       {"type": "generated", "lean": "divisive", "topic_focus": "funding"}
     ],
-    "opinion_curation": [
+    "reflection_curation": [
       {"type": "generated", "lean": "center_left", "topic_focus": "reform"},
       {"type": "generated", "lean": "center_right", "topic_focus": "implementation"},
       {"type": "generated", "lean": "bipartisan", "topic_focus": "equity"}
     ],
-    "opinion_proposals": [
+    "reflection_proposals": [
       {"type": "generated", "lean": "left", "topic_focus": "governance"},
       {"type": "generated", "lean": "center", "topic_focus": "funding"},
       {"type": "generated", "lean": "right", "topic_focus": "reform"}
@@ -99,13 +99,13 @@
       "generated_types": {"discussion": 4, "question": 2, "proposal": 1},
       "comments_per_generated": [5, 6, 4, 5, 5, 6, 4]
     },
-    "opinion_curation": {
+    "reflection_curation": {
       "anchors": [],
       "generated_count": 8,
       "generated_types": {"discussion": 4, "question": 2, "proposal": 2},
       "comments_per_generated": [5, 4, 6, 5, 4, 5, 6, 5]
     },
-    "opinion_proposals": {
+    "reflection_proposals": {
       "anchors": [
         {
           "post_type": "proposal",

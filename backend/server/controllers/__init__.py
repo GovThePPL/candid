@@ -12,6 +12,7 @@ else:
     config = cfg.ProductionConfig()
 
 db = Database(config)
+atexit.register(db.close_db_connection)
 
 # Start Polis sync worker if enabled
 if config.POLIS_ENABLED:

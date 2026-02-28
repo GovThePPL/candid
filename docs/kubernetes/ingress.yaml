@@ -1,0 +1,104 @@
+# Candid Ingress Configuration (nginx Ingress Controller)
+#
+# Two Ingress resources are needed because the chat service requires
+# sticky session annotations that don't apply to the API.
+#
+# Adaptation for other controllers:
+#   ALB (AWS):  Use alb.ingress.kubernetes.io annotations with target-group stickiness
+#   Traefik:    Use traefik.ingress.kubernetes.io/affinity and sticky cookie annotations
+#
+# Prerequisites:
+#   - cert-manager installed and a ClusterIssuer named "letsencrypt-prod" configured
+#   - nginx Ingress controller installed
+#   - Replace "app.your-domain.com" with your actual domain
+
+---
+# API Ingress — routes /api/ to the Flask API server
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: candid-ingress
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - app.your-domain.com
+    secretName: candid-tls
+  rules:
+  - host: app.your-domain.com
+    http:
+      paths:
+      - path: /api/
+        pathType: Prefix
+        backend:
+          service:
+            name: candid-api
+            port:
+              number: 8000
+
+---
+# Chat Ingress — routes /socket.io/ to the WebSocket chat server
+# Sticky sessions ensure Socket.IO's HTTP long-polling upgrade
+# handshake hits the same pod across requests.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: candid-chat-ingress
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/affinity: "cookie"
+    nginx.ingress.kubernetes.io/affinity-mode: "persistent"
+    nginx.ingress.kubernetes.io/session-cookie-name: "CANDID_CHAT"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/websocket-services: "candid-chat"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - app.your-domain.com
+    secretName: candid-tls
+  rules:
+  - host: app.your-domain.com
+    http:
+      paths:
+      - path: /socket.io/
+        pathType: Prefix
+        backend:
+          service:
+            name: candid-chat
+            port:
+              number: 8002
+
+---
+# Frontend Ingress — serves the Expo web bundle (catch-all)
+# The nginx Ingress controller matches by path specificity, so /api/ and
+# /socket.io/ take priority over this / route.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: candid-frontend-ingress
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - app.your-domain.com
+    secretName: candid-tls
+  rules:
+  - host: app.your-domain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: candid-frontend
+            port:
+              number: 80

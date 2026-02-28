@@ -78,7 +78,7 @@ describe('BottomDrawerModal', () => {
       expect(MAX_HEIGHT_FRACTION).toBe(0.85)
     })
 
-    it('uses fixed height at 85% by default', () => {
+    it('uses maxHeight at 85% and no fixed height', () => {
       render(
         <BottomDrawerModal {...defaultProps}>
           <Text>Body</Text>
@@ -86,21 +86,8 @@ describe('BottomDrawerModal', () => {
       )
       const contentView = screen.getByTestId('drawer-content')
       const styles = [].concat(contentView.props.style).flat()
-      const heightStyle = styles.find(s => s && typeof s === 'object' && 'height' in s)
-      expect(heightStyle.height).toBeCloseTo(expected, 0)
-    })
-
-    it('uses maxHeight when shrink is true', () => {
-      render(
-        <BottomDrawerModal {...defaultProps} shrink>
-          <Text>Body</Text>
-        </BottomDrawerModal>
-      )
-      const contentView = screen.getByTestId('drawer-content')
-      const styles = [].concat(contentView.props.style).flat()
       const maxHeightStyle = styles.find(s => s && typeof s === 'object' && 'maxHeight' in s)
       expect(maxHeightStyle.maxHeight).toBeCloseTo(expected, 0)
-      // Should not have a fixed height
       const heightStyle = styles.find(s => s && typeof s === 'object' && 'height' in s)
       expect(heightStyle).toBeUndefined()
     })

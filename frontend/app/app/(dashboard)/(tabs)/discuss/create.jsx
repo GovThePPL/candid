@@ -1,20 +1,17 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
-import { View, ScrollView, TouchableOpacity, StyleSheet, Platform, ActivityIndicator } from 'react-native'
+import { View, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../../../hooks/useThemeColors'
 import useKeyboardHeight from '../../../../hooks/useKeyboardHeight'
-import { Spacing, BorderRadius } from '../../../../constants/Theme'
+import { Spacing, BorderRadius, Typography } from '../../../../constants/Theme'
 import { SemanticColors } from '../../../../constants/Colors'
 import api from '../../../../lib/api'
 import { CacheManager, CacheKeys } from '../../../../lib/cache'
 import { useUser } from '../../../../hooks/useUser'
 import Header from '../../../../components/Header'
 import ThemedText from '../../../../components/ThemedText'
-import ThemedTextInput from '../../../../components/ThemedTextInput'
-import ThemedButton from '../../../../components/ThemedButton'
-import LocationSessionSelector from '../../../../components/LocationSessionSelector'
 import { useLocationSession } from '../../../../contexts/LocationSessionContext'
 import WysiwygEditor from '../../../../components/WysiwygEditor'
 
@@ -36,22 +33,18 @@ export default function CreatePost() {
   const { user } = useUser()
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
-  const { keyboardHeight, webInitialHeight } = useKeyboardHeight()
+  const { keyboardHeight } = useKeyboardHeight()
 
-  const { canCreateProposals } = useLocationSession()
-  const [postType, setPostType] = useState(
-    type === 'question' ? 'question' : type === 'proposal' ? 'proposal' : 'discussion'
-  )
+  const { selectedLocation, selectedSession } = useLocationSession()
+  const postType = type === 'question' ? 'question' : 'discussion'
   const [title, setTitle] = useState('')
-  const [selectedLocation, setSelectedLocation] = useState(null)
-  const [selectedSession, setSelectedSession] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
   const [bodyLength, setBodyLength] = useState(0)
+  const [useVisual, setUseVisual] = useState(false)
   const editorRef = useRef(null)
 
   const isQuestion = postType === 'question'
-  const isProposal = postType === 'proposal'
 
   const titleLength = title.length
   const isTitleOver = titleLength > MAX_TITLE_LENGTH
@@ -62,7 +55,7 @@ export default function CreatePost() {
     && !isTitleOver
     && !isBodyOver
     && selectedLocation
-    && (!(isQuestion || isProposal) || selectedSession)
+    && (!isQuestion || selectedSession)
     && !submitting
 
   const handleBodyChange = useCallback((html) => {
@@ -122,119 +115,74 @@ export default function CreatePost() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <Header onBack={() => router.back()} />
 
-      <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          keyboardHeight > 0 && { paddingBottom: keyboardHeight },
-          Platform.OS === 'web' && webInitialHeight > 0 && { minHeight: webInitialHeight },
-        ]}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Screen title */}
-        <ThemedText variant="h1" style={styles.heading}>
-          {isQuestion ? t('createQuestionTitle') : t('createPostTitle')}
-        </ThemedText>
-
-        {/* Post type toggle */}
-        <View style={styles.typeToggle} accessibilityRole="tablist">
-          {['discussion', 'question', ...(canCreateProposals ? ['proposal'] : [])].map((typeOption) => {
-            const isActive = postType === typeOption
-            const label = typeOption === 'discussion' ? t('typeDiscussion') : typeOption === 'question' ? t('typeQuestion') : t('typeProposal')
-            return (
-              <TouchableOpacity
-                key={typeOption}
-                style={[styles.typeButton, isActive && styles.typeButtonActive]}
-                onPress={() => setPostType(typeOption)}
-                activeOpacity={0.7}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: isActive }}
-                accessibilityLabel={t('typeToggleA11y', { type: label })}
-              >
-                <ThemedText
-                  variant="buttonSmall"
-                  style={[styles.typeButtonLabel, isActive && styles.typeButtonLabelActive]}
-                >
-                  {label}
-                </ThemedText>
-              </TouchableOpacity>
-            )
-          })}
-        </View>
-
-        {/* Location & Session */}
-        <LocationSessionSelector
-          selectedLocation={selectedLocation}
-          selectedSession={selectedSession}
-          onLocationChange={setSelectedLocation}
-          onSessionChange={setSelectedSession}
-          showLabels
-          defaultLocation="last"
-          style={{ paddingHorizontal: 0, marginBottom: Spacing.md }}
-        />
-
-        {/* Title input */}
-        <View style={styles.inputGroup}>
-          <ThemedText variant="label" color="secondary" style={styles.inputLabel}>
-            {t('titleLabel')}
+      {/* Toolbar row: editor mode toggle + submit */}
+      <View style={styles.toolbarRow}>
+        <TouchableOpacity
+          onPress={() => setUseVisual(!useVisual)}
+          style={styles.toolbarButton}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: useVisual }}
+          accessibilityLabel={t('replyComposerEditorToggleA11y')}
+        >
+          <ThemedText variant="caption" color="secondary">
+            {useVisual ? t('replyComposerTextEditor') : t('replyComposerVisualEditor')}
           </ThemedText>
-          <ThemedTextInput
-            style={styles.titleInput}
-            placeholder={isQuestion ? t('questionTitlePlaceholder') : t('titlePlaceholder')}
-            value={title}
-            onChangeText={setTitle}
-            maxLength={MAX_TITLE_LENGTH + 20}
-            accessibilityLabel={t('titleInputA11y')}
-          />
-          <ThemedText
-            variant="caption"
-            color="secondary"
-            style={[styles.charCount, isTitleOver && styles.charCountOver]}
-          >
-            {t('charsRemaining', { count: titleLength, max: MAX_TITLE_LENGTH })}
-          </ThemedText>
-        </View>
+        </TouchableOpacity>
 
-        {/* Body editor */}
-        <View style={styles.inputGroup}>
-          <ThemedText variant="label" color="secondary" style={styles.inputLabel}>
-            {t('bodyLabel')}
-          </ThemedText>
-          <WysiwygEditor
-            ref={editorRef}
-            allowImages={false}
-            placeholder={isQuestion ? t('questionBodyPlaceholder') : t('bodyPlaceholder')}
-            onContentChange={handleBodyChange}
-            minHeight={160}
-          />
-          <ThemedText
-            variant="caption"
-            color="secondary"
-            style={[styles.charCount, isBodyOver && styles.charCountOver]}
-          >
-            {t('charsRemaining', { count: bodyLength, max: MAX_BODY_LENGTH.toLocaleString() })}
-          </ThemedText>
-        </View>
+        <View style={styles.toolbarSpacer} />
 
-        {/* Error banner */}
-        {error && (
-          <View style={styles.errorBanner}>
-            <ThemedText variant="bodySmall" color="error">{error}</ThemedText>
-          </View>
-        )}
-
-        {/* Submit button */}
-        <ThemedButton
+        <TouchableOpacity
+          style={[styles.submitPill, !canSubmit && styles.submitPillDisabled]}
           onPress={handleSubmit}
           disabled={!canSubmit}
+          accessibilityRole="button"
           accessibilityLabel={t('submitA11y')}
         >
           {submitting ? (
             <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
-            isQuestion ? t('submitQuestion') : t('submitPost')
+            <ThemedText variant="buttonSmall" color="inverse">
+              {isQuestion ? t('submitQuestion') : t('submitPost')}
+            </ThemedText>
           )}
-        </ThemedButton>
-      </ScrollView>
+        </TouchableOpacity>
+      </View>
+
+      {/* Error banner */}
+      {error && (
+        <View style={styles.errorBanner}>
+          <ThemedText variant="bodySmall" color="error">{error}</ThemedText>
+        </View>
+      )}
+
+      {/* Title input — borderless, H1-sized */}
+      <TextInput
+        style={styles.titleInput}
+        placeholder={isQuestion ? t('questionTitlePlaceholder') : t('titlePlaceholder')}
+        placeholderTextColor={colors.placeholderText}
+        value={title}
+        onChangeText={setTitle}
+        maxLength={MAX_TITLE_LENGTH + 20}
+        maxFontSizeMultiplier={1.5}
+        accessibilityLabel={t('titleInputA11y')}
+      />
+      {isTitleOver && (
+        <ThemedText variant="caption" style={styles.charCountOver}>
+          {t('charsRemaining', { count: titleLength, max: MAX_TITLE_LENGTH })}
+        </ThemedText>
+      )}
+
+      {/* Body editor — fills remaining space */}
+      <View style={[styles.editorArea, keyboardHeight > 0 && { paddingBottom: keyboardHeight }]}>
+        <WysiwygEditor
+          ref={editorRef}
+          allowImages={false}
+          placeholder={isQuestion ? t('questionBodyPlaceholder') : t('bodyPlaceholder')}
+          onContentChange={handleBodyChange}
+          fullScreen
+          externalMode={useVisual ? 'visual' : 'markdown'}
+        />
+      </View>
     </SafeAreaView>
   )
 }
@@ -244,65 +192,51 @@ const createStyles = (colors) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  scrollContent: {
-    flexGrow: 1,
-    padding: Spacing.xl,
-  },
-  heading: {
-    marginBottom: Spacing.lg,
-  },
-  typeToggle: {
+  toolbarRow: {
     flexDirection: 'row',
-    gap: Spacing.sm,
-    marginBottom: Spacing.lg,
-  },
-  typeButton: {
+    alignItems: 'center',
     paddingHorizontal: Spacing.lg,
-    paddingVertical: 10,
-    borderRadius: BorderRadius.sm,
-    backgroundColor: colors.cardBackground,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
+    paddingVertical: Spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.cardBorder,
   },
-  typeButtonActive: {
-    backgroundColor: colors.buttonSelected,
-    borderColor: colors.buttonSelected,
+  toolbarSpacer: {
+    flex: 1,
   },
-  typeButtonLabel: {
-    fontWeight: '500',
+  toolbarButton: {
+    padding: Spacing.xs,
   },
-  typeButtonLabelActive: {
-    color: colors.buttonSelectedText,
-    fontWeight: '600',
+  submitPill: {
+    backgroundColor: colors.primary,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: BorderRadius.pill,
   },
-  inputGroup: {
-    marginBottom: Spacing.lg,
-  },
-  inputLabel: {
-    marginBottom: Spacing.xs,
+  submitPillDisabled: {
+    opacity: 0.5,
   },
   titleInput: {
-    backgroundColor: colors.cardBackground,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
     color: colors.text,
-    fontSize: 15,
-  },
-  charCount: {
-    textAlign: 'right',
-    marginTop: Spacing.xs,
+    fontSize: Typography.h1.fontSize,
+    fontWeight: Typography.h1.fontWeight,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.xs,
   },
   charCountOver: {
     color: SemanticColors.warning,
+    textAlign: 'right',
+    paddingHorizontal: Spacing.lg,
   },
   errorBanner: {
     backgroundColor: colors.errorBannerBg,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.sm,
-    borderWidth: 1,
-    borderColor: SemanticColors.warning,
-    marginBottom: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: SemanticColors.warning,
+  },
+  editorArea: {
+    flex: 1,
+    paddingHorizontal: Spacing.md,
   },
 })

@@ -4,7 +4,6 @@ import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { SemanticColors } from '../constants/Colors'
-import { Shadows } from '../constants/Theme'
 import { useThemeColors } from '../hooks/useThemeColors'
 import useChatHistory from '../hooks/useChatHistory'
 import { useToast } from '../components/Toast'
@@ -164,7 +163,7 @@ function ChatHistoryCard({ chat, onPress, onSendKudos, onReport, onModerate, can
         </View>
       </View>
 
-      <TouchableOpacity onPress={onPress} activeOpacity={0.7} accessibilityLabel={t('viewChatA11y')}>
+      <TouchableOpacity onPress={onPress} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={t('viewChatA11y')}>
         <CardShell
           accentColor={agreedClosure ? colors.agreeSurface : colors.cardBackground}
           bottomSection={closureBottomSection}
@@ -186,27 +185,31 @@ function ChatListSkeleton({ styles, colors }) {
     <SkeletonPulse style={styles.listContent}>
       {Array.from({ length: 4 }).map((_, i) => (
         <View key={i} style={styles.cardWrapper}>
-          {/* Meta row */}
+          {/* Meta row: date left, status badge right */}
           <View style={styles.chatMetaRow}>
-            <SkeletonLine width={60} height={10} />
-            <SkeletonBox width={80} height={24} borderRadius={12} />
+            <SkeletonLine width={60} height={12} />
+            <SkeletonBox width={90} height={24} borderRadius={12} />
           </View>
-          {/* CardShell mimic — rounded card with padding */}
+          {/* CardShell mimic */}
           <View style={styles.skeletonChatCard}>
-            {/* Badge row (LocationSessionBadge) */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            {/* LocationSessionBadge */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
               <SkeletonBox width={36} height={20} borderRadius={10} />
-              <SkeletonLine width={70} height={12} />
+              <SkeletonLine width={70} height={14} />
             </View>
-            {/* Statement lines */}
+            {/* Statement — 3 lines matching body variant */}
             <View style={{ gap: 6, marginBottom: 12 }}>
-              <SkeletonLine width="90%" height={13} />
-              <SkeletonLine width="75%" height={13} />
+              <SkeletonLine width="95%" height={14} />
+              <SkeletonLine width="80%" height={14} />
+              <SkeletonLine width="50%" height={14} />
             </View>
-            {/* Creator row with border-top */}
+            {/* Creator row — centered, border-top, avatar + name + username */}
             <View style={styles.skeletonCreatorRow}>
               <SkeletonCircle size={32} />
-              <SkeletonLine width={80} height={11} />
+              <View style={{ gap: 3 }}>
+                <SkeletonLine width={70} height={11} />
+                <SkeletonLine width={55} height={9} />
+              </View>
             </View>
           </View>
         </View>
@@ -405,7 +408,6 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.cardBackground,
     borderRadius: 12,
     padding: 16,
-    ...Shadows.card,
     overflow: 'hidden',
   },
   skeletonCreatorRow: {

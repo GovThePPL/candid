@@ -341,7 +341,6 @@ export default memo(function CommentItem({
           visible={optionsVisible}
           onClose={() => setOptionsVisible(false)}
           title={t('commentOptions')}
-          shrink
         >
           <View style={styles.optionsList}>
             {isOwnComment && comment.creatorRole != null && (

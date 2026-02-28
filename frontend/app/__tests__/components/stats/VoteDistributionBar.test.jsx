@@ -24,8 +24,8 @@ describe('VoteDistributionBar', () => {
     const distribution = { agree: 0, disagree: 0, pass: 0 }
     render(<VoteDistributionBar distribution={distribution} showLabels={true} />)
 
-    // "No votes" text for the empty bar
-    expect(screen.getByText('No votes')).toBeTruthy()
+    // "No votes" text for the empty bar (mocked t() returns key)
+    expect(screen.getByText('noVotes')).toBeTruthy()
   })
 
   it('handles single non-zero segment', () => {

@@ -13,7 +13,7 @@ import ChatRequestIndicator from './ChatRequestIndicator'
 import IncomingChatRequestIndicator from './IncomingChatRequestIndicator'
 import Avatar from './Avatar'
 import ThemedText from './ThemedText'
-import SessionStageBar from './SessionStageBar'
+// SessionStageBar removed — replaced by SessionInfoCard + SessionOverviewModal
 import { useToast } from './Toast'
 import api from '../lib/api'
 
@@ -29,7 +29,7 @@ export default function Header({ onBack, showCreateButton, showAvatar = true, di
   const { pendingChatRequest, clearPendingChatRequest, incomingChatRequest, clearIncomingChatRequest } = useChatContext()
   const isDesktop = useIsDesktop()
   const { unreadCount } = useNotificationCount()
-  const { openSessionSelector, viewingStage, isReadOnly } = useLocationSession()
+  const { openSessionSelector, openSessionOverview, viewingStage, isReadOnly } = useLocationSession()
   const [headerWidth, setHeaderWidth] = useState(0)
 
   const [rightWidth, setRightWidth] = useState(0)
@@ -251,14 +251,27 @@ export default function Header({ onBack, showCreateButton, showAvatar = true, di
           )}
         </View>
       </View>
-      {!hideSessionBar && !pathname.startsWith('/admin') && <SessionStageBar />}
       {!hideSessionBar && !pathname.startsWith('/admin') && isReadOnly && (
-        <View style={styles.readOnlyBanner}>
-          <Ionicons name="lock-closed" size={14} color={colors.secondaryText} />
-          <ThemedText variant="caption" color="secondary">
-            {viewingStage ? t('stageArchiveViewing') : t('stageReadOnly')}
-          </ThemedText>
-        </View>
+        viewingStage ? (
+          <TouchableOpacity
+            style={styles.readOnlyBanner}
+            onPress={openSessionOverview}
+            accessibilityRole="button"
+            accessibilityLabel={t('stageArchiveViewing')}
+          >
+            <Ionicons name="lock-closed" size={14} color={colors.secondaryText} />
+            <ThemedText variant="caption" color="secondary">
+              {t('stageArchiveViewing')}
+            </ThemedText>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.readOnlyBanner}>
+            <Ionicons name="lock-closed" size={14} color={colors.secondaryText} />
+            <ThemedText variant="caption" color="secondary">
+              {t('stageReadOnly')}
+            </ThemedText>
+          </View>
+        )
       )}
     </View>
   )

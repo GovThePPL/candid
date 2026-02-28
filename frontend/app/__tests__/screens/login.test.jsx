@@ -8,8 +8,25 @@ jest.mock('../../hooks/useThemeColors', () => ({
 }))
 
 const mockLogin = jest.fn()
+const mockSocialLogin = jest.fn()
 jest.mock('../../hooks/useUser', () => ({
-  useUser: () => ({ login: mockLogin }),
+  useUser: () => ({
+    login: mockLogin,
+    socialLogin: mockSocialLogin,
+    pendingSocialLogin: null,
+    completeSocialSignup: jest.fn(),
+    clearPendingSocialLogin: jest.fn(),
+  }),
+}))
+
+jest.mock('../../lib/keycloak', () => ({
+  sendPhoneVerification: jest.fn(),
+  confirmPhoneVerification: jest.fn(),
+}))
+
+jest.mock('../../contexts/ThemeContext', () => ({
+  ...jest.requireActual('../../contexts/ThemeContext'),
+  useTheme: () => ({ colors: require('../../constants/Colors').LightTheme, isDark: false }),
 }))
 
 jest.mock('../../lib/api', () => ({
@@ -24,21 +41,38 @@ jest.mock('../../components/LanguagePicker', () => {
   }
 })
 
+// Mock SocialLoginButtons — expose isSocialLoginEnabled for per-test override
+let mockSocialLoginEnabled = false
+jest.mock('../../components/SocialLoginButtons', () => {
+  const { Text } = require('react-native')
+  const component = function MockSocialLoginButtons() {
+    return <Text>SocialLoginButtons</Text>
+  }
+  return {
+    __esModule: true,
+    default: component,
+    isSocialLoginEnabled: () => mockSocialLoginEnabled,
+  }
+})
+
 import Login from '../../app/(auth)/login'
 
 beforeEach(() => {
   jest.clearAllMocks()
   mockLogin.mockResolvedValue()
+  mockSocialLoginEnabled = false
 })
 
-describe('Login screen', () => {
-  // NOTE: "renders without crashing" smoke tests were intentionally removed.
-  // Interaction tests below already render the component, making smoke tests redundant.
-
-  it('renders username and password inputs', () => {
+describe('Login screen — no social login configured', () => {
+  it('renders username and password inputs directly', () => {
     render(<Login />)
     expect(screen.getByPlaceholderText('usernamePlaceholder')).toBeTruthy()
     expect(screen.getByPlaceholderText('passwordPlaceholder')).toBeTruthy()
+  })
+
+  it('does not render "Login with Username" button', () => {
+    render(<Login />)
+    expect(screen.queryByText('loginWithUsername')).toBeNull()
   })
 
   it('shows error when submitting empty fields', async () => {
@@ -104,5 +138,45 @@ describe('Login screen', () => {
   it('renders register link', () => {
     render(<Login />)
     expect(screen.getByText('createAccountLink')).toBeTruthy()
+  })
+})
+
+describe('Login screen — social login configured', () => {
+  beforeEach(() => {
+    mockSocialLoginEnabled = true
+  })
+
+  it('renders social buttons and "Login with Username" button', () => {
+    render(<Login />)
+    expect(screen.getByText('SocialLoginButtons')).toBeTruthy()
+    expect(screen.getByText('loginWithUsername')).toBeTruthy()
+  })
+
+  it('does not render credential form initially', () => {
+    render(<Login />)
+    expect(screen.queryByPlaceholderText('usernamePlaceholder')).toBeNull()
+  })
+
+  it('shows credential form after pressing "Login with Username"', async () => {
+    render(<Login />)
+
+    await act(async () => {
+      fireEvent.press(screen.getByText('loginWithUsername'))
+    })
+
+    expect(screen.getByPlaceholderText('usernamePlaceholder')).toBeTruthy()
+    expect(screen.getByPlaceholderText('passwordPlaceholder')).toBeTruthy()
+    expect(screen.getByText('signIn')).toBeTruthy()
+    expect(screen.getByText('createAccountLink')).toBeTruthy()
+  })
+
+  it('shows "back to options" link in credential view', async () => {
+    render(<Login />)
+
+    await act(async () => {
+      fireEvent.press(screen.getByText('loginWithUsername'))
+    })
+
+    expect(screen.getByText('backToOptions')).toBeTruthy()
   })
 })

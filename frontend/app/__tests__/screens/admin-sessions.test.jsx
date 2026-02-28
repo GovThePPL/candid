@@ -31,22 +31,29 @@ const mockSessions = [
     locationCode: 'OR', locationName: 'Oregon', stage: 'consensus',
     status: 'active', proposalMethod: 'admin_provided',
   },
+  {
+    id: 'sess3', label: 'Transit Planning', locationId: 'loc1',
+    locationCode: 'US', locationName: 'United States', stage: 'opinion_discussion',
+    status: 'active', proposalMethod: 'user_driven',
+  },
+  {
+    id: 'sess4', label: 'Archived Policy', locationId: 'loc1',
+    locationCode: 'US', locationName: 'United States', stage: 'proposal_qualify',
+    status: 'archived', proposalMethod: 'user_driven',
+  },
 ]
 
-const mockLocations = [{ id: 'loc1', name: 'United States', code: 'US' }]
+const mockLocations = [
+  { id: 'loc1', name: 'United States', code: 'US' },
+  { id: 'loc2', name: 'Oregon', code: 'OR', parentLocationId: 'loc1' },
+]
 
 const mockFetchSessions = jest.fn()
-const mockHandleAdvanceStage = jest.fn()
 const mockHandleCreateSession = jest.fn()
 const mockResetCreateForm = jest.fn()
 
 jest.mock('../../hooks/useAdminSessions', () => ({
   __esModule: true,
-  getNextStage: (stage) => {
-    const order = ['proposal_issue', 'proposal_qualify', 'proposal_stakeholders', 'opinion_discussion', 'opinion_curation', 'opinion_proposals', 'reflection', 'consensus']
-    const idx = order.indexOf(stage)
-    return idx >= 0 && idx < order.length - 1 ? order[idx + 1] : null
-  },
   default: () => ({
     sessions: mockSessions,
     loading: false,
@@ -64,13 +71,14 @@ jest.mock('../../hooks/useAdminSessions', () => ({
     resetCreateForm: mockResetCreateForm,
     fetchSessionRoles: jest.fn(),
     fetchSessionLabelSurvey: jest.fn(),
-    handleAdvanceStage: mockHandleAdvanceStage,
+    handleAdvanceStage: jest.fn(),
     inlineLabelPhase: null, setInlineLabelPhase: jest.fn(),
     inlineLabelItems: ['', ''], setInlineLabelItems: jest.fn(),
     inlineLabelComparison: '', setInlineLabelComparison: jest.fn(),
     inlineLabelCreating: false,
     handleCreateLabelSurvey: jest.fn(), handleDeleteLabelSurvey: jest.fn(),
     resetInlineLabelForm: jest.fn(),
+    proposals: [{ title: '', body: '' }, { title: '', body: '' }], setProposals: jest.fn(),
   }),
 }))
 
@@ -103,13 +111,30 @@ jest.mock('../../components/BottomDrawerModal', () => {
 
 jest.mock('../../components/LocationSessionBadge', () => {
   const { Text } = require('react-native')
-  return function MockBadge({ location }) { return <Text>{location?.code || 'No location'}</Text> }
+  return function MockBadge({ location, session }) {
+    return <Text>{location?.code || 'No location'} {session?.label || ''}</Text>
+  }
 })
 
 jest.mock('../../components/SessionProgressBar', () => {
   const { Text } = require('react-native')
-  return function MockProgressBar({ stage, showStageLabel }) {
+  return function MockProgressBar({ stage }) {
     return <Text>Stage: {stage}</Text>
+  }
+})
+
+jest.mock('../../components/LocationFilterButton', () => {
+  const { Text, TouchableOpacity } = require('react-native')
+  return function MockLocationFilterButton({ onSelect, allLocations, selectedLocationId }) {
+    return (
+      <TouchableOpacity
+        testID="location-filter-button"
+        onPress={() => onSelect(allLocations[0]?.id)}
+        accessibilityRole="button"
+      >
+        <Text>{selectedLocationId ? `Filtered: ${selectedLocationId}` : 'selectLocation'}</Text>
+      </TouchableOpacity>
+    )
   }
 })
 
@@ -146,33 +171,32 @@ describe('Admin Sessions screen', () => {
     expect(screen.getByText('createNewSession')).toBeTruthy()
   })
 
-  it('displays session cards with labels', () => {
+  it('displays active session cards', () => {
     render(<AdminSessionsScreen />)
-    expect(screen.getByText('Healthcare Access')).toBeTruthy()
-    expect(screen.getByText('Education Reform')).toBeTruthy()
+    // Session labels rendered via LocationSessionBadge mock
+    expect(screen.getByText(/Healthcare Access/)).toBeTruthy()
+    expect(screen.getByText(/Transit Planning/)).toBeTruthy()
+  })
+
+  it('does not show advance stage button', () => {
+    render(<AdminSessionsScreen />)
+    expect(screen.queryByText('advanceStage')).toBeNull()
   })
 
   it('shows proposal method badges', () => {
     render(<AdminSessionsScreen />)
-    expect(screen.getByText('proposalMethodUserDriven')).toBeTruthy()
-    expect(screen.getByText('proposalMethodAdminProvided')).toBeTruthy()
+    expect(screen.getAllByText('proposalMethodUserDriven').length).toBeGreaterThanOrEqual(1)
   })
 
   it('shows stage progress bars', () => {
     render(<AdminSessionsScreen />)
     expect(screen.getByText('Stage: proposal_qualify')).toBeTruthy()
-    expect(screen.getByText('Stage: consensus')).toBeTruthy()
+    expect(screen.getByText('Stage: opinion_discussion')).toBeTruthy()
   })
 
-  it('shows advance button for sessions with a next stage (not at consensus)', () => {
+  it('shows manage button for each active session', () => {
     render(<AdminSessionsScreen />)
-    // Healthcare is at proposal_qualify (has next stage), Education is at consensus (no next)
-    const advanceButtons = screen.getAllByText('advanceStage')
-    expect(advanceButtons.length).toBe(1) // Only Healthcare
-  })
-
-  it('shows manage button for each session', () => {
-    render(<AdminSessionsScreen />)
+    // 2 active sessions visible by default (completed is collapsed)
     const manageButtons = screen.getAllByText('manageSession')
     expect(manageButtons.length).toBe(2)
   })
@@ -189,17 +213,10 @@ describe('Admin Sessions screen', () => {
     expect(mockPush).toHaveBeenCalledWith('/admin/sessions/sess1')
   })
 
-  it('calls handleAdvanceStage when advance button is pressed', () => {
-    render(<AdminSessionsScreen />)
-    const advanceButton = screen.getByText('advanceStage')
-    fireEvent.press(advanceButton)
-    expect(mockHandleAdvanceStage).toHaveBeenCalledWith(mockSessions[0])
-  })
-
   it('interactive elements have accessibilityRole button', () => {
     render(<AdminSessionsScreen />)
     const buttons = screen.getAllByRole('button')
-    // create + manage x2 + advance x1 = at least 4
+    // create + manage x2 + location filter + completed header = at least 4
     expect(buttons.length).toBeGreaterThanOrEqual(4)
   })
 
@@ -212,16 +229,78 @@ describe('Admin Sessions screen', () => {
   it('facilitator only sees sessions they have a role for', () => {
     mockUserRef = { user: mockFacilitatorUser }
     render(<AdminSessionsScreen />)
-    // Facilitator has role for sess1 (Healthcare), not sess2 (Education)
-    expect(screen.getByText('Healthcare Access')).toBeTruthy()
-    expect(screen.queryByText('Education Reform')).toBeNull()
+    // Facilitator has role for sess1 (Healthcare), not sess2 or sess3
+    expect(screen.getByText(/Healthcare Access/)).toBeTruthy()
+    expect(screen.queryByText(/Education Reform/)).toBeNull()
+    expect(screen.queryByText(/Transit Planning/)).toBeNull()
   })
 
-  it('facilitator still sees advance button for their sessions', () => {
-    mockUserRef = { user: mockFacilitatorUser }
-    render(<AdminSessionsScreen />)
-    // Healthcare is at proposal_qualify (has next stage) and facilitator can manage
-    const advanceButtons = screen.getAllByText('advanceStage')
-    expect(advanceButtons.length).toBe(1)
+  describe('completed sessions section', () => {
+    it('shows completed section header with count', () => {
+      render(<AdminSessionsScreen />)
+      // 2 completed: consensus session + archived session
+      expect(screen.getByText('completedSessionsCount 2')).toBeTruthy()
+    })
+
+    it('hides completed session cards by default', () => {
+      render(<AdminSessionsScreen />)
+      // Education Reform is at consensus (completed) and section is collapsed
+      expect(screen.queryByText(/Education Reform/)).toBeNull()
+      expect(screen.queryByText(/Archived Policy/)).toBeNull()
+    })
+
+    it('reveals completed session cards when header is pressed', () => {
+      render(<AdminSessionsScreen />)
+      const header = screen.getByText('completedSessionsCount 2')
+      fireEvent.press(header)
+      expect(screen.getByText(/Education Reform/)).toBeTruthy()
+      expect(screen.getByText(/Archived Policy/)).toBeTruthy()
+    })
+
+    it('collapses completed section on second press', () => {
+      render(<AdminSessionsScreen />)
+      const header = screen.getByText('completedSessionsCount 2')
+      fireEvent.press(header) // expand
+      fireEvent.press(header) // collapse
+      expect(screen.queryByText(/Education Reform/)).toBeNull()
+    })
+  })
+
+  describe('archived sessions', () => {
+    it('shows archived badge on archived sessions', () => {
+      render(<AdminSessionsScreen />)
+      const header = screen.getByText('completedSessionsCount 2')
+      fireEvent.press(header) // expand completed section
+      expect(screen.getByText('statusArchived')).toBeTruthy()
+    })
+
+    it('does not show archived sessions in active section', () => {
+      render(<AdminSessionsScreen />)
+      // Archived Policy should not appear in active section
+      expect(screen.queryByText(/Archived Policy/)).toBeNull()
+    })
+  })
+
+  describe('location filter', () => {
+    it('renders location filter button', () => {
+      render(<AdminSessionsScreen />)
+      expect(screen.getByTestId('location-filter-button')).toBeTruthy()
+    })
+
+    it('filters sessions by location when filter is applied', () => {
+      render(<AdminSessionsScreen />)
+      const filterButton = screen.getByTestId('location-filter-button')
+      fireEvent.press(filterButton) // selects loc1 (United States)
+      // Healthcare Access (loc1) and Transit Planning (loc1) should remain visible
+      expect(screen.getByText(/Healthcare Access/)).toBeTruthy()
+      expect(screen.getByText(/Transit Planning/)).toBeTruthy()
+    })
+
+    it('shows clear button when filter is active', () => {
+      render(<AdminSessionsScreen />)
+      const filterButton = screen.getByTestId('location-filter-button')
+      fireEvent.press(filterButton) // selects loc1
+      expect(screen.getByLabelText('clearLocationFilterA11y')).toBeTruthy()
+    })
   })
 })

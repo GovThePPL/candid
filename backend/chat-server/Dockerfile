@@ -9,4 +9,7 @@ COPY backend/chat-server/ .
 
 EXPOSE 8002
 
+RUN useradd -m -u 1000 app
+USER app
+
 CMD ["python", "-m", "chat_server"]

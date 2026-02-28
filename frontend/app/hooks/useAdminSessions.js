@@ -5,7 +5,7 @@
  * with proposal method selection, advancing session stages, and
  * managing label surveys.
  */
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Platform, Alert } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import api, { translateError } from '../lib/api'
@@ -16,9 +16,8 @@ const STAGE_ORDER = [
   'proposal_qualify',
   'proposal_stakeholders',
   'opinion_discussion',
-  'opinion_curation',
-  'opinion_proposals',
-  'reflection',
+  'reflection_curation',
+  'reflection_proposals',
   'consensus',
 ]
 
@@ -50,10 +49,25 @@ export default function useAdminSessions() {
   const [newLabel, setNewLabel] = useState('')
   const [newLocationId, setNewLocationId] = useState(null)
   const [newProposalMethod, setNewProposalMethod] = useState('user_driven')
+  const [proposals, setProposals] = useState([])
   const [createLabelSurvey, setCreateLabelSurvey] = useState(true)
   const [labelSurveyItems, setLabelSurveyItems] = useState(['', ''])
   const [labelSurveyComparisonQuestion, setLabelSurveyComparisonQuestion] = useState('')
   const [creating, setCreating] = useState(false)
+
+  // Sync proposals array when proposal method changes
+  useEffect(() => {
+    if (newProposalMethod === 'direct_proposal') {
+      setProposals(prev => prev.length === 1 ? prev : [{ title: '', body: '' }])
+    } else if (newProposalMethod === 'admin_provided') {
+      setProposals(prev => prev.length >= 2 ? prev : [{ title: '', body: '' }, { title: '', body: '' }])
+    } else {
+      setProposals([])
+    }
+  }, [newProposalMethod])
+
+  // --- Rename session ---
+  const [renaming, setRenaming] = useState(false)
 
   // --- Inline label survey creation (detail page) ---
   const [inlineLabelItems, setInlineLabelItems] = useState(['', ''])
@@ -78,9 +92,9 @@ export default function useAdminSessions() {
       await Promise.all(sessList.map(async (sess) => {
         try {
           const result = await api.admin.getSessionLabelSurvey(sess.id)
-          surveyMap[sess.id] = result?.labelSurveys || { proposal: null, opinion: null }
+          surveyMap[sess.id] = result?.labelSurveys || { proposal: null, opinion: null, reflection: null }
         } catch {
-          surveyMap[sess.id] = { proposal: null, opinion: null }
+          surveyMap[sess.id] = { proposal: null, opinion: null, reflection: null }
         }
       }))
       setSessionLabelSurveys(surveyMap)
@@ -105,11 +119,11 @@ export default function useAdminSessions() {
   const fetchSessionLabelSurvey = useCallback(async (sessionId) => {
     try {
       const result = await api.admin.getSessionLabelSurvey(sessionId)
-      const surveys = result?.labelSurveys || { proposal: null, opinion: null }
+      const surveys = result?.labelSurveys || { proposal: null, opinion: null, reflection: null }
       setSessionLabelSurveys(prev => ({ ...prev, [sessionId]: surveys }))
       return surveys
     } catch {
-      const empty = { proposal: null, opinion: null }
+      const empty = { proposal: null, opinion: null, reflection: null }
       setSessionLabelSurveys(prev => ({ ...prev, [sessionId]: empty }))
       return empty
     }
@@ -118,6 +132,16 @@ export default function useAdminSessions() {
   // --- Create session ---
   const handleCreateSession = useCallback(async () => {
     if (!newLabel.trim()) return
+
+    // Validate proposals for methods that require them
+    if (newProposalMethod === 'direct_proposal' || newProposalMethod === 'admin_provided') {
+      const hasEmpty = proposals.some(p => !p.title?.trim() || !p.body?.trim())
+      if (hasEmpty) {
+        toast?.(t('proposalFieldsRequired'), 'error')
+        return
+      }
+    }
+
     if (createLabelSurvey) {
       const validItems = labelSurveyItems.filter(i => i.trim())
       if (validItems.length < 2) {
@@ -131,6 +155,9 @@ export default function useAdminSessions() {
         locationId: newLocationId,
         proposalMethod: newProposalMethod,
       }
+      if (newProposalMethod === 'direct_proposal' || newProposalMethod === 'admin_provided') {
+        opts.proposals = proposals.map(p => ({ title: p.title.trim(), body: p.body.trim() }))
+      }
       if (createLabelSurvey) {
         opts.createLabelSurvey = true
         opts.labelSurveyItems = labelSurveyItems.filter(i => i.trim())
@@ -143,6 +170,7 @@ export default function useAdminSessions() {
       setNewLabel('')
       setNewLocationId(null)
       setNewProposalMethod('user_driven')
+      setProposals([])
       setLabelSurveyItems(['', ''])
       setLabelSurveyComparisonQuestion('')
       setCreateLabelSurvey(true)
@@ -153,10 +181,27 @@ export default function useAdminSessions() {
     } finally {
       setCreating(false)
     }
-  }, [newLabel, newLocationId, newProposalMethod, createLabelSurvey, labelSurveyItems, labelSurveyComparisonQuestion, fetchSessions, t, toast])
+  }, [newLabel, newLocationId, newProposalMethod, proposals, createLabelSurvey, labelSurveyItems, labelSurveyComparisonQuestion, fetchSessions, t, toast])
 
-  // --- Advance stage ---
-  const handleAdvanceStage = useCallback(async (session) => {
+  // --- Rename session (standalone) ---
+  const handleRenameSession = useCallback(async (sessionId, newLabel) => {
+    if (!newLabel?.trim()) return false
+    setRenaming(true)
+    try {
+      await api.sessions.update(sessionId, { label: newLabel.trim() })
+      toast?.(t('sessionRenamed'), 'success')
+      fetchSessions()
+      return true
+    } catch (err) {
+      toast?.(translateError(err.message, t) || t('error'), 'error')
+      return false
+    } finally {
+      setRenaming(false)
+    }
+  }, [t, toast, fetchSessions])
+
+  // --- Advance stage (with optional label) ---
+  const handleAdvanceStage = useCallback(async (session, { label } = {}) => {
     const next = getNextStage(session.stage)
     if (!next) return
 
@@ -179,7 +224,9 @@ export default function useAdminSessions() {
     if (!confirmed) return
 
     try {
-      await api.sessions.update(session.id, { stage: next })
+      const payload = { stage: next }
+      if (label?.trim()) payload.label = label.trim()
+      await api.sessions.update(session.id, payload)
       toast?.(t('advanceStageTo', { stage: stageDisplay }), 'success')
       fetchSessions()
       return next
@@ -251,6 +298,7 @@ export default function useAdminSessions() {
     setNewLabel('')
     setNewLocationId(null)
     setNewProposalMethod('user_driven')
+    setProposals([])
     setLabelSurveyItems(['', ''])
     setLabelSurveyComparisonQuestion('')
     setCreateLabelSurvey(true)
@@ -273,6 +321,7 @@ export default function useAdminSessions() {
     newLabel, setNewLabel,
     newLocationId, setNewLocationId,
     newProposalMethod, setNewProposalMethod,
+    proposals, setProposals,
     createLabelSurvey, setCreateLabelSurvey,
     labelSurveyItems, setLabelSurveyItems,
     labelSurveyComparisonQuestion, setLabelSurveyComparisonQuestion,
@@ -284,6 +333,9 @@ export default function useAdminSessions() {
 
     // Stage advance
     handleAdvanceStage,
+
+    // Rename
+    renaming, handleRenameSession,
 
     // Inline label survey
     inlineLabelPhase, setInlineLabelPhase,

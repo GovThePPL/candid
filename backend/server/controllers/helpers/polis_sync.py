@@ -9,7 +9,6 @@ import json
 import math
 import uuid
 from datetime import date, timedelta
-from dateutil.relativedelta import relativedelta
 from typing import Optional, List, Dict, Any, Tuple
 
 from candid.controllers import db, config
@@ -208,10 +207,15 @@ def _sync_position_to_conv_group(
 # ========== Time-Window Management ==========
 
 def get_active_window_dates() -> Tuple[date, date]:
-    """Get the active_from and active_until dates for a new conversation."""
+    """Get the active_from and active_until dates for a new conversation.
+
+    Conversations are created per-month (active_from = first of month).
+    active_until is set to a far-future date since conversation lifecycle
+    is now managed by the session/phasing system, not time-based rollover.
+    """
     today = date.today()
     active_from = today.replace(day=1)  # First of current month
-    active_until = active_from + relativedelta(months=config.POLIS_CONVERSATION_WINDOW_MONTHS)
+    active_until = date(2099, 12, 31)   # No automatic expiry
     return active_from, active_until
 
 
@@ -227,7 +231,7 @@ def get_active_conversations(
     Args:
         location_id: The location UUID
         session_id: The session UUID (None for location-only conversations)
-        phase: The deliberation phase ('proposal' or 'opinion'). For session
+        phase: The deliberation phase ('proposal', 'opinion', or 'reflection'). For session
                conversations, filters by phase. Ignored for location-all.
     """
     today = date.today()
@@ -299,7 +303,7 @@ def get_or_create_conversation(
         session_id: The session UUID (None for location-only)
         location_name: Human-readable location name
         session_name: Human-readable session name (None for location-only)
-        phase: Deliberation phase ('proposal' or 'opinion') for session conversations.
+        phase: Deliberation phase ('proposal', 'opinion', or 'reflection') for session conversations.
                None for location_all conversations.
 
     Returns:

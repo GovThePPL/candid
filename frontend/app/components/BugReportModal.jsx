@@ -58,8 +58,6 @@ export default function BugReportModal({ visible, onClose }) {
       onClose={onClose}
       title={t('reportBugTitle')}
       subtitle={t('bugSubtitle')}
-      shrink
-
     >
       {success ? (
         <View style={styles.successContainer}>

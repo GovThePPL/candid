@@ -41,6 +41,12 @@ jest.mock('../../components/BottomDrawerModal', () => {
   }
 })
 
+jest.mock('../../contexts/LocationSessionContext', () => ({
+  useLocationSession: () => ({
+    openSessionOverview: jest.fn(),
+  }),
+}))
+
 import PostCard from '../../components/discuss/PostCard'
 
 const baseProposal = {
@@ -49,7 +55,7 @@ const baseProposal = {
   body: 'Proposal body.',
   status: 'active',
   postType: 'proposal',
-  proposalStatus: 'draft',
+  proposalStatus: 'finalized',
   creator: { id: 'u2', username: 'author', displayName: 'Author' },
   location: { id: 'loc1', code: 'OR', name: 'Oregon' },
   session: { id: 's1', label: 'Test Session' },
@@ -60,16 +66,14 @@ const baseProposal = {
 }
 
 describe('Endorsement button on PostCard', () => {
-  it('shows endorsement button when onEndorse is provided and status is proposals_open', () => {
+  it('shows endorsement button for finalized proposal when onEndorse is provided', () => {
     const onEndorse = jest.fn()
     render(
       <PostCard
         post={baseProposal}
         onEndorse={onEndorse}
         isEndorsed={false}
-        endorsementCount={5}
         endorseLimitReached={false}
-        votingRoundStatus="proposals_open"
       />
     )
     const btn = screen.getByLabelText('endorseA11y')
@@ -82,9 +86,7 @@ describe('Endorsement button on PostCard', () => {
         post={baseProposal}
         onEndorse={jest.fn()}
         isEndorsed={true}
-        endorsementCount={3}
         endorseLimitReached={false}
-        votingRoundStatus="proposals_open"
       />
     )
     const btn = screen.getByLabelText('unendorseA11y')
@@ -98,9 +100,7 @@ describe('Endorsement button on PostCard', () => {
         post={baseProposal}
         onEndorse={onEndorse}
         isEndorsed={false}
-        endorsementCount={0}
         endorseLimitReached={false}
-        votingRoundStatus="finalization_open"
       />
     )
     const btn = screen.getByLabelText('endorseA11y')
@@ -108,32 +108,71 @@ describe('Endorsement button on PostCard', () => {
     expect(onEndorse).toHaveBeenCalledWith('p1', false)
   })
 
-  it('does not show endorsement button for discussion posts', () => {
-    const discussionPost = { ...baseProposal, postType: 'discussion' }
+  it('does not show endorsement button for draft proposals', () => {
+    const draftProposal = { ...baseProposal, proposalStatus: 'draft' }
     render(
       <PostCard
-        post={discussionPost}
+        post={draftProposal}
         onEndorse={jest.fn()}
         isEndorsed={false}
-        endorsementCount={0}
         endorseLimitReached={false}
-        votingRoundStatus="proposals_open"
       />
     )
     expect(screen.queryByLabelText('endorseA11y')).toBeNull()
   })
 
-  it('does not show endorsement button when voting_open', () => {
+  it('does not show endorsement button for discussion posts', () => {
+    const discussionPost = { ...baseProposal, postType: 'discussion', proposalStatus: undefined }
+    render(
+      <PostCard
+        post={discussionPost}
+        onEndorse={jest.fn()}
+        isEndorsed={false}
+        endorseLimitReached={false}
+      />
+    )
+    expect(screen.queryByLabelText('endorseA11y')).toBeNull()
+  })
+
+  it('calls onEndorseLimitReached when limit reached and not endorsed', () => {
+    const onEndorseLimitReached = jest.fn()
     render(
       <PostCard
         post={baseProposal}
         onEndorse={jest.fn()}
         isEndorsed={false}
-        endorsementCount={0}
-        endorseLimitReached={false}
-        votingRoundStatus="voting_open"
+        endorseLimitReached={true}
+        onEndorseLimitReached={onEndorseLimitReached}
       />
     )
-    expect(screen.queryByLabelText('endorseA11y')).toBeNull()
+    const btn = screen.getByLabelText('endorseA11y')
+    fireEvent.press(btn)
+    expect(onEndorseLimitReached).toHaveBeenCalledWith('p1')
+  })
+
+  it('hides VoteControl for finalized proposals', () => {
+    render(
+      <PostCard
+        post={baseProposal}
+        onEndorse={jest.fn()}
+        isEndorsed={false}
+        endorseLimitReached={false}
+      />
+    )
+    // VoteControl has upvote/downvote buttons — should not be present for finalized
+    expect(screen.queryByLabelText('upvotePostA11y Author')).toBeNull()
+  })
+
+  it('shows VoteControl for draft proposals', () => {
+    const draftProposal = { ...baseProposal, proposalStatus: 'draft' }
+    render(
+      <PostCard
+        post={draftProposal}
+        onUpvote={jest.fn()}
+        onDownvote={jest.fn()}
+      />
+    )
+    // VoteControl should be present for draft proposals
+    expect(screen.getByLabelText('upvotePostA11y Author')).toBeTruthy()
   })
 })

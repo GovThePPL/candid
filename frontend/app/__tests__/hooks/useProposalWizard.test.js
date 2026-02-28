@@ -116,9 +116,19 @@ describe('useProposalWizard', () => {
       expect(result.current.canAdvance).toBe(false)
     })
 
-    it('canAdvance is true when current step has content', () => {
+    it('canAdvance is false when content exists but no feedback', () => {
       const { result } = renderHook(() => useProposalWizard('issue', 'sess1'))
       act(() => result.current.setSectionText('description', 'Some content'))
+      expect(result.current.canAdvance).toBe(false)
+    })
+
+    it('canAdvance is true when content exists and feedback received', async () => {
+      mockProposalAssist.mockResolvedValue({ generatedContent: 'feedback' })
+      const { result } = renderHook(() => useProposalWizard('issue', 'sess1'))
+      act(() => result.current.setSectionText('description', 'Some content'))
+      await act(async () => {
+        await result.current.enhanceStep('description', 'Some content')
+      })
       expect(result.current.canAdvance).toBe(true)
     })
 
@@ -128,6 +138,54 @@ describe('useProposalWizard', () => {
       expect(result.current.canAdvance).toBe(false)
       act(() => result.current.setTitle('My Proposal'))
       expect(result.current.canAdvance).toBe(true)
+    })
+  })
+
+  describe('feedback tracking', () => {
+    it('canRequestFeedback is false when no text', () => {
+      const { result } = renderHook(() => useProposalWizard('issue', 'sess1'))
+      expect(result.current.canRequestFeedback).toBe(false)
+    })
+
+    it('canRequestFeedback is true when text exists and no feedback yet', () => {
+      const { result } = renderHook(() => useProposalWizard('issue', 'sess1'))
+      act(() => result.current.setSectionText('description', 'Some content'))
+      expect(result.current.canRequestFeedback).toBe(true)
+    })
+
+    it('canRequestFeedback is false after feedback received with same content', async () => {
+      mockProposalAssist.mockResolvedValue({ generatedContent: 'feedback' })
+      const { result } = renderHook(() => useProposalWizard('issue', 'sess1'))
+      act(() => result.current.setSectionText('description', 'Draft'))
+      await act(async () => {
+        await result.current.enhanceStep('description', 'Draft')
+      })
+      expect(result.current.canRequestFeedback).toBe(false)
+    })
+
+    it('canRequestFeedback is true after content changes post-feedback', async () => {
+      mockProposalAssist.mockResolvedValue({ generatedContent: 'feedback' })
+      const { result } = renderHook(() => useProposalWizard('issue', 'sess1'))
+      act(() => result.current.setSectionText('description', 'Draft'))
+      await act(async () => {
+        await result.current.enhanceStep('description', 'Draft')
+      })
+      act(() => result.current.setSectionText('description', 'Updated draft'))
+      expect(result.current.canRequestFeedback).toBe(true)
+    })
+
+    it('stores feedback in feedbackState after enhanceStep', async () => {
+      mockProposalAssist.mockResolvedValue({ generatedContent: 'AI feedback' })
+      const { result } = renderHook(() => useProposalWizard('issue', 'sess1'))
+      act(() => result.current.setSectionText('description', 'Draft'))
+      await act(async () => {
+        await result.current.enhanceStep('description', 'Draft')
+      })
+      expect(result.current.feedbackState.description).toEqual({
+        requested: true,
+        contentAtRequest: 'Draft',
+        feedback: 'AI feedback',
+      })
     })
   })
 

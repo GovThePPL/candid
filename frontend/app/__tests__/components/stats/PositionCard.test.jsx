@@ -79,7 +79,7 @@ describe('PositionCard', () => {
       />
     )
     expect(screen.getByText('A simple statement')).toBeTruthy()
-    // Should show "No votes" in the distribution bar
-    expect(screen.getByText('No votes')).toBeTruthy()
+    // Should show "No votes" in the distribution bar (mocked t() returns key)
+    expect(screen.getByText('noVotes')).toBeTruthy()
   })
 })

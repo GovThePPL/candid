@@ -1,4 +1,4 @@
-import { StyleSheet, View, TouchableOpacity, Platform, Dimensions, Alert } from 'react-native'
+import { StyleSheet, View, TouchableOpacity, Platform, Dimensions, Alert, BackHandler } from 'react-native'
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useIsFocused } from '@react-navigation/native'
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, interpolate, runOnJS } from 'react-native-reanimated'
@@ -29,9 +29,10 @@ import {
   DiagnosticsConsentCard,
   BridgingKudosCard,
 } from './cards'
+import CommunityRulesModal from './CommunityRulesModal'
+import InfoModal from './InfoModal'
 import { SkeletonPulse, SkeletonBox, SkeletonCircle, SkeletonLine } from './Skeleton'
 import ChattingListExplanationModal from './ChattingListExplanationModal'
-import AdoptPositionExplanationModal from './AdoptPositionExplanationModal'
 import ChatRequestIndicator from './ChatRequestIndicator'
 import ReportModal from './ReportModal'
 import ModerationActionModal from './ModerationActionModal'
@@ -41,7 +42,6 @@ import { Ionicons } from '@expo/vector-icons'
 
 // AsyncStorage keys for tutorial tracking
 const TUTORIAL_CHATTING_LIST_KEY = '@tutorial_seen_chatting_list'
-const TUTORIAL_ADOPT_POSITION_KEY = '@tutorial_seen_adopt_position'
 
 // Configuration for continuous card loading
 const INITIAL_FETCH_SIZE = 20
@@ -109,13 +109,13 @@ export default function CardQueueContent() {
   const { t } = useTranslation('cards')
   const { user } = useAuth()
   const { incomingChatRequest, clearIncomingChatRequest, restoreIncomingChatRequest, pendingChatRequest: pendingChatCtx, clearPendingChatRequest } = useChatContext()
-  const { selectedSession, effectiveStage, viewingStage } = useLocationSession()
+  const { selectedSession, selectedLocation, effectiveStage, viewingStage, sessionData, openSessionSelector, openSessionOverview } = useLocationSession()
 
   // Derive phase and archived state from effective stage
   const STAGE_TO_PHASE = {
     proposal_issue: 'proposal', proposal_qualify: 'proposal', proposal_stakeholders: 'proposal',
-    opinion_discussion: 'opinion', opinion_curation: 'opinion', opinion_proposals: 'opinion',
-    reflection: 'reflection', consensus: 'consensus',
+    opinion_discussion: 'opinion', reflection_curation: 'opinion', reflection_proposals: 'opinion',
+    consensus: 'consensus',
   }
   const phase = effectiveStage ? STAGE_TO_PHASE[effectiveStage] : null
   const isArchived = viewingStage != null
@@ -124,6 +124,16 @@ export default function CardQueueContent() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [initialLoading, setInitialLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [showCreateCard, setShowCreateCard] = useState(false)
+  const [createInitialStatement, setCreateInitialStatement] = useState('')
+  const [showAddPositionModal, setShowAddPositionModal] = useState(false)
+  const [showRules, setShowRules] = useState(false)
+
+  // Ring buffer: 4 fixed slots with stable keys to prevent remounting
+  const [slotCards, setSlotCards] = useState([null, null, null, null])
+  const [headSlotJS, setHeadSlotJS] = useState(0)
+  const headSlot = useSharedValue(0)
+  const headSlotJSRef = useRef(0)
 
   const showToast = useToast()
   const colors = useThemeColors()
@@ -142,10 +152,8 @@ export default function CardQueueContent() {
 
   // Tutorial modal state (frontend-only, uses AsyncStorage)
   const [showChattingListModal, setShowChattingListModal] = useState(false)
-  const [showAdoptPositionModal, setShowAdoptPositionModal] = useState(false)
   const hasCheckedTutorialsRef = useRef(false)
   const seenChattingListTutorialRef = useRef(false)
-  const seenAdoptPositionTutorialRef = useRef(false)
 
   // Report modal state
   const [reportModalVisible, setReportModalVisible] = useState(false)
@@ -160,18 +168,6 @@ export default function CardQueueContent() {
 
   // Shared value for back card transition
   const backCardProgress = useSharedValue(0)
-
-  // Reset back card animation one frame after index advances so the new
-  // back card starts invisible (behind the current card at progress=1) and
-  // then cleanly moves to its resting position.
-  const isFirstRender = useRef(true)
-  useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false
-      return
-    }
-    requestAnimationFrame(() => { backCardProgress.value = 0 })
-  }, [currentIndex])
 
   // Ref to current card for keyboard-triggered swipes
   const currentCardRef = useRef(null)
@@ -191,6 +187,9 @@ export default function CardQueueContent() {
   const [slidingInCard, setSlidingInCard] = useState(null)
   const isSlidingIn = useSharedValue(0)
 
+  // Create card slide-in animation
+  const createSlideAnim = useSharedValue(0)
+
   // Promotion timer: promotes back-card chat request to top after delay
   const promotionTimerRef = useRef(null)
 
@@ -206,12 +205,8 @@ export default function CardQueueContent() {
       if (hasCheckedTutorialsRef.current) return
       hasCheckedTutorialsRef.current = true
       try {
-        const [chattingListSeen, adoptPositionSeen] = await Promise.all([
-          AsyncStorage.getItem(TUTORIAL_CHATTING_LIST_KEY),
-          AsyncStorage.getItem(TUTORIAL_ADOPT_POSITION_KEY),
-        ])
+        const chattingListSeen = await AsyncStorage.getItem(TUTORIAL_CHATTING_LIST_KEY)
         seenChattingListTutorialRef.current = chattingListSeen === 'true'
-        seenAdoptPositionTutorialRef.current = adoptPositionSeen === 'true'
       } catch (err) {
         console.error('Failed to load tutorial state:', err)
       }
@@ -355,6 +350,10 @@ export default function CardQueueContent() {
     seenCardIdsRef.current.clear()
     setCards([])
     setCurrentIndex(0)
+    setSlotCards([null, null, null, null])
+    headSlotJSRef.current = 0
+    headSlot.value = 0
+    setHeadSlotJS(0)
     fetchMoreCards(true)
   }, [selectedSession, phase, isArchived])
 
@@ -378,8 +377,7 @@ export default function CardQueueContent() {
     }
   }, [remainingCards, fetchMoreCards])
 
-  const currentCard = cards[currentIndex]
-  const nextCard = cards[currentIndex + 1]
+  const currentCard = slotCards[headSlotJS]
 
   const handleCloseChattingListModal = useCallback(async () => {
     setShowChattingListModal(false)
@@ -388,16 +386,6 @@ export default function CardQueueContent() {
       await AsyncStorage.setItem(TUTORIAL_CHATTING_LIST_KEY, 'true')
     } catch (err) {
       console.error('Failed to save chatting list tutorial state:', err)
-    }
-  }, [])
-
-  const handleCloseAdoptPositionModal = useCallback(async () => {
-    setShowAdoptPositionModal(false)
-    seenAdoptPositionTutorialRef.current = true
-    try {
-      await AsyncStorage.setItem(TUTORIAL_ADOPT_POSITION_KEY, 'true')
-    } catch (err) {
-      console.error('Failed to save adopt position tutorial state:', err)
     }
   }, [])
 
@@ -410,12 +398,42 @@ export default function CardQueueContent() {
   cardsRef.current = cards
 
   const advanceIndex = useCallback(() => {
-    setCurrentIndex(prev => prev + 1)
-    if (currentIndexRef.current >= cardsLengthRef.current - 1) {
-      backCardProgress.value = 0
+    const oldHead = headSlotJSRef.current
+    const newHead = (oldHead + 1) % 4
+    const newCurrentIndex = currentIndexRef.current + 1
+
+    const newReserveCard = cardsRef.current[newCurrentIndex + 3] || null
+    // Load next card into the old head slot (now reserve at opacity 0)
+    setSlotCards(prev => {
+      const next = [...prev]
+      next[oldHead] = newReserveCard
+      return next
+    })
+
+    // Sync JS-side refs and React state (headSlot.value already set on UI thread)
+    headSlotJSRef.current = newHead
+    setHeadSlotJS(newHead)
+    setCurrentIndex(newCurrentIndex)
+
+    if (newCurrentIndex >= cardsLengthRef.current - 1) {
       fetchMoreCards(false)
     }
   }, [fetchMoreCards])
+
+  // Sync slotCards from cards array on external mutations (chatting list, slide-in, expiration)
+  useEffect(() => {
+    const head = headSlotJSRef.current
+    const ci = currentIndexRef.current
+    setSlotCards(prev => {
+      const next = [...prev]
+      for (let offset = 0; offset < 4; offset++) {
+        const slotIdx = (head + offset) % 4
+        const cardIdx = ci + offset
+        next[slotIdx] = cards[cardIdx] || null
+      }
+      return next
+    })
+  }, [cards])
 
   const goToNextCard = useCallback(() => {
     // Track swiping activity for chat request delivery mode
@@ -433,9 +451,16 @@ export default function CardQueueContent() {
       expirationTimerRef.current = null
     }
 
-    // Animate the back card forward, then advance
+    // Animate the back cards forward, then rotate the ring buffer.
+    // headSlot must update atomically with backCardProgress reset on the UI thread
+    // so there's no frame where progress=0 with the old head (which would snap back).
     backCardProgress.value = withTiming(1, { duration: 200 }, (finished) => {
-      if (finished) runOnJS(advanceIndex)()
+      'worklet'
+      if (finished) {
+        headSlot.value = (headSlot.value + 1) % 4
+        backCardProgress.value = 0
+        runOnJS(advanceIndex)()
+      }
     })
   }, [advanceIndex])
 
@@ -664,22 +689,92 @@ export default function CardQueueContent() {
     }
   }, [moderateTarget, moderateRule, moderateComment, t, goToNextCard])
 
-  const handleAddPosition = useCallback(async () => {
+  const handleAddPosition = useCallback(() => {
     if (currentCard?.type !== 'position') return
+    setShowAddPositionModal(true)
+  }, [currentCard])
 
-    // Show tutorial on first use
-    if (!seenAdoptPositionTutorialRef.current) {
-      setShowAdoptPositionModal(true)
-    }
+  const handleAddPositionAdopt = useCallback(() => {
+    setShowAddPositionModal(false)
 
-    const cardRef = currentCardRef.current
-    if (cardRef?.swipeRightWithPlus) {
-      cardRef.swipeRightWithPlus()
-    } else {
-      goToNextCard()
+    // Wait for InfoModal fade-out (~300ms) before swiping the card away
+    setTimeout(() => {
+      const cardRef = currentCardRef.current
+      if (cardRef?.swipeRightWithPlus) {
+        cardRef.swipeRightWithPlus()
+      } else {
+        goToNextCard()
+      }
+      handleAdoptPosition()
+    }, 350)
+  }, [goToNextCard, handleAdoptPosition])
+
+  const handleAddPositionModify = useCallback(() => {
+    setShowAddPositionModal(false)
+    if (!selectedSession) { openSessionSelector(); return }
+    const statement = currentCard?.data?.statement || ''
+    setCreateInitialStatement(statement)
+    setShowCreateCard(true)
+    createSlideAnim.value = 0
+    createSlideAnim.value = withTiming(1, { duration: 300 })
+  }, [currentCard, createSlideAnim, selectedSession, openSessionSelector])
+
+  const handleAddPositionCreate = useCallback(() => {
+    setShowAddPositionModal(false)
+    if (!selectedSession) { openSessionSelector(); return }
+    setCreateInitialStatement('')
+    setShowCreateCard(true)
+    createSlideAnim.value = 0
+    createSlideAnim.value = withTiming(1, { duration: 300 })
+  }, [createSlideAnim, selectedSession, openSessionSelector])
+
+  // Retry handler - resets state and fetches fresh
+  const handleRetry = useCallback(() => {
+    seenCardIdsRef.current.clear()
+    setCards([])
+    setCurrentIndex(0)
+    setSlotCards([null, null, null, null])
+    headSlotJSRef.current = 0
+    headSlot.value = 0
+    setHeadSlotJS(0)
+    fetchMoreCards(true)
+  }, [fetchMoreCards])
+
+  // Create mode: adopt a similar position (from NLP suggestions)
+  // Unmount the card immediately, then animate stack back (no slide-out)
+  const handleCreateAdopt = useCallback(async (positionId) => {
+    try {
+      await api.positions.adopt(positionId)
+      setShowCreateCard(false)
+      setCreateInitialStatement('')
+      createSlideAnim.value = withTiming(0, { duration: 300 })
+      showToast(t('positionAdopted'), { position: 'top' })
+      handleRetry()
+    } catch (err) {
+      console.error('Failed to adopt position:', err)
+      showToast(t('errorAdoptFailed'), { position: 'top' })
     }
-    handleAdoptPosition()
-  }, [currentCard, goToNextCard, handleAdoptPosition])
+  }, [showToast, t, createSlideAnim, handleRetry])
+
+  // Create mode: slide card back up to dismiss
+  const handleCreateCancel = useCallback(() => {
+    createSlideAnim.value = withTiming(0, { duration: 300 }, (finished) => {
+      if (finished) {
+        runOnJS(setShowCreateCard)(false)
+        runOnJS(setCreateInitialStatement)('')
+      }
+    })
+  }, [createSlideAnim])
+
+  // Back gesture/button dismisses the create-position card
+  useEffect(() => {
+    if (!showCreateCard || Platform.OS === 'web') return
+    const handler = BackHandler.addEventListener('hardwareBackPress', () => {
+      handleCreateCancel()
+      return true
+    })
+    return () => handler.remove()
+  }, [showCreateCard, handleCreateCancel])
 
   // Handle removing a position from the chatting list
   const handleRemoveFromChattingList = useCallback(async () => {
@@ -725,7 +820,7 @@ export default function CardQueueContent() {
         }
         return card
       }))
-      showToast(t('errorChattingListFailed'))
+      showToast(t('errorChattingListFailed'), { position: 'top' })
     }
   }, [currentCard, currentIndex, user?.id, showToast, t])
 
@@ -793,7 +888,7 @@ export default function CardQueueContent() {
         }
         return card
       }))
-      showToast(t('errorChattingListFailed'))
+      showToast(t('errorChattingListFailed'), { position: 'top' })
     }
   }, [currentCard, currentIndex, user?.id, showToast, t])
 
@@ -847,56 +942,82 @@ export default function CardQueueContent() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [currentCard, pendingChatRequest, isDesktop])
 
-  // Animated styles for card stack (runs on UI thread)
-  const fourthCardStyle = useAnimatedStyle(() => ({
-    zIndex: -1,
-    opacity: interpolate(backCardProgress.value, [0, 1], [0, 0.85]),
-    transform: [
-      { scale: interpolate(backCardProgress.value, [0, 1], [0.88, 0.92]) },
-      { translateY: interpolate(backCardProgress.value, [0, 1], [72, 48]) },
-    ],
-  }))
+  // Per-slot animated styles for the ring buffer (runs on UI thread).
+  // Each slot's style is inlined so Reanimated can directly track shared value reads.
+  // Role rest positions: current(0), back(1), third(2), reserve(3)
+  //   opacity:    [1,    1,    0.85, 0   ]
+  //   scale:      [1,    0.96, 0.92, 0.88]
+  //   translateY: [0,    24,   48,   72  ]
+  //   zIndex:     [2,    1,    0,    -1  ]
 
-  const thirdCardStyle = useAnimatedStyle(() => ({
-    zIndex: 0,
-    opacity: interpolate(backCardProgress.value, [0, 1], [0.85, 1]),
-    transform: [
-      { scale: interpolate(backCardProgress.value, [0, 1], [0.92, 0.96]) },
-      { translateY: interpolate(backCardProgress.value, [0, 1], [48, 24]) },
-    ],
-  }))
+  const makeSlotStyle = (slotIndex) => useAnimatedStyle(() => {
+    const role = ((slotIndex - headSlot.value) % 4 + 4) % 4
+    const progress = backCardProgress.value
+    // Combined push-back from chat request slide-in or create card slide-in
+    const pushBack = Math.max(isSlidingIn.value ? slideInAnim.value : 0, createSlideAnim.value)
 
-  const backCardStyle = useAnimatedStyle(() => {
-    const baseScale = interpolate(backCardProgress.value, [0, 1], [0.96, 1])
-    const baseTranslateY = interpolate(backCardProgress.value, [0, 1], [24, 0])
+    // Role 0: current card — position controlled by SwipeableCard gesture
+    if (role === 0) {
+      if (pushBack > 0) {
+        return {
+          zIndex: 2, opacity: 1,
+          transform: [
+            { scale: interpolate(pushBack, [0, 1], [1, 0.96]) },
+            { translateY: interpolate(pushBack, [0, 1], [0, 24]) },
+          ],
+        }
+      }
+      return { zIndex: 2, opacity: 1, transform: [{ scale: 1 }, { translateY: 0 }] }
+    }
 
-    if (isSlidingIn.value) {
+    // Role 1: back card
+    if (role === 1) {
+      const baseScale = interpolate(progress, [0, 1], [0.96, 1])
+      const baseTranslateY = interpolate(progress, [0, 1], [24, 0])
+      if (pushBack > 0) {
+        return {
+          zIndex: 1,
+          opacity: 1,
+          transform: [
+            { scale: baseScale + interpolate(pushBack, [0, 1], [0, -0.04]) },
+            { translateY: baseTranslateY + interpolate(pushBack, [0, 1], [0, 24]) },
+          ],
+        }
+      }
       return {
-        zIndex: 1,
+        zIndex: 1, opacity: 1,
+        transform: [{ scale: baseScale }, { translateY: baseTranslateY }],
+      }
+    }
+
+    // Role 2: third card
+    if (role === 2) {
+      return {
+        zIndex: 0,
+        opacity: interpolate(progress, [0, 1], [0.85, 1]),
         transform: [
-          { scale: baseScale + interpolate(slideInAnim.value, [0, 1], [0, -0.04]) },
-          { translateY: baseTranslateY + interpolate(slideInAnim.value, [0, 1], [0, 24]) },
+          { scale: interpolate(progress, [0, 1], [0.92, 0.96]) },
+          { translateY: interpolate(progress, [0, 1], [48, 24]) },
         ],
       }
     }
+
+    // Role 3: reserve (hidden)
     return {
-      zIndex: 1,
+      zIndex: -1,
+      opacity: interpolate(progress, [0, 1], [0, 0.85]),
       transform: [
-        { scale: baseScale },
-        { translateY: baseTranslateY },
+        { scale: interpolate(progress, [0, 1], [0.88, 0.92]) },
+        { translateY: interpolate(progress, [0, 1], [72, 48]) },
       ],
     }
   })
 
-  const currentCardSlideStyle = useAnimatedStyle(() => {
-    if (!isSlidingIn.value) return { transform: [{ scale: 1 }, { translateY: 0 }] }
-    return {
-      transform: [
-        { scale: interpolate(slideInAnim.value, [0, 1], [1, 0.96]) },
-        { translateY: interpolate(slideInAnim.value, [0, 1], [0, 24]) },
-      ],
-    }
-  })
+  const slotStyle0 = makeSlotStyle(0)
+  const slotStyle1 = makeSlotStyle(1)
+  const slotStyle2 = makeSlotStyle(2)
+  const slotStyle3 = makeSlotStyle(3)
+  const slotStyles = [slotStyle0, slotStyle1, slotStyle2, slotStyle3]
 
   const slideInCardStyle = useAnimatedStyle(() => ({
     zIndex: 3,
@@ -905,20 +1026,21 @@ export default function CardQueueContent() {
     ],
   }))
 
+  const createCardSlideStyle = useAnimatedStyle(() => ({
+    zIndex: 3,
+    transform: [
+      { translateY: interpolate(createSlideAnim.value, [0, 1], [-SCREEN_HEIGHT, 0]) },
+    ],
+  }))
+
   // Archived handler: show toast and advance to next card
   const archivedHandler = useCallback(() => {
-    showToast(t('archivedStageNoActions'))
+    showToast(t('archivedStageNoActions'), { position: 'top' })
     goToNextCard()
   }, [showToast, t, goToNextCard])
 
   const renderCard = (card, isBackCard = false) => {
     if (!card) return null
-
-    let cardId = card.data?.id || card.data?.field
-    if (card.type === 'pairwise') {
-      cardId = `${card.data?.optionA?.id}-${card.data?.optionB?.id}`
-    }
-    const key = `${cardId}-${isBackCard ? 'back' : 'current'}`
 
     switch (card.type) {
       case 'position':
@@ -927,7 +1049,6 @@ export default function CardQueueContent() {
         return (
           <PositionCard
             ref={isBackCard ? undefined : currentCardRef}
-            key={key}
             position={card.data}
             onAgree={isBackCard ? undefined : (isArchived ? archivedHandler : handleAgree)}
             onDisagree={isBackCard ? undefined : (isArchived ? archivedHandler : handleDisagree)}
@@ -936,15 +1057,17 @@ export default function CardQueueContent() {
             onReport={isBackCard ? undefined : handleReport}
             onModerate={isBackCard ? undefined : handleModeratePosition}
             canModerate={cardCanModerate}
-            onAddPosition={isBackCard || isArchived ? undefined : handleAddPosition}
+            onAddPosition={isBackCard ? undefined : (isArchived ? archivedHandler : handleAddPosition)}
             isBackCard={isBackCard}
             backCardAnimatedValue={backCardProgress}
+
             isFromChattingList={isFromChattingList}
             hasPendingRequests={card.data?.hasPendingRequests || false}
-            onRemoveFromChattingList={isBackCard || isArchived ? undefined : handleRemoveFromChattingList}
-            onAddToChattingList={isBackCard || isArchived ? undefined : handleAddToChattingList}
+            onRemoveFromChattingList={isArchived ? archivedHandler : handleRemoveFromChattingList}
+            onAddToChattingList={isArchived ? archivedHandler : handleAddToChattingList}
             onTermPress={onGlossaryTermPress}
             disabled={isArchived}
+            onBadgePress={openSessionOverview}
           />
         )
 
@@ -952,12 +1075,12 @@ export default function CardQueueContent() {
         return (
           <ChatRequestCard
             ref={isBackCard ? undefined : currentCardRef}
-            key={key}
             chatRequest={card.data}
             onAccept={isBackCard ? undefined : handleAcceptChat}
             onDecline={isBackCard ? undefined : handleDeclineChat}
             isBackCard={isBackCard}
             backCardAnimatedValue={backCardProgress}
+
           />
         )
 
@@ -965,12 +1088,12 @@ export default function CardQueueContent() {
         return (
           <SurveyCard
             ref={isBackCard ? undefined : currentCardRef}
-            key={key}
             survey={card.data}
             onRespond={isBackCard ? undefined : (isArchived ? archivedHandler : handleSurveyResponse)}
             onSkip={isBackCard ? undefined : (isArchived ? archivedHandler : handleSurveySkip)}
             isBackCard={isBackCard}
             backCardAnimatedValue={backCardProgress}
+
             disabled={isArchived}
           />
         )
@@ -979,12 +1102,12 @@ export default function CardQueueContent() {
         return (
           <DemographicCard
             ref={isBackCard ? undefined : currentCardRef}
-            key={key}
             demographic={card.data}
             onRespond={isBackCard ? undefined : handleDemographicResponse}
             onSkip={isBackCard ? undefined : handleDemographicSkip}
             isBackCard={isBackCard}
             backCardAnimatedValue={backCardProgress}
+
           />
         )
 
@@ -992,13 +1115,13 @@ export default function CardQueueContent() {
         return (
           <KudosCard
             ref={isBackCard ? undefined : currentCardRef}
-            key={key}
             kudos={card.data}
             onSendKudos={isBackCard ? undefined : handleSendKudos}
             onAcknowledge={isBackCard ? undefined : handleAcknowledgeKudos}
             onDismiss={isBackCard ? undefined : handleDismissKudos}
             isBackCard={isBackCard}
             backCardAnimatedValue={backCardProgress}
+
           />
         )
 
@@ -1006,12 +1129,12 @@ export default function CardQueueContent() {
         return (
           <PairwiseCard
             ref={isBackCard ? undefined : currentCardRef}
-            key={key}
             pairwise={card}
             onRespond={isBackCard ? undefined : (isArchived ? archivedHandler : handlePairwiseResponse)}
             onSkip={isBackCard ? undefined : (isArchived ? archivedHandler : handlePairwiseSkip)}
             isBackCard={isBackCard}
             backCardAnimatedValue={backCardProgress}
+
             disabled={isArchived}
           />
         )
@@ -1019,7 +1142,6 @@ export default function CardQueueContent() {
       case 'ban_notification':
         return (
           <BanNotificationCard
-            key={key}
             banData={card.data}
           />
         )
@@ -1027,7 +1149,6 @@ export default function CardQueueContent() {
       case 'position_removed_notification':
         return (
           <PositionRemovedCard
-            key={key}
             data={card.data}
             onDismiss={isBackCard ? undefined : handleDismissRemoval}
           />
@@ -1037,11 +1158,11 @@ export default function CardQueueContent() {
         return (
           <DiagnosticsConsentCard
             ref={isBackCard ? undefined : currentCardRef}
-            key={key}
             onAccept={isBackCard ? undefined : handleDiagnosticsAccept}
             onDecline={isBackCard ? undefined : handleDiagnosticsDecline}
             isBackCard={isBackCard}
             backCardAnimatedValue={backCardProgress}
+
           />
         )
 
@@ -1049,11 +1170,11 @@ export default function CardQueueContent() {
         return (
           <BridgingKudosCard
             ref={isBackCard ? undefined : currentCardRef}
-            key={key}
             bridgingKudos={card.data}
             onDismiss={isBackCard ? undefined : handleDismissBridgingKudos}
             isBackCard={isBackCard}
             backCardAnimatedValue={backCardProgress}
+
           />
         )
 
@@ -1065,14 +1186,6 @@ export default function CardQueueContent() {
         )
     }
   }
-
-  // Retry handler - resets state and fetches fresh
-  const handleRetry = useCallback(() => {
-    seenCardIdsRef.current.clear()
-    setCards([])
-    setCurrentIndex(0)
-    fetchMoreCards(true)
-  }, [fetchMoreCards])
 
   // Desktop action buttons for the current card
   const renderDesktopActions = () => {
@@ -1303,7 +1416,7 @@ export default function CardQueueContent() {
     }
     // Auto-add to chatting list so user gets notified when someone is available
     if (positionId) {
-      showToast(t('addedToChattingList'))
+      showToast(t('addedToChattingList'), { position: 'top' })
       try {
         await api.chattingList.addPosition(positionId)
       } catch (err) {
@@ -1320,10 +1433,69 @@ export default function CardQueueContent() {
         await api.chat.rescindChatRequest(requestId)
       } catch (err) {
         console.error('Failed to rescind chat request:', err)
-        showToast(t('common:errorChatRequestRescindFailed'))
+        showToast(t('common:errorChatRequestRescindFailed'), { position: 'top' })
       }
     }
   }, [pendingChatCtx, clearPendingChatRequest, showToast, t])
+
+  // Create mode: placeholder based on phase
+  const PHASE_PLACEHOLDERS = {
+    proposal: 'placeholderIssue',
+    opinion: 'placeholderPosition',
+    reflection: 'placeholderReflection',
+    consensus: 'placeholderReflection',
+  }
+  const createPlaceholder = phase ? t(PHASE_PLACEHOLDERS[phase] || 'placeholderPosition') : t('placeholderPosition')
+
+  // Create mode: synthetic position object matching real position card data shape
+  const createModePosition = useMemo(() => ({
+    location: sessionData?.locationCode ? { code: sessionData.locationCode, name: sessionData.locationName } : null,
+    session: sessionData ? { label: sessionData.label } : null,
+    creator: user,
+  }), [sessionData, user])
+
+  // Create mode: submit handler — returns local object (no API call yet).
+  // The actual position creation is deferred to handleCreateVote so we know
+  // whether to set chatsDisabled based on the self-vote response.
+  const handleCreateSubmit = useCallback(async (statement) => {
+    return {
+      statement,
+      session: sessionData ? { label: sessionData.label } : null,
+      location: sessionData?.locationCode ? { code: sessionData.locationCode, name: sessionData.locationName } : null,
+      creator: user,
+    }
+  }, [sessionData, user])
+
+  // Create mode: self-vote handlers (receive createdPosition object from PositionCard)
+  // Creates the position via API (with chatsDisabled when not agreeing), records
+  // the self-vote, then waits 400ms for SwipeableCard exit animation before cleanup.
+  const handleCreateVote = useCallback(async (createdPosition, response) => {
+    try {
+      const chatsDisabled = response !== 'agree'
+      const result = await api.positions.create(
+        createdPosition.statement, selectedSession, selectedLocation, chatsDisabled
+      )
+      const positionId = result.id
+      await api.positions.respond([{ positionId, response }])
+      if (response === 'agree') {
+        try { await api.chattingList.addPosition(positionId) } catch (e) { /* ignore */ }
+      }
+    } catch (err) {
+      console.error('Failed to create position or record self-vote:', err)
+    }
+    // Wait for SwipeableCard exit animation, then clean up and animate stack back
+    setTimeout(() => {
+      setShowCreateCard(false)
+      setCreateInitialStatement('')
+      createSlideAnim.value = withTiming(0, { duration: 300 })
+    }, 400)
+  }, [createSlideAnim, selectedSession, selectedLocation])
+
+  const handleCreateAgree = useCallback((createdPosition) => handleCreateVote(createdPosition, 'agree'), [handleCreateVote])
+  const handleCreateDisagree = useCallback((createdPosition) => handleCreateVote(createdPosition, 'disagree'), [handleCreateVote])
+  const handleCreatePass = useCallback((createdPosition) => handleCreateVote(createdPosition, 'pass'), [handleCreateVote])
+
+  const handleOpenRules = useCallback(() => setShowRules(true), [])
 
   // Only show loading on initial load when we have no cards yet
   if (initialLoading && cards.length === 0) {
@@ -1334,7 +1506,7 @@ export default function CardQueueContent() {
     return (
       <View style={styles.centerContent}>
         <ThemedText variant="button" style={styles.errorText}>{error}</ThemedText>
-        <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
+        <TouchableOpacity style={styles.retryButton} onPress={handleRetry} accessibilityRole="button" accessibilityLabel={t('common:retry')}>
           <ThemedText variant="button" color="inverse">{t('common:retry')}</ThemedText>
         </TouchableOpacity>
       </View>
@@ -1344,20 +1516,65 @@ export default function CardQueueContent() {
   // Show empty state only when not loading and truly have no cards
   // Also handles case where we've swiped through all cards
   if (!initialLoading && (cards.length === 0 || currentIndex >= cards.length)) {
+    const handleEmptyCreate = () => {
+      if (!selectedSession) { openSessionSelector(); return }
+      setCreateInitialStatement('')
+      setShowCreateCard(true)
+      createSlideAnim.value = 0
+      createSlideAnim.value = withTiming(1, { duration: 300 })
+    }
     return (
-      <View style={styles.centerContent}>
-        <ThemedText variant="statement" color="primary" style={styles.emptyTitle}>{t('emptyTitle')}</ThemedText>
-        <ThemedText variant="button" color="secondary" style={styles.emptyText}>
-          {t('emptyText')}
-        </ThemedText>
-        <TouchableOpacity
-          style={styles.createButton}
-          onPress={() => router.push('/profile?tab=positions')}
-          accessibilityRole="button"
-          accessibilityLabel={t('createPosition')}
-        >
-          <ThemedText variant="button" color="inverse">{t('createPosition')}</ThemedText>
-        </TouchableOpacity>
+      <View style={[styles.container, isDesktop && styles.containerDesktop]}>
+        <View style={[styles.cardContainer, isDesktop && styles.cardContainerDesktop]}>
+          <View style={styles.cardStack}>
+            {/* Empty state content */}
+            <View style={styles.centerContent}>
+              <ThemedText variant="statement" color="primary" style={styles.emptyTitle}>{t('emptyTitle')}</ThemedText>
+              <ThemedText variant="button" color="secondary" style={styles.emptyText}>
+                {t('emptyText')}
+              </ThemedText>
+              {!isArchived && (
+                <TouchableOpacity
+                  style={styles.createButton}
+                  onPress={handleEmptyCreate}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('createPosition')}
+                >
+                  <ThemedText variant="button" color="inverse">{t('createPosition')}</ThemedText>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Create card slides in over empty state */}
+            {showCreateCard && !isArchived && (
+              <Animated.View style={[styles.currentCard, createCardSlideStyle]}>
+                <PositionCard
+                  createMode
+                  position={createModePosition}
+                  onCreateSubmit={handleCreateSubmit}
+                  onCreateCancel={handleCreateCancel}
+                  onOpenRules={handleOpenRules}
+                  placeholder={createPlaceholder}
+                  initialStatement={createInitialStatement}
+                  onAgree={handleCreateAgree}
+                  onDisagree={handleCreateDisagree}
+                  onPass={handleCreatePass}
+                  onAddToChattingList={() => {}}
+                  locationId={selectedLocation}
+                  sessionId={selectedSession}
+                  onAdopt={handleCreateAdopt}
+                />
+              </Animated.View>
+            )}
+          </View>
+        </View>
+        <CommunityRulesModal
+          visible={showRules}
+          onClose={() => setShowRules(false)}
+          contentType="position"
+          locationId={selectedLocation}
+          sessionId={selectedSession}
+        />
       </View>
     )
   }
@@ -1391,33 +1608,20 @@ export default function CardQueueContent() {
           marginBottom: -(CARD_REFERENCE_WIDTH * 16 / 9) * (1 - cardScale),
         },
       ]}>
-        {/* Card stack wrapper */}
+        {/* Card stack wrapper — 4 fixed ring buffer slots */}
         <View style={styles.cardStack}>
-          {/* Fourth card in stack (index + 3) */}
-          {cards[currentIndex + 3] && (
-            <Animated.View style={[styles.stackedCard, fourthCardStyle]}>
-              {renderCard(cards[currentIndex + 3], true)}
-            </Animated.View>
-          )}
-
-          {/* Third card in stack (index + 2) */}
-          {cards[currentIndex + 2] && (
-            <Animated.View style={[styles.stackedCard, thirdCardStyle]}>
-              {renderCard(cards[currentIndex + 2], true)}
-            </Animated.View>
-          )}
-
-          {/* Back card (next card in queue) */}
-          {nextCard && (
-            <Animated.View style={[styles.stackedCard, backCardStyle]}>
-              {renderCard(nextCard, true)}
-            </Animated.View>
-          )}
-
-          {/* Current card - main card on top, shifts back during slide-in */}
-          <Animated.View style={[styles.currentCard, currentCardSlideStyle]}>
-            {renderCard(currentCard, false)}
-          </Animated.View>
+          {[0, 1, 2, 3].map(slotIndex => {
+            const card = slotCards[slotIndex]
+            const role = ((slotIndex - headSlotJS) % 4 + 4) % 4
+            return (
+              <Animated.View key={`slot-${slotIndex}`} style={[
+                role === 0 ? styles.currentCard : styles.stackedCard,
+                slotStyles[slotIndex],
+              ]}>
+                {card && renderCard(card, role !== 0)}
+              </Animated.View>
+            )
+          })}
 
           {/* Sliding-in chat request card from top */}
           {slidingInCard && (
@@ -1425,21 +1629,103 @@ export default function CardQueueContent() {
               {renderCard(slidingInCard, true)}
             </Animated.View>
           )}
+
+          {/* Create position card — slides in over card stack */}
+          {showCreateCard && !isArchived && (
+            <Animated.View style={[styles.currentCard, createCardSlideStyle]}>
+              <PositionCard
+                createMode
+                position={createModePosition}
+                onCreateSubmit={handleCreateSubmit}
+                onCreateCancel={handleCreateCancel}
+                onOpenRules={handleOpenRules}
+                placeholder={createPlaceholder}
+                initialStatement={createInitialStatement}
+                onAgree={handleCreateAgree}
+                onDisagree={handleCreateDisagree}
+                onPass={handleCreatePass}
+                onAddToChattingList={() => {}}
+                locationId={selectedLocation}
+                sessionId={selectedSession}
+                onAdopt={handleCreateAdopt}
+              />
+            </Animated.View>
+          )}
         </View>
       </View>
 
-      {renderDesktopActions()}
+      {!showCreateCard && renderDesktopActions()}
+
+      {/* Add position options modal */}
+      <InfoModal
+        visible={showAddPositionModal}
+        onClose={() => setShowAddPositionModal(false)}
+        title={t('addPositionTitle')}
+        icon="add-circle-outline"
+        iconColor={SemanticColors.agree}
+        buttonText={t('common:cancel')}
+      >
+        <View style={styles.addPositionOptions}>
+          <TouchableOpacity
+            style={styles.addPositionOption}
+            onPress={handleAddPositionAdopt}
+            accessibilityRole="button"
+            accessibilityLabel={t('addPositionAdopt')}
+          >
+            <View style={[styles.addPositionIcon, styles.addPositionIconAdopt]}>
+              <Ionicons name="checkmark-circle-outline" size={22} color={SemanticColors.agree} />
+            </View>
+            <View style={styles.addPositionOptionText}>
+              <ThemedText variant="body" color="primary" style={styles.addPositionOptionTitle}>{t('addPositionAdopt')}</ThemedText>
+              <ThemedText variant="bodySmall" color="secondary">{t('addPositionAdoptDesc')}</ThemedText>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.addPositionOption}
+            onPress={handleAddPositionModify}
+            accessibilityRole="button"
+            accessibilityLabel={t('addPositionModify')}
+          >
+            <View style={[styles.addPositionIcon, styles.addPositionIconModify]}>
+              <Ionicons name="create-outline" size={22} color={colors.primary} />
+            </View>
+            <View style={styles.addPositionOptionText}>
+              <ThemedText variant="body" color="primary" style={styles.addPositionOptionTitle}>{t('addPositionModify')}</ThemedText>
+              <ThemedText variant="bodySmall" color="secondary">{t('addPositionModifyDesc')}</ThemedText>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.addPositionOption, styles.addPositionOptionLast]}
+            onPress={handleAddPositionCreate}
+            accessibilityRole="button"
+            accessibilityLabel={t('createPosition')}
+          >
+            <View style={[styles.addPositionIcon, styles.addPositionIconCreate]}>
+              <Ionicons name="add-circle-outline" size={22} color={SemanticColors.agree} />
+            </View>
+            <View style={styles.addPositionOptionText}>
+              <ThemedText variant="body" color="primary" style={styles.addPositionOptionTitle}>{t('createPosition')}</ThemedText>
+              <ThemedText variant="bodySmall" color="secondary">{t('addPositionCreateDesc')}</ThemedText>
+            </View>
+          </TouchableOpacity>
+        </View>
+      </InfoModal>
+
+      {/* Community rules modal (create mode) */}
+      <CommunityRulesModal
+        visible={showRules}
+        onClose={() => setShowRules(false)}
+        contentType="position"
+        locationId={selectedLocation}
+        sessionId={selectedSession}
+      />
 
       {/* Chatting list explanation modal (tutorial - shows on first use) */}
       <ChattingListExplanationModal
         visible={showChattingListModal}
         onClose={handleCloseChattingListModal}
-      />
-
-      {/* Adopt position explanation modal (tutorial - shows on first use) */}
-      <AdoptPositionExplanationModal
-        visible={showAdoptPositionModal}
-        onClose={handleCloseAdoptPositionModal}
       />
 
       {/* Report / rule-selection modal */}
@@ -1623,5 +1909,44 @@ const createStyles = (colors) => StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     lineHeight: 14,
+  },
+  addPositionOptions: {
+    alignSelf: 'stretch',
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  addPositionOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.cardBorder,
+    gap: 14,
+  },
+  addPositionOptionLast: {
+    borderBottomWidth: 0,
+  },
+  addPositionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addPositionIconAdopt: {
+    backgroundColor: SemanticColors.agree + '20',
+  },
+  addPositionIconModify: {
+    backgroundColor: colors.chattingListBg,
+  },
+  addPositionIconCreate: {
+    backgroundColor: SemanticColors.agree + '20',
+  },
+  addPositionOptionText: {
+    flex: 1,
+  },
+  addPositionOptionTitle: {
+    fontWeight: '600',
+    marginBottom: 2,
   },
 })

@@ -8,7 +8,7 @@ import { useThemeColors } from '../../../../hooks/useThemeColors'
 import { SemanticColors } from '../../../../constants/Colors'
 import { useUser } from '../../../../hooks/useUser'
 import { hasRole, ROLE_LABEL_KEYS, canManageRoleAssignment } from '../../../../lib/roles'
-import { sessionsApiWrapper } from '../../../../lib/api'
+import api, { sessionsApiWrapper } from '../../../../lib/api'
 import { STAGE_TO_ROUND_TYPE } from '../../../../constants/Sessions'
 import useAdminSessions, { getNextStage } from '../../../../hooks/useAdminSessions'
 import useRoleAssignment from '../../../../hooks/useRoleAssignment'
@@ -23,24 +23,14 @@ import { useToast } from '../../../../components/Toast'
 const SESSION_SCOPED_ROLES = ['facilitator', 'expert', 'liaison', 'assistant_moderator']
 
 const VR_STATUS_ORDER = ['proposals_open', 'finalization_open', 'proposals_closed', 'voting_open', 'voting_closed']
+const VR_STATUS_ORDER_ADMIN = ['voting_open', 'voting_closed']
 const VR_STATUS_INDEX = Object.fromEntries(VR_STATUS_ORDER.map((s, i) => [s, i]))
+const VR_STATUS_INDEX_ADMIN = Object.fromEntries(VR_STATUS_ORDER_ADMIN.map((s, i) => [s, i]))
 
 // Stages where voting round controls should appear
-const VR_CREATION_STAGES = new Set(['proposal_qualify', 'opinion_proposals'])
+const VR_CREATION_STAGES = new Set(['proposal_qualify', 'reflection_proposals'])
 
-const STAGE_ORDER = [
-  'proposal_issue', 'proposal_qualify', 'proposal_stakeholders',
-  'opinion_discussion', 'opinion_curation', 'opinion_proposals',
-  'reflection', 'consensus',
-]
-const STAGE_INDEX = Object.fromEntries(STAGE_ORDER.map((s, i) => [s, i]))
-
-const PHASES = [
-  { key: 'proposal', stages: ['proposal_issue', 'proposal_qualify', 'proposal_stakeholders'] },
-  { key: 'opinion', stages: ['opinion_discussion', 'opinion_curation', 'opinion_proposals'] },
-  { key: 'reflection', stages: ['reflection'] },
-  { key: 'consensus', stages: ['consensus'] },
-]
+import { STAGE_ORDER, STAGE_INDEX, PHASES_BY_METHOD } from '../../../../constants/Sessions'
 
 export default function SessionDetailScreen() {
   const { id } = useLocalSearchParams()
@@ -52,7 +42,8 @@ export default function SessionDetailScreen() {
   const { user } = useUser()
   const toast = useToast()
 
-  const canManage = useMemo(() => hasRole(user, 'facilitator'), [user])
+  const canManage = useMemo(() => hasRole(user, 'facilitator') && session?.status === 'active', [user, session?.status])
+  const isAdmin = useMemo(() => hasRole(user, 'admin'), [user])
 
   const mgmt = useAdminSessions()
 
@@ -60,9 +51,17 @@ export default function SessionDetailScreen() {
   const [session, setSession] = useState(null)
   const [roles, setRoles] = useState([])
   const [rolesLoading, setRolesLoading] = useState(true)
-  const [labelSurveys, setLabelSurveys] = useState({ proposal: null, opinion: null })
+  const [labelSurveys, setLabelSurveys] = useState({ proposal: null, opinion: null, reflection: null })
   const [votingRounds, setVotingRounds] = useState({})
   const [vrLoading, setVrLoading] = useState(false)
+
+  // --- Rename state ---
+  const [renameVisible, setRenameVisible] = useState(false)
+  const [renameLabel, setRenameLabel] = useState('')
+  const [renameOnAdvance, setRenameOnAdvance] = useState(false)
+
+  // --- Archive state ---
+  const [archiving, setArchiving] = useState(false)
 
   // --- Load session data ---
   useEffect(() => {
@@ -91,7 +90,7 @@ export default function SessionDetailScreen() {
   // Get label surveys from shared state (per-phase)
   useEffect(() => {
     if (id && mgmt.sessionLabelSurveys[id] !== undefined) {
-      setLabelSurveys(mgmt.sessionLabelSurveys[id] || { proposal: null, opinion: null })
+      setLabelSurveys(mgmt.sessionLabelSurveys[id] || { proposal: null, opinion: null, reflection: null })
     }
   }, [id, mgmt.sessionLabelSurveys])
 
@@ -173,9 +172,44 @@ export default function SessionDetailScreen() {
     }
   }, [session, roleAssign])
 
+  // --- Archive session ---
+  const handleArchiveSession = useCallback(() => {
+    const doArchive = async () => {
+      setArchiving(true)
+      try {
+        await sessionsApiWrapper.update(session.id, { status: 'archived' })
+        toast(t('sessionArchived'))
+        setSession(prev => prev ? { ...prev, status: 'archived' } : null)
+        mgmt.fetchSessions()
+      } catch (e) {
+        Alert.alert(t('error'), e?.message || tc('failedSubmit'))
+      }
+      setArchiving(false)
+    }
+    if (Platform.OS === 'web') {
+      if (window.confirm(t('archiveSessionConfirm'))) doArchive()
+    } else {
+      Alert.alert(
+        t('archiveSession'),
+        t('archiveSessionConfirm'),
+        [
+          { text: t('cancel'), style: 'cancel' },
+          { text: tc('confirm'), style: 'destructive', onPress: doArchive },
+        ]
+      )
+    }
+  }, [session, t, tc, toast, mgmt.fetchSessions])
+
   // --- Stage advance ---
   const handleAdvance = useCallback(async () => {
     if (!session) return
+    // When entering opinion phase, prompt for rename
+    if (session.stage === 'proposal_stakeholders') {
+      setRenameLabel(session.label)
+      setRenameOnAdvance(true)
+      setRenameVisible(true)
+      return
+    }
     const next = await mgmt.handleAdvanceStage(session)
     if (next) {
       setSession(prev => prev ? { ...prev, stage: next } : null)
@@ -196,13 +230,30 @@ export default function SessionDetailScreen() {
   const currentIdx = STAGE_INDEX[session.stage] ?? 0
   const nextStage = getNextStage(session.stage)
 
+  const method = session.proposalMethod || 'user_driven'
+  const phases = PHASES_BY_METHOD[method] || PHASES_BY_METHOD.user_driven
+
   const getStageDisplay = (stage) => {
     if (!stage) return ''
+    // Method-specific overrides
+    if (method === 'admin_provided' && stage === 'proposal_qualify') {
+      return tc('stageProposalQualifyAdmin')
+    }
+    if (method === 'direct_proposal' && stage === 'proposal_issue') {
+      return tc('stageDirectProposalProvided')
+    }
     const key = `stage${stage.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join('')}`
     return tc(key, { defaultValue: stage.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) })
   }
 
   const getStageDesc = (stage) => {
+    // Method-specific overrides
+    if (method === 'admin_provided' && stage === 'proposal_qualify') {
+      return tc('stageDescProposalQualifyAdmin')
+    }
+    if (method === 'direct_proposal' && stage === 'proposal_issue') {
+      return tc('stageDescDirectProposalProvided')
+    }
     const key = `stageDesc${stage.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join('')}`
     return tc(key, { defaultValue: '' })
   }
@@ -226,11 +277,27 @@ export default function SessionDetailScreen() {
         {/* Session header */}
         <View style={styles.headerSection}>
           <View style={styles.cardTopRow}>
-            <LocationSessionBadge
-              location={session.locationCode ? { code: session.locationCode } : null}
-              session={{ label: session.label }}
-              size="lg"
-            />
+            <View style={styles.headerLabelRow}>
+              <LocationSessionBadge
+                location={session.locationCode ? { code: session.locationCode } : null}
+                session={{ label: session.label }}
+                size="lg"
+              />
+              {canManage && (
+                <TouchableOpacity
+                  style={styles.editLabelButton}
+                  onPress={() => {
+                    setRenameLabel(session.label)
+                    setRenameOnAdvance(false)
+                    setRenameVisible(true)
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('renameSessionA11y')}
+                >
+                  <Ionicons name="pencil" size={18} color={colors.secondaryText} />
+                </TouchableOpacity>
+              )}
+            </View>
             <View style={[styles.methodBadge, session.proposalMethod === 'admin_provided' ? styles.methodBadgeAdmin : styles.methodBadgeCommunity]}>
               <ThemedText variant="badge" color="inverse" style={styles.methodBadgeText}>
                 {session.proposalMethod === 'admin_provided' ? t('proposalMethodAdminProvided') : t('proposalMethodUserDriven')}
@@ -239,9 +306,19 @@ export default function SessionDetailScreen() {
           </View>
         </View>
 
+        {/* Archived banner */}
+        {session.status === 'archived' && (
+          <View style={styles.archivedBanner}>
+            <Ionicons name="archive-outline" size={20} color={SemanticColors.warning} />
+            <ThemedText variant="bodySmall" color="warning" style={styles.archivedBannerText}>
+              {t('sessionArchivedBanner')}
+            </ThemedText>
+          </View>
+        )}
+
         {/* Vertical Stage Timeline */}
         <View style={styles.timelineContainer}>
-          {PHASES.map((phase, phaseIdx) => {
+          {phases.map((phase, phaseIdx) => {
             const phaseStatuses = phase.stages.map(getStageStatus)
             const phaseAllUpcoming = phaseStatuses.every(s => s === 'upcoming')
             const phaseHasCurrent = phaseStatuses.includes('current')
@@ -262,7 +339,7 @@ export default function SessionDetailScreen() {
                 {/* Substages */}
                 {phase.stages.map((stage, stageIdx) => {
                   const status = getStageStatus(stage)
-                  const isLast = phaseIdx === PHASES.length - 1 && stageIdx === phase.stages.length - 1
+                  const isLast = phaseIdx === phases.length - 1 && stageIdx === phase.stages.length - 1
 
                   return (
                     <View
@@ -311,7 +388,10 @@ export default function SessionDetailScreen() {
                           const roundType = STAGE_TO_ROUND_TYPE[stage]
                           const round = votingRounds[roundType] || null
                           const vrStatus = round?.status
-                          const vrIdx = vrStatus ? VR_STATUS_INDEX[vrStatus] : -1
+                          const isAdmin = method === 'admin_provided'
+                          const statusOrder = isAdmin ? VR_STATUS_ORDER_ADMIN : VR_STATUS_ORDER
+                          const statusIndex = isAdmin ? VR_STATUS_INDEX_ADMIN : VR_STATUS_INDEX
+                          const vrIdx = vrStatus ? (statusIndex[vrStatus] ?? -1) : -1
                           const isTerminal = vrStatus === 'voting_closed'
 
                           const VR_STATUS_LABELS = {
@@ -335,36 +415,36 @@ export default function SessionDetailScreen() {
 
                               {round ? (
                                 <>
-                                  {/* 5-dot progress indicator */}
+                                  {/* Dot progress indicator */}
                                   <View
                                     style={styles.vrProgressRow}
                                     accessibilityRole="text"
                                     accessibilityLabel={t('votingRoundStatusA11y', {
                                       status: VR_STATUS_LABELS[vrStatus] || vrStatus,
                                       current: vrIdx + 1,
-                                      total: VR_STATUS_ORDER.length,
+                                      total: statusOrder.length,
                                     })}
                                   >
-                                    {VR_STATUS_ORDER.map((s, i) => {
+                                    {/* Track lines behind dots */}
+                                    <View style={styles.vrTrackArea}>
+                                      <View style={[styles.vrTrackBg, styles.vrLineUpcoming]} />
+                                      {vrIdx > 0 && (
+                                        <View style={[styles.vrTrackFill, styles.vrLineCompleted, { width: `${(vrIdx / (statusOrder.length - 1)) * 100}%` }]} />
+                                      )}
+                                    </View>
+                                    {/* Dots */}
+                                    {statusOrder.map((s, i) => {
                                       const isCompleted = isTerminal || i < vrIdx
                                       const isCurrent = !isTerminal && i === vrIdx
                                       return (
-                                        <View key={s} style={{ flexDirection: 'row', alignItems: 'center', flexGrow: i < VR_STATUS_ORDER.length - 1 ? 1 : 0 }}>
-                                          <View style={[
-                                            styles.vrDot,
-                                            isCompleted && styles.vrDotCompleted,
-                                            isCurrent && styles.vrDotCurrent,
-                                            !isCompleted && !isCurrent && styles.vrDotUpcoming,
-                                          ]}>
-                                            {isCompleted && (
-                                              <Ionicons name="checkmark" size={10} color="#FFFFFF" />
-                                            )}
-                                          </View>
-                                          {i < VR_STATUS_ORDER.length - 1 && (
-                                            <View style={[
-                                              styles.vrLine,
-                                              isTerminal || i < vrIdx ? styles.vrLineCompleted : styles.vrLineUpcoming,
-                                            ]} />
+                                        <View key={s} style={[
+                                          styles.vrDot,
+                                          isCompleted && styles.vrDotCompleted,
+                                          isCurrent && styles.vrDotCurrent,
+                                          !isCompleted && !isCurrent && styles.vrDotUpcoming,
+                                        ]}>
+                                          {isCompleted && (
+                                            <Ionicons name="checkmark" size={10} color="#FFFFFF" />
                                           )}
                                         </View>
                                       )
@@ -373,6 +453,29 @@ export default function SessionDetailScreen() {
                                   <ThemedText variant="caption" color="dark" style={styles.vrStatusLabel}>
                                     {VR_STATUS_LABELS[vrStatus] || vrStatus}
                                   </ThemedText>
+
+                                  {/* Current status description */}
+                                  {vrStatus && (
+                                    <ThemedText variant="caption" color="secondary" style={styles.vrDesc}>
+                                      {tc(`vrDesc${vrStatus.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join('')}`, { defaultValue: '' })}
+                                    </ThemedText>
+                                  )}
+
+                                  {/* Next status preview */}
+                                  {vrStatus && vrIdx < statusOrder.length - 1 && (() => {
+                                    const nextVrStatus = statusOrder[vrIdx + 1]
+                                    const nextVrKey = nextVrStatus.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join('')
+                                    return (
+                                      <View style={styles.vrNextBox}>
+                                        <ThemedText variant="caption" color="secondary" style={styles.vrNextLabel}>
+                                          {tc('vrNextStatus', { status: VR_STATUS_LABELS[nextVrStatus] || nextVrStatus })}
+                                        </ThemedText>
+                                        <ThemedText variant="caption" color="placeholder" style={styles.vrNextDesc}>
+                                          {tc(`vrNextDesc${nextVrKey}`, { defaultValue: '' })}
+                                        </ThemedText>
+                                      </View>
+                                    )
+                                  })()}
 
                                   {/* Advance voting round button */}
                                   {canManage && vrStatus !== 'voting_closed' && (
@@ -389,7 +492,7 @@ export default function SessionDetailScreen() {
                                     </TouchableOpacity>
                                   )}
                                 </>
-                              ) : status === 'current' && canManage ? (
+                              ) : status === 'current' && canManage && !isAdmin ? (
                                 <TouchableOpacity
                                   style={styles.vrActionButton}
                                   onPress={() => handleCreateVotingRound(id)}
@@ -410,20 +513,28 @@ export default function SessionDetailScreen() {
                           )
                         })()}
 
-                        {/* Advance button — at bottom of current stage */}
-                        {status === 'current' && canManage && nextStage && (
-                          <TouchableOpacity
-                            style={styles.advanceButton}
-                            onPress={handleAdvance}
-                            accessibilityRole="button"
-                            accessibilityLabel={t('advanceStageTo', { stage: getStageDisplay(nextStage) })}
-                          >
-                            <Ionicons name="arrow-forward-circle" size={18} color="#FFFFFF" />
-                            <ThemedText variant="caption" color="inverse" style={styles.advanceButtonText}>
-                              {t('advanceStageTo', { stage: getStageDisplay(nextStage) })}
-                            </ThemedText>
-                          </TouchableOpacity>
-                        )}
+                        {/* Advance button — at bottom of current stage, hidden during active voting */}
+                        {(() => {
+                          if (status !== 'current' || !canManage || !nextStage) return null
+                          // Hide if this is a voting stage and the round isn't finished
+                          const roundType = STAGE_TO_ROUND_TYPE[stage]
+                          const vr = roundType ? votingRounds[roundType] : null
+                          if (VR_CREATION_STAGES.has(stage) && vr?.status !== 'voting_closed') return null
+
+                          return (
+                            <TouchableOpacity
+                              style={styles.advanceButton}
+                              onPress={handleAdvance}
+                              accessibilityRole="button"
+                              accessibilityLabel={t('advanceStageTo', { stage: getStageDisplay(nextStage) })}
+                            >
+                              <Ionicons name="arrow-forward-circle" size={18} color="#FFFFFF" />
+                              <ThemedText variant="caption" color="inverse" style={styles.advanceButtonText}>
+                                {t('advanceStageTo', { stage: getStageDisplay(nextStage) })}
+                              </ThemedText>
+                            </TouchableOpacity>
+                          )
+                        })()}
                       </View>
                     </View>
                   )
@@ -495,7 +606,7 @@ export default function SessionDetailScreen() {
           <ThemedText variant="label" color="secondary" style={styles.cardTitle}>{t('surveyManagement')}</ThemedText>
 
           {/* Label Surveys (per phase) */}
-          {['proposal', 'opinion'].map((phase) => {
+          {['proposal', 'opinion', 'reflection'].map((phase) => {
             const survey = labelSurveys[phase]
             const isFormOpen = mgmt.inlineLabelPhase === phase
             const phaseLabel = t(`labelSurveyPhase_${phase}`)
@@ -623,6 +734,30 @@ export default function SessionDetailScreen() {
             <Ionicons name="chevron-forward" size={18} color={colors.primary} />
           </TouchableOpacity>
         </View>
+
+        {/* Danger Zone — archive session (admins only, active sessions only) */}
+        {isAdmin && session.status === 'active' && (
+          <View style={styles.dangerCard}>
+            <ThemedText variant="label" color="warning" style={styles.cardTitle}>{t('dangerZone')}</ThemedText>
+            <ThemedText variant="bodySmall" color="secondary">{t('archiveSessionDesc')}</ThemedText>
+            <TouchableOpacity
+              style={[styles.archiveButton, { opacity: archiving ? 0.5 : 1 }]}
+              onPress={handleArchiveSession}
+              disabled={archiving}
+              accessibilityRole="button"
+              accessibilityLabel={t('archiveSessionA11y')}
+            >
+              {archiving ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons name="archive-outline" size={16} color="#FFFFFF" />
+                  <ThemedText variant="button" color="inverse">{t('archiveSession')}</ThemedText>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
 
       {/* Assign Role Modal */}
@@ -785,6 +920,82 @@ export default function SessionDetailScreen() {
         onSelect={(locId) => { roleAssign.setSelectedLocation(locId); roleAssign.setLocationPickerVisible(false) }}
       />
 
+      {/* Rename Session Modal */}
+      <BottomDrawerModal
+        visible={renameVisible}
+        onClose={() => { setRenameVisible(false); setRenameOnAdvance(false) }}
+        title={renameOnAdvance ? t('renameAndAdvance') : t('renameSession')}
+      >
+        <View style={styles.modalContent}>
+          {renameOnAdvance && (
+            <ThemedText variant="body" color="secondary">{t('renameOnAdvanceHint')}</ThemedText>
+          )}
+          <ThemedText variant="label" color="secondary" style={styles.fieldLabel}>{t('sessionLabelLabel')}</ThemedText>
+          <TextInput
+            style={styles.modalInput}
+            value={renameLabel}
+            onChangeText={setRenameLabel}
+            placeholder={t('sessionLabelPlaceholder')}
+            placeholderTextColor={colors.placeholderText}
+            maxLength={255}
+            autoFocus
+            accessibilityLabel={t('sessionLabelA11y')}
+          />
+          {renameOnAdvance ? (
+            <View style={styles.advanceButtonRow}>
+              <TouchableOpacity
+                style={styles.skipButton}
+                onPress={async () => {
+                  setRenameVisible(false)
+                  setRenameOnAdvance(false)
+                  const next = await mgmt.handleAdvanceStage(session)
+                  if (next) setSession(prev => prev ? { ...prev, stage: next } : null)
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={t('skipAndAdvance')}
+              >
+                <ThemedText variant="button">{t('skipAndAdvance')}</ThemedText>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.submitButton, { flex: 1, marginTop: 0 }]}
+                onPress={async () => {
+                  const next = await mgmt.handleAdvanceStage(session, { label: renameLabel })
+                  if (next) {
+                    setSession(prev => prev ? { ...prev, stage: next, label: renameLabel.trim() } : null)
+                    setRenameVisible(false)
+                    setRenameOnAdvance(false)
+                  }
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={t('renameAndAdvanceButton')}
+              >
+                <ThemedText variant="button" color="inverse">{t('renameAndAdvanceButton')}</ThemedText>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={[styles.submitButton, { opacity: (!renameLabel.trim() || mgmt.renaming) ? 0.5 : 1 }]}
+              onPress={async () => {
+                const success = await mgmt.handleRenameSession(session.id, renameLabel)
+                if (success) {
+                  setSession(prev => prev ? { ...prev, label: renameLabel.trim() } : null)
+                  setRenameVisible(false)
+                }
+              }}
+              disabled={!renameLabel.trim() || mgmt.renaming}
+              accessibilityRole="button"
+              accessibilityLabel={t('save')}
+            >
+              {mgmt.renaming ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <ThemedText variant="button" color="inverse">{t('save')}</ThemedText>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
+      </BottomDrawerModal>
+
       {/* Session Picker Modal */}
       <BottomDrawerModal
         visible={roleAssign.sessionPickerVisible}
@@ -841,6 +1052,14 @@ const createStyles = (colors) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  headerLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  editLabelButton: {
+    padding: 6,
+  },
   methodBadge: {
     paddingHorizontal: 10,
     paddingVertical: 3,
@@ -855,6 +1074,40 @@ const createStyles = (colors) => StyleSheet.create({
   methodBadgeText: {
     fontWeight: '700',
     letterSpacing: 0.5,
+  },
+
+  // Archived banner
+  archivedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: SemanticColors.warning + '18',
+    borderWidth: 1,
+    borderColor: SemanticColors.warning,
+    borderRadius: 12,
+    padding: 12,
+  },
+  archivedBannerText: {
+    flex: 1,
+  },
+
+  // Danger zone card
+  dangerCard: {
+    backgroundColor: colors.cardBackground,
+    borderWidth: 1,
+    borderColor: SemanticColors.warning,
+    borderRadius: 16,
+    padding: 16,
+    gap: 12,
+  },
+  archiveButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: SemanticColors.warning,
+    paddingVertical: 12,
+    borderRadius: 25,
   },
 
   // Stage timeline
@@ -896,8 +1149,7 @@ const createStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
   },
   stageContent: {
-    flexGrow: 1,
-    flexShrink: 1,
+    flex: 1,
     gap: 4,
   },
   stageName: {
@@ -939,8 +1191,29 @@ const createStyles = (colors) => StyleSheet.create({
   },
   vrProgressRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 4,
+  },
+  vrTrackArea: {
+    position: 'absolute',
+    left: 7,
+    right: 7,
+    top: 10,
+    height: 2,
+  },
+  vrTrackBg: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
+  vrTrackFill: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
   },
   vrDot: {
     width: 14,
@@ -960,10 +1233,6 @@ const createStyles = (colors) => StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.placeholderText,
   },
-  vrLine: {
-    flexGrow: 1,
-    height: 2,
-  },
   vrLineCompleted: {
     backgroundColor: SemanticColors.success,
   },
@@ -972,6 +1241,24 @@ const createStyles = (colors) => StyleSheet.create({
   },
   vrStatusLabel: {
     fontWeight: '600',
+    textAlign: 'center',
+  },
+  vrDesc: {
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  vrNextBox: {
+    marginTop: 6,
+    paddingTop: 6,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.cardBorder,
+    alignItems: 'center',
+  },
+  vrNextLabel: {
+    fontWeight: '600',
+  },
+  vrNextDesc: {
+    marginTop: 2,
     textAlign: 'center',
   },
   vrActionButton: {
@@ -1212,5 +1499,18 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 25,
     alignItems: 'center',
     marginTop: 8,
+  },
+  advanceButtonRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  skipButton: {
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 25,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    alignItems: 'center',
   },
 })

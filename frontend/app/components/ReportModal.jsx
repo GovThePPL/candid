@@ -163,7 +163,6 @@ export default function ReportModal({ visible, onClose, onSubmit, contentType, i
 
 const createStyles = (colors) => StyleSheet.create({
   container: {
-    flex: 1,
     maxHeight: 500,
   },
   loadingContainer: {
@@ -179,7 +178,7 @@ const createStyles = (colors) => StyleSheet.create({
     color: SemanticColors.success,
   },
   rulesList: {
-    flex: 1,
+    flexShrink: 1,
     paddingHorizontal: 16,
   },
   ruleRow: {

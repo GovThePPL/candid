@@ -1,0 +1,265 @@
+# Candid NetworkPolicy Configuration
+#
+# Default-deny ingress + per-service allow rules.
+# Requires a CNI plugin that supports NetworkPolicy (Calico, Cilium, etc.).
+#
+# Pod labels must match the "app" labels used in your Deployments.
+# Adjust label values if your manifests use different names.
+
+---
+# Default deny all ingress traffic in the namespace.
+# Each service must explicitly allow its incoming connections.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+
+---
+# candid-db: Allow connections from api, worker, chat, keycloak, and backup jobs
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-candid-db
+spec:
+  podSelector:
+    matchLabels:
+      app: candid-db
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: candid-api
+    - podSelector:
+        matchLabels:
+          app: candid-worker
+    - podSelector:
+        matchLabels:
+          app: candid-chat
+    - podSelector:
+        matchLabels:
+          app: keycloak
+    - podSelector:
+        matchLabels:
+          app: candid-backup
+    ports:
+    - protocol: TCP
+      port: 5432
+
+---
+# polis-db: Allow connections from polis-server, polis-math, and backup jobs
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-polis-db
+spec:
+  podSelector:
+    matchLabels:
+      app: polis-db
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: polis-server
+    - podSelector:
+        matchLabels:
+          app: polis-math
+    - podSelector:
+        matchLabels:
+          app: candid-backup
+    ports:
+    - protocol: TCP
+      port: 5432
+
+---
+# redis: Allow connections from api, worker, and chat
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-redis
+spec:
+  podSelector:
+    matchLabels:
+      app: redis
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: candid-api
+    - podSelector:
+        matchLabels:
+          app: candid-worker
+    - podSelector:
+        matchLabels:
+          app: candid-chat
+    ports:
+    - protocol: TCP
+      port: 6379
+
+---
+# keycloak: Allow connections from api, worker, and polis-server
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-keycloak
+spec:
+  podSelector:
+    matchLabels:
+      app: keycloak
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: candid-api
+    - podSelector:
+        matchLabels:
+          app: candid-worker
+    - podSelector:
+        matchLabels:
+          app: polis-server
+    ports:
+    - protocol: TCP
+      port: 8080
+
+---
+# polis-server: Allow connections from api and worker
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-polis-server
+spec:
+  podSelector:
+    matchLabels:
+      app: polis-server
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: candid-api
+    - podSelector:
+        matchLabels:
+          app: candid-worker
+    ports:
+    - protocol: TCP
+      port: 5000
+
+---
+# nlp: Allow connections from api and chat
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-nlp
+spec:
+  podSelector:
+    matchLabels:
+      app: nlp
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: candid-api
+    - podSelector:
+        matchLabels:
+          app: candid-chat
+    ports:
+    - protocol: TCP
+      port: 5001
+
+---
+# file-server: Allow connections from polis-server
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-file-server
+spec:
+  podSelector:
+    matchLabels:
+      app: file-server
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: polis-server
+    ports:
+    - protocol: TCP
+      port: 8080
+
+---
+# candid-api: Allow connections from Ingress controller
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-candid-api
+spec:
+  podSelector:
+    matchLabels:
+      app: candid-api
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8000
+
+---
+# candid-frontend: Allow connections from Ingress controller
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-candid-frontend
+spec:
+  podSelector:
+    matchLabels:
+      app: candid-frontend
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 80
+
+---
+# candid-chat: Allow connections from Ingress controller
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-candid-chat
+spec:
+  podSelector:
+    matchLabels:
+      app: candid-chat
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8002

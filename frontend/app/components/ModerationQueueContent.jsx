@@ -866,8 +866,6 @@ export default function ModerationQueueContent() {
         visible={dismissModalVisible}
         onClose={() => setDismissModalVisible(false)}
         title={t('dismissReport')}
-        shrink
-
       >
         <View style={styles.responseModalContent}>
           <TextInput
@@ -917,7 +915,6 @@ export default function ModerationQueueContent() {
               ? t('sideWithName', { name: currentItem?.data?.originalAction?.responder?.displayName || t('moderator') })
               : appealResponseType === 'approve' ? t('approveAppeal') : t('denyAppeal')
         }
-        shrink
       >
         <View style={styles.responseModalContent}>
           <TextInput

@@ -36,4 +36,4 @@ The `seed_data/` package contains:
 | `templates/post_templates.py` | ~60 post title/body templates by stage × post_type |
 | `templates/comment_templates.py` | ~150 comment templates by belief_system × stance |
 | `templates/position_templates.py` | Vote patterns and statement templates |
-| `sessions/*.json` | 15 session files with anchors + generation config |
+| `sessions/*.json` | 17 session files with anchors + generation config |

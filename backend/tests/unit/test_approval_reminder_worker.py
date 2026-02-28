@@ -72,13 +72,12 @@ class TestApprovalReminderWorker:
         mock_db = MagicMock()
         role_req = _make_role_request()
 
-        # DB returns: role requests, location name, then update reminder_sent_at
-        # Then: no rule requests
+        # DB returns: atomic UPDATE...RETURNING for role requests, location name
+        # Then: empty atomic UPDATE...RETURNING for rule requests
         mock_db.execute_query = MagicMock(side_effect=[
-            [role_req],  # pending role requests within 24h
+            [role_req],  # UPDATE...RETURNING claimed role requests
             {"name": "Oregon"},  # location name lookup
-            None,  # UPDATE reminder_sent_at
-            [],  # pending rule requests (empty)
+            [],  # UPDATE...RETURNING rule requests (empty)
         ])
 
         with patch(f"{WORKER_MOD}.db", mock_db), \
@@ -102,8 +101,7 @@ class TestApprovalReminderWorker:
 
         mock_db.execute_query = MagicMock(side_effect=[
             [],  # no pending role requests
-            [rule_req],  # pending rule requests within 24h
-            None,  # UPDATE reminder_sent_at
+            [rule_req],  # UPDATE...RETURNING claimed rule requests
         ])
 
         with patch(f"{WORKER_MOD}.db", mock_db), \
@@ -123,8 +121,8 @@ class TestApprovalReminderWorker:
     def test_skips_already_reminded_requests(self):
         """Requests with reminder_sent_at set are excluded by the SQL query.
 
-        The worker's SQL WHERE clause includes 'AND reminder_sent_at IS NULL',
-        so already-reminded requests won't be returned by the DB.
+        The atomic UPDATE...RETURNING includes 'AND reminder_sent_at IS NULL',
+        so already-reminded requests won't be returned.
         """
         mock_db = MagicMock()
         # DB returns empty because already-reminded requests are filtered out
@@ -148,7 +146,7 @@ class TestApprovalReminderWorker:
         role_req = _make_role_request()
 
         mock_db.execute_query = MagicMock(side_effect=[
-            [role_req],  # pending role request
+            [role_req],  # pending role request (claimed atomically)
             [],  # no rule requests
         ])
 
@@ -169,11 +167,9 @@ class TestApprovalReminderWorker:
         rule_req = _make_rule_request()
 
         mock_db.execute_query = MagicMock(side_effect=[
-            [role_req],  # pending role requests
+            [role_req],  # UPDATE...RETURNING role requests
             {"name": "Oregon"},  # location name
-            None,  # UPDATE role reminder_sent_at
-            [rule_req],  # pending rule requests
-            None,  # UPDATE rule reminder_sent_at
+            [rule_req],  # UPDATE...RETURNING rule requests
         ])
 
         with patch(f"{WORKER_MOD}.db", mock_db), \
@@ -230,7 +226,6 @@ class TestApprovalReminderWorker:
         mock_db.execute_query = MagicMock(side_effect=[
             [],  # no role requests
             [rule_req],  # rule request with string proposed_rule
-            None,  # UPDATE reminder_sent_at
         ])
 
         with patch(f"{WORKER_MOD}.db", mock_db), \
@@ -244,16 +239,36 @@ class TestApprovalReminderWorker:
             mock_remind.assert_called_once()
             assert "Civility Rule" in mock_remind.call_args[0][1]
 
-    def test_updates_reminder_sent_at(self):
-        """After sending reminder, updates reminder_sent_at in DB."""
+    def test_atomic_claim_uses_for_update_skip_locked(self):
+        """Verify the query uses FOR UPDATE SKIP LOCKED for replica safety."""
+        mock_db = MagicMock()
+        mock_db.execute_query = MagicMock(side_effect=[
+            [],  # role requests
+            [],  # rule requests
+        ])
+
+        with patch(f"{WORKER_MOD}.db", mock_db):
+            from candid.controllers.helpers.approval_reminder_worker import \
+                ApprovalReminderWorker
+            worker = ApprovalReminderWorker(check_interval=60)
+            worker._check_and_send_reminders()
+
+            # Both queries should use UPDATE...RETURNING with FOR UPDATE SKIP LOCKED
+            for call_obj in mock_db.execute_query.call_args_list:
+                sql = call_obj[0][0]
+                assert "UPDATE" in sql
+                assert "RETURNING" in sql
+                assert "FOR UPDATE SKIP LOCKED" in sql
+
+    def test_no_separate_update_after_claim(self):
+        """The atomic claim sets reminder_sent_at, so no separate UPDATE is needed."""
         mock_db = MagicMock()
         role_req = _make_role_request()
 
         mock_db.execute_query = MagicMock(side_effect=[
-            [role_req],  # pending role requests
-            {"name": "Oregon"},  # location name
-            None,  # UPDATE reminder_sent_at
-            [],  # no rule requests
+            [role_req],  # UPDATE...RETURNING role requests (already sets reminder_sent_at)
+            {"name": "Oregon"},  # location name lookup
+            [],  # UPDATE...RETURNING rule requests (empty)
         ])
 
         with patch(f"{WORKER_MOD}.db", mock_db), \
@@ -264,9 +279,15 @@ class TestApprovalReminderWorker:
             worker = ApprovalReminderWorker(check_interval=60)
             worker._check_and_send_reminders()
 
-            # Third DB call should be the UPDATE for reminder_sent_at
-            update_call = mock_db.execute_query.call_args_list[2]
-            sql = update_call[0][0]
-            assert "UPDATE role_change_request" in sql
-            assert "reminder_sent_at" in sql
-            assert REQUEST_ID_1 in update_call[0][1]
+            # Should be exactly 3 calls: atomic role claim, location lookup, atomic rule claim
+            # No separate UPDATE call for reminder_sent_at
+            assert mock_db.execute_query.call_count == 3
+            calls = mock_db.execute_query.call_args_list
+            # First call: atomic UPDATE...RETURNING for role requests
+            assert "UPDATE role_change_request" in calls[0][0][0]
+            assert "RETURNING" in calls[0][0][0]
+            # Second call: location name lookup
+            assert "SELECT name FROM location" in calls[1][0][0]
+            # Third call: atomic UPDATE...RETURNING for rule requests
+            assert "UPDATE rule_change_request" in calls[2][0][0]
+            assert "RETURNING" in calls[2][0][0]

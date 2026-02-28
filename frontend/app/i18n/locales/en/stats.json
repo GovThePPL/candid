@@ -190,5 +190,6 @@
   "viewDemographicsA11y": "View demographic breakdown",
   "backA11y": "Go back",
   "expandContentA11y": "Toggle content details",
-  "closeA11y": "Close"
+  "closeA11y": "Close",
+  "noVotes": "No votes"
 }

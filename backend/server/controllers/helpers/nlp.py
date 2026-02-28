@@ -175,7 +175,8 @@ def check_toxicity(text: str, threshold: float = 0.7) -> dict:
 
 
 def proposal_assist(template: str, step: str, user_input: str,
-                    context: str = "", previous_sections: dict = None) -> dict:
+                    context: str = "", previous_sections: dict = None,
+                    location_name: str = None) -> dict:
     """
     Request AI-enhanced content for a proposal wizard step from the NLP service.
 
@@ -189,6 +190,7 @@ def proposal_assist(template: str, step: str, user_input: str,
         user_input: User's draft text
         context: Pre-assembled context string
         previous_sections: Dict of previous sections
+        location_name: Full location name (e.g. "Oregon - Multnomah County")
 
     Returns:
         Dict with 'content' field
@@ -204,6 +206,8 @@ def proposal_assist(template: str, step: str, user_input: str,
     }
     if previous_sections:
         payload["previous_sections"] = previous_sections
+    if location_name:
+        payload["location_name"] = location_name
 
     try:
         response = requests.post(

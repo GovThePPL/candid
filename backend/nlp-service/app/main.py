@@ -137,6 +137,7 @@ class ProposalAssistRequest(BaseModel):
     user_input: str = Field(..., description="User's draft text for this step", min_length=1)
     context: str = Field("", description="Pre-assembled context (wiki, glossary, Q&A, expert content)")
     previous_sections: Optional[Dict[str, str]] = Field(None, description="Previously completed sections")
+    location_name: Optional[str] = Field(None, description="Full location name (e.g. 'Oregon - Multnomah County')")
 
 
 class ProposalAssistResponse(BaseModel):
@@ -315,6 +316,7 @@ async def proposal_assist(request: ProposalAssistRequest):
             step=request.step,
             context=request.context,
             previous_sections=request.previous_sections,
+            location_name=request.location_name,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

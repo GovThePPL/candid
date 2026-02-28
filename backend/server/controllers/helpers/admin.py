@@ -21,6 +21,7 @@ from candid.models.survey_question_option import SurveyQuestionOption
 logger = logging.getLogger(__name__)
 
 VALID_CONTENT_TYPES = {'position', 'chat_log', 'post', 'comment'}
+VALID_POST_TYPES = {'discussion', 'question', 'proposal'}
 
 # Roles admins can assign (at their location or descendants)
 ADMIN_ASSIGNABLE = {'admin', 'moderator', 'facilitator'}
@@ -519,12 +520,20 @@ def build_rule_response(row):
         # PG text[] comes as Python list via psycopg2, but handle string just in case
         content_types = [ct.strip() for ct in content_types.strip('{}').split(',') if ct.strip()]
 
+    post_types = row.get('applicable_post_types')
+    if post_types is not None:
+        if isinstance(post_types, str):
+            post_types = [pt.strip() for pt in post_types.strip('{}').split(',') if pt.strip()]
+        else:
+            post_types = list(post_types)
+
     result = {
         'id': str(row['id']),
         'title': row['title'],
         'text': row['text'],
         'status': row.get('status', 'active'),
         'applicableContentTypes': list(content_types),
+        'applicablePostTypes': post_types,
     }
     if row.get('severity') is not None:
         result['severity'] = row['severity']
@@ -717,11 +726,13 @@ def apply_rule_change(request_row):
     if action == 'create':
         rule_id = str(uuid.uuid4())
         content_types = proposed.get('applicableContentTypes', ['position', 'chat_log', 'post', 'comment'])
+        post_types = proposed.get('applicablePostTypes')
         db.execute_query("""
             INSERT INTO rule (id, creator_user_id, title, text, severity,
                              default_actions, sentencing_guidelines,
-                             location_id, session_id, applicable_content_types)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                             location_id, session_id, applicable_content_types,
+                             applicable_post_types)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             rule_id,
             str(request_row['requested_by']),
@@ -733,6 +744,7 @@ def apply_rule_change(request_row):
             proposed.get('locationId'),
             proposed.get('sessionId'),
             content_types,
+            post_types,
         ))
 
     elif action == 'update':
@@ -765,6 +777,9 @@ def apply_rule_change(request_row):
         if 'applicableContentTypes' in proposed:
             set_clauses.append("applicable_content_types = %s")
             params.append(proposed['applicableContentTypes'])
+        if 'applicablePostTypes' in proposed:
+            set_clauses.append("applicable_post_types = %s")
+            params.append(proposed['applicablePostTypes'])
         if set_clauses:
             set_clauses.append("updated_time = CURRENT_TIMESTAMP")
             params.append(str(rule_id))

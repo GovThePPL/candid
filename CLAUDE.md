@@ -12,7 +12,7 @@ Candid is a chat platform for peaceful and productive discussion of issues of pu
 ```bash
 ./dev.sh                      # Start all services, wait for readiness, seed if needed
 ./dev.sh --reset-db           # Reset DB volume, then start + reseed
-./dev.sh --reset-all          # Reset DB + Redis volumes, then start + reseed (Polis data is in the DB)
+./dev.sh --reset-all          # Reset DB + Polis + Redis volumes, then start + reseed
 ./dev.sh --skip-seed          # Start services without running seed script
 ./dev.sh --seed-only          # Only run seed (services must already be up)
 docker compose up -d --build  # Manual start (no auto-seed or health checks)
@@ -21,7 +21,7 @@ docker compose up -d --build  # Manual start (no auto-seed or health checks)
 ### Database
 ```bash
 psql -h localhost -p 5432 -U user -d candid   # Connect (password: postgres)
-docker volume rm candid_postgres_data          # Reset database (includes Polis data)
+docker volume rm candid_postgres_data candid_polis_data  # Reset databases
 ```
 
 ### Backend API
@@ -126,7 +126,7 @@ The app supports light mode (default), dark mode, and system preference via `con
 
 ### Polis Integration (backend/polis-integration/)
 
-Runs Pol.is as direct docker-compose services (`polis-server` and `polis-math`) with Keycloak OIDC for admin authentication. The `polis/` subdirectory is a git submodule from https://github.com/compdemocracy/polis.git. The Polis database (`polis-dev`) lives in the shared PostgreSQL container.
+Runs Pol.is as direct docker-compose services (`polis-server` and `polis-math`) with Keycloak OIDC for admin authentication. The `polis/` subdirectory is a git submodule from https://github.com/compdemocracy/polis.git. The Polis database (`polis-dev`) has its own PostgreSQL container (`polis-db`) with a separate volume, enabling independent Polis scaling.
 
 ### Database (backend/database/)
 
@@ -137,7 +137,8 @@ PostgreSQL 17 with schema in `01-schema.sql` and test data in `02-basic-data.sql
 | Service | Port | Description |
 |---------|------|-------------|
 | api     | 8000 | Flask API server |
-| db      | 5432 | PostgreSQL (Candid + Polis + Keycloak databases) |
+| db      | 5432 | PostgreSQL (Candid + Keycloak databases) |
+| polis-db | -   | PostgreSQL (Polis database, separate for scaling) |
 | polis-server | 5000 | Polis API server |
 | polis-math   | -    | Polis math/clustering worker |
 | keycloak | 8180 | Keycloak OIDC provider |
@@ -154,7 +155,6 @@ PostgreSQL 17 with schema in `01-schema.sql` and test data in `02-basic-data.sql
 ## Future Work
 
 - **Location-aware sessions**: Filter sessions by location relevance (e.g., "Foreign Policy" doesn't apply to "Oregon"). Sessions are scoped to locations via the `location_session` table.
-- **Polis roll-over script and automation**: Automate Polis conversation roll-over (creating new conversations, migrating data, relinking pairwise surveys). Currently requires manual steps via `backend/scripts/backfill_polis_positions.py`.
 - **Position timeouts**: Implement expiration/archival of positions after a configurable time period.
 
 ## Development Workflow

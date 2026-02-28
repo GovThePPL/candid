@@ -19,9 +19,9 @@ export default function FeedTabBar({ activeTab, onTabChange, showProposals, hide
   const styles = useMemo(() => createStyles(colors), [colors])
 
   const tabs = [
+    ...(showProposals ? [{ id: 'proposal', label: t('tabProposals') }] : []),
     { id: 'discussion', label: t('tabDiscussion') },
     ...(!hideQA ? [{ id: 'question', label: t('tabQA') }] : []),
-    ...(showProposals ? [{ id: 'proposal', label: t('tabProposals') }] : []),
   ]
 
   return (

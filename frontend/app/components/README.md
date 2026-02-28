@@ -35,6 +35,8 @@ components/
 │   ├── BridgingBadge.jsx         # Bridging score badge
 │   ├── CommentItem.jsx           # Threaded comment with voting
 │   ├── CommentSortControl.jsx    # Comment sort order picker
+│   ├── CommentStageTabBar.jsx    # Stage-based comment filter tabs for proposal posts
+│   ├── EndorsementManageModal.jsx # Modal for managing (viewing/removing) endorsed proposals
 │   ├── DownvoteReasonPicker.jsx  # Reason selector for downvotes
 │   ├── ElectionResults.jsx       # Election results display (Condorcet/IRV method, rounds, pairwise record)
 │   ├── EditCommentModal.jsx      # Modal for editing an existing comment's body
@@ -72,6 +74,7 @@ components/
 │   ├── PositionSummaryCard.jsx   # Summarized position stats
 │   ├── SurveyResultsModal.jsx    # Survey results display modal
 │   └── VoteDistributionBar.jsx   # Vote distribution bar chart
+├── AnimatedSplash.jsx            # Animated splash screen with wipe reveal and fade-out orchestration
 ├── AcceptedProposalModal.jsx     # Modal displaying an accepted proposal with full content and author
 ├── AdoptPositionExplanationModal.jsx # Explanation modal for adopting positions
 ├── Avatar.jsx                    # User avatar with optional trust badge
@@ -82,6 +85,7 @@ components/
 ├── ChatMarkdown.jsx              # Markdown renderer for chat bubbles (white text on colored backgrounds)
 ├── ChatRequestIndicator.jsx      # Pending (sent) chat request badge/indicator
 ├── IncomingChatRequestIndicator.jsx # Incoming (received) chat request header indicator with sound/haptic alerts
+├── CommunityRulesModal.jsx       # Bottom drawer modal showing community rules for the create post screen
 ├── ChattingListExplanationModal.jsx # Explanation modal for chatting list
 ├── CommentsContent.jsx           # User's comment history list with vote counts and post context; optional userId prop for public profiles
 ├── EmptyState.jsx                # Empty state placeholder with icon and message
@@ -91,11 +95,15 @@ components/
 ├── InfoModal.jsx                 # Informational modal dialog
 ├── KudosMedallion.jsx            # Kudos score medallion display
 ├── LanguagePicker.jsx            # Language selection control (en/es)
+├── ModalPortal.jsx               # Thin wrapper around React Native Modal with transparent background
 ├── LoadingView.jsx               # Full-screen loading spinner
 ├── LocationSessionBadge.jsx      # Location/session badge pill
 ├── LocationSessionSelector.jsx   # Location and session multi-selector
 ├── LocationFilterButton.jsx      # Location filter toggle button
+├── SessionInfoCard.jsx           # Compact tappable card showing session info + effective stage action (archived or current); opens Session Overview Modal
+├── SessionOverviewModal.jsx      # Full-screen modal with vertical stage timeline, tappable completed stages
 ├── SessionProgressBar.jsx        # Session phase progress bar (proposal/opinion/reflection/consensus)
+├── SocialLoginButtons.jsx        # Apple and Google social login buttons with "or" divider (iOS/Android/web)
 ├── SessionSelectorModal.jsx      # Modal for selecting session with location-grouped section list
 ├── SessionStageBar.jsx           # Session stage indicator bar with advance controls
 ├── LocationPicker.jsx            # Location hierarchy picker

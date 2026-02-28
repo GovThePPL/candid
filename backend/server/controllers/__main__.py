@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import logging
 import os
 import connexion
 from flask import request, Response, jsonify
@@ -9,6 +10,8 @@ import requests
 from candid import encoder
 from candid.controllers import config
 from candid.controllers.helpers.keycloak import validate_token
+
+logger = logging.getLogger(__name__)
 
 
 def create_app():
@@ -28,52 +31,34 @@ def create_app():
         from candid.controllers.stats_controller import get_polis_report
         return get_polis_report(conversation_id)
 
-    # Allowed Polis API path prefixes (restrict proxy surface)
-    POLIS_ALLOWED_PREFIXES = (
-        'participationInit', 'votes', 'comments', 'math/pca2',
-        'conversations', 'reports',
+    # Read-only Polis API paths the report bundle needs (GET, no auth).
+    # These return only aggregate data — no personal information.
+    POLIS_REPORT_PREFIXES = (
+        'reports', 'math/pca2', 'math/correlationMatrix',
+        'comments', 'conversations', 'ptptois', 'delphi',
     )
 
-    # Add Polis API proxy route (outside of OpenAPI spec to avoid /api/v1 prefix)
-    @flask_app.route('/api/v3/<path:path>', methods=['GET', 'POST'])
+    # Proxy Polis API calls through /polis-api/ so they don't collide
+    # with our own API.  The report bundle's JS is patched to rewrite
+    # /api/v3/ → /polis-api/ (see asset proxy in stats_controller).
+    @flask_app.route('/polis-api/<path:path>', methods=['GET'])
     def proxy_polis_api(path):
-        """Proxy Polis API calls to protect the Polis server from direct exposure."""
+        """Read-only proxy for Polis API data needed by the report bundle."""
         if not config.POLIS_ENABLED:
             return {"error": "Polis is not enabled"}, 404
 
-        # Require JWT authentication
-        auth_header = request.headers.get('Authorization', '')
-        if not auth_header.startswith('Bearer '):
-            return jsonify({"code": 401, "detail": "Authentication required"}), 401
-        token = auth_header[7:]
-        token_info = validate_token(token)
-        if not token_info:
-            return jsonify({"code": 401, "detail": "Invalid token"}), 401
-
-        # Validate path: block traversal and restrict to allowed prefixes
+        # Validate path
         if '..' in path or path.startswith('/'):
             return jsonify({"code": 400, "detail": "Invalid path"}), 400
-        if not any(path.startswith(prefix) for prefix in POLIS_ALLOWED_PREFIXES):
+        if not any(path.startswith(prefix) for prefix in POLIS_REPORT_PREFIXES):
             return jsonify({"code": 403, "detail": "Path not allowed"}), 403
 
         try:
-            # Build the Polis API URL
             polis_api_url = f"{config.POLIS_API_URL}/{path}"
-
-            # Forward query string if present
             if request.query_string:
                 polis_api_url += f"?{request.query_string.decode('utf-8')}"
 
-            # Forward the request
-            if request.method == 'POST':
-                response = requests.post(
-                    polis_api_url,
-                    json=request.get_json(silent=True),
-                    headers={'Content-Type': 'application/json'},
-                    timeout=config.POLIS_TIMEOUT
-                )
-            else:
-                response = requests.get(polis_api_url, timeout=config.POLIS_TIMEOUT)
+            response = requests.get(polis_api_url, timeout=config.POLIS_TIMEOUT)
 
             return Response(
                 response.content,
@@ -84,7 +69,7 @@ def create_app():
         except requests.Timeout:
             return {"error": "Polis API request timed out"}, 502
         except requests.RequestException as e:
-            print(f"Error proxying Polis API: {e}", flush=True)
+            logger.error("Error proxying Polis API: %s", e)
             return {"error": "Failed to connect to Polis"}, 502
 
     # Enable CORS for all routes
@@ -106,6 +91,12 @@ def create_app():
         if not config.DEV:
             response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
         return response
+
+    # Catch-all error handler — prevent internal details from leaking in production
+    @flask_app.errorhandler(500)
+    def handle_internal_error(e):
+        logger.exception("Unhandled server error")
+        return jsonify({"code": 500, "detail": "Internal server error"}), 500
 
     return app
 

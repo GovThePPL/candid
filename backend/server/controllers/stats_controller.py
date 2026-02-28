@@ -379,7 +379,7 @@ def get_stats(location_id: str, session_id: str, phase=None, token_info=None):
 
     :param location_id: UUID of the location
     :param session_id: UUID of the session
-    :param phase: Optional deliberation phase filter ('proposal' or 'opinion').
+    :param phase: Optional deliberation phase filter ('proposal', 'opinion', or 'reflection').
                   If omitted, inferred from the session's current stage.
     :param token_info: JWT token info from authentication
     :rtype: Union[StatsResponse, Tuple[ErrorModel, int]]
@@ -1313,10 +1313,10 @@ window.__POLIS_PROXY_ROUTE_TYPE__ = "report";
         )
         resp.headers['Content-Security-Policy'] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
-            "style-src 'self' 'unsafe-inline'; "
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://d3js.org https://cdn.plot.ly; "
+            "style-src 'self' 'unsafe-inline' https://maxcdn.bootstrapcdn.com; "
             "img-src 'self' data: blob:; "
-            "font-src 'self' data:; "
+            "font-src 'self' data: https://maxcdn.bootstrapcdn.com; "
             "connect-src 'self'"
         )
         return resp
@@ -1408,8 +1408,8 @@ def get_polis_asset(path: str):
             # directly to Polis.  The Polis url.js module has a hardcoded
             # fallback of "http://localhost:5000" for localhost on non-80 ports.
             # Replace it with "" so urlPrefix becomes "/" (relative to current
-            # origin).  API calls like /api/v3/math/pca then hit the Flask
-            # catch-all route at /api/v3/<path:path> which proxies to Polis.
+            # origin), then rewrite /api/v3/ → /api/v1/polis-api/ so calls
+            # hit our dedicated proxy route instead of colliding with our API.
             js_content = js_content.replace(
                 '"http://localhost:5000"',
                 '""'
@@ -1418,6 +1418,11 @@ def get_polis_asset(path: str):
             js_content = js_content.replace(
                 '"http://localhost"',
                 '""'
+            )
+            # Rewrite Polis API path to our proxy path
+            js_content = js_content.replace(
+                '/api/v3/',
+                '/polis-api/'
             )
 
             content = (path_fix + js_content).encode('utf-8')

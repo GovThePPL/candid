@@ -1,7 +1,7 @@
 {
   "session_name": "Family Policy",
   "location_code": "TRAV",
-  "target_stage": "opinion_curation",
+  "target_stage": "reflection_curation",
   "topic_vocabulary": {
     "topic_noun": ["family policy", "family values", "social policy"],
     "topic_adj": ["family-related", "social", "domestic"],
@@ -40,7 +40,7 @@
       {"type": "generated", "lean": "libertarian_cross", "topic_focus": "individual_collective"},
       {"type": "generated", "lean": "divisive", "topic_focus": "equity"}
     ],
-    "opinion_curation": [
+    "reflection_curation": [
       {"type": "generated", "lean": "center", "topic_focus": "reform"},
       {"type": "generated", "lean": "bipartisan", "topic_focus": "implementation"},
       {"type": "generated", "lean": "center_left", "topic_focus": "funding"}
@@ -106,7 +106,7 @@
       "generated_types": {"discussion": 4, "question": 2, "proposal": 1},
       "comments_per_generated": [6, 5, 5, 6, 4, 5, 6]
     },
-    "opinion_curation": {
+    "reflection_curation": {
       "anchors": [],
       "generated_count": 8,
       "generated_types": {"discussion": 4, "question": 2, "proposal": 2},
@@ -118,7 +118,7 @@
       "title": "Family Policy Priorities for Travis County",
       "type": "standard",
       "session_name": "Family Policy",
-      "target_stage": "opinion_curation",
+      "target_stage": "reflection_curation",
       "questions": [
         {"question": "What is the most pressing family policy issue in Texas?",
          "options": ["Childcare affordability and availability", "LGBTQ+ family recognition and protections", "Support for single-parent households", "Work-life balance and parental leave"]},

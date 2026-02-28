@@ -34,6 +34,7 @@ import { CacheManager, CacheKeys, CacheDurations } from '../../../lib/cache'
 import { useAuth } from '../../../contexts/UserContext'
 import { useLocationSession } from '../../../contexts/LocationSessionContext'
 import { STAGE_TO_PHASE } from '../../../constants/Sessions'
+import SessionInfoCard from '../../../components/SessionInfoCard'
 
 const CARD_MIN_WIDTH = 280
 const SEARCH_DEBOUNCE_MS = 800
@@ -624,11 +625,7 @@ export default function Stats() {
           />
         }
       >
-        {/* Page Header */}
-        <View style={styles.sectionHeader}>
-          <ThemedText variant="h1" color="primary" style={styles.title}>{t('title')}</ThemedText>
-          <ThemedText variant="bodySmall" color="secondary" style={styles.subtitle}>{t('subtitle')}</ThemedText>
-        </View>
+        <SessionInfoCard />
 
         {renderContent()}
       </ScrollView>

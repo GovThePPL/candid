@@ -17,14 +17,29 @@ import StickyHeaderFlatList from './StickyHeaderFlatList'
 
 function PostCommentItemSkeleton({ styles }) {
   return (
-    <View style={styles.itemCard}>
-      <View style={{ gap: 6, marginBottom: 10 }}>
-        <SkeletonLine width="75%" height={14} />
-        <SkeletonLine width="50%" height={14} />
+    <View style={styles.skeletonCard}>
+      {/* Header row: badge + time */}
+      <View style={styles.itemHeaderRow}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <SkeletonBox width={36} height={20} borderRadius={10} />
+          <SkeletonLine width={60} height={14} />
+        </View>
+        <SkeletonLine width={30} height={10} />
       </View>
-      <View style={styles.skeletonFooterRow}>
+      {/* Title */}
+      <SkeletonLine width="65%" height={14} />
+      {/* Body lines */}
+      <View style={{ gap: 4 }}>
+        <SkeletonLine width="100%" height={12} />
+        <SkeletonLine width="85%" height={12} />
+        <SkeletonLine width="40%" height={12} />
+      </View>
+      {/* Footer: stat pairs + spacer + type badge */}
+      <View style={styles.itemFooter}>
+        <SkeletonBox width={30} height={14} borderRadius={4} />
+        <SkeletonBox width={30} height={14} borderRadius={4} />
         <SkeletonBox width={35} height={14} borderRadius={4} />
-        <SkeletonBox width={35} height={14} borderRadius={4} />
+        <View style={styles.footerSpacer} />
         <SkeletonBox width={45} height={14} borderRadius={4} />
       </View>
     </View>
@@ -299,9 +314,10 @@ const createStyles = (colors) => StyleSheet.create({
   loadingMore: {
     paddingVertical: Spacing.lg,
   },
-  skeletonFooterRow: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-    marginTop: Spacing.xs,
+  skeletonCard: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: 12,
+    padding: Spacing.md,
+    gap: Spacing.xs,
   },
 })

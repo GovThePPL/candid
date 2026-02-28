@@ -41,6 +41,12 @@ jest.mock('../../components/BottomDrawerModal', () => {
   }
 })
 
+jest.mock('../../contexts/LocationSessionContext', () => ({
+  useLocationSession: () => ({
+    openSessionOverview: jest.fn(),
+  }),
+}))
+
 import PostCard from '../../components/discuss/PostCard'
 
 const basePost = {

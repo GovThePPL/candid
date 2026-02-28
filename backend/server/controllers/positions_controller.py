@@ -107,12 +107,18 @@ def create_position(body, token_info=None, user_id=None):  # noqa: E501
             current_stage
         ))
 
+    # Read chats_disabled from request body (true when creator disagrees/passes on own position)
+    chats_disabled = False
+    if connexion.request.is_json:
+        chats_disabled = bool(connexion.request.get_json().get('chatsDisabled', False))
+
     ret = db.execute_query("""
-        INSERT INTO user_position (user_id, position_id)
-        VALUES (%s, %s)
+        INSERT INTO user_position (user_id, position_id, chats_disabled)
+        VALUES (%s, %s, %s)
     """, (
         user.id,
-        position_id
+        position_id,
+        chats_disabled
     ))
 
     # Queue position for async Polis sync

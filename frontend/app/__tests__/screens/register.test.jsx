@@ -8,8 +8,19 @@ jest.mock('../../hooks/useThemeColors', () => ({
 }))
 
 const mockRegister = jest.fn()
+const mockSocialLogin = jest.fn()
 jest.mock('../../hooks/useUser', () => ({
-  useUser: () => ({ register: mockRegister }),
+  useUser: () => ({ register: mockRegister, socialLogin: mockSocialLogin }),
+}))
+
+jest.mock('../../contexts/ThemeContext', () => ({
+  ...jest.requireActual('../../contexts/ThemeContext'),
+  useTheme: () => ({ colors: require('../../constants/Colors').LightTheme, isDark: false }),
+}))
+
+jest.mock('../../lib/keycloak', () => ({
+  sendPhoneVerification: jest.fn(),
+  confirmPhoneVerification: jest.fn(),
 }))
 
 jest.mock('../../lib/api', () => ({
@@ -22,6 +33,15 @@ jest.mock('../../components/LanguagePicker', () => {
   return function MockLanguagePicker() {
     return <Text>LanguagePicker</Text>
   }
+})
+
+jest.mock('../../components/SocialLoginButtons', () => {
+  const { Text } = require('react-native')
+  const MockSocialLoginButtons = function MockSocialLoginButtons() {
+    return <Text>SocialLoginButtons</Text>
+  }
+  MockSocialLoginButtons.isSocialLoginEnabled = () => false
+  return { __esModule: true, default: MockSocialLoginButtons, isSocialLoginEnabled: () => false }
 })
 
 import Register from '../../app/(auth)/register'

@@ -17,6 +17,7 @@ from candid.controllers import db
 from candid.controllers.helpers.auth import (
     authorization, authorization_allow_banned, authorization_scoped,
     require_auth, validate_stage_advance, check_session_stage,
+    is_facilitator_for,
 )
 from candid.controllers.helpers.serializers import clamp_pagination
 from candid.controllers.helpers import nlp
@@ -51,6 +52,9 @@ def _row_to_session(row):
     if row.get('location_code') is not None:
         result['locationCode'] = row['location_code']
         result['locationName'] = row['location_name']
+    # Include accepted proposal title if joined
+    if row.get('accepted_proposal_title') is not None:
+        result['acceptedProposalTitle'] = row['accepted_proposal_title']
     return result
 
 
@@ -58,9 +62,18 @@ SESSION_SELECT = """
     SELECT s.id, s.label, s.description, s.location_id, s.stage,
            s.stage_changed_at, s.stage_changed_by, s.facilitator_user_id,
            s.status, s.created_by, s.proposal_method,
-           l.code AS location_code, l.name AS location_name
+           l.code AS location_code, l.name AS location_name,
+           ap.title AS accepted_proposal_title
     FROM session s
     LEFT JOIN location l ON l.id = s.location_id
+    LEFT JOIN LATERAL (
+        SELECT p.title FROM post p
+        WHERE p.session_id = s.id
+          AND p.post_type = 'proposal'
+          AND p.proposal_status = 'finalized'
+        ORDER BY p.upvote_count DESC NULLS LAST
+        LIMIT 1
+    ) ap ON true
 """
 
 
@@ -138,52 +151,104 @@ def update_session(session_id, body, token_info=None):  # noqa: E501
 
     data = connexion.request.get_json()
     requested_stage = data.get("stage")
+    requested_label = data.get("label")
+    requested_status = data.get("status")
     reason = data.get("reason")
 
-    if not requested_stage:
+    if not requested_stage and requested_label is None and requested_status is None:
         return ErrorModel(400, "No fields to update"), 400
 
-    # Validate stage transition
+    # Validate label if provided
+    label = None
+    if requested_label is not None:
+        label = requested_label.strip()
+        if not label:
+            return ErrorModel(400, "Label cannot be empty"), 400
+        if len(label) > 255:
+            return ErrorModel(400, "Label must be 255 characters or fewer"), 400
+
+    # Validate status if provided
+    if requested_status is not None:
+        if requested_status != "archived":
+            return ErrorModel(400, "Status can only be set to 'archived'"), 400
+        if session.get("status") and session["status"] != "active":
+            return ErrorModel(400, "Only active sessions can be archived"), 400
+
+    # Block stage advances on non-active sessions
     current_stage = session['stage']
-    valid, err_msg = validate_stage_advance(current_stage, requested_stage)
-    if not valid:
-        return ErrorModel(400, err_msg), 400
+    if requested_stage and session.get("status") and session["status"] != "active":
+        return ErrorModel(400, "Cannot advance stage on a non-active session"), 400
 
-    # Atomically update stage + record history
+    # Validate stage transition if stage provided
+    if requested_stage:
+        valid, err_msg = validate_stage_advance(current_stage, requested_stage)
+        if not valid:
+            return ErrorModel(400, err_msg), 400
+
+        # Block advancement if this stage has a voting round that isn't finished
+        round_type = STAGE_TO_ROUND_TYPE.get(current_stage)
+        if round_type:
+            vr = _get_voting_round_row(session_id, round_type)
+            if not vr or vr['status'] != 'voting_closed':
+                return ErrorModel(400, "Cannot advance: voting round must be completed first"), 400
+
+    # Atomically update label + status + stage + record history
     with db.transaction() as tx:
-        tx.execute("""
-            UPDATE session
-            SET stage = %s, stage_changed_at = CURRENT_TIMESTAMP, stage_changed_by = %s,
-                updated_time = CURRENT_TIMESTAMP
-            WHERE id = %s
-        """, (requested_stage, user_id, str(session_id)))
+        # Update status if provided
+        if requested_status is not None:
+            tx.execute("""
+                UPDATE session SET status = %s, updated_time = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (requested_status, str(session_id)))
 
-        tx.execute("""
-            INSERT INTO session_stage_history (session_id, from_stage, to_stage, changed_by, reason)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (str(session_id), current_stage, requested_stage, user_id, reason))
+        # Update label if provided
+        if label is not None:
+            tx.execute("""
+                UPDATE session SET label = %s, updated_time = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (label, str(session_id)))
 
-        # Auto-pin accepted proposal when entering opinion phase
-        if current_stage == 'proposal_stakeholders' and requested_stage == 'opinion_discussion':
-            accepted = tx.execute("""
-                SELECT id FROM post
-                WHERE session_id = %s AND post_type = 'proposal'
-                  AND proposal_status = 'finalized' AND status IN ('active', 'locked')
-                ORDER BY upvote_count DESC, created_time ASC
-                LIMIT 1
-            """, (str(session_id),), fetchone=True)
+        # Stage advance logic
+        if requested_stage:
+            tx.execute("""
+                UPDATE session
+                SET stage = %s, stage_changed_at = CURRENT_TIMESTAMP, stage_changed_by = %s,
+                    updated_time = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (requested_stage, user_id, str(session_id)))
 
-            if accepted:
-                post_id = str(accepted['id'])
-                for pin_stage in (
-                    'opinion_discussion', 'opinion_curation', 'opinion_proposals',
-                    'reflection', 'consensus',
-                ):
-                    tx.execute("""
-                        INSERT INTO pinned_post (post_id, session_id, stage, pinned_by)
-                        VALUES (%s, %s, %s, %s)
-                        ON CONFLICT (session_id, stage, post_id) DO NOTHING
-                    """, (post_id, str(session_id), pin_stage, user_id))
+            tx.execute("""
+                INSERT INTO session_stage_history (session_id, from_stage, to_stage, changed_by, reason)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (str(session_id), current_stage, requested_stage, user_id, reason))
+
+            # Auto-pin RCV-winning proposal when entering opinion phase
+            # Triggers for all proposal methods (user_driven, admin_provided)
+            if requested_stage == 'opinion_discussion':
+                # Find the rank-1 winner from the completed voting round
+                accepted = None
+                issue_vr = _get_voting_round_row(session_id, 'issue_selection')
+                if issue_vr and issue_vr.get('results_json'):
+                    import json
+                    rcv_results = issue_vr['results_json']
+                    if isinstance(rcv_results, str):
+                        rcv_results = json.loads(rcv_results)
+                    winners = rcv_results.get('winners', [])
+                    rank1 = next((w for w in winners if w.get('rank') == 1), None)
+                    if rank1:
+                        accepted = {'id': rank1['proposalPostId']}
+
+                if accepted:
+                    post_id = str(accepted['id'])
+                    for pin_stage in (
+                        'opinion_discussion', 'reflection_curation', 'reflection_proposals',
+                        'consensus',
+                    ):
+                        tx.execute("""
+                            INSERT INTO pinned_post (post_id, session_id, stage, post_type, pinned_by)
+                            VALUES (%s, %s, %s, 'discussion', %s)
+                            ON CONFLICT (session_id, stage, post_type, post_id) DO NOTHING
+                        """, (post_id, str(session_id), pin_stage, user_id))
 
         # Fetch updated session within same transaction
         updated = tx.execute(
@@ -191,25 +256,44 @@ def update_session(session_id, body, token_info=None):  # noqa: E501
             (str(session_id),), fetchone=True,
         )
 
-    # Notify session members (after commit)
-    _notify_stage_advance(session, requested_stage, user_id)
+    # Post-commit side effects (only when stage changes)
+    if requested_stage:
+        # Notify session members (after commit)
+        _notify_stage_advance(session, requested_stage, user_id)
 
-    # Create opinion-phase Polis conversation when entering opinion phase
-    if current_stage == 'proposal_stakeholders' and requested_stage == 'opinion_discussion':
-        if location_id:
-            loc_row = db.execute_query(
-                "SELECT name FROM location WHERE id = %s",
-                (location_id,), fetchone=True,
-            )
-            if loc_row:
-                try:
-                    get_or_create_conversation(
-                        location_id, str(session_id),
-                        loc_row["name"], session["label"],
-                        phase="opinion",
-                    )
-                except Exception as e:
-                    logger.error("Failed to create opinion Polis conversation: %s", e)
+        # Create opinion-phase Polis conversation when entering opinion phase
+        if requested_stage == 'opinion_discussion':
+            if location_id:
+                loc_row = db.execute_query(
+                    "SELECT name FROM location WHERE id = %s",
+                    (location_id,), fetchone=True,
+                )
+                if loc_row:
+                    try:
+                        get_or_create_conversation(
+                            location_id, str(session_id),
+                            loc_row["name"], session["label"],
+                            phase="opinion",
+                        )
+                    except Exception as e:
+                        logger.error("Failed to create opinion Polis conversation: %s", e)
+
+        # Create reflection-phase Polis conversation when entering reflection phase
+        if current_stage == 'opinion_discussion' and requested_stage == 'reflection_curation':
+            if location_id:
+                loc_row = db.execute_query(
+                    "SELECT name FROM location WHERE id = %s",
+                    (location_id,), fetchone=True,
+                )
+                if loc_row:
+                    try:
+                        get_or_create_conversation(
+                            location_id, str(session_id),
+                            loc_row["name"], session["label"],
+                            phase="reflection",
+                        )
+                    except Exception as e:
+                        logger.error("Failed to create reflection Polis conversation: %s", e)
 
     return _row_to_session(updated), 200
 
@@ -266,10 +350,10 @@ VOTING_ROUND_STATUS_ORDER = [
 ]
 VOTING_ROUND_STATUS_INDEX = {s: i for i, s in enumerate(VOTING_ROUND_STATUS_ORDER)}
 
-ENDORSEMENT_STATUSES = {'proposals_open', 'finalization_open'}
+ENDORSEMENT_STATUSES = {'finalization_open'}
 STAGE_TO_ROUND_TYPE = {
     'proposal_qualify': 'issue_selection',
-    'opinion_proposals': 'policy_selection',
+    'reflection_proposals': 'policy_selection',
 }
 
 
@@ -315,7 +399,7 @@ def get_voting_round(session_id, round_type=None, token_info=None, user_id=None)
     return _voting_round_to_dict(row), 200
 
 
-def advance_voting_round(session_id, body, token_info=None):  # noqa: E501
+def advance_voting_round(session_id, body=None, token_info=None):  # noqa: E501
     """Advance the voting round to the next status (facilitator/moderator/admin only)."""
     if not token_info:
         return ErrorModel(401, "Authentication Required"), 401
@@ -563,21 +647,31 @@ def get_endorsements(session_id, round_type=None, token_info=None, user_id=None)
         for r in (my_rows or [])
     ]
 
-    # Per-proposal counts
-    count_rows = db.execute_query("""
-        SELECT proposal_post_id, COUNT(*) AS count
-        FROM proposal_endorsement
-        WHERE voting_round_id = %s
-        GROUP BY proposal_post_id
-    """, (vr_id,))
+    # Per-proposal counts — only visible to facilitators+
+    session_row = db.execute_query(
+        "SELECT location_id FROM session WHERE id = %s",
+        (str(session_id),), fetchone=True,
+    )
+    is_priv = session_row and is_facilitator_for(
+        user_id, str(session_row["location_id"]), str(session_id),
+    )
 
-    proposal_counts = [
-        {
-            "proposalPostId": str(r["proposal_post_id"]),
-            "count": r["count"],
-        }
-        for r in (count_rows or [])
-    ]
+    proposal_counts = []
+    if is_priv:
+        count_rows = db.execute_query("""
+            SELECT proposal_post_id, COUNT(*) AS count
+            FROM proposal_endorsement
+            WHERE voting_round_id = %s
+            GROUP BY proposal_post_id
+        """, (vr_id,))
+
+        proposal_counts = [
+            {
+                "proposalPostId": str(r["proposal_post_id"]),
+                "count": r["count"],
+            }
+            for r in (count_rows or [])
+        ]
 
     return {"myEndorsements": my_endorsements, "proposalCounts": proposal_counts}, 200
 
@@ -624,7 +718,7 @@ def create_endorsement(session_id, body, token_info=None, user_id=None):  # noqa
 
     # Verify proposal post exists and belongs to this session
     post = db.execute_query("""
-        SELECT id, session_id, post_type FROM post
+        SELECT id, session_id, post_type, proposal_status FROM post
         WHERE id = %s AND status IN ('active', 'locked')
     """, (str(proposal_post_id),), fetchone=True)
 
@@ -632,6 +726,8 @@ def create_endorsement(session_id, body, token_info=None, user_id=None):  # noqa
         return ErrorModel(404, "Proposal post not found"), 404
     if post["post_type"] != "proposal":
         return ErrorModel(400, "Can only endorse proposal posts"), 400
+    if post.get("proposal_status") != "finalized":
+        return ErrorModel(400, "Can only endorse finalized proposals"), 400
     if str(post["session_id"]) != str(session_id):
         return ErrorModel(400, "Proposal does not belong to this session"), 400
 

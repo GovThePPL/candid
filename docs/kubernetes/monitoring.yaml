@@ -1,0 +1,201 @@
+# Candid Monitoring Configuration
+#
+# Infrastructure-level monitoring using Blackbox Exporter probes and PrometheusRule alerts.
+# The application does not expose /metrics endpoints, so this uses HTTP probing only.
+#
+# Prerequisites:
+#   - kube-prometheus-stack (Prometheus Operator + Grafana + alertmanager)
+#   - prometheus-blackbox-exporter (helm install prometheus-blackbox-exporter
+#       prometheus-community/prometheus-blackbox-exporter)
+#
+# Recommended Grafana dashboards:
+#   - 315:  Kubernetes cluster monitoring
+#   - 1860: Node Exporter full
+#   - 9628: PostgreSQL (requires postgres_exporter sidecar)
+#   - 763:  Redis (requires redis_exporter sidecar)
+#
+# Future: Add /metrics endpoints to candid-api and candid-chat for
+# application-level metrics (request latency, active connections, queue depth).
+
+---
+# Blackbox Exporter Probes
+# These create Prometheus scrape targets that probe HTTP endpoints every 30s.
+# Requires the Probe CRD from prometheus-blackbox-exporter.
+
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: candid-api-probe
+  namespace: candid
+  labels:
+    release: kube-prometheus-stack  # Must match your Prometheus Operator release label
+spec:
+  interval: 30s
+  module: http_2xx
+  prober:
+    url: prometheus-blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      static:
+      - candid-api:8000/api/v1/ui/
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: candid-chat-probe
+  namespace: candid
+  labels:
+    release: kube-prometheus-stack
+spec:
+  interval: 30s
+  module: http_2xx
+  prober:
+    url: prometheus-blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      static:
+      - candid-chat:8002/health
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: candid-nlp-probe
+  namespace: candid
+  labels:
+    release: kube-prometheus-stack
+spec:
+  interval: 30s
+  module: http_2xx
+  prober:
+    url: prometheus-blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      static:
+      - nlp:5001/health
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: polis-server-probe
+  namespace: candid
+  labels:
+    release: kube-prometheus-stack
+spec:
+  interval: 30s
+  module: http_2xx
+  prober:
+    url: prometheus-blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      static:
+      - polis-server:5000/api/v3/participationInit
+
+---
+# PrometheusRule: alerting rules for Candid services
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: candid-alerts
+  namespace: candid
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+  - name: candid.service.health
+    rules:
+
+    # --- Service availability (blackbox probes) ---
+
+    - alert: CandidAPIDown
+      expr: probe_success{job="probe/candid/candid-api-probe"} == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Candid API is unreachable"
+        description: "The API health endpoint has been failing for 5 minutes."
+
+    - alert: CandidChatDown
+      expr: probe_success{job="probe/candid/candid-chat-probe"} == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Candid chat server is unreachable"
+        description: "The chat health endpoint has been failing for 5 minutes."
+
+    - alert: CandidNLPDown
+      expr: probe_success{job="probe/candid/candid-nlp-probe"} == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "NLP service is unreachable"
+        description: >
+          The NLP service has been down for 5 minutes. Toxicity filtering
+          fails open when NLP is unavailable — content may bypass moderation.
+
+    - alert: PolisServerDown
+      expr: probe_success{job="probe/candid/polis-server-probe"} == 0
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Polis server is unreachable"
+        description: "The Polis API has been unreachable for 10 minutes. Group opinion analysis is degraded."
+
+    # --- Pod stability ---
+
+    - alert: CandidPodCrashLooping
+      expr: increase(kube_pod_container_status_restarts_total{namespace="candid"}[15m]) > 3
+      labels:
+        severity: critical
+      annotations:
+        summary: "Pod {{ $labels.pod }} is crash-looping"
+        description: "Pod {{ $labels.pod }} has restarted {{ $value }} times in the last 15 minutes."
+
+    # --- Database (requires postgres_exporter sidecar) ---
+
+    - alert: CandidDBHighConnections
+      expr: pg_stat_activity_count{namespace="candid", datname="candid"} > 80
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Candid DB connection count is high"
+        description: "{{ $value }} active connections (threshold: 80). Check for connection leaks or increase DB_POOL_MAX."
+
+    # --- Redis (requires redis_exporter sidecar) ---
+
+    - alert: CandidRedisHighMemory
+      expr: redis_memory_used_bytes{namespace="candid"} / redis_memory_max_bytes{namespace="candid"} > 0.85
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Redis memory usage exceeds 85%"
+        description: "Redis is using {{ $value | humanizePercentage }} of maxmemory. LRU eviction is active but may cause cache miss storms."
+
+    # --- TLS certificate expiry (cert-manager) ---
+
+    - alert: CandidTLSCertExpiring
+      expr: certmanager_certificate_expiration_timestamp_seconds{namespace="candid"} - time() < 14 * 24 * 3600
+      labels:
+        severity: warning
+      annotations:
+        summary: "TLS certificate expiring soon"
+        description: "Certificate {{ $labels.name }} expires in less than 14 days."
+
+    # --- Backup health ---
+
+    - alert: CandidBackupFailed
+      expr: kube_job_status_failed{namespace="candid", job_name=~"candid-db-backup.*|polis-db-backup.*"} > 0
+      labels:
+        severity: warning
+      annotations:
+        summary: "Database backup job failed"
+        description: "Backup job {{ $labels.job_name }} has failed. Check CronJob logs."

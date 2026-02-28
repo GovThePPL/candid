@@ -220,13 +220,19 @@ def get_user_moderation_history(user_id, token_info=None):  # noqa: E501
 
 
 @require_auth("normal")
-def get_rules(content_type=None, offset=0, limit=50, token_info=None, user_id=None):  # noqa: E501
+def get_rules(content_type=None, location_id=None, session_id=None, post_type=None, offset=0, limit=50, token_info=None, user_id=None):  # noqa: E501
     """Get all active community rules
 
      # noqa: E501
 
     :param content_type: Filter rules by applicable content type
     :type content_type: str
+    :param location_id: Filter rules by location (returns global + location-specific)
+    :type location_id: str
+    :param session_id: Filter rules by session (returns global + session-specific)
+    :type session_id: str
+    :param post_type: Filter rules by applicable post type
+    :type post_type: str
 
     :rtype: Union[List[Rule], Tuple[List[Rule], int], Tuple[List[Rule], int, Dict[str, str]]
     """
@@ -238,10 +244,22 @@ def get_rules(content_type=None, offset=0, limit=50, token_info=None, user_id=No
         conditions.append("%s = ANY(applicable_content_types)")
         params.append(content_type)
 
+    if location_id:
+        conditions.append("(location_id IS NULL OR location_id = %s)")
+        params.append(location_id)
+
+    if session_id:
+        conditions.append("(session_id IS NULL OR session_id = %s)")
+        params.append(session_id)
+
+    if post_type:
+        conditions.append("(applicable_post_types IS NULL OR %s = ANY(applicable_post_types))")
+        params.append(post_type)
+
     where = " AND ".join(conditions)
     rules = db.execute_query(f"""
         SELECT id, title, text, severity, default_actions, sentencing_guidelines,
-               applicable_content_types
+               applicable_content_types, applicable_post_types
         FROM rule
         WHERE {where}
         ORDER BY created_time ASC
@@ -260,6 +278,9 @@ def get_rules(content_type=None, offset=0, limit=50, token_info=None, user_id=No
         content_types = r.get('applicable_content_types')
         if content_types is not None:
             rule_dict['applicableContentTypes'] = list(content_types)
+        post_types = r.get('applicable_post_types')
+        if post_types is not None:
+            rule_dict['applicablePostTypes'] = list(post_types)
         result.append(rule_dict)
     return result
 

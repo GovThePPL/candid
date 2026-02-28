@@ -22,16 +22,16 @@ Tables WITH seed data:
  16 location_session  - 15 entries (sessions assigned to their locations)
  17 session_stage_history - Stage transition audit records
 
-Session distribution (all 8 stages covered):
-  Oregon (5):     Healthcare Access (opinion_discussion), Living Wage (opinion_curation),
-                  School Funding (proposal_qualify), Civil Liberties (proposal_stakeholders),
-                  Rent Stabilization (reflection, archived)
-  California (5): Climate Action (opinion_proposals), Pacific Defense (consensus),
+Session distribution (all 7 stages covered):
+  Oregon (5):     Healthcare Access (opinion_discussion), Living Wage (reflection_curation),
+                  Fall 2025 (proposal_qualify), Civil Liberties (proposal_stakeholders),
+                  Rent Stabilization (consensus, archived)
+  California (5): Climate Action (reflection_proposals), Pacific Defense (consensus),
                   Electoral Reform (opinion_discussion), Spring 2026 (proposal_issue),
-                  Water Rights (reflection)
+                  Water Rights (consensus)
   Texas (5):      Border Communities (opinion_discussion), Criminal Justice (proposal_stakeholders),
-                  Family Policy (opinion_curation), Winter 2025-26 (proposal_qualify),
-                  Transit Expansion (opinion_proposals)
+                  Family Policy (reflection_curation), Winter 2025-26 (proposal_qualify),
+                  Transit Expansion (reflection_proposals)
 
 All other data (additional positions, votes, demographics, moderation
 actions, chatting list, pairwise data, etc.) is created by the seed
@@ -82,28 +82,35 @@ INSERT INTO location (id, parent_location_id, code, name) VALUES
 INSERT INTO session (id, label, description, location_id, stage, stage_changed_at, stage_changed_by, facilitator_user_id, status, created_by, created_time) VALUES
 -- Oregon: state (2)
 ('4d439108-2128-46ec-b4b2-80ec3dbf6aa3', 'Healthcare Access', 'Improving healthcare accessibility and affordability', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'opinion_discussion', '2025-07-15 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-06-01 10:00:00+00'),
-('63e233e9-187e-441f-a7a9-f5f44dffadf0', 'Living Wage', 'Establishing a living wage ordinance for workers', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'opinion_curation', '2025-08-01 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-05-15 10:00:00+00'),
+('63e233e9-187e-441f-a7a9-f5f44dffadf0', 'Living Wage', 'Establishing a living wage ordinance for workers', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'reflection_curation', '2025-08-01 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-05-15 10:00:00+00'),
 -- Multnomah County (2)
-('be3305f5-df1a-4cf5-855e-49a88ed3cbd3', 'School Funding', 'Reforming the funding model for public schools', 'c2b3a4d5-e6f7-8901-bcde-f12345678901', 'proposal_qualify', '2025-09-15 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-09-01 10:00:00+00'),
+('be3305f5-df1a-4cf5-855e-49a88ed3cbd3', 'Fall 2025', 'Multnomah County fall deliberation session', 'c2b3a4d5-e6f7-8901-bcde-f12345678901', 'proposal_qualify', '2025-09-15 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-09-01 10:00:00+00'),
 ('2d83d6eb-3000-47eb-b136-9d1c44f9b98d', 'Civil Liberties', 'Reviewing civil liberties protections', 'c2b3a4d5-e6f7-8901-bcde-f12345678901', 'proposal_stakeholders', '2025-09-01 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-08-01 10:00:00+00'),
 -- Portland (1)
-('55a55555-5555-5555-5555-555555555555', 'Rent Stabilization', 'Stabilizing rent prices', 'd3c4b5a6-f7e8-9012-cdef-123456789012', 'reflection', '2025-06-01 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'archived', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2024-12-01 10:00:00+00'),
+('55a55555-5555-5555-5555-555555555555', 'Rent Stabilization', 'Stabilizing rent prices', 'd3c4b5a6-f7e8-9012-cdef-123456789012', 'consensus', '2025-06-01 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'archived', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2024-12-01 10:00:00+00'),
 -- California: state (2)
-('66344e48-ecfe-4b7f-aa33-fe05e0d08873', 'Climate Action', 'Developing a response to climate change', 'a1b2c3d4-e5f6-7890-abcd-100000000001', 'opinion_proposals', '2025-08-15 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-04-01 10:00:00+00'),
+('66344e48-ecfe-4b7f-aa33-fe05e0d08873', 'Climate Action', 'Developing a response to climate change', 'a1b2c3d4-e5f6-7890-abcd-100000000001', 'reflection_proposals', '2025-08-15 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-04-01 10:00:00+00'),
 ('92d7131c-bf5c-40c1-89ef-e58b40e67bc8', 'Pacific Defense', 'Evaluating defense posture in the Pacific region', 'a1b2c3d4-e5f6-7890-abcd-100000000001', 'consensus', '2025-10-01 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-03-01 10:00:00+00'),
 -- Los Angeles County (2)
 ('cdc48d27-d636-481b-90b2-d6f6a2e6780e', 'Electoral Reform', 'Reforming electoral processes', 'a1b2c3d4-e5f6-7890-abcd-100000000002', 'opinion_discussion', '2025-08-01 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-06-15 10:00:00+00'),
 ('55a11111-1111-1111-1111-111111111111', 'Spring 2026', 'New deliberation session — issue to be determined', 'a1b2c3d4-e5f6-7890-abcd-100000000002', 'proposal_issue', NULL, NULL, '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2026-01-15 10:00:00+00'),
 -- Los Angeles (1)
-('55a33333-3333-3333-3333-333333333333', 'Water Rights', 'Allocating water resources fairly', 'a1b2c3d4-e5f6-7890-abcd-100000000003', 'reflection', '2025-10-15 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-02-01 10:00:00+00'),
+('55a33333-3333-3333-3333-333333333333', 'Water Rights', 'Allocating water resources fairly', 'a1b2c3d4-e5f6-7890-abcd-100000000003', 'consensus', '2025-10-15 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-02-01 10:00:00+00'),
 -- Texas: state (2)
 ('e2e608f7-169e-409b-9678-6dee57fab9c3', 'Border Communities', 'Supporting border communities with resources and services', 'a1b2c3d4-e5f6-7890-abcd-200000000001', 'opinion_discussion', '2025-08-15 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-07-01 10:00:00+00'),
 ('04edc480-aded-4b93-94c4-d62cbb507dc4', 'Criminal Justice', 'Reforming the criminal justice system', 'a1b2c3d4-e5f6-7890-abcd-200000000001', 'proposal_stakeholders', '2025-09-15 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-08-15 10:00:00+00'),
 -- Travis County (2)
-('26c8146e-d080-419e-b98b-5089c3a81b5b', 'Family Policy', 'Debating family-related policy', 'a1b2c3d4-e5f6-7890-abcd-200000000002', 'opinion_curation', '2025-08-15 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-05-01 10:00:00+00'),
+('26c8146e-d080-419e-b98b-5089c3a81b5b', 'Family Policy', 'Debating family-related policy', 'a1b2c3d4-e5f6-7890-abcd-200000000002', 'reflection_curation', '2025-08-15 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-05-01 10:00:00+00'),
 ('55a22222-2222-2222-2222-222222222222', 'Winter 2025-26', 'Winter deliberation session — narrowing issues', 'a1b2c3d4-e5f6-7890-abcd-200000000002', 'proposal_qualify', '2025-11-15 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-11-01 10:00:00+00'),
 -- Austin (1)
-('55a44444-4444-4444-4444-444444444444', 'Transit Expansion', 'Expanding public transit', 'a1b2c3d4-e5f6-7890-abcd-200000000003', 'opinion_proposals', '2025-09-01 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-04-15 10:00:00+00');
+('55a44444-4444-4444-4444-444444444444', 'Transit Expansion', 'Expanding public transit', 'a1b2c3d4-e5f6-7890-abcd-200000000003', 'reflection_proposals', '2025-09-01 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-04-15 10:00:00+00');
+
+-- Sessions with non-default proposal methods (direct_proposal, admin_provided)
+INSERT INTO session (id, label, description, location_id, stage, stage_changed_at, stage_changed_by, facilitator_user_id, status, created_by, created_time, proposal_method) VALUES
+-- direct_proposal: skips to opinion_discussion, single pre-set proposal
+('55a66666-6666-6666-6666-666666666666', 'School Funding', 'Direct proposal for school funding reform', 'c2b3a4d5-e6f7-8901-bcde-f12345678901', 'opinion_discussion', '2025-10-01 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-09-15 10:00:00+00', 'direct_proposal'),
+-- admin_provided: starts at proposal_qualify, multiple admin proposals
+('55a77777-7777-7777-7777-777777777777', 'Housing Policy', 'Admin-provided proposals for housing reform', 'a1b2c3d4-e5f6-7890-abcd-200000000002', 'proposal_qualify', '2025-10-15 12:00:00+00', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', 'active', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-10-01 10:00:00+00', 'admin_provided');
 
 -- User locations (all 10 users linked to Oregon/Portland)
 INSERT INTO user_location (id, user_id, location_id, created_time) VALUES
@@ -139,7 +146,7 @@ INSERT INTO position (id, creator_user_id, session_id, location_id, statement, c
 ('f7aeb957-a41a-4b1e-9482-6297f5f07743', '6c9344ed-0313-4b25-a616-5ac08967e84f', '4d439108-2128-46ec-b4b2-80ec3dbf6aa3', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Prescription drug prices should be regulated by the federal government.', '2024-11-20 11:15:30+00', '2025-08-10 14:22:33+00', 5, 0, 0, 0, 'active'),
 -- Minimum wage position by moderator1 (Living Wage session; needed for chat_log test)
 ('d61ccb9d-0b69-4eac-baf8-2f786d130535', 'a443c4ff-86ab-4751-aec9-d9b23d7acb9c', '63e233e9-187e-441f-a7a9-f5f44dffadf0', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'The minimum wage should be raised to $15 per hour nationally.', '2025-02-28 12:35:55+00', '2025-08-10 14:22:33+00', 0, 0, 0, 0, 'active'),
--- Teachers salary position by normal5 (School Funding session; needed for chat_log test)
+-- Teachers salary position by normal5 (Fall 2025 session; needed for chat_log test)
 ('27f11a1f-2b0e-4358-8f0f-13c3aee18d70', 'c922be05-e355-4052-8d3f-7774669ddd32', 'be3305f5-df1a-4cf5-855e-49a88ed3cbd3', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Teachers should be paid significantly higher salaries.', '2024-12-20 10:25:40+00', '2025-08-10 14:22:33+00', 4, 0, 0, 0, 'active'),
 -- Mental health position by normal2 (Healthcare Access session; needed for USER_POSITION_NORMAL2)
 ('28028e9a-90b5-4b2a-9054-d3d446180df7', '4a67d0e6-56a4-4396-916b-922d27db71d8', '4d439108-2128-46ec-b4b2-80ec3dbf6aa3', 'ba5e3dcf-af51-47f4-941d-ee3448ee826a', 'Mental health services should receive equal insurance coverage as physical health.', '2025-02-10 08:22:45+00', '2025-08-10 14:22:33+00', 5, 0, 0, 0, 'active'),
@@ -279,7 +286,11 @@ INSERT INTO location_session (id, location_id, session_id) VALUES
 ('22222222-aaaa-bbbb-cccc-000000000013', 'a1b2c3d4-e5f6-7890-abcd-200000000002', '26c8146e-d080-419e-b98b-5089c3a81b5b'),
 ('22222222-aaaa-bbbb-cccc-000000000014', 'a1b2c3d4-e5f6-7890-abcd-200000000002', '55a22222-2222-2222-2222-222222222222'),
 -- Austin (1)
-('22222222-aaaa-bbbb-cccc-000000000015', 'a1b2c3d4-e5f6-7890-abcd-200000000003', '55a44444-4444-4444-4444-444444444444');
+('22222222-aaaa-bbbb-cccc-000000000015', 'a1b2c3d4-e5f6-7890-abcd-200000000003', '55a44444-4444-4444-4444-444444444444'),
+-- Multnomah County: School Funding (direct_proposal)
+('22222222-aaaa-bbbb-cccc-000000000016', 'c2b3a4d5-e6f7-8901-bcde-f12345678901', '55a66666-6666-6666-6666-666666666666'),
+-- Travis County: Housing Policy (admin_provided)
+('22222222-aaaa-bbbb-cccc-000000000017', 'a1b2c3d4-e5f6-7890-abcd-200000000002', '55a77777-7777-7777-7777-777777777777');
 
 -- Session stage history (audit trail of stage transitions)
 -- All transitions performed by admin1
@@ -288,19 +299,19 @@ INSERT INTO session_stage_history (id, session_id, from_stage, to_stage, changed
 ('55000101-aaaa-bbbb-cccc-000000000000', '4d439108-2128-46ec-b4b2-80ec3dbf6aa3', 'proposal_issue', 'proposal_qualify', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-06-15 12:00:00+00'),
 ('55000102-aaaa-bbbb-cccc-000000000000', '4d439108-2128-46ec-b4b2-80ec3dbf6aa3', 'proposal_qualify', 'proposal_stakeholders', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-07-01 12:00:00+00'),
 ('55000103-aaaa-bbbb-cccc-000000000000', '4d439108-2128-46ec-b4b2-80ec3dbf6aa3', 'proposal_stakeholders', 'opinion_discussion', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-07-15 12:00:00+00'),
--- Session 2: Living Wage → opinion_curation (4 transitions)
+-- Session 2: Living Wage → reflection_curation (4 transitions)
 ('55000201-aaaa-bbbb-cccc-000000000000', '63e233e9-187e-441f-a7a9-f5f44dffadf0', 'proposal_issue', 'proposal_qualify', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-06-01 12:00:00+00'),
 ('55000202-aaaa-bbbb-cccc-000000000000', '63e233e9-187e-441f-a7a9-f5f44dffadf0', 'proposal_qualify', 'proposal_stakeholders', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-06-15 12:00:00+00'),
 ('55000203-aaaa-bbbb-cccc-000000000000', '63e233e9-187e-441f-a7a9-f5f44dffadf0', 'proposal_stakeholders', 'opinion_discussion', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-07-01 12:00:00+00'),
-('55000204-aaaa-bbbb-cccc-000000000000', '63e233e9-187e-441f-a7a9-f5f44dffadf0', 'opinion_discussion', 'opinion_curation', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-08-01 12:00:00+00'),
--- Session 3: School Funding → proposal_qualify (1 transition)
+('55000204-aaaa-bbbb-cccc-000000000000', '63e233e9-187e-441f-a7a9-f5f44dffadf0', 'opinion_discussion', 'reflection_curation', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-08-01 12:00:00+00'),
+-- Session 3: Fall 2025 → proposal_qualify (1 transition)
 ('55000301-aaaa-bbbb-cccc-000000000000', 'be3305f5-df1a-4cf5-855e-49a88ed3cbd3', 'proposal_issue', 'proposal_qualify', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-09-15 12:00:00+00'),
--- Session 4: Climate Action → opinion_proposals (5 transitions)
+-- Session 4: Climate Action → reflection_proposals (5 transitions)
 ('55000401-aaaa-bbbb-cccc-000000000000', '66344e48-ecfe-4b7f-aa33-fe05e0d08873', 'proposal_issue', 'proposal_qualify', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-04-15 12:00:00+00'),
 ('55000402-aaaa-bbbb-cccc-000000000000', '66344e48-ecfe-4b7f-aa33-fe05e0d08873', 'proposal_qualify', 'proposal_stakeholders', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-05-01 12:00:00+00'),
 ('55000403-aaaa-bbbb-cccc-000000000000', '66344e48-ecfe-4b7f-aa33-fe05e0d08873', 'proposal_stakeholders', 'opinion_discussion', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-05-15 12:00:00+00'),
-('55000404-aaaa-bbbb-cccc-000000000000', '66344e48-ecfe-4b7f-aa33-fe05e0d08873', 'opinion_discussion', 'opinion_curation', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-06-15 12:00:00+00'),
-('55000405-aaaa-bbbb-cccc-000000000000', '66344e48-ecfe-4b7f-aa33-fe05e0d08873', 'opinion_curation', 'opinion_proposals', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-08-15 12:00:00+00'),
+('55000404-aaaa-bbbb-cccc-000000000000', '66344e48-ecfe-4b7f-aa33-fe05e0d08873', 'opinion_discussion', 'reflection_curation', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-06-15 12:00:00+00'),
+('55000405-aaaa-bbbb-cccc-000000000000', '66344e48-ecfe-4b7f-aa33-fe05e0d08873', 'reflection_curation', 'reflection_proposals', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-08-15 12:00:00+00'),
 -- Session 5: Border Communities → opinion_discussion (3 transitions)
 ('55000501-aaaa-bbbb-cccc-000000000000', 'e2e608f7-169e-409b-9678-6dee57fab9c3', 'proposal_issue', 'proposal_qualify', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-07-15 12:00:00+00'),
 ('55000502-aaaa-bbbb-cccc-000000000000', 'e2e608f7-169e-409b-9678-6dee57fab9c3', 'proposal_qualify', 'proposal_stakeholders', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-08-01 12:00:00+00'),
@@ -312,18 +323,18 @@ INSERT INTO session_stage_history (id, session_id, from_stage, to_stage, changed
 ('55000701-aaaa-bbbb-cccc-000000000000', '92d7131c-bf5c-40c1-89ef-e58b40e67bc8', 'proposal_issue', 'proposal_qualify', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-03-15 12:00:00+00'),
 ('55000702-aaaa-bbbb-cccc-000000000000', '92d7131c-bf5c-40c1-89ef-e58b40e67bc8', 'proposal_qualify', 'proposal_stakeholders', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-04-01 12:00:00+00'),
 ('55000703-aaaa-bbbb-cccc-000000000000', '92d7131c-bf5c-40c1-89ef-e58b40e67bc8', 'proposal_stakeholders', 'opinion_discussion', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-04-15 12:00:00+00'),
-('55000704-aaaa-bbbb-cccc-000000000000', '92d7131c-bf5c-40c1-89ef-e58b40e67bc8', 'opinion_discussion', 'opinion_curation', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-05-15 12:00:00+00'),
-('55000705-aaaa-bbbb-cccc-000000000000', '92d7131c-bf5c-40c1-89ef-e58b40e67bc8', 'opinion_curation', 'opinion_proposals', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-06-15 12:00:00+00'),
-('55000706-aaaa-bbbb-cccc-000000000000', '92d7131c-bf5c-40c1-89ef-e58b40e67bc8', 'opinion_proposals', 'reflection', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-08-01 12:00:00+00'),
-('55000707-aaaa-bbbb-cccc-000000000000', '92d7131c-bf5c-40c1-89ef-e58b40e67bc8', 'reflection', 'consensus', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-10-01 12:00:00+00'),
+('55000704-aaaa-bbbb-cccc-000000000000', '92d7131c-bf5c-40c1-89ef-e58b40e67bc8', 'opinion_discussion', 'reflection_curation', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-05-15 12:00:00+00'),
+('55000705-aaaa-bbbb-cccc-000000000000', '92d7131c-bf5c-40c1-89ef-e58b40e67bc8', 'reflection_curation', 'reflection_proposals', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-06-15 12:00:00+00'),
+('55000706-aaaa-bbbb-cccc-000000000000', '92d7131c-bf5c-40c1-89ef-e58b40e67bc8', 'reflection_proposals', 'consensus', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-08-01 12:00:00+00'),
+('55000707-aaaa-bbbb-cccc-000000000000', '92d7131c-bf5c-40c1-89ef-e58b40e67bc8', 'consensus', 'consensus', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-10-01 12:00:00+00'),
 -- Session 8: Civil Liberties → proposal_stakeholders (2 transitions)
 ('55000801-aaaa-bbbb-cccc-000000000000', '2d83d6eb-3000-47eb-b136-9d1c44f9b98d', 'proposal_issue', 'proposal_qualify', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-08-15 12:00:00+00'),
 ('55000802-aaaa-bbbb-cccc-000000000000', '2d83d6eb-3000-47eb-b136-9d1c44f9b98d', 'proposal_qualify', 'proposal_stakeholders', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-09-01 12:00:00+00'),
--- Session 9: Family Policy → opinion_curation (4 transitions)
+-- Session 9: Family Policy → reflection_curation (4 transitions)
 ('55000901-aaaa-bbbb-cccc-000000000000', '26c8146e-d080-419e-b98b-5089c3a81b5b', 'proposal_issue', 'proposal_qualify', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-05-15 12:00:00+00'),
 ('55000902-aaaa-bbbb-cccc-000000000000', '26c8146e-d080-419e-b98b-5089c3a81b5b', 'proposal_qualify', 'proposal_stakeholders', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-06-01 12:00:00+00'),
 ('55000903-aaaa-bbbb-cccc-000000000000', '26c8146e-d080-419e-b98b-5089c3a81b5b', 'proposal_stakeholders', 'opinion_discussion', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-06-15 12:00:00+00'),
-('55000904-aaaa-bbbb-cccc-000000000000', '26c8146e-d080-419e-b98b-5089c3a81b5b', 'opinion_discussion', 'opinion_curation', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-08-15 12:00:00+00'),
+('55000904-aaaa-bbbb-cccc-000000000000', '26c8146e-d080-419e-b98b-5089c3a81b5b', 'opinion_discussion', 'reflection_curation', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-08-15 12:00:00+00'),
 -- Session 10: Electoral Reform → opinion_discussion (3 transitions)
 ('55001001-aaaa-bbbb-cccc-000000000000', 'cdc48d27-d636-481b-90b2-d6f6a2e6780e', 'proposal_issue', 'proposal_qualify', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-07-01 12:00:00+00'),
 ('55001002-aaaa-bbbb-cccc-000000000000', 'cdc48d27-d636-481b-90b2-d6f6a2e6780e', 'proposal_qualify', 'proposal_stakeholders', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-07-15 12:00:00+00'),
@@ -331,23 +342,23 @@ INSERT INTO session_stage_history (id, session_id, from_stage, to_stage, changed
 -- Session 11: Spring 2026 → proposal_issue (0 transitions — starting stage)
 -- Session 12: Winter 2025-26 → proposal_qualify (1 transition)
 ('55001201-aaaa-bbbb-cccc-000000000000', '55a22222-2222-2222-2222-222222222222', 'proposal_issue', 'proposal_qualify', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-11-15 12:00:00+00'),
--- Session 13: Water Rights → reflection (6 transitions)
+-- Session 13: Water Rights → consensus (6 transitions)
 ('55001301-aaaa-bbbb-cccc-000000000000', '55a33333-3333-3333-3333-333333333333', 'proposal_issue', 'proposal_qualify', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-02-15 12:00:00+00'),
 ('55001302-aaaa-bbbb-cccc-000000000000', '55a33333-3333-3333-3333-333333333333', 'proposal_qualify', 'proposal_stakeholders', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-03-01 12:00:00+00'),
 ('55001303-aaaa-bbbb-cccc-000000000000', '55a33333-3333-3333-3333-333333333333', 'proposal_stakeholders', 'opinion_discussion', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-03-15 12:00:00+00'),
-('55001304-aaaa-bbbb-cccc-000000000000', '55a33333-3333-3333-3333-333333333333', 'opinion_discussion', 'opinion_curation', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-04-15 12:00:00+00'),
-('55001305-aaaa-bbbb-cccc-000000000000', '55a33333-3333-3333-3333-333333333333', 'opinion_curation', 'opinion_proposals', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-06-01 12:00:00+00'),
-('55001306-aaaa-bbbb-cccc-000000000000', '55a33333-3333-3333-3333-333333333333', 'opinion_proposals', 'reflection', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-10-15 12:00:00+00'),
--- Session 14: Transit Expansion → opinion_proposals (5 transitions)
+('55001304-aaaa-bbbb-cccc-000000000000', '55a33333-3333-3333-3333-333333333333', 'opinion_discussion', 'reflection_curation', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-04-15 12:00:00+00'),
+('55001305-aaaa-bbbb-cccc-000000000000', '55a33333-3333-3333-3333-333333333333', 'reflection_curation', 'reflection_proposals', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-06-01 12:00:00+00'),
+('55001306-aaaa-bbbb-cccc-000000000000', '55a33333-3333-3333-3333-333333333333', 'reflection_proposals', 'consensus', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-10-15 12:00:00+00'),
+-- Session 14: Transit Expansion → reflection_proposals (5 transitions)
 ('55001401-aaaa-bbbb-cccc-000000000000', '55a44444-4444-4444-4444-444444444444', 'proposal_issue', 'proposal_qualify', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-05-01 12:00:00+00'),
 ('55001402-aaaa-bbbb-cccc-000000000000', '55a44444-4444-4444-4444-444444444444', 'proposal_qualify', 'proposal_stakeholders', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-05-15 12:00:00+00'),
 ('55001403-aaaa-bbbb-cccc-000000000000', '55a44444-4444-4444-4444-444444444444', 'proposal_stakeholders', 'opinion_discussion', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-06-01 12:00:00+00'),
-('55001404-aaaa-bbbb-cccc-000000000000', '55a44444-4444-4444-4444-444444444444', 'opinion_discussion', 'opinion_curation', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-07-01 12:00:00+00'),
-('55001405-aaaa-bbbb-cccc-000000000000', '55a44444-4444-4444-4444-444444444444', 'opinion_curation', 'opinion_proposals', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-09-01 12:00:00+00'),
--- Session 15: Rent Stabilization → reflection, archived (6 transitions)
+('55001404-aaaa-bbbb-cccc-000000000000', '55a44444-4444-4444-4444-444444444444', 'opinion_discussion', 'reflection_curation', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-07-01 12:00:00+00'),
+('55001405-aaaa-bbbb-cccc-000000000000', '55a44444-4444-4444-4444-444444444444', 'reflection_curation', 'reflection_proposals', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-09-01 12:00:00+00'),
+-- Session 15: Rent Stabilization → consensus, archived (6 transitions)
 ('55001501-aaaa-bbbb-cccc-000000000000', '55a55555-5555-5555-5555-555555555555', 'proposal_issue', 'proposal_qualify', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2024-12-15 12:00:00+00'),
 ('55001502-aaaa-bbbb-cccc-000000000000', '55a55555-5555-5555-5555-555555555555', 'proposal_qualify', 'proposal_stakeholders', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-01-01 12:00:00+00'),
 ('55001503-aaaa-bbbb-cccc-000000000000', '55a55555-5555-5555-5555-555555555555', 'proposal_stakeholders', 'opinion_discussion', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-01-15 12:00:00+00'),
-('55001504-aaaa-bbbb-cccc-000000000000', '55a55555-5555-5555-5555-555555555555', 'opinion_discussion', 'opinion_curation', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-02-15 12:00:00+00'),
-('55001505-aaaa-bbbb-cccc-000000000000', '55a55555-5555-5555-5555-555555555555', 'opinion_curation', 'opinion_proposals', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-04-01 12:00:00+00'),
-('55001506-aaaa-bbbb-cccc-000000000000', '55a55555-5555-5555-5555-555555555555', 'opinion_proposals', 'reflection', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-06-01 12:00:00+00');
+('55001504-aaaa-bbbb-cccc-000000000000', '55a55555-5555-5555-5555-555555555555', 'opinion_discussion', 'reflection_curation', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-02-15 12:00:00+00'),
+('55001505-aaaa-bbbb-cccc-000000000000', '55a55555-5555-5555-5555-555555555555', 'reflection_curation', 'reflection_proposals', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-04-01 12:00:00+00'),
+('55001506-aaaa-bbbb-cccc-000000000000', '55a55555-5555-5555-5555-555555555555', 'reflection_proposals', 'consensus', '0d4a5d0d-e845-49c2-99e2-1e7fe3c3ca0e', '2025-06-01 12:00:00+00');

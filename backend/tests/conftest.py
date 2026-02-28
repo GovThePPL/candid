@@ -44,8 +44,8 @@ GUEST2_ID = "a2ec25a9-2a12-4a01-baf8-c0d1e254c3db"
 
 # Sessions (named by topic — see basic.sql for full session list)
 HEALTHCARE_SESSION_ID = "4d439108-2128-46ec-b4b2-80ec3dbf6aa3"   # "Healthcare Access" @ Oregon, opinion_discussion
-ECONOMY_SESSION_ID = "63e233e9-187e-441f-a7a9-f5f44dffadf0"      # "Living Wage" @ Oregon, opinion_curation
-EDUCATION_SESSION_ID = "be3305f5-df1a-4cf5-855e-49a88ed3cbd3"    # "School Funding" @ Oregon, proposal_qualify
+ECONOMY_SESSION_ID = "63e233e9-187e-441f-a7a9-f5f44dffadf0"      # "Living Wage" @ Oregon, reflection_curation
+EDUCATION_SESSION_ID = "be3305f5-df1a-4cf5-855e-49a88ed3cbd3"    # "Fall 2025" @ Multnomah County, proposal_qualify
 
 # Positions (first healthcare position by admin1)
 POSITION1_ID = "772d04ed-b2ad-4f95-a630-c739811fa615"

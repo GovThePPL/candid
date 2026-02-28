@@ -300,3 +300,107 @@ class TestReconcileCounters:
             "comment.vote_counts",
             "users.kudos_count",
         }
+
+
+# ---------------------------------------------------------------------------
+# Bridging award → kudos_count trigger
+# ---------------------------------------------------------------------------
+
+class TestBridgingAwardKudosTrigger:
+    """trg_user_kudos_from_bridging: bridging_award INSERT/UPDATE/DELETE → users.kudos_count."""
+
+    USER_ID = NORMAL5_ID
+    _created_ids = []
+
+    @pytest.fixture(autouse=True)
+    def cleanup(self):
+        """Remove test bridging awards before and after each test."""
+        self.__class__._created_ids = []
+        db_execute("DELETE FROM bridging_award WHERE user_id = %s", (self.USER_ID,))
+        # Reset kudos_count to match actual state
+        db_execute("""
+            UPDATE users SET kudos_count = (
+                (SELECT COUNT(*) FROM kudos WHERE receiver_user_id = %s AND status = 'sent')
+                + (SELECT COUNT(*) FROM bridging_award WHERE user_id = %s AND dismissed = false)
+            ) WHERE id = %s
+        """, (self.USER_ID, self.USER_ID, self.USER_ID))
+        yield
+        for aid in self._created_ids:
+            db_execute("DELETE FROM bridging_award WHERE id = %s", (aid,))
+        db_execute("""
+            UPDATE users SET kudos_count = (
+                (SELECT COUNT(*) FROM kudos WHERE receiver_user_id = %s AND status = 'sent')
+                + (SELECT COUNT(*) FROM bridging_award WHERE user_id = %s AND dismissed = false)
+            ) WHERE id = %s
+        """, (self.USER_ID, self.USER_ID, self.USER_ID))
+
+    def _get_kudos_count(self):
+        rows = db_query("SELECT kudos_count FROM users WHERE id = %s", (self.USER_ID,))
+        return rows[0]["kudos_count"]
+
+    def _insert_award(self, dismissed=False):
+        aid = str(uuid.uuid4())
+        item_id = str(uuid.uuid4())
+        db_execute("""
+            INSERT INTO bridging_award (id, item_type, item_id, user_id, dismissed)
+            VALUES (%s, 'comment', %s, %s, %s)
+        """, (aid, item_id, self.USER_ID, dismissed))
+        self._created_ids.append(aid)
+        return aid
+
+    def test_insert_non_dismissed_increments(self):
+        before = self._get_kudos_count()
+        self._insert_award(dismissed=False)
+        assert self._get_kudos_count() == before + 1
+
+    def test_insert_dismissed_no_change(self):
+        before = self._get_kudos_count()
+        self._insert_award(dismissed=True)
+        assert self._get_kudos_count() == before
+
+    def test_dismiss_decrements(self):
+        aid = self._insert_award(dismissed=False)
+        before = self._get_kudos_count()
+        db_execute("UPDATE bridging_award SET dismissed = true WHERE id = %s", (aid,))
+        assert self._get_kudos_count() == before - 1
+
+    def test_undismiss_increments(self):
+        aid = self._insert_award(dismissed=True)
+        before = self._get_kudos_count()
+        db_execute("UPDATE bridging_award SET dismissed = false WHERE id = %s", (aid,))
+        assert self._get_kudos_count() == before + 1
+
+    def test_delete_non_dismissed_decrements(self):
+        aid = self._insert_award(dismissed=False)
+        before = self._get_kudos_count()
+        db_execute("DELETE FROM bridging_award WHERE id = %s", (aid,))
+        self._created_ids.remove(aid)
+        assert self._get_kudos_count() == before - 1
+
+    def test_delete_dismissed_no_change(self):
+        aid = self._insert_award(dismissed=True)
+        before = self._get_kudos_count()
+        db_execute("DELETE FROM bridging_award WHERE id = %s", (aid,))
+        self._created_ids.remove(aid)
+        assert self._get_kudos_count() == before
+
+    def test_multiple_awards_accumulate(self):
+        before = self._get_kudos_count()
+        self._insert_award(dismissed=False)
+        self._insert_award(dismissed=False)
+        self._insert_award(dismissed=False)
+        assert self._get_kudos_count() == before + 3
+
+    def test_reconcile_fixes_drifted_bridging_kudos(self):
+        """Corrupt kudos_count, then reconcile to fix it including bridging awards."""
+        self._insert_award(dismissed=False)
+        self._insert_award(dismissed=False)
+        expected = self._get_kudos_count()
+
+        # Corrupt the counter
+        db_execute("UPDATE users SET kudos_count = 999 WHERE id = %s", (self.USER_ID,))
+        assert self._get_kudos_count() == 999
+
+        # Reconcile should fix it
+        db_execute_returning("SELECT * FROM reconcile_counters()")
+        assert self._get_kudos_count() == expected

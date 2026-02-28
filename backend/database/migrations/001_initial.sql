@@ -1,0 +1,5 @@
+-- Baseline migration marker.
+--
+-- This is a no-op that marks the initial schema (schema.sql) as applied.
+-- All tables already exist from the Docker init scripts.
+-- Future migrations (002_*.sql, 003_*.sql, ...) go in this directory.

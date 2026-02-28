@@ -1,4 +1,5 @@
-import { View, TouchableOpacity, Animated, Platform, StyleSheet } from 'react-native'
+import { View, TouchableOpacity, StyleSheet } from 'react-native'
+import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated'
 import { useMemo, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
@@ -14,31 +15,25 @@ for (const r of REACTIONS) {
 const PROSOCIAL_KEYS = new Set(['appreciate', 'grateful', 'respect'])
 
 function AnimatedBadge({ emojiKey, emoji, labelKey, count, hasOwn, onToggle, styles, t }) {
-  const scaleAnim = useRef(new Animated.Value(1)).current
+  const scale = useSharedValue(1)
+  const scaleStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }))
   const prevCountRef = useRef(count)
 
   useEffect(() => {
     if (count > prevCountRef.current) {
       const isProsocial = PROSOCIAL_KEYS.has(emojiKey)
-      Animated.spring(scaleAnim, {
-        toValue: isProsocial ? 1.4 : 1.25,
-        friction: isProsocial ? 4 : 6,
-        tension: 200,
-        useNativeDriver: Platform.OS !== 'web',
-      }).start(() => {
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          friction: 5,
-          tension: 150,
-          useNativeDriver: Platform.OS !== 'web',
-        }).start()
+      const target = isProsocial ? 1.4 : 1.25
+      scale.value = withSpring(target, { damping: isProsocial ? 8 : 12, stiffness: 200 }, () => {
+        scale.value = withSpring(1, { damping: 10, stiffness: 150 })
       })
     }
     prevCountRef.current = count
-  }, [count, emojiKey, scaleAnim])
+  }, [count, emojiKey])
 
   return (
-    <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+    <Animated.View style={scaleStyle}>
       <TouchableOpacity
         style={[styles.badge, hasOwn && styles.badgeOwn]}
         onPress={() => onToggle(hasOwn ? null : emojiKey)}

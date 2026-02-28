@@ -1,5 +1,6 @@
-import { useMemo, useRef, useEffect } from 'react'
-import { View, Animated, Platform, StyleSheet } from 'react-native'
+import { useEffect } from 'react'
+import { View, StyleSheet } from 'react-native'
+import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import ThemedText from '../ThemedText'
@@ -18,21 +19,20 @@ import { isBridging } from '../../lib/bridging'
  */
 export default function BridgingBadge({ item, compact }) {
   const { t } = useTranslation('discuss')
-  const scaleAnim = useRef(new Animated.Value(0)).current
+  const scale = useSharedValue(0)
+
+  const scaleStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }))
 
   useEffect(() => {
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      friction: 5,
-      tension: 180,
-      useNativeDriver: Platform.OS !== 'web',
-    }).start()
-  }, [scaleAnim])
+    scale.value = withSpring(1, { damping: 10, stiffness: 180 })
+  }, [scale])
 
   if (!isBridging(item)) return null
 
   return (
-    <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+    <Animated.View style={scaleStyle}>
       <View
         style={compact ? styles.badgeCompact : styles.badge}
         accessibilityLabel={t('bridgingBadgeA11y')}

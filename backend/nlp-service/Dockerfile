@@ -11,6 +11,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+RUN useradd -m -u 1000 app
+USER app
+
+# Pre-download ML models into the image to avoid startup delay,
+# write conflicts on shared PVC, and HuggingFace rate limiting
+# Downloads to /home/app/.cache/ instead of /root/.cache/
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+RUN python -c "from detoxify import Detoxify; Detoxify('unbiased')"
+
 # Copy application code
 COPY app/ ./app/
 

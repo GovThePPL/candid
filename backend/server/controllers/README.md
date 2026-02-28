@@ -6,7 +6,7 @@ Custom controller implementations for the Flask API. These files are copied over
 
 | Controller | Domain | Key Endpoints |
 |------------|--------|---------------|
-| `authentication_controller.py` | Auth | Register, login, social login (Google/Facebook) |
+| `authentication_controller.py` | Auth | Register, login, social login, phone verification, email validation |
 | `users_controller.py` | Users | Profile CRUD, settings, demographics, avatar, locations |
 | `positions_controller.py` | Positions | Create/search/adopt positions, vote, report, closures |
 | `cards_controller.py` | Card Queue | Get card stack (positions, surveys, chat requests, etc.) |
@@ -153,6 +153,7 @@ Separate from roles. `users.status = 'banned'` blocks all authorized endpoints e
 | Module | Purpose |
 |--------|---------|
 | `admin.py` | Admin-specific helpers (request log queries, organization management, notification dispatchers) |
+| `audit.py` | Structured audit logging for privileged actions (bans, role changes, content removals) to audit_log table |
 | `auth.py` | Role-based authorization, location-scoped role checks, hierarchy walking, Q&A authority |
 | `cache_headers.py` | HTTP cache header utilities |
 | `card_builders.py` | Card queue construction helpers (position, survey, demographic cards) |
@@ -165,7 +166,8 @@ Separate from roles. `users.status = 'banned'` blocks all authorized endpoints e
 | `database.py` | PostgreSQL connection pool wrapper (psycopg2, RealDictCursor, DatabaseError) |
 | `geometry.py` | Geometric helpers (convex hull, centroid, coordinate transforms) |
 | `ideological_coords.py` | PCA projection from Polis votes, lazy coord caching, blending with MF |
-| `keycloak.py` | Keycloak OIDC token validation (RS256 JWKS), auto-registration |
+| `keycloak.py` | Keycloak OIDC token validation (RS256 JWKS), auto-registration, social login user management, token exchange |
+| `social_auth.py` | Social login token validation for Apple and Google identity tokens (JWKS) |
 | `matrix_factorization.py` | Community Notes-style MF on comment votes: SGD fitting, Polis regularization, DB I/O |
 | `approval_reminder_worker.py` | Background daemon for sending auto-approve reminder notifications to approval peers |
 | `mf_worker.py` | Background daemon for periodic MF training with advisory-lock concurrency control |
@@ -173,11 +175,13 @@ Separate from roles. `users.status = 'banned'` blocks all authorized endpoints e
 | `nlp.py` | NLP service client for embeddings |
 | `pairwise_graph.py` | Graph algorithms for pairwise survey ranking |
 | `polis_client.py` | Polis API client (XID auth for participants, OIDC for admin) |
-| `polis_scheduler.py` | Background scheduler for Polis sync jobs |
 | `polis_sync.py` | Queue-based async sync of positions and votes to Polis |
 | `polis_worker.py` | Worker thread for processing Polis sync queue |
 | `presence.py` | User presence and swiping state tracking via Redis |
 | `push_notifications.py` | Expo push notification delivery with quiet hours, notification inbox writes |
+| `email_validation.py` | Disposable domain blocking, email normalization, normalized-email uniqueness checks |
+| `sms.py` | Twilio SMS phone verification with Redis code/token storage |
+| `disposable_domains.txt` | Vendored blocklist of ~5000 disposable email domains |
 | `rate_limiting.py` | Sliding-window rate limiting using Redis sorted sets |
 | `rcv_tally.py` | Ranked choice voting tally: Condorcet pairwise matrix, IRV fallback, multi-winner support |
 | `redis_pool.py` | Shared Redis connection pool |

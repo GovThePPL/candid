@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { View, ScrollView, StyleSheet, Platform, ActivityIndicator } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, useNavigation } from 'expo-router'
@@ -10,6 +10,7 @@ import { useUser } from '../../../../hooks/useUser'
 import { useLocationSession } from '../../../../contexts/LocationSessionContext'
 import { CacheManager, CacheKeys } from '../../../../lib/cache'
 import useProposalWizard from '../../../../hooks/useProposalWizard'
+import api from '../../../../lib/api'
 import Header from '../../../../components/Header'
 import ThemedText from '../../../../components/ThemedText'
 import ThemedButton from '../../../../components/ThemedButton'
@@ -28,7 +29,7 @@ export default function ProposalWizardScreen() {
   const { selectedLocation, selectedSession, currentStage } = useLocationSession()
 
   // Determine template from current stage
-  const template = currentStage === 'opinion_proposals' ? 'policy' : 'issue'
+  const template = currentStage === 'reflection_proposals' ? 'policy' : 'issue'
 
   const {
     currentStep,
@@ -37,6 +38,8 @@ export default function ProposalWizardScreen() {
     steps,
     isReviewStep,
     canAdvance,
+    canRequestFeedback,
+    feedbackState,
     sections,
     title,
     enhancing,
@@ -50,6 +53,27 @@ export default function ProposalWizardScreen() {
     enhanceStep,
     submitProposal,
   } = useProposalWizard(template, selectedSession)
+
+  // Pre-check: does the user already have a proposal in this stage?
+  const [existingProposalId, setExistingProposalId] = useState(null)
+  useEffect(() => {
+    if (!selectedSession || !selectedLocation || !user?.id) return
+    api.posts.getPosts(selectedLocation, {
+      sessionId: selectedSession,
+      postType: 'proposal',
+      sort: 'newest',
+    }).then(data => {
+      const mine = (data?.posts || []).find(
+        p => p.creator?.id === user.id && p.createdDuringStage === currentStage && p.status !== 'deleted'
+      )
+      if (mine) setExistingProposalId(mine.id)
+    }).catch(() => {})
+  }, [selectedSession, selectedLocation, user?.id, currentStage])
+
+  const handleGetFeedback = useCallback(async () => {
+    if (!step || !canRequestFeedback || enhancing) return
+    await enhanceStep(step.id, getSectionText(step.id))
+  }, [step, canRequestFeedback, enhancing, enhanceStep, getSectionText])
 
   const handleSubmit = useCallback(async () => {
     const result = await submitProposal(selectedLocation)
@@ -76,6 +100,21 @@ export default function ProposalWizardScreen() {
         }}
       />
 
+      {existingProposalId && (
+        <View style={styles.existingProposalBanner}>
+          <ThemedText variant="body" color="secondary" style={{ textAlign: 'center' }}>
+            {t('wizardOneProposalLimit')}
+          </ThemedText>
+          <ThemedButton
+            onPress={() => navigation.replace('[id]', { id: existingProposalId })}
+            accessibilityLabel={t('wizardOneProposalLimit')}
+          >
+            {t('viewProposal', { defaultValue: 'View Proposal' })}
+          </ThemedButton>
+        </View>
+      )}
+
+      {!existingProposalId && <>
       {/* Step progress bar */}
       <View style={styles.progressContainer}>
         {Array.from({ length: totalSteps }).map((_, i) => (
@@ -113,8 +152,12 @@ export default function ProposalWizardScreen() {
             step={step}
             value={getSectionText(step.id)}
             onChange={(text) => setSectionText(step.id, text)}
-            onEnhance={enhanceStep}
+            onGetFeedback={handleGetFeedback}
             enhancing={enhancing}
+            canRequestFeedback={canRequestFeedback}
+            onNext={goNext}
+            canAdvance={canAdvance}
+            initialFeedback={feedbackState[step?.id]?.feedback || null}
             stepNumber={currentStep + 1}
             totalSteps={steps.length}
           />
@@ -134,7 +177,7 @@ export default function ProposalWizardScreen() {
 
           <View style={styles.navSpacer} />
 
-          {isReviewStep ? (
+          {isReviewStep && (
             <ThemedButton
               onPress={handleSubmit}
               disabled={!canAdvance || submitting}
@@ -146,17 +189,10 @@ export default function ProposalWizardScreen() {
                 t('wizardSubmitProposal')
               )}
             </ThemedButton>
-          ) : (
-            <ThemedButton
-              onPress={goNext}
-              disabled={!canAdvance}
-              accessibilityLabel={t('wizardNextA11y')}
-            >
-              {t('wizardNext')}
-            </ThemedButton>
           )}
         </View>
       </ScrollView>
+      </>}
     </SafeAreaView>
   )
 }
@@ -165,6 +201,13 @@ const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  existingProposalBanner: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: Spacing.lg,
+    padding: Spacing.xl,
   },
   progressContainer: {
     flexDirection: 'row',

@@ -1,0 +1,48 @@
+# Candid Dev Environment Seed Job
+#
+# Runs seed_dev_data.py against a remote cluster to populate the dev environment
+# with realistic test data (~150 users, positions, chats, moderation scenarios).
+#
+# The seed script is idempotent — safe to re-run after a reset or on an existing DB.
+#
+# Usage:
+#   kubectl apply -f seed-job.yaml -n candid-dev
+#
+#   # Monitor progress:
+#   kubectl logs -f job/candid-seed-dev -n candid-dev
+#
+#   # Re-run (delete previous Job first):
+#   kubectl delete job candid-seed-dev -n candid-dev
+#   kubectl apply -f seed-job.yaml -n candid-dev
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: candid-seed-dev
+  namespace: candid-dev
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: seed
+        image: your-registry/candid-api:latest
+        command: ["python3", "backend/scripts/seed_dev_data.py"]
+        env:
+        - name: API_URL
+          value: "http://candid-api.candid-dev.svc:8000"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: candid-secrets
+              key: database-url
+        - name: KEYCLOAK_URL
+          value: "http://keycloak.candid-dev.svc:8180"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+  backoffLimit: 3

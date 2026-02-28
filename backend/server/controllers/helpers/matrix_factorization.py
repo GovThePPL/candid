@@ -452,14 +452,19 @@ def _check_bridging_awards(conversation_id, model, idx_maps):
 
         try:
             from candid.controllers.helpers.push_notifications import send_or_queue_notification
+            notif_data = {
+                "action": "open_post",
+                "itemType": item_type,
+            }
+            if item_type == "comment":
+                notif_data["postId"] = str(author_row["post_id"])
+                notif_data["commentId"] = real_id
+            else:
+                notif_data["postId"] = real_id
             send_or_queue_notification(
                 title=notif_title,
                 body=snippet,
-                data={
-                    "action": "open_cards",
-                    "itemType": item_type,
-                    "itemId": real_id,
-                },
+                data=notif_data,
                 recipient_user_id=author_id,
                 db=db,
                 notification_type="bridging_kudos",

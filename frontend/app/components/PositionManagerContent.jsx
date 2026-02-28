@@ -1,11 +1,7 @@
-import { StyleSheet, View, ScrollView, TouchableOpacity, Platform, ActivityIndicator, Animated, LayoutAnimation, UIManager } from 'react-native'
+import { StyleSheet, View, ScrollView, TouchableOpacity, Platform, ActivityIndicator } from 'react-native'
+import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated'
 import { useRouter } from 'expo-router'
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-
-// Enable LayoutAnimation on Android
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true)
-}
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { SemanticColors } from '../constants/Colors'
@@ -22,7 +18,7 @@ import ThemedTextInput from './ThemedTextInput'
 import InfoModal from './InfoModal'
 import LocationSessionSelector from './LocationSessionSelector'
 import EmptyState from './EmptyState'
-import BottomDrawerModal from './BottomDrawerModal'
+import CommunityRulesModal from './CommunityRulesModal'
 import PositionListManager from './PositionListManager'
 import { useToast } from './Toast'
 
@@ -49,8 +45,6 @@ export default function PositionManagerContent({ onScroll, listHeader, stickyHea
 
   // Rules modal state
   const [showRules, setShowRules] = useState(false)
-  const [rules, setRules] = useState([])
-  const [rulesLoading, setRulesLoading] = useState(false)
 
   // Add-mode search state (per list)
   const [myPosAddQuery, setMyPosAddQuery] = useState('')
@@ -87,25 +81,12 @@ export default function PositionManagerContent({ onScroll, listHeader, stickyHea
   } = usePositionManagement()
 
   // Animation values for similar positions
-  const similarFadeAnim = useRef(new Animated.Value(0)).current
+  const similarFade = useSharedValue(0)
+  const similarFadeStyle = useAnimatedStyle(() => ({ opacity: similarFade.value }))
   const previousSimilarCount = useRef(0)
-
-  async function fetchRules() {
-    if (rules.length > 0) return // Already fetched
-    setRulesLoading(true)
-    try {
-      const data = await api.moderation.getRules()
-      setRules(data || [])
-    } catch (err) {
-      console.error('Failed to fetch rules:', err)
-    } finally {
-      setRulesLoading(false)
-    }
-  }
 
   function handleOpenRules() {
     setShowRules(true)
-    fetchRules()
   }
 
   // Debounced search for similar positions and session suggestion
@@ -128,10 +109,11 @@ export default function PositionManagerContent({ onScroll, listHeader, stickyHea
     // Debounce the search
     searchTimeoutRef.current = setTimeout(async () => {
       try {
-        // Search for similar positions WITHOUT session filter to get broad results
+        // Search for similar positions in the same session
         const similarResults = await api.positions.searchSimilar(statement.trim(), {
           locationId: selectedLocation,
-          limit: 10, // Get more results to better determine session
+          sessionId: selectedSession,
+          limit: 5,
         })
 
         setSimilarPositions((similarResults || []).slice(0, 5)) // Show only top 5
@@ -191,25 +173,13 @@ export default function PositionManagerContent({ onScroll, listHeader, stickyHea
     const wasShowingSimilar = previousSimilarCount.current > 0
 
     if (showingSimilar && !wasShowingSimilar) {
-      // Fade in when similar positions appear
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
-      Animated.timing(similarFadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: Platform.OS !== 'web',
-      }).start()
+      similarFade.value = withTiming(1, { duration: 300 })
     } else if (!showingSimilar && wasShowingSimilar) {
-      // Fade out when similar positions disappear
-      Animated.timing(similarFadeAnim, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: Platform.OS !== 'web',
-      }).start()
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
+      similarFade.value = withTiming(0, { duration: 200 })
     }
 
     previousSimilarCount.current = showingSimilar ? 1 : 0
-  }, [searchingSimilar, similarPositions.length, similarFadeAnim])
+  }, [searchingSimilar, similarPositions.length])
 
   function resetForm() {
     setStatement('')
@@ -432,7 +402,7 @@ export default function PositionManagerContent({ onScroll, listHeader, stickyHea
 
             {/* Similar Positions Suggestions */}
             {(searchingSimilar || similarPositions.length > 0) && (
-              <Animated.View style={[styles.similarContainer, { opacity: similarFadeAnim }]}>
+              <Animated.View style={[styles.similarContainer, similarFadeStyle]}>
                 <View style={styles.similarHeader}>
                   <Ionicons name="bulb-outline" size={16} color={colors.primary} />
                   <ThemedText variant="label" color="primary" style={styles.similarTitle}>
@@ -612,43 +582,12 @@ export default function PositionManagerContent({ onScroll, listHeader, stickyHea
         </View>
       )}
 
-      <BottomDrawerModal
+      <CommunityRulesModal
         visible={showRules}
         onClose={() => setShowRules(false)}
-        title={t('communityRules')}
-      >
-        {rulesLoading ? (
-          <ActivityIndicator size="large" color={colors.primary} style={{ paddingVertical: 32 }} />
-        ) : rules.length === 0 ? (
-          <ThemedText variant="bodySmall" color="secondary" style={styles.rulesEmptyText}>{t('noRulesDefined')}</ThemedText>
-        ) : (
-          <ScrollView style={styles.rulesScrollView}>
-            {rules.map((rule, index) => (
-              <View key={rule.id} style={[styles.ruleItem, index === rules.length - 1 && { borderBottomWidth: 0 }]}>
-                <View style={styles.ruleHeader}>
-                  <ThemedText variant="body" color="dark" style={styles.ruleTitle}>{rule.title}</ThemedText>
-                  {rule.severity && (
-                    <View style={[
-                      styles.severityBadge,
-                      rule.severity === 'high' && styles.severityHigh,
-                      rule.severity === 'medium' && styles.severityMedium,
-                    ]}>
-                      <ThemedText variant="caption" style={[
-                        styles.severityText,
-                        rule.severity === 'high' && styles.severityTextHigh,
-                        rule.severity === 'medium' && styles.severityTextMedium,
-                      ]}>
-                        {t('severity', { level: rule.severity })}
-                      </ThemedText>
-                    </View>
-                  )}
-                </View>
-                <ThemedText variant="bodySmall" color="secondary">{rule.text}</ThemedText>
-              </View>
-            ))}
-          </ScrollView>
-        )}
-      </BottomDrawerModal>
+        locationId={selectedLocation}
+        sessionId={selectedSession}
+      />
     </View>
   )
 }
@@ -852,50 +791,5 @@ const createStyles = (colors) => StyleSheet.create({
   },
   rulesButtonText: {
     fontWeight: '500',
-  },
-  rulesScrollView: {
-    paddingHorizontal: 16,
-  },
-  rulesEmptyText: {
-    textAlign: 'center',
-    paddingVertical: 32,
-  },
-  ruleItem: {
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.cardBorder,
-  },
-  ruleHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-    gap: 8,
-  },
-  ruleTitle: {
-    fontWeight: '600',
-    flex: 1,
-  },
-  severityBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-    backgroundColor: colors.severityLowBg,
-  },
-  severityHigh: {
-    backgroundColor: colors.severityHighBg,
-  },
-  severityMedium: {
-    backgroundColor: colors.severityMediumBg,
-  },
-  severityText: {
-    fontWeight: '600',
-    color: colors.severityLowText,
-    textTransform: 'capitalize',
-  },
-  severityTextHigh: {
-    color: SemanticColors.warning,
-  },
-  severityTextMedium: {
-    color: colors.severityMediumText,
   },
 })

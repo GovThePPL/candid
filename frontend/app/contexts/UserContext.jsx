@@ -3,6 +3,7 @@ import { AppState } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import api, { getStoredUser, initializeAuth, getToken, setToken, setStoredUser, bugReportsApiWrapper } from "../lib/api"
 import * as keycloak from "../lib/keycloak"
+import { completeSocialRegistration } from "../lib/keycloak"
 import socket, { connectSocket, disconnectSocket, isConnected, getSocket, reconnectNow, onChatRequestResponse, onChatRequestReceived, onChatStarted } from "../lib/socket"
 import { setupNotificationHandler, registerForPushNotifications, addNotificationResponseListener } from "../lib/notifications"
 import { install as installErrorCollector, drain as drainErrors } from "../lib/errorCollector"
@@ -23,6 +24,10 @@ export function UserProvider({ children }) {
   const [authChecked, setAuthChecked] = useState(false)
   const [positionsVersion, setPositionsVersion] = useState(0)
   const [isNewUser, setIsNewUser] = useState(false)
+
+  // Pending social login requiring phone verification
+  // Shape: { pendingToken: string } — set when social login returns 202
+  const [pendingSocialLogin, setPendingSocialLogin] = useState(null)
 
   // Pending chat request state
   // Shape: { id, createdTime, expiresAt, positionStatement, status: 'pending'|'accepted'|'declined' }
@@ -227,9 +232,7 @@ export function UserProvider({ children }) {
         console.warn('[UserContext] Push token registration failed:', err)
       )
       notifCleanupRef.current = addNotificationResponseListener((data) => {
-        if (data?.action === 'open_cards') {
-          setActiveChatNavigation(null)
-        } else if (data?.action === 'open_organization') {
+        if (data?.action === 'open_organization') {
           setPendingDeepLink('/admin/organization')
         } else if (data?.action === 'open_admin_pending') {
           setPendingDeepLink('/admin')
@@ -315,10 +318,57 @@ export function UserProvider({ children }) {
     }
   }, [initializeSocket, startDiagnosticsTimer, checkForActiveChat])
 
-  const register = useCallback(async ({ username, email, password }) => {
+  const socialLogin = useCallback(async (provider, identityToken, userInfo) => {
+    try {
+      const result = await keycloak.loginWithSocialToken(provider, identityToken, userInfo)
+
+      // 202: new user, phone verification required
+      if (result.phoneVerificationRequired) {
+        setPendingSocialLogin({ pendingToken: result.pendingToken })
+        return { phoneVerificationRequired: true }
+      }
+
+      await setToken(result.accessToken)
+      const currentUser = await api.auth.getCurrentUser()
+      await setStoredUser(currentUser)
+      setUser(currentUser)
+      await initializeSocket()
+      startDiagnosticsTimer()
+      checkForActiveChat(currentUser.id)
+      return currentUser
+    } catch (error) {
+      throw Error(error.message || 'Social login failed')
+    }
+  }, [initializeSocket, startDiagnosticsTimer, checkForActiveChat])
+
+  const completeSocialSignup = useCallback(async (phoneNumber, phoneVerifyToken) => {
+    if (!pendingSocialLogin) throw Error('No pending social login')
+    try {
+      const { accessToken } = await completeSocialRegistration(
+        pendingSocialLogin.pendingToken, phoneNumber, phoneVerifyToken,
+      )
+      setPendingSocialLogin(null)
+      await setToken(accessToken)
+      const currentUser = await api.auth.getCurrentUser()
+      await setStoredUser(currentUser)
+      setUser(currentUser)
+      setIsNewUser(true)
+      await initializeSocket()
+      startDiagnosticsTimer()
+      return currentUser
+    } catch (error) {
+      throw Error(error.message || 'Registration failed')
+    }
+  }, [pendingSocialLogin, initializeSocket, startDiagnosticsTimer])
+
+  const clearPendingSocialLogin = useCallback(() => {
+    setPendingSocialLogin(null)
+  }, [])
+
+  const register = useCallback(async ({ username, email, password, phoneNumber, phoneVerifyToken }) => {
     try {
       // Create account via backend API (Keycloak Admin REST API)
-      await api.auth.registerAccount({ username, email, password })
+      await api.auth.registerAccount({ username, email, password, phoneNumber, phoneVerifyToken })
       // Log in via ROPC to get tokens
       const { accessToken } = await keycloak.loginWithCredentials(username, password)
       await setToken(accessToken)
@@ -424,33 +474,47 @@ export function UserProvider({ children }) {
     getInitialUserValue()
 
     // Reconnect socket and manage heartbeat when app state changes
-    const appStateSubscription = AppState.addEventListener('change', (nextState) => {
+    const appStateSubscription = AppState.addEventListener('change', async (nextState) => {
       if (nextState === 'active') {
         // Restart heartbeat when foregrounded
-        getToken().then(token => {
-          if (token) {
-            startHeartbeat()
-            if (!isConnected()) {
-              if (getSocket()) {
-                // Socket exists but disconnected — reconnect it in-place.
-                // This preserves listeners registered by the chat screen and
-                // other components (message, typing, status, etc.).
-                console.debug('[UserContext] App foregrounded, reconnecting existing socket')
-                reconnectNow()
-              } else {
-                // No socket at all (first connection or after logout)
-                console.debug('[UserContext] App foregrounded, initializing new socket')
-                initializeSocket()
-              }
-            }
-            // Always check for active chat on foreground — catches accepted
-            // requests whose socket events were missed while backgrounded
-            // (e.g., zombie connection, iOS JS suspension, network blip)
-            getStoredUser().then(u => {
-              if (u?.id) checkForActiveChat(u.id)
-            })
+        let token = await getToken()
+        if (!token) return
+
+        // Token may have expired while backgrounded — refresh it
+        try {
+          const tokens = await keycloak.refreshToken()
+          if (tokens) {
+            await setToken(tokens.accessToken)
+            token = tokens.accessToken
+          } else {
+            // Refresh token also expired — user must re-login
+            await api.auth.logout()
+            setUser(null)
+            return
           }
-        })
+        } catch {
+          // Refresh failed — continue with existing token (may still be valid)
+        }
+
+        startHeartbeat()
+        if (!isConnected()) {
+          if (getSocket()) {
+            // Socket exists but disconnected — reconnect it in-place.
+            // This preserves listeners registered by the chat screen and
+            // other components (message, typing, status, etc.).
+            console.debug('[UserContext] App foregrounded, reconnecting existing socket')
+            reconnectNow()
+          } else {
+            // No socket at all (first connection or after logout)
+            console.debug('[UserContext] App foregrounded, initializing new socket')
+            initializeSocket()
+          }
+        }
+        // Always check for active chat on foreground — catches accepted
+        // requests whose socket events were missed while backgrounded
+        // (e.g., zombie connection, iOS JS suspension, network blip)
+        const u = await getStoredUser()
+        if (u?.id) checkForActiveChat(u.id)
       } else {
         // Stop heartbeat when backgrounded/inactive
         stopHeartbeat()
@@ -466,13 +530,15 @@ export function UserProvider({ children }) {
   const isBanned = user?.status === 'banned'
 
   const authValue = useMemo(() => ({
-    user, login, logout, register, authChecked, refreshUser,
+    user, login, socialLogin, logout, register, authChecked, refreshUser,
     isBanned,
     isNewUser, clearNewUser,
+    pendingSocialLogin, completeSocialSignup, clearPendingSocialLogin,
   }), [
-    user, login, logout, register, authChecked, refreshUser,
+    user, login, socialLogin, logout, register, authChecked, refreshUser,
     isBanned,
     isNewUser, clearNewUser,
+    pendingSocialLogin, completeSocialSignup, clearPendingSocialLogin,
   ])
 
   const chatValue = useMemo(() => ({

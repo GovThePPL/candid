@@ -38,7 +38,6 @@ export default function DownvoteReasonPicker({ visible, onClose, onSelect }) {
       visible={visible}
       onClose={onClose}
       title={t('downvoteReasonTitle')}
-      shrink
     >
       <View style={styles.list}>
         {REASONS.map((reason) => (

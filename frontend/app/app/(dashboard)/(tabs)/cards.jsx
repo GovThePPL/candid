@@ -24,7 +24,7 @@ export default function CardQueue() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <Header showCreateButton />
+      <Header />
       <CardQueueContent />
     </SafeAreaView>
   )

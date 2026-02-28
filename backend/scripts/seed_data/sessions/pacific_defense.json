@@ -171,7 +171,7 @@
         "topic_focus": "governance"
       }
     ],
-    "opinion_curation": [
+    "reflection_curation": [
       {
         "type": "generated",
         "lean": "bipartisan",
@@ -188,7 +188,7 @@
         "topic_focus": "funding"
       }
     ],
-    "opinion_proposals": [
+    "reflection_proposals": [
       {
         "type": "generated",
         "lean": "left",
@@ -307,7 +307,7 @@
         4
       ]
     },
-    "opinion_curation": {
+    "reflection_curation": {
       "anchors": [],
       "generated_count": 8,
       "generated_types": {
@@ -326,7 +326,7 @@
         5
       ]
     },
-    "opinion_proposals": {
+    "reflection_proposals": {
       "anchors": [],
       "generated_count": 7,
       "generated_types": {

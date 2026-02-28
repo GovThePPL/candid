@@ -217,26 +217,28 @@ AFFILIATION_MAP = {
 
 STAGE_ORDER = [
     "proposal_issue", "proposal_qualify", "proposal_stakeholders",
-    "opinion_discussion", "opinion_curation", "opinion_proposals",
-    "reflection", "consensus",
+    "opinion_discussion", "reflection_curation", "reflection_proposals",
+    "consensus",
 ]
 
 SESSION_CONFIG = {
     "Healthcare Access":   {"location": "OR",   "target": "opinion_discussion"},
-    "Living Wage":         {"location": "OR",   "target": "opinion_curation"},
-    "School Funding":      {"location": "MULT", "target": "proposal_qualify"},
+    "Living Wage":         {"location": "OR",   "target": "reflection_curation"},
+    "Fall 2025":           {"location": "MULT", "target": "proposal_qualify"},
     "Civil Liberties":     {"location": "MULT", "target": "proposal_stakeholders"},
-    "Rent Stabilization":  {"location": "PDX",  "target": "reflection"},
-    "Climate Action":      {"location": "CA",   "target": "opinion_proposals"},
+    "Rent Stabilization":  {"location": "PDX",  "target": "consensus"},
+    "Climate Action":      {"location": "CA",   "target": "reflection_proposals"},
     "Pacific Defense":     {"location": "CA",   "target": "consensus"},
     "Electoral Reform":    {"location": "LA",   "target": "opinion_discussion"},
     "Spring 2026":         {"location": "LA",   "target": "proposal_issue"},
-    "Water Rights":        {"location": "LAX",  "target": "reflection"},
+    "Water Rights":        {"location": "LAX",  "target": "consensus"},
     "Border Communities":  {"location": "TX",   "target": "opinion_discussion"},
     "Criminal Justice":    {"location": "TX",   "target": "proposal_stakeholders"},
-    "Family Policy":       {"location": "TRAV", "target": "opinion_curation"},
+    "Family Policy":       {"location": "TRAV", "target": "reflection_curation"},
     "Winter 2025-26":      {"location": "TRAV", "target": "proposal_qualify"},
-    "Transit Expansion":   {"location": "AUS",  "target": "opinion_proposals"},
+    "Transit Expansion":   {"location": "AUS",  "target": "reflection_proposals"},
+    "School Funding":      {"location": "MULT", "target": "opinion_discussion", "proposal_method": "direct_proposal"},
+    "Housing Policy":      {"location": "TRAV", "target": "proposal_qualify",   "proposal_method": "admin_provided"},
 }
 
 # Map state codes to user index ranges (within each belief system's 15 users)
@@ -1011,6 +1013,175 @@ def _load_seed_content():
     return data
 
 
+def _simulate_completed_voting_round(sess_id, sess_label, round_type, all_users, state_code):
+    """Simulate a full voting round: endorsements → candidates → ballots → RCV tally.
+
+    Creates a voting round, seeds endorsements from state users on existing
+    proposal posts, qualifies top-endorsed proposals as ballot candidates,
+    creates randomized ballots with rankings, computes the RCV tally, and
+    finalizes the winning proposal.  Returns the winner post ID or None.
+    """
+    # Create voting round (or reset to proposals_open if re-running)
+    vr_row = db_execute_returning("""
+        INSERT INTO voting_round (id, session_id, round_type, status,
+                                   ballot_size, winner_count, created_time)
+        VALUES (gen_random_uuid(), %s, %s, 'proposals_open', 7, 1, NOW())
+        ON CONFLICT (session_id, round_type) DO UPDATE
+            SET status = 'proposals_open'
+        RETURNING id
+    """, (sess_id, round_type))
+    if not vr_row:
+        return None
+    vr_id = str(vr_row["id"])
+
+    # Find proposal posts in this session
+    proposals = db_query("""
+        SELECT id, title, upvote_count FROM post
+        WHERE session_id = %s AND post_type = 'proposal' AND status = 'active'
+        ORDER BY upvote_count DESC, created_time ASC
+    """, (sess_id,))
+    if not proposals:
+        db_execute("UPDATE voting_round SET status = 'voting_closed' WHERE id = %s",
+                   (vr_id,))
+        return None
+
+    # Finalize proposals that are still draft so they can be endorsed/voted on.
+    # In production the facilitator does this; in seed we finalize all of them.
+    db_execute("""
+        UPDATE post SET proposal_status = 'finalized'
+        WHERE session_id = %s AND post_type = 'proposal'
+          AND (proposal_status IS NULL OR proposal_status = 'draft')
+    """, (sess_id,))
+
+    # Re-fetch so we only work with finalized proposals
+    proposals = db_query("""
+        SELECT id, title, upvote_count FROM post
+        WHERE session_id = %s AND post_type = 'proposal'
+          AND status = 'active' AND proposal_status = 'finalized'
+        ORDER BY upvote_count DESC, created_time ASC
+    """, (sess_id,))
+    if not proposals:
+        db_execute("UPDATE voting_round SET status = 'voting_closed' WHERE id = %s",
+                   (vr_id,))
+        return None
+
+    # Gather up to 20 state users for voting
+    state_users = _users_for_state(all_users, state_code)
+    user_uuids = []
+    for u in state_users[:20]:
+        row = db_query_one("SELECT id FROM users WHERE username = %s",
+                           (u["username"],))
+        if row:
+            user_uuids.append(str(row["id"]))
+    if not user_uuids:
+        db_execute("UPDATE voting_round SET status = 'voting_closed' WHERE id = %s",
+                   (vr_id,))
+        return None
+
+    # -- Finalization: seed endorsements (max 3 per user) --
+    db_execute("UPDATE voting_round SET status = 'finalization_open' WHERE id = %s",
+               (vr_id,))
+    endorsement_counts = {}
+    for uid in user_uuids:
+        n = random.randint(1, min(3, len(proposals)))
+        for prop in random.sample(proposals, n):
+            pid = str(prop["id"])
+            db_execute("""
+                INSERT INTO proposal_endorsement
+                       (id, voting_round_id, proposal_post_id, user_id, created_time)
+                VALUES (gen_random_uuid(), %s, %s, %s, NOW())
+                ON CONFLICT (voting_round_id, proposal_post_id, user_id) DO NOTHING
+            """, (vr_id, pid, uid))
+            endorsement_counts[pid] = endorsement_counts.get(pid, 0) + 1
+
+    # -- Proposals closed: qualify top-endorsed as ballot candidates --
+    db_execute("UPDATE voting_round SET status = 'proposals_closed' WHERE id = %s",
+               (vr_id,))
+    top_proposals = sorted(
+        proposals,
+        key=lambda p: endorsement_counts.get(str(p["id"]), 0),
+        reverse=True,
+    )[:7]
+    for i, prop in enumerate(top_proposals):
+        pid = str(prop["id"])
+        db_execute("""
+            INSERT INTO voting_round_candidate
+                   (voting_round_id, proposal_post_id, endorsement_count, display_order)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (voting_round_id, proposal_post_id) DO NOTHING
+        """, (vr_id, pid, endorsement_counts.get(pid, 0), i))
+
+    # -- Voting open: create ballots with randomized rankings --
+    db_execute("UPDATE voting_round SET status = 'voting_open' WHERE id = %s",
+               (vr_id,))
+    ballot_count = 0
+    candidate_ids = [str(p["id"]) for p in top_proposals]
+    for uid in user_uuids:
+        if random.random() > 0.7:
+            continue
+        ballot_row = db_execute_returning("""
+            INSERT INTO rcv_ballot (id, voting_round_id, voter_user_id, created_time)
+            VALUES (gen_random_uuid(), %s, %s, NOW())
+            ON CONFLICT (voting_round_id, voter_user_id) DO NOTHING
+            RETURNING id
+        """, (vr_id, uid))
+        if not ballot_row:
+            continue
+        ballot_id = str(ballot_row["id"])
+        n_ranked = random.randint(min(2, len(candidate_ids)), len(candidate_ids))
+        for rank, cid in enumerate(random.sample(candidate_ids, n_ranked), 1):
+            db_execute("""
+                INSERT INTO rcv_ranking (id, ballot_id, proposal_post_id, rank)
+                VALUES (gen_random_uuid(), %s, %s, %s)
+                ON CONFLICT DO NOTHING
+            """, (ballot_id, cid, rank))
+        ballot_count += 1
+
+    # -- Voting closed: compute RCV tally --
+    db_execute("UPDATE voting_round SET status = 'voting_closed' WHERE id = %s",
+               (vr_id,))
+
+    winner_id = None
+    tally_msg = ""
+    try:
+        tally_path = os.path.join(os.path.dirname(__file__),
+                                  '..', 'server', 'controllers', 'helpers')
+        if tally_path not in sys.path:
+            sys.path.insert(0, tally_path)
+        from rcv_tally import tally_results as compute_tally
+
+        class _DBAdapter:
+            def __init__(self, c):
+                self._c = c
+            def execute_query(self, query, params=None, fetchone=False, **kw):
+                with self._c.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute(query, params)
+                    return cur.fetchone() if fetchone else cur.fetchall()
+
+        conn = db_conn()
+        results = compute_tally(vr_id, _DBAdapter(conn))
+        conn.close()
+        if results:
+            db_execute("UPDATE voting_round SET results_json = %s WHERE id = %s",
+                       (json.dumps(results), vr_id))
+            winner_id = results.get("winner_id")
+            tally_msg = f" ({results.get('method', '?')})"
+    except Exception as e:
+        tally_msg = f" (tally error: {e})"
+
+    endorse_total = sum(endorsement_counts.values())
+    with print_lock:
+        print(f"      Voting ({round_type}): {endorse_total} endorsements, "
+              f"{len(top_proposals)} candidates, {ballot_count} ballots{tally_msg}")
+
+    # All endorsed/voted proposals stay finalized.
+    # Pick winner from tally or fall back to top-endorsed.
+    if not winner_id and top_proposals:
+        winner_id = str(top_proposals[0]["id"])
+
+    return winner_id
+
+
 def phase_3_staged_content(api, session_map, location_ids, all_users, dry_run=False):
     """Stage loop: reset sessions to proposal_issue, create content at each stage
     via API, then advance.
@@ -1212,21 +1383,75 @@ def phase_3_staged_content(api, session_map, location_ids, all_users, dry_run=Fa
                           f"(post: {post_data['title'][:40]}...)")
 
         # 3f. Advance sessions past this stage (except those stopping here)
+        # Use direct DB updates to bypass voting-round guards in the API.
+        # For stages requiring a voting round, simulate the full workflow.
+        SEED_STAGE_TO_ROUND_TYPE = {
+            'proposal_qualify': 'issue_selection',
+            'reflection_proposals': 'policy_selection',
+        }
         advancing = [label for label in active_sessions if label not in stop_here]
         if advancing and stage_idx < len(STAGE_ORDER) - 1:
             next_stage = STAGE_ORDER[stage_idx + 1]
-            if not api.login("admin1"):
-                print("    ERROR: Could not login as admin1 for advancement")
-                continue
+            admin1_row = db_query_one("SELECT id FROM users WHERE username = 'admin1'")
+            admin1_id_str = str(admin1_row['id']) if admin1_row else None
             for label in advancing:
                 sess_id = session_map.get(label)
-                if sess_id:
-                    result = api.advance_session(
-                        sess_id, next_stage,
-                        reason=f"Stage advancement: {current_stage} → {next_stage}")
-                    if result:
-                        with print_lock:
-                            print(f"    Advanced: {label} → {next_stage}")
+                if not sess_id or not admin1_id_str:
+                    continue
+
+                # Simulate voting if this stage requires a completed round
+                rt = SEED_STAGE_TO_ROUND_TYPE.get(current_stage)
+                if rt:
+                    cfg = SESSION_CONFIG.get(label, {})
+                    method = cfg.get("proposal_method", "user_driven")
+                    if method == "direct_proposal":
+                        # Direct proposal: no real voting, just close the round
+                        db_execute("""
+                            INSERT INTO voting_round (session_id, round_type, status)
+                            VALUES (%s, %s, 'voting_closed')
+                            ON CONFLICT (session_id, round_type) DO UPDATE
+                            SET status = 'voting_closed'
+                        """, (sess_id, rt))
+                    else:
+                        state_code = LOCATION_TO_STATE.get(cfg.get("location", "OR"), "OR")
+                        winner_id = _simulate_completed_voting_round(
+                            sess_id, label, rt, all_users, state_code)
+                        # Pin winning proposal to all future stages.
+                        # Use 'proposal' type in proposal stages, 'discussion' in
+                        # opinion+ so the accepted proposal appears in the discussion
+                        # feed (not a separate proposals tab).
+                        PROPOSAL_STAGES = {'proposal_issue', 'proposal_qualify',
+                                           'proposal_stakeholders'}
+                        if winner_id:
+                            for fi in range(stage_idx + 1, len(STAGE_ORDER)):
+                                future_stage = STAGE_ORDER[fi]
+                                pin_type = 'proposal' if future_stage in PROPOSAL_STAGES else 'discussion'
+                                db_execute("""
+                                    INSERT INTO pinned_post
+                                           (id, post_id, session_id, stage,
+                                            post_type, pinned_by, pinned_at)
+                                    VALUES (gen_random_uuid(), %s, %s, %s,
+                                            %s, %s, NOW())
+                                    ON CONFLICT (session_id, stage, post_type, post_id)
+                                    DO NOTHING
+                                """, (winner_id, sess_id, future_stage,
+                                      pin_type, admin1_id_str))
+
+                # Advance directly via DB
+                db_execute("""
+                    UPDATE session SET stage = %s,
+                           stage_changed_at = NOW(),
+                           stage_changed_by = %s
+                    WHERE id = %s
+                """, (next_stage, admin1_id_str, sess_id))
+                db_execute("""
+                    INSERT INTO session_stage_history
+                           (session_id, from_stage, to_stage, changed_by, reason)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (sess_id, current_stage, next_stage, admin1_id_str,
+                      f"Seed advancement: {current_stage} → {next_stage}"))
+                with print_lock:
+                    print(f"    Advanced: {label} → {next_stage}")
 
     # --- Phase 3 summary ---
     expected_posts = len(ALL_POSTS)
@@ -1282,6 +1507,12 @@ def phase_3_staged_content(api, session_map, location_ids, all_users, dry_run=Fa
     for label, cfg in SESSION_CONFIG.items():
         target = cfg["target"]
         target_idx = STAGE_ORDER.index(target)
+        method = cfg.get("proposal_method", "user_driven")
+
+        # direct_proposal sessions skip standard voting round creation
+        if method == "direct_proposal":
+            continue
+
         # Only sessions that reached or passed proposal_qualify
         if target_idx < pq_idx:
             continue
@@ -1298,13 +1529,13 @@ def phase_3_staged_content(api, session_map, location_ids, all_users, dry_run=Fa
             vr_status = "proposals_open"
         elif target == "proposal_stakeholders":
             vr_status = "finalization_open"
-        elif target == "opinion_proposals":
+        elif target == "reflection_proposals":
             vr_status = "proposals_open"  # Second round (policy) just opened
         else:
             vr_status = "voting_closed"  # Past proposal stages
 
-        # Use issue_selection for proposal_qualify targets, policy_selection for opinion_proposals
-        round_type = "policy_selection" if target == "opinion_proposals" else "issue_selection"
+        # Use issue_selection for proposal_qualify targets, policy_selection for reflection_proposals
+        round_type = "policy_selection" if target == "reflection_proposals" else "issue_selection"
 
         db_execute("""
             INSERT INTO voting_round (id, session_id, round_type, status, ballot_size, winner_count, created_time)
@@ -1318,37 +1549,86 @@ def phase_3_staged_content(api, session_map, location_ids, all_users, dry_run=Fa
             WHERE session_id = %s AND post_type = 'proposal' AND proposal_status IS NULL
         """, (sess_id,))
 
-        # For sessions past proposal_stakeholders, finalize the top proposal and pin it
-        if target_idx > STAGE_ORDER.index("proposal_stakeholders"):
-            # Finalize the highest-voted proposal (the "selected" one)
-            db_execute("""
-                UPDATE post SET proposal_status = 'finalized'
-                WHERE id = (
-                    SELECT id FROM post
-                    WHERE session_id = %s AND post_type = 'proposal'
-                    ORDER BY upvote_count DESC, created_time ASC LIMIT 1
-                )
-            """, (sess_id,))
-
-            # Pin the selected proposal in the current stage
-            db_execute("""
-                INSERT INTO pinned_post (id, post_id, session_id, stage, pinned_by, pinned_at)
-                SELECT gen_random_uuid(), p.id, %s, %s, %s, NOW()
-                FROM post p
-                WHERE p.session_id = %s AND p.post_type = 'proposal' AND p.proposal_status = 'finalized'
-                LIMIT 1
-                ON CONFLICT (session_id, stage, post_id) DO NOTHING
-            """, (sess_id, target, admin1_uuid, sess_id))
+        # Finalization and pinning for advanced sessions is handled in step 3f
+        # (via _simulate_completed_voting_round). Only set draft status here.
 
         print(f"    {label}: voting round ({round_type}, {vr_status}) + proposal statuses set")
 
-    # --- Step 6: Seed endorsements, ballot candidates, ballots, and results ---
-    print("\n  Step 6: Seeding endorsements and RCV ballot data...")
+    # --- Step 5b: Seed proposal-method-specific data ---
+    print("\n  Step 5b: Setting up proposal method seed data...")
+
+    for label, cfg in SESSION_CONFIG.items():
+        method = cfg.get("proposal_method", "user_driven")
+        if method == "user_driven":
+            continue
+
+        sess_id = session_map.get(label)
+        if not sess_id:
+            continue
+
+        loc_code = cfg["location"]
+        loc_id = location_ids.get(loc_code)
+        if not loc_id:
+            continue
+
+        if method == "direct_proposal":
+            # Create a single finalized proposal post
+            db_execute("""
+                INSERT INTO post (id, creator_user_id, location_id, session_id, post_type,
+                                  title, body, proposal_status, created_during_stage)
+                VALUES (gen_random_uuid(), %s, %s, %s, 'proposal',
+                        'Increase School Funding by 15%%',
+                        'This proposal calls for a 15%% increase in public school funding, '
+                        'allocated primarily to teacher salaries, classroom resources, and '
+                        'after-school programs in underserved communities.',
+                        'finalized', 'opinion_discussion')
+                ON CONFLICT DO NOTHING
+            """, (admin1_uuid, loc_id, sess_id))
+
+            # Pin to all opinion+ stages as 'discussion' type so it appears
+            # in the discussion feed (not a proposals tab)
+            for stage in ['opinion_discussion', 'reflection_curation', 'reflection_proposals',
+                          'consensus']:
+                db_execute("""
+                    INSERT INTO pinned_post (id, post_id, session_id, stage, post_type, pinned_by, pinned_at)
+                    SELECT gen_random_uuid(), p.id, %s, %s, 'discussion', %s, NOW()
+                    FROM post p
+                    WHERE p.session_id = %s AND p.post_type = 'proposal' AND p.proposal_status = 'finalized'
+                    LIMIT 1
+                    ON CONFLICT (session_id, stage, post_type, post_id) DO NOTHING
+                """, (sess_id, stage, admin1_uuid, sess_id))
+
+            print(f"    {label}: direct_proposal — finalized proposal + pinned to opinion+ stages")
+
+        elif method == "admin_provided":
+            # Create draft proposal posts
+            admin_proposals = [
+                ("Rent Control Cap at 5%", "Implement a 5% annual cap on rent increases for all residential properties."),
+                ("Tenant Protection Fund", "Establish a $50M fund providing legal aid and emergency housing for displaced tenants."),
+                ("Inclusionary Zoning", "Require 20% affordable units in all new developments over 10 units."),
+            ]
+            for title, body in admin_proposals:
+                db_execute("""
+                    INSERT INTO post (id, creator_user_id, location_id, session_id, post_type,
+                                      title, body, proposal_status, created_during_stage)
+                    VALUES (gen_random_uuid(), %s, %s, %s, 'proposal', %s, %s, 'draft', 'proposal_qualify')
+                    ON CONFLICT DO NOTHING
+                """, (admin1_uuid, loc_id, sess_id, title, body))
+
+            print(f"    {label}: admin_provided — {len(admin_proposals)} draft proposals + voting round")
+
+    # --- Step 6: Seed endorsements for in-progress voting rounds ---
+    # Completed (voting_closed) rounds were already fully simulated in step 3f.
+    # This step handles rounds that are still in progress (sessions that stopped
+    # at proposal_qualify, proposal_stakeholders, etc.).
+    print("\n  Step 6: Seeding endorsements for in-progress voting rounds...")
 
     voting_rounds = db_query("""
-        SELECT vr.id, vr.session_id, vr.status, s.label AS session_label
+        SELECT vr.id, vr.session_id, vr.status, vr.round_type,
+               s.label AS session_label
         FROM voting_round vr
         JOIN session s ON s.id = vr.session_id
+        WHERE vr.status != 'voting_closed'
     """)
 
     for vr in voting_rounds:
@@ -1377,7 +1657,7 @@ def phase_3_staged_content(api, session_map, location_ids, all_users, dry_run=Fa
 
         # Get user UUIDs
         user_uuids = []
-        for u in state_users[:20]:  # Use up to 20 users
+        for u in state_users[:20]:
             row = db_query_one("SELECT id FROM users WHERE username = %s", (u["username"],))
             if row:
                 user_uuids.append(str(row["id"]))
@@ -1385,93 +1665,25 @@ def phase_3_staged_content(api, session_map, location_ids, all_users, dry_run=Fa
         if not user_uuids:
             continue
 
-        # Seed endorsements: each user endorses up to 3 random proposals
-        endorsement_counts = {}
-        for uid in user_uuids:
-            n_endorsements = random.randint(1, min(3, len(proposals)))
-            endorsed_proposals = random.sample(proposals, n_endorsements)
-            for prop in endorsed_proposals:
-                pid = str(prop["id"])
-                db_execute("""
-                    INSERT INTO proposal_endorsement (id, voting_round_id, proposal_post_id, user_id, created_time)
-                    VALUES (gen_random_uuid(), %s, %s, %s, NOW())
-                    ON CONFLICT (voting_round_id, proposal_post_id, user_id) DO NOTHING
-                """, (vr_id, pid, uid))
-                endorsement_counts[pid] = endorsement_counts.get(pid, 0) + 1
-
-        endorse_total = sum(endorsement_counts.values())
-        print(f"    {sess_label}: {endorse_total} endorsements across {len(proposals)} proposals")
-
-        # For voting_closed rounds, also seed ballot candidates, ballots, and results
-        if vr_status == "voting_closed":
-            # Qualify top proposals as ballot candidates
-            top_proposals = sorted(proposals, key=lambda p: endorsement_counts.get(str(p["id"]), 0), reverse=True)[:7]
-            for i, prop in enumerate(top_proposals):
-                pid = str(prop["id"])
-                db_execute("""
-                    INSERT INTO voting_round_candidate (voting_round_id, proposal_post_id, endorsement_count, display_order)
-                    VALUES (%s, %s, %s, %s)
-                    ON CONFLICT (voting_round_id, proposal_post_id) DO NOTHING
-                """, (vr_id, pid, endorsement_counts.get(pid, 0), i))
-
-            # Create ballots with randomized rankings
-            ballot_count = 0
-            candidate_ids = [str(p["id"]) for p in top_proposals]
+        # Seed endorsements for rounds at finalization_open or later
+        if vr_status in ("finalization_open", "proposals_closed"):
+            endorsement_counts = {}
             for uid in user_uuids:
-                # 70% of users submit ballots
-                if random.random() > 0.7:
-                    continue
-                # Create ballot
-                ballot_row = db_execute_returning("""
-                    INSERT INTO rcv_ballot (id, voting_round_id, voter_user_id, created_time)
-                    VALUES (gen_random_uuid(), %s, %s, NOW())
-                    ON CONFLICT (voting_round_id, voter_user_id) DO NOTHING
-                    RETURNING id
-                """, (vr_id, uid))
-                if not ballot_row:
-                    continue
-                ballot_id = str(ballot_row["id"])
-
-                # Rank a random subset of candidates (at least 2, up to all)
-                n_ranked = random.randint(min(2, len(candidate_ids)), len(candidate_ids))
-                ranked = random.sample(candidate_ids, n_ranked)
-                for rank, cid in enumerate(ranked, 1):
+                n_endorsements = random.randint(1, min(3, len(proposals)))
+                for prop in random.sample(proposals, n_endorsements):
+                    pid = str(prop["id"])
                     db_execute("""
-                        INSERT INTO rcv_ranking (id, ballot_id, proposal_post_id, rank)
-                        VALUES (gen_random_uuid(), %s, %s, %s)
-                        ON CONFLICT DO NOTHING
-                    """, (ballot_id, cid, rank))
-                ballot_count += 1
+                        INSERT INTO proposal_endorsement
+                               (id, voting_round_id, proposal_post_id, user_id, created_time)
+                        VALUES (gen_random_uuid(), %s, %s, %s, NOW())
+                        ON CONFLICT (voting_round_id, proposal_post_id, user_id) DO NOTHING
+                    """, (vr_id, pid, uid))
+                    endorsement_counts[pid] = endorsement_counts.get(pid, 0) + 1
 
-            print(f"    {sess_label}: {len(top_proposals)} ballot candidates, {ballot_count} ballots seeded")
-
-            # Compute and store results
-            try:
-                tally_path = os.path.join(os.path.dirname(__file__), '..', 'server', 'controllers', 'helpers')
-                if tally_path not in sys.path:
-                    sys.path.insert(0, tally_path)
-                from rcv_tally import tally_results as compute_tally
-
-                # Wrap raw psycopg2 conn in an adapter matching the backend Database interface
-                class _DBAdapter:
-                    def __init__(self, c):
-                        self._c = c
-                    def execute_query(self, query, params=None, fetchone=False, **kw):
-                        with self._c.cursor(cursor_factory=RealDictCursor) as cur:
-                            cur.execute(query, params)
-                            return cur.fetchone() if fetchone else cur.fetchall()
-
-                conn = db_conn()
-                results = compute_tally(vr_id, _DBAdapter(conn))
-                conn.close()
-                if results:
-                    db_execute("""
-                        UPDATE voting_round SET results_json = %s WHERE id = %s
-                    """, (json.dumps(results), vr_id))
-                    method = results.get("method", "unknown")
-                    print(f"    {sess_label}: results computed ({method})")
-            except Exception as e:
-                print(f"    {sess_label}: could not compute results: {e}")
+            endorse_total = sum(endorsement_counts.values())
+            print(f"    {sess_label}: {endorse_total} endorsements ({vr_status})")
+        else:
+            print(f"    {sess_label}: {vr_status} — no endorsements yet")
 
     print(f"\n  Total positions: {len(positions_created)}")
     print(f"  Total posts: {len(posts_created)}")
@@ -2727,7 +2939,7 @@ def phase_11_admin(api, location_id, session_map, dry_run=False):
 
     oregon_id = location_id
     healthcare_cat = session_map.get("Healthcare Access")
-    education_cat = session_map.get("School Funding")
+    education_cat = session_map.get("Fall 2025")
     criminal_justice_cat = session_map.get("Criminal Justice")
     environment_cat = session_map.get("Climate Action")
 
@@ -2990,7 +3202,7 @@ def phase_11_admin(api, location_id, session_map, dry_run=False):
         },
         {
             "title": "Education Funding Preferences",
-            "session": "School Funding",
+            "session": "Fall 2025",
             "start_offset_days": 7,
             "end_offset_days": 37,
             "questions": [
@@ -3467,7 +3679,7 @@ def phase_14_glossary(location_id, session_map, dry_run=False):
     social_id = session_map.get("Family Policy")
     healthcare_id = session_map.get("Healthcare Access")
     rent_id = session_map.get("Rent Stabilization")
-    school_id = session_map.get("School Funding")
+    school_id = session_map.get("Fall 2025")
     transit_id = session_map.get("Transit Expansion")
     water_id = session_map.get("Water Rights")
 

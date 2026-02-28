@@ -1,90 +1,46 @@
 {
   "session_name": "School Funding",
   "location_code": "OR/MULT",
-  "target_stage": "proposal_qualify",
+  "target_stage": "opinion_discussion",
   "topic_vocabulary": {
-    "topic_noun": ["school funding", "education spending", "school finance"],
-    "topic_adj": ["educational", "school-related", "academic"],
-    "location_name": ["Oregon", "Multnomah County", "the Portland metro area"],
-    "stakeholder": ["students", "teachers", "parents", "school boards", "taxpayers", "administrators"],
-    "specific_issue": ["per-pupil spending disparities", "teacher retention", "school choice vouchers", "curriculum mandates"],
-    "policy_example": ["the Student Success Act", "Measure 98 career-technical funding", "charter school authorization"],
-    "data_point": ["Oregon ranks 31st in per-pupil spending nationally", "average class sizes exceed 30 students in some Portland schools"]
+    "topic_noun": ["school funding", "education budget", "public schools"],
+    "topic_adj": ["educational", "school-related", "funding-focused"],
+    "location_name": ["Multnomah County", "Portland", "Oregon"],
+    "stakeholder": ["parents", "teachers", "school board members", "students", "taxpayers"],
+    "specific_issue": ["teacher salaries", "classroom size", "after-school programs", "school infrastructure", "special education funding"],
+    "policy_example": ["Measure 5 property tax limits", "Student Success Act", "Portland Public Schools bond measure", "Oregon Lottery education funding"],
+    "data_point": ["Oregon ranks 31st in per-pupil spending", "average class size in PPS is 28 students", "teacher turnover rate is 18%", "40% of school buildings need major repairs"]
   },
   "positions": {
-    "proposal_issue": [
-      {"type": "anchor", "statement": "Parents should have the right to choose where their children go to school using public funds.",
-       "votes": [-1, -1, -1, -1, -1, 1, 1, 1, 1, 1]},
-      {"type": "anchor", "statement": "Critical race theory should not be taught in public schools.",
-       "votes": [-1, -1, -1, -1, 1, 1, 0, 1, 1, 1]},
+    "opinion_discussion": [
+      {"type": "anchor", "statement": "A 15% increase in school funding is the right investment to improve educational outcomes.",
+       "votes": [1, 1, 1, 1, 1, 0, 0, -1, -1, -1]},
+      {"type": "anchor", "statement": "We should prioritize teacher salary increases over building upgrades.",
+       "votes": [1, 1, 1, 0, 1, 0, 0, 0, -1, 0]},
       {"type": "generated", "lean": "left", "topic_focus": "equity"},
       {"type": "generated", "lean": "center", "topic_focus": "governance"},
-      {"type": "generated", "lean": "right", "topic_focus": "accountability"}
-    ],
-    "proposal_qualify": [
-      {"type": "anchor", "statement": "College tuition should be free at public universities.",
-       "votes": [1, 1, 1, 1, 1, -1, -1, -1, -1, -1]},
-      {"type": "generated", "lean": "center_left", "topic_focus": "reform"},
-      {"type": "generated", "lean": "center_right", "topic_focus": "implementation"},
-      {"type": "generated", "lean": "bipartisan", "topic_focus": "funding"}
+      {"type": "generated", "lean": "right", "topic_focus": "funding"},
+      {"type": "generated", "lean": "populist_cross", "topic_focus": "reform"}
     ]
   },
   "posts": {
-    "proposal_issue": {
+    "opinion_discussion": {
       "anchors": [
         {
           "post_type": "discussion",
-          "title": "Should schools teach financial literacy as a required course?",
-          "body": "I graduated high school without ever learning how to do my taxes, understand a mortgage, or create a budget. Meanwhile, I took two years of a language I've never used since.\n\nShould personal finance be a required course in Oregon high schools? What would you cut to make room for it, or should the school year be extended?",
-          "comments": [
-            {"body": "Absolutely yes. The number of young adults who don't understand compound interest or how credit scores work is staggering. This is a life skill, not an elective.", "author_prefix": "prog", "replies": [
-              {"body": "The challenge is finding qualified teachers. Most high school teachers don't have personal finance backgrounds. We'd need serious professional development.", "author_prefix": "mod"}
-            ]},
-            {"body": "I'd argue financial literacy should replace part of the existing math curriculum in junior and senior year. Most students don't need calculus, but everyone needs to understand budgeting.", "author_prefix": "cen", "replies": [
-              {"body": "Disagree on replacing math. Calculus and statistics are foundational for STEM careers. Add financial literacy without gutting the math program.", "author_prefix": "con"}
-            ]}
-          ]
-        }
-      ],
-      "generated_count": 8,
-      "generated_types": {"discussion": 5, "question": 2, "proposal": 1},
-      "comments_per_generated": [5, 6, 4, 5, 6, 5, 4, 5]
-    },
-    "proposal_qualify": {
-      "anchors": [
+          "title": "How should the 15% funding increase be allocated?",
+          "body": "The proposal to increase school funding by 15% has been accepted. Now we need to discuss how these funds should be distributed.\n\nThe proposal emphasizes three areas:\n- **Teacher salaries** to improve retention and recruitment\n- **Classroom resources** including technology and materials\n- **After-school programs** especially in underserved communities\n\nWhat should be the top priority? Are there other areas that deserve funding?"
+        },
         {
-          "post_type": "proposal",
-          "title": "Proposal: Mandate financial literacy in Oregon high schools",
-          "body": "Building on the community discussion, I'd like to propose that Oregon require all public high school students to complete a one-semester personal finance course before graduation.\n\nThe course would cover: budgeting, taxes, credit and debt, investing basics, insurance, and renting vs. buying. It could be offered as a standalone course or integrated into existing social studies requirements.\n\nFunding could come from the Student Success Act allocation for career-technical education. What do you think?",
-          "comments": [
-            {"body": "I support this in principle, but the implementation details matter a lot. Who writes the curriculum? The financial industry has a history of pushing self-serving 'literacy' programs.", "author_prefix": "prog", "replies": [
-              {"body": "Great point. The curriculum should be developed by educators and consumer advocates, not banks or credit card companies.", "author_prefix": "mod"}
-            ]},
-            {"body": "One semester isn't enough. Financial literacy should be woven through multiple years, starting in middle school with basic concepts and building to more complex topics.", "author_prefix": "cen"}
-          ]
+          "post_type": "question",
+          "title": "What evidence shows that increased funding improves outcomes?",
+          "body": "Before we decide on allocation, should we look at what research says about which types of education spending have the biggest impact on student outcomes?"
         }
       ],
-      "generated_count": 7,
-      "generated_types": {"discussion": 4, "question": 2, "proposal": 1},
-      "comments_per_generated": [5, 4, 6, 5, 5, 4, 6]
+      "generated_count": 6,
+      "generated_types": {"discussion": 3, "question": 2, "proposal": 1},
+      "comments_per_generated": [5, 4, 6, 5, 4, 5]
     }
   },
-  "surveys": [
-    {
-      "title": "School Funding Priorities for Oregon",
-      "type": "standard",
-      "session_name": "School Funding",
-      "target_stage": "proposal_qualify",
-      "questions": [
-        {"question": "What should be the top priority for additional school funding in Oregon?",
-         "options": ["Reducing class sizes", "Increasing teacher pay", "Updating facilities and technology", "Expanding career-technical programs"]},
-        {"question": "How should school choice programs be structured?",
-         "options": ["No public funding for private schools", "Limited vouchers for low-income families only", "Open voucher system for all families", "Focus on improving public school options within districts"]},
-        {"question": "What is the best way to address curriculum gaps like financial literacy?",
-         "options": ["Mandate new required courses", "Integrate into existing subjects", "Offer as electives with strong incentives", "Leave curriculum decisions to individual districts"]},
-        {"question": "How should Oregon fund increased education spending?",
-         "options": ["Increase income taxes on high earners", "Redirect existing state budget allocations", "Local property tax levies", "Corporate activity tax increases"]}
-      ]
-    }
-  ]
+  "surveys": []
 }

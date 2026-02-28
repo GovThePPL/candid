@@ -48,7 +48,7 @@ def register_connection_handlers(sio: socketio.AsyncServer) -> None:
 
         # --- Session setup ---
         room_manager = get_room_manager()
-        room_manager.add_session(sid, user_id)
+        await room_manager.add_session(sid, user_id)
 
         # Join user's personal room for notifications
         await sio.enter_room(sid, room_manager.user_room(user_id))
@@ -61,7 +61,7 @@ def register_connection_handlers(sio: socketio.AsyncServer) -> None:
 
         # Cancel any pending abandonment timers for this user (they reconnected)
         abandonment_tracker = get_abandonment_tracker()
-        cancelled_chats = abandonment_tracker.cancel_all_for_user(user_id)
+        cancelled_chats = await abandonment_tracker.cancel_all_for_user(user_id)
 
         # Notify other participants that this user reconnected
         for cancelled_chat_id in cancelled_chats:
@@ -108,20 +108,20 @@ def register_connection_handlers(sio: socketio.AsyncServer) -> None:
     async def disconnect(sid: str) -> None:
         """Handle socket disconnection."""
         room_manager = get_room_manager()
-        session = room_manager.remove_session(sid)
+        session = await room_manager.remove_session(sid)
 
         if session:
             user_id = session.user_id
             logger.info(f"User {user_id} disconnected (sid: {sid})")
 
             # Only start abandonment timers if user has no other active sessions
-            if not room_manager.is_user_connected(user_id):
+            if not await room_manager.is_user_connected(user_id):
                 redis_store = get_redis_store()
                 abandonment_tracker = get_abandonment_tracker()
                 active_chats = await redis_store.get_user_active_chats(user_id)
 
                 for chat_id in active_chats:
-                    abandonment_tracker.start(chat_id, user_id)
+                    await abandonment_tracker.start(chat_id, user_id)
 
                     # Notify the other participant
                     metadata = await redis_store.get_chat_metadata(chat_id)
@@ -129,7 +129,7 @@ def register_connection_handlers(sio: socketio.AsyncServer) -> None:
                         for participant_id in metadata.participant_ids:
                             if participant_id != user_id:
                                 # Only notify if other user doesn't also have a timer
-                                if not abandonment_tracker.has_timer(chat_id, participant_id):
+                                if not await abandonment_tracker.has_timer(chat_id, participant_id):
                                     other_room = room_manager.user_room(participant_id)
                                     await sio.emit(
                                         "partner_disconnected",
@@ -174,7 +174,7 @@ def register_connection_handlers(sio: socketio.AsyncServer) -> None:
 
         # Cancel abandonment timer if user is returning to the chat
         abandonment_tracker = get_abandonment_tracker()
-        was_abandoning = abandonment_tracker.cancel(chat_id, user_id)
+        was_abandoning = await abandonment_tracker.cancel(chat_id, user_id)
         if was_abandoning:
             # Notify the other participant that user returned
             metadata_for_notify = await redis_store.get_chat_metadata(chat_id)
@@ -200,7 +200,7 @@ def register_connection_handlers(sio: socketio.AsyncServer) -> None:
         other_user_connected = False
         if metadata:
             for participant_id in metadata.participant_ids:
-                if participant_id != user_id and room_manager.is_user_connected(participant_id):
+                if participant_id != user_id and await room_manager.is_user_connected(participant_id):
                     other_user_connected = True
                     break
 
@@ -248,14 +248,14 @@ def register_connection_handlers(sio: socketio.AsyncServer) -> None:
 
         # Start abandonment timer
         abandonment_tracker = get_abandonment_tracker()
-        abandonment_tracker.start(chat_id, user_id)
+        await abandonment_tracker.start(chat_id, user_id)
 
         # Notify the other participant
         metadata = await redis_store.get_chat_metadata(chat_id)
         if metadata:
             for participant_id in metadata.participant_ids:
                 if participant_id != user_id:
-                    if not abandonment_tracker.has_timer(chat_id, participant_id):
+                    if not await abandonment_tracker.has_timer(chat_id, participant_id):
                         other_room = room_manager.user_room(participant_id)
                         await sio.emit(
                             "partner_disconnected",

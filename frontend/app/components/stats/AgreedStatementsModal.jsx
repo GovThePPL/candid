@@ -138,7 +138,7 @@ const createStyles = (colors) => StyleSheet.create({
   contentWrapper: {
     paddingHorizontal: 16,
     paddingBottom: 24,
-    flex: 1,
+    flexShrink: 1,
   },
   centerContainer: {
     alignItems: 'center',
@@ -159,7 +159,7 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 25,
   },
   scrollView: {
-    flex: 1,
+    flexShrink: 1,
   },
   section: {
     marginBottom: 20,

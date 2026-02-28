@@ -105,8 +105,10 @@ components:
           format: uuid
         username:
           type: string
+          maxLength: 64
         displayName:
           type: string
+          maxLength: 255
         avatarUrl:
           type: string
           description: Full size avatar (256x256) as base64 data URI
@@ -410,7 +412,7 @@ components:
           format: uuid
         stage:
           type: string
-          enum: [proposal_issue, proposal_qualify, proposal_stakeholders, opinion_discussion, opinion_curation, opinion_proposals, reflection, consensus]
+          enum: [proposal_issue, proposal_qualify, proposal_stakeholders, opinion_discussion, reflection_curation, reflection_proposals, consensus]
         stageChangedAt:
           type: string
           format: date-time
@@ -432,7 +434,7 @@ components:
           nullable: true
         proposalMethod:
           type: string
-          enum: [user_driven, admin_provided]
+          enum: [user_driven, admin_provided, direct_proposal]
           description: How proposals are created for this session
         locationCode:
           type: string
@@ -440,6 +442,10 @@ components:
         locationName:
           type: string
           nullable: true
+        acceptedProposalTitle:
+          type: string
+          nullable: true
+          description: Title of the accepted (finalized) proposal, if any
 
     AdminSession:
       type: object
@@ -467,7 +473,7 @@ components:
           nullable: true
         stage:
           type: string
-          enum: [proposal_issue, proposal_qualify, proposal_stakeholders, opinion_discussion, opinion_curation, opinion_proposals, reflection, consensus]
+          enum: [proposal_issue, proposal_qualify, proposal_stakeholders, opinion_discussion, reflection_curation, reflection_proposals, consensus]
         stageChangedAt:
           type: string
           format: date-time
@@ -492,7 +498,7 @@ components:
           nullable: true
         proposalMethod:
           type: string
-          enum: [user_driven, admin_provided]
+          enum: [user_driven, admin_provided, direct_proposal]
 
     Response:
       type: object
@@ -707,6 +713,7 @@ components:
           format: uuid
         surveyTitle:
           type: string
+          maxLength: 255
         startTime:
           type: string
           format: date-time
@@ -1378,6 +1385,7 @@ components:
       properties:
         description:
           type: string
+          maxLength: 5000
           description: User-provided description (required for manual reports)
         errorMetrics:
           type: object
@@ -1477,6 +1485,7 @@ components:
       properties:
         surveyTitle:
           type: string
+          maxLength: 255
         locationId:
           type: string
           format: uuid
@@ -1491,9 +1500,11 @@ components:
           maxItems: 20
           items:
             type: string
+            maxLength: 500
           description: Pool of items to compare
         comparisonQuestion:
           type: string
+          maxLength: 500
           default: "Which better describes your views?"
         polisConversationId:
           type: string
@@ -1504,7 +1515,7 @@ components:
           description: Whether this survey is for group identity labeling
         phase:
           type: string
-          enum: [proposal, opinion]
+          enum: [proposal, opinion, reflection]
           nullable: true
           description: Session phase this label survey applies to
         startTime:
@@ -1654,6 +1665,7 @@ components:
           description: Required for facilitator, assistant_moderator, expert, liaison
         reason:
           type: string
+          maxLength: 1000
 
     RoleChangeResult:
       type: object
@@ -1825,7 +1837,7 @@ components:
           default: false
         phase:
           type: string
-          enum: [proposal, opinion]
+          enum: [proposal, opinion, reflection]
           nullable: true
           description: Session phase this label survey applies to
         items:
@@ -1964,6 +1976,13 @@ components:
             type: string
             enum: [position, chat_log, post, comment]
           description: Content types this rule applies to
+        applicablePostTypes:
+          type: array
+          nullable: true
+          items:
+            type: string
+            enum: [discussion, question, proposal]
+          description: Post types this rule applies to (null = all post types)
         status:
           type: string
           enum: [active, inactive]
@@ -1998,8 +2017,10 @@ components:
           properties:
             title:
               type: string
+              maxLength: 255
             text:
               type: string
+              maxLength: 10000
             severity:
               type: integer
               minimum: 1
@@ -2011,12 +2032,15 @@ components:
                 properties:
                   userClass:
                     type: string
+                    maxLength: 100
                   action:
                     type: string
+                    maxLength: 100
                   duration:
                     type: integer
             sentencingGuidelines:
               type: string
+              maxLength: 5000
               nullable: true
             locationId:
               type: string
@@ -2104,6 +2128,7 @@ components:
           enum: [dismiss, take_action, mark_spurious]
         modResponseText:
           type: string
+          maxLength: 2000
           description: Required when modResponse is dismiss or take_action
         actions:
           type: array
@@ -2141,6 +2166,7 @@ components:
           nullable: true
         surveyTitle:
           type: string
+          maxLength: 255
         startTime:
           type: string
           format: date-time
@@ -2157,10 +2183,12 @@ components:
             properties:
               question:
                 type: string
+                maxLength: 500
               options:
                 type: array
                 items:
                   type: string
+                  maxLength: 255
 
     PositionResponse:
       type: object
@@ -3512,6 +3540,10 @@ components:
 
     EndorsementList:
       type: object
+      description: >-
+        Endorsement data for the current user. proposalCounts is populated
+        only for users with facilitator (or higher) role on the session;
+        regular users receive an empty array.
       required:
         - myEndorsements
         - proposalCounts
@@ -3521,6 +3553,8 @@ components:
           items:
             $ref: '#/components/schemas/Endorsement'
         proposalCounts:
+          description: >-
+            Per-proposal endorsement counts. Empty for non-privileged users.
           type: array
           items:
             type: object
@@ -3666,16 +3700,19 @@ components:
           description: Session to gather context from
         step:
           type: string
+          maxLength: 100
           description: Wizard step name (e.g. description, stakeholders, impact, rights, implementation)
         userInput:
           type: string
           minLength: 1
+          maxLength: 10000
           description: User's draft text for this step
         previousSections:
           type: object
           nullable: true
           additionalProperties:
             type: string
+            maxLength: 10000
           description: Previously completed wizard sections (step name → content)
 
     ProposalAssistResponse:
@@ -4098,18 +4135,23 @@ components:
       properties:
         term:
           type: string
+          maxLength: 255
         aliases:
           type: array
           items:
             type: string
+            maxLength: 255
         summary:
           type: string
+          maxLength: 500
           nullable: true
         content:
           type: string
+          maxLength: 50000
           nullable: true
         wikiCategory:
           type: string
+          maxLength: 100
           nullable: true
         scopeCombine:
           type: string
@@ -4138,14 +4180,18 @@ components:
       properties:
         title:
           type: string
+          maxLength: 255
         description:
           type: string
+          maxLength: 1000
           nullable: true
         content:
           type: string
+          maxLength: 50000
           nullable: true
         wikiCategory:
           type: string
+          maxLength: 100
           nullable: true
         scopeCombine:
           type: string
@@ -4341,6 +4387,67 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
 
+  /auth/refresh:
+    post:
+      operationId: refreshToken
+      summary: Refresh an access token
+      description: Proxies token refresh to Keycloak. Ensures the issuer stays consistent with the login proxy.
+      tags:
+        - Authentication
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refresh_token
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        '200':
+          description: New tokens
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  refresh_token:
+                    type: string
+        '401':
+          description: Invalid or expired refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /auth/logout:
+    post:
+      operationId: logoutToken
+      summary: End a Keycloak session
+      description: Proxies session logout to Keycloak. Uses the same internal hostname as login/refresh to avoid issuer mismatches.
+      tags:
+        - Authentication
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refresh_token
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        '204':
+          description: Session ended (or already expired)
+
   /auth/register:
     post:
       operationId: registerUser
@@ -4363,12 +4470,21 @@ paths:
                 username:
                   type: string
                   minLength: 3
+                  maxLength: 64
                 email:
                   type: string
                   format: email
+                  maxLength: 255
                 password:
                   type: string
                   minLength: 8
+                  maxLength: 128
+                phoneNumber:
+                  type: string
+                  description: Phone number for verification (required when SMS verification is enabled)
+                phoneVerifyToken:
+                  type: string
+                  description: Verification token from POST /auth/verify-phone/confirm
       responses:
         '201':
           description: User created successfully
@@ -4387,6 +4503,255 @@ paths:
                 $ref: '#/components/schemas/ErrorModel'
         '409':
           description: Username or email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /auth/phone-verifications:
+    post:
+      operationId: createPhoneVerification
+      summary: Create a phone verification (sends SMS code)
+      description: |
+        Validates the phone number format, checks it's not already registered,
+        rate limits, and sends a 6-digit verification code via SMS.
+      tags:
+        - Authentication
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phoneNumber
+              properties:
+                phoneNumber:
+                  type: string
+                  description: Phone number to verify
+      responses:
+        '201':
+          description: Verification code sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '400':
+          description: Invalid phone number
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '409':
+          description: Phone number already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /auth/phone-confirmations:
+    post:
+      operationId: createPhoneConfirmation
+      summary: Create a phone confirmation (validates SMS code)
+      description: |
+        Validates the 6-digit code sent to the phone number.
+        On success, returns a one-time verification token to include
+        in the registration request.
+      tags:
+        - Authentication
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phoneNumber
+                - code
+              properties:
+                phoneNumber:
+                  type: string
+                code:
+                  type: string
+                  description: 6-digit verification code
+      responses:
+        '201':
+          description: Phone confirmed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  verifyToken:
+                    type: string
+                    description: One-time token to include in registration request
+        '400':
+          description: Invalid or expired code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '429':
+          description: Too many attempts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /auth/social:
+    post:
+      operationId: socialLogin
+      summary: Exchange a social identity token for Candid tokens
+      description: |
+        Validates an identity token from Apple or Google, finds or creates
+        a Keycloak user with a federated identity link, and returns Candid
+        access + refresh tokens via Keycloak token exchange.
+      tags:
+        - Authentication
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - provider
+                - identityToken
+              properties:
+                provider:
+                  type: string
+                  enum:
+                    - apple
+                    - google
+                  description: Social identity provider
+                identityToken:
+                  type: string
+                  description: JWT identity token from the provider SDK
+                userInfo:
+                  type: object
+                  description: Optional user info (Apple provides name only on first sign-in)
+                  properties:
+                    displayName:
+                      type: string
+                    email:
+                      type: string
+      responses:
+        '200':
+          description: Token response (existing user)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  refresh_token:
+                    type: string
+        '202':
+          description: Phone verification required (new user, SMS verification enabled)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  phoneVerificationRequired:
+                    type: boolean
+                  pendingToken:
+                    type: string
+                    description: JWT containing pending social login info (10 min TTL)
+        '400':
+          description: Invalid request (missing fields, unsupported provider)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '401':
+          description: Invalid or expired identity token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '502':
+          description: Keycloak service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+
+  /auth/social-registrations:
+    post:
+      operationId: createSocialRegistration
+      summary: Create a social registration (completes social signup with phone)
+      description: |
+        Creates a new account for a social login user after phone verification.
+        Takes the pending token from the 202 response of POST /auth/social,
+        plus the phone verification token, creates the account, and returns tokens.
+      tags:
+        - Authentication
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - pendingToken
+                - phoneNumber
+                - phoneVerifyToken
+              properties:
+                pendingToken:
+                  type: string
+                  description: JWT from the 202 social login response
+                phoneNumber:
+                  type: string
+                phoneVerifyToken:
+                  type: string
+                  description: Token from POST /auth/phone-confirmations
+      responses:
+        '200':
+          description: Account created, tokens returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  refresh_token:
+                    type: string
+        '400':
+          description: Invalid or expired pending token, or phone verification failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '409':
+          description: Phone number already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+        '429':
+          description: Too many requests
           content:
             application/json:
               schema:
@@ -4638,6 +5003,10 @@ paths:
                 locationId:
                   type: string
                   format: uuid
+                chatsDisabled:
+                  type: boolean
+                  default: false
+                  description: When true, the creator's user_position is excluded from chat availability (used when creator disagrees/passes on their own position)
       responses:
         '201':
           description: Position created successfully
@@ -6188,13 +6557,21 @@ paths:
             schema:
               type: object
               properties:
+                label:
+                  type: string
+                  maxLength: 255
+                  description: New label for the session (1-255 characters)
                 stage:
                   type: string
-                  enum: [proposal_issue, proposal_qualify, proposal_stakeholders, opinion_discussion, opinion_curation, opinion_proposals, reflection, consensus]
+                  enum: [proposal_issue, proposal_qualify, proposal_stakeholders, opinion_discussion, reflection_curation, reflection_proposals, consensus]
                   description: Advance to this stage (must be the next stage in sequence)
                 reason:
                   type: string
                   description: Optional reason for the stage change
+                status:
+                  type: string
+                  enum: [archived]
+                  description: Set to 'archived' to soft-archive the session
       responses:
         '200':
           description: Updated session
@@ -6383,7 +6760,7 @@ paths:
     post:
       operationId: createEndorsement
       summary: Endorse a proposal
-      description: Endorse a proposal in the current voting round. Max 3 endorsements per user. Only allowed during proposals_open or finalization_open.
+      description: Endorse a finalized proposal in the current voting round. Max 3 endorsements per user. Only allowed during proposals_open or finalization_open. Draft proposals cannot be endorsed.
       tags:
         - Sessions
       security:
@@ -7040,6 +7417,27 @@ paths:
             type: string
             enum: [position, chat_log, post, comment]
           description: Filter rules by applicable content type
+        - name: locationId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Filter rules by location (returns global + location-specific rules)
+        - name: sessionId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Filter rules by session (returns global + session-specific rules)
+        - name: postType
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [discussion, question, proposal]
+          description: Filter rules by applicable post type
         - name: offset
           in: query
           schema:
@@ -8368,9 +8766,22 @@ paths:
                   format: uuid
                 proposalMethod:
                   type: string
-                  enum: [user_driven, admin_provided]
+                  enum: [user_driven, admin_provided, direct_proposal]
                   default: user_driven
                   description: How proposals are created for this session
+                proposals:
+                  type: array
+                  description: Proposals to create with the session. Required for direct_proposal (exactly 1) and admin_provided (2+).
+                  items:
+                    type: object
+                    required:
+                      - title
+                      - body
+                    properties:
+                      title:
+                        type: string
+                      body:
+                        type: string
                 createLabelSurvey:
                   type: boolean
                   default: false
@@ -8548,6 +8959,12 @@ paths:
           schema:
             type: string
             enum: [position, chat_log, post, comment]
+        - name: postType
+          in: query
+          schema:
+            type: string
+            enum: [discussion, question, proposal]
+          description: Filter rules by applicable post type
       responses:
         '200':
           description: List of rules
@@ -8659,6 +9076,12 @@ paths:
                       items:
                         type: string
                         enum: [position, chat_log, post, comment]
+                    applicablePostTypes:
+                      type: array
+                      nullable: true
+                      items:
+                        type: string
+                        enum: [discussion, question, proposal]
                 reason:
                   type: string
       responses:
@@ -8920,6 +9343,8 @@ paths:
             enum:
               - proposal
               - opinion
+              - reflection
+              - consensus
       responses:
         '200':
           description: Opinion group statistics
@@ -9612,7 +10037,7 @@ paths:
                   description: Session to pin the post in (required when pinned is true)
                 pinStage:
                   type: string
-                  enum: [proposal_issue, proposal_qualify, proposal_stakeholders, opinion_discussion, opinion_curation, opinion_proposals, reflection, consensus]
+                  enum: [proposal_issue, proposal_qualify, proposal_stakeholders, opinion_discussion, reflection_curation, reflection_proposals, consensus]
                   description: Stage to pin the post at (required when pinned is true)
                 proposalStatus:
                   type: string

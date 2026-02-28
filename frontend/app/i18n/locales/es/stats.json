@@ -190,5 +190,6 @@
   "viewDemographicsA11y": "Ver desglose demográfico",
   "backA11y": "Volver",
   "expandContentA11y": "Alternar detalles del contenido",
-  "closeA11y": "Cerrar"
+  "closeA11y": "Cerrar",
+  "noVotes": "Sin votos"
 }

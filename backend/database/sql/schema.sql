@@ -44,7 +44,12 @@ CREATE TABLE users (
     -- Role badge visibility: whether to display role badge on posts and comments
     show_role_badge BOOLEAN NOT NULL DEFAULT true,
     -- Denormalized kudos count (maintained by trigger on kudos table)
-    kudos_count INTEGER NOT NULL DEFAULT 0
+    kudos_count INTEGER NOT NULL DEFAULT 0,
+    -- Phone verification (anti-abuse)
+    phone_number VARCHAR(20),
+    phone_verified BOOLEAN DEFAULT FALSE,
+    -- Normalized email for duplicate detection (strips dots/plus aliases)
+    normalized_email VARCHAR(255)
 );
 
 COMMENT ON COLUMN users.chat_request_likelihood IS '0=off, 1=rarely, 2=less, 3=normal, 4=more, 5=often';
@@ -88,15 +93,15 @@ CREATE TABLE session (
     location_id UUID NOT NULL REFERENCES location(id) ON DELETE CASCADE,
     stage VARCHAR(30) NOT NULL DEFAULT 'proposal_issue'
         CHECK (stage IN ('proposal_issue', 'proposal_qualify', 'proposal_stakeholders',
-                         'opinion_discussion', 'opinion_curation',
-                         'opinion_proposals', 'reflection', 'consensus')),
+                         'opinion_discussion', 'reflection_curation',
+                         'reflection_proposals', 'consensus')),
     stage_changed_at TIMESTAMPTZ,
     stage_changed_by UUID REFERENCES users(id) ON DELETE SET NULL,
     facilitator_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'active'
         CHECK (status IN ('active', 'archived', 'cancelled')),
     proposal_method VARCHAR(20) NOT NULL DEFAULT 'user_driven'
-        CHECK (proposal_method IN ('user_driven', 'admin_provided')),
+        CHECK (proposal_method IN ('user_driven', 'admin_provided', 'direct_proposal')),
     created_by UUID REFERENCES users(id) ON DELETE SET NULL,
     created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -179,6 +184,7 @@ CREATE TABLE user_position (
     pass_count INTEGER DEFAULT 0,
     chat_count INTEGER DEFAULT 0,
     notified_removed BOOLEAN DEFAULT FALSE,
+    chats_disabled BOOLEAN DEFAULT FALSE,
     created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, position_id)
@@ -252,7 +258,7 @@ CREATE TABLE survey (
     polis_conversation_id VARCHAR(255),
     comparison_question TEXT,
     is_group_labeling BOOLEAN NOT NULL DEFAULT false,
-    phase VARCHAR(20) CHECK (phase IN ('proposal', 'opinion')),
+    phase VARCHAR(20) CHECK (phase IN ('proposal', 'opinion', 'reflection')),
     created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     start_time TIMESTAMPTZ,
@@ -264,7 +270,7 @@ COMMENT ON COLUMN survey.survey_type IS 'Type of survey: standard (multiple choi
 COMMENT ON COLUMN survey.polis_conversation_id IS 'Link to Polis conversation for group-specific aggregation';
 COMMENT ON COLUMN survey.comparison_question IS 'Question template for pairwise comparisons (e.g., "Which better describes this group?")';
 COMMENT ON COLUMN survey.is_group_labeling IS 'True if this survey is used for group identity labeling (excluded from survey results modal)';
-COMMENT ON COLUMN survey.phase IS 'Session phase this label survey applies to (proposal or opinion). NULL means legacy/unscoped.';
+COMMENT ON COLUMN survey.phase IS 'Session phase this label survey applies to (proposal, opinion, or reflection). NULL means legacy/unscoped.';
 
 -- Survey questions
 CREATE TABLE survey_question (
@@ -326,6 +332,7 @@ CREATE TABLE rule (
     location_id UUID REFERENCES location(id) ON DELETE SET NULL,
     session_id UUID REFERENCES session(id) ON DELETE SET NULL,
     applicable_content_types TEXT[] DEFAULT '{position,chat_log,post,comment}',
+    applicable_post_types TEXT[],
     created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
@@ -437,7 +444,7 @@ CREATE TABLE polis_conversation (
     session_id UUID REFERENCES session(id),
     polis_conversation_id VARCHAR(255) NOT NULL UNIQUE,
     conversation_type VARCHAR(50) NOT NULL CHECK (conversation_type IN ('session', 'location_all')),
-    phase VARCHAR(20) CHECK (phase IN ('proposal', 'opinion')),
+    phase VARCHAR(20) CHECK (phase IN ('proposal', 'opinion', 'reflection')),
     active_from DATE NOT NULL,
     active_until DATE NOT NULL,
     created_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -793,6 +800,8 @@ CREATE INDEX idx_mf_training_log_created ON mf_training_log(created_time DESC);
 CREATE INDEX idx_users_username ON users(username);
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_user_type ON users(user_type);
+CREATE UNIQUE INDEX idx_users_phone ON users (phone_number) WHERE phone_number IS NOT NULL;
+CREATE UNIQUE INDEX idx_users_norm_email ON users (normalized_email) WHERE normalized_email IS NOT NULL;
 CREATE INDEX idx_user_activity_user_id ON user_activity(user_id);
 CREATE INDEX idx_position_creator_user_id ON position(creator_user_id);
 CREATE INDEX idx_position_session_id ON position(session_id);
@@ -1222,15 +1231,23 @@ BEGIN
     rows_fixed := fixed_count;
     RETURN NEXT;
 
-    -- 6. User kudos counts (from kudos table, status = 'sent')
-    WITH counts AS (
-        SELECT receiver_user_id, COUNT(*) AS cnt
+    -- 6. User kudos counts (from kudos table status='sent' + non-dismissed bridging awards)
+    WITH kudos_counts AS (
+        SELECT receiver_user_id AS uid, COUNT(*) AS cnt
         FROM kudos WHERE status = 'sent'
         GROUP BY receiver_user_id
+    ), bridging_counts AS (
+        SELECT user_id AS uid, COUNT(*) AS cnt
+        FROM bridging_award WHERE dismissed = false
+        GROUP BY user_id
+    ), combined AS (
+        SELECT COALESCE(k.uid, b.uid) AS uid,
+               COALESCE(k.cnt, 0) + COALESCE(b.cnt, 0) AS cnt
+        FROM kudos_counts k FULL OUTER JOIN bridging_counts b ON k.uid = b.uid
     ), updated AS (
         UPDATE users u SET kudos_count = COALESCE(c.cnt, 0)
-        FROM counts c
-        WHERE u.id = c.receiver_user_id AND u.kudos_count IS DISTINCT FROM c.cnt
+        FROM combined c
+        WHERE u.id = c.uid AND u.kudos_count IS DISTINCT FROM c.cnt
         RETURNING 1
     )
     SELECT COUNT(*) INTO fixed_count FROM updated;
@@ -1273,6 +1290,38 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER trg_user_kudos_count
     AFTER INSERT OR UPDATE OR DELETE ON kudos
     FOR EACH ROW EXECUTE FUNCTION update_user_kudos_count();
+
+-- Trigger: bridging_award insert/update/delete → update users.kudos_count
+-- Non-dismissed bridging awards count as kudos.
+CREATE OR REPLACE FUNCTION update_user_kudos_from_bridging() RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        IF NOT NEW.dismissed THEN
+            UPDATE users SET kudos_count = kudos_count + 1 WHERE id = NEW.user_id;
+        END IF;
+        RETURN NEW;
+    ELSIF TG_OP = 'UPDATE' THEN
+        -- dismissed changed from false→true: decrement
+        IF NOT OLD.dismissed AND NEW.dismissed THEN
+            UPDATE users SET kudos_count = GREATEST(kudos_count - 1, 0) WHERE id = NEW.user_id;
+        -- dismissed changed from true→false: increment
+        ELSIF OLD.dismissed AND NOT NEW.dismissed THEN
+            UPDATE users SET kudos_count = kudos_count + 1 WHERE id = NEW.user_id;
+        END IF;
+        RETURN NEW;
+    ELSIF TG_OP = 'DELETE' THEN
+        IF NOT OLD.dismissed THEN
+            UPDATE users SET kudos_count = GREATEST(kudos_count - 1, 0) WHERE id = OLD.user_id;
+        END IF;
+        RETURN OLD;
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_user_kudos_from_bridging
+    AFTER INSERT OR UPDATE OR DELETE ON bridging_award
+    FOR EACH ROW EXECUTE FUNCTION update_user_kudos_from_bridging();
 
 -- ========== Glossary / Knowledgebase ==========
 
@@ -1424,10 +1473,28 @@ CREATE TABLE pinned_post (
     session_id      UUID NOT NULL REFERENCES session(id) ON DELETE CASCADE,
     stage           VARCHAR(30) NOT NULL CHECK (stage IN (
         'proposal_issue','proposal_qualify','proposal_stakeholders',
-        'opinion_discussion','opinion_curation','opinion_proposals',
-        'reflection','consensus')),
+        'opinion_discussion','reflection_curation','reflection_proposals',
+        'consensus')),
+    post_type       VARCHAR(20) NOT NULL DEFAULT 'discussion',
     pinned_by       UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     pinned_at       TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(session_id, stage, post_id)
+    UNIQUE(session_id, stage, post_type, post_id)
 );
-CREATE INDEX idx_pinned_post_session_stage ON pinned_post(session_id, stage);
+CREATE INDEX idx_pinned_post_session_stage_type ON pinned_post(session_id, stage, post_type);
+
+-- Audit log: structured trail for admin/moderator actions
+CREATE TABLE audit_log (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    actor_id        UUID NOT NULL REFERENCES users(id),
+    action          VARCHAR(100) NOT NULL,
+    target_type     VARCHAR(50) NOT NULL,
+    target_id       UUID,
+    location_id     UUID REFERENCES location(id),
+    session_id      UUID REFERENCES session(id),
+    details         JSONB,
+    created_time    TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_audit_log_actor ON audit_log(actor_id);
+CREATE INDEX idx_audit_log_action ON audit_log(action);
+CREATE INDEX idx_audit_log_target ON audit_log(target_type, target_id);
+CREATE INDEX idx_audit_log_created ON audit_log(created_time DESC);

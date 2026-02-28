@@ -1128,6 +1128,63 @@ class TestBuildRuleResponse:
         result = build_rule_response(row)
         assert set(result['applicableContentTypes']) == {'position', 'chat_log', 'post', 'comment'}
 
+    def test_applicable_post_types_present(self):
+        """When applicable_post_types is set, it appears in the response."""
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        from candid.controllers.helpers.admin import build_rule_response
+
+        row = {
+            'id': RULE_ID,
+            'title': 'Discussion Only Rule',
+            'text': 'Applies to discussions only.',
+            'status': 'active',
+            'applicable_content_types': ['post'],
+            'applicable_post_types': ['discussion'],
+            'created_time': now,
+            'updated_time': None,
+        }
+        result = build_rule_response(row)
+        assert result['applicablePostTypes'] == ['discussion']
+
+    def test_applicable_post_types_none(self):
+        """When applicable_post_types is None, it appears as None (all post types)."""
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        from candid.controllers.helpers.admin import build_rule_response
+
+        row = {
+            'id': RULE_ID,
+            'title': 'Rule',
+            'text': 'Text',
+            'status': 'active',
+            'applicable_content_types': None,
+            'applicable_post_types': None,
+            'created_time': now,
+            'updated_time': None,
+        }
+        result = build_rule_response(row)
+        assert result['applicablePostTypes'] is None
+
+    def test_applicable_post_types_multiple(self):
+        """Multiple post types are returned as a list."""
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        from candid.controllers.helpers.admin import build_rule_response
+
+        row = {
+            'id': RULE_ID,
+            'title': 'Rule',
+            'text': 'Text',
+            'status': 'active',
+            'applicable_content_types': ['post'],
+            'applicable_post_types': ['discussion', 'proposal'],
+            'created_time': now,
+            'updated_time': None,
+        }
+        result = build_rule_response(row)
+        assert result['applicablePostTypes'] == ['discussion', 'proposal']
+
 
 class TestGetRuleAuthorityLocation:
     """Tests for get_rule_authority_location() — determines authority for rule scope."""

@@ -49,11 +49,12 @@ async def initialize_services(app: web.Application) -> None:
     chat_exporter = ChatExporter()
     await chat_exporter.connect()
 
-    # Initialize room manager
-    room_manager = RoomManager()
+    # Initialize room manager with Redis for cross-pod presence
+    room_manager = RoomManager(redis=redis_store._redis)
+    await room_manager.cleanup_stale_sids()
 
-    # Initialize abandonment tracker
-    abandonment_tracker = AbandonmentTracker()
+    # Initialize abandonment tracker with Redis for cross-pod consistency
+    abandonment_tracker = AbandonmentTracker(redis=redis_store._redis)
 
     # Initialize shared HTTP session for NLP service calls
     _nlp_session = aiohttp.ClientSession()
@@ -175,7 +176,7 @@ async def _check_abandoned_chats() -> None:
             if not abandonment_tracker or not redis_store or not chat_exporter or not _sio:
                 continue
 
-            expired = abandonment_tracker.get_expired()
+            expired = await abandonment_tracker.get_expired()
 
             for chat_id, user_id in expired:
                 logger.warning(
@@ -187,7 +188,7 @@ async def _check_abandoned_chats() -> None:
                     metadata = await redis_store.get_chat_metadata(chat_id)
                     if not metadata:
                         logger.debug(f"Chat {chat_id} already cleaned up, skipping")
-                        abandonment_tracker.cancel_all_for_chat(chat_id)
+                        await abandonment_tracker.cancel_all_for_chat(chat_id)
                         continue
 
                     # Get export data
@@ -206,32 +207,21 @@ async def _check_abandoned_chats() -> None:
                         logger.error(f"Failed to export abandoned chat {chat_id}")
                         continue
 
-                    # Notify remaining participants
+                    # Notify remaining participants (local sids only — only one
+                    # pod claims each expired entry via atomic get_expired)
+                    status_data = {
+                        "chatId": chat_id,
+                        "status": "ended",
+                        "endType": "abandoned",
+                        "abandonedByUserId": user_id,
+                    }
+                    notified_sids = set()
+                    # Emit to chat room members on this pod
                     chat_room = room_manager.chat_room(chat_id)
-                    await _sio.emit(
-                        "status",
-                        {
-                            "chatId": chat_id,
-                            "status": "ended",
-                            "endType": "abandoned",
-                            "abandonedByUserId": user_id,
-                        },
-                        room=chat_room,
-                    )
-
-                    # Also emit to each participant's personal room (in case they're not in the chat room)
                     for participant_id in metadata.participant_ids:
-                        participant_room = room_manager.user_room(participant_id)
-                        await _sio.emit(
-                            "status",
-                            {
-                                "chatId": chat_id,
-                                "status": "ended",
-                                "endType": "abandoned",
-                                "abandonedByUserId": user_id,
-                            },
-                            room=participant_room,
-                        )
+                        for sid in room_manager.get_user_sids(participant_id):
+                            await _sio.emit("status", status_data, to=sid)
+                            notified_sids.add(sid)
 
                     # Remove participants from chat room
                     for participant_id in metadata.participant_ids:
@@ -239,7 +229,7 @@ async def _check_abandoned_chats() -> None:
                             await _sio.leave_room(participant_sid, chat_room)
 
                     # Cancel any other timers for this chat
-                    abandonment_tracker.cancel_all_for_chat(chat_id)
+                    await abandonment_tracker.cancel_all_for_chat(chat_id)
 
                     # Delete Redis data
                     await redis_store.delete_chat(chat_id)
@@ -288,33 +278,34 @@ async def _handle_chat_accepted(data: dict) -> None:
             if _sio:
                 await _sio.enter_room(sid, chat_room)
 
-    # Notify both users about the new chat
+    # Notify both users about the new chat (local sids only — each pod
+    # runs this handler via pub/sub, so room-based emit would duplicate)
     if _sio:
         # Notify initiator (their request was accepted)
-        initiator_room = room_manager.user_room(initiator_id)
-        await _sio.emit(
-            "chat_started",
-            {
-                "chatId": chat_log_id,
-                "otherUserId": responder_id,
-                "positionStatement": position_statement,
-                "role": "initiator",
-            },
-            room=initiator_room,
-        )
+        for sid in room_manager.get_user_sids(initiator_id):
+            await _sio.emit(
+                "chat_started",
+                {
+                    "chatId": chat_log_id,
+                    "otherUserId": responder_id,
+                    "positionStatement": position_statement,
+                    "role": "initiator",
+                },
+                to=sid,
+            )
 
         # Notify responder (they accepted, now entering chat)
-        responder_room = room_manager.user_room(responder_id)
-        await _sio.emit(
-            "chat_started",
-            {
-                "chatId": chat_log_id,
-                "otherUserId": initiator_id,
-                "positionStatement": position_statement,
-                "role": "responder",
-            },
-            room=responder_room,
-        )
+        for sid in room_manager.get_user_sids(responder_id):
+            await _sio.emit(
+                "chat_started",
+                {
+                    "chatId": chat_log_id,
+                    "otherUserId": initiator_id,
+                    "positionStatement": position_statement,
+                    "role": "responder",
+                },
+                to=sid,
+            )
 
     logger.info(f"Chat {chat_log_id} setup complete, users notified")
 
@@ -334,10 +325,10 @@ async def _handle_chat_request_received(data: dict) -> None:
 
     logger.info(f"Handling chat_request_received for user {recipient_user_id}")
 
-    # Emit to recipient's user room
+    # Emit to recipient's local sids only (pub/sub runs on all pods)
     if _sio:
-        recipient_room = room_manager.user_room(recipient_user_id)
-        await _sio.emit("chat_request_received", card, room=recipient_room)
+        for sid in room_manager.get_user_sids(recipient_user_id):
+            await _sio.emit("chat_request_received", card, to=sid)
         logger.info(f"Emitted chat_request_received to user {recipient_user_id}")
 
 
@@ -375,10 +366,10 @@ async def _handle_chat_request_response(data: dict) -> None:
             "requestId": request_id,
         }
 
-    # Emit to initiator's user room
+    # Emit to initiator's local sids only (pub/sub runs on all pods)
     if _sio:
-        initiator_room = room_manager.user_room(initiator_user_id)
-        await _sio.emit(event_name, event_data, room=initiator_room)
+        for sid in room_manager.get_user_sids(initiator_user_id):
+            await _sio.emit(event_name, event_data, to=sid)
         logger.info(f"Emitted {event_name} to user {initiator_user_id}")
 
 
@@ -397,9 +388,11 @@ async def _handle_new_comment(data: dict) -> None:
 
     logger.info(f"Handling new_comment for post {post_id}")
 
+    # Emit to local sids in the post room only (pub/sub runs on all pods)
     if _sio:
         post_room = room_manager.post_room(post_id)
-        await _sio.emit("new_comment", comment, room=post_room)
+        for sid, _ in _sio.manager.get_participants('/', post_room):
+            await _sio.emit("new_comment", comment, to=sid)
         logger.debug(f"Emitted new_comment to room {post_room}")
 
 
@@ -419,12 +412,14 @@ async def _handle_vote_update(data: dict) -> None:
 
     logger.info(f"Handling vote_update for comment {comment_id} in post {post_id}")
 
+    # Emit to local sids in the post room only (pub/sub runs on all pods)
     if _sio:
         post_room = room_manager.post_room(post_id)
-        await _sio.emit("vote_update", {
-            "commentId": comment_id,
-            **counts,
-        }, room=post_room)
+        for sid, _ in _sio.manager.get_participants('/', post_room):
+            await _sio.emit("vote_update", {
+                "commentId": comment_id,
+                **counts,
+            }, to=sid)
         logger.debug(f"Emitted vote_update to room {post_room}")
 
 
@@ -443,9 +438,10 @@ async def _handle_notification(data: dict) -> None:
 
     logger.info(f"Handling notification for user {user_id}")
 
+    # Emit to local sids only (pub/sub runs on all pods)
     if _sio:
-        user_room = room_manager.user_room(user_id)
-        await _sio.emit("notification", notification, room=user_room)
+        for sid in room_manager.get_user_sids(user_id):
+            await _sio.emit("notification", notification, to=sid)
         logger.debug(f"Emitted notification to user {user_id}")
 
 

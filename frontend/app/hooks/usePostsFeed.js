@@ -101,9 +101,13 @@ export default function usePostsFeed(locationId, sessionId, postType, { phase, e
     fetchPosts(true)
   }, [fetchPosts])
 
+  // Ref for reading current posts without adding to callback deps
+  const postsRef = useRef(posts)
+  useEffect(() => { postsRef.current = posts }, [posts])
+
   const handleUpvote = useCallback(async (postId) => {
     // Sound + haptic on new upvotes (not toggles/removes)
-    const post = posts.find(p => p.id === postId)
+    const post = postsRef.current.find(p => p.id === postId)
     const wasUpvoted = post?.userVote?.voteType === 'upvote'
     let playedBridging = false
     if (!wasUpvoted && post) {
@@ -120,7 +124,7 @@ export default function usePostsFeed(locationId, sessionId, postType, { phase, e
     }
 
     // Snapshot for rollback
-    const prevPosts = posts
+    const prevPosts = postsRef.current
 
     // Optimistic update
     setPosts(prev => prev.map(p => {
@@ -158,7 +162,7 @@ export default function usePostsFeed(locationId, sessionId, postType, { phase, e
       setPosts(prevPosts)
       showToast(t('errorVoteFailed'))
     }
-  }, [posts, showToast, t])
+  }, [showToast, t])
 
   const handleToggleRole = useCallback((postId, showCreatorRole) => {
     // Optimistic update only — no API endpoint yet
@@ -169,7 +173,7 @@ export default function usePostsFeed(locationId, sessionId, postType, { phase, e
 
   const handleDownvote = useCallback(async (postId, reason) => {
     // Snapshot for rollback
-    const prevPosts = posts
+    const prevPosts = postsRef.current
 
     // Optimistic update
     setPosts(prev => prev.map(p => {
@@ -200,7 +204,7 @@ export default function usePostsFeed(locationId, sessionId, postType, { phase, e
       setPosts(prevPosts)
       showToast(t('errorVoteFailed'))
     }
-  }, [posts, showToast, t])
+  }, [showToast, t])
 
   const handleLockPost = useCallback(async (postId, lock) => {
     setPosts(prev => prev.map(p =>

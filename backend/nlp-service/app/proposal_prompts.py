@@ -29,7 +29,8 @@ def reload_config():
 
 
 def get_prompt(template: str, step: str, context: str = "",
-               previous_sections: dict | None = None) -> str:
+               previous_sections: dict | None = None,
+               location_name: str | None = None) -> str:
     """Build a complete system prompt for a proposal wizard step.
 
     Args:
@@ -38,6 +39,7 @@ def get_prompt(template: str, step: str, context: str = "",
               "rights", "implementation")
         context: Pre-assembled context string (wiki, glossary, Q&A, expert content)
         previous_sections: Dict of previously completed sections {step_name: content}
+        location_name: Full location name (e.g. "Oregon - Multnomah County")
 
     Returns:
         Formatted system prompt string.
@@ -63,6 +65,17 @@ def get_prompt(template: str, step: str, context: str = "",
     if context:
         context_block = f"## Reference Context\n\n{context}"
 
+    # Format location section
+    location_block = ""
+    if location_name:
+        location_block = (
+            f"## Location\n\n"
+            f"The user is in **{location_name}**. When suggesting stakeholders, "
+            f"agencies, or legal considerations, tailor your suggestions to this "
+            f"jurisdiction (e.g., relevant local/state/county agencies, laws, and "
+            f"governing bodies)."
+        )
+
     # Format previous sections
     prev_block = ""
     if previous_sections:
@@ -76,5 +89,9 @@ def get_prompt(template: str, step: str, context: str = "",
         context=context_block,
         previous_sections=prev_block,
     )
+
+    # Append location after the main template
+    if location_block:
+        full_prompt += "\n\n" + location_block
 
     return full_prompt

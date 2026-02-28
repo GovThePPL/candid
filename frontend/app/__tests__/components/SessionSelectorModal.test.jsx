@@ -53,6 +53,17 @@ jest.mock('../../lib/api', () => ({
   },
 }))
 
+const mockCacheGet = jest.fn()
+const mockCacheSet = jest.fn()
+jest.mock('../../lib/cache', () => ({
+  CacheManager: {
+    get: (...args) => mockCacheGet(...args),
+    set: (...args) => mockCacheSet(...args),
+  },
+  CacheKeys: { sessionSelector: () => 'session-selector' },
+  CacheDurations: { SESSIONS: 300000 },
+}))
+
 import SessionSelectorModal from '../../components/SessionSelectorModal'
 
 const sampleLocations = [
@@ -61,7 +72,7 @@ const sampleLocations = [
 ]
 
 const usSessions = [
-  { id: 'sess-1', label: 'Healthcare', status: 'active', stage: 'opinion_discussion' },
+  { id: 'sess-1', label: 'Healthcare', status: 'active', stage: 'opinion_discussion', acceptedProposalTitle: 'Universal Healthcare Plan' },
   { id: 'sess-2', label: 'Education', status: 'archived', stage: 'consensus' },
 ]
 
@@ -79,6 +90,8 @@ describe('SessionSelectorModal', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     mockSelectedSession = 'sess-1'
+    mockCacheGet.mockResolvedValue(null)
+    mockCacheSet.mockResolvedValue()
     mockGetLocations.mockResolvedValue(sampleLocations)
     mockGetSessions.mockImplementation((locId) => {
       if (locId === 'loc-1') return Promise.resolve(usSessions)
@@ -91,8 +104,8 @@ describe('SessionSelectorModal', () => {
     render(<SessionSelectorModal {...defaultProps} />)
 
     await waitFor(() => {
-      expect(screen.getByText('United States (US)')).toBeTruthy()
-      expect(screen.getByText('Oregon (OR)')).toBeTruthy()
+      expect(screen.getByText('United States')).toBeTruthy()
+      expect(screen.getByText('Oregon')).toBeTruthy()
     })
   })
 
@@ -207,5 +220,88 @@ describe('SessionSelectorModal', () => {
 
     fireEvent.press(screen.getByLabelText('close'))
     expect(onClose).toHaveBeenCalled()
+  })
+
+  it('shows cached data immediately without loading skeleton', async () => {
+    const cachedData = {
+      data: {
+        locations: sampleLocations,
+        sessionsByLocation: {
+          'loc-1': usSessions,
+          'loc-2': orSessions,
+        },
+      },
+    }
+    mockCacheGet.mockResolvedValue(cachedData)
+
+    // Make fetch slow so we can verify cached data appears first
+    mockGetLocations.mockImplementation(() => new Promise(() => {}))
+
+    render(<SessionSelectorModal {...defaultProps} />)
+
+    // Cached data should appear without waiting for API
+    await waitFor(() => {
+      expect(screen.getByText('United States')).toBeTruthy()
+      expect(screen.getByText('US Healthcare')).toBeTruthy()
+    })
+
+    // No skeleton should have been shown
+    expect(screen.queryByTestId('skeleton-pulse')).toBeNull()
+  })
+
+  it('updates cache after successful fetch', async () => {
+    render(<SessionSelectorModal {...defaultProps} />)
+
+    await waitFor(() => {
+      expect(screen.getByText('United States')).toBeTruthy()
+    })
+
+    expect(mockCacheSet).toHaveBeenCalledWith(
+      'session-selector',
+      expect.objectContaining({
+        locations: sampleLocations,
+        sessionsByLocation: expect.any(Object),
+      })
+    )
+  })
+
+  it('shows proposal indicator when session has acceptedProposalTitle', async () => {
+    render(<SessionSelectorModal {...defaultProps} />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Universal Healthcare Plan')).toBeTruthy()
+    })
+
+    // Accessibility label includes the key + interpolated title (t() mock returns key + values)
+    expect(screen.getByLabelText(/sessionSelectorProposalA11y/)).toBeTruthy()
+  })
+
+  it('does not show proposal indicator when no acceptedProposalTitle', async () => {
+    render(<SessionSelectorModal {...defaultProps} />)
+
+    await waitFor(() => {
+      expect(screen.getByText('OR Housing')).toBeTruthy()
+    })
+
+    // Housing session has no proposal — should not have indicator
+    const proposalTexts = screen.queryAllByText('Universal Healthcare Plan')
+    // Only one instance (from Healthcare session)
+    expect(proposalTexts.length).toBe(1)
+  })
+
+  it('shows skeleton on cold start when no cache exists', async () => {
+    mockCacheGet.mockResolvedValue(null)
+    // Make fetch hang to keep loading state visible
+    mockGetLocations.mockImplementation(() => new Promise(() => {}))
+
+    const { unmount } = render(<SessionSelectorModal {...defaultProps} />)
+
+    // Should show loading state (skeleton) since no cache
+    // The component shows skeleton when loading is true
+    await waitFor(() => {
+      expect(screen.queryByText('United States')).toBeNull()
+    })
+
+    unmount()
   })
 })

@@ -23,7 +23,7 @@ export const MAX_HEIGHT_FRACTION = 0.85
 /**
  * Animated bottom drawer modal with overlay fade and slide-up transition.
  * On desktop (>= 1024px), renders as a centered popup instead.
- * By default fills to 85% of screen height. Pass `shrink` to size to content instead.
+ * Sizes to content by default, capped at 85% of screen height.
  *
  * @param {Object} props
  * @param {boolean} props.visible - Whether the drawer should be shown
@@ -33,7 +33,6 @@ export const MAX_HEIGHT_FRACTION = 0.85
  * @param {ReactNode} [props.headerRight] - Custom element on the right side of the header (replaces default close button)
  * @param {ReactNode} [props.headerLeft] - Custom element on the left side of the header (e.g. back button)
  * @param {ReactNode} props.children - Drawer content
- * @param {boolean} [props.shrink=false] - When true, drawer shrinks to fit content (capped at 85%). Use for small dialogs with fixed content.
  */
 export default function BottomDrawerModal({
   visible,
@@ -43,7 +42,6 @@ export default function BottomDrawerModal({
   headerRight,
   headerLeft,
   children,
-  shrink = false,
 }) {
   const { t } = useTranslation()
   const colors = useThemeColors()
@@ -130,7 +128,7 @@ export default function BottomDrawerModal({
               style={[styles.popupContent, popupContentStyle]}
             >
               {header}
-              <View style={shrink ? { maxHeight: maxHeight * 0.7 } : { height: maxHeight * 0.7 }}>
+              <View style={{ maxHeight: maxHeight * 0.7 }}>
                 {children}
               </View>
             </Animated.View>
@@ -140,7 +138,7 @@ export default function BottomDrawerModal({
             testID="drawer-content"
             style={[
               styles.content,
-              shrink ? { maxHeight: maxHeight } : { height: maxHeight },
+              { maxHeight: maxHeight },
               drawerContentStyle,
             ]}
           >

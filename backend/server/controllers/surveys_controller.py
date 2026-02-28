@@ -1172,6 +1172,10 @@ def get_question_crosstabs(survey_id, question_id, filter_location_id=None, grou
             total_in_cat = db.execute_query(total_in_cat_query, tuple([question_id, value] + user_filter_params), fetchone=True)
             total_in_category = total_in_cat["total"] if total_in_cat else 0
 
+            # K-anonymity: suppress categories with fewer than 5 respondents
+            if total_in_category < 5:
+                continue
+
             # Get breakdown by option
             option_breakdown = []
             for opt in option_list:

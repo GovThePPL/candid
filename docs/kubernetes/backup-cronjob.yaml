@@ -1,0 +1,186 @@
+# Candid Database Backup CronJobs
+#
+# Two CronJobs that run nightly pg_dump for Candid and Polis databases.
+# Dumps are written to a shared backup PVC with 7-day retention.
+#
+# Prerequisites:
+#   - candid-secrets must contain 'database-url' and 'polis-database-url' keys
+#     (see secrets-template.yaml)
+#   - NetworkPolicy: backup pods need 'app: candid-backup' label added to
+#     allow-candid-db and allow-polis-db policies (see network-policies.yaml)
+#
+# RPO: 24 hours (nightly backups)
+# RTO: 10-30 minutes (restore from most recent dump)
+#
+# For S3/GCS alternatives, see the commented section at the bottom.
+
+---
+# Backup storage volume (shared by both CronJobs)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: candid-backups
+  namespace: candid
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  # storageClassName: gp3
+
+---
+# Candid DB backup — runs at 02:00 UTC daily
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: candid-db-backup
+  namespace: candid
+spec:
+  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: candid-backup
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: backup
+            image: postgres:17
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+              TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+              DUMP_FILE="/backups/candid-db-${TIMESTAMP}.dump"
+
+              echo "Starting Candid DB backup..."
+              pg_dump "$DATABASE_URL" \
+                --format=custom \
+                --compress=9 \
+                --file="$DUMP_FILE"
+
+              echo "Backup written to ${DUMP_FILE} ($(du -h "$DUMP_FILE" | cut -f1))"
+
+              # Retain only the 7 most recent backups
+              echo "Cleaning old backups..."
+              ls -t /backups/candid-db-*.dump 2>/dev/null | tail -n +8 | xargs -r rm -v
+
+              echo "Backup complete."
+            env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: candid-secrets
+                  key: database-url
+            volumeMounts:
+            - name: backups
+              mountPath: /backups
+          volumes:
+          - name: backups
+            persistentVolumeClaim:
+              claimName: candid-backups
+
+---
+# Polis DB backup — runs at 02:30 UTC daily (offset to avoid I/O contention)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: polis-db-backup
+  namespace: candid
+spec:
+  schedule: "30 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: candid-backup
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: backup
+            image: postgres:17
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+              TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+              DUMP_FILE="/backups/polis-db-${TIMESTAMP}.dump"
+
+              echo "Starting Polis DB backup..."
+              pg_dump "$DATABASE_URL" \
+                --format=custom \
+                --compress=9 \
+                --file="$DUMP_FILE"
+
+              echo "Backup written to ${DUMP_FILE} ($(du -h "$DUMP_FILE" | cut -f1))"
+
+              # Retain only the 7 most recent backups
+              echo "Cleaning old backups..."
+              ls -t /backups/polis-db-*.dump 2>/dev/null | tail -n +8 | xargs -r rm -v
+
+              echo "Backup complete."
+            env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: candid-secrets
+                  key: polis-database-url
+            volumeMounts:
+            - name: backups
+              mountPath: /backups
+          volumes:
+          - name: backups
+            persistentVolumeClaim:
+              claimName: candid-backups
+
+# ---
+# S3 Alternative (Production)
+#
+# Replace the PVC-based backup with S3 uploads for durability.
+# Requires an S3-compatible bucket and credentials (via IRSA on EKS,
+# Workload Identity on GKE, or explicit AWS_ACCESS_KEY_ID).
+#
+# Replace the backup command with:
+#
+#   pg_dump "$DATABASE_URL" --format=custom --compress=9 \
+#     | aws s3 cp - "s3://your-backup-bucket/candid-db-${TIMESTAMP}.dump"
+#
+# Use S3 lifecycle rules for retention instead of the shell cleanup above.
+# Consider also enabling WAL archiving for point-in-time recovery (PITR).
+
+# ---
+# Restore Procedure
+#
+# 1. Scale down the API and worker deployments to prevent writes:
+#      kubectl scale deployment candid-api candid-worker --replicas=0 -n candid
+#
+# 2. Identify the backup to restore:
+#      kubectl exec -it <backup-pod-or-debug-pod> -n candid -- ls -lt /backups/
+#
+# 3. Restore the dump (--clean drops and recreates objects):
+#      kubectl exec -it <candid-db-pod> -n candid -- \
+#        pg_restore --clean --if-exists --dbname=candid /backups/candid-db-YYYYMMDD-HHMMSS.dump
+#
+#    For Polis:
+#      kubectl exec -it <polis-db-pod> -n candid -- \
+#        pg_restore --clean --if-exists --dbname=polis-dev /backups/polis-db-YYYYMMDD-HHMMSS.dump
+#
+# 4. Scale deployments back up:
+#      kubectl scale deployment candid-api --replicas=2 -n candid
+#      kubectl scale deployment candid-worker --replicas=1 -n candid
+#
+# 5. Verify by checking API health and running a test query.

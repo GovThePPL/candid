@@ -6,7 +6,7 @@ PostgreSQL 17 with pgvector extension for semantic similarity search.
 
 The schema supports the full Candid domain: users, positions, voting, chat, surveys, moderation, demographics, and Polis integration. Key tables include:
 
-- **users** -- User accounts with role hierarchy (guest/normal/moderator/admin), diagnostics consent flag
+- **users** -- User accounts with role hierarchy (guest/normal/moderator/admin), diagnostics consent flag, phone verification, normalized email for anti-abuse
 - **position / user_position** -- Position statements and per-user adoption
 - **response** -- Agree/disagree/pass/chat votes on positions
 - **chat_request / chat_log** -- Chat lifecycle and message storage (JSONB)
@@ -21,9 +21,12 @@ The schema supports the full Candid domain: users, positions, voting, chat, surv
 
 Files in `/docker-entrypoint-initdb.d/` execute alphabetically on first container start:
 
-1. `01-schema.sql` -- Full schema (all migrations rolled in, pre-production)
-2. `02-basic-data.sql` -- Infrastructure seed: users, categories, locations, rules, surveys
-3. `03-pairwise-data.sql` -- Pairwise survey questions and options
+1. `00a-create-keycloak-db.sql` -- Creates the Keycloak database
+2. `01-schema.sql` -- Full Candid schema (all migrations rolled in, pre-production)
+3. `02-basic-data.sql` -- Infrastructure seed: users, categories, locations, rules, surveys
+4. `03-pairwise-data.sql` -- Pairwise survey questions and options
+
+Polis has its own database container (`polis-db`) — see `backend/polis-integration/database/`.
 
 Rich dev data (50 users, ~36 positions, chats, moderation) is created by `backend/scripts/seed_dev_data.py` via `./dev.sh`.
 
@@ -39,7 +42,19 @@ database/
 │   ├── migrate_polis_phase.sql           # Add Polis phase tracking to sessions
 │   ├── migrate_proposals.sql             # Add proposal posts and endorsement tables
 │   ├── migrate_voting_results.sql        # Add voting results storage
-│   └── migrate_voting_round_candidate.sql # Add voting round candidate tracking
+│   ├── migrate_voting_round_candidate.sql # Add voting round candidate tracking
+│   ├── migrate_proposal_methods.sql      # Add direct_proposal to proposal_method CHECK
+│   ├── migrate_phone_verification.sql   # Add phone_number, phone_verified, normalized_email to users
+│   ├── migrate_audit_log.sql            # Add audit_log table for admin/moderator action trail
+│   ├── migrate_bridging_kudos.sql       # Add bridging kudos support
+│   ├── migrate_chats_disabled.sql       # Add chats_disabled flag to sessions
+│   ├── migrate_pinned_post_type.sql     # Add pinned post type tracking
+│   ├── migrate_rule_post_types.sql      # Add rule post type constraints
+│   └── migrate_stage_rename.sql         # Rename stages for consistency
+├── migrations/
+│   ├── run_migrations.sh          # Forward-only migration runner
+│   ├── 001_initial.sql            # Baseline marker
+│   └── README.md
 ├── test_data/
 │   ├── basic.sql         # Core seed data (users, categories, locations, rules)
 │   └── pairwise_surveys.sql  # Pairwise survey data
@@ -49,8 +64,9 @@ database/
 ## Resetting
 
 ```bash
-docker volume rm candid_postgres_data    # Remove data volume
-docker compose up -d --build db          # Rebuild and re-init
+docker volume rm candid_postgres_data    # Remove Candid + Keycloak data
+docker volume rm candid_polis_data       # Remove Polis data
+docker compose up -d --build db polis-db # Rebuild and re-init
 ```
 
-Or use `./dev.sh --reset-db` to reset and reseed in one step.
+Or use `./dev.sh --reset-db` to reset both volumes and reseed in one step.

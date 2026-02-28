@@ -73,8 +73,11 @@ export default function useModalBackHandler(visible, onClose) {
     entryRef.current = entry
     _modalStack.push(entry)
 
-    // Push a history entry so browser back can close the modal
-    window.history.pushState({ modal: true }, '')
+    // Push a history entry so browser back can close the modal.
+    // Preserve existing history.state (e.g. Expo Router's navigation state)
+    // so that the popstate triggered by cleanup's back() doesn't cause the
+    // router to reconcile/remount the screen.
+    window.history.pushState({ ...window.history.state, _modal: true }, '')
 
     return () => {
       const idx = _modalStack.indexOf(entry)

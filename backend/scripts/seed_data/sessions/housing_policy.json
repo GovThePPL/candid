@@ -1,0 +1,41 @@
+{
+  "session_name": "Housing Policy",
+  "location_code": "TX/TRAV",
+  "target_stage": "proposal_qualify",
+  "topic_vocabulary": {
+    "topic_noun": ["housing policy", "rental market", "housing affordability"],
+    "topic_adj": ["housing-related", "rental", "affordable"],
+    "location_name": ["Travis County", "Austin", "Central Texas"],
+    "stakeholder": ["renters", "landlords", "housing advocates", "developers", "city council members"],
+    "specific_issue": ["rent control", "tenant protections", "affordable housing", "zoning reform", "displacement prevention"],
+    "policy_example": ["Austin SMART Housing program", "Texas state preemption of rent control", "Travis County housing bond", "inclusionary zoning ordinances"],
+    "data_point": ["median rent in Austin rose 35% since 2020", "Austin needs 60,000 more affordable units", "1 in 4 Austin renters spend over 50% of income on housing", "homelessness increased 45% in Travis County"]
+  },
+  "positions": {
+    "proposal_qualify": [
+      {"type": "anchor", "statement": "Rent control is necessary to prevent displacement of long-term residents.",
+       "votes": [1, 1, 1, 1, 0, 0, -1, -1, -1, -1]},
+      {"type": "anchor", "statement": "Building more housing is the best way to lower costs, not price controls.",
+       "votes": [-1, 0, 0, -1, 0, 1, 1, 1, 1, 0]},
+      {"type": "generated", "lean": "left", "topic_focus": "equity"},
+      {"type": "generated", "lean": "center", "topic_focus": "governance"},
+      {"type": "generated", "lean": "right", "topic_focus": "funding"},
+      {"type": "generated", "lean": "populist_cross", "topic_focus": "reform"}
+    ]
+  },
+  "posts": {
+    "proposal_qualify": {
+      "anchors": [
+        {
+          "post_type": "discussion",
+          "title": "Which housing proposal best addresses Austin's affordability crisis?",
+          "body": "Three proposals have been put forward by the admin team:\n\n1. **Rent Control Cap at 5%** — Limiting annual rent increases\n2. **Tenant Protection Fund** — $50M for legal aid and emergency housing\n3. **Inclusionary Zoning** — Requiring 20% affordable units in new developments\n\nEach takes a different approach. Which do you think would be most effective? What are the trade-offs?"
+        }
+      ],
+      "generated_count": 5,
+      "generated_types": {"discussion": 2, "question": 2, "proposal": 1},
+      "comments_per_generated": [5, 4, 5, 4, 5]
+    }
+  },
+  "surveys": []
+}

@@ -44,6 +44,7 @@ def get_batch_availability(position_ids, requesting_user_id, db):
         FROM user_position up
         WHERE up.position_id = ANY(%s::uuid[])
           AND up.status = 'active'
+          AND up.chats_disabled = false
           AND up.user_id != %s
     """, (list(position_ids), requesting_user_id))
 
@@ -111,6 +112,7 @@ def get_batch_availability(position_ids, requesting_user_id, db):
                 FROM user_position up
                 WHERE up.position_id = ANY(%s::uuid[])
                   AND up.status = 'active'
+                  AND up.chats_disabled = false
                   AND up.user_id != %s
             ) sub
             JOIN users u ON sub.user_id = u.id
