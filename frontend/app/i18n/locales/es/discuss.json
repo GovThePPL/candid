@@ -411,7 +411,7 @@
   "ballotMoveUpA11y": "Mover {{title}} arriba",
   "ballotMoveDownA11y": "Mover {{title}} abajo",
   "ballotViewProposalA11y": "Ver propuesta: {{title}}",
-  "ballotSessionSwitchA11y": "Cambiar sesión",
+  "ballotCloseA11y": "Cerrar votación",
   "ballotSubmittedTitle": "Tu voto",
   "ballotUpdateButton": "Modificar voto",
   "ballotUpdateButtonA11y": "Modificar tu voto enviado",

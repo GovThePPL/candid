@@ -950,8 +950,8 @@ class TestChatRequestNotifications:
             assert accepted_events[0][1]["requestId"] == request_id
             assert accepted_events[0][1]["chatLogId"] == chat_log_id
 
-            # Verify initiator received chat_started
-            started_events = [e for e in received_events if e[0] == "started"]
+            # Verify initiator received chat_started (filter out catch-up events from prior chats)
+            started_events = [e for e in received_events if e[0] == "started" and not e[1].get("catchUp")]
             assert len(started_events) >= 1
             assert started_events[0][1]["chatId"] == chat_log_id
             assert started_events[0][1]["role"] == "initiator"
@@ -1048,11 +1048,12 @@ class TestChatRequestNotifications:
             # Wait for events
             time.sleep(1.0)
 
-            # Verify responder received chat_started
-            assert len(responder_events) >= 1
-            assert responder_events[0]["chatId"] == chat_log_id
-            assert responder_events[0]["role"] == "responder"
-            assert responder_events[0]["otherUserId"] == NORMAL1_ID
+            # Verify responder received chat_started (filter out catch-up events from prior chats)
+            live_events = [e for e in responder_events if not e.get("catchUp")]
+            assert len(live_events) >= 1
+            assert live_events[0]["chatId"] == chat_log_id
+            assert live_events[0]["role"] == "responder"
+            assert live_events[0]["otherUserId"] == NORMAL1_ID
 
             # Cleanup
             redis_delete_chat(chat_log_id)

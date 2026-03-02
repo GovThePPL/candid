@@ -60,6 +60,7 @@ jest.mock('../../lib/api', () => {
     setStoredUser: (...args) => _mockApiTokenFns.setStoredUser(...args),
     initializeAuth: (...args) => _mockApiTokenFns.initializeAuth(...args),
     bugReportsApiWrapper: { createReport: jest.fn() },
+    usersApiWrapper: { getLocations: jest.fn(() => Promise.resolve([{ id: 'loc1' }])) },
     default: {
       auth: {
         getCurrentUser: (...args) => mockGetCurrentUser(...args),

@@ -27,7 +27,7 @@ const SESSION_KEY = '@candid:selectedSession'
 const LocationSessionContext = createContext()
 
 export function LocationSessionProvider({ children }) {
-  const { user } = useContext(AuthContext)
+  const { user, isNewUser } = useContext(AuthContext)
   const [selectedLocation, setSelectedLocationRaw] = useState(null)
   const [selectedSession, setSelectedSessionRaw] = useState(null)
   const [loaded, setLoaded] = useState(false)
@@ -57,41 +57,7 @@ export function LocationSessionProvider({ children }) {
       .finally(() => setLoaded(true))
   }, [])
 
-  // Auto-resolve session when user logs in with no session selected
   const autoResolvedRef = useRef(false)
-  useEffect(() => {
-    if (!loaded || !user || selectedSession || autoResolvedRef.current) return
-    autoResolvedRef.current = true
-
-    ;(async () => {
-      try {
-        const locations = await usersApiWrapper.getLocations()
-        if (!locations?.length) return
-
-        const sessResults = await Promise.all(
-          locations.map(loc => sessionsApiWrapper.getAll(loc.id).catch(() => []))
-        )
-
-        const activeSessions = []
-        locations.forEach((loc, i) => {
-          for (const s of (sessResults[i] || [])) {
-            if (s.status === 'active') {
-              activeSessions.push({ locationId: loc.id, sessionId: s.id })
-            }
-          }
-        })
-
-        if (activeSessions.length === 1) {
-          setSelectedLocation(activeSessions[0].locationId)
-          setSelectedSession(activeSessions[0].sessionId)
-        } else if (activeSessions.length > 1) {
-          openSessionSelector()
-        }
-      } catch (err) {
-        console.error('Auto-resolve session failed:', err)
-      }
-    })()
-  }, [loaded, user, selectedSession])
 
   const setSelectedLocation = useCallback((id) => {
     setSelectedLocationRaw(id)
@@ -241,7 +207,7 @@ export function LocationSessionProvider({ children }) {
 
   // Auto-open ballot modal when entering a voting_open stage without an existing ballot
   useEffect(() => {
-    if (!selectedSession || !user || isReadOnly) {
+    if (!selectedSession || !user || isReadOnly || isNewUser) {
       setBallotModalVisible(false)
       ballotCheckedRef.current = null
       return
@@ -265,12 +231,55 @@ export function LocationSessionProvider({ children }) {
       .catch(() => {
         setBallotModalVisible(true)
       })
-  }, [selectedSession, user, isReadOnly, votingRound?.status, roundType])
+  }, [selectedSession, user, isReadOnly, isNewUser, votingRound?.status, roundType])
 
   const openSessionSelector = useCallback(() => setSessionSelectorVisible(true), [])
   const closeSessionSelector = useCallback(() => setSessionSelectorVisible(false), [])
   const openSessionOverview = useCallback(() => setSessionOverviewVisible(true), [])
   const closeSessionOverview = useCallback(() => setSessionOverviewVisible(false), [])
+
+  // Resolve session: find active sessions across user locations and auto-select
+  const resolveSession = useCallback(async () => {
+    try {
+      const locations = await usersApiWrapper.getLocations()
+      if (!locations?.length) return
+
+      const sessResults = await Promise.all(
+        locations.map(loc => sessionsApiWrapper.getAll(loc.id).catch(() => []))
+      )
+
+      const activeSessions = []
+      locations.forEach((loc, i) => {
+        for (const s of (sessResults[i] || [])) {
+          if (s.status === 'active') {
+            activeSessions.push({ locationId: loc.id, sessionId: s.id })
+          }
+        }
+      })
+
+      if (activeSessions.length === 1) {
+        setSelectedLocation(activeSessions[0].locationId)
+        setSelectedSession(activeSessions[0].sessionId)
+      } else if (activeSessions.length > 1) {
+        setSelectedLocation(activeSessions[0].locationId)
+        openSessionSelector()
+      }
+    } catch (err) {
+      console.error('resolveSession failed:', err)
+    }
+  }, [setSelectedLocation, setSelectedSession, openSessionSelector])
+
+  // Auto-resolve session when user logs in with no session selected
+  useEffect(() => {
+    if (!loaded || !user || selectedSession || autoResolvedRef.current) return
+
+    ;(async () => {
+      const locations = await usersApiWrapper.getLocations().catch(() => [])
+      if (!locations?.length) return // Don't lock — no locations yet
+      autoResolvedRef.current = true
+      await resolveSession()
+    })()
+  }, [loaded, user, selectedSession, resolveSession])
 
   const value = useMemo(() => ({
     selectedLocation,
@@ -304,6 +313,7 @@ export function LocationSessionProvider({ children }) {
     closeBallotModal,
     ballotVersion,
     bumpBallotVersion,
+    resolveSession,
   }), [
     selectedLocation, selectedSession, setSelectedLocation, setSelectedSession, loaded,
     sessionData, sessionLoading, viewingStage, setViewingStage, refreshSessionData,
@@ -313,6 +323,7 @@ export function LocationSessionProvider({ children }) {
     votingRound, roundType,
     acceptedProposal, proposalModalVisible, openProposalModal, closeProposalModal,
     ballotModalVisible, openBallotModal, closeBallotModal, ballotVersion, bumpBallotVersion,
+    resolveSession,
   ])
 
   return (

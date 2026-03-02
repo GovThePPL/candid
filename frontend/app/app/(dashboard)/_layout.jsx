@@ -35,6 +35,7 @@ export default function DashboardLayout() {
 
   const isChatRoute = pathname.startsWith('/chat/')
   const isAdminRoute = pathname.startsWith('/admin')
+  const isSetupRoute = pathname.startsWith('/setup-profile')
 
   // Handle navigation when a chat starts (via socket event) - works from any tab
   useEffect(() => {
@@ -148,7 +149,7 @@ export default function DashboardLayout() {
           <SessionSelectorModal visible={sessionSelectorVisible} onClose={closeSessionSelector} />
           <SessionOverviewModal />
           <AcceptedProposalModal visible={proposalModalVisible} onClose={closeProposalModal} proposal={acceptedProposal} />
-          <BallotModal />
+          {!isSetupRoute && <BallotModal />}
         </ToastProvider>
         </GlossaryProvider>
         </NotificationProvider>
@@ -165,7 +166,7 @@ export default function DashboardLayout() {
         <SessionSelectorModal visible={sessionSelectorVisible} onClose={closeSessionSelector} />
         <SessionOverviewModal />
         <AcceptedProposalModal visible={proposalModalVisible} onClose={closeProposalModal} proposal={acceptedProposal} />
-        <BallotModal />
+        {!isSetupRoute && <BallotModal />}
       </ToastProvider>
       </GlossaryProvider>
       </NotificationProvider>

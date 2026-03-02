@@ -208,9 +208,11 @@ def create_user(username, email, password, display_name=None, roles=None, raise_
         }],
         "requiredActions": [],
     }
-    if email:
-        user_data["email"] = email
-        user_data["emailVerified"] = True
+    # Keycloak 26 User Profile requires email for ROPC token grants.
+    # When email is not provided, use a placeholder so the profile is valid.
+    effective_email = email or f"{username}@noemail.candid.local"
+    user_data["email"] = effective_email
+    user_data["emailVerified"] = True
     resp = requests.post(f"{base}/users", json=user_data, headers=headers, timeout=10)
 
     if resp.status_code == 409:

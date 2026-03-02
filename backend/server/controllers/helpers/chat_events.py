@@ -5,7 +5,10 @@ These events are consumed by the chat WebSocket server.
 """
 
 import json
+import logging
 from .redis_pool import get_redis
+
+logger = logging.getLogger(__name__)
 
 # Channel name (must match chat server)
 CHAT_EVENTS_CHANNEL = "chat:events"
@@ -44,12 +47,23 @@ def publish_chat_request_response(
         if chat_log_id:
             event["chatLogId"] = chat_log_id
 
-        r.publish(CHAT_EVENTS_CHANNEL, json.dumps(event))
+        num_subscribers = r.publish(CHAT_EVENTS_CHANNEL, json.dumps(event))
+        if num_subscribers == 0:
+            logger.warning(
+                "chat_request_response published to 0 subscribers "
+                "(no chat server pods listening) — request=%s, response=%s, initiator=%s",
+                request_id, response, initiator_user_id,
+            )
+        else:
+            logger.info(
+                "chat_request_response published to %d subscriber(s) — request=%s, response=%s",
+                num_subscribers, request_id, response,
+            )
 
         return True
 
     except Exception as e:
-        print(f"Error publishing chat_request_response event: {e}")
+        logger.error("Error publishing chat_request_response event: %s", e)
         return False
 
 
@@ -79,12 +93,22 @@ def publish_chat_request_received(
             "card": card_data,
         }
 
-        r.publish(CHAT_EVENTS_CHANNEL, json.dumps(event))
+        num_subscribers = r.publish(CHAT_EVENTS_CHANNEL, json.dumps(event))
+        if num_subscribers == 0:
+            logger.warning(
+                "chat_request_received published to 0 subscribers — recipient=%s",
+                recipient_user_id,
+            )
+        else:
+            logger.info(
+                "chat_request_received published to %d subscriber(s) — recipient=%s",
+                num_subscribers, recipient_user_id,
+            )
 
         return True
 
     except Exception as e:
-        print(f"Error publishing chat_request_received event: {e}")
+        logger.error("Error publishing chat_request_received event: %s", e)
         return False
 
 
@@ -123,10 +147,21 @@ def publish_chat_accepted(
             "positionStatement": position_statement,
         }
 
-        r.publish(CHAT_EVENTS_CHANNEL, json.dumps(event))
+        num_subscribers = r.publish(CHAT_EVENTS_CHANNEL, json.dumps(event))
+        if num_subscribers == 0:
+            logger.warning(
+                "chat_accepted published to 0 subscribers "
+                "(no chat server pods listening) — chat=%s, initiator=%s, responder=%s",
+                chat_log_id, initiator_user_id, responder_user_id,
+            )
+        else:
+            logger.info(
+                "chat_accepted published to %d subscriber(s) — chat=%s",
+                num_subscribers, chat_log_id,
+            )
 
         return True
 
     except Exception as e:
-        print(f"Error publishing chat_accepted event: {e}")
+        logger.error("Error publishing chat_accepted event: %s", e)
         return False

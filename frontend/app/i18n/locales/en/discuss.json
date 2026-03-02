@@ -411,7 +411,7 @@
   "ballotMoveUpA11y": "Move {{title}} up",
   "ballotMoveDownA11y": "Move {{title}} down",
   "ballotViewProposalA11y": "View proposal: {{title}}",
-  "ballotSessionSwitchA11y": "Switch session",
+  "ballotCloseA11y": "Close ballot",
   "ballotSubmittedTitle": "Your Ballot",
   "ballotUpdateButton": "Modify Ballot",
   "ballotUpdateButtonA11y": "Modify your submitted ballot",

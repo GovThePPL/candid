@@ -37,6 +37,14 @@ jest.mock('../../components/discuss/ProposalPreviewModal', () => {
   }
 })
 
+// Mock Header component
+jest.mock('../../components/Header', () => {
+  const { View } = require('react-native')
+  return function MockHeader() {
+    return <View testID="mock-header" />
+  }
+})
+
 // Mock API
 const mockGetCandidates = jest.fn()
 const mockGetBallot = jest.fn()
@@ -54,15 +62,14 @@ jest.mock('../../lib/api', () => ({
 
 // Mock context
 const mockCloseBallotModal = jest.fn()
-const mockOpenSessionSelector = jest.fn()
 
 let mockContextValues = {
   ballotModalVisible: true,
   closeBallotModal: mockCloseBallotModal,
   selectedSession: 'session-1',
   roundType: 'issue',
-  openSessionSelector: mockOpenSessionSelector,
   isReadOnly: false,
+  bumpBallotVersion: jest.fn(),
 }
 
 jest.mock('../../contexts/LocationSessionContext', () => ({
@@ -87,7 +94,6 @@ describe('BallotModal', () => {
       closeBallotModal: mockCloseBallotModal,
       selectedSession: 'session-1',
       roundType: 'issue',
-      openSessionSelector: mockOpenSessionSelector,
       isReadOnly: false,
     }
   })
@@ -234,7 +240,7 @@ describe('BallotModal', () => {
     await waitFor(() => expect(screen.getByText('Proposal Alpha')).toBeTruthy())
 
     // Close button label should not exist
-    expect(screen.queryByLabelText('acceptedProposalCloseA11y')).toBeNull()
+    expect(screen.queryByLabelText('ballotCloseA11y')).toBeNull()
   })
 
   it('close button shown when existing ballot (update mode)', async () => {
@@ -246,21 +252,18 @@ describe('BallotModal', () => {
 
     await waitFor(() => expect(screen.getByText('Proposal Alpha')).toBeTruthy())
 
-    const closeBtn = screen.getByLabelText('acceptedProposalCloseA11y')
+    const closeBtn = screen.getByLabelText('ballotCloseA11y')
     expect(closeBtn).toBeTruthy()
     fireEvent.press(closeBtn)
     expect(mockCloseBallotModal).toHaveBeenCalled()
   })
 
-  it('Candid logo opens session selector', async () => {
+  it('renders Header component for navigation', async () => {
     render(<BallotModal />)
 
     await waitFor(() => expect(screen.getByText('Proposal Alpha')).toBeTruthy())
 
-    const logoBtn = screen.getByLabelText('ballotSessionSwitchA11y')
-    fireEvent.press(logoBtn)
-    expect(mockCloseBallotModal).toHaveBeenCalled()
-    expect(mockOpenSessionSelector).toHaveBeenCalled()
+    expect(screen.getByTestId('mock-header')).toBeTruthy()
   })
 
   it('shows empty state when no candidates', async () => {

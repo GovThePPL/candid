@@ -1,4 +1,4 @@
-import { View, Modal, ScrollView, TouchableOpacity, StyleSheet, Platform, BackHandler, ActivityIndicator } from 'react-native'
+import { View, ScrollView, TouchableOpacity, StyleSheet, Platform, ActivityIndicator } from 'react-native'
 import { memo, useMemo, useEffect, useState, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { useLocationSession } from '../../contexts/LocationSessionContext'
 import { sessionsApiWrapper } from '../../lib/api'
+import Header from '../Header'
 import ThemedText from '../ThemedText'
 import InfoModal from '../InfoModal'
 import ProposalPreviewModal from './ProposalPreviewModal'
@@ -38,7 +39,6 @@ export default memo(function BallotModal() {
     closeBallotModal,
     selectedSession,
     roundType,
-    openSessionSelector,
     isReadOnly,
     bumpBallotVersion,
   } = useLocationSession()
@@ -93,18 +93,6 @@ export default memo(function BallotModal() {
   }, [ballotModalVisible, selectedSession, roundType, isReadOnly])
 
   const isUpdate = existingBallotLoaded
-
-  // Android back handler — block in mandatory mode
-  useEffect(() => {
-    if (!ballotModalVisible) return
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (isUpdate) {
-        closeBallotModal()
-      }
-      return true // always consume to block back in mandatory mode
-    })
-    return () => sub.remove()
-  }, [ballotModalVisible, isUpdate, closeBallotModal])
 
   // Derived lists
   const rankedList = useMemo(() => {
@@ -235,52 +223,33 @@ export default memo(function BallotModal() {
     doSubmit()
   }, [doSubmit])
 
-  const handleSessionSwitch = useCallback(() => {
-    closeBallotModal()
-    openSessionSelector()
-  }, [closeBallotModal, openSessionSelector])
-
   const rankedCount = Object.keys(rankings).length
   const maxRank = rankedCount
 
+  if (!ballotModalVisible) return null
+
   return (
-    <Modal
-      visible={ballotModalVisible}
-      transparent
-      animationType="slide"
-      onRequestClose={isUpdate ? closeBallotModal : undefined}
-    >
-      <View style={styles.overlay}>
-        <View style={styles.container}>
-          {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity
-              onPress={handleSessionSwitch}
-              style={styles.logoButton}
-              accessibilityRole="button"
-              accessibilityLabel={t('ballotSessionSwitchA11y')}
-            >
-              <ThemedText variant="h3" style={styles.logoText}>Candid</ThemedText>
-            </TouchableOpacity>
+    <View style={styles.overlay}>
+      <Header hideSessionBar />
 
-            <ThemedText variant="h3" style={styles.headerTitle} numberOfLines={1}>
-              {t('ballotModalTitle')}
-            </ThemedText>
+      {/* Title bar */}
+      <View style={styles.titleBar}>
+        <ThemedText variant="h4" style={styles.titleBarText} numberOfLines={1}>
+          {t('ballotModalTitle')}
+        </ThemedText>
+        {isUpdate && (
+          <TouchableOpacity
+            onPress={closeBallotModal}
+            style={styles.titleBarClose}
+            accessibilityRole="button"
+            accessibilityLabel={t('ballotCloseA11y')}
+          >
+            <Ionicons name="close" size={22} color={colors.secondaryText} />
+          </TouchableOpacity>
+        )}
+      </View>
 
-            {isUpdate ? (
-              <TouchableOpacity
-                onPress={closeBallotModal}
-                style={styles.closeButton}
-                accessibilityRole="button"
-                accessibilityLabel={t('acceptedProposalCloseA11y')}
-              >
-                <Ionicons name="close" size={24} color={colors.secondaryText} />
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.closeButton} />
-            )}
-          </View>
-
+      <View style={styles.container}>
           {loading ? (
             <View style={styles.loaderContainer}>
               <ActivityIndicator size="large" color={colors.primary} />
@@ -428,7 +397,6 @@ export default memo(function BallotModal() {
               ))}
             </ScrollView>
           )}
-        </View>
       </View>
 
       {/* Stacked proposal preview modal */}
@@ -470,14 +438,33 @@ export default memo(function BallotModal() {
           paragraphs={infoModal?.message ? [infoModal.message] : undefined}
         />
       )}
-    </Modal>
+    </View>
   )
 })
 
 const createStyles = (colors, insets) => StyleSheet.create({
   overlay: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 100,
     backgroundColor: colors.background,
+  },
+  titleBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  titleBarText: {
+    flex: 1,
+    textAlign: 'center',
+  },
+  titleBarClose: {
+    position: 'absolute',
+    right: Spacing.md,
+    padding: Spacing.xs,
   },
   container: {
     flex: 1,
@@ -488,34 +475,6 @@ const createStyles = (colors, insets) => StyleSheet.create({
         width: '100%',
       },
     }),
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Platform.OS === 'web' ? Spacing.lg : insets.top + Spacing.sm,
-    paddingBottom: Spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  logoButton: {
-    padding: Spacing.sm,
-    marginRight: Spacing.sm,
-  },
-  logoText: {
-    color: BrandColor,
-    fontWeight: '700',
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: 'center',
-  },
-  closeButton: {
-    padding: Spacing.sm,
-    marginLeft: Spacing.sm,
-    width: 40,
-    alignItems: 'center',
   },
   loaderContainer: {
     flex: 1,

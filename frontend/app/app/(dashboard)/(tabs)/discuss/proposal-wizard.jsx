@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../../../hooks/useThemeColors'
 import useKeyboardHeight from '../../../../hooks/useKeyboardHeight'
 import { Spacing } from '../../../../constants/Theme'
+import { OnBrandColors } from '../../../../constants/Colors'
 import { useUser } from '../../../../hooks/useUser'
 import { useLocationSession } from '../../../../contexts/LocationSessionContext'
 import { CacheManager, CacheKeys } from '../../../../lib/cache'
@@ -182,7 +183,7 @@ export default function ProposalWizardScreen() {
               accessibilityLabel={t('wizardSubmitA11y')}
             >
               {submitting ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
+                <ActivityIndicator size="small" color={OnBrandColors.text} />
               ) : (
                 t('wizardSubmitProposal')
               )}

@@ -983,7 +983,7 @@ def upload_avatar(body, token_info=None, user_id=None):  # noqa: E501
     user = token_to_user(token_info)
 
     # Rate limit: 10 uploads per hour
-    allowed, _ = check_rate_limit_for(str(user["id"]), "avatar_upload")
+    allowed, _ = check_rate_limit_for(str(user.id), "avatar_upload")
     if not allowed:
         return ErrorModel(429, "Upload rate limit exceeded. Try again later."), 429
 

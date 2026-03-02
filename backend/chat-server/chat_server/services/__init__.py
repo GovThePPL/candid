@@ -282,7 +282,8 @@ async def _handle_chat_accepted(data: dict) -> None:
     # runs this handler via pub/sub, so room-based emit would duplicate)
     if _sio:
         # Notify initiator (their request was accepted)
-        for sid in room_manager.get_user_sids(initiator_id):
+        initiator_sids = room_manager.get_user_sids(initiator_id)
+        for sid in initiator_sids:
             await _sio.emit(
                 "chat_started",
                 {
@@ -293,9 +294,15 @@ async def _handle_chat_accepted(data: dict) -> None:
                 },
                 to=sid,
             )
+        if not initiator_sids:
+            logger.warning(
+                f"chat_started for chat {chat_log_id}: initiator {initiator_id} "
+                f"has 0 local sids — event not delivered"
+            )
 
         # Notify responder (they accepted, now entering chat)
-        for sid in room_manager.get_user_sids(responder_id):
+        responder_sids = room_manager.get_user_sids(responder_id)
+        for sid in responder_sids:
             await _sio.emit(
                 "chat_started",
                 {
@@ -306,8 +313,16 @@ async def _handle_chat_accepted(data: dict) -> None:
                 },
                 to=sid,
             )
+        if not responder_sids:
+            logger.warning(
+                f"chat_started for chat {chat_log_id}: responder {responder_id} "
+                f"has 0 local sids — event not delivered"
+            )
 
-    logger.info(f"Chat {chat_log_id} setup complete, users notified")
+    logger.info(
+        f"Chat {chat_log_id} setup complete, "
+        f"initiator sids={len(initiator_sids)}, responder sids={len(responder_sids)}"
+    )
 
 
 async def _handle_chat_request_received(data: dict) -> None:
@@ -368,9 +383,16 @@ async def _handle_chat_request_response(data: dict) -> None:
 
     # Emit to initiator's local sids only (pub/sub runs on all pods)
     if _sio:
-        for sid in room_manager.get_user_sids(initiator_user_id):
+        initiator_sids = room_manager.get_user_sids(initiator_user_id)
+        for sid in initiator_sids:
             await _sio.emit(event_name, event_data, to=sid)
-        logger.info(f"Emitted {event_name} to user {initiator_user_id}")
+        if not initiator_sids:
+            logger.warning(
+                f"{event_name} for request {request_id}: initiator {initiator_user_id} "
+                f"has 0 local sids — event not delivered"
+            )
+        else:
+            logger.info(f"Emitted {event_name} to user {initiator_user_id} ({len(initiator_sids)} sids)")
 
 
 async def _handle_new_comment(data: dict) -> None:

@@ -1,4 +1,4 @@
-import { StyleSheet, View, TouchableOpacity, ActivityIndicator, Image, Alert, Platform, ScrollView } from 'react-native'
+import { StyleSheet, View, TouchableOpacity, Alert, Platform, ScrollView } from 'react-native'
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -14,6 +14,7 @@ import { Typography } from '../../constants/Theme'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import api, { translateError } from '../../lib/api'
 import { useUser } from '../../hooks/useUser'
+import { useLocationSession } from '../../contexts/LocationSessionContext'
 
 import ThemedText from '../../components/ThemedText'
 import ThemedTextInput from '../../components/ThemedTextInput'
@@ -25,6 +26,7 @@ import LocationPicker from '../../components/LocationPicker'
 
 export default function SetupProfile() {
   const { user, refreshUser, clearNewUser } = useUser()
+  const { resolveSession } = useLocationSession()
   const router = useRouter()
   const insets = useSafeAreaInsets()
 
@@ -93,7 +95,6 @@ export default function SetupProfile() {
   // Image crop state
   const [imageToCrop, setImageToCrop] = useState(null)
   const [cropModalVisible, setCropModalVisible] = useState(false)
-  const [uploadingAvatar, setUploadingAvatar] = useState(false)
 
   // Fetch available locations on mount
   useEffect(() => {
@@ -119,19 +120,20 @@ export default function SetupProfile() {
     setCropModalVisible(true)
   }
 
-  const handleCropConfirm = async (croppedBase64) => {
+  const handleCropConfirm = (croppedBase64) => {
     setCropModalVisible(false)
     setImageToCrop(null)
-
-    try {
-      setUploadingAvatar(true)
-      const response = await api.users.uploadAvatar(croppedBase64)
-      setAvatarUrl(response.avatarUrl)
-    } catch (err) {
-      Alert.alert(t('uploadFailed'), translateError(err.message, t) || t('uploadFailedMessage'))
-    } finally {
-      setUploadingAvatar(false)
-    }
+    // Optimistic: display the cropped image immediately (it's a data URI)
+    setAvatarUrl(croppedBase64)
+    // Upload in background — don't block the user
+    api.users.uploadAvatar(croppedBase64)
+      .then((response) => {
+        setAvatarUrl(response.avatarUrl)
+      })
+      .catch(() => {
+        // Silent — avatar stays visible locally. If it fails to persist,
+        // the user will see their initials next time they open the app.
+      })
   }
 
   const handleCropCancel = () => {
@@ -168,6 +170,7 @@ export default function SetupProfile() {
       }
 
       await refreshUser()
+      await resolveSession()
       clearNewUser()
       router.replace('/cards')
     } catch (err) {
@@ -203,21 +206,14 @@ export default function SetupProfile() {
           <TouchableOpacity
             style={styles.avatarContainer}
             onPress={handlePickImage}
-            disabled={uploadingAvatar}
             accessibilityRole="button"
             accessibilityLabel={t('changeAvatarA11y')}
           >
-            {uploadingAvatar ? (
-              <View style={styles.avatarPlaceholder}>
-                <ActivityIndicator size="large" color={colors.primary} />
-              </View>
-            ) : (
-              <Avatar
-                user={{ ...user, displayName: displayName || user?.displayName, avatarUrl }}
-                size={120}
-                showKudosBadge={false}
-              />
-            )}
+            <Avatar
+              user={{ ...user, displayName: displayName || user?.displayName, avatarUrl, avatarIconUrl: avatarUrl }}
+              size={120}
+              showKudosBadge={false}
+            />
             <View style={styles.avatarEditBadge}>
               <Ionicons name="camera" size={18} color="#fff" />
             </View>
@@ -324,14 +320,6 @@ const createStyles = (colors) => StyleSheet.create({
   },
   avatarContainer: {
     position: 'relative',
-  },
-  avatarPlaceholder: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: colors.cardBorder,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   avatarEditBadge: {
     position: 'absolute',

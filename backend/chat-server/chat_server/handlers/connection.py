@@ -102,6 +102,39 @@ def register_connection_handlers(sio: socketio.AsyncServer) -> None:
         except Exception as e:
             logger.error(f"Failed to deliver pending chat requests to user {user_id}: {e}")
 
+        # Catch-up: emit chat_started for active chats the user may have missed.
+        # This covers the case where chat_started was emitted while the user had
+        # 0 SIDs (brief disconnect). The frontend's chat_started listener will
+        # set activeChatNavigation and trigger navigation if appropriate.
+        try:
+            for chat_id in active_chats:
+                metadata = await redis_store.get_chat_metadata(chat_id)
+                if not metadata:
+                    continue
+                other_user_id = None
+                role = "initiator"
+                for pid in metadata.participant_ids:
+                    if pid != user_id:
+                        other_user_id = pid
+                    else:
+                        # If user is the second in the participant list, they're the responder
+                        if other_user_id is not None:
+                            role = "responder"
+                await sio.emit("chat_started", {
+                    "chatId": chat_id,
+                    "otherUserId": other_user_id,
+                    "positionStatement": "",
+                    "role": role,
+                    "catchUp": True,
+                }, to=sid)
+            if active_chats:
+                logger.info(
+                    f"Emitted chat_started catch-up for {len(active_chats)} active chat(s) "
+                    f"to user {user_id}"
+                )
+        except Exception as e:
+            logger.error(f"Failed to emit chat_started catch-up for user {user_id}: {e}")
+
         return True
 
     @sio.event

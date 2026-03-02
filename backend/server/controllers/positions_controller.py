@@ -418,7 +418,7 @@ def get_positions_stats(query, location_id, offset=0, limit=20, session_id=None,
 
     :rtype: Union[dict, Tuple[dict, int]]
     """
-    from candid.controllers.helpers.stats import STAGE_TO_PHASE
+    from candid.controllers.helpers.constants import STAGE_TO_PHASE
 
     query = (query or '').strip()
     offset = max(offset or 0, 0)

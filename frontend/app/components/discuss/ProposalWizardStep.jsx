@@ -82,6 +82,24 @@ export default function ProposalWizardStep({
     setUseVisual(v => !v)
   }, [])
 
+  // Flush latest editor content to wizard state before triggering an action.
+  // handleContentChange is async (crosses WebView bridge), so getSectionText()
+  // may still hold stale text when the user taps a button immediately after typing.
+  const flushEditor = useCallback(async () => {
+    const md = await editorRef.current?.getMarkdown()
+    if (md != null) onChangeRef.current(md)
+  }, [])
+
+  const handleGetFeedbackFlushed = useCallback(async () => {
+    await flushEditor()
+    onGetFeedback()
+  }, [flushEditor, onGetFeedback])
+
+  const handleNextFlushed = useCallback(async () => {
+    await flushEditor()
+    onNext()
+  }, [flushEditor, onNext])
+
   const handleDismissFeedback = useCallback(() => {
     setFeedback(null)
   }, [])
@@ -145,7 +163,7 @@ export default function ProposalWizardStep({
         <View style={styles.buttonSpacer} />
         <ThemedButton
           style={styles.compactButton}
-          onPress={onGetFeedback}
+          onPress={handleGetFeedbackFlushed}
           disabled={feedbackDisabled}
           accessibilityLabel={t('wizardGetFeedbackA11y')}
         >
@@ -157,7 +175,7 @@ export default function ProposalWizardStep({
         </ThemedButton>
         <ThemedButton
           style={styles.compactButton}
-          onPress={onNext}
+          onPress={handleNextFlushed}
           disabled={!canAdvance}
           accessibilityLabel={t('wizardNextA11y')}
         >

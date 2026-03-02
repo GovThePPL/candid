@@ -410,7 +410,8 @@ class TestArchiveSession:
             },
         )
         assert resp.status_code == 403
-        assert "archived" in resp.json().get("detail", "").lower()
+        body = resp.json()
+        assert "archived" in (body.get("detail") or body.get("message") or "").lower()
 
     @pytest.mark.mutation
     def test_double_archive_returns_400(self, admin_headers):

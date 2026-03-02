@@ -99,7 +99,7 @@ export EXPO_PUBLIC_CHAT_URL="${EXPO_PUBLIC_CHAT_URL:-http://${EXPO_PUBLIC_HOST_I
 export EXPO_PUBLIC_KEYCLOAK_URL="${EXPO_PUBLIC_KEYCLOAK_URL:-http://${EXPO_PUBLIC_HOST_IP}:8180}"
 
 # Feature flags (pass-through from env or default to enabled)
-export EXPO_PUBLIC_EMAIL_REQUIRED="${EXPO_PUBLIC_EMAIL_REQUIRED:-true}"
+export EXPO_PUBLIC_EMAIL_REQUIRED="${EXPO_PUBLIC_EMAIL_REQUIRED:-false}"
 
 # Tell Expo's dev server to advertise the host IP (not the WSL2 internal IP).
 # Without this, --lan mode advertises 172.x.x.x which phones can't reach.

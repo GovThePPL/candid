@@ -121,7 +121,7 @@ describe('ProposalWizardStep', () => {
     })
   })
 
-  it('calls onGetFeedback when Get Feedback pressed', () => {
+  it('calls onGetFeedback when Get Feedback pressed', async () => {
     const onGetFeedback = jest.fn()
     render(
       <ProposalWizardStep
@@ -132,10 +132,12 @@ describe('ProposalWizardStep', () => {
       />
     )
     fireEvent.press(screen.getByText('Get Feedback'))
-    expect(onGetFeedback).toHaveBeenCalled()
+    await waitFor(() => {
+      expect(onGetFeedback).toHaveBeenCalled()
+    })
   })
 
-  it('calls onNext when Next pressed and canAdvance is true', () => {
+  it('calls onNext when Next pressed and canAdvance is true', async () => {
     const onNext = jest.fn()
     render(
       <ProposalWizardStep
@@ -146,7 +148,9 @@ describe('ProposalWizardStep', () => {
       />
     )
     fireEvent.press(screen.getByText('Next'))
-    expect(onNext).toHaveBeenCalled()
+    await waitFor(() => {
+      expect(onNext).toHaveBeenCalled()
+    })
   })
 
   it('disables Next when canAdvance is false', () => {

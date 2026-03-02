@@ -51,10 +51,6 @@ export default function ProfileSettings() {
   // Modal state
   const [avatarModalOpen, setAvatarModalOpen] = useState(false)
 
-  // Avatar upload state
-  const [uploadingAvatar, setUploadingAvatar] = useState(false)
-  const [uploadError, setUploadError] = useState(null)
-
   // Image crop modal state
   const [imageToCrop, setImageToCrop] = useState(null)
   const [cropModalVisible, setCropModalVisible] = useState(false)
@@ -163,8 +159,6 @@ export default function ProfileSettings() {
   }
 
   const handlePickImage = async () => {
-    setUploadError(null)
-
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
     if (status !== 'granted') {
       Alert.alert(t('permissionRequired'), t('photoLibraryPermission'))
@@ -198,25 +192,21 @@ export default function ProfileSettings() {
     setImageToCrop(null)
   }
 
-  const handleAcceptAvatar = async () => {
+  const handleAcceptAvatar = () => {
     if (!croppedImagePreview) return
-
-    try {
-      setUploadingAvatar(true)
-      const response = await api.users.uploadAvatar(croppedImagePreview)
-
-      setAvatarUrl(response.avatarUrl)
-      setCroppedImagePreview(null)
-      setAvatarModalOpen(false)
-
-      await refreshUser()
-    } catch (err) {
-      console.error('Failed to upload avatar:', err)
-      setUploadError(translateError(err.message, t) || t('failedUploadAvatar'))
-      Alert.alert(t('uploadFailed'), translateError(err.message, t) || t('uploadFailedMessage'))
-    } finally {
-      setUploadingAvatar(false)
-    }
+    // Optimistic: display cropped image and close modal immediately
+    setAvatarUrl(croppedImagePreview)
+    setCroppedImagePreview(null)
+    setAvatarModalOpen(false)
+    // Upload in background
+    api.users.uploadAvatar(croppedImagePreview)
+      .then(async (response) => {
+        setAvatarUrl(response.avatarUrl)
+        await refreshUser()
+      })
+      .catch(() => {
+        // Silent — avatar shown locally but may not persist
+      })
   }
 
   const handleCancelPreview = () => {
@@ -281,7 +271,7 @@ export default function ProfileSettings() {
               accessibilityRole="button"
               accessibilityLabel={t('changeAvatarA11y')}
             >
-              <Avatar user={{ ...profile, displayName, avatarUrl }} size={100} showKudosBadge={false} />
+              <Avatar user={{ ...profile, displayName, avatarUrl, avatarIconUrl: avatarUrl }} size={100} showKudosBadge={false} />
               <View style={styles.avatarEditBadge}>
                 <Ionicons name="camera" size={16} color="#fff" />
               </View>
@@ -385,24 +375,18 @@ export default function ProfileSettings() {
                   <TouchableOpacity
                     style={styles.previewCancelButton}
                     onPress={handleCancelPreview}
-                    disabled={uploadingAvatar}
                     accessibilityRole="button"
                     accessibilityLabel={t('cancelPreviewA11y')}
                   >
                     <ThemedText variant="button" color="secondary">{t('cancel')}</ThemedText>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[styles.previewAcceptButton, uploadingAvatar && styles.buttonDisabled]}
+                    style={styles.previewAcceptButton}
                     onPress={handleAcceptAvatar}
-                    disabled={uploadingAvatar}
                     accessibilityRole="button"
                     accessibilityLabel={t('acceptAvatarA11y')}
                   >
-                    {uploadingAvatar ? (
-                      <ActivityIndicator color="#fff" size="small" />
-                    ) : (
-                      <ThemedText variant="button" color="inverse">{t('accept')}</ThemedText>
-                    )}
+                    <ThemedText variant="button" color="inverse">{t('accept')}</ThemedText>
                   </TouchableOpacity>
                 </View>
               </>
@@ -413,18 +397,11 @@ export default function ProfileSettings() {
                 <TouchableOpacity
                   style={styles.uploadPhotoButton}
                   onPress={handlePickImage}
-                  disabled={uploadingAvatar}
                   accessibilityRole="button"
                   accessibilityLabel={t('uploadPhotoA11y')}
                 >
-                  {uploadingAvatar ? (
-                    <ActivityIndicator color="#fff" size="small" />
-                  ) : (
-                    <>
-                      <Ionicons name="camera-outline" size={20} color="#fff" />
-                      <ThemedText variant="button" color="inverse">{t('uploadPhoto')}</ThemedText>
-                    </>
-                  )}
+                  <Ionicons name="camera-outline" size={20} color="#fff" />
+                  <ThemedText variant="button" color="inverse">{t('uploadPhoto')}</ThemedText>
                 </TouchableOpacity>
 
                 {avatarUrl && (

@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo } from "react"
 import { AppState } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import api, { getStoredUser, initializeAuth, getToken, setToken, setStoredUser, bugReportsApiWrapper, isTokenFresh } from "../lib/api"
+import api, { getStoredUser, initializeAuth, getToken, setToken, setStoredUser, bugReportsApiWrapper, isTokenFresh, usersApiWrapper } from "../lib/api"
 import * as keycloak from "../lib/keycloak"
 import { completeSocialRegistration } from "../lib/keycloak"
 import socket, { connectSocket, disconnectSocket, isConnected, getSocket, reconnectNow, onChatRequestResponse, onChatRequestReceived, onChatStarted } from "../lib/socket"
@@ -32,6 +32,7 @@ export function UserProvider({ children }) {
   // Pending chat request state
   // Shape: { id, createdTime, expiresAt, positionStatement, status: 'pending'|'accepted'|'declined' }
   const [pendingChatRequest, setPendingChatRequestState] = useState(null)
+  const pendingChatRequestRef = useRef(null)
   const socketCleanupRef = useRef(null)
   const notifCleanupRef = useRef(null)
   const diagnosticsTimerRef = useRef(null)
@@ -115,6 +116,9 @@ export function UserProvider({ children }) {
     setPendingChatRequestState(prev => prev ? { ...prev, status } : null)
   }, [])
 
+  // Keep ref in sync so socket callbacks can read current value
+  useEffect(() => { pendingChatRequestRef.current = pendingChatRequest }, [pendingChatRequest])
+
   // App-wide heartbeat: keeps REST API presence alive while app is active
   const startHeartbeat = useCallback(() => {
     if (heartbeatTimerRef.current) return
@@ -181,6 +185,19 @@ export function UserProvider({ children }) {
           // Set up listener for chat started events
           chatStartedCleanup = onChatStarted((data) => {
             console.debug('[UserContext] Chat started:', data)
+
+            // Catch-up events are emitted on every connect for active chats.
+            // Only navigate if user has a pending chat request (otherwise they
+            // may have intentionally left the chat or already be in it).
+            if (data.catchUp) {
+              const pending = pendingChatRequestRef.current
+              if (!pending || pending.status !== 'pending') {
+                console.debug('[UserContext] Ignoring catch-up chat_started — no pending request')
+                return
+              }
+              console.debug('[UserContext] Processing catch-up chat_started for pending request')
+            }
+
             setActiveChatNavigation((prev) => {
               if (prev?.chatId === data.chatId) {
                 console.debug('[UserContext] Updating existing navigation with full details')
@@ -424,6 +441,11 @@ export function UserProvider({ children }) {
         try {
           const currentUser = await api.auth.getCurrentUser()
           setUser(currentUser)
+          // Check if user has completed profile setup (has locations)
+          const locations = await usersApiWrapper.getLocations().catch(() => [])
+          if (!locations?.length) {
+            setIsNewUser(true)
+          }
           // Initialize socket before checking for active chats (socket must be ready first)
           await initializeSocket()
           startDiagnosticsTimer()
@@ -449,6 +471,11 @@ export function UserProvider({ children }) {
             try {
               const currentUser = await api.auth.getCurrentUser()
               setUser(currentUser)
+              // Check if user has completed profile setup (has locations)
+              const locations = await usersApiWrapper.getLocations().catch(() => [])
+              if (!locations?.length) {
+                setIsNewUser(true)
+              }
               await initializeSocket()
               startDiagnosticsTimer()
               checkForActiveChat(currentUser.id)
@@ -537,6 +564,33 @@ export function UserProvider({ children }) {
       appStateSubscription.remove()
     }
   }, [])
+
+  // Fallback polling: while there's a pending chat request, periodically check
+  // if the backend has an active chat (catches missed socket events due to
+  // zombie connections, network blips, or WSL2 networking quirks).
+  useEffect(() => {
+    if (!pendingChatRequest || pendingChatRequest.status !== 'pending') return
+    if (!user?.id) return
+
+    const poll = async () => {
+      try {
+        const chat = await api.chat.getActiveChat(user.id)
+        if (chat) {
+          console.debug('[UserContext] Polling found active chat:', chat.id)
+          setActiveChatNavigation({
+            chatId: chat.id,
+            otherUserId: null,
+            positionStatement: chat.positionStatement || null,
+            role: 'initiator',
+          })
+          clearPendingChatRequest()
+        }
+      } catch {}
+    }
+
+    const interval = setInterval(poll, 5000)
+    return () => clearInterval(interval)
+  }, [pendingChatRequest, user?.id, clearPendingChatRequest])
 
   const isBanned = user?.status === 'banned'
 
