@@ -31,7 +31,7 @@ const PHASE_I18N_KEYS = {
  * Compact tappable card showing session info + current stage action.
  * Tapping opens the Session Overview Modal.
  */
-export default memo(function SessionInfoCard() {
+export default memo(function SessionInfoCard({ style }) {
   const { t } = useTranslation('common')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
@@ -39,7 +39,7 @@ export default memo(function SessionInfoCard() {
 
   if (!sessionData && sessionLoading && selectedSession) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, style]}>
         <SkeletonPulse style={styles.content}>
           <SkeletonBox width={100} height={22} borderRadius={10} />
           <SkeletonLine width={140} height={12} style={{ marginTop: 4 }} />
@@ -63,7 +63,7 @@ export default memo(function SessionInfoCard() {
 
   return (
     <TouchableOpacity
-      style={styles.container}
+      style={[styles.container, isViewingArchived && styles.containerArchived, style]}
       onPress={openSessionOverview}
       activeOpacity={0.7}
       accessibilityRole="button"
@@ -72,31 +72,29 @@ export default memo(function SessionInfoCard() {
       <View style={styles.content}>
         <View style={styles.topRow}>
           <LocationSessionBadge location={location} session={session} size="lg" />
-          <View style={styles.pillRow}>
-            {isViewingArchived && (
-              <View style={styles.archivedPill}>
-                <Ionicons name="eye-outline" size={12} color={colors.warningBannerText} />
-                <ThemedText variant="caption" style={styles.archivedPillText}>
-                  {t('stageArchiveViewing')}
-                </ThemedText>
-              </View>
-            )}
-            {phaseKey && (
-              <View style={styles.phasePill}>
-                <ThemedText variant="caption" color="primary" style={styles.phasePillText}>
-                  {t('stagePill', { phase: t(phaseKey) })}
-                </ThemedText>
-              </View>
-            )}
-          </View>
+          {phaseKey && (
+            <View style={styles.phasePill}>
+              <ThemedText variant="caption" color="primary" style={styles.phasePillText}>
+                {t('stagePill', { phase: t(phaseKey) })}
+              </ThemedText>
+            </View>
+          )}
         </View>
         {actionKey && (
           <ThemedText variant="label" color="secondary" style={styles.action}>
             {t(actionKey)}
           </ThemedText>
         )}
+        {isViewingArchived && (
+          <View style={styles.archivedRow}>
+            <Ionicons name="lock-closed" size={12} color={colors.warningBannerText} />
+            <ThemedText variant="caption" style={styles.archivedRowText}>
+              {t('stageArchiveViewing')}
+            </ThemedText>
+          </View>
+        )}
       </View>
-      <Ionicons name="chevron-forward" size={16} color={colors.secondaryText} />
+      <Ionicons name="chevron-forward" size={16} color={isViewingArchived ? colors.warningBannerText : colors.secondaryText} />
     </TouchableOpacity>
   )
 })
@@ -115,6 +113,10 @@ const createStyles = (colors) => StyleSheet.create({
     marginTop: Spacing.sm,
     marginBottom: Spacing.xs,
   },
+  containerArchived: {
+    backgroundColor: colors.warningBannerBg,
+    borderColor: colors.warningBannerText + '40',
+  },
   content: {
     flex: 1,
     gap: 4,
@@ -125,11 +127,6 @@ const createStyles = (colors) => StyleSheet.create({
     justifyContent: 'space-between',
     gap: Spacing.sm,
   },
-  pillRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-  },
   phasePill: {
     backgroundColor: colors.primary + '18',
     paddingHorizontal: Spacing.sm,
@@ -139,17 +136,15 @@ const createStyles = (colors) => StyleSheet.create({
   phasePillText: {
     fontWeight: '600',
   },
-  archivedPill: {
+  archivedRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 4,
-    backgroundColor: colors.warningBannerBg,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.pill,
+    marginTop: 2,
   },
-  archivedPillText: {
-    fontWeight: '600',
+  archivedRowText: {
+    fontStyle: 'italic',
     color: colors.warningBannerText,
   },
   action: {

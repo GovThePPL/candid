@@ -119,7 +119,7 @@ export async function setStoredUser(user) {
 /**
  * Return a valid token, refreshing via Keycloak if close to expiry.
  * Decodes the JWT payload (no verification) to check the `exp` claim.
- * If >60s remaining, returns as-is. If <=60s, refreshes and stores the new token.
+ * If >300s remaining, returns as-is. If <=300s, refreshes and stores the new token.
  * On any failure, returns the existing token (graceful degradation).
  * @returns {Promise<string|null>}
  */
@@ -137,8 +137,8 @@ export async function getOrRefreshToken() {
     const payload = JSON.parse(atob(base64))
 
     const now = Math.floor(Date.now() / 1000)
-    if (payload.exp && payload.exp - now <= 60) {
-      // Token expires within 60s — try refreshing
+    if (payload.exp && payload.exp - now <= 300) {
+      // Token expires within 5 minutes — try refreshing
       const tokens = await keycloak.refreshToken()
       if (tokens?.accessToken) {
         await setToken(tokens.accessToken)
@@ -157,6 +157,24 @@ export async function getOrRefreshToken() {
   }
 }
 
+/**
+ * Check if a JWT access token is still valid (has time remaining).
+ * Decodes the payload without verification to inspect the `exp` claim.
+ * @param {string} token - JWT access token
+ * @returns {boolean}
+ */
+export function isTokenFresh(token) {
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) return false
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+    const payload = JSON.parse(atob(base64))
+    return payload.exp && payload.exp > Math.floor(Date.now() / 1000)
+  } catch {
+    return false
+  }
+}
+
 // Initialize token from storage on app start
 export async function initializeAuth() {
   const token = await getToken()
@@ -165,12 +183,39 @@ export async function initializeAuth() {
   }
 }
 
-// Helper to promisify the callback-based API methods
-function promisify(apiMethod, ...args) {
+// Helper to promisify the callback-based API methods.
+// Ensures the token is fresh before each request and retries once on 401.
+async function promisify(apiMethod, ...args) {
+  // Ensure token is fresh before making the request
+  await getOrRefreshToken()
+
   return new Promise((resolve, reject) => {
-    apiMethod(...args, (error, data, response) => {
+    apiMethod(...args, async (error, data, response) => {
       if (error) {
         const status = response?.status || error?.status || 0
+
+        // On 401, try one refresh + retry
+        if (status === 401) {
+          try {
+            const tokens = await keycloak.refreshToken()
+            if (tokens?.accessToken) {
+              await setToken(tokens.accessToken)
+              // Retry the original call once
+              apiMethod(...args, (retryError, retryData, retryResponse) => {
+                if (retryError) {
+                  const retryStatus = retryResponse?.status || retryError?.status || 0
+                  const retryPath = retryResponse?.req?.path || ''
+                  recordApiError(retryPath, retryStatus, retryError?.message || String(retryError))
+                  reject(retryError)
+                } else {
+                  resolve(retryData)
+                }
+              })
+              return
+            }
+          } catch {}
+        }
+
         const path = response?.req?.path || ''
         recordApiError(path, status, error?.message || String(error))
         reject(error)
@@ -184,9 +229,11 @@ function promisify(apiMethod, ...args) {
 /**
  * Promisify variant that returns both data and response object.
  * Used for endpoints that need cache header inspection (ETag, Last-Modified, 304).
+ * Ensures the token is fresh before each request.
  * @returns {Promise<{data: any, response: object}>}
  */
-function promisifyWithResponse(apiMethod, ...args) {
+async function promisifyWithResponse(apiMethod, ...args) {
+  await getOrRefreshToken()
   return new Promise((resolve, reject) => {
     apiMethod(...args, (error, data, response) => {
       if (error && response?.status !== 304) {
@@ -469,10 +516,10 @@ export const positionsApiWrapper = {
     )
   },
 
-  async searchStats(query, locationId, { offset = 0, limit = 20 } = {}) {
+  async searchStats(query, locationId, { offset = 0, limit = 20, sessionId, phase } = {}) {
     return await promisify(
       positionsApi.getPositionsStats.bind(positionsApi),
-      query, locationId, { offset, limit }
+      query, locationId, { offset, limit, sessionId, phase }
     )
   },
 

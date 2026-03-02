@@ -76,10 +76,9 @@ function FeedSkeleton({ styles }) {
  * Wrapper that reads volatile props from a ref so the parent renderItem
  * callback stays referentially stable and FlatList skips re-renders.
  */
-const FeedPostCard = memo(function FeedPostCard({ item, feedPropsRef }) {
+const FeedPostCard = memo(function FeedPostCard({ item, feedPropsRef, isEndorsed, endorseLimitReached }) {
   const p = feedPropsRef.current
   const canMod = p.checkModerateScope(item.location?.id, item.session?.id)
-  const isEndorsed = !!p.myEndorsementMap[item.id]
   return (
     <PostCard
       post={item}
@@ -98,16 +97,18 @@ const FeedPostCard = memo(function FeedPostCard({ item, feedPropsRef }) {
       onTermPress={p.onGlossaryTermPress}
       glossaryRules={p.glossaryRules}
       readOnly={p.isReadOnly}
-      onFinalize={p.handleFinalize}
-      votingRoundStatus={p.votingRoundStatus}
       onEndorse={p.isEndorsementPhase ? p.handleEndorse : undefined}
       isEndorsed={isEndorsed}
-      endorseLimitReached={p.endorseLimitReached}
+      endorseLimitReached={endorseLimitReached}
       onEndorseLimitReached={p.isEndorsementPhase ? p.handleEndorseLimitReached : undefined}
       stage={p.effectiveStage}
     />
   )
-}, (prev, next) => prev.item === next.item)
+}, (prev, next) =>
+  prev.item === next.item &&
+  prev.isEndorsed === next.isEndorsed &&
+  prev.endorseLimitReached === next.endorseLimitReached
+)
 
 export default function DiscussFeed() {
   const { t } = useTranslation('discuss')
@@ -124,7 +125,7 @@ export default function DiscussFeed() {
   const glossaryRules = useGlossaryRules(onGlossaryTermPress, { onMentionPress: handleMentionPress })
   const insets = useSafeAreaInsets()
   const { user } = useAuth()
-  const { selectedLocation, selectedSession, canCreateProposals, viewingStage, effectiveStage, isReadOnly, votingRound, roundType } = useLocationSession()
+  const { selectedLocation, selectedSession, canCreateProposals, viewingStage, effectiveStage, isReadOnly, votingRound, roundType, openBallotModal, ballotVersion } = useLocationSession()
 
   // Derive major phase from effective stage for filtering
   const STAGE_TO_PHASE = {
@@ -155,10 +156,19 @@ export default function DiscussFeed() {
     } else {
       setPostType('discussion')
     }
-  }, [effectiveStage, selectedSession])
+    // Default to "Final" filter during endorsement phase
+    if (votingRoundStatus === 'finalization_open') {
+      setProposalStatusFilter('finalized')
+    } else {
+      setProposalStatusFilter(null)
+    }
+  }, [effectiveStage, selectedSession, votingRoundStatus])
 
   // Proposal status filter (visible from finalization_open)
-  const [proposalStatusFilter, setProposalStatusFilter] = useState(null)
+  // Default to "Final" during endorsement phase so users see endorsable proposals
+  const [proposalStatusFilter, setProposalStatusFilter] = useState(
+    votingRoundStatus === 'finalization_open' ? 'finalized' : null
+  )
   const showProposalFilters = postType === 'proposal' && votingRoundStatus && ['finalization_open', 'proposals_closed', 'voting_open', 'voting_closed'].includes(votingRoundStatus)
 
   const [showRules, setShowRules] = useState(false)
@@ -192,6 +202,12 @@ export default function DiscussFeed() {
     if (!proposalStatusFilter) return posts
     return posts.filter(p => p.proposalStatus === proposalStatusFilter)
   }, [posts, proposalStatusFilter])
+
+  // Hide FAB on proposals tab if user already has a proposal (not deleted)
+  const hasExistingProposal = useMemo(() => {
+    if (postType !== 'proposal' || !user?.id) return false
+    return posts.some(p => p.creator?.id === user.id && p.status !== 'deleted')
+  }, [posts, postType, user?.id])
 
   // Refresh feed on focus (e.g. returning from creating a post)
   const hasMountedRef = useRef(false)
@@ -338,15 +354,6 @@ export default function DiscussFeed() {
     }
   }, [moderateTarget, moderateRule, moderateComment, t, handleRefresh])
 
-  const handleFinalize = useCallback(async (postId) => {
-    try {
-      await api.posts.finalizeProposal(postId)
-      handleRefresh()
-    } catch {
-      Alert.alert(t('proposalFinalizeFailed'))
-    }
-  }, [handleRefresh, t])
-
   // ── Endorsements ──
   const [endorsementData, setEndorsementData] = useState(null)
   const isEndorsementPhase = votingRoundStatus === 'finalization_open'
@@ -400,17 +407,57 @@ export default function DiscussFeed() {
     }))
   }, [endorsementData?.myEndorsements, posts])
 
+  // Refs for reading latest endorsement state inside async handleEndorse
+  // without adding them to useCallback deps (which would cause stale closures
+  // mid-flight when the optimistic setEndorsementData triggers a re-render).
+  const endorsementDataRef = useRef(endorsementData)
+  endorsementDataRef.current = endorsementData
+  const myEndorsementMapRef = useRef(myEndorsementMap)
+  myEndorsementMapRef.current = myEndorsementMap
+
+  const endorseInFlightRef = useRef(false)
   const handleEndorse = useCallback(async (postId, currentlyEndorsed) => {
+    if (endorseInFlightRef.current) return
+    endorseInFlightRef.current = true
+
+    // Snapshot for rollback (read from ref for latest state)
+    const prevData = endorsementDataRef.current
+
+    // Optimistic update
+    setEndorsementData(prev => {
+      if (!prev) return prev
+      if (currentlyEndorsed) {
+        return {
+          ...prev,
+          myEndorsements: (prev.myEndorsements || []).filter(e => e.proposalPostId !== postId),
+          proposalCounts: (prev.proposalCounts || []).map(c =>
+            c.proposalPostId === postId ? { ...c, count: Math.max(0, c.count - 1) } : c
+          ),
+        }
+      }
+      const tempId = `temp-${postId}`
+      return {
+        ...prev,
+        myEndorsements: [...(prev.myEndorsements || []), { id: tempId, proposalPostId: postId }],
+        proposalCounts: (prev.proposalCounts || []).some(c => c.proposalPostId === postId)
+          ? prev.proposalCounts.map(c =>
+              c.proposalPostId === postId ? { ...c, count: c.count + 1 } : c
+            )
+          : [...(prev.proposalCounts || []), { proposalPostId: postId, count: 1 }],
+      }
+    })
+
     try {
       if (currentlyEndorsed) {
-        const endorsementId = myEndorsementMap[postId]
+        // Read endorsement ID from ref (guaranteed latest after server sync)
+        const endorsementId = myEndorsementMapRef.current[postId]
         if (endorsementId) {
           await sessionsApiWrapper.deleteEndorsement(selectedSession, endorsementId)
         }
       } else {
         await sessionsApiWrapper.createEndorsement(selectedSession, postId)
       }
-      // Refresh endorsement data
+      // Sync with server
       const data = await sessionsApiWrapper.getEndorsements(selectedSession, { roundType })
       setEndorsementData(data)
 
@@ -427,9 +474,13 @@ export default function DiscussFeed() {
         setManageModalVisible(false)
       }
     } catch (err) {
+      // Rollback on failure
+      setEndorsementData(prevData)
       Alert.alert(t('endorseFailed'))
+    } finally {
+      endorseInFlightRef.current = false
     }
-  }, [selectedSession, myEndorsementMap, roundType, t, pendingEndorsePostId])
+  }, [selectedSession, roundType, t, pendingEndorsePostId])
 
   const handleEndorseLimitReached = useCallback((postId) => {
     setPendingEndorsePostId(postId)
@@ -455,18 +506,7 @@ export default function DiscussFeed() {
       sessionsApiWrapper.getResults(selectedSession, { roundType }).then(setElectionResults).catch(() => setElectionResults(null))
       sessionsApiWrapper.getCandidates(selectedSession, { roundType }).then(setCandidates).catch(() => setCandidates([]))
     }
-  }, [selectedSession, isVotingPhase, isResultsPhase, roundType, isReadOnly])
-
-  const handleSubmitBallot = useCallback(async (rankings) => {
-    try {
-      await sessionsApiWrapper.submitBallot(selectedSession, rankings)
-      const data = await sessionsApiWrapper.getBallot(selectedSession)
-      setBallotData(data)
-      Alert.alert(t('ballotSubmitted'))
-    } catch (err) {
-      Alert.alert(t('ballotSubmitFailed'))
-    }
-  }, [selectedSession, t])
+  }, [selectedSession, isVotingPhase, isResultsPhase, roundType, isReadOnly, ballotVersion])
 
   // Stable ref for all volatile feed-card props so renderPostCard stays referentially
   // stable and FlatList doesn't re-render every card when a callback identity changes.
@@ -475,14 +515,19 @@ export default function DiscussFeed() {
     handlePostPress, handleUpvote, handlePostDownvote: handlePostDownvote, handleToggleRole,
     handleLockPost, handleEditPost, handleDeletePostConfirm, userId: user?.id,
     checkModerateScope, handleReportPost, handleModeratePost, handlePinPost,
-    onGlossaryTermPress, glossaryRules, isReadOnly, handleFinalize, votingRoundStatus,
-    isEndorsementPhase, handleEndorse, myEndorsementMap, endorseLimitReached,
+    onGlossaryTermPress, glossaryRules, isReadOnly, votingRoundStatus,
+    isEndorsementPhase, handleEndorse,
     handleEndorseLimitReached, effectiveStage,
   }
 
   const renderPostCard = useCallback(({ item }) => (
-    <FeedPostCard item={item} feedPropsRef={feedPropsRef} />
-  ), [])
+    <FeedPostCard
+      item={item}
+      feedPropsRef={feedPropsRef}
+      isEndorsed={!!myEndorsementMap[item.id]}
+      endorseLimitReached={endorseLimitReached}
+    />
+  ), [myEndorsementMap, endorseLimitReached])
 
   const keyExtractor = useCallback((item) => item.id, [])
 
@@ -655,12 +700,14 @@ export default function DiscussFeed() {
               </View>
             )}
 
-            {/* Ballot UI when voting_open (interactive only when not read-only) */}
-            {isVotingPhase && !isReadOnly && postType === 'proposal' && candidates.length > 0 && (
+            {/* Read-only ballot summary with edit button when user has submitted */}
+            {isVotingPhase && !isReadOnly && postType === 'proposal' && ballotData?.rankings?.length > 0 && (
               <BallotCard
+                key={ballotVersion}
                 candidates={candidates}
-                existingRankings={ballotData?.rankings}
-                onSubmit={handleSubmitBallot}
+                existingRankings={ballotData.rankings}
+                readOnly
+                onEdit={openBallotModal}
               />
             )}
 
@@ -678,8 +725,8 @@ export default function DiscussFeed() {
         contentContainerStyle={posts.length === 0 && !loading ? styles.emptyContainer : styles.listContent}
       />
 
-      {/* Floating action button (hidden in read-only stages) */}
-      {!isReadOnly && (
+      {/* Floating action button (hidden in read-only stages or if user already has a proposal) */}
+      {!isReadOnly && !hasExistingProposal && (
         <TouchableOpacity
           style={styles.fab}
           onPress={() => router.push({ pathname: '/discuss/create', params: { type: postType } })}
@@ -725,6 +772,7 @@ export default function DiscussFeed() {
         endorsedPosts={endorsedPosts}
         onRemove={(postId) => handleEndorse(postId, true)}
         pendingPostTitle={pendingEndorsePostId ? posts.find(p => p.id === pendingEndorsePostId)?.title : null}
+        onPostPress={(postId) => { setManageModalVisible(false); setPendingEndorsePostId(null); handlePostPress({ id: postId }) }}
       />
 
       {/* Edit post modal */}

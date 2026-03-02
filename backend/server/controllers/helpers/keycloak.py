@@ -198,8 +198,6 @@ def create_user(username, email, password, display_name=None, roles=None, raise_
 
     user_data = {
         "username": username,
-        "email": email,
-        "emailVerified": True,
         "enabled": True,
         "firstName": first_name,
         "lastName": last_name,
@@ -210,6 +208,9 @@ def create_user(username, email, password, display_name=None, roles=None, raise_
         }],
         "requiredActions": [],
     }
+    if email:
+        user_data["email"] = email
+        user_data["emailVerified"] = True
     resp = requests.post(f"{base}/users", json=user_data, headers=headers, timeout=10)
 
     if resp.status_code == 409:

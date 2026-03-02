@@ -215,6 +215,7 @@ export default function WikiArticleScreen() {
           />
         </View>
       ) : page ? (
+        <>
         <ScrollView
           ref={scrollViewRef}
           style={styles.scrollView}
@@ -228,17 +229,6 @@ export default function WikiArticleScreen() {
           }
         >
           <View style={styles.actionBar}>
-            <TouchableOpacity
-              onPress={handleEdit}
-              style={styles.actionButton}
-              accessibilityRole="button"
-              accessibilityLabel={page.canEdit ? t('directEditA11y') : t('suggestEditA11y')}
-            >
-              <Ionicons name="create-outline" size={14} color={colors.primary} />
-              <ThemedText variant="caption" color="primary">
-                {page.canEdit ? t('directEdit') : t('suggestEdit')}
-              </ThemedText>
-            </TouchableOpacity>
             <TouchableOpacity
               onPress={() => router.push(`/wiki/history?slug=${encodeURIComponent(slug)}&type=page`)}
               style={styles.actionButton}
@@ -295,6 +285,16 @@ export default function WikiArticleScreen() {
             </>
           ) : null}
         </ScrollView>
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={handleEdit}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={page.canEdit ? t('directEditA11y') : t('suggestEditA11y')}
+        >
+          <Ionicons name="create-outline" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+        </>
       ) : null}
     </SafeAreaView>
   )
@@ -361,5 +361,17 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.primary,
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.fabBg,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadows.card,
   },
 })

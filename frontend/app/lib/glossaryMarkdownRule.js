@@ -62,18 +62,19 @@ export function createGlossaryTextRule(matchPattern, termMap, onTermPress, highl
   if (!hasGlossary && !hasMention) return {}
 
   return {
-    text: (node, children, parent, styles) => {
+    text: (node, children, parent, styles, inheritedStyles = {}) => {
       const content = node.content || ''
       if (!content) return null
+      const textStyle = [inheritedStyles, styles.text]
 
       // --- Glossary-only path ---
       if (hasGlossary && !hasMention) {
         const segments = content.split(matchPattern)
         if (segments.length === 1) {
-          return <Text key={node.key} style={styles.text}>{content}</Text>
+          return <Text key={node.key} style={textStyle}>{content}</Text>
         }
         return (
-          <Text key={node.key} style={styles.text}>
+          <Text key={node.key} style={textStyle}>
             {segments.map((segment, i) => {
               if (!segment) return null
               if (i % 2 === 0) return segment
@@ -93,9 +94,9 @@ export function createGlossaryTextRule(matchPattern, termMap, onTermPress, highl
       if (!hasGlossary && hasMention) {
         const parts = applyMentionHighlight(content, node.key, mentionOpts.mentionStyle, mentionOpts.roleStyle, mentionOpts.onMentionPress)
         if (parts.length === 1 && typeof parts[0] === 'string') {
-          return <Text key={node.key} style={styles.text}>{content}</Text>
+          return <Text key={node.key} style={textStyle}>{content}</Text>
         }
-        return <Text key={node.key} style={styles.text}>{parts}</Text>
+        return <Text key={node.key} style={textStyle}>{parts}</Text>
       }
 
       // --- Combined path (glossary + mention) ---
@@ -104,13 +105,13 @@ export function createGlossaryTextRule(matchPattern, termMap, onTermPress, highl
         // No glossary matches — try mentions
         const parts = applyMentionHighlight(content, node.key, mentionOpts.mentionStyle, mentionOpts.roleStyle, mentionOpts.onMentionPress)
         if (parts.length === 1 && typeof parts[0] === 'string') {
-          return <Text key={node.key} style={styles.text}>{content}</Text>
+          return <Text key={node.key} style={textStyle}>{content}</Text>
         }
-        return <Text key={node.key} style={styles.text}>{parts}</Text>
+        return <Text key={node.key} style={textStyle}>{parts}</Text>
       }
 
       return (
-        <Text key={node.key} style={styles.text}>
+        <Text key={node.key} style={textStyle}>
           {segments.map((segment, i) => {
             if (!segment) return null
             // Odd indices are glossary matches

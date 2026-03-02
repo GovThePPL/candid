@@ -24,6 +24,7 @@ export const SemanticColors = {
   info: "#3498DB",
   neutral: "#757575",
   overlay: "rgba(0, 0, 0, 0.5)",
+  overlayHeavy: "rgba(0, 0, 0, 0.9)",
   bridging: "#00796B",
 }
 

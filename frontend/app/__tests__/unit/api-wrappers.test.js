@@ -1,5 +1,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
+// Mock secureStorage (used by getOrRefreshToken and setToken inside promisify)
+const mockGetSecureItem = jest.fn(() => Promise.resolve(null))
+const mockSetSecureItem = jest.fn(() => Promise.resolve())
+const mockDeleteSecureItem = jest.fn(() => Promise.resolve())
+
+jest.mock('../../lib/secureStorage', () => ({
+  getSecureItem: (...args) => mockGetSecureItem(...args),
+  setSecureItem: (...args) => mockSetSecureItem(...args),
+  deleteSecureItem: (...args) => mockDeleteSecureItem(...args),
+}))
+
 jest.mock('../../lib/keycloak', () => ({
   refreshToken: jest.fn(),
   loginWithCredentials: jest.fn(),
@@ -7,6 +18,9 @@ jest.mock('../../lib/keycloak', () => ({
   register: jest.fn(),
   logout: jest.fn(),
 }))
+
+// Mock atob for JWT decoding (not available in Node test env)
+global.atob = (str) => Buffer.from(str, 'base64').toString('binary')
 
 // Store mock API method references in an object that can be accessed from jest.mock factory.
 // We use a global-ish container to avoid the const TDZ problem with jest.mock hoisting.
@@ -179,10 +193,14 @@ import {
   usersApiWrapper,
 } from '../../lib/api'
 import { recordApiError } from '../../lib/errorCollector'
+import * as keycloak from '../../lib/keycloak'
 
 beforeEach(() => {
   jest.clearAllMocks()
   AsyncStorage.getItem.mockResolvedValue(null)
+  mockGetSecureItem.mockResolvedValue(null)
+  mockSetSecureItem.mockResolvedValue()
+  mockDeleteSecureItem.mockResolvedValue()
 })
 
 describe('cardsApiWrapper.getCardQueue', () => {
@@ -707,5 +725,148 @@ describe('usersApiWrapper.getUserActivityById', () => {
       {},
       expect.any(Function)
     )
+  })
+})
+
+describe('promisify 401-retry logic', () => {
+  it('resolves normally on success without retrying', async () => {
+    const mockChats = [{ id: 'c1', endTime: null }]
+    _mocks.getUserChats.mockImplementation((userId, opts, callback) => {
+      callback(null, mockChats, {})
+    })
+
+    const result = await chatApiWrapper.getUserChats('u1')
+    expect(result).toEqual(mockChats)
+    // Should only be called once (no retry)
+    expect(_mocks.getUserChats).toHaveBeenCalledTimes(1)
+    expect(keycloak.refreshToken).not.toHaveBeenCalled()
+  })
+
+  it('retries once on 401 after refreshing token', async () => {
+    const successData = [{ id: 'c1', endTime: null }]
+
+    // First call returns 401, second call (retry) succeeds
+    let callCount = 0
+    _mocks.getUserChats.mockImplementation((userId, opts, callback) => {
+      callCount++
+      if (callCount === 1) {
+        callback(
+          { message: 'Unauthorized', status: 401 },
+          null,
+          { status: 401, req: { path: '/users/u1/chats' } }
+        )
+      } else {
+        callback(null, successData, {})
+      }
+    })
+
+    // Mock keycloak.refreshToken to return a new token
+    keycloak.refreshToken.mockResolvedValue({ accessToken: 'new-fresh-token' })
+
+    const result = await chatApiWrapper.getUserChats('u1')
+    expect(result).toEqual(successData)
+    expect(_mocks.getUserChats).toHaveBeenCalledTimes(2)
+    expect(keycloak.refreshToken).toHaveBeenCalledTimes(1)
+    // Verify the new token was stored
+    expect(mockSetSecureItem).toHaveBeenCalledWith('candid_auth_token', 'new-fresh-token')
+  })
+
+  it('does not retry more than once on repeated 401', async () => {
+    // Both first call and retry return 401
+    _mocks.getUserChats.mockImplementation((userId, opts, callback) => {
+      callback(
+        { message: 'Unauthorized', status: 401 },
+        null,
+        { status: 401, req: { path: '/users/u1/chats' } }
+      )
+    })
+
+    keycloak.refreshToken.mockResolvedValue({ accessToken: 'new-token' })
+
+    await expect(chatApiWrapper.getUserChats('u1')).rejects.toBeTruthy()
+    // Called twice: original + one retry (not infinite)
+    expect(_mocks.getUserChats).toHaveBeenCalledTimes(2)
+    expect(keycloak.refreshToken).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not retry on non-401 errors', async () => {
+    _mocks.getUserChats.mockImplementation((userId, opts, callback) => {
+      callback(
+        { message: 'Internal Server Error', status: 500 },
+        null,
+        { status: 500, req: { path: '/users/u1/chats' } }
+      )
+    })
+
+    await expect(chatApiWrapper.getUserChats('u1')).rejects.toBeTruthy()
+    // Should only be called once — no retry for non-401
+    expect(_mocks.getUserChats).toHaveBeenCalledTimes(1)
+    expect(keycloak.refreshToken).not.toHaveBeenCalled()
+  })
+
+  it('does not retry on 403 errors', async () => {
+    _mocks.getUserChats.mockImplementation((userId, opts, callback) => {
+      callback(
+        { message: 'Forbidden', status: 403 },
+        null,
+        { status: 403, req: { path: '/users/u1/chats' } }
+      )
+    })
+
+    await expect(chatApiWrapper.getUserChats('u1')).rejects.toBeTruthy()
+    expect(_mocks.getUserChats).toHaveBeenCalledTimes(1)
+    expect(keycloak.refreshToken).not.toHaveBeenCalled()
+  })
+
+  it('rejects without retry when refresh returns no token on 401', async () => {
+    _mocks.getUserChats.mockImplementation((userId, opts, callback) => {
+      callback(
+        { message: 'Unauthorized', status: 401 },
+        null,
+        { status: 401, req: { path: '/users/u1/chats' } }
+      )
+    })
+
+    // refreshToken returns null (no new token available)
+    keycloak.refreshToken.mockResolvedValue(null)
+
+    await expect(chatApiWrapper.getUserChats('u1')).rejects.toBeTruthy()
+    // Only the original call — no retry because refresh yielded no token
+    expect(_mocks.getUserChats).toHaveBeenCalledTimes(1)
+    expect(keycloak.refreshToken).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects without retry when refresh throws on 401', async () => {
+    _mocks.getUserChats.mockImplementation((userId, opts, callback) => {
+      callback(
+        { message: 'Unauthorized', status: 401 },
+        null,
+        { status: 401, req: { path: '/users/u1/chats' } }
+      )
+    })
+
+    // refreshToken throws an error
+    keycloak.refreshToken.mockRejectedValue(new Error('Refresh failed'))
+
+    await expect(chatApiWrapper.getUserChats('u1')).rejects.toBeTruthy()
+    expect(_mocks.getUserChats).toHaveBeenCalledTimes(1)
+    expect(keycloak.refreshToken).toHaveBeenCalledTimes(1)
+  })
+
+  it('records API error on retry failure', async () => {
+    // Both calls return 401
+    _mocks.getUserChats.mockImplementation((userId, opts, callback) => {
+      callback(
+        { message: 'Unauthorized', status: 401 },
+        null,
+        { status: 401, req: { path: '/users/u1/chats' } }
+      )
+    })
+
+    keycloak.refreshToken.mockResolvedValue({ accessToken: 'new-token' })
+
+    await expect(chatApiWrapper.getUserChats('u1')).rejects.toBeTruthy()
+    // recordApiError should be called for the retry failure
+    expect(recordApiError).toHaveBeenCalledWith('/users/u1/chats', 401, 'Unauthorized')
   })
 })

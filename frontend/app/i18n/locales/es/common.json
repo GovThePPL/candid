@@ -104,6 +104,7 @@
   "chatMode": "Modo de chat",
   "deleteMode": "Modo de eliminación",
   "dismissModal": "Cerrar",
+  "closeLightboxA11y": "Cerrar vista previa de imagen",
   "locationSelectorA11y": "Ubicación: {{name}}",
   "sessionSelectorA11y": "Sesión: {{name}}",
   "sessionSelectorTitle": "Seleccionar Sesión",

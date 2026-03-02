@@ -8,7 +8,7 @@ import { useLocationSession } from '../contexts/LocationSessionContext'
 import LocationSessionBadge from './LocationSessionBadge'
 import ThemedText from './ThemedText'
 import { PHASES_BY_METHOD, STAGE_INDEX } from '../constants/Sessions'
-import { SemanticColors } from '../constants/Colors'
+import { SemanticColors, OnBrandColors } from '../constants/Colors'
 import { Spacing } from '../constants/Theme'
 
 const STAGE_NAME_I18N_KEYS = {
@@ -52,13 +52,18 @@ const VOTING_INDICATOR_STAGES = {
   reflection_proposals: 'policy_selection',
 }
 
-const VR_STATUS_KEYS = {
+const VR_STATUS_LABELS_KEYS = {
   proposals_open: 'vrProposalsOpen',
   finalization_open: 'vrFinalizationOpen',
   proposals_closed: 'vrProposalsClosed',
   voting_open: 'vrVotingOpen',
   voting_closed: 'vrVotingClosed',
 }
+
+const VR_STATUS_ORDER = ['proposals_open', 'finalization_open', 'proposals_closed', 'voting_open', 'voting_closed']
+const VR_STATUS_ORDER_ADMIN = ['voting_open', 'voting_closed']
+const VR_STATUS_INDEX = Object.fromEntries(VR_STATUS_ORDER.map((s, i) => [s, i]))
+const VR_STATUS_INDEX_ADMIN = Object.fromEntries(VR_STATUS_ORDER_ADMIN.map((s, i) => [s, i]))
 
 function getPhaseStatus(phase, currentStage) {
   const currentIdx = STAGE_INDEX[currentStage]
@@ -184,18 +189,6 @@ export default memo(function SessionOverviewModal() {
               <LocationSessionBadge location={location} session={session} size="lg" />
             </View>
 
-            {/* Admin-provided topic notice */}
-            {(proposalMethod === 'admin_provided' || proposalMethod === 'direct_proposal') && (
-              <View style={styles.adminNotice}>
-                <Ionicons name="information-circle" size={18} color={colors.primary} />
-                <ThemedText variant="caption" color="secondary" style={styles.adminNoticeText}>
-                  {t(proposalMethod === 'direct_proposal'
-                    ? 'sessionOverviewDirectProposalNotice'
-                    : 'sessionOverviewAdminProvidedNotice')}
-                </ThemedText>
-              </View>
-            )}
-
             {/* B) Accepted Proposal card */}
             {acceptedProposal && (
               <TouchableOpacity
@@ -216,6 +209,18 @@ export default memo(function SessionOverviewModal() {
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={colors.secondaryText} />
               </TouchableOpacity>
+            )}
+
+            {/* Admin-provided topic notice */}
+            {(proposalMethod === 'admin_provided' || proposalMethod === 'direct_proposal') && (
+              <View style={styles.adminNotice}>
+                <Ionicons name="information-circle" size={18} color={colors.secondaryText} />
+                <ThemedText variant="caption" color="secondary" style={styles.adminNoticeText}>
+                  {t(proposalMethod === 'direct_proposal'
+                    ? 'sessionOverviewDirectProposalNotice'
+                    : 'sessionOverviewAdminProvidedNotice')}
+                </ThemedText>
+              </View>
             )}
 
             {/* C) Phase-grouped timeline */}
@@ -304,7 +309,12 @@ export default memo(function SessionOverviewModal() {
                       && !stageUpcoming
                       && votingRound
                       && votingRound.roundType === expectedRoundType
-                    const vrStatusKey = showVoting ? VR_STATUS_KEYS[votingRound.status] : null
+                    const vrStatus = showVoting ? votingRound.status : null
+                    const isAdminProvided = proposalMethod === 'admin_provided'
+                    const statusOrder = isAdminProvided ? VR_STATUS_ORDER_ADMIN : VR_STATUS_ORDER
+                    const statusIndex = isAdminProvided ? VR_STATUS_INDEX_ADMIN : VR_STATUS_INDEX
+                    const vrIdx = vrStatus ? (statusIndex[vrStatus] ?? -1) : -1
+                    const isTerminal = vrStatus === 'voting_closed'
 
                     return (
                       <View key={stage} style={styles.substageRow}>
@@ -340,11 +350,56 @@ export default memo(function SessionOverviewModal() {
                               {t(actionKey)}
                             </ThemedText>
                           )}
-                          {showVoting && vrStatusKey && (
-                            <View style={[styles.votingPill, { backgroundColor: colors.primary + '20' }]}>
-                              <ThemedText variant="label" color="primary" style={styles.votingPillText}>
-                                {t(vrStatusKey)}
+                          {showVoting && vrStatus && (
+                            <View style={styles.vrSection}>
+                              {/* Dot progress */}
+                              <View style={styles.vrProgressRow}>
+                                <View style={styles.vrTrackArea}>
+                                  <View style={[styles.vrTrackBg, { backgroundColor: colors.border }]} />
+                                  {vrIdx > 0 && (
+                                    <View style={[styles.vrTrackFill, { backgroundColor: SemanticColors.success, width: `${(vrIdx / (statusOrder.length - 1)) * 100}%` }]} />
+                                  )}
+                                </View>
+                                {statusOrder.map((s, i) => {
+                                  const dotCompleted = isTerminal || i < vrIdx
+                                  const dotCurrent = !isTerminal && i === vrIdx
+                                  return (
+                                    <View key={s} style={[
+                                      styles.vrDot,
+                                      dotCompleted && styles.vrDotCompleted,
+                                      dotCurrent && styles.vrDotCurrent,
+                                      !dotCompleted && !dotCurrent && styles.vrDotUpcoming,
+                                    ]}>
+                                      {dotCompleted && (
+                                        <Ionicons name="checkmark" size={8} color={OnBrandColors.text} />
+                                      )}
+                                    </View>
+                                  )
+                                })}
+                              </View>
+                              {/* Current status label */}
+                              <ThemedText variant="caption" color="dark" style={styles.vrStatusLabel}>
+                                {t(VR_STATUS_LABELS_KEYS[vrStatus] || vrStatus)}
                               </ThemedText>
+                              {/* Current status description */}
+                              <ThemedText variant="caption" color="secondary" style={styles.vrDesc}>
+                                {t(`vrDesc${vrStatus.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join('')}`, { defaultValue: '' })}
+                              </ThemedText>
+                              {/* Next status preview */}
+                              {vrIdx < statusOrder.length - 1 && (() => {
+                                const nextVrStatus = statusOrder[vrIdx + 1]
+                                const nextVrKey = nextVrStatus.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join('')
+                                return (
+                                  <View style={styles.vrNextBox}>
+                                    <ThemedText variant="caption" color="secondary" style={styles.vrNextLabel}>
+                                      {t('vrNextStatus', { status: t(VR_STATUS_LABELS_KEYS[nextVrStatus] || nextVrStatus) })}
+                                    </ThemedText>
+                                    <ThemedText variant="caption" color="placeholder" style={styles.vrNextDesc}>
+                                      {t(`vrNextDesc${nextVrKey}`, { defaultValue: '' })}
+                                    </ThemedText>
+                                  </View>
+                                )
+                              })()}
                             </View>
                           )}
                         </View>
@@ -483,7 +538,9 @@ const createStyles = (colors, insets) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    backgroundColor: colors.primarySurface,
+    backgroundColor: colors.cardBackground,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
     borderRadius: 10,
     padding: Spacing.sm,
     marginBottom: Spacing.md,
@@ -545,7 +602,7 @@ const createStyles = (colors, insets) => StyleSheet.create({
     paddingVertical: 2,
   },
   currentBadgeText: {
-    color: '#FFFFFF',
+    color: OnBrandColors.text,
     fontWeight: '700',
     fontSize: 10,
   },
@@ -598,18 +655,77 @@ const createStyles = (colors, insets) => StyleSheet.create({
   substageNameViewing: {
     fontWeight: '700',
   },
-  votingPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    marginTop: 4,
+  vrSection: {
+    marginTop: Spacing.sm,
+    backgroundColor: colors.background,
+    borderRadius: 8,
+    padding: Spacing.sm,
   },
-  votingPillText: {
+  vrProgressRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  vrTrackArea: {
+    position: 'absolute',
+    left: 6,
+    right: 6,
+    top: 9,
+    height: 2,
+  },
+  vrTrackBg: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
+  vrTrackFill: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+  },
+  vrDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  vrDotCompleted: {
+    backgroundColor: SemanticColors.success,
+  },
+  vrDotCurrent: {
+    backgroundColor: colors.primary,
+  },
+  vrDotUpcoming: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: colors.placeholderText,
+  },
+  vrStatusLabel: {
     fontWeight: '600',
-    fontSize: 10,
+    textAlign: 'center',
+  },
+  vrDesc: {
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  vrNextBox: {
+    marginTop: 6,
+    paddingTop: 6,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.cardBorder,
+    alignItems: 'center',
+  },
+  vrNextLabel: {
+    fontWeight: '600',
+  },
+  vrNextDesc: {
+    marginTop: 2,
+    textAlign: 'center',
   },
   switchButton: {
     flexDirection: 'row',

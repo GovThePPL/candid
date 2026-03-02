@@ -32,6 +32,7 @@ components/
 │   └── index.js                  # Card type registry and factory
 ├── discuss/                      # Discussion forum components
 │   ├── BallotCard.jsx            # Tap-to-rank RCV ballot for voting on qualified proposals
+│   ├── BallotModal.jsx           # Full-screen ranked-choice voting modal (auto-opens on voting_open stage)
 │   ├── BridgingBadge.jsx         # Bridging score badge
 │   ├── CommentItem.jsx           # Threaded comment with voting
 │   ├── CommentSortControl.jsx    # Comment sort order picker
@@ -48,6 +49,7 @@ components/
 │   ├── ReplyComposer.jsx         # WYSIWYG reply composer with modal and inline modes
 │   ├── ProposalBadge.jsx         # Draft/Final status badge for proposal posts
 │   ├── ProposalReview.jsx        # Proposal review form with title editing and section display
+│   ├── ProposalPreviewModal.jsx   # Stacked modal for previewing a proposal's title and body
 │   ├── ProposalWizardStep.jsx    # Single wizard step: user writes draft, optionally enhances with AI
 │   ├── RoleBadge.jsx             # User role indicator badge
 │   ├── SortDropdown.jsx          # Sort option dropdown

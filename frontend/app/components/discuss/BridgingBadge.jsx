@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, memo } from 'react'
 import { View, StyleSheet } from 'react-native'
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated'
 import { Ionicons } from '@expo/vector-icons'
@@ -17,7 +17,7 @@ import { isBridging } from '../../lib/bridging'
  * @param {Object} props.item - Post or comment object with bridgingScore, upvoteCount, downvoteCount
  * @param {boolean} [props.compact] - When true, show only the link icon in a circle (no text)
  */
-export default function BridgingBadge({ item, compact }) {
+export default memo(function BridgingBadge({ item, compact }) {
   const { t } = useTranslation('discuss')
   const scale = useSharedValue(0)
 
@@ -42,7 +42,12 @@ export default function BridgingBadge({ item, compact }) {
       </View>
     </Animated.View>
   )
-}
+}, (prev, next) =>
+  prev.compact === next.compact &&
+  prev.item.bridgingScore === next.item.bridgingScore &&
+  prev.item.upvoteCount === next.item.upvoteCount &&
+  prev.item.downvoteCount === next.item.downvoteCount
+)
 
 const styles = StyleSheet.create({
   badge: {

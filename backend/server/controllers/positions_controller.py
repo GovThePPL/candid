@@ -396,7 +396,7 @@ def search_similar_positions(body, token_info=None, user_id=None):  # noqa: E501
 
 
 @require_auth("normal")
-def get_positions_stats(query, location_id, offset=0, limit=20, token_info=None, user_id=None):  # noqa: E501
+def get_positions_stats(query, location_id, offset=0, limit=20, session_id=None, phase=None, token_info=None, user_id=None):  # noqa: E501
     """Search positions for the stats page
 
     Tries semantic (meaning) search for queries >= 3 words, falls back to
@@ -411,9 +411,14 @@ def get_positions_stats(query, location_id, offset=0, limit=20, token_info=None,
     :type offset: int
     :param limit: Max results to return
     :type limit: int
+    :param session_id: Optional session UUID to filter within
+    :type session_id: str
+    :param phase: Optional deliberation phase to filter by stage
+    :type phase: str
 
     :rtype: Union[dict, Tuple[dict, int]]
     """
+    from candid.controllers.helpers.stats import STAGE_TO_PHASE
 
     query = (query or '').strip()
     offset = max(offset or 0, 0)
@@ -439,6 +444,23 @@ def get_positions_stats(query, location_id, offset=0, limit=20, token_info=None,
             SELECT id FROM location_hierarchy
         )
     """
+
+    # Optional session filter
+    session_clause = ""
+    session_params = []
+    if session_id:
+        session_clause = " AND p.session_id = %s"
+        session_params = [session_id]
+
+    # Optional phase filter (filter by created_during_stage)
+    phase_clause = ""
+    phase_params = []
+    if phase:
+        phase_stages = [s for s, p in STAGE_TO_PHASE.items() if p == phase]
+        if phase_stages:
+            placeholders = ','.join(['%s'] * len(phase_stages))
+            phase_clause = f" AND p.created_during_stage IN ({placeholders})"
+            phase_params = phase_stages
 
     # Try semantic search first for queries with enough substance (>= 3 words),
     # fall back to text search if NLP is unavailable or query is too short
@@ -471,10 +493,12 @@ def get_positions_stats(query, location_id, offset=0, limit=20, token_info=None,
               AND p.embedding IS NOT NULL
               AND (1 - (p.embedding <=> %s::vector)) >= 0.5
               AND {location_filter}
+              {session_clause}
+              {phase_clause}
             ORDER BY p.embedding <=> %s::vector
             LIMIT %s OFFSET %s
         """
-        params = (embedding, embedding, location_id, embedding, limit, offset)
+        params = (embedding, embedding, location_id, *session_params, *phase_params, embedding, limit, offset)
     else:
         # Text fallback: ILIKE search
         like_pattern = f"%{query}%"
@@ -498,10 +522,12 @@ def get_positions_stats(query, location_id, offset=0, limit=20, token_info=None,
             WHERE p.status = 'active'
               AND p.statement ILIKE %s
               AND {location_filter}
+              {session_clause}
+              {phase_clause}
             ORDER BY p.agree_count DESC
             LIMIT %s OFFSET %s
         """
-        params = (like_pattern, location_id, limit, offset)
+        params = (like_pattern, location_id, *session_params, *phase_params, limit, offset)
 
     positions = db.execute_query(sql, params)
     if positions is None:

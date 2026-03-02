@@ -162,6 +162,34 @@ export default function PostDetail() {
     }
   }, [selectedSession, myEndorsementMap, roundType, t])
 
+  // Finalize proposal with confirmation
+  const handleFinalize = useCallback((pid) => {
+    const doFinalize = async () => {
+      try {
+        await api.posts.finalizeProposal(pid)
+        const data = await api.posts.getPost(postId).catch(() => null)
+        if (data) setPost(data)
+        showToast(t('proposalFinalizeSuccess'))
+      } catch {
+        Alert.alert(t('proposalFinalizeFailed'))
+      }
+    }
+    if (Platform.OS === 'web') {
+      if (window.confirm(`${t('proposalFinalizeConfirmTitle')}\n\n${t('proposalFinalizeConfirmMessage')}`)) {
+        doFinalize()
+      }
+    } else {
+      Alert.alert(
+        t('proposalFinalizeConfirmTitle'),
+        t('proposalFinalizeConfirmMessage'),
+        [
+          { text: t('common:cancel'), style: 'cancel' },
+          { text: t('proposalFinalize'), onPress: doFinalize },
+        ],
+      )
+    }
+  }, [postId, showToast, t])
+
   // Input state
   const [inputText, setInputText] = useState('')
   const [inputHeight, setInputHeight] = useState(40)
@@ -1084,6 +1112,8 @@ export default function PostDetail() {
           onEndorse={isEndorsementPhase ? handleEndorse : undefined}
           isEndorsed={isEndorsed}
           endorseLimitReached={endorseLimitReached}
+          onFinalize={handleFinalize}
+          votingRoundStatus={votingRoundStatus}
         />
       </View>
       {commentStageTabs && commentStageTabs.tabs.length > 1 && (

@@ -138,19 +138,19 @@ describe('WikiArticleScreen', () => {
     expect(mockBack).toHaveBeenCalled()
   })
 
-  it('shows "Suggest Edit" when canEdit is false', async () => {
+  it('shows edit FAB with suggestEdit label when canEdit is false', async () => {
     mockGetPage.mockResolvedValue({ ...mockPage, canEdit: false })
     render(<WikiArticleScreen />)
     await waitFor(() => {
-      expect(screen.getByText('suggestEdit')).toBeTruthy()
+      expect(screen.getByLabelText('suggestEditA11y')).toBeTruthy()
     })
   })
 
-  it('shows "Edit" when canEdit is true', async () => {
+  it('shows edit FAB with directEdit label when canEdit is true', async () => {
     mockGetPage.mockResolvedValue({ ...mockPage, canEdit: true })
     render(<WikiArticleScreen />)
     await waitFor(() => {
-      expect(screen.getByText('directEdit')).toBeTruthy()
+      expect(screen.getByLabelText('directEditA11y')).toBeTruthy()
     })
   })
 
@@ -158,9 +158,9 @@ describe('WikiArticleScreen', () => {
     mockGetPage.mockResolvedValue({ ...mockPage, canEdit: true })
     render(<WikiArticleScreen />)
     await waitFor(() => {
-      expect(screen.getByText('directEdit')).toBeTruthy()
+      expect(screen.getByLabelText('directEditA11y')).toBeTruthy()
     })
-    fireEvent.press(screen.getByText('directEdit'))
+    fireEvent.press(screen.getByLabelText('directEditA11y'))
     expect(mockPush).toHaveBeenCalledWith(
       expect.stringContaining('directEdit=true')
     )

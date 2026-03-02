@@ -279,10 +279,21 @@ export async function completeSocialRegistration(pendingToken, phoneNumber, phon
  * Proxied through the backend API to keep the Keycloak issuer consistent
  * with login (avoids issuer mismatch between Docker-internal and external URLs).
  *
+ * Concurrent calls are serialized: if a refresh is already in-flight, callers
+ * receive the same promise (prevents Keycloak from revoking a reused refresh token).
+ *
  * @returns {Promise<{accessToken: string, refreshToken: string} | null>}
  *   Returns new tokens or null if refresh is not possible.
  */
+let _refreshPromise = null
+
 export async function refreshToken() {
+  if (_refreshPromise) return _refreshPromise
+  _refreshPromise = _doRefresh().finally(() => { _refreshPromise = null })
+  return _refreshPromise
+}
+
+async function _doRefresh() {
   const storedRefreshToken = await getSecureItem(REFRESH_TOKEN_KEY)
   if (!storedRefreshToken) {
     return null

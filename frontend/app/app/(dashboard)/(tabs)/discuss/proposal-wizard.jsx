@@ -155,6 +155,7 @@ export default function ProposalWizardScreen() {
             onGetFeedback={handleGetFeedback}
             enhancing={enhancing}
             canRequestFeedback={canRequestFeedback}
+            onBack={currentStep > 0 ? goBack : undefined}
             onNext={goNext}
             canAdvance={canAdvance}
             initialFeedback={feedbackState[step?.id]?.feedback || null}
@@ -163,21 +164,18 @@ export default function ProposalWizardScreen() {
           />
         )}
 
-        {/* Navigation buttons */}
-        <View style={styles.navRow}>
-          {currentStep > 0 && (
+        {/* Review step navigation */}
+        {isReviewStep && (
+          <View style={styles.navRow}>
             <ThemedButton
-              style={styles.backButton}
               onPress={goBack}
               accessibilityLabel={t('wizardBackA11y')}
             >
               {t('wizardBack')}
             </ThemedButton>
-          )}
 
-          <View style={styles.navSpacer} />
+            <View style={styles.navSpacer} />
 
-          {isReviewStep && (
             <ThemedButton
               onPress={handleSubmit}
               disabled={!canAdvance || submitting}
@@ -189,8 +187,8 @@ export default function ProposalWizardScreen() {
                 t('wizardSubmitProposal')
               )}
             </ThemedButton>
-          )}
-        </View>
+          </View>
+        )}
       </ScrollView>
       </>}
     </SafeAreaView>
@@ -237,11 +235,6 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: Spacing.xl,
-  },
-  backButton: {
-    backgroundColor: colors.cardBackground,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
   },
   navSpacer: {
     flex: 1,

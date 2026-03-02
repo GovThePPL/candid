@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo } from "react"
 import { AppState } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import api, { getStoredUser, initializeAuth, getToken, setToken, setStoredUser, bugReportsApiWrapper } from "../lib/api"
+import api, { getStoredUser, initializeAuth, getToken, setToken, setStoredUser, bugReportsApiWrapper, isTokenFresh } from "../lib/api"
 import * as keycloak from "../lib/keycloak"
 import { completeSocialRegistration } from "../lib/keycloak"
 import socket, { connectSocket, disconnectSocket, isConnected, getSocket, reconnectNow, onChatRequestResponse, onChatRequestReceived, onChatStarted } from "../lib/socket"
@@ -487,13 +487,24 @@ export function UserProvider({ children }) {
             await setToken(tokens.accessToken)
             token = tokens.accessToken
           } else {
-            // Refresh token also expired — user must re-login
+            // Refresh token unavailable — check if access token is still valid
+            if (!isTokenFresh(token)) {
+              console.warn('[UserContext] Token expired and no refresh token, logging out')
+              await api.auth.logout()
+              setUser(null)
+              return
+            }
+            // Access token still valid, continue with it
+          }
+        } catch (err) {
+          console.warn('[UserContext] Token refresh failed on foreground:', err?.message)
+          if (!isTokenFresh(token)) {
+            console.warn('[UserContext] Token also expired, logging out')
             await api.auth.logout()
             setUser(null)
             return
           }
-        } catch {
-          // Refresh failed — continue with existing token (may still be valid)
+          // Token still valid, continue
         }
 
         startHeartbeat()

@@ -8,9 +8,12 @@ import ThemedText from '../ThemedText'
 import SwipeableCard from './SwipeableCard'
 import CardShell from '../CardShell'
 import BridgingBadge from '../discuss/BridgingBadge'
+import LocationSessionBadge from '../LocationSessionBadge'
 
 const BridgingKudosCard = forwardRef(function BridgingKudosCard({
   bridgingKudos,
+  location,
+  session,
   onDismiss,
   isBackCard,
   backCardAnimatedValue,
@@ -29,7 +32,9 @@ const BridgingKudosCard = forwardRef(function BridgingKudosCard({
           {t('bridgingKudosTitle')}
         </ThemedText>
         <ThemedText variant="button" style={styles.headerSubtext}>
-          {t('bridgingKudosSubtitle')}
+          {itemType === 'comment'
+            ? t('bridgingKudosEarnedComment')
+            : t('bridgingKudosEarnedPost')}
         </ThemedText>
       </View>
     </View>
@@ -75,23 +80,29 @@ const BridgingKudosCard = forwardRef(function BridgingKudosCard({
         bottomStyle={styles.footerSection}
       >
         <View style={styles.bodyContent}>
-          {threadTitle && (
-            <ThemedText variant="caption" color="secondary" style={styles.threadTitle} numberOfLines={1}>
-              {t('bridgingKudosThread')} {threadTitle}
+          <LocationSessionBadge location={location} session={session} size="lg" />
+          <View style={styles.bodyCenter}>
+            {threadTitle && (
+              <ThemedText
+                variant="h1"
+                color="dark"
+                style={styles.threadTitle}
+                numberOfLines={2}
+                adjustsFontSizeToFit
+                minimumFontScale={0.7}
+              >
+                {threadTitle}
+              </ThemedText>
+            )}
+            <ThemedText
+              variant="statement"
+              color="dark"
+              style={styles.itemBody}
+              numberOfLines={8}
+            >
+              {itemBody}
             </ThemedText>
-          )}
-          <ThemedText variant="caption" color="secondary" style={styles.itemTypeLabel}>
-            {itemType === 'comment' ? t('bridgingKudosComment') : t('bridgingKudosPost')}
-          </ThemedText>
-          <ThemedText
-            variant="statement"
-            color="primary"
-            style={styles.itemBody}
-            adjustsFontSizeToFit
-            minimumFontScale={0.6}
-          >
-            {itemBody}
-          </ThemedText>
+          </View>
         </View>
       </CardShell>
     </SwipeableCard>
@@ -121,22 +132,18 @@ const createStyles = (colors) => StyleSheet.create({
   },
   bodyContent: {
     flex: 1,
-    justifyContent: 'center',
     paddingHorizontal: 24,
-    paddingVertical: 20,
+    paddingTop: 16,
+    paddingBottom: 20,
+  },
+  bodyCenter: {
+    flex: 1,
+    justifyContent: 'center',
   },
   threadTitle: {
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  itemTypeLabel: {
-    textAlign: 'center',
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    marginBottom: 12,
   },
   itemBody: {
-    textAlign: 'center',
   },
   footerSection: {
     flexGrow: 0,

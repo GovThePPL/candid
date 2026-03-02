@@ -1,6 +1,6 @@
-import { useState, useRef, useMemo, useCallback, memo } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback, memo } from 'react'
 import { View, TouchableOpacity, Pressable, StyleSheet } from 'react-native'
-import Animated from 'react-native-reanimated'
+import Animated, { useSharedValue, useAnimatedStyle, withSequence, withTiming, Easing } from 'react-native-reanimated'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
@@ -17,6 +17,7 @@ import ProposalBadge from './ProposalBadge'
 import BottomDrawerModal from '../BottomDrawerModal'
 import useExpandCollapse from '../../hooks/useExpandCollapse'
 import { useLocationSession } from '../../contexts/LocationSessionContext'
+import { formatRelativeTime } from '../../lib/timeUtils'
 
 const COLLAPSED_HEIGHT = 100
 const POST_PROPOSAL_STAGES = new Set([
@@ -37,7 +38,7 @@ const COMPACT_BADGES_THRESHOLD = 200
  * @param {Function} props.onToggleRole - Called with (postId, showCreatorRole)
  * @param {string} [props.currentUserId] - Current user's ID (disables voting on own posts)
  */
-export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onToggleRole, onLock, onEdit, onDelete, currentUserId, canModerate, onReport, onModerate, onPin, onTermPress, glossaryRules, readOnly, onFinalize, votingRoundStatus, onEndorse, isEndorsed, endorseLimitReached, onEndorseLimitReached, stage }) {
+export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onToggleRole, onLock, onEdit, onDelete, currentUserId, canModerate, onReport, onModerate, onPin, onTermPress, glossaryRules, readOnly, onEndorse, isEndorsed, endorseLimitReached, onEndorseLimitReached, stage }) {
   const { t } = useTranslation('discuss')
   const colors = useThemeColors()
   const router = useRouter()
@@ -48,10 +49,28 @@ export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onT
   const rowWidthRef = useRef(0)
   const leftWidthRef = useRef(0)
 
+  // Endorse button scale pulse animation (same pattern as VoteControl upvote)
+  const endorseScale = useSharedValue(1)
+  const endorseScaleStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: endorseScale.value }],
+  }))
+  const prevEndorsedRef = useRef(isEndorsed)
+  useEffect(() => {
+    if (isEndorsed && !prevEndorsedRef.current) {
+      endorseScale.value = withSequence(
+        withTiming(1.2, { duration: 70, easing: Easing.out(Easing.quad) }),
+        withTiming(0.92, { duration: 100, easing: Easing.inOut(Easing.quad) }),
+        withTiming(1.03, { duration: 60, easing: Easing.out(Easing.quad) }),
+        withTiming(1, { duration: 50, easing: Easing.inOut(Easing.quad) }),
+      )
+    }
+    prevEndorsedRef.current = isEndorsed
+  }, [isEndorsed])
+
   const isLocked = post.status === 'locked'
   const isOwnPost = currentUserId && post.creator?.id === currentUserId
   const displayName = post.creator?.displayName || post.creator?.username || '?'
-  const relativeTime = require('../../lib/timeUtils').formatRelativeTime(post.createdTime, t)
+  const relativeTime = formatRelativeTime(post.createdTime, t)
   const hasBody = !!post.body
   const canEdit = isOwnPost && post.createdTime &&
     (Date.now() - new Date(post.createdTime).getTime() < 15 * 60 * 1000)
@@ -192,22 +211,6 @@ export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onT
         </TouchableOpacity>
       )}
 
-      {/* Finalize button: author's own draft proposal during finalization_open */}
-      {isOwnPost && post.proposalStatus === 'draft' && votingRoundStatus === 'finalization_open' && (
-        <TouchableOpacity
-          style={styles.finalizeButton}
-          onPress={(e) => { e?.stopPropagation?.(); onFinalize?.(post.id) }}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={t('proposalFinalizeA11y')}
-        >
-          <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
-          <ThemedText variant="buttonSmall" style={styles.finalizeLabel}>
-            {t('proposalFinalize')}
-          </ThemedText>
-        </TouchableOpacity>
-      )}
-
       {/* Bottom row: author left, actions right */}
       <View style={styles.bottomRow}>
         <TouchableOpacity
@@ -262,7 +265,7 @@ export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onT
               accessibilityState={{ selected: !!isEndorsed }}
               hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
-              <View style={[styles.endorseButton, isEndorsed && styles.endorseButtonActive]}>
+              <Animated.View style={[styles.endorseButton, isEndorsed && styles.endorseButtonActive, endorseScaleStyle]}>
                 <Ionicons
                   name={isEndorsed ? 'heart' : 'heart-outline'}
                   size={16}
@@ -274,7 +277,7 @@ export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onT
                 >
                   {isEndorsed ? t('endorsedButton') : t('endorseButton')}
                 </ThemedText>
-              </View>
+              </Animated.View>
             </TouchableOpacity>
           )}
 
@@ -448,8 +451,10 @@ export default memo(function PostCard({ post, onPress, onUpvote, onDownvote, onT
     prev.canModerate === next.canModerate &&
     prev.onEdit === next.onEdit &&
     prev.onDelete === next.onDelete &&
-    prev.votingRoundStatus === next.votingRoundStatus &&
-    prev.stage === next.stage
+    prev.stage === next.stage &&
+    prev.isEndorsed === next.isEndorsed &&
+    prev.endorseLimitReached === next.endorseLimitReached &&
+    prev.readOnly === next.readOnly
   )
 })
 
@@ -602,19 +607,5 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.lg,
     gap: Spacing.md,
-  },
-  finalizeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.xs,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.sm,
-    backgroundColor: colors.primarySurface,
-    marginBottom: Spacing.sm,
-  },
-  finalizeLabel: {
-    color: '#FFFFFF',
   },
 })

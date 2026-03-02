@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../hooks/useThemeColors'
 import { Spacing, BorderRadius } from '../constants/Theme'
+import { SemanticColors } from '../constants/Colors'
 import ThemedText from './ThemedText'
 import MarkdownRenderer from './discuss/MarkdownRenderer'
 import MentionAutocomplete from './discuss/MentionAutocomplete'
@@ -1046,7 +1047,8 @@ const createStyles = (colors, minHeight, maxHeight, fullScreen, externalMode) =>
       flex: 1,
       ...(externalMode ? {} : { backgroundColor: colors.cardBackground }),
     } : externalMode ? {
-      ...(Platform.OS === 'web' ? { flex: 1, overflow: 'hidden' } : {}),
+      flex: 1,
+      ...(Platform.OS === 'web' ? { overflow: 'hidden' } : {}),
     } : {
       borderWidth: 1,
       borderColor: colors.cardBorder,
@@ -1141,7 +1143,8 @@ const createStyles = (colors, minHeight, maxHeight, fullScreen, externalMode) =>
       flex: 1,
       ...(Platform.OS === 'web' ? { overflow: 'auto' } : {}),
     } : externalMode ? {
-      ...(Platform.OS === 'web' ? { flex: 1, overflow: 'auto' } : {}),
+      flex: 1,
+      ...(Platform.OS === 'web' ? { overflow: 'auto' } : {}),
     } : {
       minHeight: minHeight || 120,
       maxHeight: maxHeight || undefined,
@@ -1188,7 +1191,7 @@ const createStyles = (colors, minHeight, maxHeight, fullScreen, externalMode) =>
   // Link modal
   linkOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: SemanticColors.overlay,
     justifyContent: 'center',
     alignItems: 'center',
     padding: Spacing.xl,

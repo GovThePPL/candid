@@ -140,3 +140,33 @@ describe('Register screen', () => {
   })
 
 })
+
+describe('Register screen (EMAIL_REQUIRED=false)', () => {
+  beforeEach(() => {
+    process.env.EXPO_PUBLIC_EMAIL_REQUIRED = 'false'
+  })
+
+  afterEach(() => {
+    delete process.env.EXPO_PUBLIC_EMAIL_REQUIRED
+  })
+
+  it('does not render email field when EMAIL_REQUIRED is false', () => {
+    render(<Register />)
+    expect(screen.queryByPlaceholderText('emailPlaceholder')).toBeNull()
+  })
+
+  it('registers successfully without email when EMAIL_REQUIRED is false', async () => {
+    render(<Register />)
+    fireEvent.changeText(screen.getByPlaceholderText('usernamePlaceholder'), 'alice')
+    fireEvent.changeText(screen.getByPlaceholderText('passwordMinPlaceholder'), 'password123')
+
+    await act(async () => {
+      fireEvent.press(screen.getByText('createAccount'))
+    })
+
+    expect(mockRegister).toHaveBeenCalledWith({
+      username: 'alice',
+      password: 'password123',
+    })
+  })
+})

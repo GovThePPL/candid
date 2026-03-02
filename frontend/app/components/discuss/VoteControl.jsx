@@ -1,6 +1,6 @@
 import { memo, useMemo, useRef, useEffect } from 'react'
 import { View, TouchableOpacity, StyleSheet } from 'react-native'
-import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated'
+import Animated, { useSharedValue, useAnimatedStyle, withSequence, withTiming, Easing } from 'react-native-reanimated'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
@@ -48,9 +48,12 @@ export default memo(function VoteControl({
   const prevUpvotedRef = useRef(isUpvoted)
   useEffect(() => {
     if (isUpvoted && !prevUpvotedRef.current && size === 'sm') {
-      scale.value = withSpring(1.15, { damping: 10, stiffness: 200 }, () => {
-        scale.value = withSpring(1, { damping: 10, stiffness: 150 })
-      })
+      scale.value = withSequence(
+        withTiming(1.2, { duration: 70, easing: Easing.out(Easing.quad) }),
+        withTiming(0.92, { duration: 100, easing: Easing.inOut(Easing.quad) }),
+        withTiming(1.03, { duration: 60, easing: Easing.out(Easing.quad) }),
+        withTiming(1, { duration: 50, easing: Easing.inOut(Easing.quad) }),
+      )
     }
     prevUpvotedRef.current = isUpvoted
   }, [isUpvoted, size])

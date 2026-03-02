@@ -22,11 +22,37 @@ jest.mock('react-i18next', () => ({
         wizardGetFeedbackA11y: 'Get AI feedback on this section',
         wizardNextA11y: 'Go to next step',
         wizardDismissFeedbackA11y: 'Dismiss AI feedback',
+        replyComposerVisualEditor: 'Visual Editor',
+        replyComposerTextEditor: 'Text',
+        replyComposerEditorToggleA11y: 'Toggle visual editor',
       }
       return map[key] || key
     },
   }),
 }))
+
+jest.mock('../../components/WysiwygEditor', () => {
+  const React = require('react')
+  const { TextInput } = require('react-native')
+  return React.forwardRef(function MockWysiwygEditor({ placeholder, onContentChange }, ref) {
+    const textRef = React.useRef('')
+    React.useImperativeHandle(ref, () => ({
+      getMarkdown: () => Promise.resolve(textRef.current),
+      setContent: (md) => { textRef.current = md || '' },
+      focus: jest.fn(),
+      blur: jest.fn(),
+    }))
+    return (
+      <TextInput
+        placeholder={placeholder}
+        onChangeText={(text) => {
+          textRef.current = text
+          onContentChange?.()
+        }}
+      />
+    )
+  })
+})
 
 jest.mock('../../components/discuss/MarkdownRenderer', () => {
   const { Text } = require('react-native')
@@ -85,12 +111,14 @@ describe('ProposalWizardStep', () => {
     expect(screen.getByText('Next')).toBeTruthy()
   })
 
-  it('calls onChange when text input changes', () => {
+  it('calls onChange when text input changes', async () => {
     const onChange = jest.fn()
     render(<ProposalWizardStep {...defaultProps} onChange={onChange} />)
-    const input = screen.getByLabelText('Text input for Issue Description')
+    const input = screen.getByPlaceholderText('Describe in your own words...')
     fireEvent.changeText(input, 'New text')
-    expect(onChange).toHaveBeenCalledWith('New text')
+    await waitFor(() => {
+      expect(onChange).toHaveBeenCalledWith('New text')
+    })
   })
 
   it('calls onGetFeedback when Get Feedback pressed', () => {
@@ -156,5 +184,10 @@ describe('ProposalWizardStep', () => {
     expect(screen.getByText('Some feedback')).toBeTruthy()
     fireEvent.press(screen.getByLabelText('Dismiss AI feedback'))
     expect(screen.queryByText('Some feedback')).toBeNull()
+  })
+
+  it('shows editor mode toggle', () => {
+    render(<ProposalWizardStep {...defaultProps} />)
+    expect(screen.getByText('Visual Editor')).toBeTruthy()
   })
 })

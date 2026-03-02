@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
-import { Spacing, Typography } from '../../constants/Theme'
+import { Spacing, Typography, BorderRadius } from '../../constants/Theme'
 import { SemanticColors, OnBrandColors } from '../../constants/Colors'
 import { formatRelativeTime } from '../../lib/timeUtils'
 import ThemedText from '../ThemedText'
@@ -26,7 +26,7 @@ import { useLocationSession } from '../../contexts/LocationSessionContext'
  * @param {Function} props.onDownvote - Called when downvote is tapped
  * @param {Function} props.onToggleRole - Called with (postId, showCreatorRole)
  */
-export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, onToggleRole, onToggleMute, onLock, onEdit, onDelete, isMuted, canModerate, onReport, onModerate, glossaryRules, readOnly, onEndorse, isEndorsed, endorseLimitReached, onEndorseLimitReached }) {
+export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, onToggleRole, onToggleMute, onLock, onEdit, onDelete, isMuted, canModerate, onReport, onModerate, glossaryRules, readOnly, onEndorse, isEndorsed, endorseLimitReached, onEndorseLimitReached, onFinalize, votingRoundStatus }) {
   const { t } = useTranslation('discuss')
   const router = useRouter()
   const colors = useThemeColors()
@@ -194,6 +194,22 @@ export default function PostHeader({ post, currentUserId, onUpvote, onDownvote, 
             <ThemedText variant="caption" color="secondary">{t('locked')}</ThemedText>
           </View>
         </View>
+      )}
+
+      {/* Finalize button: author's own draft proposal during finalization_open */}
+      {isOwnPost && post.proposalStatus === 'draft' && votingRoundStatus === 'finalization_open' && (
+        <TouchableOpacity
+          style={styles.finalizeButton}
+          onPress={() => onFinalize?.(post.id)}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={t('proposalFinalizeA11y')}
+        >
+          <Ionicons name="checkmark-circle" size={18} color={OnBrandColors.text} />
+          <ThemedText variant="buttonSmall" style={styles.finalizeLabel}>
+            {t('proposalFinalize')}
+          </ThemedText>
+        </TouchableOpacity>
       )}
 
       {/* Options modal */}
@@ -411,6 +427,20 @@ const createStyles = (colors) => StyleSheet.create({
   endorseButtonActive: {
     backgroundColor: colors.primary + '20',
     borderColor: colors.primary,
+  },
+  finalizeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: colors.primarySurface,
+    marginTop: Spacing.md,
+  },
+  finalizeLabel: {
+    color: OnBrandColors.text,
   },
   optionsList: {
     padding: Spacing.lg,

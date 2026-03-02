@@ -42,13 +42,13 @@ export default function SessionDetailScreen() {
   const { user } = useUser()
   const toast = useToast()
 
-  const canManage = useMemo(() => hasRole(user, 'facilitator') && session?.status === 'active', [user, session?.status])
   const isAdmin = useMemo(() => hasRole(user, 'admin'), [user])
 
   const mgmt = useAdminSessions()
 
   // --- Local state for this session ---
   const [session, setSession] = useState(null)
+  const canManage = useMemo(() => hasRole(user, 'facilitator') && session?.status === 'active', [user, session?.status])
   const [roles, setRoles] = useState([])
   const [rolesLoading, setRolesLoading] = useState(true)
   const [labelSurveys, setLabelSurveys] = useState({ proposal: null, opinion: null, reflection: null })

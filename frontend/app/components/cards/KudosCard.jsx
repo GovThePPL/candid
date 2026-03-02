@@ -32,7 +32,7 @@ const KudosCard = forwardRef(function KudosCard({
   const headerContent = (
     <View style={styles.headerRow}>
       {/* Kudos Icon — white star */}
-      <Ionicons name="star" size={36} color="#FFFFFF" />
+      <Ionicons name="star" size={36} color={OnBrandColors.text} />
 
       {/* Title and Subtitle */}
       <View style={styles.titleContainer}>
@@ -71,6 +71,7 @@ const KudosCard = forwardRef(function KudosCard({
             style={styles.closureText}
             adjustsFontSizeToFit
             minimumFontScale={0.6}
+            numberOfLines={4}
           >
             {parsedClosingStatement}
           </ThemedText>

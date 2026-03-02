@@ -1,11 +1,11 @@
 import { useState, useMemo } from 'react'
-import { View, TouchableOpacity, StyleSheet } from 'react-native'
+import { View, TouchableOpacity, Modal, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { Spacing, BorderRadius } from '../../constants/Theme'
+import { SemanticColors } from '../../constants/Colors'
 import ThemedText from '../ThemedText'
-import BottomDrawerModal from '../BottomDrawerModal'
 
 const SORT_OPTIONS = [
   { id: 'hot', icon: 'flame-outline', iconActive: 'flame', labelKey: 'sortHot' },
@@ -15,7 +15,7 @@ const SORT_OPTIONS = [
 ]
 
 /**
- * Compact sort control — icon-only button that opens a BottomDrawerModal with sort options.
+ * Compact sort control — icon-only button that opens a centered popup modal with sort options.
  *
  * @param {Object} props
  * @param {string} props.sort - Current sort value
@@ -46,43 +46,62 @@ export default function SortDropdown({ sort, onSortChange }) {
         <Ionicons name={currentOption.iconActive} size={20} color={colors.primary} />
       </TouchableOpacity>
 
-      <BottomDrawerModal
+      <Modal
         visible={visible}
-        onClose={() => setVisible(false)}
-        title={t('sortLabel')}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setVisible(false)}
       >
-        <View style={styles.optionsList}>
-          {SORT_OPTIONS.map((option) => {
-            const isSelected = sort === option.id
-            return (
+        <TouchableOpacity
+          style={styles.overlay}
+          activeOpacity={1}
+          onPress={() => setVisible(false)}
+        >
+          <View style={styles.popup}>
+            <View style={styles.popupHeader}>
+              <ThemedText variant="h3" color="dark">{t('sortLabel')}</ThemedText>
               <TouchableOpacity
-                key={option.id}
-                style={[styles.optionRow, isSelected && styles.optionRowSelected]}
-                onPress={() => handleSelect(option.id)}
-                activeOpacity={0.7}
-                accessibilityRole="menuitem"
-                accessibilityState={{ selected: isSelected }}
-                accessibilityLabel={t('sortByA11y', { sort: t(option.labelKey) })}
+                onPress={() => setVisible(false)}
+                accessibilityRole="button"
+                accessibilityLabel={t('common:close')}
               >
-                <Ionicons
-                  name={isSelected ? option.iconActive : option.icon}
-                  size={22}
-                  color={isSelected ? colors.primary : colors.secondaryText}
-                />
-                <ThemedText
-                  variant="body"
-                  style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}
-                >
-                  {t(option.labelKey)}
-                </ThemedText>
-                {isSelected && (
-                  <Ionicons name="checkmark" size={20} color={colors.primary} style={styles.checkmark} />
-                )}
+                <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
-            )
-          })}
-        </View>
-      </BottomDrawerModal>
+            </View>
+            <View style={styles.optionsList}>
+              {SORT_OPTIONS.map((option) => {
+                const isSelected = sort === option.id
+                return (
+                  <TouchableOpacity
+                    key={option.id}
+                    style={[styles.optionRow, isSelected && styles.optionRowSelected]}
+                    onPress={() => handleSelect(option.id)}
+                    activeOpacity={0.7}
+                    accessibilityRole="menuitem"
+                    accessibilityState={{ selected: isSelected }}
+                    accessibilityLabel={t('sortByA11y', { sort: t(option.labelKey) })}
+                  >
+                    <Ionicons
+                      name={isSelected ? option.iconActive : option.icon}
+                      size={22}
+                      color={isSelected ? colors.primary : colors.secondaryText}
+                    />
+                    <ThemedText
+                      variant="body"
+                      style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}
+                    >
+                      {t(option.labelKey)}
+                    </ThemedText>
+                    {isSelected && (
+                      <Ionicons name="checkmark" size={20} color={colors.primary} style={styles.checkmark} />
+                    )}
+                  </TouchableOpacity>
+                )
+              })}
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </>
   )
 }
@@ -98,8 +117,31 @@ const createStyles = (colors) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  overlay: {
+    flex: 1,
+    backgroundColor: SemanticColors.overlay,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  popup: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: 14,
+    width: '100%',
+    maxWidth: 320,
+    overflow: 'hidden',
+  },
+  popupHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.cardBorder,
+  },
   optionsList: {
-    padding: Spacing.lg,
+    padding: Spacing.sm,
   },
   optionRow: {
     flexDirection: 'row',

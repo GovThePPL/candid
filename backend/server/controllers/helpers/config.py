@@ -89,6 +89,9 @@ class Config:
 	_sms_requested = os.environ.get('SMS_VERIFICATION_ENABLED', 'false').lower() == 'true'
 	SMS_VERIFICATION_ENABLED = _sms_requested and bool(TWILIO_ACCOUNT_SID) and bool(TWILIO_AUTH_TOKEN)
 
+	# Email requirement toggle (set to 'false' for demo/dev deployments without SMTP)
+	EMAIL_REQUIRED = os.environ.get('EMAIL_REQUIRED', 'true').lower() == 'true'
+
 	# JWT secret for pending social login tokens
 	SECRET_KEY = _require_secret('SECRET_KEY', 'candid-dev-secret-key')
 

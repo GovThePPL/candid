@@ -105,10 +105,8 @@
   "positionRemovedDismiss": "Dismiss",
 
   "bridgingKudosTitle": "Bridges Divides!",
-  "bridgingKudosSubtitle": "Your voice reached across the aisle",
-  "bridgingKudosComment": "Your comment",
-  "bridgingKudosPost": "Your post",
-  "bridgingKudosThread": "in thread",
+  "bridgingKudosEarnedComment": "You earned a kudos for your comment",
+  "bridgingKudosEarnedPost": "You earned a kudos for your post",
   "bridgingKudosA11yLabel": "Your content bridges ideological divides",
   "bridgingKudosA11yHint": "Swipe to acknowledge",
 

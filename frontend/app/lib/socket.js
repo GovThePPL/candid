@@ -15,42 +15,64 @@ let _intentionalDisconnect = false
 let _reconnectTimer = null
 let _reconnectDelay = 1000
 const MAX_RECONNECT_DELAY = 30000
+let _reconnectAttempts = 0
+const MAX_RECONNECT_ATTEMPTS = 15
+let _onReconnectExhausted = null
+let _reconnecting = false
+
+export function setOnReconnectExhausted(cb) {
+  _onReconnectExhausted = cb
+}
 
 /**
  * Schedule a reconnect attempt with exponential backoff.
- * Retries indefinitely until disconnectSocket() sets _intentionalDisconnect.
+ * Stops after MAX_RECONNECT_ATTEMPTS and calls _onReconnectExhausted.
  */
 function _scheduleReconnect() {
   if (_intentionalDisconnect || !socket) return
 
   clearTimeout(_reconnectTimer)
+
+  _reconnectAttempts++
+  if (_reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
+    console.warn('[Socket] Max reconnect attempts reached, giving up')
+    _reconnecting = false
+    _onReconnectExhausted?.()
+    return
+  }
+
   const delay = _reconnectDelay
-  console.debug(`[Socket] Scheduling reconnect in ${delay}ms`)
+  console.debug(`[Socket] Scheduling reconnect in ${delay}ms (attempt ${_reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`)
 
   _reconnectTimer = setTimeout(async () => {
     if (_intentionalDisconnect || !socket) return
+    if (_reconnecting) return
+    _reconnecting = true
 
     try {
-      // Refresh token before reconnecting
       const freshToken = await getOrRefreshToken()
       if (!freshToken) {
         console.warn('[Socket] No token for reconnect, retrying later')
         _reconnectDelay = Math.min(_reconnectDelay * 2, MAX_RECONNECT_DELAY)
+        _reconnecting = false
         _scheduleReconnect()
         return
       }
-    } catch {
-      // Token refresh failed — try connecting with whatever we have
+    } catch (err) {
+      console.warn('[Socket] Token refresh failed before reconnect:', err?.message)
+      _reconnectDelay = Math.min(_reconnectDelay * 2, MAX_RECONNECT_DELAY)
+      _reconnecting = false
+      _scheduleReconnect()
+      return
     }
 
     if (!_intentionalDisconnect && socket) {
       console.debug('[Socket] Attempting reconnect')
+      _reconnectDelay = Math.min(_reconnectDelay * 2, MAX_RECONNECT_DELAY)
       socket.connect()
     }
+    _reconnecting = false
   }, delay)
-
-  // Increase delay for next attempt (exponential backoff)
-  _reconnectDelay = Math.min(_reconnectDelay * 2, MAX_RECONNECT_DELAY)
 }
 
 /**
@@ -82,6 +104,7 @@ export async function connectSocket(token = null, { preConnectHook } = {}) {
 
   _intentionalDisconnect = false
   _reconnectDelay = 1000
+  _reconnectAttempts = 0
   clearTimeout(_reconnectTimer)
 
   return new Promise((resolve, reject) => {
@@ -89,12 +112,24 @@ export async function connectSocket(token = null, { preConnectHook } = {}) {
 
     socket = io(CHAT_SERVER_URL, {
       autoConnect: false,
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],
       reconnection: false, // We handle reconnection ourselves
       timeout: 10000,
       auth: (cb) => {
         // Dynamic callback: fetches fresh token on each reconnect attempt
-        getOrRefreshToken().then(t => cb({ token: t || authToken }))
+        getOrRefreshToken()
+          .then(t => {
+            if (t) {
+              cb({ token: t })
+            } else {
+              console.warn('[Socket] auth callback: no fresh token available')
+              cb({ token: null })
+            }
+          })
+          .catch(err => {
+            console.warn('[Socket] auth callback: token refresh failed', err?.message)
+            cb({ token: null })
+          })
       },
     })
 
@@ -103,6 +138,8 @@ export async function connectSocket(token = null, { preConnectHook } = {}) {
       console.debug('[Socket] Authenticated as user:', data.userId)
       recordDebug('socket', 'Authenticated', { userId: data.userId })
       _reconnectDelay = 1000 // Reset backoff on success
+      _reconnectAttempts = 0
+      _reconnecting = false
       clearTimeout(_reconnectTimer)
       _startKeepalive()
       if (!initialResolved) {
@@ -114,6 +151,7 @@ export async function connectSocket(token = null, { preConnectHook } = {}) {
     socket.on('connect_error', (error) => {
       console.error('[Socket] Connection error:', error.message)
       recordDebug('socket', 'Connection error', { error: error.message })
+      _reconnecting = false
       if (!initialResolved) {
         initialResolved = true
         reject(new Error(error.message || 'Failed to connect to chat server'))
@@ -166,12 +204,35 @@ function _stopKeepalive() {
  * preserving all registered listeners (e.g., chat screen message/typing handlers).
  * No-op if socket is already connected, doesn't exist, or was intentionally disconnected.
  */
-export function reconnectNow() {
+export async function reconnectNow() {
   if (!socket || socket.connected || _intentionalDisconnect) return
+  if (_reconnecting) return
+  _reconnecting = true
   clearTimeout(_reconnectTimer)
   _reconnectDelay = 1000
+  _reconnectAttempts = 0
   _intentionalDisconnect = false
-  socket.connect()
+
+  try {
+    const freshToken = await getOrRefreshToken()
+    if (!freshToken) {
+      console.warn('[Socket] reconnectNow: no token, scheduling retry')
+      _reconnecting = false
+      _scheduleReconnect()
+      return
+    }
+  } catch (err) {
+    console.warn('[Socket] reconnectNow: token refresh failed', err?.message)
+    _reconnecting = false
+    _scheduleReconnect()
+    return
+  }
+
+  if (!_intentionalDisconnect && socket && !socket.connected) {
+    console.debug('[Socket] reconnectNow: connecting with fresh token')
+    socket.connect()
+  }
+  _reconnecting = false
 }
 
 /**
@@ -1047,6 +1108,7 @@ export default {
   connect: connectSocket,
   disconnect: disconnectSocket,
   reconnectNow,
+  setOnReconnectExhausted,
   getSocket,
   isConnected,
   onChatRequestResponse,

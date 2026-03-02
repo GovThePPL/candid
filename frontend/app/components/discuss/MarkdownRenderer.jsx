@@ -8,6 +8,7 @@ import subPlugin from 'markdown-it-sub'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { Typography } from '../../constants/Theme'
+import { OnBrandColors, SemanticColors } from '../../constants/Colors'
 import { API_BASE_URL } from '../../lib/api'
 
 /**
@@ -277,6 +278,8 @@ export default memo(function MarkdownRenderer({ content, variant = 'post', gloss
                 activeOpacity={1}
                 onPress={closeLightbox}
                 style={lightboxStyles.imageTouchArea}
+                accessibilityRole="button"
+                accessibilityLabel={t('closeLightboxA11y')}
               >
                 <Image
                   source={{ uri: lightboxUrl }}
@@ -299,7 +302,7 @@ export default memo(function MarkdownRenderer({ content, variant = 'post', gloss
 const lightboxStyles = {
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.9)',
+    backgroundColor: SemanticColors.overlayHeavy,
   },
   closeButton: {
     position: 'absolute',
@@ -309,7 +312,7 @@ const lightboxStyles = {
     padding: 8,
   },
   closeText: {
-    color: '#FFFFFF',
+    color: OnBrandColors.text,
     fontSize: 28,
     fontWeight: '300',
   },
@@ -419,31 +422,23 @@ const createMarkdownStyles = (colors, variant) => {
     },
   }
 
-  // Only enable headings for post variant
-  if (!isComment) {
-    base.heading1 = {
-      ...Typography.h1,
-      color: colors.text,
-      marginTop: 16,
-      marginBottom: 8,
-    }
-    base.heading2 = {
-      ...Typography.h2,
-      color: colors.text,
-      marginTop: 12,
-      marginBottom: 6,
-    }
-    base.heading3 = {
-      ...Typography.h3,
-      color: colors.text,
-      marginTop: 8,
-      marginBottom: 4,
-    }
-  } else {
-    // Flatten headings to body text in comments
-    base.heading1 = { ...Typography.bodySmall, color: colors.text, fontWeight: '700' }
-    base.heading2 = { ...Typography.bodySmall, color: colors.text, fontWeight: '700' }
-    base.heading3 = { ...Typography.bodySmall, color: colors.text, fontWeight: '700' }
+  base.heading1 = {
+    ...Typography.h1,
+    color: colors.text,
+    marginTop: 16,
+    marginBottom: 8,
+  }
+  base.heading2 = {
+    ...Typography.h2,
+    color: colors.text,
+    marginTop: 12,
+    marginBottom: 6,
+  }
+  base.heading3 = {
+    ...Typography.h3,
+    color: colors.text,
+    marginTop: 8,
+    marginBottom: 4,
   }
 
   return base

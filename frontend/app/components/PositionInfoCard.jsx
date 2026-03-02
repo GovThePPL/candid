@@ -58,7 +58,9 @@ export default memo(function PositionInfoCard({
           <ThemedText
             variant="statement"
             style={statementStyle}
-            numberOfLines={numberOfLines}
+            numberOfLines={numberOfLines ?? 6}
+            adjustsFontSizeToFit
+            minimumFontScale={0.75}
           >
             {statement}
           </ThemedText>

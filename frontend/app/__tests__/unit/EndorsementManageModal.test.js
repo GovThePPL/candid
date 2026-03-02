@@ -48,7 +48,7 @@ describe('EndorsementManageModal', () => {
     expect(queryByText('endorsementManageTitle')).toBeNull()
   })
 
-  it('renders endorsed proposals when visible', () => {
+  it('renders endorsed proposals with full titles when visible', () => {
     const { getByText } = render(
       <EndorsementManageModal
         visible={true}
@@ -111,5 +111,35 @@ describe('EndorsementManageModal', () => {
       />
     )
     expect(queryByText('endorseOverLimitMessage')).toBeNull()
+  })
+
+  it('calls onPostPress and onClose when title is tapped', () => {
+    const onPostPress = jest.fn()
+    const onClose = jest.fn()
+    const { getByText } = render(
+      <EndorsementManageModal
+        visible={true}
+        onClose={onClose}
+        endorsedPosts={mockEndorsedPosts}
+        onRemove={jest.fn()}
+        onPostPress={onPostPress}
+      />
+    )
+    fireEvent.press(getByText('Better Parks'))
+    expect(onClose).toHaveBeenCalled()
+    expect(onPostPress).toHaveBeenCalledWith('post-1')
+  })
+
+  it('renders title without numberOfLines (full title visible)', () => {
+    const { getByText } = render(
+      <EndorsementManageModal
+        visible={true}
+        onClose={jest.fn()}
+        endorsedPosts={[{ id: 'p1', title: 'A very long proposal title that should be fully visible' }]}
+        onRemove={jest.fn()}
+      />
+    )
+    const title = getByText('A very long proposal title that should be fully visible')
+    expect(title.props.numberOfLines).toBeUndefined()
   })
 })

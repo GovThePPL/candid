@@ -37,6 +37,7 @@ export default function InfoModal({
   items,
   children,
   buttonText,
+  footer,
 }) {
   const { t } = useTranslation()
   const colors = useThemeColors()
@@ -58,6 +59,7 @@ export default function InfoModal({
       <Pressable
         style={shared.modalOverlay}
         onPress={onClose}
+        accessibilityRole="button"
         accessibilityLabel={t('dismissModal')}
       >
         <Pressable
@@ -107,6 +109,8 @@ export default function InfoModal({
           <TouchableOpacity style={styles.button} onPress={onClose} accessibilityRole="button" accessibilityLabel={buttonText || t('gotIt')}>
             <ThemedText variant="button" color="inverse">{buttonText || t('gotIt')}</ThemedText>
           </TouchableOpacity>
+
+          {footer}
         </Pressable>
       </Pressable>
     </Modal>

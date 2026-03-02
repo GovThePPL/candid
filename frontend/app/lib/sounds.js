@@ -118,10 +118,10 @@ function generateClosureSamples() {
 }
 
 function generateUpvoteSamples() {
-  const duration = 0.12
+  const duration = 0.06
   const samples = new Float32Array(sec(duration))
-  sineSegment(samples, 0, sec(0.015), 600, 580, 0.001, 0.3)
-  sineSegment(samples, sec(0.015), sec(0.12), 580, 400, 0.3, 0.001)
+  sineSegment(samples, 0, sec(0.005), 650, 620, 0.001, 0.35)
+  sineSegment(samples, sec(0.005), sec(0.06), 620, 450, 0.35, 0.001)
   return samples
 }
 
@@ -236,7 +236,7 @@ let nativeSounds = null    // { typing: AudioPlayer, ... } once initialized
 let nativeInitPromise = null
 
 // Bump this when the encoder or sound generators change to force WAV regeneration
-const SOUND_CACHE_VERSION = '4'
+const SOUND_CACHE_VERSION = '5'
 
 async function initNativeSounds() {
   if (Platform.OS === 'web') return
@@ -510,14 +510,14 @@ export async function playUpvoteSound() {
   const gainNode = ctx.createGain()
   oscillator.connect(gainNode)
   gainNode.connect(ctx.destination)
-  oscillator.frequency.setValueAtTime(600, now)
-  oscillator.frequency.exponentialRampToValueAtTime(400, now + 0.08)
+  oscillator.frequency.setValueAtTime(650, now)
+  oscillator.frequency.exponentialRampToValueAtTime(450, now + 0.05)
   oscillator.type = 'sine'
   gainNode.gain.setValueAtTime(0.001, now)
-  gainNode.gain.linearRampToValueAtTime(0.1, now + 0.01)
-  gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.08)
+  gainNode.gain.linearRampToValueAtTime(0.12, now + 0.005)
+  gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.05)
   oscillator.start(now)
-  oscillator.stop(now + 0.08)
+  oscillator.stop(now + 0.05)
 }
 
 export async function playIncomingRequestSound() {

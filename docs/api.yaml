@@ -4464,7 +4464,6 @@ paths:
               type: object
               required:
                 - username
-                - email
                 - password
               properties:
                 username:
@@ -4475,6 +4474,7 @@ paths:
                   type: string
                   format: email
                   maxLength: 255
+                  description: Required when the server has EMAIL_REQUIRED enabled (default).
                 password:
                   type: string
                   minLength: 8
@@ -5195,6 +5195,18 @@ paths:
             minimum: 1
             maximum: 50
           description: Maximum results to return
+        - name: sessionId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Optional session to filter results within
+        - name: phase
+          in: query
+          schema:
+            type: string
+            enum: [proposal, opinion, reflection, consensus]
+          description: Optional deliberation phase to filter by stage
       responses:
         '200':
           description: Search results

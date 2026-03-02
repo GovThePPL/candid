@@ -1,24 +1,28 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
-import { View, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { View, TouchableOpacity, ActivityIndicator, StyleSheet, Platform } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useThemeColors } from '../../hooks/useThemeColors'
 import { Spacing, BorderRadius } from '../../constants/Theme'
+import { OnBrandColors } from '../../constants/Colors'
 import ThemedText from '../ThemedText'
 import ThemedButton from '../ThemedButton'
 import MarkdownRenderer from './MarkdownRenderer'
+import WysiwygEditor from '../WysiwygEditor'
 
 /**
  * Single wizard step: user writes draft, gets AI coaching feedback, edits based on suggestions.
- * Contains Get Feedback and Next buttons between the text input and feedback display.
+ * Contains Back, Get Feedback and Next buttons between the text input and feedback display.
+ * Supports plain text (default) and visual WYSIWYG editing modes via always-mounted WysiwygEditor.
  *
  * @param {Object} props
  * @param {Object} props.step - Step definition { id, keyPrefix }
- * @param {string} props.value - Current section text
- * @param {Function} props.onChange - Callback with new text
+ * @param {string} props.value - Current section text (markdown)
+ * @param {Function} props.onChange - Callback with new text (markdown)
  * @param {Function} props.onGetFeedback - Callback to trigger AI feedback
  * @param {boolean} props.enhancing - Whether AI is currently generating feedback
  * @param {boolean} props.canRequestFeedback - Whether feedback can be requested
+ * @param {Function} [props.onBack] - Callback to go to previous step
  * @param {Function} props.onNext - Callback to advance to next step
  * @param {boolean} props.canAdvance - Whether Next is enabled
  * @param {string|null} props.initialFeedback - Persisted feedback from hook
@@ -32,6 +36,7 @@ export default function ProposalWizardStep({
   onGetFeedback,
   enhancing,
   canRequestFeedback,
+  onBack,
   onNext,
   canAdvance,
   initialFeedback,
@@ -42,11 +47,40 @@ export default function ProposalWizardStep({
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
   const [feedback, setFeedback] = useState(initialFeedback || null)
+  const [useVisual, setUseVisual] = useState(false)
+  const editorRef = useRef(null)
 
   // Sync feedback from hook when navigating between steps or new feedback arrives
   useEffect(() => {
     setFeedback(initialFeedback || null)
   }, [initialFeedback])
+
+  // Sync editor content when wizard step changes
+  const prevStepIdRef = useRef(step.id)
+  useEffect(() => {
+    if (step.id !== prevStepIdRef.current) {
+      prevStepIdRef.current = step.id
+      editorRef.current?.setContent(value)
+    }
+  }, [step.id, value])
+
+  // Keep stable ref to onChange so handleContentChange doesn't re-create
+  const onChangeRef = useRef(onChange)
+  onChangeRef.current = onChange
+
+  // Sync editor content to wizard on every edit via getMarkdown (avoids HTML roundtrip)
+  const contentChangeSeq = useRef(0)
+  const handleContentChange = useCallback(async () => {
+    const seq = ++contentChangeSeq.current
+    const md = await editorRef.current?.getMarkdown()
+    if (md != null && seq === contentChangeSeq.current) {
+      onChangeRef.current(md)
+    }
+  }, [])
+
+  const handleToggleMode = useCallback(() => {
+    setUseVisual(v => !v)
+  }, [])
 
   const handleDismissFeedback = useCallback(() => {
     setFeedback(null)
@@ -71,21 +105,44 @@ export default function ProposalWizardStep({
         {stepDesc}
       </ThemedText>
 
-      {/* User input */}
-      <TextInput
-        style={styles.input}
-        multiline
-        placeholder={stepPlaceholder}
-        placeholderTextColor={colors.placeholderText}
-        value={value}
-        onChangeText={onChange}
-        textAlignVertical="top"
-        accessibilityLabel={t('wizardStepInputA11y', { step: stepTitle })}
-        accessibilityRole="text"
-      />
+      {/* Editor mode toggle */}
+      <TouchableOpacity
+        onPress={handleToggleMode}
+        style={styles.editorToggle}
+        accessibilityRole="switch"
+        accessibilityState={{ checked: useVisual }}
+        accessibilityLabel={t('replyComposerEditorToggleA11y')}
+      >
+        <ThemedText variant="caption" color="secondary">
+          {useVisual ? t('replyComposerTextEditor') : t('replyComposerVisualEditor')}
+        </ThemedText>
+      </TouchableOpacity>
+
+      {/* User input — always-mounted WysiwygEditor toggling between text and visual */}
+      <View style={styles.editorArea}>
+        <WysiwygEditor
+          ref={editorRef}
+          initialMarkdown={value}
+          allowImages={false}
+          placeholder={stepPlaceholder}
+          onContentChange={handleContentChange}
+          externalMode={useVisual ? 'visual' : 'markdown'}
+          fullScreen
+        />
+      </View>
 
       {/* Action buttons */}
       <View style={styles.buttonRow}>
+        {onBack && (
+          <ThemedButton
+            style={styles.compactButton}
+            onPress={onBack}
+            accessibilityLabel={t('wizardBackA11y')}
+          >
+            {t('wizardBack')}
+          </ThemedButton>
+        )}
+        <View style={styles.buttonSpacer} />
         <ThemedButton
           style={styles.compactButton}
           onPress={onGetFeedback}
@@ -93,7 +150,7 @@ export default function ProposalWizardStep({
           accessibilityLabel={t('wizardGetFeedbackA11y')}
         >
           {enhancing ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
+            <ActivityIndicator size="small" color={OnBrandColors.text} />
           ) : (
             t('wizardGetFeedback')
           )}
@@ -146,22 +203,28 @@ const createStyles = (colors) => StyleSheet.create({
   description: {
     marginBottom: Spacing.lg,
   },
-  input: {
-    backgroundColor: colors.cardBackground,
+  editorToggle: {
+    alignSelf: 'flex-end',
+    marginBottom: Spacing.xs,
+    padding: 4,
+  },
+  editorArea: {
+    minHeight: 160,
+    maxHeight: 300,
     borderWidth: 1,
     borderColor: colors.cardBorder,
     borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    color: colors.text,
-    fontSize: 15,
-    minHeight: 160,
-    maxHeight: 300,
+    overflow: 'hidden',
+    backgroundColor: colors.cardBackground,
   },
   buttonRow: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    alignItems: 'center',
     gap: Spacing.sm,
     marginTop: Spacing.md,
+  },
+  buttonSpacer: {
+    flex: 1,
   },
   compactButton: {
     paddingVertical: 10,

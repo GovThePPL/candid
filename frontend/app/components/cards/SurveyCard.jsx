@@ -20,7 +20,13 @@ const SurveyCard = forwardRef(function SurveyCard({
 }, ref) {
   const { t } = useTranslation('cards')
   const colors = useThemeColors()
-  const styles = useMemo(() => createStyles(colors), [colors])
+  const options = survey?.options || []
+  const optionSizeTier = useMemo(() => {
+    if (options.length >= 7) return 'dense'
+    if (options.length >= 5) return 'compact'
+    return 'default'
+  }, [options.length])
+  const styles = useMemo(() => createStyles(colors, optionSizeTier), [colors, optionSizeTier])
   const [selectedOption, setSelectedOption] = useState(null)
   const { triggerFlash, flashStyle } = useFlashAnimation(colors.buttonDefault, colors.buttonSelected)
   const swipeableRef = useRef(null)
@@ -58,8 +64,6 @@ const SurveyCard = forwardRef(function SurveyCard({
     setSelectedOption(prev => prev === option.id ? null : option.id)
   }
 
-  // Get the options from the survey data
-  const options = survey?.options || []
   const questionText = survey?.question || ''
   const surveyTitle = survey?.surveyTitle || null
   const session = survey?.session || t('surveyDefaultSession')
@@ -105,7 +109,15 @@ const SurveyCard = forwardRef(function SurveyCard({
       >
         {/* Question */}
         <View style={styles.questionContainer}>
-          <ThemedText variant="statement" color="dark" style={styles.question}>{questionText}</ThemedText>
+          <ThemedText
+            variant="statement"
+            color="dark"
+            style={styles.question}
+            adjustsFontSizeToFit
+            minimumFontScale={0.75}
+          >
+            {questionText}
+          </ThemedText>
         </View>
 
         {/* Archived label */}
@@ -134,11 +146,12 @@ const SurveyCard = forwardRef(function SurveyCard({
                   ]}
                 >
                   <ThemedText
-                    variant="button"
+                    variant={optionSizeTier === 'default' ? 'button' : 'buttonSmall'}
                     style={[
                       styles.optionText,
                       selectedOption === option.id && styles.optionTextSelected,
                     ]}
+                    numberOfLines={2}
                   >
                     {option.option || option.label}
                   </ThemedText>
@@ -166,7 +179,7 @@ const SurveyCard = forwardRef(function SurveyCard({
 
 export default SurveyCard
 
-const createStyles = (colors) => StyleSheet.create({
+const createStyles = (colors, tier) => StyleSheet.create({
   // Header
   headerRow: {
     flexDirection: 'row',
@@ -201,7 +214,7 @@ const createStyles = (colors) => StyleSheet.create({
   questionContainer: {
     flex: 1,
     justifyContent: 'center',
-    paddingBottom: 24,
+    paddingBottom: tier === 'default' ? 24 : 16,
   },
   question: {
     textAlign: 'center',
@@ -213,7 +226,7 @@ const createStyles = (colors) => StyleSheet.create({
     marginBottom: 8,
   },
   optionsContainer: {
-    gap: 12,
+    gap: tier === 'dense' ? 6 : tier === 'compact' ? 8 : 12,
   },
   optionsDisabled: {
     opacity: 0.4,
@@ -221,7 +234,7 @@ const createStyles = (colors) => StyleSheet.create({
   option: {
     backgroundColor: colors.buttonDefault,
     borderRadius: 25,
-    paddingVertical: 14,
+    paddingVertical: tier === 'dense' ? 7 : tier === 'compact' ? 10 : 14,
     paddingHorizontal: 20,
     alignItems: 'center',
   },

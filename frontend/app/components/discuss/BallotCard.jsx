@@ -8,12 +8,14 @@ import { BrandColor, OnBrandColors } from '../../constants/Colors'
 import ThemedText from '../ThemedText'
 
 /**
- * Tap-to-rank ballot card for RCV voting.
+ * Ballot card for RCV voting.
  *
- * Candidates are shown in a list. Tapping assigns the next rank.
- * Tapping a ranked candidate removes its rank. Submit sends the ballot.
+ * Two modes:
+ * - **Interactive** (default): Tap-to-rank candidates, submit ballot inline.
+ * - **Read-only** (`readOnly` prop): Displays submitted rankings with a
+ *   "Modify Ballot" button that calls `onEdit`.
  */
-export default function BallotCard({ candidates, existingRankings, onSubmit, loading }) {
+export default function BallotCard({ candidates, existingRankings, onSubmit, onEdit, readOnly, loading }) {
   const { t } = useTranslation('discuss')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
@@ -75,6 +77,56 @@ export default function BallotCard({ candidates, existingRankings, onSubmit, loa
   }, [rankings, onSubmit, t])
 
   const isUpdate = existingRankings?.length > 0
+
+  // Read-only mode: show submitted rankings sorted by rank, with edit button
+  if (readOnly) {
+    const rankedCandidates = candidates
+      .filter(c => rankings[c.proposalPostId] != null)
+      .sort((a, b) => rankings[a.proposalPostId] - rankings[b.proposalPostId])
+
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Ionicons name="checkmark-circle" size={20} color={BrandColor} />
+          <ThemedText variant="h3" style={styles.title}>{t('ballotSubmittedTitle')}</ThemedText>
+        </View>
+
+        {rankedCandidates.map((candidate) => {
+          const rank = rankings[candidate.proposalPostId]
+          return (
+            <View key={candidate.proposalPostId} style={[styles.candidateRow, styles.candidateRanked]}>
+              <View style={[styles.rankBadge, styles.rankBadgeActive]}>
+                <ThemedText variant="caption" style={styles.rankText}>{rank}</ThemedText>
+              </View>
+              <View style={styles.candidateInfo}>
+                <ThemedText variant="body" numberOfLines={2} style={{ fontWeight: '600' }}>
+                  {candidate.title}
+                </ThemedText>
+              </View>
+            </View>
+          )
+        })}
+
+        {onEdit && (
+          <View style={styles.actions}>
+            <View />
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={onEdit}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={t('ballotUpdateButtonA11y')}
+            >
+              <Ionicons name="create-outline" size={18} color={colors.primary} />
+              <ThemedText variant="buttonSmall" style={{ color: colors.primary }}>
+                {t('ballotUpdateButton')}
+              </ThemedText>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    )
+  }
 
   return (
     <View style={styles.container}>
@@ -235,5 +287,12 @@ const createStyles = (colors) => StyleSheet.create({
   },
   submitText: {
     color: OnBrandColors.text,
+  },
+  editButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
   },
 })

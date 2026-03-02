@@ -19,6 +19,9 @@ jest.mock('../../lib/keycloak', () => ({
   logout: jest.fn(),
 }))
 
+// Mock atob for JWT decoding (not available in Node test env)
+global.atob = (str) => Buffer.from(str, 'base64').toString('binary')
+
 jest.mock('candid_api', () => {
   const mockAuth = { BearerAuth: { accessToken: null } }
   return {
@@ -52,6 +55,7 @@ jest.mock('../../lib/errorCollector', () => ({
 
 import {
   translateError,
+  isTokenFresh,
   getToken,
   setToken,
   getStoredUser,
@@ -196,5 +200,60 @@ describe('authApi.logout', () => {
     expect(mockDeleteSecureItem).toHaveBeenCalledWith('candid_auth_token')
     expect(AsyncStorage.removeItem).toHaveBeenCalledWith('candid_user')
     expect(CacheManager.clearAll).toHaveBeenCalled()
+  })
+})
+
+// Helper to create a JWT with a given exp (seconds since epoch)
+function makeJwt(exp) {
+  const header = Buffer.from(JSON.stringify({ alg: 'RS256' })).toString('base64url')
+  const payload = Buffer.from(JSON.stringify({ sub: 'user1', exp })).toString('base64url')
+  return `${header}.${payload}.signature`
+}
+
+describe('isTokenFresh', () => {
+  it('returns true for a non-expired token', () => {
+    const exp = Math.floor(Date.now() / 1000) + 3600 // 1 hour from now
+    const token = makeJwt(exp)
+    expect(isTokenFresh(token)).toBe(true)
+  })
+
+  it('returns true for a token expiring 1 second from now', () => {
+    const exp = Math.floor(Date.now() / 1000) + 1
+    const token = makeJwt(exp)
+    expect(isTokenFresh(token)).toBe(true)
+  })
+
+  it('returns false for an expired token', () => {
+    const exp = Math.floor(Date.now() / 1000) - 60 // 1 minute ago
+    const token = makeJwt(exp)
+    expect(isTokenFresh(token)).toBe(false)
+  })
+
+  it('returns false for a token that expired exactly now', () => {
+    const exp = Math.floor(Date.now() / 1000) // exp === now => not fresh (> vs >=)
+    const token = makeJwt(exp)
+    expect(isTokenFresh(token)).toBe(false)
+  })
+
+  it('returns false for a malformed token (not 3 parts)', () => {
+    expect(isTokenFresh('not-a-jwt')).toBe(false)
+    expect(isTokenFresh('two.parts')).toBe(false)
+    expect(isTokenFresh('')).toBe(false)
+  })
+
+  it('returns false for a token with invalid base64 payload', () => {
+    expect(isTokenFresh('header.!!!invalid!!!.signature')).toBe(false)
+  })
+
+  it('returns false for null or undefined', () => {
+    expect(isTokenFresh(null)).toBe(false)
+    expect(isTokenFresh(undefined)).toBe(false)
+  })
+
+  it('returns falsy for a JWT payload without exp claim', () => {
+    const header = Buffer.from(JSON.stringify({ alg: 'RS256' })).toString('base64url')
+    const payload = Buffer.from(JSON.stringify({ sub: 'user1' })).toString('base64url')
+    const token = `${header}.${payload}.signature`
+    expect(isTokenFresh(token)).toBeFalsy()
   })
 })

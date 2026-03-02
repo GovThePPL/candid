@@ -36,7 +36,7 @@ beforeEach(() => {
 })
 
 describe('getOrRefreshToken', () => {
-  it('returns token as-is when >60s remaining', async () => {
+  it('returns token as-is when >300s remaining', async () => {
     const exp = Math.floor(Date.now() / 1000) + 600 // 10 min from now
     const token = makeJwt(exp)
     mockGetSecureItem.mockResolvedValue(token)
@@ -46,7 +46,7 @@ describe('getOrRefreshToken', () => {
     expect(keycloak.refreshToken).not.toHaveBeenCalled()
   })
 
-  it('refreshes token when <=60s remaining', async () => {
+  it('refreshes token when <=300s remaining', async () => {
     const exp = Math.floor(Date.now() / 1000) + 30 // 30s from now
     const oldToken = makeJwt(exp)
     mockGetSecureItem.mockResolvedValue(oldToken)
@@ -59,6 +59,21 @@ describe('getOrRefreshToken', () => {
     expect(result).toBe(freshToken)
     expect(keycloak.refreshToken).toHaveBeenCalledTimes(1)
     // Verify setToken was called (stores via secureStorage)
+    expect(mockSetSecureItem).toHaveBeenCalledWith('candid_auth_token', freshToken)
+  })
+
+  it('refreshes token when 200s remaining (within 5-min window)', async () => {
+    const exp = Math.floor(Date.now() / 1000) + 200 // 200s from now
+    const oldToken = makeJwt(exp)
+    mockGetSecureItem.mockResolvedValue(oldToken)
+
+    const newExp = Math.floor(Date.now() / 1000) + 3600
+    const freshToken = makeJwt(newExp)
+    keycloak.refreshToken.mockResolvedValue({ accessToken: freshToken })
+
+    const result = await getOrRefreshToken()
+    expect(result).toBe(freshToken)
+    expect(keycloak.refreshToken).toHaveBeenCalledTimes(1)
     expect(mockSetSecureItem).toHaveBeenCalledWith('candid_auth_token', freshToken)
   })
 

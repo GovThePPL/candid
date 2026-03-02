@@ -19,7 +19,13 @@ const DemographicCard = forwardRef(function DemographicCard({
 }, ref) {
   const { t } = useTranslation('cards')
   const colors = useThemeColors()
-  const styles = useMemo(() => createStyles(colors), [colors])
+  const options = demographic?.options || []
+  const optionSizeTier = useMemo(() => {
+    if (options.length >= 7) return 'dense'
+    if (options.length >= 5) return 'compact'
+    return 'default'
+  }, [options.length])
+  const styles = useMemo(() => createStyles(colors, optionSizeTier), [colors, optionSizeTier])
   const [selectedOption, setSelectedOption] = useState(null)
   const { triggerFlash, flashStyle } = useFlashAnimation(colors.buttonDefault, colors.buttonSelected)
   const swipeableRef = useRef(null)
@@ -57,8 +63,6 @@ const DemographicCard = forwardRef(function DemographicCard({
     setSelectedOption(prev => prev === option.value ? null : option.value)
   }
 
-  // Get the options from the demographic data
-  const options = demographic?.options || []
   const questionText = demographic?.question || ''
 
   const headerContent = (
@@ -97,7 +101,15 @@ const DemographicCard = forwardRef(function DemographicCard({
       >
         {/* Question */}
         <View style={styles.questionContainer}>
-          <ThemedText variant="statement" color="dark" style={styles.question}>{questionText}</ThemedText>
+          <ThemedText
+            variant="statement"
+            color="dark"
+            style={styles.question}
+            adjustsFontSizeToFit
+            minimumFontScale={0.75}
+          >
+            {questionText}
+          </ThemedText>
         </View>
 
         {/* Options */}
@@ -121,11 +133,12 @@ const DemographicCard = forwardRef(function DemographicCard({
                   ]}
                 >
                   <ThemedText
-                    variant="button"
+                    variant={optionSizeTier === 'default' ? 'button' : 'buttonSmall'}
                     style={[
                       styles.optionText,
                       selectedOption === option.value && styles.optionTextSelected,
                     ]}
+                    numberOfLines={2}
                   >
                     {option.label}
                   </ThemedText>
@@ -153,7 +166,7 @@ const DemographicCard = forwardRef(function DemographicCard({
 
 export default DemographicCard
 
-const createStyles = (colors) => StyleSheet.create({
+const createStyles = (colors, tier) => StyleSheet.create({
   // Header
   headerRow: {
     flexDirection: 'row',
@@ -181,18 +194,18 @@ const createStyles = (colors) => StyleSheet.create({
   questionContainer: {
     flex: 1,
     justifyContent: 'center',
-    paddingBottom: 24,
+    paddingBottom: tier === 'default' ? 24 : 16,
   },
   question: {
     textAlign: 'center',
   },
   optionsContainer: {
-    gap: 12,
+    gap: tier === 'dense' ? 6 : tier === 'compact' ? 8 : 12,
   },
   option: {
     backgroundColor: colors.buttonDefault,
     borderRadius: 25,
-    paddingVertical: 14,
+    paddingVertical: tier === 'dense' ? 7 : tier === 'compact' ? 10 : 14,
     paddingHorizontal: 20,
     alignItems: 'center',
   },

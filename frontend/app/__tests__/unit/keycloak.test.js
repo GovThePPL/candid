@@ -265,6 +265,84 @@ describe('refreshToken', () => {
   })
 })
 
+describe('refreshToken concurrent serialization', () => {
+  it('two concurrent refreshToken() calls share the same promise (only one HTTP call)', async () => {
+    mockGetSecureItem.mockImplementation((key) => {
+      if (key === 'candid_refresh_token') return Promise.resolve('stored-rt')
+      return Promise.resolve(null)
+    })
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({
+        access_token: 'shared-at',
+        refresh_token: 'shared-rt',
+      }),
+    })
+
+    // Fire two calls concurrently (before either resolves)
+    const promise1 = refreshToken()
+    const promise2 = refreshToken()
+
+    const [result1, result2] = await Promise.all([promise1, promise2])
+
+    // Both should return the same result
+    expect(result1.accessToken).toBe('shared-at')
+    expect(result2.accessToken).toBe('shared-at')
+    expect(result1).toBe(result2) // Same object reference (same promise)
+
+    // Only one HTTP call should have been made
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('after the shared promise resolves, a new call makes a fresh HTTP request', async () => {
+    mockGetSecureItem.mockImplementation((key) => {
+      if (key === 'candid_refresh_token') return Promise.resolve('stored-rt')
+      return Promise.resolve(null)
+    })
+
+    // First call
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({
+        access_token: 'first-at',
+        refresh_token: 'first-rt',
+      }),
+    })
+
+    const result1 = await refreshToken()
+    expect(result1.accessToken).toBe('first-at')
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+
+    // After the first call resolves, _refreshPromise should be null again.
+    // A new call should make a fresh HTTP request.
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({
+        access_token: 'second-at',
+        refresh_token: 'second-rt',
+      }),
+    })
+
+    const result2 = await refreshToken()
+    expect(result2.accessToken).toBe('second-at')
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('concurrent calls share the same null result when no stored token', async () => {
+    // No stored refresh token -> both return null, no fetch calls
+    mockGetSecureItem.mockResolvedValue(null)
+
+    const promise1 = refreshToken()
+    const promise2 = refreshToken()
+
+    const [result1, result2] = await Promise.all([promise1, promise2])
+
+    expect(result1).toBeNull()
+    expect(result2).toBeNull()
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+})
+
 describe('logout', () => {
   it('removes refresh token from storage', async () => {
     await logout()

@@ -16,6 +16,7 @@ import ModerationQueueContent from "../../components/ModerationQueueContent"
 import SessionSelectorModal from "../../components/SessionSelectorModal"
 import AcceptedProposalModal from "../../components/AcceptedProposalModal"
 import SessionOverviewModal from "../../components/SessionOverviewModal"
+import BallotModal from "../../components/discuss/BallotModal"
 import { useLocationSession } from "../../contexts/LocationSessionContext"
 
 export default function DashboardLayout() {
@@ -145,8 +146,9 @@ export default function DashboardLayout() {
             </View>
           </View>
           <SessionSelectorModal visible={sessionSelectorVisible} onClose={closeSessionSelector} />
-          <AcceptedProposalModal visible={proposalModalVisible} onClose={closeProposalModal} proposal={acceptedProposal} />
           <SessionOverviewModal />
+          <AcceptedProposalModal visible={proposalModalVisible} onClose={closeProposalModal} proposal={acceptedProposal} />
+          <BallotModal />
         </ToastProvider>
         </GlossaryProvider>
         </NotificationProvider>
@@ -161,8 +163,9 @@ export default function DashboardLayout() {
       <ToastProvider>
         {stackNavigator}
         <SessionSelectorModal visible={sessionSelectorVisible} onClose={closeSessionSelector} />
-        <AcceptedProposalModal visible={proposalModalVisible} onClose={closeProposalModal} proposal={acceptedProposal} />
         <SessionOverviewModal />
+        <AcceptedProposalModal visible={proposalModalVisible} onClose={closeProposalModal} proposal={acceptedProposal} />
+        <BallotModal />
       </ToastProvider>
       </GlossaryProvider>
       </NotificationProvider>

@@ -1,11 +1,11 @@
-import { StyleSheet, View, TouchableOpacity, Platform, Dimensions, Alert, BackHandler } from 'react-native'
+import { StyleSheet, View, TouchableOpacity, Platform, Dimensions, Alert, BackHandler, ScrollView, RefreshControl } from 'react-native'
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useIsFocused } from '@react-navigation/native'
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, interpolate, runOnJS } from 'react-native-reanimated'
 import { useRouter } from 'expo-router'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useTranslation } from 'react-i18next'
-import { SemanticColors, BrandColor } from '../constants/Colors'
+import { SemanticColors, BrandColor, OnBrandColors } from '../constants/Colors'
 import { Shadows } from '../constants/Theme'
 import { useThemeColors } from '../hooks/useThemeColors'
 import useIsDesktop from '../hooks/useIsDesktop'
@@ -37,6 +37,7 @@ import ChatRequestIndicator from './ChatRequestIndicator'
 import ReportModal from './ReportModal'
 import ModerationActionModal from './ModerationActionModal'
 import GlossaryDrawer from './GlossaryDrawer'
+import SessionInfoCard from './SessionInfoCard'
 import { useGlossaryDrawer } from '../hooks/useGlossaryDrawer'
 import { Ionicons } from '@expo/vector-icons'
 
@@ -128,6 +129,7 @@ export default function CardQueueContent() {
   const [createInitialStatement, setCreateInitialStatement] = useState('')
   const [showAddPositionModal, setShowAddPositionModal] = useState(false)
   const [showRules, setShowRules] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
 
   // Ring buffer: 4 fixed slots with stable keys to prevent remounting
   const [slotCards, setSlotCards] = useState([null, null, null, null])
@@ -1171,10 +1173,11 @@ export default function CardQueueContent() {
           <BridgingKudosCard
             ref={isBackCard ? undefined : currentCardRef}
             bridgingKudos={card.data}
+            location={sessionData?.locationCode ? { code: sessionData.locationCode, name: sessionData.locationName } : null}
+            session={sessionData ? { label: sessionData.label } : null}
             onDismiss={isBackCard ? undefined : handleDismissBridgingKudos}
             isBackCard={isBackCard}
             backCardAnimatedValue={backCardProgress}
-
           />
         )
 
@@ -1216,7 +1219,7 @@ export default function CardQueueContent() {
             accessibilityRole="button"
             accessibilityLabel={t('chatAction')}
           >
-            <Ionicons name="chatbubble-outline" size={18} color="#FFFFFF" />
+            <Ionicons name="chatbubble-outline" size={18} color={OnBrandColors.text} />
             <ThemedText variant="label" color="inverse">{t('chatAction')}</ThemedText>
             {hint('W')}
           </TouchableOpacity>
@@ -1228,7 +1231,7 @@ export default function CardQueueContent() {
             accessibilityRole="button"
             accessibilityLabel={t('disagreeAction')}
           >
-            <Ionicons name="close" size={18} color="#FFFFFF" />
+            <Ionicons name="close" size={18} color={OnBrandColors.text} />
             <ThemedText variant="label" color="inverse">{t('disagreeAction')}</ThemedText>
             {hint('A')}
           </TouchableOpacity>
@@ -1240,7 +1243,7 @@ export default function CardQueueContent() {
             accessibilityRole="button"
             accessibilityLabel={t('agreeAction')}
           >
-            <Ionicons name="checkmark" size={18} color="#FFFFFF" />
+            <Ionicons name="checkmark" size={18} color={OnBrandColors.text} />
             <ThemedText variant="label" color="inverse">{t('agreeAction')}</ThemedText>
             {hint('D')}
           </TouchableOpacity>
@@ -1252,7 +1255,7 @@ export default function CardQueueContent() {
             accessibilityRole="button"
             accessibilityLabel={t('skipAction')}
           >
-            <Ionicons name="arrow-down-outline" size={18} color="#FFFFFF" />
+            <Ionicons name="arrow-down-outline" size={18} color={OnBrandColors.text} />
             <ThemedText variant="label" color="inverse">{t('skipAction')}</ThemedText>
             {hint('S')}
           </TouchableOpacity>
@@ -1267,7 +1270,7 @@ export default function CardQueueContent() {
             accessibilityRole="button"
             accessibilityLabel={t('declineAction')}
           >
-            <Ionicons name="close" size={18} color="#FFFFFF" />
+            <Ionicons name="close" size={18} color={OnBrandColors.text} />
             <ThemedText variant="label" color="inverse">{t('declineAction')}</ThemedText>
             {hint('A')}
           </TouchableOpacity>
@@ -1279,7 +1282,7 @@ export default function CardQueueContent() {
             accessibilityRole="button"
             accessibilityLabel={t('acceptAction')}
           >
-            <Ionicons name="checkmark" size={18} color="#FFFFFF" />
+            <Ionicons name="checkmark" size={18} color={OnBrandColors.text} />
             <ThemedText variant="label" color="inverse">{t('acceptAction')}</ThemedText>
             {hint('D')}
           </TouchableOpacity>
@@ -1296,7 +1299,7 @@ export default function CardQueueContent() {
             accessibilityRole="button"
             accessibilityLabel={t('submitAction')}
           >
-            <Ionicons name="checkmark" size={18} color="#FFFFFF" />
+            <Ionicons name="checkmark" size={18} color={OnBrandColors.text} />
             <ThemedText variant="label" color="inverse">{t('submitAction')}</ThemedText>
             {hint('D')}
           </TouchableOpacity>
@@ -1308,7 +1311,7 @@ export default function CardQueueContent() {
             accessibilityRole="button"
             accessibilityLabel={t('skipAction')}
           >
-            <Ionicons name="arrow-down-outline" size={18} color="#FFFFFF" />
+            <Ionicons name="arrow-down-outline" size={18} color={OnBrandColors.text} />
             <ThemedText variant="label" color="inverse">{t('skipAction')}</ThemedText>
             {hint('S')}
           </TouchableOpacity>
@@ -1323,7 +1326,7 @@ export default function CardQueueContent() {
             accessibilityRole="button"
             accessibilityLabel={currentCard.data?.userAlreadySentKudos ? t('acknowledgeAction') : t('sendKudosAction')}
           >
-            <Ionicons name={currentCard.data?.userAlreadySentKudos ? 'checkmark' : 'heart'} size={18} color="#FFFFFF" />
+            <Ionicons name={currentCard.data?.userAlreadySentKudos ? 'checkmark' : 'heart'} size={18} color={OnBrandColors.text} />
             <ThemedText variant="label" color="inverse">
               {currentCard.data?.userAlreadySentKudos ? t('acknowledgeAction') : t('sendKudosAction')}
             </ThemedText>
@@ -1338,7 +1341,7 @@ export default function CardQueueContent() {
               accessibilityRole="button"
               accessibilityLabel={t('dismissAction')}
             >
-              <Ionicons name="arrow-down-outline" size={18} color="#FFFFFF" />
+              <Ionicons name="arrow-down-outline" size={18} color={OnBrandColors.text} />
               <ThemedText variant="label" color="inverse">{t('dismissAction')}</ThemedText>
               {hint('S')}
             </TouchableOpacity>
@@ -1354,7 +1357,7 @@ export default function CardQueueContent() {
             accessibilityRole="button"
             accessibilityLabel={t('noThanksAction')}
           >
-            <Ionicons name="close" size={18} color="#FFFFFF" />
+            <Ionicons name="close" size={18} color={OnBrandColors.text} />
             <ThemedText variant="label" color="inverse">{t('noThanksAction')}</ThemedText>
             {hint('A')}
           </TouchableOpacity>
@@ -1366,7 +1369,7 @@ export default function CardQueueContent() {
             accessibilityRole="button"
             accessibilityLabel={t('enableAction')}
           >
-            <Ionicons name="checkmark" size={18} color="#FFFFFF" />
+            <Ionicons name="checkmark" size={18} color={OnBrandColors.text} />
             <ThemedText variant="label" color="inverse">{t('enableAction')}</ThemedText>
             {hint('D')}
           </TouchableOpacity>
@@ -1381,7 +1384,7 @@ export default function CardQueueContent() {
             accessibilityRole="button"
             accessibilityLabel={t('dismissAction')}
           >
-            <Ionicons name="arrow-down-outline" size={18} color="#FFFFFF" />
+            <Ionicons name="arrow-down-outline" size={18} color={OnBrandColors.text} />
             <ThemedText variant="label" color="inverse">{t('dismissAction')}</ThemedText>
             {hint('S')}
           </TouchableOpacity>
@@ -1523,10 +1526,28 @@ export default function CardQueueContent() {
       createSlideAnim.value = 0
       createSlideAnim.value = withTiming(1, { duration: 300 })
     }
+    const handleEmptyRefresh = async () => {
+      setRefreshing(true)
+      seenCardIdsRef.current.clear()
+      await fetchMoreCards(true)
+      setRefreshing(false)
+    }
     return (
       <View style={[styles.container, isDesktop && styles.containerDesktop]}>
-        <View style={[styles.cardContainer, isDesktop && styles.cardContainerDesktop]}>
+        <ScrollView
+          contentContainerStyle={[styles.cardContainer, { flexGrow: 1 }, isDesktop && styles.cardContainerDesktop]}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleEmptyRefresh}
+              tintColor={colors.secondaryText}
+              colors={[colors.primarySurface]}
+              accessibilityLabel={t('common:pullToRefresh')}
+            />
+          }
+        >
           <View style={styles.cardStack}>
+            <SessionInfoCard style={styles.sessionInfoOverride} />
             {/* Empty state content */}
             <View style={styles.centerContent}>
               <ThemedText variant="statement" color="primary" style={styles.emptyTitle}>{t('emptyTitle')}</ThemedText>
@@ -1567,7 +1588,7 @@ export default function CardQueueContent() {
               </Animated.View>
             )}
           </View>
-        </View>
+        </ScrollView>
         <CommunityRulesModal
           visible={showRules}
           onClose={() => setShowRules(false)}
@@ -1806,6 +1827,10 @@ const createStyles = (colors) => StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 25,
   },
+  sessionInfoOverride: {
+    marginHorizontal: 4, // Compensate for cardContainer's 8px paddingHorizontal to match other tabs' 12px total
+    marginTop: 0, // cardContainer's paddingTop: 8 already provides the gap
+  },
   emptyTitle: {
     fontWeight: '600',
     marginBottom: 12,
@@ -1898,14 +1923,14 @@ const createStyles = (colors) => StyleSheet.create({
     minWidth: '46%',
   },
   shortcutHint: {
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: OnBrandColors.overlay,
     borderRadius: 4,
     paddingHorizontal: 5,
     paddingVertical: 1,
     marginLeft: 2,
   },
   shortcutHintText: {
-    color: '#FFFFFF',
+    color: OnBrandColors.text,
     fontSize: 11,
     fontWeight: '700',
     lineHeight: 14,

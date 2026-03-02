@@ -104,6 +104,7 @@
   "chatMode": "Chat mode",
   "deleteMode": "Delete mode",
   "dismissModal": "Dismiss",
+  "closeLightboxA11y": "Close image preview",
   "locationSelectorA11y": "Location: {{name}}",
   "sessionSelectorA11y": "Session: {{name}}",
   "sessionSelectorTitle": "Select Session",

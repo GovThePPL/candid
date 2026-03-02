@@ -14,6 +14,7 @@ import EmptyState from '../../../../components/EmptyState'
 import ThemedText from '../../../../components/ThemedText'
 import LocationFilterButton from '../../../../components/LocationFilterButton'
 import LocationSessionBadge from '../../../../components/LocationSessionBadge'
+import SessionInfoCard from '../../../../components/SessionInfoCard'
 import { SkeletonPulse, SkeletonBox, SkeletonLine } from '../../../../components/Skeleton'
 import { useAuth } from '../../../../contexts/UserContext'
 import { useLocationSession } from '../../../../contexts/LocationSessionContext'
@@ -393,7 +394,7 @@ export default function WikiScreen() {
         />
         <ThemedText variant="bodyBold" color="dark">{item.term}</ThemedText>
         {item.summary ? (
-          <ThemedText variant="bodySmall" color="secondary">
+          <ThemedText variant="bodySmall" color="secondary" style={{ fontStyle: 'italic' }}>
             {item.summary}
           </ThemedText>
         ) : null}
@@ -404,52 +405,42 @@ export default function WikiScreen() {
   const pageKeyExtractor = useCallback((item) => String(item.id || item.slug), [])
   const termKeyExtractor = useCallback((item) => item.slug, [])
 
-  // --- Tab toggle ---
-  const tabToggle = useMemo(() => (
-    <View style={styles.tabRow}>
-      <TouchableOpacity
-        style={[styles.tab, activeTab === 'terms' && styles.tabActive]}
-        onPress={() => setActiveTab('terms')}
-        accessibilityRole="tab"
-        accessibilityState={{ selected: activeTab === 'terms' }}
-        accessibilityLabel={t('wikiTabTermsA11y')}
+  // --- Controls row (tab bar + suggestions button) ---
+  const controlsRow = useMemo(() => (
+    <View style={styles.controlsRow}>
+      <View
+        style={styles.tabBar}
+        accessibilityRole="tablist"
       >
-        <ThemedText
-          variant="label"
-          style={[styles.tabText, activeTab === 'terms' && styles.tabTextActive]}
+        <TouchableOpacity
+          style={[styles.tabButton, activeTab === 'terms' && styles.tabButtonActive]}
+          onPress={() => setActiveTab('terms')}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: activeTab === 'terms' }}
+          accessibilityLabel={t('wikiTabTermsA11y')}
         >
-          {t('wikiTabTerms')}
-        </ThemedText>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.tab, activeTab === 'pages' && styles.tabActive]}
-        onPress={() => setActiveTab('pages')}
-        accessibilityRole="tab"
-        accessibilityState={{ selected: activeTab === 'pages' }}
-        accessibilityLabel={t('wikiTabPagesA11y')}
-      >
-        <ThemedText
-          variant="label"
-          style={[styles.tabText, activeTab === 'pages' && styles.tabTextActive]}
+          <ThemedText
+            variant="buttonSmall"
+            style={[styles.tabLabel, activeTab === 'terms' && styles.tabLabelActive]}
+          >
+            {t('wikiTabTerms')}
+          </ThemedText>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabButton, activeTab === 'pages' && styles.tabButtonActive]}
+          onPress={() => setActiveTab('pages')}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: activeTab === 'pages' }}
+          accessibilityLabel={t('wikiTabPagesA11y')}
         >
-          {t('wikiTabPages')}
-        </ThemedText>
-      </TouchableOpacity>
-    </View>
-  ), [activeTab, styles, t])
-
-  // --- Shared action bar ---
-  const actionBar = useMemo(() => (
-    <View style={styles.actionBar}>
-      <TouchableOpacity
-        style={styles.suggestButton}
-        onPress={() => setShowSuggestMenu(true)}
-        accessibilityRole="button"
-        accessibilityLabel={t('suggestNewA11y')}
-      >
-        <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
-        <ThemedText variant="label" color="primary">{t('suggestNew')}</ThemedText>
-      </TouchableOpacity>
+          <ThemedText
+            variant="buttonSmall"
+            style={[styles.tabLabel, activeTab === 'pages' && styles.tabLabelActive]}
+          >
+            {t('wikiTabPages')}
+          </ThemedText>
+        </TouchableOpacity>
+      </View>
       <TouchableOpacity
         style={styles.suggestionsButton}
         onPress={() => router.push('/wiki/suggestions')}
@@ -458,7 +449,7 @@ export default function WikiScreen() {
           ? t('suggestionsBadgeA11y', { count: suggestionCount })
           : t('suggestionsA11y')}
       >
-        <Ionicons name="list-outline" size={18} color={colors.primary} />
+        <Ionicons name="list-outline" size={16} color={colors.primary} />
         <ThemedText variant="label" color="primary">{t('suggestions')}</ThemedText>
         {suggestionCount > 0 && (
           <View style={styles.badge}>
@@ -467,7 +458,7 @@ export default function WikiScreen() {
         )}
       </TouchableOpacity>
     </View>
-  ), [showSuggestMenu, suggestionCount, colors, styles, t, router])
+  ), [activeTab, suggestionCount, colors, styles, t, router])
 
   // --- Shared filter dropdowns ---
   const filterDropdowns = useMemo(() => (
@@ -530,9 +521,10 @@ export default function WikiScreen() {
 
   // --- Shared header (rendered outside FlatList to avoid TextInput focus loss) ---
   const listHeader = (
+    <>
+    <SessionInfoCard />
     <View style={styles.filtersContainer}>
-      {actionBar}
-      {tabToggle}
+      {controlsRow}
 
       {/* Search bar — terms vs pages */}
       <View style={styles.searchBar}>
@@ -572,6 +564,7 @@ export default function WikiScreen() {
 
       {showFilters && filterDropdowns}
     </View>
+    </>
   )
 
   const isLoading = activeTab === 'pages' ? (loading && !refreshing) : (termsLoading && !termsRefreshing)
@@ -590,47 +583,69 @@ export default function WikiScreen() {
           />
         </View>
       ) : activeTab === 'pages' ? (
-        <FlatList
-          data={pages}
-          renderItem={renderPageItem}
-          keyExtractor={pageKeyExtractor}
-          ListHeaderComponent={listHeader}
-          ListEmptyComponent={
-            <EmptyState
-              icon="book-outline"
-              title={t('wikiNoResults')}
-              subtitle={t('wikiNoResultsSubtitle')}
-            />
-          }
-          refreshing={refreshing}
-          onRefresh={handleRefresh}
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={[
-            styles.listContent,
-            { paddingBottom: insets.bottom + 16 },
-          ]}
-        />
+        <View style={styles.listWrapper}>
+          <FlatList
+            data={pages}
+            renderItem={renderPageItem}
+            keyExtractor={pageKeyExtractor}
+            ListHeaderComponent={listHeader}
+            ListEmptyComponent={
+              <EmptyState
+                icon="book-outline"
+                title={t('wikiNoResults')}
+                subtitle={t('wikiNoResultsSubtitle')}
+              />
+            }
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={[
+              styles.listContent,
+              { paddingBottom: insets.bottom + 16 },
+            ]}
+          />
+          <TouchableOpacity
+            style={styles.fab}
+            onPress={() => setShowSuggestMenu(true)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={t('suggestNewA11y')}
+          >
+            <Ionicons name="add" size={28} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
       ) : (
-        <FlatList
-          data={filteredTerms}
-          renderItem={renderTermItem}
-          keyExtractor={termKeyExtractor}
-          ListHeaderComponent={listHeader}
-          ListEmptyComponent={
-            <EmptyState
-              icon="text-outline"
-              title={t('wikiNoTerms')}
-              subtitle={t('wikiNoTermsSubtitle')}
-            />
-          }
-          refreshing={termsRefreshing}
-          onRefresh={handleRefresh}
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={[
-            styles.listContent,
-            { paddingBottom: insets.bottom + 16 },
-          ]}
-        />
+        <View style={styles.listWrapper}>
+          <FlatList
+            data={filteredTerms}
+            renderItem={renderTermItem}
+            keyExtractor={termKeyExtractor}
+            ListHeaderComponent={listHeader}
+            ListEmptyComponent={
+              <EmptyState
+                icon="text-outline"
+                title={t('wikiNoTerms')}
+                subtitle={t('wikiNoTermsSubtitle')}
+              />
+            }
+            refreshing={termsRefreshing}
+            onRefresh={handleRefresh}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={[
+              styles.listContent,
+              { paddingBottom: insets.bottom + 16 },
+            ]}
+          />
+          <TouchableOpacity
+            style={styles.fab}
+            onPress={() => setShowSuggestMenu(true)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={t('suggestNewA11y')}
+          >
+            <Ionicons name="add" size={28} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
       )}
 
       {/* Session Picker Modal */}
@@ -759,37 +774,56 @@ const createStyles = (colors) => StyleSheet.create({
   },
   listContent: {
     flexGrow: 1,
-    paddingTop: 8,
   },
   filtersContainer: {
     paddingHorizontal: 16,
     paddingBottom: 12,
     gap: 10,
   },
-  tabRow: {
+  listWrapper: {
+    flex: 1,
+  },
+  controlsRow: {
     flexDirection: 'row',
-    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: Spacing.sm,
+  },
+  tabBar: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  tabButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
     backgroundColor: colors.cardBackground,
     borderWidth: 1,
     borderColor: colors.cardBorder,
-    overflow: 'hidden',
   },
-  tab: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-  },
-  tabActive: {
+  tabButtonActive: {
     backgroundColor: colors.buttonSelected,
+    borderColor: colors.buttonSelected,
   },
-  tabText: {
+  tabLabel: {
     color: colors.secondaryText,
-    fontSize: 14,
     fontWeight: '500',
   },
-  tabTextActive: {
+  tabLabelActive: {
     color: colors.buttonSelectedText,
     fontWeight: '600',
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.fabBg,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadows.card,
   },
   searchBar: {
     flexDirection: 'row',
@@ -875,23 +909,6 @@ const createStyles = (colors) => StyleSheet.create({
   modalItemActive: {
     backgroundColor: colors.badgeBg,
   },
-  actionBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  suggestButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.primary,
-    backgroundColor: colors.cardBackground,
-  },
   suggestOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -922,9 +939,9 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingVertical: 6,
+    paddingVertical: 10,
     paddingHorizontal: 12,
-    borderRadius: 16,
+    borderRadius: 8,
     backgroundColor: colors.cardBackground,
     borderWidth: 1,
     borderColor: colors.cardBorder,

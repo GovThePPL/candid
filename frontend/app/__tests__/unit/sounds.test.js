@@ -128,11 +128,11 @@ describe('sound functions on web', () => {
   })
 
   describe('playUpvoteSound', () => {
-    it('creates one short oscillator at 600Hz', async () => {
+    it('creates one short oscillator at 650Hz', async () => {
       await playUpvoteSound()
       expect(mockAudioContext.createOscillator).toHaveBeenCalledTimes(1)
       const osc = mockAudioContext.createOscillator.mock.results[0].value
-      expect(osc.frequency.setValueAtTime).toHaveBeenCalledWith(600, expect.any(Number))
+      expect(osc.frequency.setValueAtTime).toHaveBeenCalledWith(650, expect.any(Number))
     })
   })
 

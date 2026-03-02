@@ -39,6 +39,9 @@ export function LocationSessionProvider({ children }) {
   const [votingRound, setVotingRound] = useState(null)
   const [acceptedProposal, setAcceptedProposal] = useState(null)
   const [proposalModalVisible, setProposalModalVisible] = useState(false)
+  const [ballotModalVisible, setBallotModalVisible] = useState(false)
+  const [ballotVersion, setBallotVersion] = useState(0)
+  const ballotCheckedRef = useRef(null)
   const fetchIdRef = useRef(0)
   const vrFetchIdRef = useRef(0)
   const apFetchIdRef = useRef(0)
@@ -101,6 +104,7 @@ export function LocationSessionProvider({ children }) {
 
   const setSelectedSession = useCallback((id) => {
     setSelectedSessionRaw(id)
+    setViewingStage(null)
     if (id) {
       AsyncStorage.setItem(SESSION_KEY, id).catch(() => {})
     } else {
@@ -191,6 +195,10 @@ export function LocationSessionProvider({ children }) {
       })
   }, [selectedSession, selectedLocation, user, sessionData?.stage])
 
+  const openBallotModal = useCallback(() => setBallotModalVisible(true), [])
+  const closeBallotModal = useCallback(() => setBallotModalVisible(false), [])
+  const bumpBallotVersion = useCallback(() => setBallotVersion(v => v + 1), [])
+
   const openProposalModal = useCallback(() => setProposalModalVisible(true), [])
   const closeProposalModal = useCallback(() => setProposalModalVisible(false), [])
 
@@ -231,6 +239,34 @@ export function LocationSessionProvider({ children }) {
     [currentStage, viewingStage, sessionData?.proposalMethod, votingRound?.status]
   )
 
+  // Auto-open ballot modal when entering a voting_open stage without an existing ballot
+  useEffect(() => {
+    if (!selectedSession || !user || isReadOnly) {
+      setBallotModalVisible(false)
+      ballotCheckedRef.current = null
+      return
+    }
+    if (votingRound?.status !== 'voting_open') {
+      setBallotModalVisible(false)
+      ballotCheckedRef.current = null
+      return
+    }
+    const key = `${selectedSession}:${roundType}`
+    if (ballotCheckedRef.current === key) return
+    ballotCheckedRef.current = key
+
+    const rt = roundType || undefined
+    sessionsApiWrapper.getBallot(selectedSession, { roundType: rt })
+      .then(data => {
+        if (!data?.rankings?.length) {
+          setBallotModalVisible(true)
+        }
+      })
+      .catch(() => {
+        setBallotModalVisible(true)
+      })
+  }, [selectedSession, user, isReadOnly, votingRound?.status, roundType])
+
   const openSessionSelector = useCallback(() => setSessionSelectorVisible(true), [])
   const closeSessionSelector = useCallback(() => setSessionSelectorVisible(false), [])
   const openSessionOverview = useCallback(() => setSessionOverviewVisible(true), [])
@@ -263,6 +299,11 @@ export function LocationSessionProvider({ children }) {
     proposalModalVisible,
     openProposalModal,
     closeProposalModal,
+    ballotModalVisible,
+    openBallotModal,
+    closeBallotModal,
+    ballotVersion,
+    bumpBallotVersion,
   }), [
     selectedLocation, selectedSession, setSelectedLocation, setSelectedSession, loaded,
     sessionData, sessionLoading, viewingStage, setViewingStage, refreshSessionData,
@@ -271,6 +312,7 @@ export function LocationSessionProvider({ children }) {
     sessionOverviewVisible, openSessionOverview, closeSessionOverview,
     votingRound, roundType,
     acceptedProposal, proposalModalVisible, openProposalModal, closeProposalModal,
+    ballotModalVisible, openBallotModal, closeBallotModal, ballotVersion, bumpBallotVersion,
   ])
 
   return (

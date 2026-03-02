@@ -40,6 +40,8 @@ services:
             GOOGLE_CLIENT_ID_ANDROID: ${GOOGLE_CLIENT_ID_ANDROID:-}
             GOOGLE_CLIENT_ID_WEB: ${GOOGLE_CLIENT_ID_WEB:-}
             APPLE_SERVICE_ID: ${APPLE_SERVICE_ID:-com.candid.app}
+            # Email requirement (set to 'false' for demo/dev without SMTP)
+            EMAIL_REQUIRED: ${EMAIL_REQUIRED:-true}
             # SMS / Phone verification
             SMS_VERIFICATION_ENABLED: ${SMS_VERIFICATION_ENABLED:-false}
             TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}

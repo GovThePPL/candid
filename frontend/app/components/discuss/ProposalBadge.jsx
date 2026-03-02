@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, memo } from 'react'
 import { View, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
@@ -12,7 +12,7 @@ import ThemedText from '../ThemedText'
  * @param {'draft'|'finalized'} props.status - Proposal status
  * @param {boolean} [props.isSessionTopic] - Show as session topic badge (white on purple card)
  */
-export default function ProposalBadge({ status, isSessionTopic }) {
+export default memo(function ProposalBadge({ status, isSessionTopic }) {
   const { t } = useTranslation('discuss')
   const colors = useThemeColors()
   const styles = useMemo(() => createStyles(colors), [colors])
@@ -53,7 +53,10 @@ export default function ProposalBadge({ status, isSessionTopic }) {
       </ThemedText>
     </View>
   )
-}
+}, (prev, next) =>
+  prev.status === next.status &&
+  prev.isSessionTopic === next.isSessionTopic
+)
 
 const createStyles = (colors) => StyleSheet.create({
   badge: {

@@ -60,4 +60,32 @@ describe('createGlossaryTextRule', () => {
     const nonNull = children.filter(Boolean)
     expect(nonNull.length).toBeGreaterThan(1)
   })
+
+  it('text rule preserves inheritedStyles from parent nodes (e.g. headings)', () => {
+    const rules = createGlossaryTextRule(matchPattern, termMap, onTermPress, highlightStyle)
+    const inherited = { fontSize: 24, fontWeight: '700' }
+    const textStyle = { color: '#333' }
+    const result = rules.text(
+      { key: '1', content: 'No terms here' },
+      null, null, { text: textStyle }, inherited
+    )
+    expect(result).toBeTruthy()
+    // style should be [inheritedStyles, styles.text]
+    const style = result.props.style
+    expect(Array.isArray(style)).toBe(true)
+    expect(style[0]).toEqual(inherited)
+    expect(style[1]).toEqual(textStyle)
+  })
+
+  it('text rule preserves inheritedStyles when glossary matches exist', () => {
+    const rules = createGlossaryTextRule(matchPattern, termMap, onTermPress, highlightStyle)
+    const inherited = { fontSize: 24, fontWeight: '700' }
+    const result = rules.text(
+      { key: '1', content: 'The Filibuster is a tactic' },
+      null, null, { text: {} }, inherited
+    )
+    const style = result.props.style
+    expect(Array.isArray(style)).toBe(true)
+    expect(style[0]).toEqual(inherited)
+  })
 })

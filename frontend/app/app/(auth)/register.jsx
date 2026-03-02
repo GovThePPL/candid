@@ -42,6 +42,7 @@ const Register = () => {
   const [resendCountdown, setResendCountdown] = useState(0)
   const countdownRef = useRef(null)
 
+  const emailEnabled = process.env.EXPO_PUBLIC_EMAIL_REQUIRED !== 'false'
   const { register } = useUser()
   const { keyboardHeight, webInitialHeight } = useKeyboardHeight()
 
@@ -113,7 +114,7 @@ const Register = () => {
       setError(t('usernameMinLength'))
       return false
     }
-    if (!trimmedEmail || !/^[^@]+@[^@]+\.[^@]+$/.test(trimmedEmail)) {
+    if (emailEnabled && (!trimmedEmail || !/^[^@]+@[^@]+\.[^@]+$/.test(trimmedEmail))) {
       setError(t('emailRequired'))
       return false
     }
@@ -176,7 +177,7 @@ const Register = () => {
       // Register with phone fields
       await register({
         username: username.trim(),
-        email: email.trim(),
+        ...(emailEnabled && { email: email.trim() }),
         password,
         phoneNumber: phoneNumber.trim(),
         phoneVerifyToken: verifyToken,
@@ -195,7 +196,11 @@ const Register = () => {
 
     setLoading(true)
     try {
-      await register({ username: username.trim(), email: email.trim(), password })
+      await register({
+        username: username.trim(),
+        ...(emailEnabled && { email: email.trim() }),
+        password,
+      })
     } catch (err) {
       setError(translateError(err.message, t) || t('registrationFailed'))
     } finally {
@@ -269,19 +274,23 @@ const Register = () => {
                   autoCorrect={false}
                   autoComplete="username-new"
                   returnKeyType="next"
+                  accessibilityLabel={t('usernamePlaceholder')}
                 />
 
-                <ThemedTextInput
-                  style={styles.input}
-                  placeholder={t('emailPlaceholder')}
-                  value={email}
-                  onChangeText={setEmail}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  autoComplete="email"
-                  keyboardType="email-address"
-                  returnKeyType="next"
-                />
+                {emailEnabled && (
+                  <ThemedTextInput
+                    style={styles.input}
+                    placeholder={t('emailPlaceholder')}
+                    value={email}
+                    onChangeText={setEmail}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoComplete="email"
+                    keyboardType="email-address"
+                    returnKeyType="next"
+                    accessibilityLabel={t('emailPlaceholder')}
+                  />
+                )}
 
                 <ThemedTextInput
                   style={styles.input}
@@ -292,6 +301,7 @@ const Register = () => {
                   autoCapitalize="none"
                   autoComplete="password-new"
                   returnKeyType={SMS_ENABLED ? 'next' : 'done'}
+                  accessibilityLabel={t('passwordMinPlaceholder')}
                   onSubmitEditing={SMS_ENABLED ? undefined : handleRegister}
                 />
 
@@ -375,7 +385,7 @@ const Register = () => {
                     </ThemedText>
                   </ThemedButton>
 
-                  <ThemedButton variant="text" onPress={handleBackToForm} accessibilityRole="button">
+                  <ThemedButton variant="text" onPress={handleBackToForm} accessibilityRole="button" accessibilityLabel={t('backToForm')}>
                     <ThemedText variant="buttonSmall" color="primary">
                       {t('backToForm')}
                     </ThemedText>

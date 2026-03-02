@@ -127,7 +127,7 @@ export default function Stats() {
     setMeasuredWidth(e.nativeEvent.layout.width)
   }, [])
 
-  const isSearchActive = selectedSession === 'all' && activeTab === 'majority'
+  const isSearchActive = activeTab === 'majority'
     && searchQuery.trim().length > 0 && (searchResults.length > 0 || searchLoading || searchExecuted)
 
   // Scroll the search input into view on focus
@@ -149,7 +149,7 @@ export default function Stats() {
   const cardWidth = isDesktop ? undefined : (availableWidth - (numColumns - 1) * gap) / numColumns
 
   // Search API call
-  const executeSearch = useCallback(async (query, locationId, offset = 0) => {
+  const executeSearch = useCallback(async (query, locationId, offset = 0, sessionId, currentPhase) => {
     if (!query.trim() || query.trim().length < 2 || !locationId) return
 
     try {
@@ -157,6 +157,8 @@ export default function Stats() {
       const data = await api.positions.searchStats(query.trim(), locationId, {
         offset,
         limit: SEARCH_PAGE_SIZE,
+        sessionId: sessionId !== 'all' ? sessionId : undefined,
+        phase: currentPhase || undefined,
       })
       if (offset === 0) {
         setSearchResults(data.results || [])
@@ -179,7 +181,7 @@ export default function Stats() {
   useEffect(() => {
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
 
-    if (!searchQuery.trim() || searchQuery.trim().length < 2 || selectedSession !== 'all' || activeTab !== 'majority') {
+    if (!searchQuery.trim() || searchQuery.trim().length < 2 || activeTab !== 'majority') {
       setSearchResults([])
       setSearchHasMore(false)
       setSearchOffset(0)
@@ -188,29 +190,29 @@ export default function Stats() {
     }
 
     searchDebounceRef.current = setTimeout(() => {
-      executeSearch(searchQuery, selectedLocation, 0)
+      executeSearch(searchQuery, selectedLocation, 0, selectedSession, phase)
     }, SEARCH_DEBOUNCE_MS)
 
     return () => {
       if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
     }
-  }, [searchQuery, selectedLocation, selectedSession, activeTab, executeSearch])
+  }, [searchQuery, selectedLocation, selectedSession, activeTab, phase, executeSearch])
 
-  // Clear search when switching away from all-sessions majority tab
+  // Clear search results when switching away from majority tab
   useEffect(() => {
-    if (selectedSession !== 'all' || activeTab !== 'majority') {
+    if (activeTab !== 'majority') {
       setSearchQuery('')
       setSearchResults([])
       setSearchHasMore(false)
       setSearchOffset(0)
       setSearchExecuted(false)
     }
-  }, [selectedSession, activeTab])
+  }, [activeTab])
 
   const loadMoreResults = useCallback(() => {
     if (searchLoading || !searchHasMore) return
-    executeSearch(searchQuery, selectedLocation, searchOffset + SEARCH_PAGE_SIZE)
-  }, [searchLoading, searchHasMore, searchQuery, selectedLocation, searchOffset, executeSearch])
+    executeSearch(searchQuery, selectedLocation, searchOffset + SEARCH_PAGE_SIZE, selectedSession, phase)
+  }, [searchLoading, searchHasMore, searchQuery, selectedLocation, selectedSession, phase, searchOffset, executeSearch])
 
   // Infinite scroll handler
   const handleScroll = useCallback(({ nativeEvent }) => {
@@ -502,8 +504,8 @@ export default function Stats() {
 
         {/* Positions Section */}
         <View style={styles.section} onLayout={(e) => { positionsSectionY.current = e.nativeEvent.layout.y }}>
-          {/* Search bar — shown on All Sessions + majority tab, above heading */}
-          {selectedSession === 'all' && activeTab === 'majority' && (
+          {/* Search bar — shown on majority (All) tab */}
+          {activeTab === 'majority' && (
             <View style={styles.searchSection}>
               <View style={styles.searchContainer}>
                 <Ionicons name="search" size={18} color={colors.secondaryText} style={styles.searchIcon} />

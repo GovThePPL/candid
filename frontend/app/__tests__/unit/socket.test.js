@@ -283,7 +283,7 @@ describe('reconnectNow', () => {
     mockConnect.mockClear()
 
     // reconnectNow should reuse existing socket, not create a new one
-    socketModule.reconnectNow()
+    await socketModule.reconnectNow()
     expect(mockConnect).toHaveBeenCalledTimes(1)
     expect(io.mock.calls.length).toBe(initialCallCount) // No new io() call
   })
@@ -301,12 +301,12 @@ describe('reconnectNow', () => {
     mockSocket.connected = true
     mockConnect.mockClear()
 
-    socketModule.reconnectNow()
+    await socketModule.reconnectNow()
     expect(mockConnect).not.toHaveBeenCalled()
   })
 
-  it('does nothing when no socket exists', () => {
-    socketModule.reconnectNow()
+  it('does nothing when no socket exists', async () => {
+    await socketModule.reconnectNow()
     expect(mockConnect).not.toHaveBeenCalled()
   })
 })
@@ -494,6 +494,162 @@ describe('partner disconnect/reconnect listeners', () => {
     const cleanup = socketModule.onPartnerReconnected(jest.fn())
     expect(typeof cleanup).toBe('function')
     cleanup()
+  })
+})
+
+describe('MAX_RECONNECT_ATTEMPTS', () => {
+  it('fires onReconnectExhausted callback after MAX_RECONNECT_ATTEMPTS (15) failures', async () => {
+    // We need real timers but with fast reconnects. The _scheduleReconnect
+    // timeout fires, then calls getOrRefreshToken (async), then socket.connect().
+    // connect_error handler calls _scheduleReconnect again.
+    // To make this fast, we use fake timers and flush microtasks manually.
+    const { getOrRefreshToken } = require('../../lib/api')
+    getOrRefreshToken.mockResolvedValue('token')
+
+    const handlers = {}
+    mockOn.mockImplementation((event, handler) => {
+      handlers[event] = handler
+    })
+    // Initial connect succeeds
+    mockConnect.mockImplementationOnce(() => {
+      if (handlers.authenticated) handlers.authenticated({ userId: 'u1', activeChats: [] })
+    })
+
+    await socketModule.connectSocket()
+
+    const exhaustedCb = jest.fn()
+    socketModule.setOnReconnectExhausted(exhaustedCb)
+
+    // Subsequent connects trigger connect_error (simulating server down)
+    mockConnect.mockImplementation(() => {
+      if (handlers.connect_error) {
+        handlers.connect_error(new Error('server down'))
+      }
+    })
+
+    mockSocket.connected = false
+
+    // Trigger initial disconnect -> starts reconnect chain
+    handlers.disconnect('transport close')
+
+    // Each reconnect cycle: advance timer (delay) -> flush promise (getOrRefreshToken)
+    // -> socket.connect() -> connect_error -> _scheduleReconnect again
+    // Need 16 cycles: attempts 1-15 fire connect, attempt 16 hits the > MAX check
+    for (let i = 0; i < 16; i++) {
+      jest.advanceTimersByTime(30000) // advance past any backoff delay
+      // Flush the async getOrRefreshToken promise chain
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    }
+
+    expect(exhaustedCb).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not call onReconnectExhausted when reconnect succeeds before limit', async () => {
+    const { getOrRefreshToken } = require('../../lib/api')
+    getOrRefreshToken.mockResolvedValue('token')
+
+    const handlers = {}
+    mockOn.mockImplementation((event, handler) => {
+      handlers[event] = handler
+    })
+    mockConnect.mockImplementationOnce(() => {
+      if (handlers.authenticated) handlers.authenticated({ userId: 'u1', activeChats: [] })
+    })
+
+    await socketModule.connectSocket()
+
+    const exhaustedCb = jest.fn()
+    socketModule.setOnReconnectExhausted(exhaustedCb)
+
+    // First few reconnect attempts fail, then one succeeds
+    let connectAttempts = 0
+    mockConnect.mockImplementation(() => {
+      connectAttempts++
+      if (connectAttempts < 3) {
+        if (handlers.connect_error) handlers.connect_error(new Error('server down'))
+      } else {
+        // Reconnect succeeds - authenticated event resets attempts
+        if (handlers.authenticated) handlers.authenticated({ userId: 'u1', activeChats: [] })
+      }
+    })
+
+    mockSocket.connected = false
+    handlers.disconnect('transport close')
+
+    // Advance through 3 reconnect cycles
+    for (let i = 0; i < 3; i++) {
+      jest.advanceTimersByTime(30000)
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    }
+
+    expect(exhaustedCb).not.toHaveBeenCalled()
+    expect(connectAttempts).toBe(3)
+  })
+})
+
+describe('_reconnecting guard', () => {
+  it('prevents overlapping reconnect attempts', async () => {
+    const { getOrRefreshToken } = require('../../lib/api')
+    // Make getOrRefreshToken slow so _reconnecting stays true
+    let resolveToken
+    getOrRefreshToken.mockReturnValue(new Promise(r => { resolveToken = r }))
+
+    const handlers = {}
+    mockOn.mockImplementation((event, handler) => {
+      handlers[event] = handler
+    })
+
+    // Use a separate mock for initial connect
+    const origGetOrRefreshToken = getOrRefreshToken
+    origGetOrRefreshToken.mockResolvedValueOnce('token')
+    mockConnect.mockImplementationOnce(() => {
+      if (handlers.authenticated) handlers.authenticated({ userId: 'u1', activeChats: [] })
+    })
+
+    await socketModule.connectSocket()
+
+    // Now make getOrRefreshToken hang (simulating slow network)
+    let tokenResolve
+    getOrRefreshToken.mockReturnValue(new Promise(r => { tokenResolve = r }))
+
+    mockSocket.connected = false
+    mockConnect.mockClear()
+
+    // Trigger first disconnect -> schedules reconnect
+    handlers.disconnect('transport close')
+
+    // Advance past the first delay so the setTimeout fires
+    jest.advanceTimersByTime(1000)
+    // The async callback is now running, _reconnecting = true,
+    // but awaiting getOrRefreshToken which hasn't resolved yet
+
+    // Flush microtasks so the setTimeout callback starts executing
+    await Promise.resolve()
+
+    // Now trigger another disconnect while first reconnect is in-flight
+    // This calls _scheduleReconnect again, which sets a new setTimeout
+    handlers.disconnect('transport close')
+    jest.advanceTimersByTime(2000) // advance past second delay
+    await Promise.resolve()
+
+    // The second attempt's setTimeout fired, but _reconnecting is true
+    // so it should return early without calling socket.connect()
+    expect(mockConnect).not.toHaveBeenCalled()
+
+    // Now resolve the token - first reconnect proceeds
+    tokenResolve('fresh-token')
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    // Now the first reconnect should have called connect
+    expect(mockConnect).toHaveBeenCalledTimes(1)
   })
 })
 

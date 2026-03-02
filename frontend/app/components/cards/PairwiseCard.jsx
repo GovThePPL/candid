@@ -126,7 +126,15 @@ const PairwiseCard = forwardRef(function PairwiseCard({
 
         {/* Question */}
         <View style={styles.questionContainer}>
-          <ThemedText variant="statement" color="dark" style={styles.question}>{question}</ThemedText>
+          <ThemedText
+            variant="statement"
+            color="dark"
+            style={styles.question}
+            adjustsFontSizeToFit
+            minimumFontScale={0.75}
+          >
+            {question}
+          </ThemedText>
         </View>
 
         {/* Archived label */}
@@ -159,6 +167,9 @@ const PairwiseCard = forwardRef(function PairwiseCard({
                     styles.optionText,
                     selectedOption === option.id && styles.optionTextSelected,
                   ]}
+                  numberOfLines={3}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
                 >
                   {option.option}
                 </ThemedText>

@@ -42,7 +42,7 @@ export default function CommentStageTabBar({ tabs, selectedTab, activeTab, onTab
               {tab.label}
             </ThemedText>
             {isActive && (
-              <View style={styles.activeDot} />
+              <View style={[styles.activeDot, isSelected && styles.activeDotSelected]} />
             )}
           </TouchableOpacity>
         )
@@ -84,5 +84,8 @@ const createStyles = (colors) => StyleSheet.create({
     height: 6,
     borderRadius: 3,
     backgroundColor: colors.primary,
+  },
+  activeDotSelected: {
+    backgroundColor: colors.buttonSelectedText,
   },
 })

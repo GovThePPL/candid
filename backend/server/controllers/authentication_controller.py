@@ -342,7 +342,10 @@ def register_user():
     errors = []
     if not username or len(username) < 3:
         errors.append("Username must be at least 3 characters")
-    if not email or not re.match(r"[^@]+@[^@]+\.[^@]+", email):
+    if config.EMAIL_REQUIRED:
+        if not email or not re.match(r"[^@]+@[^@]+\.[^@]+", email):
+            errors.append("A valid email is required")
+    elif email and not re.match(r"[^@]+@[^@]+\.[^@]+", email):
         errors.append("A valid email is required")
     if len(password) < 8:
         errors.append("Password must be at least 8 characters")
@@ -350,10 +353,11 @@ def register_user():
     if errors:
         return {"detail": "; ".join(errors)}, 400
 
-    # Email validation (disposable + normalized uniqueness)
-    ok, email_err = validate_email_for_registration(email)
-    if not ok:
-        return {"detail": email_err}, 400
+    # Email validation (disposable + normalized uniqueness) — only when email is provided
+    if email:
+        ok, email_err = validate_email_for_registration(email)
+        if not ok:
+            return {"detail": email_err}, 400
 
     # Phone verification (when enabled)
     normalized_phone = None
@@ -384,7 +388,7 @@ def register_user():
         return {"detail": "Registration failed"}, 500
 
     # Pre-create Candid DB user with phone + normalized email
-    normalized = normalize_email(email)
+    normalized = normalize_email(email) if email else None
     try:
         db.execute_query("""
             INSERT INTO users (username, email, keycloak_id, display_name, phone_number, phone_verified, normalized_email)
@@ -393,7 +397,7 @@ def register_user():
                 phone_number = EXCLUDED.phone_number,
                 phone_verified = EXCLUDED.phone_verified,
                 normalized_email = EXCLUDED.normalized_email
-        """, (username, email, kc_user_id, username, normalized_phone,
+        """, (username, email or None, kc_user_id, username, normalized_phone,
               normalized_phone is not None, normalized))
     except Exception as e:
         logger.error(f"Failed to pre-create Candid user: {e}")
