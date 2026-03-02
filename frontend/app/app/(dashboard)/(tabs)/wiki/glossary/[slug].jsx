@@ -149,7 +149,7 @@ export default function GlossaryTermScreen() {
         <ScrollView
           ref={scrollViewRef}
           style={styles.scrollView}
-          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}
+          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 80 }]}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -158,20 +158,6 @@ export default function GlossaryTermScreen() {
             />
           }
         >
-          <View style={styles.actionBar}>
-            <TouchableOpacity
-              onPress={() => router.push(`/wiki/history?slug=${encodeURIComponent(slug)}&type=term`)}
-              style={styles.actionButton}
-              accessibilityRole="button"
-              accessibilityLabel={t('historyButtonA11y')}
-            >
-              <Ionicons name="time-outline" size={14} color={colors.primary} />
-              <ThemedText variant="caption" color="primary">
-                {t('historyButton')}
-              </ThemedText>
-            </TouchableOpacity>
-          </View>
-
           {/* Title card */}
           <View style={styles.titleCard}>
             <View style={styles.metaRow}>
@@ -214,6 +200,20 @@ export default function GlossaryTermScreen() {
               onLinkPress={handleWikiLinkPress}
             />
           ) : null}
+
+          <View style={styles.bottomActions}>
+            <TouchableOpacity
+              onPress={() => router.push(`/wiki/history?slug=${encodeURIComponent(slug)}&type=term`)}
+              style={styles.actionButton}
+              accessibilityRole="button"
+              accessibilityLabel={t('historyButtonA11y')}
+            >
+              <Ionicons name="time-outline" size={14} color={colors.primary} />
+              <ThemedText variant="caption" color="primary">
+                {t('historyButton')}
+              </ThemedText>
+            </TouchableOpacity>
+          </View>
         </ScrollView>
         <TouchableOpacity
           style={styles.fab}
@@ -279,11 +279,10 @@ const createStyles = (colors) => StyleSheet.create({
   description: {
     fontStyle: 'italic',
   },
-  actionBar: {
+  bottomActions: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-    marginBottom: 4,
+    justifyContent: 'flex-start',
+    marginTop: Spacing.lg,
   },
   actionButton: {
     flexDirection: 'row',

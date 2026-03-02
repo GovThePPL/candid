@@ -33,7 +33,7 @@ function fnrefPlugin(md) {
 // react-native-markdown-display's groupTextTokens (corrupts the AST).
 // Footnotes are preprocessed into standard markdown instead.
 // html: false prevents XSS from user-authored HTML in markdown content.
-const mdParser = MarkdownIt({ typographer: true, html: false })
+const mdParser = MarkdownIt({ typographer: true, html: false, linkify: true })
   .use(taskListPlugin, { enabled: true })
   .use(supPlugin)
   .use(subPlugin)
@@ -229,11 +229,10 @@ export default memo(function MarkdownRenderer({ content, variant = 'post', gloss
 
   const handleLinkPress = useCallback((url) => {
     if (onLinkPressProp) return onLinkPressProp(url)
-    if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+    if (url) {
       Linking.openURL(url)
-      return false
     }
-    return true
+    return false
   }, [onLinkPressProp])
 
   const processed = useMemo(() => content ? preprocessFootnotes(content) : null, [content])
