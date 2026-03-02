@@ -148,6 +148,13 @@ export default function Stats() {
   const numColumns = isDesktop ? 2 : Math.max(1, Math.floor((availableWidth + gap) / (CARD_MIN_WIDTH + gap)))
   const cardWidth = isDesktop ? undefined : (availableWidth - (numColumns - 1) * gap) / numColumns
 
+  // Derive phase from effective stage (respects archived stage viewing)
+  const phase = useMemo(() => {
+    if (!selectedSession || selectedSession === 'all') return null
+    if (!effectiveStage) return null
+    return STAGE_TO_PHASE[effectiveStage] || null
+  }, [selectedSession, effectiveStage])
+
   // Search API call
   const executeSearch = useCallback(async (query, locationId, offset = 0, sessionId, currentPhase) => {
     if (!query.trim() || query.trim().length < 2 || !locationId) return
@@ -223,13 +230,6 @@ export default function Stats() {
       loadMoreResults()
     }
   }, [isSearchActive, searchHasMore, searchLoading, loadMoreResults])
-
-  // Derive phase from effective stage (respects archived stage viewing)
-  const phase = useMemo(() => {
-    if (!selectedSession || selectedSession === 'all') return null
-    if (!effectiveStage) return null
-    return STAGE_TO_PHASE[effectiveStage] || null
-  }, [selectedSession, effectiveStage])
 
   // Fetch stats when location/session/phase changes
   useEffect(() => {
