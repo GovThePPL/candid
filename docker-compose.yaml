@@ -272,8 +272,6 @@ services:
         build:
             context: .
             dockerfile: frontend/Dockerfile.web
-        profiles:
-            - prod
 
 volumes:
     postgres_data:
