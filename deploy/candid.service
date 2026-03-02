@@ -1,0 +1,16 @@
+[Unit]
+Description=Candid Demo (Docker Compose)
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/candid
+EnvironmentFile=/opt/candid/deploy/.env
+ExecStart=/usr/bin/docker compose -f docker-compose.yaml -f deploy/docker-compose.prod.yaml --env-file deploy/.env up -d --build
+ExecStop=/usr/bin/docker compose -f docker-compose.yaml -f deploy/docker-compose.prod.yaml --env-file deploy/.env down
+TimeoutStartSec=900
+
+[Install]
+WantedBy=multi-user.target

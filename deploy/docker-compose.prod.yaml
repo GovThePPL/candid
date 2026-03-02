@@ -1,0 +1,106 @@
+# Production overrides for demo deployment
+# Usage: docker compose -f docker-compose.yaml -f deploy/docker-compose.prod.yaml --env-file deploy/.env up -d
+
+services:
+    frontend-web:
+        build:
+            context: .
+            dockerfile: frontend/Dockerfile.web
+            args:
+                EXPO_PUBLIC_API_URL: https://${DOMAIN}/api/v1
+                EXPO_PUBLIC_CHAT_URL: https://${DOMAIN}
+                EXPO_PUBLIC_KEYCLOAK_URL: https://${DOMAIN}
+                EXPO_PUBLIC_SMS_ENABLED: ${SMS_VERIFICATION_ENABLED:-false}
+                EXPO_PUBLIC_EMAIL_REQUIRED: ${EMAIL_REQUIRED:-true}
+                EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB: ${GOOGLE_CLIENT_ID_WEB:-}
+                EXPO_PUBLIC_APPLE_SERVICE_ID: ${APPLE_SERVICE_ID:-}
+        ports:
+            - "3001:80"
+        restart: unless-stopped
+
+    api:
+        environment:
+            DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgbouncer:6432/candid
+            FLASK_ENV: production
+            SECRET_KEY: ${SECRET_KEY}
+            KEYCLOAK_BACKEND_CLIENT_SECRET: ${KEYCLOAK_BACKEND_CLIENT_SECRET}
+            KEYCLOAK_URL: http://keycloak:8180
+            KEYCLOAK_ISSUER_URL: https://${DOMAIN}
+            POLIS_ADMIN_CLIENT_SECRET: ${POLIS_ADMIN_CLIENT_SECRET}
+            POLIS_ADMIN_PASSWORD: ${POLIS_ADMIN_PASSWORD}
+            REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+            CORS_ORIGINS: https://${DOMAIN}
+            GOOGLE_CLIENT_ID_IOS: ${GOOGLE_CLIENT_ID_IOS:-}
+            GOOGLE_CLIENT_ID_ANDROID: ${GOOGLE_CLIENT_ID_ANDROID:-}
+            GOOGLE_CLIENT_ID_WEB: ${GOOGLE_CLIENT_ID_WEB:-}
+            APPLE_SERVICE_ID: ${APPLE_SERVICE_ID:-}
+            SMS_VERIFICATION_ENABLED: ${SMS_VERIFICATION_ENABLED:-false}
+            TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+            TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+            TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:-}
+        restart: unless-stopped
+        # Remove dev volume mounts
+        volumes: []
+
+    db:
+        environment:
+            POSTGRES_USER: ${POSTGRES_USER}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+        # Don't expose DB port externally in production
+        ports: []
+        restart: unless-stopped
+
+    chat:
+        environment:
+            DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgbouncer:6432/candid
+            REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+            KEYCLOAK_URL: http://keycloak:8180
+            CORS_ORIGINS: https://${DOMAIN}
+        restart: unless-stopped
+        volumes: []
+
+    keycloak:
+        environment:
+            KC_DB_USERNAME: ${POSTGRES_USER}
+            KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+            KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+            KC_HOSTNAME: https://${DOMAIN}
+            KC_PROXY_HEADERS: xforwarded
+        # Don't expose Keycloak port externally
+        ports: []
+        restart: unless-stopped
+        # Keycloak takes ~90s on first start (DB schema init)
+        healthcheck:
+            test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8180 && echo -e 'GET /realms/candid HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '\"realm\"'"]
+            interval: 10s
+            timeout: 5s
+            start_period: 120s
+            retries: 10
+
+    redis:
+        command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+        # Don't expose Redis port externally
+        ports: []
+        restart: unless-stopped
+
+    pgbouncer:
+        # Don't expose PgBouncer port externally
+        ports: []
+        restart: unless-stopped
+
+    nlp:
+        restart: unless-stopped
+
+    polis-server:
+        environment:
+            AUTH_ISSUER: https://${DOMAIN}/realms/candid
+        restart: unless-stopped
+
+    polis-db:
+        restart: unless-stopped
+
+    polis-math:
+        restart: unless-stopped
+
+    file-server:
+        restart: unless-stopped
